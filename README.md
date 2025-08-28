@@ -1,4 +1,5 @@
 # Antihunter: Wireless Pursuit System
+<img width="433" height="59" alt="image" src="https://github.com/user-attachments/assets/3008acbb-f969-4b7d-be2d-589c9ea52b62" />
 
 ## What is Antihunter?
 
@@ -59,12 +60,6 @@ Antihunter supports multiple boards and two project variants (core `Antihunter` 
 *   **Select Your Target:**
     *   In the **VS Code Status Bar** (the blue bar at the bottom), locate the PlatformIO environment selector. It typically shows something like `Default (esp32s3)`.
     *   Click on it. A list of available environments will appear, clearly prefixed:
-        *   `ant_esp32s3`: For the core Antihunter on Seeed XIAO ESP32S3.
-        *   `ant_esp32c3`: For the core Antihunter on Seeed XIAO ESP32C3.
-        *   `ant_esp32wroom32u`: For the core Antihunter on ESP32-WROOM-32U.
-        *   `mesh_esp32s3`: For the Mesh-enabled Antihunter on Seeed XIAO ESP32S3.
-        *   `mesh_esp32c3`: For the Mesh-enabled Antihunter on Seeed XIAO ESP32C3.
-        *   `mesh_esp32wroom32u`: For the Mesh-enabled Antihunter on ESP32-WROOM-32U.
     *   Select the environment corresponding to your board and the project variant you wish to upload.
 
 *   **Upload:** Click the "Upload" button (the right arrow icon) in the PlatformIO status bar. PlatformIO will compile the selected project and flash it to your connected ESP32 board.
@@ -83,6 +78,8 @@ Once flashed, Antihunter hosts a web interface for all operations.
 
 3.  **Core Functionality:**
 
+    
+
     *   **Targets (List Scan Watchlist):**
         *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
         *   Click `Save` to update your watchlist.
@@ -95,6 +92,8 @@ Once flashed, Antihunter hosts a web interface for all operations.
         *   Click `Start List Scan`. (Note: The AP will go offline during the scan and return when stopped).
         *   Click `Stop` to end any active scan.
 
+        <img width="1064" height="521" alt="Screenshot 2025-08-28 at 5 37 21 PM" src="https://github.com/user-attachments/assets/284dc031-ce8e-47f9-aaab-e98fe19acae1" />
+
     *   **Tracker (Single MAC "Geiger"):**
         *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
         *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
@@ -103,18 +102,22 @@ Once flashed, Antihunter hosts a web interface for all operations.
         *   Click `Start Tracker`. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
         *   Click `Stop` to end tracking.
 
+           <img width="1062" height="495" alt="image" src="https://github.com/user-attachments/assets/73757dbb-ed8e-48d1-947f-4feb873b506c" />
+
     *   **Buzzer:**
         *   **Beeps per hit (List Scan):** Configure how many times the buzzer beeps when a target is detected in List Scan mode (default: 2).
         *   **Gap between beeps (ms):** Adjust the pause between beeps (default: 80 ms).
         *   `Save Config` applies changes. `Test Beep` triggers a single test pattern.
-
+    
     *   **Mesh Network:**
         *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
         *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
         *   Mesh alerts are sent approximately every 10 seconds if a target is detected.
         *   *(Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=7`, `TX=6` at 115200 baud).
         *   **Meshtastic Configuration:** Enable serial, Set RX/TX (19/20 for Heltec v3), text message mode, 115200 baud.*
-        
+
+        <img width="1065" height="666" alt="image" src="https://github.com/user-attachments/assets/6e7b6fda-7775-47be-8469-53de7712facc" />
+    
     *   **Diagnostics:**
         *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, and more.
 
