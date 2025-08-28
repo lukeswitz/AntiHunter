@@ -1136,18 +1136,50 @@ void listScanTask(void *pv)
   if ((int)hitsLog.size() > show)
     lastResults += "... (" + String((int)hitsLog.size() - show) + " more)\n";
 
-  // Bring AP back
+  // Bring AP back with thorough reset
+  radioStopSTA();
+  scanning = false;
+  lastScanEnd = millis();
+
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  for (int i = 0; i < 10; i++)
+  {
+    delay(100);
+    yield();
+  }
+
+  // Start AP
   WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
   delay(100);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  delay(100);
+
+  // Try AP start multiple times if needed
+  bool apStarted = false;
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
+  {
+    Serial.printf("AP start attempt %d...\n", attempt + 1);
+    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+    if (!apStarted)
+    {
+      delay(500); // Wait before retry
+      WiFi.mode(WIFI_OFF);
+      delay(500);
+      WiFi.mode(WIFI_AP);
+      delay(200);
+    }
+  }
+
+  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
+  delay(200);
   WiFi.setHostname("Antihunter");
   startServer();
 
   workerTaskHandle = nullptr;
   vTaskDelete(nullptr);
 }
-
 
 // ---------- Tracker task (single MAC Geiger) ----------
 void trackerTask(void *pv)
@@ -1251,11 +1283,40 @@ void trackerTask(void *pv)
   lastResults += "Packets from target: " + String((unsigned)trackerPackets) + "\n";
   lastResults += "Last RSSI: " + String((int)trackerRssi) + "dBm\n";
 
-  // Bring AP back
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  // Force more delay
+  for (int i = 0; i < 10; i++)
+  {
+    delay(100);
+    yield();
+  }
+
+  // Start AP back up
   WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
   delay(100);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  delay(100);
+
+  // Try AP start multiple times if needed
+  bool apStarted = false;
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
+  {
+    Serial.printf("AP start attempt %d...\n", attempt + 1);
+    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+    if (!apStarted)
+    {
+      delay(500);
+      WiFi.mode(WIFI_OFF);
+      delay(500);
+      WiFi.mode(WIFI_AP);
+      delay(200);
+    }
+  }
+
+  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
+  delay(200);
   WiFi.setHostname("Antihunter");
   startServer();
 

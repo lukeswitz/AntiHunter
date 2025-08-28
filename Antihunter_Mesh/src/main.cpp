@@ -1158,7 +1158,7 @@ void listScanTask(void *pv)
     }
   }
 
-  radioStopSTA();
+  radioStopSTA(); // This handles esp_wifi_stop()
   scanning = false;
   lastScanEnd = millis();
 
@@ -1184,69 +1184,46 @@ void listScanTask(void *pv)
   if ((int)hitsLog.size() > show)
     lastResults += "... (" + String((int)hitsLog.size() - show) + " more)\n";
 
-  // Bring AP back
+   // Bring AP back with thorough reset
+  radioStopSTA();
+  scanning = false;
+  lastScanEnd = millis();
+
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  for (int i = 0; i < 10; i++) {
+    delay(100);
+    yield();
+  }
+  
+  // Start AP 
   WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
   delay(100);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  delay(100);
+  
+  // Try AP start multiple times if needed
+  bool apStarted = false;
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++) {
+    Serial.printf("AP start attempt %d...\n", attempt + 1);
+    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+    if (!apStarted) {
+      delay(500);  // Wait before retry
+      WiFi.mode(WIFI_OFF);
+      delay(500);
+      WiFi.mode(WIFI_AP);
+      delay(200);
+    }
+  }
+  
+  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
+  delay(200);
   WiFi.setHostname("Antihunter");
   startServer();
 
   workerTaskHandle = nullptr;
   vTaskDelete(nullptr);
-}
-
-// ---------- Mesh Notificaions ----------
-
-// Mesh notification (adapted from DragonNet's print_compact_message)
-void sendMeshNotification(const Hit& hit) {
-  if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
-  lastMeshSend = millis();
-  
-  char mac_str[18];
-  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-           hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-  
-  char mesh_msg[MAX_MESH_SIZE];
-  int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
-                        "Target: %s %s RSSI:%d",
-                        hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
-  
-  if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi") {
-    msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
-                       " Name:%s", hit.name.c_str());
-  }
-  
-  if (Serial1.availableForWrite() >= msg_len) {
-    Serial.printf("[MESH] %s\n", mesh_msg);
-    Serial1.println(mesh_msg);
-  }
-}
-
-// Send tracker status over mesh
-void sendTrackerMeshUpdate() {
-  static unsigned long lastTrackerMesh = 0;
-  const unsigned long trackerInterval = 15000; // 15 seconds
-  
-  if (millis() - lastTrackerMesh < trackerInterval) return;
-  lastTrackerMesh = millis();
-  
-  char mac_str[18];
-  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-           trackerMac[0], trackerMac[1], trackerMac[2], 
-           trackerMac[3], trackerMac[4], trackerMac[5]);
-  
-  char tracker_msg[MAX_MESH_SIZE];
-  uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
-  
-  int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
-                        "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
-                        mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
-  
-  if (Serial1.availableForWrite() >= msg_len) {
-    Serial.printf("[MESH] %s\n", tracker_msg);
-    Serial1.println(tracker_msg);
-  }
 }
 
 // ---------- Tracker task (single MAC Geiger) ----------
@@ -1345,7 +1322,7 @@ void trackerTask(void *pv)
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 
-  radioStopSTA();
+  radioStopSTA(); // This handles esp_wifi_stop()
   scanning = false;
   trackerMode = false;
   lastScanEnd = millis();
@@ -1357,16 +1334,95 @@ void trackerTask(void *pv)
   lastResults += "Packets from target: " + String((unsigned)trackerPackets) + "\n";
   lastResults += "Last RSSI: " + String((int)trackerRssi) + "dBm\n";
 
-  // Bring AP back
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  
+  // Force more delay
+  for (int i = 0; i < 10; i++) {
+    delay(100);
+    yield();
+  }
+  
+  // Start AP
   WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
   delay(100);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  delay(100);
+  
+  // Try AP start multiple times if needed
+  bool apStarted = false;
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++) {
+    Serial.printf("AP start attempt %d...\n", attempt + 1);
+    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+    if (!apStarted) {
+      delay(500);
+      WiFi.mode(WIFI_OFF);
+      delay(500);
+      WiFi.mode(WIFI_AP);
+      delay(200);
+    }
+  }
+  
+  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
+  delay(200);
   WiFi.setHostname("Antihunter");
   startServer();
 
   workerTaskHandle = nullptr;
   vTaskDelete(nullptr);
+}
+
+// ---------- Mesh Notificaions ----------
+
+// Mesh notification (adapted from DragonNet's print_compact_message)
+void sendMeshNotification(const Hit& hit) {
+  if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
+  lastMeshSend = millis();
+  
+  char mac_str[18];
+  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+           hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
+  
+  char mesh_msg[MAX_MESH_SIZE];
+  int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
+                        "Target: %s %s RSSI:%d",
+                        hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
+  
+  if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi") {
+    msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
+                       " Name:%s", hit.name.c_str());
+  }
+  
+  if (Serial1.availableForWrite() >= msg_len) {
+    Serial.printf("[MESH] %s\n", mesh_msg);
+    Serial1.println(mesh_msg);
+  }
+}
+
+// Send tracker status over mesh
+void sendTrackerMeshUpdate() {
+  static unsigned long lastTrackerMesh = 0;
+  const unsigned long trackerInterval = 15000; // 15 seconds
+  
+  if (millis() - lastTrackerMesh < trackerInterval) return;
+  lastTrackerMesh = millis();
+  
+  char mac_str[18];
+  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+           trackerMac[0], trackerMac[1], trackerMac[2], 
+           trackerMac[3], trackerMac[4], trackerMac[5]);
+  
+  char tracker_msg[MAX_MESH_SIZE];
+  uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
+  
+  int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
+                        "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
+                        mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
+  
+  if (Serial1.availableForWrite() >= msg_len) {
+    Serial.printf("[MESH] %s\n", tracker_msg);
+    Serial1.println(tracker_msg);
+  }
 }
 
 void initializeMesh()
