@@ -5,7 +5,6 @@
 #include <set>
 #include <pgmspace.h>
 
-// Add BLE includes
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
@@ -17,7 +16,7 @@ extern "C"
 #include "esp_wifi_types.h"
 #include "esp_mac.h"
 #include "esp_timer.h"
-#include "esp_coexist.h" // For WiFi+BLE coexistence
+#include "esp_coexist.h"
 }
 
 #include <AsyncTCP.h>
@@ -49,13 +48,7 @@ extern "C"
 Preferences prefs;
 AsyncWebServer *server = nullptr;
 TaskHandle_t workerTaskHandle = nullptr;
-
-//  ----------------- Mesh globals ----------------
-static unsigned long lastMeshSend = 0;
-const unsigned long MESH_SEND_INTERVAL = 10000; // 10 seconds between mesh sends
-const int MAX_MESH_SIZE = 230;
-static volatile bool stopRequested = false;
-static bool meshEnabled = true;
+volatile bool stopRequested = false;
 
 // ---------- Config (beep count + gap) ----------
 static int cfgBeeps = 2;  // beeps per hit (list mode)
@@ -303,8 +296,6 @@ static int freqFromRSSI(int8_t rssi)
 static void startServer();
 void listScanTask(void *pv);
 void trackerTask(void *pv);
-void sendMeshNotification(const Hit &hit);
-void sendTrackerMeshUpdate();
 
 // Parse channel CSV
 static void parseChannelsCSV(const String &csv)
@@ -687,18 +678,6 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   </div>
 
   <div class="card">
-  <h3>Mesh Network</h3>
-  <div class="row">
-    <input type="checkbox" id="meshEnabled" checked>
-    <label for="meshEnabled">Enable Mesh Notifications</label>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
-  </div>
-  <p class="small">Sends target alerts over meshtastic (10s interval)</p>
-</div>
-
-  <div class="card">
     <h3>Diagnostics</h3>
     <pre id="diag">Loading…</pre>
   </div>
@@ -793,14 +772,6 @@ document.getElementById('s').addEventListener('submit', e=>{
   }).catch(err=>toast('Error: '+err.message));
 });
 
-document.getElementById('meshEnabled').addEventListener('change', e=>{
-  const enabled = e.target.checked;
-  fetch('/mesh', {method:'POST', body: new URLSearchParams({enabled: enabled})})
-    .then(r=>r.text())
-    .then(t=>toast(t))
-    .catch(err=>toast('Error: '+err.message));
-});
-
 document.getElementById('t').addEventListener('submit', e=>{
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -868,23 +839,6 @@ static void startServer()
              { r->send(200, "text/plain", prefs.getString("maclist", "")); });
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", lastResults.length() ? lastResults : String("None yet.")); });
-  server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-  if (req->hasParam("enabled", true)) {
-    meshEnabled = req->getParam("enabled", true)->value() == "true";
-    Serial.printf("[MESH] %s\n", meshEnabled ? "Enabled" : "Disabled");
-    req->send(200, "text/plain", meshEnabled ? "Mesh enabled" : "Mesh disabled");
-  } else {
-    req->send(400, "text/plain", "Missing enabled parameter");
-  } });
-  server->on("/mesh-test", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-  char test_msg[] = "Antihunter: Test mesh notification";
-  Serial.printf("[MESH] Test: %s\n", test_msg);
-  Serial1.println(test_msg);
-  Serial.println(test_msg);
-  r->send(200, "text/plain", "Test message sent to mesh"); });
-
   server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req)
              {
    if (!req->hasParam("list", true)) { req->send(400, "text/plain", "Missing 'list'"); return; }
@@ -978,7 +932,6 @@ static void startServer()
   s += "Current channel: " + String(WiFi.channel()) + "\n";
   s += "AP IP: " + WiFi.softAPIP().toString() + "\n";
   
-  // Add ESP32 temperature
   float temp_c = temperatureRead();
   float temp_f = (temp_c * 9.0/5.0) + 32.0;
   s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
@@ -1154,8 +1107,6 @@ void listScanTask(void *pv)
                     h.isBLE ? "BLE" : "WiFi",
                     macFmt6(h.mac).c_str(), (int)h.rssi, (unsigned)h.ch, h.name.c_str());
       beepPattern(cfgBeeps, cfgGapMs);
-
-      sendMeshNotification(h);
     }
   }
 
@@ -1197,58 +1148,6 @@ void listScanTask(void *pv)
   vTaskDelete(nullptr);
 }
 
-// ---------- Mesh Notificaions ----------
-
-// Mesh notification (adapted from DragonNet's print_compact_message)
-void sendMeshNotification(const Hit& hit) {
-  if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
-  lastMeshSend = millis();
-  
-  char mac_str[18];
-  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-           hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-  
-  char mesh_msg[MAX_MESH_SIZE];
-  int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
-                        "Target: %s %s RSSI:%d",
-                        hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
-  
-  if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi") {
-    msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
-                       " Name:%s", hit.name.c_str());
-  }
-  
-  if (Serial1.availableForWrite() >= msg_len) {
-    Serial.printf("[MESH] %s\n", mesh_msg);
-    Serial1.println(mesh_msg);
-  }
-}
-
-// Send tracker status over mesh
-void sendTrackerMeshUpdate() {
-  static unsigned long lastTrackerMesh = 0;
-  const unsigned long trackerInterval = 15000; // 15 seconds
-  
-  if (millis() - lastTrackerMesh < trackerInterval) return;
-  lastTrackerMesh = millis();
-  
-  char mac_str[18];
-  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-           trackerMac[0], trackerMac[1], trackerMac[2], 
-           trackerMac[3], trackerMac[4], trackerMac[5]);
-  
-  char tracker_msg[MAX_MESH_SIZE];
-  uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
-  
-  int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
-                        "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
-                        mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
-  
-  if (Serial1.availableForWrite() >= msg_len) {
-    Serial.printf("[MESH] %s\n", tracker_msg);
-    Serial1.println(tracker_msg);
-  }
-}
 
 // ---------- Tracker task (single MAC Geiger) ----------
 void trackerTask(void *pv)
@@ -1337,12 +1236,6 @@ void trackerTask(void *pv)
       nextBeep = now + period;
     }
 
-    // Mesh update
-    if (trackerMode)
-    {
-      sendTrackerMeshUpdate();
-    }
-
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 
@@ -1370,27 +1263,16 @@ void trackerTask(void *pv)
   vTaskDelete(nullptr);
 }
 
-void initializeMesh()
-{
-  Serial1.begin(115200, SERIAL_8N1, 7, 6); // Pins RX/TX 7/6
-  Serial.println("Mesh communication initialized on Serial1");
-}
-
 // ---------- Setup / Loop ----------
 void setup()
 {
-   delay(1000);
+  delay(1000);
   Serial.begin(115200);
   delay(300);
   Serial.println("\n=== Antihunter v4 Boot ===");
   Serial.println("WiFi+BLE dual-mode scanner");
   delay(1000);
 
-  Serial.println("Initializing mesh UART...");
-  initializeMesh();
-  Serial.println("Mesh UART ready");
-  delay(1000);
-  
   Serial.println("Loading preferences...");
   prefs.begin("ouispy", false);
   loadTargetsFromNVS();
@@ -1400,7 +1282,7 @@ void setup()
   cfgGapMs = prefs.getInt("gap", cfgGapMs);
   Serial.printf("Loaded %d targets, beeps=%d, gap=%dms\n", targets.size(), cfgBeeps, cfgGapMs);
   delay(1000);
-  
+
   Serial.println("Starting AP...");
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
@@ -1413,7 +1295,6 @@ void setup()
 
   Serial.println("=== Boot Complete ===");
   Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
-  Serial.println("Mesh: Serial1 @ 115200 baud on pins 7,6");
 }
 void loop()
 {
