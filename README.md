@@ -32,7 +32,16 @@ This feature extends Antihunter's reach, allowing remote teams or distant nodes 
 
 ## How to Get Started
 
-Getting Antihunter up and running is straightforward. Simply clone the repository, open it in VS Code with PlatformIO, and flash your desired configuration.
+Getting Antihunter up and running is straightforward. Use the quick flasher or build from source: Simply clone the repository, open it in VS Code with PlatformIO, and flash your desired configuration.
+
+
+### Quick Flasher Option
+- If you choose not to build from source, precompiled bins are available in the `Dist` folder
+- Plug in your esp32s3 device and then download & flash with the following command. Choose Mesh/Standard from given options:
+```bash
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
+```
+  
 
 ### 1. Prerequisites
 
@@ -42,14 +51,6 @@ Getting Antihunter up and running is straightforward. Simply clone the repositor
     - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16) • **8MB** flash memory boards required for reliably
     - Passive piezo buzzer connected to the designated pin
     - Meshtastic board (Heltec, etc.)
-
-### Quick Flasher Option
-- If you choose not to build from source, precompiled bins are available in the `Dist` folder
-- Plug in your device and then download & flash with the following command. Choose Mesh/Standard from given options:
-```bash
-curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
-```
-  
 
 ### 2. Clone the Repository
 
