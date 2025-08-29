@@ -2,9 +2,13 @@
 
 ## What is Antihunter?
 
-Antihunter is a state-of-the-art ESP32-powered platform engineered for advanced wireless signal detection and tracking. Born from the need for a precise "RSSI foxhunting" tool at throwaway prices, Antihunter is capable of sniffing out both WiFi and Bluetooth Low Energy (BLE) transmissions with unparalleled agility. It's your essential gear for locating elusive devices, mapping wireless landscapes, or uncovering hidden signals with pinpoint accuracy.
+A low-cost, open-source tool for wireless threat detection, tracking, and counter-surveillance.
 
 ## What Does Antihunter Do?
+
+- Detect rogue Wi-Fi & BLE devices
+- Hunt with directional antennas/ proximity
+- Deploy perimeters via Meshtastic
 
 Antihunter provides powerful, real-time wireless intelligence through an intuitive web-based interface. It operates in two primary modes:
 
@@ -128,13 +132,13 @@ Once flashed, Antihunter hosts a web interface for all operations.
     *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, and more.
 
 *   **Last Results:**
-   *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, frame count, and other pertinent data.
+    *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, frame count, and other pertinent data.
 
 Antihunter empowers you to assert control over your wireless environment, turning the invisible into actionable intelligence. Happy hunting.
 
 ## Credits
 
-Built by @SirhaXalot_ with contributions from @lukeswitz
+Built by @TheRealSirHaXalot with additions from @lukeswitz
 
 Thanks to
 
