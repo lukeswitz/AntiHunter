@@ -1,11 +1,14 @@
-# Antihunter: Wireless Pursuit System
 <img width="433" height="59" alt="image" src="https://github.com/user-attachments/assets/3008acbb-f969-4b7d-be2d-589c9ea52b62" />
 
 ## What is Antihunter?
 
-Antihunter is a state-of-the-art ESP32-powered platform engineered for advanced wireless signal detection and tracking. Born from the need for a precise "RSSI foxhunting" tool at throwaway prices, Antihunter is capable of sniffing out both WiFi and Bluetooth Low Energy (BLE) transmissions with unparalleled agility. It's your essential gear for locating elusive devices, mapping wireless landscapes, or uncovering hidden signals with pinpoint accuracy.
+A low-cost, open-source tool for wireless threat detection, tracking, and counter-surveillance.
 
 ## What Does Antihunter Do?
+
+- Detect rogue Wi-Fi & BLE devices
+- Hunt with directional antennas/ proximity
+- Deploy perimeters via Meshtastic
 
 Antihunter provides powerful, real-time wireless intelligence through an intuitive web-based interface. It operates in two primary modes:
 
@@ -29,7 +32,16 @@ This feature extends Antihunter's reach, allowing remote teams or distant nodes 
 
 ## How to Get Started
 
-Getting Antihunter up and running is straightforward. Simply clone the repository, open it in VS Code with PlatformIO, and flash your desired configuration.
+Getting Antihunter up and running is straightforward. Use the quick flasher or build from source: Simply clone the repository, open it in VS Code with PlatformIO, and flash your desired configuration.
+
+
+### Quick Flasher Option
+- If you choose not to build from source, precompiled bins are available in the `Dist` folder
+- Plug in your esp32s3 device and then download & flash with the following command. Choose Mesh/Standard from given options:
+```bash
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
+```
+  
 
 ### 1. Prerequisites
 
@@ -39,14 +51,6 @@ Getting Antihunter up and running is straightforward. Simply clone the repositor
     - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16) • **8MB** flash memory boards required for reliably
     - Passive piezo buzzer connected to the designated pin
     - Meshtastic board (Heltec, etc.)
-
-### Quick Flasher Option
-- If you choose not to build from source, precompiled bins are available in the `Dist` folder
-- Plug in your device and then download & flash with the following command. Choose Mesh/Standard from given options:
-```bash
-curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
-```
-  
 
 ### 2. Clone the Repository
 
@@ -106,8 +110,7 @@ Once flashed, Antihunter hosts a web interface for all operations.
      *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
      *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
      *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
-     *   **WiFi Channels CSV:** For best results, use a single channel (e.g., `6`) for smoother tracking.
-     *   Click `Start Tracker`. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
+     *   Click `Start Tracker`. AP will disappear for the duration of the scan. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
      *   Click `Stop` to end tracking.
 
        <img width="1062" height="495" alt="image" src="https://github.com/user-attachments/assets/73757dbb-ed8e-48d1-947f-4feb873b506c" />
@@ -130,13 +133,13 @@ Once flashed, Antihunter hosts a web interface for all operations.
     *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, and more.
 
 *   **Last Results:**
-   *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, and other pertinent data.
+    *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, frame count, and other pertinent data.
 
 Antihunter empowers you to assert control over your wireless environment, turning the invisible into actionable intelligence. Happy hunting.
 
 ## Credits
 
-Built by @SirhaXalot_ with contributions from @lukeswitz
+Built by @TheRealSirHaXalot with additions from @lukeswitz
 
 Thanks to
 
