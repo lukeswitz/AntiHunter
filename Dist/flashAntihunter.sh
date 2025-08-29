@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+# Banner
+cat <<'BANNER'
+░█▀█░█▀█░▀█▀░▀█▀░█░█░█░█░█▀█░▀█▀░█▀▀░█▀▄
+░█▀█░█░█░░█░░░█░░█▀█░█░█░█░█░░█░░█▀▀░█▀▄
+░▀░▀░▀░▀░░▀░░▀▀▀░▀░▀░▀▀▀░▀░▀░░▀░░▀▀▀░▀░▀
+BANNER
+echo
+
 # URLs to flash
 FIRMWARES=(
   "AntiHunter S3 Mesh v1:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_mesh_v1.bin"
