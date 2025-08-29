@@ -1,4 +1,7 @@
-<img width="433" height="59" alt="image" src="https://github.com/user-attachments/assets/3008acbb-f969-4b7d-be2d-589c9ea52b62" />
+
+# Antihunter
+
+![00C0E4AA-395F-4243-A6D5-737C3BED2442_1_105_c](https://github.com/user-attachments/assets/2f789984-bca3-4a45-8470-ba2d638e512f)
 
 ## What is Antihunter?
 
@@ -23,6 +26,7 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
     *   Locating lost or stolen wireless devices.
     *   Pinpointing the exact physical location of a transmitting device.
     *   Real-time "foxhunting" games and exercises.
+3. **Dedicated Blue/Red Tools Coming Soon**
 
 **Mesh Network Integration (Meshtastic-compatible):**
 
