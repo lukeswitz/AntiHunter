@@ -3,7 +3,7 @@
 
 ## What is Antihunter?
 
-Antihunter is a state-of-the-art ESP32-powered platform engineered for advanced wireless signal detection and tracking. Born from the need for a precise "RSSI foxhunting" tool at throwaway prices, Antihunter transforms your development board into a digital predator, capable of sniffing out both WiFi and Bluetooth Low Energy (BLE) transmissions with unparalleled agility. It's your essential gear for locating elusive devices, mapping wireless landscapes, or uncovering hidden signals with pinpoint accuracy.
+Antihunter is a state-of-the-art ESP32-powered platform engineered for advanced wireless signal detection and tracking. Born from the need for a precise "RSSI foxhunting" tool at throwaway prices, Antihunter is capable of sniffing out both WiFi and Bluetooth Low Energy (BLE) transmissions with unparalleled agility. It's your essential gear for locating elusive devices, mapping wireless landscapes, or uncovering hidden signals with pinpoint accuracy.
 
 ## What Does Antihunter Do?
 
@@ -22,7 +22,10 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
     *   Real-time "foxhunting" games and exercises.
 
 **Mesh Network Integration (Meshtastic-compatible):**
-Antihunter seamlessly integrates with Meshtastic-compatible mesh networks. When enabled, it can broadcast alerts for detected targets (from either List Scan or Tracker mode) directly over your meshtastic radio. This feature extends Antihunter's reach, allowing remote teams or distant nodes to receive immediate notifications about target activity, making it a critical asset for coordinated detection efforts over long ranges. Alerts are sent at a configurable interval (default: 10 seconds).
+
+Antihunter seamlessly integrates with Meshtastic-compatible mesh networks. When enabled, it can broadcast alerts for detected targets (from either List Scan or Tracker mode) directly over your meshtastic radio. 
+
+This feature extends Antihunter's reach, allowing remote teams or distant nodes to receive immediate notifications about target activity, making it a critical asset for coordinated detection efforts over long ranges. Alerts are sent at a configurable interval (default: 10 seconds).
 
 ## How to Get Started
 
@@ -33,7 +36,7 @@ Getting Antihunter up and running is straightforward. Simply clone the repositor
 *   **VS Code:** Visual Studio Code IDE.
 *   **PlatformIO Extension:** Install the PlatformIO IDE extension in VS Code.
 *   **Hardware:** 
-    - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16)
+    - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16) • **8MB** flash memory boards required for reliably
     - Passive piezo buzzer connected to the designated pin
     - Meshtastic board (Heltec, etc.)
 
@@ -85,57 +88,68 @@ Once flashed, Antihunter hosts a web interface for all operations.
 
 3.  **Core Functionality:**
 
-    *   **Targets (List Scan Watchlist):**
-        *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
-        *   Click `Save` to update your watchlist.
-        *   `Download` exports your current target list.
+*   **Targets (List Scan Watchlist):**
+      *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
+      *   Click `Save` to update your watchlist.
+      *   `Download` exports your current target list.
 
-    *   **List Scan:**
-        *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
-        *   **Duration:** Set the scan duration in seconds (0 for "Forever").
-        *   **WiFi Channels CSV:** Specify channels to hop through (e.g., `1,6,11` or `1..13`).
-        *   Click `Start List Scan`. (Note: The AP will go offline during the scan and return when stopped).
-        *   Click `Stop` to end any active scan.
+*   **List Scan:**
+      *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
+      *   **Duration:** Set the scan duration in seconds (0 for "Forever").
+      *   **WiFi Channels CSV:** Specify channels to hop through (e.g., `1,6,11` or `1..13`).
+      *   Click `Start List Scan`. (Note: The AP will go offline during the scan and return when stopped).
+      *   Click `Stop` to end any active scan.
 
-        <img width="1064" height="521" alt="Screenshot 2025-08-28 at 5 37 21 PM" src="https://github.com/user-attachments/assets/284dc031-ce8e-47f9-aaab-e98fe19acae1" />
+     <img width="1064" height="521" alt="Screenshot 2025-08-28 at 5 37 21 PM" src="https://github.com/user-attachments/assets/284dc031-ce8e-47f9-aaab-e98fe19acae1" />
 
-    *   **Tracker (Single MAC "Geiger"):**
-        *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
-        *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
-        *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
-        *   **WiFi Channels CSV:** For best results, use a single channel (e.g., `6`) for smoother tracking.
-        *   Click `Start Tracker`. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
-        *   Click `Stop` to end tracking.
+*   **Tracker (Single MAC "Geiger"):**
+     *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
+     *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
+     *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
+     *   **WiFi Channels CSV:** For best results, use a single channel (e.g., `6`) for smoother tracking.
+     *   Click `Start Tracker`. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
+     *   Click `Stop` to end tracking.
 
-           <img width="1062" height="495" alt="image" src="https://github.com/user-attachments/assets/73757dbb-ed8e-48d1-947f-4feb873b506c" />
+       <img width="1062" height="495" alt="image" src="https://github.com/user-attachments/assets/73757dbb-ed8e-48d1-947f-4feb873b506c" />
 
-    *   **Buzzer:**
-        *   **Beeps per hit (List Scan):** Configure how many times the buzzer beeps when a target is detected in List Scan mode (default: 2).
-        *   **Gap between beeps (ms):** Adjust the pause between beeps (default: 80 ms).
-        *   `Save Config` applies changes. `Test Beep` triggers a single test pattern.
+ *   **Buzzer:**
+     *   **Beeps per hit (List Scan):** Configure how many times the buzzer beeps when a target is detected in List Scan mode (default: 2).
+     *   **Gap between beeps (ms):** Adjust the pause between beeps (default: 80 ms).
+     *   `Save Config` applies changes. `Test Beep` triggers a single test pattern.
     
-    *   **Mesh Network:**
-        *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
-        *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
-        *   Mesh alerts are sent approximately every 10 seconds if a target is detected.
-        *   *(Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=7`, `TX=6` at 115200 baud).
-        *   **Meshtastic Configuration:** Enable serial, Set RX/TX (19/20 for Heltec v3), text message mode, 115200 baud.*
+*   **Mesh Network:**
+     *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
+     *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
+    *   Mesh alerts are sent approximately every 10 seconds if a target is detected.
+     *   *(Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=7`, `TX=6` at 115200 baud).
+    *   **Meshtastic Configuration:** Enable serial, Set RX/TX (19/20 for Heltec v3), text message mode, 115200 baud.*
 
-        <img width="1065" height="666" alt="image" src="https://github.com/user-attachments/assets/6e7b6fda-7775-47be-8469-53de7712facc" />
+     <img width="1065" height="666" alt="image" src="https://github.com/user-attachments/assets/6e7b6fda-7775-47be-8469-53de7712facc" />
     
-    *   **Diagnostics:**
-        *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, and more.
+*   **Diagnostics:**
+    *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, and more.
 
-    *   **Last Results:**
-        *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, and other pertinent data.
+*   **Last Results:**
+   *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, and other pertinent data.
 
 Antihunter empowers you to assert control over your wireless environment, turning the invisible into actionable intelligence. Happy hunting.
 
 ## Credits
 
-Built by @SirhaXalot_
+Built by @SirhaXalot_ with contributions from @lukeswitz
 
-Thanks to 
+Thanks to
 
 - @colonelpanichacks devices for pushing this development
-- @lukeswitz for various firmware contributions
+- All the hackers and builders making it all go round
+
+## Disclaimer
+
+> [!IMPORTANT]
+> DISCLAIMER AND LIMITATION OF LIABILITY
+
+THE SOFTWARE IN THIS REPOSITORY (“SOFTWARE”) IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, OR RELIABILITY. TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE DEVELOPERS, MAINTAINERS, OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OF OR OTHER DEALINGS IN THE SOFTWARE, INCLUDING WITHOUT LIMITATION ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR LOSS OF DATA, PROFITS, GOODWILL, OR BUSINESS INTERRUPTION, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+YOU ALONE ARE RESPONSIBLE FOR COMPLYING WITH ALL APPLICABLE LAWS, REGULATIONS, AND THIRD-PARTY RIGHTS. NO ADVICE OR INFORMATION, WHETHER ORAL OR WRITTEN, OBTAINED FROM THE PROJECT OR THROUGH THE SOFTWARE, CREATES ANY WARRANTY OR OBLIGATION NOT EXPRESSLY STATED HEREIN. IF APPLICABLE LAW DOES NOT ALLOW THE EXCLUSION OF CERTAIN WARRANTIES OR LIMITATION OF LIABILITY, THE DEVELOPERS’, MAINTAINERS’, AND CONTRIBUTORS’ AGGREGATE LIABILITY SHALL NOT EXCEED THE GREATER OF: (A) THE AMOUNT YOU PAID (IF ANY) FOR THE COPY OF THE SOFTWARE THAT GAVE RISE TO THE CLAIM, OR (B) USD $0.
+
+BY ACCESSING, DOWNLOADING, INSTALLING, COMPILING, EXECUTING, OR OTHERWISE USING THE SOFTWARE, YOU ACCEPT THIS DISCLAIMER AND THESE LIMITATIONS OF LIABILITY.
