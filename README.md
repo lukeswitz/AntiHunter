@@ -3,7 +3,7 @@
 
 ## What is Antihunter?
 
-Antihunter is a state-of-the-art ESP32-powered platform engineered for advanced wireless signal detection and tracking. Born from the need for a precise "RSSI foxhunting" tool at throwaway prices, Antihunter transforms your development board into a digital predator, capable of sniffing out both WiFi and Bluetooth Low Energy (BLE) transmissions with unparalleled agility. It's your essential gear for locating elusive devices, mapping wireless landscapes, or uncovering hidden signals with pinpoint accuracy.
+Antihunter is a state-of-the-art ESP32-powered platform engineered for advanced wireless signal detection and tracking. Born from the need for a precise "RSSI foxhunting" tool at throwaway prices, Antihunter is capable of sniffing out both WiFi and Bluetooth Low Energy (BLE) transmissions with unparalleled agility. It's your essential gear for locating elusive devices, mapping wireless landscapes, or uncovering hidden signals with pinpoint accuracy.
 
 ## What Does Antihunter Do?
 
@@ -36,7 +36,7 @@ Getting Antihunter up and running is straightforward. Simply clone the repositor
 *   **VS Code:** Visual Studio Code IDE.
 *   **PlatformIO Extension:** Install the PlatformIO IDE extension in VS Code.
 *   **Hardware:** 
-    - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16)
+    - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16) • **8MB** flash memory boards required for reliably
     - Passive piezo buzzer connected to the designated pin
     - Meshtastic board (Heltec, etc.)
 
