@@ -106,8 +106,7 @@ Once flashed, Antihunter hosts a web interface for all operations.
      *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
      *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
      *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
-     *   **WiFi Channels CSV:** For best results, use a single channel (e.g., `6`) for smoother tracking.
-     *   Click `Start Tracker`. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
+     *   Click `Start Tracker`. AP will disappear for the duration of the scan. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
      *   Click `Stop` to end tracking.
 
        <img width="1062" height="495" alt="image" src="https://github.com/user-attachments/assets/73757dbb-ed8e-48d1-947f-4feb873b506c" />
@@ -130,7 +129,7 @@ Once flashed, Antihunter hosts a web interface for all operations.
     *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, and more.
 
 *   **Last Results:**
-   *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, and other pertinent data.
+   *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, frame count, and other pertinent data.
 
 Antihunter empowers you to assert control over your wireless environment, turning the invisible into actionable intelligence. Happy hunting.
 
