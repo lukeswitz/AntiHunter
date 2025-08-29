@@ -1,4 +1,3 @@
-# Antihunter: Wireless Pursuit System
 <img width="433" height="59" alt="image" src="https://github.com/user-attachments/assets/3008acbb-f969-4b7d-be2d-589c9ea52b62" />
 
 ## What is Antihunter?
