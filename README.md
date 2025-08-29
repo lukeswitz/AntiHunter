@@ -37,6 +37,13 @@ Getting Antihunter up and running is straightforward. Simply clone the repositor
     - Passive piezo buzzer connected to the designated pin
     - Meshtastic board (Heltec, etc.)
 
+### Quick Flasher Option
+- If you choose not to build from source, precompiled bins are available in the `Dist` folder
+- Plug in your device and then download & flash with the following command. Choose Mesh/Standard from given options:
+```bash
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
+```
+  
 
 ### 2. Clone the Repository
 
