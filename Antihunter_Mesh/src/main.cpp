@@ -49,7 +49,29 @@ Preferences prefs;
 AsyncWebServer *server = nullptr;
 TaskHandle_t workerTaskHandle = nullptr;
 
-//  ----------------- Mesh globals ----------------
+// ----------------- Blue Tools -----------------
+struct DeauthHit
+{
+  uint8_t srcMac[6];
+  uint8_t destMac[6];
+  uint8_t bssid[6];
+  int8_t rssi;
+  uint8_t channel;
+  uint16_t reasonCode;
+  uint32_t timestamp;
+  bool isDisassoc; // false for deauth, true for disassoc
+};
+
+static std::vector<DeauthHit> deauthLog;
+static volatile uint32_t deauthCount = 0;
+static volatile uint32_t disassocCount = 0;
+static bool deauthDetectionEnabled = false;
+static QueueHandle_t deauthQueue;
+static TaskHandle_t blueTeamTaskHandle = nullptr;
+static int blueTeamDuration = 300; // Default 5 minutes
+static bool blueTeamForever = false;
+
+//  ----------------- Mesh  ----------------
 static unsigned long lastMeshSend = 0;
 const unsigned long MESH_SEND_INTERVAL = 10000; // 10 seconds between mesh sends
 const int MAX_MESH_SIZE = 230;
@@ -299,9 +321,10 @@ static int freqFromRSSI(int8_t rssi)
 }
 
 // fwd decls
-static void startServer();
+void startServer();
 void listScanTask(void *pv);
 void trackerTask(void *pv);
+void blueTeamTask(void *pv);
 void sendMeshNotification(const Hit &hit);
 void sendTrackerMeshUpdate();
 
@@ -376,6 +399,62 @@ static inline bool isTrackerTarget(const uint8_t *mac)
   return true;
 }
 
+// ---------- Deauth/Disassoc Detection ----------
+static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt)
+{
+  if (!deauthDetectionEnabled)
+    return;
+
+  const uint8_t *p = ppkt->payload;
+  if (ppkt->rx_ctrl.sig_len < 26)
+    return; // minimum for deauth/disassoc frame
+
+  uint16_t fc = u16(p);
+  uint8_t ftype = (fc >> 2) & 0x3;
+  uint8_t subtype = (fc >> 4) & 0xF;
+
+  // Check if it's a deauth (subtype 12) or disassoc (subtype 10) frame
+  if (ftype == 0 && (subtype == 12 || subtype == 10))
+  {
+    DeauthHit hit;
+
+    memcpy(hit.destMac, p + 4, 6); // DA (Address 1)
+    memcpy(hit.srcMac, p + 10, 6); // SA (Address 2)
+    memcpy(hit.bssid, p + 16, 6);  // BSSID (Address 3)
+
+    hit.rssi = ppkt->rx_ctrl.rssi;
+    hit.channel = ppkt->rx_ctrl.channel;
+    hit.timestamp = millis();
+    hit.isDisassoc = (subtype == 10);
+
+    if (ppkt->rx_ctrl.sig_len >= 26)
+    {
+      hit.reasonCode = u16(p + 24);
+    }
+    else
+    {
+      hit.reasonCode = 0;
+    }
+
+    if (hit.isDisassoc)
+    {
+      disassocCount++;
+    }
+    else
+    {
+      deauthCount++;
+    }
+
+    BaseType_t w = false;
+    if (deauthQueue)
+    {
+      xQueueSendFromISR(deauthQueue, &hit, &w);
+      if (w)
+        portYIELD_FROM_ISR();
+    }
+  }
+}
+
 // ---------- BLE Scanner callbacks ----------
 class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
@@ -423,6 +502,7 @@ class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
   const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
+  detectDeauthFrame(ppkt);
   framesSeen++;
   if (!ppkt)
     return;
@@ -672,6 +752,35 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   </div>
 
   <div class="card">
+  <h3>Blue Team Detection</h3>
+  <form id="bt" method="POST" action="/blueteam">
+    <label>Detection Mode</label>
+    <select name="detection" id="detectionMode">
+      <option value="deauth">Deauth/Disassoc Detection</option>
+      <option value="beacon-flood" disabled>Beacon Flood (Coming Soon)</option>
+      <option value="evil-twin" disabled>Evil Twin (Coming Soon)</option>
+    </select>
+    
+    <div id="deauthSettings">
+      <label>Duration (seconds)</label>
+      <input type="number" name="secs" min="0" max="86400" value="300">
+      <div class="row"><input type="checkbox" id="forever3" name="forever" value="1"><label for="forever3">∞ Forever</label></div>
+      
+      <div class="row">
+        <input type="checkbox" id="alertBeep" name="alertBeep" value="1" checked>
+        <label for="alertBeep">Audio Alert on Detection</label>
+      </div>
+    </div>
+    
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" type="submit">Start Detection</button>
+      <a class="btn" href="/stop" data-ajax="true">Stop</a>
+    </div>
+    <p class="small">Monitors for deauth attacks. AP goes offline during detection.</p>
+  </form>
+</div>
+
+  <div class="card">
     <h3>Buzzer</h3>
     <form id="c" method="POST" action="/config">
       <label>Beeps per hit (List Scan)</label>
@@ -800,6 +909,14 @@ document.getElementById('meshEnabled').addEventListener('change', e=>{
     .catch(err=>toast('Error: '+err.message));
 });
 
+document.getElementById('bt').addEventListener('submit', e=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  fetch('/blueteam', {method:'POST', body:fd}).then(()=>{
+    toast('Blue team detection started. AP will drop & return…');
+  }).catch(err=>toast('Error: '+err.message));
+});
+
 document.getElementById('t').addEventListener('submit', e=>{
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -852,7 +969,7 @@ static void stopAP()
   delay(100);
 }
 
-static void startServer()
+void startServer()
 {
   if (!server)
     server = new AsyncWebServer(80);
@@ -883,6 +1000,47 @@ static void startServer()
   Serial1.println(test_msg);
   Serial.println(test_msg);
   r->send(200, "text/plain", "Test message sent to mesh"); });
+
+  server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+  String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "deauth";
+  int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 300;
+  bool forever = req->hasParam("forever", true);
+  bool alertBeep = req->hasParam("alertBeep", true);
+  
+  if (detection == "deauth") {
+    if (secs < 0) secs = 0; 
+    if (secs > 86400) secs = 86400;
+    
+    deauthDetectionEnabled = true;
+    stopRequested = false;
+    
+    req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+  } else {
+    req->send(400, "text/plain", "Detection mode not yet implemented");
+  } });
+
+  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+  String results = "Deauth Detection Results\n";
+  results += "Deauth frames: " + String(deauthCount) + "\n";
+  results += "Disassoc frames: " + String(disassocCount) + "\n\n";
+  
+  int show = min((int)deauthLog.size(), 100);
+  for (int i = 0; i < show; i++) {
+    const auto &hit = deauthLog[i];
+    results += String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
+    results += macFmt6(hit.srcMac) + " -> " + macFmt6(hit.destMac);
+    results += " BSSID:" + macFmt6(hit.bssid);
+    results += " RSSI:" + String(hit.rssi) + "dBm";
+    results += " CH:" + String(hit.channel);
+    results += " Reason:" + String(hit.reasonCode) + "\n";
+  }  
+  r->send(200, "text/plain", results); });
 
   server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -997,6 +1155,61 @@ static void startServer()
   server->begin();
   Serial.println("[WEB] Server started.");
 }
+
+// ---------- AP Management Helpers ----------
+static void stopAPAndServer()
+{
+  Serial.println("[SYS] Stopping AP and web server...");
+  if (server)
+  {
+    server->end();
+    delete server;
+    server = nullptr;
+  }
+  WiFi.softAPdisconnect(true);
+  delay(100);
+}
+
+static void startAPAndServer()
+{
+  Serial.println("[SYS] Starting AP and web server...");
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  // Reset delay
+  for (int i = 0; i < 10; i++)
+  {
+    delay(100);
+    yield();
+  }
+
+  // Start AP
+  WiFi.mode(WIFI_AP);
+  delay(100);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  delay(100);
+
+  // Try AP start multiple times if needed
+  bool apStarted = false;
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
+  {
+    Serial.printf("AP start attempt %d...\n", attempt + 1);
+    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+    if (!apStarted)
+    {
+      delay(500);
+      WiFi.mode(WIFI_OFF);
+      delay(500);
+      WiFi.mode(WIFI_AP);
+      delay(200);
+    }
+  }
+
+  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
+  delay(200);
+  WiFi.setHostname("Antihunter");
+  startServer();
+}
 // ---------- Radio common ----------
 static void radioStartWiFi()
 {
@@ -1074,6 +1287,96 @@ static void radioStopSTA()
   radioStopBLE();
 }
 
+// ---------- Blue Team Task ----------
+void blueTeamTask(void *pv) {
+  int secs = (int)(intptr_t)pv;
+  bool forever = (secs <= 0);
+  
+  Serial.printf("[BLUE] Deauth detection %s...\n", 
+    forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str());
+
+  stopAPAndServer();
+
+  stopRequested = false;
+  if (!deauthQueue) {
+    deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
+  }
+
+  deauthLog.clear();
+  deauthCount = 0;
+  disassocCount = 0;
+  framesSeen = 0;
+  scanning = true;
+  uint32_t scanStart = millis();
+
+  // Start WiFi monitoring
+  radioStartWiFi();
+  Serial.println("[BLUE] WiFi monitoring started for deauth detection");
+
+  DeauthHit hit;
+  uint32_t lastAlert = 0;
+  uint32_t nextStatus = millis() + 1000;
+
+  while ((forever && !stopRequested) || 
+         (!forever && (int)(millis() - scanStart) < secs * 1000 && !stopRequested)) {
+    
+    if ((int32_t)(millis() - nextStatus) >= 0) {
+      Serial.printf("[BLUE] Monitoring... deauth=%u disassoc=%u frames=%u\n",
+                    (unsigned)deauthCount, (unsigned)disassocCount, (unsigned)framesSeen);
+      nextStatus += 1000;
+    }
+
+    if (xQueueReceive(deauthQueue, &hit, pdMS_TO_TICKS(100)) == pdTRUE) {
+      deauthLog.push_back(hit);
+      
+      Serial.printf("[ATTACK] %s %s->%s BSSID:%s RSSI:%ddBm CH:%u Reason:%u\n",
+        hit.isDisassoc ? "DISASSOC" : "DEAUTH",
+        macFmt6(hit.srcMac).c_str(), macFmt6(hit.destMac).c_str(), 
+        macFmt6(hit.bssid).c_str(), hit.rssi, hit.channel, hit.reasonCode);
+      
+      if (millis() - lastAlert > 3000) {
+        beepPattern(4, 80);
+        lastAlert = millis();
+      }
+      
+      if (deauthLog.size() > 500) {
+        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + 250);
+      }
+    }
+  }
+
+  // Cleanup
+  radioStopWiFi();
+  scanning = false;
+  deauthDetectionEnabled = false;
+
+  // Build results
+  lastResults = String("Blue Team Detection — Duration: ") + (forever ? "∞" : String(secs)) + "s\n";
+  lastResults += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
+  lastResults += "Deauth frames detected: " + String((unsigned)deauthCount) + "\n";
+  lastResults += "Disassoc frames detected: " + String((unsigned)disassocCount) + "\n\n";
+  
+  int show = min((int)deauthLog.size(), 100);
+  for (int i = 0; i < show; i++) {
+    const auto &e = deauthLog[i];
+    lastResults += String(e.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
+    lastResults += macFmt6(e.srcMac) + " -> " + macFmt6(e.destMac);
+    lastResults += " BSSID:" + macFmt6(e.bssid);
+    lastResults += " RSSI:" + String(e.rssi) + "dBm";
+    lastResults += " CH:" + String(e.channel);
+    lastResults += " Reason:" + String(e.reasonCode) + "\n";
+  }
+  if ((int)deauthLog.size() > show) {
+    lastResults += "... (" + String((int)deauthLog.size() - show) + " more)\n";
+  }
+
+  Serial.println("[BLUE] Deauth detection stopped, restoring AP...");
+  startAPAndServer();
+  
+  blueTeamTaskHandle = nullptr;
+  vTaskDelete(nullptr);
+}
+
 // ---------- List scan task ----------
 void listScanTask(void *pv)
 {
@@ -1084,14 +1387,7 @@ void listScanTask(void *pv)
   Serial.printf("[SCAN] List scan %s (%s)...\n", forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str(), modeStr.c_str());
 
   // Stop AP & web
-  if (server)
-  {
-    server->end();
-    delete server;
-    server = nullptr;
-  }
-  WiFi.softAPdisconnect(true);
-  delay(100);
+  stopAPAndServer();
 
   stopRequested = false;
   if (macQueue)
@@ -1184,7 +1480,7 @@ void listScanTask(void *pv)
   if ((int)hitsLog.size() > show)
     lastResults += "... (" + String((int)hitsLog.size() - show) + " more)\n";
 
-   // Bring AP back with thorough reset
+  // Bring AP back with thorough reset
   radioStopSTA();
   scanning = false;
   lastScanEnd = millis();
@@ -1192,31 +1488,34 @@ void listScanTask(void *pv)
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
 
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     delay(100);
     yield();
   }
-  
-  // Start AP 
+
+  // Start AP
   WiFi.mode(WIFI_AP);
   delay(100);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   delay(100);
-  
+
   // Try AP start multiple times if needed
   bool apStarted = false;
-  for (int attempt = 0; attempt < 3 && !apStarted; attempt++) {
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
+  {
     Serial.printf("AP start attempt %d...\n", attempt + 1);
     apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-    if (!apStarted) {
-      delay(500);  // Wait before retry
+    if (!apStarted)
+    {
+      delay(500); // Wait before retry
       WiFi.mode(WIFI_OFF);
       delay(500);
       WiFi.mode(WIFI_AP);
       delay(200);
     }
   }
-  
+
   Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
   delay(200);
   WiFi.setHostname("Antihunter");
@@ -1237,15 +1536,7 @@ void trackerTask(void *pv)
                 forever ? "(forever)" : String(String("for ") + secs + " s").c_str(),
                 modeStr.c_str(), macFmt6(trackerMac).c_str());
 
-  // Stop AP & web
-  if (server)
-  {
-    server->end();
-    delete server;
-    server = nullptr;
-  }
-  WiFi.softAPdisconnect(true);
-  delay(100);
+  stopAPAndServer();
 
   trackerMode = true;
   trackerPackets = 0;
@@ -1334,39 +1625,7 @@ void trackerTask(void *pv)
   lastResults += "Packets from target: " + String((unsigned)trackerPackets) + "\n";
   lastResults += "Last RSSI: " + String((int)trackerRssi) + "dBm\n";
 
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  
-  // Force more delay
-  for (int i = 0; i < 10; i++) {
-    delay(100);
-    yield();
-  }
-  
-  // Start AP
-  WiFi.mode(WIFI_AP);
-  delay(100);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  delay(100);
-  
-  // Try AP start multiple times if needed
-  bool apStarted = false;
-  for (int attempt = 0; attempt < 3 && !apStarted; attempt++) {
-    Serial.printf("AP start attempt %d...\n", attempt + 1);
-    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-    if (!apStarted) {
-      delay(500);
-      WiFi.mode(WIFI_OFF);
-      delay(500);
-      WiFi.mode(WIFI_AP);
-      delay(200);
-    }
-  }
-  
-  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
-  delay(200);
-  WiFi.setHostname("Antihunter");
-  startServer();
+  startAPAndServer();
 
   workerTaskHandle = nullptr;
   vTaskDelete(nullptr);
@@ -1375,51 +1634,58 @@ void trackerTask(void *pv)
 // ---------- Mesh Notificaions ----------
 
 // Mesh notification (adapted from DragonNet's print_compact_message)
-void sendMeshNotification(const Hit& hit) {
-  if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
+void sendMeshNotification(const Hit &hit)
+{
+  if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL)
+    return;
   lastMeshSend = millis();
-  
+
   char mac_str[18];
   snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
            hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-  
+
   char mesh_msg[MAX_MESH_SIZE];
   int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
-                        "Target: %s %s RSSI:%d",
-                        hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
-  
-  if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi") {
+                         "Target: %s %s RSSI:%d",
+                         hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
+
+  if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi")
+  {
     msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
-                       " Name:%s", hit.name.c_str());
+                        " Name:%s", hit.name.c_str());
   }
-  
-  if (Serial1.availableForWrite() >= msg_len) {
+
+  if (Serial1.availableForWrite() >= msg_len)
+  {
     Serial.printf("[MESH] %s\n", mesh_msg);
     Serial1.println(mesh_msg);
   }
 }
 
 // Send tracker status over mesh
-void sendTrackerMeshUpdate() {
+void sendTrackerMeshUpdate()
+{
   static unsigned long lastTrackerMesh = 0;
   const unsigned long trackerInterval = 15000; // 15 seconds
-  
-  if (millis() - lastTrackerMesh < trackerInterval) return;
+
+  if (millis() - lastTrackerMesh < trackerInterval)
+    return;
   lastTrackerMesh = millis();
-  
+
   char mac_str[18];
   snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-           trackerMac[0], trackerMac[1], trackerMac[2], 
+           trackerMac[0], trackerMac[1], trackerMac[2],
            trackerMac[3], trackerMac[4], trackerMac[5]);
-  
+
   char tracker_msg[MAX_MESH_SIZE];
   uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
-  
+
   int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
-                        "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
-                        mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
-  
-  if (Serial1.availableForWrite() >= msg_len) {
+                         "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
+                         mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
+
+  if (Serial1.availableForWrite() >= msg_len)
+  {
     Serial.printf("[MESH] %s\n", tracker_msg);
     Serial1.println(tracker_msg);
   }
@@ -1434,7 +1700,7 @@ void initializeMesh()
 // ---------- Setup / Loop ----------
 void setup()
 {
-   delay(1000);
+  delay(1000);
   Serial.begin(115200);
   delay(300);
   Serial.println("\n=== Antihunter v4 Boot ===");
@@ -1445,7 +1711,7 @@ void setup()
   initializeMesh();
   Serial.println("Mesh UART ready");
   delay(1000);
-  
+
   Serial.println("Loading preferences...");
   prefs.begin("ouispy", false);
   loadTargetsFromNVS();
@@ -1455,7 +1721,7 @@ void setup()
   cfgGapMs = prefs.getInt("gap", cfgGapMs);
   Serial.printf("Loaded %d targets, beeps=%d, gap=%dms\n", targets.size(), cfgBeeps, cfgGapMs);
   delay(1000);
-  
+
   Serial.println("Starting AP...");
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
