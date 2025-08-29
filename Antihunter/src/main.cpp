@@ -50,6 +50,28 @@ AsyncWebServer *server = nullptr;
 TaskHandle_t workerTaskHandle = nullptr;
 volatile bool stopRequested = false;
 
+// ----------------- Blue Tools -----------------
+struct DeauthHit
+{
+  uint8_t srcMac[6];
+  uint8_t destMac[6];
+  uint8_t bssid[6];
+  int8_t rssi;
+  uint8_t channel;
+  uint16_t reasonCode;
+  uint32_t timestamp;
+  bool isDisassoc; // false for deauth, true for disassoc
+};
+
+static std::vector<DeauthHit> deauthLog;
+static volatile uint32_t deauthCount = 0;
+static volatile uint32_t disassocCount = 0;
+static bool deauthDetectionEnabled = false;
+static QueueHandle_t deauthQueue;
+static TaskHandle_t blueTeamTaskHandle = nullptr;
+static int blueTeamDuration = 300; // Default 5 minutes
+static bool blueTeamForever = false;
+
 // ---------- Config (beep count + gap) ----------
 static int cfgBeeps = 2;  // beeps per hit (list mode)
 static int cfgGapMs = 80; // gap between beeps (ms)
@@ -296,6 +318,7 @@ static int freqFromRSSI(int8_t rssi)
 static void startServer();
 void listScanTask(void *pv);
 void trackerTask(void *pv);
+void blueTeamTask(void *pv);
 
 // Parse channel CSV
 static void parseChannelsCSV(const String &csv)
@@ -368,6 +391,62 @@ static inline bool isTrackerTarget(const uint8_t *mac)
   return true;
 }
 
+// ---------- Deauth/Disassoc Detection ----------
+static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt)
+{
+  if (!deauthDetectionEnabled)
+    return;
+
+  const uint8_t *p = ppkt->payload;
+  if (ppkt->rx_ctrl.sig_len < 26)
+    return; // minimum for deauth/disassoc frame
+
+  uint16_t fc = u16(p);
+  uint8_t ftype = (fc >> 2) & 0x3;
+  uint8_t subtype = (fc >> 4) & 0xF;
+
+  // Check if it's a deauth (subtype 12) or disassoc (subtype 10) frame
+  if (ftype == 0 && (subtype == 12 || subtype == 10))
+  {
+    DeauthHit hit;
+
+    memcpy(hit.destMac, p + 4, 6); // DA (Address 1)
+    memcpy(hit.srcMac, p + 10, 6); // SA (Address 2)
+    memcpy(hit.bssid, p + 16, 6);  // BSSID (Address 3)
+
+    hit.rssi = ppkt->rx_ctrl.rssi;
+    hit.channel = ppkt->rx_ctrl.channel;
+    hit.timestamp = millis();
+    hit.isDisassoc = (subtype == 10);
+
+    if (ppkt->rx_ctrl.sig_len >= 26)
+    {
+      hit.reasonCode = u16(p + 24);
+    }
+    else
+    {
+      hit.reasonCode = 0;
+    }
+
+    if (hit.isDisassoc)
+    {
+      disassocCount++;
+    }
+    else
+    {
+      deauthCount++;
+    }
+
+    BaseType_t w = false;
+    if (deauthQueue)
+    {
+      xQueueSendFromISR(deauthQueue, &hit, &w);
+      if (w)
+        portYIELD_FROM_ISR();
+    }
+  }
+}
+
 // ---------- BLE Scanner callbacks ----------
 class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
@@ -415,6 +494,7 @@ class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
   const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
+  detectDeauthFrame(ppkt);
   framesSeen++;
   if (!ppkt)
     return;
@@ -552,6 +632,61 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
   }
 }
 
+// ---------- AP Management Helpers ----------
+static void stopAPAndServer()
+{
+  Serial.println("[SYS] Stopping AP and web server...");
+  if (server)
+  {
+    server->end();
+    delete server;
+    server = nullptr;
+  }
+  WiFi.softAPdisconnect(true);
+  delay(100);
+}
+
+static void startAPAndServer()
+{
+  Serial.println("[SYS] Starting AP and web server...");
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  // Reset delay
+  for (int i = 0; i < 10; i++)
+  {
+    delay(100);
+    yield();
+  }
+
+  // Start AP
+  WiFi.mode(WIFI_AP);
+  delay(100);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  delay(100);
+
+  // Try AP start multiple times if needed
+  bool apStarted = false;
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
+  {
+    Serial.printf("AP start attempt %d...\n", attempt + 1);
+    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+    if (!apStarted)
+    {
+      delay(500);
+      WiFi.mode(WIFI_OFF);
+      delay(500);
+      WiFi.mode(WIFI_AP);
+      delay(200);
+    }
+  }
+
+  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
+  delay(200);
+  WiFi.setHostname("Antihunter");
+  startServer();
+}
+
 // ---------- Web UI ----------
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8">
@@ -662,6 +797,36 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       </div>
     </form>
   </div>
+
+    <div class="card">
+    <h3>Blue Team Detection</h3>
+    <form id="bt" method="POST" action="/blueteam">
+      <label>Detection Mode</label>
+      <select name="detection" id="detectionMode">
+        <option value="deauth">Deauth/Disassoc Detection</option>
+        <option value="beacon-flood" disabled>Beacon Flood (Coming Soon)</option>
+        <option value="evil-twin" disabled>Evil Twin (Coming Soon)</option>
+      </select>
+      
+      <div id="deauthSettings">
+        <label>Duration (seconds)</label>
+        <input type="number" name="secs" min="0" max="86400" value="300">
+        <div class="row"><input type="checkbox" id="forever3" name="forever" value="1"><label for="forever3">∞ Forever</label></div>
+        
+        <div class="row">
+          <input type="checkbox" id="alertBeep" name="alertBeep" value="1" checked>
+          <label for="alertBeep">Audio Alert on Detection</label>
+        </div>
+      </div>
+      
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" type="submit">Start Detection</button>
+        <a class="btn" href="/stop" data-ajax="true">Stop</a>
+      </div>
+      <p class="small">Monitors for deauth attacks. AP goes offline during detection.</p>
+    </form>
+  </div>
+
 
   <div class="card">
     <h3>Buzzer</h3>
@@ -789,6 +954,15 @@ document.querySelector('#t select[name="mode"]').addEventListener('change', e=>{
   updateModeIndicator(e.target.value);
 });
 
+// Blue Scan
+document.getElementById('bt').addEventListener('submit', e=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  fetch('/blueteam', {method:'POST', body:fd}).then(()=>{
+    toast('Blue team detection started. AP will drop & return…');
+  }).catch(err=>toast('Error: '+err.message));
+});
+
 // Stop button
 document.addEventListener('click', e=>{
   const a = e.target.closest('a[href="/stop"]');
@@ -845,6 +1019,87 @@ static void startServer()
    String txt = req->getParam("list", true)->value();
    saveTargetsToNVS(txt);
    req->send(200, "text/plain", "Saved"); });
+  server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+  String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "deauth";
+  int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 300;
+  bool forever = req->hasParam("forever", true);
+  bool alertBeep = req->hasParam("alertBeep", true);
+  
+  if (detection == "deauth") {
+    if (secs < 0) secs = 0; 
+    if (secs > 86400) secs = 86400;
+    
+    deauthDetectionEnabled = true;
+    stopRequested = false;
+    
+    req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+  } else {
+    req->send(400, "text/plain", "Detection mode not yet implemented");
+  } });
+   server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+  String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "deauth";
+  int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 300;
+  bool forever = req->hasParam("forever", true);
+  bool alertBeep = req->hasParam("alertBeep", true);
+  
+  if (detection == "deauth") {
+    if (secs < 0) secs = 0; 
+    if (secs > 86400) secs = 86400;
+    
+    deauthDetectionEnabled = true;
+    stopRequested = false;
+    
+    req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+  } else {
+    req->send(400, "text/plain", "Detection mode not yet implemented");
+  } });
+
+  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+  String results = "Deauth Detection Results\n";
+  results += "Deauth frames: " + String(deauthCount) + "\n";
+  results += "Disassoc frames: " + String(disassocCount) + "\n\n";
+  
+  int show = min((int)deauthLog.size(), 100);
+  for (int i = 0; i < show; i++) {
+    const auto &hit = deauthLog[i];
+    results += String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
+    results += macFmt6(hit.srcMac) + " -> " + macFmt6(hit.destMac);
+    results += " BSSID:" + macFmt6(hit.bssid);
+    results += " RSSI:" + String(hit.rssi) + "dBm";
+    results += " CH:" + String(hit.channel);
+    results += " Reason:" + String(hit.reasonCode) + "\n";
+  }  
+  r->send(200, "text/plain", results); });
+
+  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+  String results = "Deauth Detection Results\n";
+  results += "Deauth frames: " + String(deauthCount) + "\n";
+  results += "Disassoc frames: " + String(disassocCount) + "\n\n";
+  
+  int show = min((int)deauthLog.size(), 100);
+  for (int i = 0; i < show; i++) {
+    const auto &hit = deauthLog[i];
+    results += String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
+    results += macFmt6(hit.srcMac) + " -> " + macFmt6(hit.destMac);
+    results += " BSSID:" + macFmt6(hit.bssid);
+    results += " RSSI:" + String(hit.rssi) + "dBm";
+    results += " CH:" + String(hit.channel);
+    results += " Reason:" + String(hit.reasonCode) + "\n";
+  }  
+  r->send(200, "text/plain", results); });
+
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req)
              {
    int secs = 60; bool forever=false;
@@ -1038,14 +1293,7 @@ void listScanTask(void *pv)
   Serial.printf("[SCAN] List scan %s (%s)...\n", forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str(), modeStr.c_str());
 
   // Stop AP & web
-  if (server)
-  {
-    server->end();
-    delete server;
-    server = nullptr;
-  }
-  WiFi.softAPdisconnect(true);
-  delay(100);
+  stopAPAndServer();
 
   stopRequested = false;
   if (macQueue)
@@ -1141,41 +1389,7 @@ void listScanTask(void *pv)
   scanning = false;
   lastScanEnd = millis();
 
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-
-  for (int i = 0; i < 10; i++)
-  {
-    delay(100);
-    yield();
-  }
-
-  // Start AP
-  WiFi.mode(WIFI_AP);
-  delay(100);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  delay(100);
-
-  // Try AP start multiple times if needed
-  bool apStarted = false;
-  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
-  {
-    Serial.printf("AP start attempt %d...\n", attempt + 1);
-    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-    if (!apStarted)
-    {
-      delay(500); // Wait before retry
-      WiFi.mode(WIFI_OFF);
-      delay(500);
-      WiFi.mode(WIFI_AP);
-      delay(200);
-    }
-  }
-
-  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
-  delay(200);
-  WiFi.setHostname("Antihunter");
-  startServer();
+  startAPAndServer();
 
   workerTaskHandle = nullptr;
   vTaskDelete(nullptr);
@@ -1193,14 +1407,7 @@ void trackerTask(void *pv)
                 modeStr.c_str(), macFmt6(trackerMac).c_str());
 
   // Stop AP & web
-  if (server)
-  {
-    server->end();
-    delete server;
-    server = nullptr;
-  }
-  WiFi.softAPdisconnect(true);
-  delay(100);
+  stopAPAndServer();
 
   trackerMode = true;
   trackerPackets = 0;
@@ -1283,44 +1490,108 @@ void trackerTask(void *pv)
   lastResults += "Packets from target: " + String((unsigned)trackerPackets) + "\n";
   lastResults += "Last RSSI: " + String((int)trackerRssi) + "dBm\n";
 
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
+  startAPAndServer();
 
-  // Force more delay
-  for (int i = 0; i < 10; i++)
+  workerTaskHandle = nullptr;
+  vTaskDelete(nullptr);
+}
+
+// ---------- Blue Team Task ----------
+void blueTeamTask(void *pv)
+{
+  int secs = (int)(intptr_t)pv;
+  bool forever = (secs <= 0);
+
+  Serial.printf("[BLUE] Deauth detection %s...\n",
+                forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str());
+
+  stopAPAndServer();
+
+  stopRequested = false;
+  if (!deauthQueue)
   {
-    delay(100);
-    yield();
+    deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
   }
 
-  // Start AP back up
-  WiFi.mode(WIFI_AP);
-  delay(100);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  delay(100);
+  deauthLog.clear();
+  deauthCount = 0;
+  disassocCount = 0;
+  framesSeen = 0;
+  scanning = true;
+  uint32_t scanStart = millis();
 
-  // Try AP start multiple times if needed
-  bool apStarted = false;
-  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
+  // Start WiFi monitoring
+  radioStartWiFi();
+  Serial.println("[BLUE] WiFi monitoring started for deauth detection");
+
+  DeauthHit hit;
+  uint32_t lastAlert = 0;
+  uint32_t nextStatus = millis() + 1000;
+
+  while ((forever && !stopRequested) ||
+         (!forever && (int)(millis() - scanStart) < secs * 1000 && !stopRequested))
   {
-    Serial.printf("AP start attempt %d...\n", attempt + 1);
-    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-    if (!apStarted)
+
+    if ((int32_t)(millis() - nextStatus) >= 0)
     {
-      delay(500);
-      WiFi.mode(WIFI_OFF);
-      delay(500);
-      WiFi.mode(WIFI_AP);
-      delay(200);
+      Serial.printf("[BLUE] Monitoring... deauth=%u disassoc=%u frames=%u\n",
+                    (unsigned)deauthCount, (unsigned)disassocCount, (unsigned)framesSeen);
+      nextStatus += 1000;
+    }
+
+    if (xQueueReceive(deauthQueue, &hit, pdMS_TO_TICKS(100)) == pdTRUE)
+    {
+      deauthLog.push_back(hit);
+
+      Serial.printf("[ATTACK] %s %s->%s BSSID:%s RSSI:%ddBm CH:%u Reason:%u\n",
+                    hit.isDisassoc ? "DISASSOC" : "DEAUTH",
+                    macFmt6(hit.srcMac).c_str(), macFmt6(hit.destMac).c_str(),
+                    macFmt6(hit.bssid).c_str(), hit.rssi, hit.channel, hit.reasonCode);
+
+      if (millis() - lastAlert > 3000)
+      {
+        beepPattern(4, 80);
+        lastAlert = millis();
+      }
+
+      if (deauthLog.size() > 500)
+      {
+        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + 250);
+      }
     }
   }
 
-  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
-  delay(200);
-  WiFi.setHostname("Antihunter");
-  startServer();
+  // Cleanup
+  radioStopWiFi();
+  scanning = false;
+  deauthDetectionEnabled = false;
 
-  workerTaskHandle = nullptr;
+  // Build results
+  lastResults = String("Blue Team Detection — Duration: ") + (forever ? "∞" : String(secs)) + "s\n";
+  lastResults += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
+  lastResults += "Deauth frames detected: " + String((unsigned)deauthCount) + "\n";
+  lastResults += "Disassoc frames detected: " + String((unsigned)disassocCount) + "\n\n";
+
+  int show = min((int)deauthLog.size(), 100);
+  for (int i = 0; i < show; i++)
+  {
+    const auto &e = deauthLog[i];
+    lastResults += String(e.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
+    lastResults += macFmt6(e.srcMac) + " -> " + macFmt6(e.destMac);
+    lastResults += " BSSID:" + macFmt6(e.bssid);
+    lastResults += " RSSI:" + String(e.rssi) + "dBm";
+    lastResults += " CH:" + String(e.channel);
+    lastResults += " Reason:" + String(e.reasonCode) + "\n";
+  }
+  if ((int)deauthLog.size() > show)
+  {
+    lastResults += "... (" + String((int)deauthLog.size() - show) + " more)\n";
+  }
+
+  Serial.println("[BLUE] Deauth detection stopped, restoring AP...");
+  startAPAndServer();
+
+  blueTeamTaskHandle = nullptr;
   vTaskDelete(nullptr);
 }
 
