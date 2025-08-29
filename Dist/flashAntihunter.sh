@@ -11,7 +11,7 @@ echo
 
 # URLs to flash
 FIRMWARES=(
-  "AntiHunter S3 Mesh v1:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_mesh_v1.bin"
+  "AntiHunter S3 Mesh v2:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_mesh_v2.bin"
   "AntiHunter S3 v1:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_v1.bin"
 )
 
