@@ -33,7 +33,7 @@ Getting Antihunter up and running is straightforward. Simply clone the repositor
 *   **VS Code:** Visual Studio Code IDE.
 *   **PlatformIO Extension:** Install the PlatformIO IDE extension in VS Code.
 *   **Hardware:** 
-    - ESP32 development board (Seeed XIAO ESP32S3, Seeed XIAO ESP32C3, or ESP32-WROOM-32U)
+    - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16)
     - Passive piezo buzzer connected to the designated pin
     - Meshtastic board (Heltec, etc.)
 
@@ -70,15 +70,13 @@ Once flashed, Antihunter hosts a web interface for all operations.
 
 1.  **Connect to Antihunter's Access Point (AP):**
     *   On your computer, phone, or tablet, scan for WiFi networks.
-    *   Connect to the network: `Antihunter` (for core Antihunter build) or `Antihunter_Mesh` (if you flashed the mesh variant).
-    *   Default Password: `ouispy123` (for core Antihunter build) or `mesh_secret` (if you flashed the mesh variant).
+    *   Connect to the network: `Antihunter` 
+    *   Default Password: `ouispy123`
 
 2.  **Access the Web UI:**
     *   Open a web browser and navigate to `http://192.168.4.1/`.
 
 3.  **Core Functionality:**
-
-    
 
     *   **Targets (List Scan Watchlist):**
         *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
