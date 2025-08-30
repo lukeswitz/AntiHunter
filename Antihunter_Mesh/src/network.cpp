@@ -49,7 +49,7 @@ void initializeNetwork() {
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Antihunter by SirHaXalot</title>
+<title>Antihunter</title>
 <style>
 :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99}
 *{box-sizing:border-box} html,body{height:100%}
@@ -88,7 +88,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     <path d="M16 40 L32 16 L48 40" fill="none" stroke="#0aff9d" stroke-width="3"/>
     <circle cx="32" cy="44" r="3" fill="#00ff7f"/>
   </svg>
-  <h1>Antihunter <span style="color:#0aff9d">by SirHaXalot</span></h1>
+  <h1>Antihunter</h1>
   <div class="mode-indicator" id="modeIndicator">WiFi Mode</div>
 </div>
 <div id="toast"></div>
@@ -126,7 +126,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
         <a class="btn alt" href="/beep" data-ajax="true">Test Buzzer</a>
         <a class="btn" href="/stop" data-ajax="true">Stop</a>
       </div>
-      <p class="small">AP goes offline during scan and returns when you stop.</p>
+      <p class="small">AP goes offline during scan and returns.</p>
     </form>
   </div>
 
@@ -155,7 +155,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   </div>
 
   <div class="card">
-  <h3>Blue Team Detection</h3>
+  <h3>WiFi Traffic Sniffers</h3>
   <form id="bt" method="POST" action="/blueteam">
     <label>Detection Mode</label>
     <select name="detection" id="detectionMode">
@@ -178,7 +178,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       <button class="btn primary" type="submit">Start Detection</button>
       <a class="btn" href="/stop" data-ajax="true">Stop</a>
     </div>
-    <p class="small">Monitors for deauth attacks. AP goes offline during detection.</p>
+    <p class="small">Monitors adversarial & suspicious WiFi traffic. AP goes offline during detection. </p>
   </form>
 </div>
 
@@ -205,7 +205,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   <div class="row" style="margin-top:10px">
     <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
   </div>
-  <p class="small">Sends target alerts over meshtastic (10s interval)</p>
+  <p class="small">Sends list and tracker target alerts over meshtastic.</p>
 </div>
 
   <div class="card">
@@ -219,7 +219,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   <pre id="r">None yet.</pre>
 </div>
 
-<div class="footer">© Antihunter by SirHaXalot</div>
+<div class="footer">© Team AntiHunter 2025</div>
 </div>
 <script>
 let selectedMode = '0';
@@ -553,6 +553,14 @@ void stopAPAndServer() {
 
 void startAPAndServer() {
     Serial.println("[SYS] Starting AP and web server...");
+    
+    // Ensure server is completely cleaned up first
+    if (server) {
+        server->end();
+        delete server;
+        server = nullptr;
+    }
+    
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
 
@@ -571,7 +579,7 @@ void startAPAndServer() {
         Serial.printf("AP start attempt %d...\n", attempt + 1);
         apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
         if (!apStarted) {
-            delay(500);
+            delay(500); // Wait before retry
             WiFi.mode(WIFI_OFF);
             delay(500);
             WiFi.mode(WIFI_AP);
@@ -582,7 +590,11 @@ void startAPAndServer() {
     Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
     delay(200);
     WiFi.setHostname("Antihunter");
-    startWebServer();
+    
+    // Only start server if AP started successfully
+    if (apStarted) {
+        startWebServer();
+    }
 }
 
 void sendMeshNotification(const Hit &hit) {
