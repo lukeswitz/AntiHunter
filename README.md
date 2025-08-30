@@ -52,7 +52,7 @@ curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/Ant
 *   **VS Code:** Visual Studio Code IDE.
 *   **PlatformIO Extension:** Install the PlatformIO IDE extension in VS Code.
 *   **Hardware:** 
-    - ESP32 development board (Seeed XIAO ESP32S3, or ESP32-WROOM-32UE-N8/N16) • **8MB** flash memory boards required for reliably
+    - ESP32 development board (Seeed XIAO ESP32S3 and other s3 varients) • **8MB** flash memory boards required for reliably
     - Passive piezo buzzer connected to the designated pin
     - Meshtastic board (Heltec, etc.)
 
@@ -128,7 +128,7 @@ Once flashed, Antihunter hosts a web interface for all operations.
      *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
      *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
     *   Mesh alerts are sent approximately every 10 seconds if a target is detected.
-     *   *(Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=7`, `TX=6` at 115200 baud).
+     *   *(Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=4`, `TX=5` at 115200 baud).
     *   **Meshtastic Configuration:** Enable serial, Set RX/TX (19/20 for Heltec v3), text message mode, 115200 baud.*
 
      <img width="1065" height="666" alt="image" src="https://github.com/user-attachments/assets/6e7b6fda-7775-47be-8469-53de7712facc" />
