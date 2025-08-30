@@ -100,8 +100,11 @@ void setup() {
     delay(300);
     Serial.println("\n=== Antihunter v4 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
+    delay(1000);
     
     initializeHardware();
+    initializeSD();
+    initializeGPS();
     initializeScanner();
     initializeNetwork(); 
     
@@ -111,5 +114,6 @@ void setup() {
 }
 
 void loop() {
+    updateGPSLocation();
     delay(1000);
 }

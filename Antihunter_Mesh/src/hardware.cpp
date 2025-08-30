@@ -1,11 +1,21 @@
 #include "hardware.h"
 #include "scanner.h"
 #include "network.h"
+#include <SPI.h>
+#include <SD.h>
+#include <HardwareSerial.h>
 
 extern Preferences prefs;
 extern int cfgBeeps, cfgGapMs;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
+
+// GPS
+HardwareSerial GPS(1);
+bool sdAvailable = false;
+String lastGPSData = "No GPS data";
+float gpsLat = 0.0, gpsLon = 0.0;
+bool gpsValid = false;
 
 // getDiagnostics vars
 extern volatile bool scanning;
@@ -20,75 +30,92 @@ extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets);
 
-
 // Buzzer control
 #if BUZZER_IS_PASSIVE
 static bool buzzerInit = false;
 
-static void buzzerInitIfNeeded(uint32_t f) {
-    if (!buzzerInit) {
+static void buzzerInitIfNeeded(uint32_t f)
+{
+    if (!buzzerInit)
+    {
         ledcAttach(BUZZER_PIN, f, 10);
         buzzerInit = true;
-    } else {
+    }
+    else
+    {
         ledcDetach(BUZZER_PIN);
         ledcAttach(BUZZER_PIN, f, 10);
     }
 }
 
-static void buzzerTone(uint32_t f) {
+static void buzzerTone(uint32_t f)
+{
     buzzerInitIfNeeded(f);
     ledcWrite(BUZZER_PIN, 512); // 50% duty cycle
 }
 
-static void buzzerOff() {
-    if (buzzerInit) ledcWrite(BUZZER_PIN, 0);
+static void buzzerOff()
+{
+    if (buzzerInit)
+        ledcWrite(BUZZER_PIN, 0);
 }
 
 #else
-static void buzzerTone(uint32_t) {
+static void buzzerTone(uint32_t)
+{
     pinMode(BUZZER_PIN, OUTPUT);
     digitalWrite(BUZZER_PIN, HIGH);
 }
 
-static void buzzerOff() {
+static void buzzerOff()
+{
     digitalWrite(BUZZER_PIN, LOW);
 }
 #endif
 
-void beepOnce(uint32_t freq, uint32_t ms) {
+void beepOnce(uint32_t freq, uint32_t ms)
+{
     buzzerTone(freq);
     delay(ms);
     buzzerOff();
 }
 
-void beepPattern(int count, int gap_ms) {
-    if (count < 1) return;
-    for (int i = 0; i < count; i++) {
+void beepPattern(int count, int gap_ms)
+{
+    if (count < 1)
+        return;
+    for (int i = 0; i < count; i++)
+    {
         beepOnce();
-        if (i != count - 1) delay(gap_ms);
+        if (i != count - 1)
+            delay(gap_ms);
     }
 }
 
-void initializeHardware() {
+void initializeHardware()
+{
     Serial.println("Loading preferences...");
     prefs.begin("ouispy", false);
-    
+
     cfgBeeps = prefs.getInt("beeps", 2);
     cfgGapMs = prefs.getInt("gap", 80);
-    
+
     Serial.printf("Hardware initialized: beeps=%d, gap=%dms\n", cfgBeeps, cfgGapMs);
 }
 
-void saveConfiguration() {
+void saveConfiguration()
+{
     prefs.putInt("beeps", cfgBeeps);
     prefs.putInt("gap", cfgGapMs);
 }
 
-int getBeepsPerHit() {
+int getBeepsPerHit()
+{
     return cfgBeeps;
 }
 
-int getGapMs() {
+int getGapMs()
+{
     return cfgGapMs;
 }
 
@@ -108,6 +135,56 @@ String getDiagnostics() {
     s += "Unique devices: " + String((int)uniqueMacs.size()) + "\n";
     s += "Targets: " + String(getTargetCount()) + "\n";
 
+    // SD Card Status
+    s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
+    if (sdAvailable) {
+        uint64_t cardSize = SD.cardSize() / (1024 * 1024); // Convert to MB
+        uint8_t cardType = SD.cardType();
+        String cardTypeStr = (cardType == CARD_MMC) ? "MMC" :
+                             (cardType == CARD_SD) ? "SDSC" :
+                             (cardType == CARD_SDHC) ? "SDHC" : "UNKNOWN";
+        s += "SD Card Type: " + cardTypeStr + "\n";
+        s += "SD Card Size: " + String(cardSize) + "MB\n";
+
+        // List files on the SD card
+        File root = SD.open("/");
+        if (root)
+        {
+            s += "SD Card Files:\n";
+            while (true)
+            {
+                File entry = root.openNextFile();
+                if (!entry)
+                    break; // No more files
+
+                // Exclude hidden files (those starting with a dot '.')
+                String fileName = String(entry.name());
+                if (fileName.startsWith("."))
+                {
+                    entry.close();
+                    continue; // Skip hidden files
+                }
+
+                s += "  " + fileName + " (" + String(entry.size()) + " bytes)\n";
+                entry.close();
+            }
+            root.close();
+        }
+        else
+        {
+            s += "Failed to read SD card files.\n";
+        }
+    }
+
+    // GPS Status
+    s += "GPS: " + String(gpsValid ? "Valid fix" : "No fix") + "\n";
+    if (gpsValid) {
+        s += "GPS Pos: " + String(gpsLat, 6) + ", " + String(gpsLon, 6) + "\n";
+    } else {
+        s += "Last GPS Data: " + lastGPSData + "\n";
+    }
+
+    // Tracker Status
     if (trackerMode) {
         uint8_t trackerMac[6];
         int8_t trackerRssi;
@@ -118,13 +195,19 @@ String getDiagnostics() {
         s += "  lastSeen(ms ago)=" + String((unsigned)(millis() - trackerLastSeen));
         s += " pkts=" + String((unsigned)trackerPackets) + "\n";
     }
+
+    // Last Scan Info
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";
-    
+
+    // ESP32 Temperature
     float temp_c = temperatureRead();
     float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
-    s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
+    s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "\n";
 
+    // Buzzer Configuration
     s += "Beeps/Hit: " + String(cfgBeeps) + "  Gap(ms): " + String(cfgGapMs) + "\n";
+
+    // WiFi Channels
     s += "WiFi Channels: ";
     for (auto c : CHANNELS) {
         s += String((int)c) + " ";
@@ -132,4 +215,117 @@ String getDiagnostics() {
     s += "\n";
 
     return s;
+}
+
+void initializeSD()
+{
+    Serial.println("Initializing SD card...");
+    Serial.printf("[SD] Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
+
+    // Reset SPI bus
+    SPI.end();
+    SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
+    delay(100); // Allow SPI bus to stabilize
+
+    // Try multiple frequencies
+    const uint32_t tryFreqs[] = {1000000, 4000000, 8000000, 10000000};
+    for (uint32_t f : tryFreqs)
+    {
+        Serial.printf("[SD] Trying frequency: %lu Hz\n", f);
+        if (SD.begin(SD_CS_PIN, SPI, f))
+        {
+            Serial.println("SD card initialized successfully");
+            sdAvailable = true;
+
+            // Print SD card details
+            uint8_t cardType = SD.cardType();
+            Serial.print("SD Card Type: ");
+            if (cardType == CARD_MMC)
+            {
+                Serial.println("MMC");
+            }
+            else if (cardType == CARD_SD)
+            {
+                Serial.println("SDSC");
+            }
+            else if (cardType == CARD_SDHC)
+            {
+                Serial.println("SDHC");
+            }
+            else
+            {
+                Serial.println("UNKNOWN");
+            }
+
+            uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+            Serial.printf("SD Card Size: %lluMB\n", cardSize);
+            return;
+        }
+        delay(100); // Short delay between attempts
+    }
+    Serial.println("SD card initialization failed");
+}
+
+void initializeGPS()
+{
+    Serial.println("Initializing GPS...");
+    GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    Serial.println("GPS UART initialized");
+}
+
+void logToSD(const String &data)
+{
+    if (!sdAvailable)
+        return;
+
+    File logFile = SD.open("/antihunter.log", FILE_APPEND);
+    if (logFile)
+    {
+        logFile.print("[");
+        logFile.print(millis());
+        logFile.print("] ");
+        logFile.println(data);
+        logFile.close();
+    }
+}
+
+String getGPSData()
+{
+    return lastGPSData;
+}
+
+void updateGPSLocation()
+{
+    while (GPS.available())
+    {
+        String line = GPS.readStringUntil('\n');
+        line.trim();
+
+        if (line.startsWith("$GPGGA") || line.startsWith("$GNGGA"))
+        {
+            lastGPSData = line;
+
+            int commas[15];
+            int commaCount = 0;
+            for (int i = 0; i < line.length() && commaCount < 15; i++)
+            {
+                if (line[i] == ',')
+                    commas[commaCount++] = i;
+            }
+
+            if (commaCount >= 6)
+            {
+                String latStr = line.substring(commas[1] + 1, commas[2]);
+                String lonStr = line.substring(commas[3] + 1, commas[4]);
+                String quality = line.substring(commas[5] + 1, commas[6]);
+
+                if (latStr.length() > 0 && lonStr.length() > 0 && quality.toInt() > 0)
+                {
+                    gpsLat = latStr.toFloat();
+                    gpsLon = lonStr.toFloat();
+                    gpsValid = true;
+                }
+            }
+        }
+    }
 }

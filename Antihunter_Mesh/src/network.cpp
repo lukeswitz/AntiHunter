@@ -2,10 +2,9 @@
 #include "hardware.h"
 #include "scanner.h"
 #include <AsyncTCP.h>
-#include <map>       
-#include <algorithm> 
 
-extern "C" {
+extern "C"
+{
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
 #include "esp_coexist.h"
@@ -30,21 +29,21 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
-void initializeNetwork() {
-    Serial.println("Initializing mesh UART...");
-    initializeMesh();
-    
-    Serial.println("Starting AP...");
-    WiFi.mode(WIFI_AP);
-    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-    WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-    delay(100);
-    WiFi.setHostname("Antihunter");
-    
-    Serial.println("Starting web server...");
-    startWebServer();
-}
+void initializeNetwork()
+{
+  Serial.println("Initializing mesh UART...");
+  initializeMesh();
 
+  Serial.println("Starting AP...");
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+  delay(100);
+  WiFi.setHostname("Antihunter");
+
+  Serial.println("Starting web server...");
+  startWebServer();
+}
 
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8">
@@ -348,34 +347,35 @@ setInterval(tick, 1000);
 </body></html>
 )HTML";
 
-void startWebServer() {
-    if (!server) server = new AsyncWebServer(80);
+void startWebServer()
+{
+  if (!server)
+    server = new AsyncWebServer(80);
 
-    server->on("/", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         AsyncWebServerResponse* res = r->beginResponse(200, "text/html", (const uint8_t*)INDEX_HTML, strlen_P(INDEX_HTML));
         res->addHeader("Cache-Control", "no-store");
-        r->send(res);
-    });
+        r->send(res); });
 
-    server->on("/export", HTTP_GET, [](AsyncWebServerRequest *r) {
-        r->send(200, "text/plain", getTargetsList());
-    });
+  server->on("/export", HTTP_GET, [](AsyncWebServerRequest *r)
+             { r->send(200, "text/plain", getTargetsList()); });
 
-    server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
-        r->send(200, "text/plain", lastResults.length() ? lastResults : String("None yet."));
-    });
+  server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r)
+             { r->send(200, "text/plain", lastResults.length() ? lastResults : String("None yet.")); });
 
-    server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
         if (!req->hasParam("list", true)) {
             req->send(400, "text/plain", "Missing 'list'");
             return;
         }
         String txt = req->getParam("list", true)->value();
         saveTargetsList(txt);
-        req->send(200, "text/plain", "Saved");
-    });
+        req->send(200, "text/plain", "Saved"); });
 
-    server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
         int secs = 60;
         bool forever = false;
         ScanMode mode = SCAN_WIFI;
@@ -403,10 +403,10 @@ void startWebServer() {
         
         if (!workerTaskHandle) {
             xTaskCreatePinnedToCore(listScanTask, "scan", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-        }
-    });
+        } });
 
-    server->on("/track", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/track", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
         String mac = req->getParam("mac", true) ? req->getParam("mac", true)->value() : "";
         int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 180;
         bool forever = req->hasParam("forever", true);
@@ -434,10 +434,10 @@ void startWebServer() {
         
         if (!workerTaskHandle) {
             xTaskCreatePinnedToCore(trackerTask, "tracker", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-        }
-    });
+        } });
 
-    server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
         String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "deauth";
         int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 300;
         bool forever = req->hasParam("forever", true);
@@ -464,10 +464,10 @@ void startWebServer() {
             }
         } else {
             req->send(400, "text/plain", "Detection mode not yet implemented");
-        }
-    });
+        } });
 
-    server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         String results = "Deauth Detection Results\n";
         results += "Deauth frames: " + String(deauthCount) + "\n";
         results += "Disassoc frames: " + String(disassocCount) + "\n\n";
@@ -482,25 +482,41 @@ void startWebServer() {
             results += " CH:" + String(hit.channel);
             results += " Reason:" + String(hit.reasonCode) + "\n";
         }  
-        r->send(200, "text/plain", results);
-    });
+        r->send(200, "text/plain", results); });
 
-    server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/gps", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+    String gpsInfo = "GPS Data: " + getGPSData() + "\n";
+    if (gpsValid) {
+        gpsInfo += "Latitude: " + String(gpsLat, 6) + "\n";
+        gpsInfo += "Longitude: " + String(gpsLon, 6) + "\n";
+    } else {
+        gpsInfo += "GPS: No valid fix\n";
+    }
+    r->send(200, "text/plain", gpsInfo); });
+
+  server->on("/sd-status", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+    String status = sdAvailable ? "SD card: Available" : "SD card: Not available";
+    r->send(200, "text/plain", status); });
+
+  server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         stopRequested = true;
-        r->send(200, "text/plain", "Stopping… (AP will return shortly)");
-    });
+        r->send(200, "text/plain", "Stopping… (AP will return shortly)"); });
 
-    server->on("/beep", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/beep", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         beepPattern(getBeepsPerHit(), getGapMs());
-        r->send(200, "text/plain", "Beeped");
-    });
+        r->send(200, "text/plain", "Beeped"); });
 
-    server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         String j = String("{\"beeps\":") + cfgBeeps + ",\"gap\":" + cfgGapMs + "}";
-        r->send(200, "application/json", j);
-    });
+        r->send(200, "application/json", j); });
 
-    server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
         int beeps = cfgBeeps, gap = cfgGapMs;
         if (req->hasParam("beeps", true)) beeps = req->getParam("beeps", true)->value().toInt();
         if (req->hasParam("gap", true)) gap = req->getParam("gap", true)->value().toInt();
@@ -511,149 +527,163 @@ void startWebServer() {
         cfgBeeps = beeps;
         cfgGapMs = gap;
         saveConfiguration();
-        req->send(200, "text/plain", "Config saved");
-    });
+        req->send(200, "text/plain", "Config saved"); });
 
-    server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
         if (req->hasParam("enabled", true)) {
             meshEnabled = req->getParam("enabled", true)->value() == "true";
             Serial.printf("[MESH] %s\n", meshEnabled ? "Enabled" : "Disabled");
             req->send(200, "text/plain", meshEnabled ? "Mesh enabled" : "Mesh disabled");
         } else {
             req->send(400, "text/plain", "Missing enabled parameter");
-        }
-    });
+        } });
 
-    server->on("/mesh-test", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/mesh-test", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         char test_msg[] = "Antihunter: Test mesh notification";
         Serial.printf("[MESH] Test: %s\n", test_msg);
         Serial1.println(test_msg);
-        r->send(200, "text/plain", "Test message sent to mesh");
-    });
+        r->send(200, "text/plain", "Test message sent to mesh"); });
 
-    server->on("/diag", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/diag", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         String s = getDiagnostics();
-        r->send(200, "text/plain", s);
-    });
+        r->send(200, "text/plain", s); });
 
-    server->begin();
-    Serial.println("[WEB] Server started.");
+  server->begin();
+  Serial.println("[WEB] Server started.");
 }
 
-void stopAPAndServer() {
-    Serial.println("[SYS] Stopping AP and web server...");
-    if (server) {
-        server->end();
-        delete server;
-        server = nullptr;
-    }
-    WiFi.softAPdisconnect(true);
+void stopAPAndServer()
+{
+  Serial.println("[SYS] Stopping AP and web server...");
+  if (server)
+  {
+    server->end();
+    delete server;
+    server = nullptr;
+  }
+  WiFi.softAPdisconnect(true);
+  delay(100);
+}
+
+void startAPAndServer()
+{
+  Serial.println("[SYS] Starting AP and web server...");
+
+  // Ensure server is completely cleaned up first
+  if (server)
+  {
+    server->end();
+    delete server;
+    server = nullptr;
+  }
+
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  for (int i = 0; i < 10; i++)
+  {
     delay(100);
+    yield();
+  }
+
+  WiFi.mode(WIFI_AP);
+  delay(100);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  delay(100);
+
+  bool apStarted = false;
+  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
+  {
+    Serial.printf("AP start attempt %d...\n", attempt + 1);
+    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+    if (!apStarted)
+    {
+      delay(500); // Wait before retry
+      WiFi.mode(WIFI_OFF);
+      delay(500);
+      WiFi.mode(WIFI_AP);
+      delay(200);
+    }
+  }
+
+  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
+  delay(200);
+  WiFi.setHostname("Antihunter");
+
+  // Only start server if AP started successfully
+  if (apStarted)
+  {
+    startWebServer();
+  }
 }
 
-void startAPAndServer() {
-    Serial.println("[SYS] Starting AP and web server...");
-    
-    // Ensure server is completely cleaned up first
-    if (server) {
-        server->end();
-        delete server;
-        server = nullptr;
-    }
-    
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
+// Mesh UART Messages
+void sendMeshNotification(const Hit &hit)
+{
+  if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL)
+    return;
+  lastMeshSend = millis();
 
-    for (int i = 0; i < 10; i++) {
-        delay(100);
-        yield();
-    }
+  char mac_str[18];
+  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+           hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
 
-    WiFi.mode(WIFI_AP);
-    delay(100);
-    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-    delay(100);
+  char mesh_msg[MAX_MESH_SIZE];
+  int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
+                         "Target: %s %s RSSI:%d",
+                         hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
 
-    bool apStarted = false;
-    for (int attempt = 0; attempt < 3 && !apStarted; attempt++) {
-        Serial.printf("AP start attempt %d...\n", attempt + 1);
-        apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-        if (!apStarted) {
-            delay(500); // Wait before retry
-            WiFi.mode(WIFI_OFF);
-            delay(500);
-            WiFi.mode(WIFI_AP);
-            delay(200);
-        }
-    }
+  if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi")
+  {
+    msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
+                        " Name:%s", hit.name.c_str());
+  }
 
-    Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
-    delay(200);
-    WiFi.setHostname("Antihunter");
-    
-    // Only start server if AP started successfully
-    if (apStarted) {
-        startWebServer();
-    }
+  if (Serial1.availableForWrite() >= msg_len)
+  {
+    Serial.printf("[MESH] %s\n", mesh_msg);
+    Serial1.println(mesh_msg);
+  }
 }
 
-void sendMeshNotification(const Hit &hit) {
-    if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL)
-        return;
-    lastMeshSend = millis();
+void sendTrackerMeshUpdate()
+{
+  static unsigned long lastTrackerMesh = 0;
+  const unsigned long trackerInterval = 15000;
 
-    char mac_str[18];
-    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-             hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
+  if (millis() - lastTrackerMesh < trackerInterval)
+    return;
+  lastTrackerMesh = millis();
 
-    char mesh_msg[MAX_MESH_SIZE];
-    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
-                          "Target: %s %s RSSI:%d",
-                          hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
+  uint8_t trackerMac[6];
+  int8_t trackerRssi;
+  uint32_t trackerLastSeen, trackerPackets;
+  getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
 
-    if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi") {
-        msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
-                           " Name:%s", hit.name.c_str());
-    }
+  char mac_str[18];
+  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+           trackerMac[0], trackerMac[1], trackerMac[2],
+           trackerMac[3], trackerMac[4], trackerMac[5]);
 
-    if (Serial1.availableForWrite() >= msg_len) {
-        Serial.printf("[MESH] %s\n", mesh_msg);
-        Serial1.println(mesh_msg);
-    }
+  char tracker_msg[MAX_MESH_SIZE];
+  uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
+
+  int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
+                         "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
+                         mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
+
+  if (Serial1.availableForWrite() >= msg_len)
+  {
+    Serial.printf("[MESH] %s\n", tracker_msg);
+    Serial1.println(tracker_msg);
+  }
 }
 
-void sendTrackerMeshUpdate() {
-    static unsigned long lastTrackerMesh = 0;
-    const unsigned long trackerInterval = 15000;
-
-    if (millis() - lastTrackerMesh < trackerInterval)
-        return;
-    lastTrackerMesh = millis();
-
-    uint8_t trackerMac[6];
-    int8_t trackerRssi;
-    uint32_t trackerLastSeen, trackerPackets;
-    getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
-
-    char mac_str[18];
-    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-             trackerMac[0], trackerMac[1], trackerMac[2],
-             trackerMac[3], trackerMac[4], trackerMac[5]);
-
-    char tracker_msg[MAX_MESH_SIZE];
-    uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
-
-    int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
-                          "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
-                          mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
-
-    if (Serial1.availableForWrite() >= msg_len) {
-        Serial.printf("[MESH] %s\n", tracker_msg);
-        Serial1.println(tracker_msg);
-    }
-}
-
-void initializeMesh() {
-    Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
-    Serial.println("Mesh UART communication initialized on Serial1");
+void initializeMesh()
+{
+  Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
+  Serial.println("Mesh UART communication initialized on Serial1");
 }

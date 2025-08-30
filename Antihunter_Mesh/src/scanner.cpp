@@ -625,13 +625,22 @@ void listScanTask(void *pv) {
             }
         }
 
-        if (xQueueReceive(macQueue, &h, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (xQueueReceive(macQueue, &h, pdMS_TO_TICKS(50)) == pdTRUE)
+        {
             totalHits = totalHits + 1;
             hitsLog.push_back(h);
             uniqueMacs.insert(macFmt6(h.mac));
-            Serial.printf("[HIT] %s %s RSSI=%ddBm ch=%u name=%s\n",
-                          h.isBLE ? "BLE" : "WiFi",
-                          macFmt6(h.mac).c_str(), (int)h.rssi, (unsigned)h.ch, h.name.c_str());
+
+            String logEntry = String(h.isBLE ? "BLE" : "WiFi") + " " + macFmt6(h.mac) +
+                              " RSSI=" + String(h.rssi) + "dBm";
+            if (gpsValid) {
+                logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            }
+
+            Serial.printf("[HIT] %s ch=%u name=%s\n", logEntry.c_str(),
+                          (unsigned)h.ch, h.name.c_str());
+            logToSD(logEntry);
+
             beepPattern(getBeepsPerHit(), getGapMs());
             sendMeshNotification(h);
         }
