@@ -21,6 +21,9 @@
 #ifndef BUZZER_IS_PASSIVE
 #define BUZZER_IS_PASSIVE 1
 #endif
+#define MESH_RX_PIN 4
+#define MESH_TX_PIN 5
+
 
 void initializeHardware();
 void beepOnce(uint32_t freq = 3200, uint32_t ms = 80);

@@ -642,6 +642,6 @@ void sendTrackerMeshUpdate() {
 }
 
 void initializeMesh() {
-    Serial1.begin(115200, SERIAL_8N1, 7, 6);
-    Serial.println("Mesh communication initialized on Serial1");
+    Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
+    Serial.println("Mesh UART communication initialized on Serial1");
 }
