@@ -26,7 +26,30 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
     *   Locating lost or stolen wireless devices.
     *   Pinpointing the exact physical location of a transmitting device.
     *   Real-time "foxhunting" games and exercises.
-3. **Dedicated Blue/Red Tools Coming Soon**
+
+3.  **Dedicated Blue/Red Tools (WiFi Sniffers — More Coming Soon):**
+    Focused operational tools accessible in the web UI. 
+
+    -  Blue Team — WiFi Sniffers:
+       Antihunter enters monitor mode to analyze 802.11 management frames and surface hostile activity.
+       *  Deauth/Disassoc Detection: Detects and logs deauthentication/disassociation frames (source, destination, BSSID, channel, RSSI, reason). Optional audio alert.
+       *  Beacon Flood Detection: Flags abnormal/excess beacons (short intervals, bursty timing). Logs SSID, channel, RSSI, interval.
+       *  How to Use: Open “WiFi Traffic Sniffers” in the web UI and start a detector. The AP temporarily goes offline during monitoring and returns on stop.
+
+    -  Coming Soon:
+       Red Team enhancements (active tracking aids), additional Blue Team detections (evil twin, rogue AP heuristics), and richer correlation across WiFi/BLE/GPS.
+
+**GPS**
+
+- Parses NMEA on UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud (TinyGPSPlus).
+- Web UI shows GPS Status and Last GPS Data; `/gps` endpoint returns lat/lon.
+- Hits include GPS lat/lon when a valid fix exists.
+
+**SD Logging**
+
+- SPI pins: CS=2, SCK=7, MISO=8, MOSI=9 (ESP32S3).
+- Logs to `/antihunter.log` with timestamp, type (WiFi/BLE), MAC, RSSI, and GPS (if valid).
+- Status and file list shown in Diagnostics.
 
 **Mesh Network Integration (Meshtastic-compatible):**
 
