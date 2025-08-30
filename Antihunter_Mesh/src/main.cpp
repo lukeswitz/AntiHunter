@@ -105,6 +105,7 @@ void setup() {
     initializeHardware();
     initializeSD();
     initializeGPS();
+    // testGPSPins(); // GPS diagnostic for other modules than ublox
     initializeScanner();
     initializeNetwork(); 
     
@@ -114,6 +115,12 @@ void setup() {
 }
 
 void loop() {
-    updateGPSLocation();
+    static unsigned long lastGPSCheck = 0;
+    
+    if (millis() - lastGPSCheck >= 100) {
+        updateGPSLocation();
+        lastGPSCheck = millis();
+    }
+    
     delay(1000);
 }

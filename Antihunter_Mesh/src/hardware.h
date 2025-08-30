@@ -48,6 +48,7 @@ extern HardwareSerial GPS;
 void initializeHardware();
 void initializeSD();
 void initializeGPS();
+void testGPSPins();
 void beepOnce(uint32_t freq = 3200, uint32_t ms = 80);
 void beepPattern(int count, int gap_ms);
 void saveConfiguration();

@@ -155,14 +155,14 @@ String getDiagnostics() {
             {
                 File entry = root.openNextFile();
                 if (!entry)
-                    break; // No more files
+                    break;
 
-                // Exclude hidden files (those starting with a dot '.')
+                // Exclude hidden files
                 String fileName = String(entry.name());
                 if (fileName.startsWith("."))
                 {
                     entry.close();
-                    continue; // Skip hidden files
+                    continue;
                 }
 
                 s += "  " + fileName + " (" + String(entry.size()) + " bytes)\n";
@@ -269,6 +269,7 @@ void initializeSD()
 void initializeGPS()
 {
     Serial.println("Initializing GPS...");
+    GPS.setRxBufferSize(1024);
     GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     Serial.println("GPS UART initialized");
 }
@@ -294,38 +295,101 @@ String getGPSData()
     return lastGPSData;
 }
 
-void updateGPSLocation()
-{
-    while (GPS.available())
-    {
-        String line = GPS.readStringUntil('\n');
-        line.trim();
+void updateGPSLocation() {
+    static String currentLine = "";
+    
+    // Read all available bytes immediately
+    while (GPS.available()) {
+        char c = GPS.read();
+        
+        if (c == '\n') {
+            currentLine.trim();
+            if (currentLine.startsWith("$GPGGA") || currentLine.startsWith("$GNGGA")) {
+                lastGPSData = currentLine;
+                
+                // Parse the NMEA sentence
+                int commas[15];
+                int commaCount = 0;
+                for (int i = 0; i < currentLine.length() && commaCount < 15; i++) {
+                    if (currentLine[i] == ',')
+                        commas[commaCount++] = i;
+                }
 
-        if (line.startsWith("$GPGGA") || line.startsWith("$GNGGA"))
-        {
-            lastGPSData = line;
+                if (commaCount >= 6) {
+                    String latStr = currentLine.substring(commas[1] + 1, commas[2]);
+                    String latDir = currentLine.substring(commas[2] + 1, commas[3]);
+                    String lonStr = currentLine.substring(commas[3] + 1, commas[4]);
+                    String lonDir = currentLine.substring(commas[4] + 1, commas[5]);
+                    String quality = currentLine.substring(commas[5] + 1, commas[6]);
 
-            int commas[15];
-            int commaCount = 0;
-            for (int i = 0; i < line.length() && commaCount < 15; i++)
-            {
-                if (line[i] == ',')
-                    commas[commaCount++] = i;
-            }
-
-            if (commaCount >= 6)
-            {
-                String latStr = line.substring(commas[1] + 1, commas[2]);
-                String lonStr = line.substring(commas[3] + 1, commas[4]);
-                String quality = line.substring(commas[5] + 1, commas[6]);
-
-                if (latStr.length() > 0 && lonStr.length() > 0 && quality.toInt() > 0)
-                {
-                    gpsLat = latStr.toFloat();
-                    gpsLon = lonStr.toFloat();
-                    gpsValid = true;
+                    if (latStr.length() > 0 && lonStr.length() > 0 && quality.toInt() > 0) {
+                        float rawLat = latStr.toFloat();
+                        float rawLon = lonStr.toFloat();
+                        
+                        int latDeg = (int)(rawLat / 100);
+                        float latMin = rawLat - (latDeg * 100);
+                        gpsLat = latDeg + (latMin / 60.0);
+                        if (latDir == "S") gpsLat = -gpsLat;
+                        
+                        int lonDeg = (int)(rawLon / 100);
+                        float lonMin = rawLon - (lonDeg * 100);
+                        gpsLon = lonDeg + (lonMin / 60.0);
+                        if (lonDir == "W") gpsLon = -gpsLon;
+                        
+                        gpsValid = true;
+                        Serial.printf("GPS: Lat=%.6f, Lon=%.6f\n", gpsLat, gpsLon);
+                    } else {
+                        gpsValid = false;
+                    }
                 }
             }
+            currentLine = "";
+        } else if (c != '\r') {
+            currentLine += c;
         }
     }
+}
+
+void testGPSPins() {
+    Serial.println("\n=== GPS Connection Test ===");
+    Serial.printf("GPS_RX_PIN: %d, GPS_TX_PIN: %d\n", GPS_RX_PIN, GPS_TX_PIN);
+    
+    uint32_t baudRates[] = {4800, 9600, 19200, 38400, 57600, 115200};
+    
+    for (int i = 0; i < 6; i++) {
+        Serial.printf("Testing baud rate: %lu\n", baudRates[i]);
+        GPS.end();
+        delay(200);
+        GPS.begin(baudRates[i], SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+        delay(1000);
+        
+        unsigned long start = millis();
+        String receivedData = "";
+        int bytesRead = 0;
+        
+        while (millis() - start < 5000) {  // Test for 5 seconds
+            if (GPS.available()) {
+                char c = GPS.read();
+                receivedData += c;
+                bytesRead++;
+                Serial.print(c);
+            }
+        }
+        
+        Serial.printf("\nBytes received at %lu baud: %d\n", baudRates[i], bytesRead);
+        
+        // Check for actual NMEA sentences, not just random bytes
+        if (receivedData.indexOf("$GP") >= 0 || receivedData.indexOf("$GN") >= 0) {
+            Serial.printf("REAL GPS DATA FOUND at %lu baud!\n", baudRates[i]);
+            Serial.println("Sample data: " + receivedData.substring(0, 100));
+            return;
+        } else if (bytesRead > 0) {
+            Serial.printf("Got %d bytes but no NMEA sentences at %lu baud\n", baudRates[i], bytesRead);
+        } else {
+            Serial.printf("No data at %lu baud\n", baudRates[i]);
+        }
+        Serial.println("---");
+    }
+    
+    Serial.println("NO VALID GPS DATA FOUND AT ANY BAUD RATE - CHECK WIRING");
 }
