@@ -452,7 +452,7 @@ class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
   void onResult(BLEAdvertisedDevice advertisedDevice)
   {
-    bleFramesSeen++;
+    bleFramesSeen = bleFramesSeen + 1;
 
     // Extract MAC address
     uint8_t mac[6];
@@ -1041,7 +1041,7 @@ static void startServer()
   } else {
     req->send(400, "text/plain", "Detection mode not yet implemented");
   } });
-   server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
              {
   String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "deauth";
   int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 300;
@@ -1063,24 +1063,6 @@ static void startServer()
   } else {
     req->send(400, "text/plain", "Detection mode not yet implemented");
   } });
-
-  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-  String results = "Deauth Detection Results\n";
-  results += "Deauth frames: " + String(deauthCount) + "\n";
-  results += "Disassoc frames: " + String(disassocCount) + "\n\n";
-  
-  int show = min((int)deauthLog.size(), 100);
-  for (int i = 0; i < show; i++) {
-    const auto &hit = deauthLog[i];
-    results += String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
-    results += macFmt6(hit.srcMac) + " -> " + macFmt6(hit.destMac);
-    results += " BSSID:" + macFmt6(hit.bssid);
-    results += " RSSI:" + String(hit.rssi) + "dBm";
-    results += " CH:" + String(hit.channel);
-    results += " Reason:" + String(hit.reasonCode) + "\n";
-  }  
-  r->send(200, "text/plain", results); });
 
   server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
              {
