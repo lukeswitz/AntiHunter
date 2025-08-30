@@ -3,6 +3,7 @@
 #include "network.h"
 #include <SPI.h>
 #include <SD.h>
+#include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 
 extern Preferences prefs;
@@ -11,7 +12,8 @@ extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 
 // GPS
-HardwareSerial GPS(1);
+TinyGPSPlus gps;
+HardwareSerial GPS(2);
 bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
@@ -123,7 +125,7 @@ String getDiagnostics() {
     String s;
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-    
+
     s += "Scan Mode: " + modeStr + "\n";
     s += String("Scanning: ") + (scanning ? "yes" : "no") + "\n";
     s += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
@@ -138,7 +140,7 @@ String getDiagnostics() {
     // SD Card Status
     s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
     if (sdAvailable) {
-        uint64_t cardSize = SD.cardSize() / (1024 * 1024); // Convert to MB
+        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
         uint8_t cardType = SD.cardType();
         String cardTypeStr = (cardType == CARD_MMC) ? "MMC" :
                              (cardType == CARD_SD) ? "SDSC" :
@@ -146,21 +148,16 @@ String getDiagnostics() {
         s += "SD Card Type: " + cardTypeStr + "\n";
         s += "SD Card Size: " + String(cardSize) + "MB\n";
 
-        // List files on the SD card
         File root = SD.open("/");
-        if (root)
-        {
+        if (root) {
             s += "SD Card Files:\n";
-            while (true)
-            {
+            while (true) {
                 File entry = root.openNextFile();
                 if (!entry)
                     break;
 
-                // Exclude hidden files
                 String fileName = String(entry.name());
-                if (fileName.startsWith("."))
-                {
+                if (fileName.startsWith(".")) {
                     entry.close();
                     continue;
                 }
@@ -169,45 +166,39 @@ String getDiagnostics() {
                 entry.close();
             }
             root.close();
-        }
-        else
-        {
+        } else {
             s += "Failed to read SD card files.\n";
         }
     }
 
-    // GPS Status
-    s += "GPS: " + String(gpsValid ? "Valid fix" : "No fix") + "\n";
+    /// GPS Status
+    s += "GPS Status: ";
     if (gpsValid) {
-        s += "GPS Pos: " + String(gpsLat, 6) + ", " + String(gpsLon, 6) + "\n";
+        s += "Valid fix at " + String(gpsLat, 6) + ", " + String(gpsLon, 6) + "\n";
     } else {
-        s += "Last GPS Data: " + lastGPSData + "\n";
+        s += "Searching for satellites\n";
     }
+    s += "Last GPS Data: " + lastGPSData + "\n";
 
-    // Tracker Status
     if (trackerMode) {
         uint8_t trackerMac[6];
         int8_t trackerRssi;
         uint32_t trackerLastSeen, trackerPackets;
         getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
-        
+
         s += "Tracker: target=" + macFmt6(trackerMac) + " lastRSSI=" + String((int)trackerRssi) + "dBm";
         s += "  lastSeen(ms ago)=" + String((unsigned)(millis() - trackerLastSeen));
         s += " pkts=" + String((unsigned)trackerPackets) + "\n";
     }
 
-    // Last Scan Info
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";
 
-    // ESP32 Temperature
     float temp_c = temperatureRead();
     float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
-    s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "\n";
+    s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
 
-    // Buzzer Configuration
     s += "Beeps/Hit: " + String(cfgBeeps) + "  Gap(ms): " + String(cfgGapMs) + "\n";
 
-    // WiFi Channels
     s += "WiFi Channels: ";
     for (auto c : CHANNELS) {
         s += String((int)c) + " ";
@@ -269,9 +260,21 @@ void initializeSD()
 void initializeGPS()
 {
     Serial.println("Initializing GPS...");
-    GPS.setRxBufferSize(1024);
+    
+    GPS.setRxBufferSize(2048);
+    // GPS.setRxTimeout(2);
     GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    Serial.println("GPS UART initialized");
+    
+    delay(2000);
+    
+    if (GPS.available()) {
+        Serial.println("[GPS] GPS module responding");
+    } else {
+        Serial.println("[GPS] No initial response - GPS may need more time for cold start");
+        Serial.println("[GPS] Allow 5-15 minutes outdoors for first fix");
+    }
+    
+    Serial.printf("[GPS] UART initialized on pins RX:%d TX:%d\n", GPS_RX_PIN, GPS_TX_PIN);
 }
 
 void logToSD(const String &data)
@@ -296,57 +299,35 @@ String getGPSData()
 }
 
 void updateGPSLocation() {
-    static String currentLine = "";
-    
-    // Read all available bytes immediately
-    while (GPS.available()) {
+    static unsigned long lastDataTime = 0;
+
+    while (GPS.available() > 0) {
         char c = GPS.read();
-        
-        if (c == '\n') {
-            currentLine.trim();
-            if (currentLine.startsWith("$GPGGA") || currentLine.startsWith("$GNGGA")) {
-                lastGPSData = currentLine;
-                
-                // Parse the NMEA sentence
-                int commas[15];
-                int commaCount = 0;
-                for (int i = 0; i < currentLine.length() && commaCount < 15; i++) {
-                    if (currentLine[i] == ',')
-                        commas[commaCount++] = i;
-                }
+        if (gps.encode(c)) {
+            lastDataTime = millis();
 
-                if (commaCount >= 6) {
-                    String latStr = currentLine.substring(commas[1] + 1, commas[2]);
-                    String latDir = currentLine.substring(commas[2] + 1, commas[3]);
-                    String lonStr = currentLine.substring(commas[3] + 1, commas[4]);
-                    String lonDir = currentLine.substring(commas[4] + 1, commas[5]);
-                    String quality = currentLine.substring(commas[5] + 1, commas[6]);
-
-                    if (latStr.length() > 0 && lonStr.length() > 0 && quality.toInt() > 0) {
-                        float rawLat = latStr.toFloat();
-                        float rawLon = lonStr.toFloat();
-                        
-                        int latDeg = (int)(rawLat / 100);
-                        float latMin = rawLat - (latDeg * 100);
-                        gpsLat = latDeg + (latMin / 60.0);
-                        if (latDir == "S") gpsLat = -gpsLat;
-                        
-                        int lonDeg = (int)(rawLon / 100);
-                        float lonMin = rawLon - (lonDeg * 100);
-                        gpsLon = lonDeg + (lonMin / 60.0);
-                        if (lonDir == "W") gpsLon = -gpsLon;
-                        
-                        gpsValid = true;
-                        Serial.printf("GPS: Lat=%.6f, Lon=%.6f\n", gpsLat, gpsLon);
-                    } else {
-                        gpsValid = false;
-                    }
-                }
+            if (gps.location.isValid()) {
+                gpsLat      = gps.location.lat();
+                gpsLon      = gps.location.lng();
+                gpsValid    = true;
+                lastGPSData = "Lat: " + String(gpsLat, 6)
+                            + ", Lon: " + String(gpsLon, 6)
+                            + " (" + String((millis() - lastDataTime) / 1000) 
+                            + "s ago)";
+            } else {
+                gpsValid    = false;
+                lastGPSData = "No valid GPS fix (" 
+                            + String((millis() - lastDataTime) / 1000)
+                            + "s ago)";
             }
-            currentLine = "";
-        } else if (c != '\r') {
-            currentLine += c;
         }
+    }
+
+    if (lastDataTime > 0 && millis() - lastDataTime > 30000) {
+        gpsValid    = false;
+        lastGPSData = "No data for " 
+                    + String((millis() - lastDataTime) / 1000)
+                    + "s";
     }
 }
 
