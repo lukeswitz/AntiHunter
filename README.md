@@ -28,24 +28,21 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
     *   Real-time "foxhunting" games and exercises.
 
 3.  **Dedicated Blue/Red Tools (WiFi Sniffers — More Coming Soon):**
-    Focused operational tools accessible in the web UI. 
-
-    -  Blue Team — WiFi Sniffers:
-       Antihunter enters monitor mode to analyze 802.11 management frames and surface hostile activity.
+    Focused operational tools accessible in the web UI. Antihunter enters monitor mode to analyze 802.11 management frames and surface hostile activity.
        *  Deauth/Disassoc Detection: Detects and logs deauthentication/disassociation frames (source, destination, BSSID, channel, RSSI, reason). Optional audio alert.
        *  Beacon Flood Detection: Flags abnormal/excess beacons (short intervals, bursty timing). Logs SSID, channel, RSSI, interval.
-       *  How to Use: Open “WiFi Traffic Sniffers” in the web UI and start a detector. The AP temporarily goes offline during monitoring and returns on stop.
+       
+       *   Coming Soon:
+       Red Team enhancements, additional Blue Team detections (evil twin, rogue AP heuristics), and richer correlation across WiFi/BLE/GPS.
 
-    -  Coming Soon:
-       Red Team enhancements (active tracking aids), additional Blue Team detections (evil twin, rogue AP heuristics), and richer correlation across WiFi/BLE/GPS.
-
-**GPS**
+**GPS Location**
 
 - Parses NMEA on UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud (TinyGPSPlus).
 - Web UI shows GPS Status and Last GPS Data; `/gps` endpoint returns lat/lon.
 - Hits include GPS lat/lon when a valid fix exists.
+- Perimeter mapping and more integrations on the way
 
-**SD Logging**
+**SD Logging:**
 
 - SPI pins: CS=2, SCK=7, MISO=8, MOSI=9 (ESP32S3).
 - Logs to `/antihunter.log` with timestamp, type (WiFi/BLE), MAC, RSSI, and GPS (if valid).
@@ -68,7 +65,9 @@ Getting Antihunter up and running is straightforward. Use the quick flasher or b
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
 ```
-  
+
+> [!IMPORTANT]
+> Early stage project, the hardware requirements shown here will be rapidly evolving. 
 
 ### 1. Prerequisites
 
@@ -76,8 +75,8 @@ curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/Ant
 *   **PlatformIO Extension:** Install the PlatformIO IDE extension in VS Code.
 *   **Hardware:** 
     - ESP32 development board (Seeed XIAO ESP32S3 and other s3 varients) • **8MB** flash memory boards required for reliably
-    - Passive piezo buzzer connected to the designated pin
-    - Meshtastic board (Heltec, etc.)
+    - Passive piezo buzzer connected to the designated pin (optional)
+    - Meshtastic board (Heltec, etc.) 
 
 ### 2. Clone the Repository
 
@@ -96,7 +95,7 @@ Open the `Antihunter_Project` folder as your workspace in VS Code. PlatformIO wi
 
 ### 4. Flashing the Firmware
 
-Antihunter supports multiple boards and two project variants (core `Antihunter` and `Antihunter_Mesh`). Your `platformio.ini` is set up to let you choose.
+Antihunter supports multiple boards and two project variants (core `Antihunter` and `Antihunter_Mesh`). Your `platformio.ini` is set up to let you choose. 
 
 *   **Select Your Target:**
     *   In the **VS Code Status Bar** (the blue bar at the bottom), locate the PlatformIO environment selector. It typically shows something like `Default (esp32s3)`.
