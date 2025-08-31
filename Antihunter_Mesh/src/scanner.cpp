@@ -27,12 +27,14 @@ static std::vector<Target> targets;
 QueueHandle_t macQueue = nullptr;
 QueueHandle_t deauthQueue = nullptr;
 QueueHandle_t beaconQueue = nullptr;
+QueueHandle_t evilAPQueue = nullptr;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 
 // Blue Tools globals
 std::vector<DeauthHit> deauthLog;
 std::vector<BeaconHit> beaconLog;
+std::vector<EvilAPHit> evilAPLog;
 static std::map<String, uint32_t> beaconCounts;
 static std::map<String, uint32_t> beaconLastSeen;
 static std::map<String, std::vector<uint32_t>> beaconTimings;
@@ -42,6 +44,18 @@ volatile uint32_t totalBeaconsSeen = 0;
 volatile uint32_t suspiciousBeacons = 0;
 static bool deauthDetectionEnabled = false;
 static bool beaconFloodDetectionEnabled = false;
+
+// EvilAP
+static std::map<String, std::vector<String>> ssidToBssids;
+static std::map<String, EvilAPHit> knownNetworks;
+static std::map<String, uint32_t> probeResponses;
+volatile uint32_t evilAPCount = 0;
+static bool evilAPDetectionEnabled = false;
+const uint8_t EVIL_AP_FLAG_TWIN = 0x01;
+const uint8_t EVIL_AP_FLAG_STRONG_SIGNAL = 0x02;
+const uint8_t EVIL_AP_FLAG_KARMA = 0x04;
+const uint8_t EVIL_AP_FLAG_OPEN_SPOOF = 0x08;
+const uint8_t EVIL_AP_FLAG_TIMING = 0x10;
 
 // Beacon flood thresholds
 static const uint32_t BEACON_FLOOD_THRESHOLD = 50;
@@ -91,6 +105,10 @@ inline int clampi(int v, int lo, int hi) {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
+}
+
+int getUniqueNetworkCount() {
+    return ssidToBssids.size();
 }
 
 static bool parseMacLike(const String &ln, Target &out) {
@@ -339,6 +357,111 @@ static void IRAM_ATTR detectBeaconFlood(const wifi_promiscuous_pkt_t *ppkt) {
     }
 }
 
+static void IRAM_ATTR detectEvilAP(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!evilAPDetectionEnabled) return;
+
+    const uint8_t *p = ppkt->payload;
+    if (ppkt->rx_ctrl.sig_len < 36) return;
+
+    uint16_t fc = u16(p);
+    uint8_t ftype = (fc >> 2) & 0x3;
+    uint8_t subtype = (fc >> 4) & 0xF;
+
+    if (ftype == 0 && (subtype == 8 || subtype == 5)) {
+        EvilAPHit hit;
+        memcpy(hit.bssid, p + 16, 6);
+        hit.rssi = ppkt->rx_ctrl.rssi;
+        hit.channel = ppkt->rx_ctrl.channel;
+        hit.timestamp = millis();
+        hit.isOpen = false;
+        hit.beaconInterval = 0;
+        hit.detectionFlags = 0;
+        hit.ssid = "";
+        
+        if (subtype == 8 && ppkt->rx_ctrl.sig_len >= 38) {
+            hit.beaconInterval = u16(p + 32);
+            
+            const uint8_t *tags = p + 36;
+            uint32_t remaining = ppkt->rx_ctrl.sig_len - 36;
+            uint32_t offset = 0;
+            
+            while (offset + 1 < remaining) {
+                uint8_t tagType = tags[offset];
+                uint8_t tagLen = tags[offset + 1];
+                
+                if (offset + 2 + tagLen > remaining) break;
+                
+                if (tagType == 0 && tagLen > 0 && tagLen <= 32) {
+                    char ssid_str[33] = {0};
+                    memcpy(ssid_str, tags + offset + 2, tagLen);
+                    hit.ssid = String(ssid_str);
+                } else if (tagType == 48) {
+                    hit.isOpen = (tagLen == 0);
+                }
+                
+                offset += 2 + tagLen;
+            }
+            
+            if (hit.ssid.length() == 0) {
+                hit.isOpen = true;
+            }
+        }
+        
+        String bssidStr = macFmt6(hit.bssid);
+        String ssidKey = hit.ssid;
+        
+        if (hit.rssi > -40) {
+            hit.detectionFlags |= EVIL_AP_FLAG_STRONG_SIGNAL;
+        }
+        
+        if (hit.beaconInterval > 0 && hit.beaconInterval < 50) {
+            hit.detectionFlags |= EVIL_AP_FLAG_TIMING;
+        }
+        
+        if (ssidKey.length() > 0) {
+            if (ssidToBssids[ssidKey].size() == 0) {
+                ssidToBssids[ssidKey].push_back(bssidStr);
+                knownNetworks[bssidStr] = hit;
+            } else {
+                bool foundBssid = false;
+                for (const String& existingBssid : ssidToBssids[ssidKey]) {
+                    if (existingBssid == bssidStr) {
+                        foundBssid = true;
+                        break;
+                    }
+                }
+                
+                if (!foundBssid) {
+                    ssidToBssids[ssidKey].push_back(bssidStr);
+                    hit.detectionFlags |= EVIL_AP_FLAG_TWIN;
+                    
+                    if (knownNetworks.find(ssidToBssids[ssidKey][0]) != knownNetworks.end() && 
+                        !knownNetworks[ssidToBssids[ssidKey][0]].isOpen && hit.isOpen) {
+                        hit.detectionFlags |= EVIL_AP_FLAG_OPEN_SPOOF;
+                    }
+                }
+            }
+        }
+        
+        if (subtype == 5) {
+            probeResponses[bssidStr]++;
+            if (probeResponses[bssidStr] > 10) {
+                hit.detectionFlags |= EVIL_AP_FLAG_KARMA;
+            }
+        }
+        
+        if (hit.detectionFlags > 0) {
+            evilAPCount = evilAPCount + 1;
+            BaseType_t w = false;
+            if (evilAPQueue) {
+                xQueueSendFromISR(evilAPQueue, &hit, &w);
+                if (w) portYIELD_FROM_ISR();
+            }
+        }
+    }
+}
+
+
 // BLE Callback Class
 class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) {
@@ -381,8 +504,8 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     
     detectDeauthFrame(ppkt);
     detectBeaconFlood(ppkt);
+    detectEvilAP(ppkt);
     framesSeen = framesSeen + 1;
-
     
     if (!ppkt || ppkt->rx_ctrl.sig_len < 24) return;
 
@@ -971,6 +1094,124 @@ void beaconFloodTask(void *pv) {
     }
 
     Serial.println("[BLUE] Beacon flood detection stopped, restoring AP...");
+    startAPAndServer();
+    
+    extern TaskHandle_t blueTeamTaskHandle;
+    blueTeamTaskHandle = nullptr;
+    vTaskDelete(nullptr);
+}
+
+void evilAPDetectionTask(void *pv) {
+    int secs = (int)(intptr_t)pv;
+    bool forever = (secs <= 0);
+    
+    Serial.printf("[BLUE] Evil AP detection %s...\n", 
+                  forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str());
+
+    stopAPAndServer();
+
+    stopRequested = false;
+    if (!evilAPQueue) {
+        evilAPQueue = xQueueCreate(256, sizeof(EvilAPHit));
+    }
+
+    evilAPLog.clear();
+    ssidToBssids.clear();
+    knownNetworks.clear();
+    probeResponses.clear();
+    evilAPCount = 0;
+    framesSeen = 0;
+    scanning = true;
+    evilAPDetectionEnabled = true;
+    uint32_t scanStart = millis();
+
+    radioStartWiFi();
+    Serial.println("[BLUE] WiFi monitoring started for Evil AP detection");
+
+    EvilAPHit hit;
+    uint32_t lastAlert = 0;
+    uint32_t nextStatus = millis() + 1000;
+    uint32_t lastCleanup = millis();
+
+    while ((forever && !stopRequested) || 
+           (!forever && (int)(millis() - scanStart) < secs * 1000 && !stopRequested)) {
+        
+        if ((int32_t)(millis() - nextStatus) >= 0) {
+            Serial.printf("[BLUE] Monitoring... evil_aps=%u networks=%u frames=%u\n",
+                          (unsigned)evilAPCount, (unsigned)ssidToBssids.size(), (unsigned)framesSeen);
+            nextStatus += 1000;
+        }
+
+        if (millis() - lastCleanup > 60000) {
+            uint32_t now = millis();
+            for (auto it = knownNetworks.begin(); it != knownNetworks.end();) {
+                if (now - it->second.timestamp > 300000) {
+                    it = knownNetworks.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+            lastCleanup = now;
+        }
+
+        if (xQueueReceive(evilAPQueue, &hit, pdMS_TO_TICKS(100)) == pdTRUE) {
+            evilAPLog.push_back(hit);
+            
+            String flags = "";
+            if (hit.detectionFlags & EVIL_AP_FLAG_TWIN) flags += "TWIN ";
+            if (hit.detectionFlags & EVIL_AP_FLAG_STRONG_SIGNAL) flags += "STRONG ";
+            if (hit.detectionFlags & EVIL_AP_FLAG_KARMA) flags += "KARMA ";
+            if (hit.detectionFlags & EVIL_AP_FLAG_OPEN_SPOOF) flags += "OPEN_SPOOF ";
+            if (hit.detectionFlags & EVIL_AP_FLAG_TIMING) flags += "TIMING ";
+            
+            Serial.printf("[EVIL_AP] %s '%s' RSSI:%ddBm CH:%u FLAGS:%s\n",
+                          macFmt6(hit.bssid).c_str(), hit.ssid.c_str(),
+                          hit.rssi, hit.channel, flags.c_str());
+            
+            if (millis() - lastAlert > 4000) {
+                beepPattern(5, 60);
+                lastAlert = millis();
+            }
+            
+            if (evilAPLog.size() > 300) {
+                evilAPLog.erase(evilAPLog.begin(), evilAPLog.begin() + 150);
+            }
+        }
+    }
+
+    radioStopWiFi();
+    scanning = false;
+    evilAPDetectionEnabled = false;
+
+    lastResults = String("Evil AP Detection — Duration: ") + (forever ? "∞" : String(secs)) + "s\n";
+    lastResults += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
+    lastResults += "Evil APs detected: " + String((unsigned)evilAPCount) + "\n";
+    lastResults += "Unique networks: " + String((unsigned)ssidToBssids.size()) + "\n\n";
+    
+    lastResults += "Network Analysis:\n";
+    for (const auto& pair : ssidToBssids) {
+        if (pair.second.size() > 1) {
+            lastResults += "SSID '" + pair.first + "': " + String(pair.second.size()) + " BSSIDs\n";
+        }
+    }
+    lastResults += "\n";
+    
+    int show = min((int)evilAPLog.size(), 50);
+    lastResults += "Recent Evil APs:\n";
+    for (int i = max(0, (int)evilAPLog.size() - show); i < evilAPLog.size(); i++) {
+        const auto &e = evilAPLog[i];
+        lastResults += macFmt6(e.bssid) + " '" + e.ssid + "' ";
+        lastResults += "RSSI:" + String(e.rssi) + "dBm ";
+        lastResults += "CH:" + String(e.channel) + " ";
+        if (e.detectionFlags & EVIL_AP_FLAG_TWIN) lastResults += "[TWIN] ";
+        if (e.detectionFlags & EVIL_AP_FLAG_STRONG_SIGNAL) lastResults += "[STRONG] ";
+        if (e.detectionFlags & EVIL_AP_FLAG_KARMA) lastResults += "[KARMA] ";
+        if (e.detectionFlags & EVIL_AP_FLAG_OPEN_SPOOF) lastResults += "[OPEN_SPOOF] ";
+        if (e.detectionFlags & EVIL_AP_FLAG_TIMING) lastResults += "[TIMING] ";
+        lastResults += "\n";
+    }
+
+    Serial.println("[BLUE] Evil AP detection stopped, restoring AP...");
     startAPAndServer();
     
     extern TaskHandle_t blueTeamTaskHandle;

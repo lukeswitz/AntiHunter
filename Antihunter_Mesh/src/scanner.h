@@ -39,16 +39,33 @@ struct BeaconHit {
     uint16_t beaconInterval;
 };
 
+
+struct EvilAPHit {
+    uint8_t bssid[6];
+    String ssid;
+    int8_t rssi;
+    uint8_t channel;
+    uint32_t timestamp;
+    bool isOpen;
+    uint16_t beaconInterval;
+    uint8_t detectionFlags;
+};
+
+
 // Function declarations
 void initializeScanner();
 void listScanTask(void *pv);
 void trackerTask(void *pv);
 void deauthDetectionTask(void *pv);
 void beaconFloodTask(void *pv);
-String getTargetsList();
+void evilAPDetectionTask(void *pv);
+
 void saveTargetsList(const String &txt);
-void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets);
 void setTrackerMac(const uint8_t mac[6]);
+
+void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets);
+int getUniqueNetworkCount();
+String getTargetsList();
 String getDiagnostics();
 size_t getTargetCount();
 
@@ -62,6 +79,16 @@ extern volatile uint32_t deauthCount;
 extern volatile uint32_t disassocCount;
 extern volatile uint32_t totalBeaconsSeen;
 extern volatile uint32_t suspiciousBeacons;
+
+// EvilAP
+extern volatile uint32_t evilAPCount;
+extern std::vector<EvilAPHit> evilAPLog;
+extern QueueHandle_t evilAPQueue;
+extern const uint8_t EVIL_AP_FLAG_TWIN;
+extern const uint8_t EVIL_AP_FLAG_STRONG_SIGNAL;
+extern const uint8_t EVIL_AP_FLAG_KARMA;
+extern const uint8_t EVIL_AP_FLAG_OPEN_SPOOF;
+extern const uint8_t EVIL_AP_FLAG_TIMING;
 
 // Collections exports
 extern std::set<String> uniqueMacs;

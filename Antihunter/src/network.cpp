@@ -153,7 +153,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     <select name="detection" id="detectionMode">
       <option value="deauth">Deauth/Disassoc Detection</option>
       <option value="beacon-flood">Beacon Flood Detection</option>
-      <option value="evil-twin" disabled>Evil Twin (Coming Soon)</option>
+      <option value="evil-twin">Evil Twin Detection</option>
     </select>
     
     <div id="deauthSettings">
@@ -410,7 +410,7 @@ void startWebServer()
         } });
 
   server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
+           {
         String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "deauth";
         int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 300;
         bool forever = req->hasParam("forever", true);
@@ -435,9 +435,40 @@ void startWebServer()
             if (!blueTeamTaskHandle) {
                 xTaskCreatePinnedToCore(beaconFloodTask, "beaconflood", 10240, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
             }
+        } else if (detection == "evil-twin") {
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+            
+            stopRequested = false;
+            req->send(200, "text/plain", forever ? "Evil AP detection starting (forever)" : ("Evil AP detection starting for " + String(secs) + "s"));
+            
+            if (!blueTeamTaskHandle) {
+                xTaskCreatePinnedToCore(evilAPDetectionTask, "evilap", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+            }
         } else {
             req->send(400, "text/plain", "Detection mode not yet implemented");
         } });
+
+  server->on("/evilap-results", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+        String results = "Evil AP Detection Results\n";
+        results += "Evil APs detected: " + String(evilAPCount) + "\n";
+        results += "Unique networks: " + String(getUniqueNetworkCount()) + "\n\n";
+        
+        int show = min((int)evilAPLog.size(), 100);
+        for (int i = 0; i < show; i++) {
+            const auto &hit = evilAPLog[i];
+            results += "EVIL_AP " + macFmt6(hit.bssid) + " '" + hit.ssid + "'";
+            results += " RSSI:" + String(hit.rssi) + "dBm";
+            results += " CH:" + String(hit.channel);
+            if (hit.detectionFlags & EVIL_AP_FLAG_TWIN) results += " [TWIN]";
+            if (hit.detectionFlags & EVIL_AP_FLAG_STRONG_SIGNAL) results += " [STRONG]";
+            if (hit.detectionFlags & EVIL_AP_FLAG_KARMA) results += " [KARMA]";
+            if (hit.detectionFlags & EVIL_AP_FLAG_OPEN_SPOOF) results += " [OPEN_SPOOF]";
+            if (hit.detectionFlags & EVIL_AP_FLAG_TIMING) results += " [TIMING]";
+            results += "\n";
+        }  
+        r->send(200, "text/plain", results); });
 
   server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
              {
