@@ -27,10 +27,23 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
     *   Pinpointing the exact physical location of a transmitting device.
     *   Real-time "foxhunting" games and exercises.
 
-3.  **Dedicated Blue/Red Tools**
-    Focused operational tools accessible in the web UI. Antihunter enters monitor mode to analyze 802.11 management frames and surface hostile activity.
-      
-       *   Lots Coming Soon: Red Team enhancements, additional Blue Team detections (evil twin, rogue AP heuristics), and richer correlation across WiFi/BLE/GPS.
+**3. RF Security Analysis (Blue Team Defense):**
+Antihunter's defensive suite transforms your device into a wireless threat detection platform, monitoring the RF spectrum for malicious activities commonly deployed by adversaries. The system analyzes 802.11 management frames in real-time, identifying attack patterns that could compromise network security or indicate active penetration testing. This mode is essential for:
+
+* **Deauth/Disassociation Detection:** Monitors for deauth and disassoc attack frames, capturing source/destination MACs, BSSID, signal strength, and reason codes.
+
+* **Beacon Flood Detection:** Identifies suspicious beacon patterns - tracks timing intervals and flags abnormally high beacon rates (>50 per 10s window) or short intervals (<50ms) indicating automated attacks.
+
+* **Evil Twin/Rogue AP Detection:** Detects potential rogue access points through multiple methods:
+     - Twin detection (multiple BSSIDs with same SSID)
+     - Strong signal analysis (unusually close equipment)  
+     - KARMA attack detection (excessive probe responses >10)
+     - Open network spoofing (secure networks appearing as open)
+     - Timing anomalies in beacon intervals
+
+    Real-time alerting with audio notifications, GPS logging, and detailed reporting via web interface. AP goes offline during monitoring for dedicated radio resources.
+
+    *Lots Coming Soon: Red Team tools, additional Blue Team detections, triangulation and richer correlation across WiFi/BLE/GPS.*
 
 **GPS Location**
 
