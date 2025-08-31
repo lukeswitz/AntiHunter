@@ -162,7 +162,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       <div class="row"><input type="checkbox" id="forever3" name="forever" value="1"><label for="forever3">∞ Forever</label></div>
       <div class="row">
         <input type="checkbox" id="alertBeep" name="alertBeep" value="1" checked>
-        <label for="alertBeep">Audio Alert on Detection</label>
+        <label for="alertBeep">Audio Alert</label>
       </div>
     </div>
     
