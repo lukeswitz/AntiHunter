@@ -178,7 +178,6 @@ String getDiagnostics() {
     } else {
         s += "Searching for satellites\n";
     }
-    s += "Last GPS Data: " + lastGPSData + "\n";
 
     if (trackerMode) {
         uint8_t trackerMac[6];
@@ -252,7 +251,7 @@ void initializeSD()
             Serial.printf("SD Card Size: %lluMB\n", cardSize);
             return;
         }
-        delay(100); // Short delay between attempts
+        delay(100);
     }
     Serial.println("SD card initialization failed");
 }
@@ -262,10 +261,9 @@ void initializeGPS()
     Serial.println("Initializing GPS...");
     
     GPS.setRxBufferSize(2048);
-    // GPS.setRxTimeout(2);
     GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     
-    delay(2000);
+    delay(120); // enough time to let it settle
     
     if (GPS.available()) {
         Serial.println("[GPS] GPS module responding");
