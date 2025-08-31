@@ -9,8 +9,8 @@ A low-cost, open-source tool for wireless threat detection, tracking, and counte
 
 ## What Does Antihunter Do?
 
-- Detect rogue Wi-Fi & BLE devices
-- Hunt with directional antennas/ proximity
+- Detect rogue Wi-Fi & BLE devices and activity
+- Hunt with directional antennas
 - Deploy perimeters via Meshtastic
 
 Antihunter provides powerful, real-time wireless intelligence through an intuitive web-based interface. It operates in two primary modes:
@@ -27,13 +27,10 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
     *   Pinpointing the exact physical location of a transmitting device.
     *   Real-time "foxhunting" games and exercises.
 
-3.  **Dedicated Blue/Red Tools (WiFi Sniffers — More Coming Soon):**
+3.  **Dedicated Blue/Red Tools**
     Focused operational tools accessible in the web UI. Antihunter enters monitor mode to analyze 802.11 management frames and surface hostile activity.
-       *  Deauth/Disassoc Detection: Detects and logs deauthentication/disassociation frames (source, destination, BSSID, channel, RSSI, reason). Optional audio alert.
-       *  Beacon Flood Detection: Flags abnormal/excess beacons (short intervals, bursty timing). Logs SSID, channel, RSSI, interval.
-       
-       *   Coming Soon:
-       Red Team enhancements, additional Blue Team detections (evil twin, rogue AP heuristics), and richer correlation across WiFi/BLE/GPS.
+      
+       *   Lots Coming Soon: Red Team enhancements, additional Blue Team detections (evil twin, rogue AP heuristics), and richer correlation across WiFi/BLE/GPS.
 
 **GPS Location**
 
@@ -61,7 +58,8 @@ Getting Antihunter up and running is straightforward. Use the quick flasher or b
 
 ### Quick Flasher Option
 - If you choose not to build from source, precompiled bins are available in the `Dist` folder
-- Plug in your esp32s3 device and then download & flash with the following command. Choose Mesh/Standard from given options:
+- For Linux & macOS 
+- Plug in your esp32s3 device, download & flash:
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
 ```
@@ -91,7 +89,7 @@ This creates a new folder `Antihunter_Project` containing the Antihunter source 
 
 ### 3. Open in VS Code
 
-Open the `Antihunter_Project` folder as your workspace in VS Code. PlatformIO will automatically detect the `platformio.ini` file at the root.
+Open the enclosed `AntiHunter` folder as your workspace in VS Code. PlatformIO will automatically detect the `platformio.ini` file at the root.
 
 ### 4. Flashing the Firmware
 
@@ -99,7 +97,7 @@ Antihunter supports multiple boards and two project variants (core `Antihunter` 
 
 *   **Select Your Target:**
     *   In the **VS Code Status Bar** (the blue bar at the bottom), locate the PlatformIO environment selector. It typically shows something like `Default (esp32s3)`.
-    *   Click on it. A list of available environments will appear, clearly prefixed:
+    *   Click on it. A list of available environments will appear, clearly prefixed: `AntiHunter`, `AntiHunter_Mesh`
     *   Select the environment corresponding to your board and the project variant you wish to upload.
 
 *   **Upload:** Click the "Upload" button (the right arrow icon) in the PlatformIO status bar. PlatformIO will compile the selected project and flash it to your connected ESP32 board.
@@ -117,6 +115,8 @@ Once flashed, Antihunter hosts a web interface for all operations.
     *   Open a web browser and navigate to `http://192.168.4.1/`.
 
 3.  **Core Functionality:**
+   <img width="1072" height="605" alt="image" src="https://github.com/user-attachments/assets/a0655482-0917-485e-b459-1ec46d322b94" />
+
 
 *   **Targets (List Scan Watchlist):**
       *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
@@ -128,18 +128,16 @@ Once flashed, Antihunter hosts a web interface for all operations.
       *   **Duration:** Set the scan duration in seconds (0 for "Forever").
       *   **WiFi Channels CSV:** Specify channels to hop through (e.g., `1,6,11` or `1..13`).
       *   Click `Start List Scan`. (Note: The AP will go offline during the scan and return when stopped).
-      *   Click `Stop` to end any active scan.
-
-     <img width="1064" height="521" alt="Screenshot 2025-08-28 at 5 37 21 PM" src="https://github.com/user-attachments/assets/284dc031-ce8e-47f9-aaab-e98fe19acae1" />
-
+    
 *   **Tracker (Single MAC "Geiger"):**
      *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
      *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
      *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
      *   Click `Start Tracker`. AP will disappear for the duration of the scan. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
-     *   Click `Stop` to end tracking.
 
-       <img width="1062" height="495" alt="image" src="https://github.com/user-attachments/assets/73757dbb-ed8e-48d1-947f-4feb873b506c" />
+*   **WiFi Traffic Sniffers:**
+     *  Deauth/Disassoc Detection: Detects and logs deauthentication/disassociation frames (source, destination, BSSID, channel, RSSI, reason). Optional audio alert.
+     *  Beacon Flood Detection: Flags abnormal/excess beacons (short intervals, bursty timing). Logs SSID, channel, RSSI, interval.
 
  *   **Buzzer:**
      *   **Beeps per hit (List Scan):** Configure how many times the buzzer beeps when a target is detected in List Scan mode (default: 2).
@@ -153,8 +151,8 @@ Once flashed, Antihunter hosts a web interface for all operations.
      *   *(Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=4`, `TX=5` at 115200 baud).
     *   **Meshtastic Configuration:** Enable serial, Set RX/TX (19/20 for Heltec v3), text message mode, 115200 baud.*
 
-     <img width="1065" height="666" alt="image" src="https://github.com/user-attachments/assets/6e7b6fda-7775-47be-8469-53de7712facc" />
-    
+<img width="520" height="568" alt="Screenshot 2025-08-31 at 7 35 09 AM" src="https://github.com/user-attachments/assets/731b03f0-8d17-464f-9005-df27bb35d119" />
+
 *   **Diagnostics:**
     *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, SD stats & files, GPS data and more.
 
@@ -165,12 +163,10 @@ Antihunter empowers you to assert control over your wireless environment, turnin
 
 ## Credits
 
-Built by @TheRealSirHaXalot with additions from @lukeswitz
-
 Thanks to
 
-- @colonelpanichacks devices for pushing this development
-- All the hackers and builders making it all go round
+- @colonelpanichacks gadgets for pushing this development
+- All the hackers/builders making it happen, and those who taught us along the way
 
 ## Disclaimer
 
