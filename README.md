@@ -3,15 +3,18 @@
 
 ![00C0E4AA-395F-4243-A6D5-737C3BED2442_1_105_c](https://github.com/user-attachments/assets/2f789984-bca3-4a45-8470-ba2d638e512f)
 
+> [!NOTE]
+> Early release. Stablility issues, breaking changes and other unexpected behavior may occur. 
+
 ## What is Antihunter?
 
 A low-cost, open-source tool for wireless threat detection, tracking, and counter-surveillance.
 
 ## What Does Antihunter Do?
 
-- Detect rogue Wi-Fi & BLE devices and activity
-- Hunt with directional antennas
-- Deploy perimeters via Meshtastic
+- Detect rogue WiFi/BLE devices and activity
+- Hunt with directional antennas or proximity
+- Deploy distributed perimeters via Meshtastic
 
 Antihunter provides powerful, real-time wireless intelligence through an intuitive web-based interface. It operates in two primary modes:
 
