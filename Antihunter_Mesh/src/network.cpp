@@ -10,11 +10,13 @@ extern "C"
 #include "esp_coexist.h"
 }
 
+// Network vars
 AsyncWebServer *server = nullptr;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
 const unsigned long MESH_SEND_INTERVAL = 10000;
 const int MAX_MESH_SIZE = 230;
+static String nodeId = "";
 
 // External references
 extern Preferences prefs;
@@ -201,6 +203,16 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     <input type="checkbox" id="meshEnabled" checked>
     <label for="meshEnabled">Enable Mesh Notifications</label>
   </div>
+  <div class="row">
+  <h3>Node ID</h3>
+    <form id="nodeForm" method="POST" action="/node-id">
+      <label>Node ID</label>
+      <input type="text" id="nodeId" name="id" maxlength="16" placeholder="NODE_01">
+      <div class="row" style="margin-top:10px">
+      <button class="btn primary" type="submit">Save ID</button>
+      </div>
+    </form>
+  </div>
   <div class="row" style="margin-top:10px">
     <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
   </div>
@@ -253,8 +265,22 @@ async function load(){
     document.getElementById('gap').value = cfg.gap;
     const rr = await fetch('/results'); 
     document.getElementById('r').innerText = await rr.text();
+    loadNodeId();
   }catch(e){}
 }
+
+async function loadNodeId(){
+  try{
+    const r = await fetch('/node-id');
+    const data = await r.json();
+    document.getElementById('nodeId').value = data.nodeId;
+  }catch(e){}
+}
+
+document.getElementById('nodeForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  ajaxForm(e.target, 'Node ID saved');
+});
 
 async function tick(){
   try{
@@ -373,6 +399,21 @@ void startWebServer()
         String txt = req->getParam("list", true)->value();
         saveTargetsList(txt);
         req->send(200, "text/plain", "Saved"); });
+
+  server->on("/node-id", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+    String id = req->hasParam("id", true) ? req->getParam("id", true)->value() : "";
+    if (id.length() > 0 && id.length() <= 16) {
+        setNodeId(id);
+        req->send(200, "text/plain", "Node ID updated");
+    } else {
+        req->send(400, "text/plain", "Invalid ID (1-16 chars)");
+    } });
+
+  server->on("/node-id", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+    String j = "{\"nodeId\":\"" + getNodeId() + "\"}";
+    r->send(200, "application/json", j); });
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -650,70 +691,270 @@ void startAPAndServer()
   }
 }
 
-// Mesh UART Messages
-void sendMeshNotification(const Hit &hit)
-{
-  if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL)
-    return;
-  lastMeshSend = millis();
+// Mesh UART Message Sender
+void sendMeshNotification(const Hit &hit) {
+    if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
+    lastMeshSend = millis();
 
-  char mac_str[18];
-  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-           hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+             hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
 
-  char mesh_msg[MAX_MESH_SIZE];
-  int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
-                         "Target: %s %s RSSI:%d",
-                         hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
+    char mesh_msg[MAX_MESH_SIZE];
+    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
+                          "%s: Target: %s %s RSSI:%d",
+                          nodeId.c_str(), hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
 
-  if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi")
-  {
-    msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
-                        " Name:%s", hit.name.c_str());
-  }
+    if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi") {
+        msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
+                           " Name:%s", hit.name.c_str());
+    }
 
-  if (Serial1.availableForWrite() >= msg_len)
-  {
-    Serial.printf("[MESH] %s\n", mesh_msg);
-    Serial1.println(mesh_msg);
-  }
+    if (Serial1.availableForWrite() >= msg_len) {
+        Serial.printf("[MESH] %s\n", mesh_msg);
+        Serial1.println(mesh_msg);
+    }
 }
 
-void sendTrackerMeshUpdate()
-{
-  static unsigned long lastTrackerMesh = 0;
-  const unsigned long trackerInterval = 15000;
+void sendTrackerMeshUpdate() {
+    static unsigned long lastTrackerMesh = 0;
+    const unsigned long trackerInterval = 15000;
 
-  if (millis() - lastTrackerMesh < trackerInterval)
-    return;
-  lastTrackerMesh = millis();
+    if (millis() - lastTrackerMesh < trackerInterval) return;
+    lastTrackerMesh = millis();
 
-  uint8_t trackerMac[6];
-  int8_t trackerRssi;
-  uint32_t trackerLastSeen, trackerPackets;
-  getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
+    uint8_t trackerMac[6];
+    int8_t trackerRssi;
+    uint32_t trackerLastSeen, trackerPackets;
+    getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
 
-  char mac_str[18];
-  snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-           trackerMac[0], trackerMac[1], trackerMac[2],
-           trackerMac[3], trackerMac[4], trackerMac[5]);
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+             trackerMac[0], trackerMac[1], trackerMac[2],
+             trackerMac[3], trackerMac[4], trackerMac[5]);
 
-  char tracker_msg[MAX_MESH_SIZE];
-  uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
+    char tracker_msg[MAX_MESH_SIZE];
+    uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
 
-  int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
-                         "Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
-                         mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
+    int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
+                          "%s: Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
+                          nodeId.c_str(), mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
 
-  if (Serial1.availableForWrite() >= msg_len)
-  {
-    Serial.printf("[MESH] %s\n", tracker_msg);
-    Serial1.println(tracker_msg);
-  }
+    if (Serial1.availableForWrite() >= msg_len) {
+        Serial.printf("[MESH] %s\n", tracker_msg);
+        Serial1.println(tracker_msg);
+    }
 }
 
-void initializeMesh()
-{
-  Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
-  Serial.println("Mesh UART communication initialized on Serial1");
+void initializeMesh() {
+    Serial1.end();
+    delay(200);
+    
+    Serial1.setRxBufferSize(2048);
+    Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
+    
+    Serial.println("[MESH] UART initialized");
+    Serial.printf("[MESH] Config: 115200 8N1 on RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
+}
+
+void processCommand(const String &command) {
+    if (command.startsWith("CONFIG_BEEPS:")) {
+        int beeps = command.substring(13).toInt();
+        if (beeps >= 1 && beeps <= 10) {
+            cfgBeeps = beeps;
+            saveConfiguration();
+            Serial.printf("[MESH] Updated beeps config: %d\n", cfgBeeps);
+            Serial1.println(nodeId + ": CONFIG_ACK:BEEPS:" + String(cfgBeeps));
+        }
+    } else if (command.startsWith("CONFIG_GAP:")) {
+        int gap = command.substring(11).toInt();
+        if (gap >= 20 && gap <= 2000) {
+            cfgGapMs = gap;
+            saveConfiguration();
+            Serial.printf("[MESH] Updated gap config: %d\n", cfgGapMs);
+            Serial1.println(nodeId + ": CONFIG_ACK:GAP:" + String(cfgGapMs));
+        }
+    } else if (command.startsWith("CONFIG_CHANNELS:")) {
+        String channels = command.substring(16);
+        parseChannelsCSV(channels);
+        Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
+        Serial1.println(nodeId + ": CONFIG_ACK:CHANNELS:" + channels);
+    } else if (command.startsWith("CONFIG_TARGETS:")) {
+        String targets = command.substring(15);
+        saveTargetsList(targets);
+        Serial.printf("[MESH] Updated targets list\n");
+        Serial1.println(nodeId + ": CONFIG_ACK:TARGETS:OK");
+    } else if (command.startsWith("SCAN_START:")) {
+        String params = command.substring(11);
+        int modeDelim = params.indexOf(':');
+        int secsDelim = params.indexOf(':', modeDelim + 1);
+        int channelDelim = params.indexOf(':', secsDelim + 1);
+        
+        if (modeDelim > 0 && secsDelim > 0) {
+            int mode = params.substring(0, modeDelim).toInt();
+            int secs = params.substring(modeDelim + 1, secsDelim).toInt();
+            String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,6,11";
+            bool forever = (channelDelim > 0 && params.substring(channelDelim + 1) == "FOREVER");
+            
+            if (mode >= 0 && mode <= 2) {
+                currentScanMode = (ScanMode)mode;
+                parseChannelsCSV(channels);
+                stopRequested = false;
+                
+                if (!workerTaskHandle) {
+                    xTaskCreatePinnedToCore(listScanTask, "scan", 8192, 
+                                          (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+                }
+                Serial.printf("[MESH] Started scan via mesh command\n");
+                Serial1.println(nodeId + ": SCAN_ACK:STARTED");
+            }
+        }
+    } else if (command.startsWith("TRACK_START:")) {
+        String params = command.substring(12);
+        int macDelim = params.indexOf(':');
+        int modeDelim = params.indexOf(':', macDelim + 1);
+        int secsDelim = params.indexOf(':', modeDelim + 1);
+        int channelDelim = params.indexOf(':', secsDelim + 1);
+        
+        if (macDelim > 0 && modeDelim > 0 && secsDelim > 0) {
+            String mac = params.substring(0, macDelim);
+            int mode = params.substring(macDelim + 1, modeDelim).toInt();
+            int secs = params.substring(modeDelim + 1, secsDelim).toInt();
+            String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "6";
+            bool forever = (channelDelim > 0 && params.indexOf("FOREVER", channelDelim) > 0);
+            
+            uint8_t trackerMac[6];
+            if (parseMac6(mac, trackerMac) && mode >= 0 && mode <= 2) {
+                setTrackerMac(trackerMac);
+                currentScanMode = (ScanMode)mode;
+                parseChannelsCSV(channels);
+                stopRequested = false;
+                
+                if (!workerTaskHandle) {
+                    xTaskCreatePinnedToCore(trackerTask, "tracker", 8192, 
+                                          (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+                }
+                Serial.printf("[MESH] Started tracker via mesh command for %s\n", mac.c_str());
+                Serial1.println(nodeId + ": TRACK_ACK:STARTED:" + mac);
+            }
+        }
+    } else if (command.startsWith("STOP")) {
+        stopRequested = true;
+        Serial.println("[MESH] Stop command received via mesh");
+        Serial1.println(nodeId + ": STOP_ACK:OK");
+    } else if (command.startsWith("STATUS")) {
+        // Get current status info
+        float temp_c = temperatureRead();
+        float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
+        String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
+                         (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+        
+        uint32_t uptime_secs = millis() / 1000;
+        uint32_t uptime_mins = uptime_secs / 60;
+        uint32_t uptime_hours = uptime_mins / 60;
+        
+        // Compact status response with key info
+        char status_msg[MAX_MESH_SIZE];
+        snprintf(status_msg, sizeof(status_msg), 
+                "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
+                nodeId.c_str(),
+                modeStr.c_str(),
+                scanning ? "YES" : "NO",
+                totalHits,
+                (int)getTargetCount(),
+                (int)uniqueMacs.size(),
+                temp_c, temp_f,
+                (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+        
+        Serial1.println(status_msg);
+        
+        // If actively tracking, send tracker info too
+        if (trackerMode) {
+            uint8_t trackerMac[6];
+            int8_t trackerRssi;
+            uint32_t trackerLastSeen, trackerPackets;
+            getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
+            
+            char tracker_status[MAX_MESH_SIZE];
+            snprintf(tracker_status, sizeof(tracker_status),
+                    "%s: TRACKER: Target:%s RSSI:%ddBm Pkts:%u",
+                    nodeId.c_str(),
+                    macFmt6(trackerMac).c_str(),
+                    (int)trackerRssi,
+                    (unsigned)trackerPackets);
+            Serial1.println(tracker_status);
+        }
+        
+        // GPS status if available
+        if (gpsValid) {
+            char gps_status[MAX_MESH_SIZE];
+            snprintf(gps_status, sizeof(gps_status),
+                    "%s: GPS: %.6f,%.6f",
+                    nodeId.c_str(), gpsLat, gpsLon);
+            Serial1.println(gps_status);
+        }
+    } else if (command.startsWith("BEEP_TEST")) {
+        beepPattern(getBeepsPerHit(), getGapMs());
+        Serial.println("[MESH] Beep test via mesh");
+        Serial1.println(nodeId + ": BEEP_ACK:OK");
+    }
+}
+
+void sendMeshCommand(const String &command) {
+    if (meshEnabled && Serial1.availableForWrite() >= command.length()) {
+        Serial.printf("[MESH] Sending command: %s\n", command.c_str());
+        Serial1.println(command);
+    }
+}
+
+void setNodeId(const String &id) {
+    nodeId = id;
+    prefs.putString("nodeId", nodeId);
+    Serial.printf("[MESH] Node ID set to: %s\n", nodeId.c_str());
+}
+
+String getNodeId() {
+    return nodeId;
+}
+
+void processMeshMessage(const String &message) {
+    Serial.printf("[MESH] Processing message: '%s'\n", message.c_str());
+    
+    if (message.startsWith("@")) {
+        int spaceIndex = message.indexOf(' ');
+        if (spaceIndex > 0) {
+            String targetId = message.substring(1, spaceIndex);
+            
+            if (targetId != nodeId && targetId != "ALL") {
+                return;
+            }
+            String command = message.substring(spaceIndex + 1);
+            processCommand(command);
+        }
+    } else {
+        processCommand(message);
+    }
+}
+
+void processUSBToMesh() {
+  
+    static String usbBuffer = "";
+    while (Serial.available()) {
+        char c = Serial.write(Serial.read());
+        if (c == '\n' || c == '\r' || c == ':') {
+            if (usbBuffer.length() > 0) {
+                Serial.println(usbBuffer);  
+                processMeshMessage(usbBuffer.c_str());
+                // Serial1.println(usbBuffer);  // Just forward everything to mesh
+                Serial.printf("[MESH TX] %s\n", usbBuffer.c_str());
+                usbBuffer = "";
+            }
+        } else {
+            usbBuffer += c;
+            Serial.println(usbBuffer); 
+            if (usbBuffer.length() > 1024) {
+                usbBuffer = "";
+            }
+        }
+    }
 }

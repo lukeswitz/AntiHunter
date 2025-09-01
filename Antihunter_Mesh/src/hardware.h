@@ -3,15 +3,6 @@
 #include <Preferences.h>
 #include <WiFi.h>
 
-#ifndef AP_SSID
-#define AP_SSID "Antihunter"
-#endif
-#ifndef AP_PASS  
-#define AP_PASS "ouispy123"
-#endif
-#ifndef AP_CHANNEL
-#define AP_CHANNEL 6
-#endif
 #ifndef COUNTRY
 #define COUNTRY "NO"
 #endif
@@ -22,10 +13,10 @@
 #define BUZZER_IS_PASSIVE 1
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 4
+#define MESH_RX_PIN 6   // to MESH TX PIN 20
 #endif
 #ifndef MESH_TX_PIN
-#define MESH_TX_PIN 5
+#define MESH_TX_PIN 5   // to MESH RX PIN 19
 #endif
 
 // SD Card (SPI)

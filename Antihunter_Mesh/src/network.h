@@ -20,9 +20,14 @@ extern bool meshEnabled;
 #endif
 
 void initializeNetwork();
+void initializeMesh();
 void startWebServer();
-void stopAPAndServer();
 void startAPAndServer();
+void stopAPAndServer();
 void sendMeshNotification(const Hit &hit);
 void sendTrackerMeshUpdate();
-void initializeMesh();
+void sendMeshCommand(const String &command);
+void processMeshMessage(const String &message);
+void processUSBToMesh();
+void setNodeId(const String &id);
+String getNodeId();

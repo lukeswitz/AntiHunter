@@ -8,20 +8,6 @@
 Preferences prefs;
 volatile bool stopRequested = false;
 
-// Configuration constants
-#ifndef AP_SSID
-#define AP_SSID "Antihunter"
-#endif
-#ifndef AP_PASS
-#define AP_PASS "ouispy123"
-#endif
-#ifndef AP_CHANNEL
-#define AP_CHANNEL 6
-#endif
-#ifndef COUNTRY
-#define COUNTRY "NO"
-#endif
-
 // Global state
 ScanMode currentScanMode = SCAN_WIFI;
 int cfgBeeps = 2;
