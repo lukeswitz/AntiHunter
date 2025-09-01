@@ -937,7 +937,6 @@ void processMeshMessage(const String &message) {
 }
 
 void processUSBToMesh() {
-  
     static String usbBuffer = "";
     while (Serial.available()) {
         char c = Serial.write(Serial.read());
@@ -945,7 +944,6 @@ void processUSBToMesh() {
             if (usbBuffer.length() > 0) {
                 Serial.println(usbBuffer);  
                 processMeshMessage(usbBuffer.c_str());
-                // Serial1.println(usbBuffer);  // Just forward everything to mesh
                 Serial.printf("[MESH TX] %s\n", usbBuffer.c_str());
                 usbBuffer = "";
             }
