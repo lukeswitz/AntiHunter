@@ -4,11 +4,24 @@
 ![00C0E4AA-395F-4243-A6D5-737C3BED2442_1_105_c](https://github.com/user-attachments/assets/2f789984-bca3-4a45-8470-ba2d638e512f)
 
 > [!NOTE]
-> Early release. Stablility issues, breaking changes and other unexpected behavior may occur. 
+> Early release. Stablility issues, breaking changes and other unexpected behavior may occur.
+
+# Table of Contents
+
+1. [What is Antihunter?](#what-is-antihunter)
+2. [What Does Antihunter Do?](#what-does-antihunter-do)
+3. [How to Get Started](#how-to-get-started)
+   - [Quick Flasher Option](#quick-flasher-option)
+   - [Prerequisites](#1-prerequisites)
+   - [Flashing the Firmware](#4-flashing-the-firmware)
+4. [How to Use Antihunter](#how-to-use-antihunter-web-interface)
+5. [Mesh Commands Reference](#mesh-commands-reference)
+6. [Credits](#credits)
+7. [Disclaimer](#disclaimer)
 
 ## What is Antihunter?
 
-A low-cost, open-source tool for wireless threat detection, tracking, and counter-surveillance.
+A low-cost, open-source tool for wireless threat detection, tracking, and counter-surveillance. Antihunter empowers you to assert control over your wireless environment, turning the invisible into actionable intelligence. Happy hunting.
 
 ## What Does Antihunter Do?
 
@@ -46,7 +59,7 @@ Antihunter's defensive suite transforms your device into a wireless threat detec
 
     Real-time alerting with audio notifications, GPS logging, and detailed reporting via web interface. AP goes offline during monitoring for dedicated radio resources.
 
-    *Lots Coming Soon: Red Team tools, additional Blue Team detections, triangulation and richer correlation across WiFi/BLE/GPS.*
+    *More Coming Soon!*
 
 **GPS Location**
 
@@ -61,11 +74,16 @@ Antihunter's defensive suite transforms your device into a wireless threat detec
 - Logs to `/antihunter.log` with timestamp, type (WiFi/BLE), MAC, RSSI, and GPS (if valid).
 - Status and file list shown in Diagnostics.
 
-**Mesh Network Integration (Meshtastic-compatible):**
+## **Mesh Network Integration:**
 
-Antihunter seamlessly integrates with Meshtastic-compatible mesh networks. When enabled, it can broadcast alerts for detected targets (from either List Scan or Tracker mode) directly over your meshtastic radio. 
+Antihunter seamlessly integrates with Meshtastic-compatible mesh networks via UART serial connection. When enabled, it broadcasts alerts and receives remote commands through your mesh radio network, extending operational range far beyond traditional WiFi/Bluetooth limits.
 
-This feature extends Antihunter's reach, allowing remote teams or distant nodes to receive immediate notifications about target activity, making it a critical asset for coordinated detection efforts over long ranges. Alerts are sent at a configurable interval (default: 10 seconds).
+- **Target Alerts**: Automatically broadcasts detected targets from List Scan or Tracker modes over the mesh network
+- **Remote Control**: Receive and execute commands from any mesh-connected node
+- **Node Identification**: Each Antihunter device can be assigned a unique Node ID (up to 16 characters) for targeted control
+- **Configurable Intervals**: Alert broadcasts respect a 10-second default interval to prevent mesh flooding
+- **GPS Integration**: Location data included in alerts when GPS fix is available
+- **Multi-node Coordination**: Control multiple devices simultaneously using @ALL broadcasts
 
 ## How to Get Started
 
@@ -133,7 +151,6 @@ Once flashed, Antihunter hosts a web interface for all operations.
 3.  **Core Functionality:**
    <img width="1072" height="605" alt="image" src="https://github.com/user-attachments/assets/a0655482-0917-485e-b459-1ec46d322b94" />
 
-
 *   **Targets (List Scan Watchlist):**
       *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
       *   Click `Save` to update your watchlist.
@@ -159,15 +176,6 @@ Once flashed, Antihunter hosts a web interface for all operations.
      *   **Beeps per hit (List Scan):** Configure how many times the buzzer beeps when a target is detected in List Scan mode (default: 2).
      *   **Gap between beeps (ms):** Adjust the pause between beeps (default: 80 ms).
      *   `Save Config` applies changes. `Test Beep` triggers a single test pattern.
-    
-*   **Mesh Network:**
-     *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
-     *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
-    *   Mesh alerts are sent approximately every 10 seconds if a target is detected.
-     *   *(Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=4`, `TX=5` at 115200 baud).
-    *   **Meshtastic Configuration:** Enable serial, Set RX/TX (19/20 for Heltec v3), text message mode, 115200 baud.*
-
-<img width="520" height="568" alt="Screenshot 2025-08-31 at 7 35 09 AM" src="https://github.com/user-attachments/assets/731b03f0-8d17-464f-9005-df27bb35d119" />
 
 *   **Diagnostics:**
     *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, SD stats & files, GPS data and more.
@@ -175,7 +183,33 @@ Once flashed, Antihunter hosts a web interface for all operations.
 *   **Last Results:**
     *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, frame count, and other pertinent data.
 
-Antihunter empowers you to assert control over your wireless environment, turning the invisible into actionable intelligence. Happy hunting.
+*   **Mesh Network:**
+     *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
+     *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
+     *   Mesh alerts are sent approximately every 10 seconds if a target is detected.
+     *   Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=4`, `TX=5` at 115200 baud
+
+
+## Mesh Commands Reference
+
+- **Node Addressing:** Target specific nodes with `@NodeID COMMAND` or all nodes with `@ALL COMMAND`. Each Antihunter device can be assigned a unique Node ID (up to 16 characters) for targeted control.
+- **MAC Address Formats:** Use full MAC addresses (e.g., `AA:BB:CC:DD:EE:FF`) or OUI prefixes (first 3 bytes, e.g., `AA:BB:CC`) for vendor identification.
+
+| Command | Description | Parameters | Example | Response Format |
+|---------|-------------|------------|---------|-----------------|
+| `STATUS` | Get operational status | - | `@NODE_22 STATUS` | `STATUS: Mode:WiFi Scan:YES Hits:5 Targets:3 Unique:2 Temp:42.3C/108.1F Up:01:23:45` |
+| `CONFIG_BEEPS:n` | Set beep count | n: 1-10 | `@NODE_22 CONFIG_BEEPS:3` | `CONFIG_ACK:BEEPS:3` |
+| `CONFIG_GAP:ms` | Set beep gap | ms: 20-2000 | `@NODE_22 CONFIG_GAP:100` | `CONFIG_ACK:GAP:100` |
+| `CONFIG_CHANNELS:list` | Set WiFi channels | list: `1,6,11` or `1..14` | `@NODE_22 CONFIG_CHANNELS:2,7,12` | `CONFIG_ACK:CHANNELS:2,7,12` |
+| `CONFIG_TARGETS:macs` | Update target MACs | macs: pipe-delimited | `@NODE_22 CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF:11:22:33` | `CONFIG_ACK:TARGETS:OK` |
+| `SCAN_START:m:s:ch[:F]` | Start scan | m: 0=WiFi/1=BLE/2=Both<br>s: seconds<br>ch: channels<br>F: FOREVER (optional) | `@ALL SCAN_START:0:60:1,6,11` | `SCAN_ACK:STARTED` |
+| `TRACK_START:MAC:m:s:ch[:F]` | Track MAC | MAC: target<br>m/s/ch/F: as above | `@NODE_22 TRACK_START:AA:BB:CC:DD:EE:FF:0:0:6:FOREVER` | `Tracking: AA:BB:CC:DD:EE:FF RSSI:-62dBm LastSeen:3s Pkts:42` |
+| `STOP` | Halt operations | - | `@ALL STOP` | `STOP_ACK:OK` |
+| `BEEP_TEST` | Test buzzer | - | `@NODE_22 BEEP_TEST` | `BEEP_ACK:OK` |
+
+*Note: All responses are prefixed with `NodeID:`. Mesh messages auto-prefix sender ID which is stripped before processing.*
+
+---
 
 ## Credits
 
