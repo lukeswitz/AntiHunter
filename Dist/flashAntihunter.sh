@@ -4,8 +4,9 @@ set -e
 # Variables
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
-    "AntiHunter - v2:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_v3.bin"
-    "AntiHunter Mesh - v2:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_mesh_v3.bin"
+    "AntiHunter OUI-SPY - v3:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_v3.bin"
+    "AntiHunter MeshDetect - v4:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_meshdetect_v4.bin"
+    "AntiHunter Prototype - v4:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_proto_v4.bin"
 )
 ESPTOOL_DIR="esptool"
 
@@ -41,10 +42,6 @@ cat <<'BANNER'
 ▛▌▌▌▐▖▌▌▌▙▌▌▌▐▖▙▖▌ 
 BANNER
 
-echo "===================="
-echo "Auto Flasher Utility"
-echo "===================="
-
 # Check for esptool.py system-wide or clone if missing
 if command -v esptool.py &>/dev/null; then
     ESPTOOL_CMD="esptool.py"
@@ -57,9 +54,9 @@ else
 fi
 
 echo ""
-echo "==========================================="
-echo "Available firmware options for AntiHunter:"
-echo "==========================================="
+echo "============================"
+echo "Available firmware options:"
+echo "============================"
 
 declare -a options_array
 for i in "${!FIRMWARE_OPTIONS[@]}"; do
