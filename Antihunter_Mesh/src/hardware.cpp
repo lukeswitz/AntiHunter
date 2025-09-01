@@ -102,7 +102,16 @@ void initializeHardware()
     cfgBeeps = prefs.getInt("beeps", 2);
     cfgGapMs = prefs.getInt("gap", 80);
 
-    Serial.printf("Hardware initialized: beeps=%d, gap=%dms\n", cfgBeeps, cfgGapMs);
+    String nodeId = prefs.getString("nodeId", "");
+    if (nodeId.length() == 0)
+    {
+        uint64_t chipid = ESP.getEfuseMac();
+        nodeId = "NODE_" + String((uint32_t)(chipid >> 32), HEX) + String((uint32_t)chipid, HEX);
+        prefs.putString("nodeId", nodeId);
+    }
+    setNodeId(nodeId);
+
+    Serial.printf("Hardware initialized: beeps=%d, gap=%dms, nodeID=%s\n", cfgBeeps, cfgGapMs, nodeId);
 }
 
 void saveConfiguration()
@@ -131,11 +140,12 @@ String getDiagnostics() {
     s += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
     s += "BLE Frames seen: " + String((unsigned)bleFramesSeen) + "\n";
     s += "Total hits: " + String(totalHits) + "\n";
-    s += "Country: " + String(COUNTRY) + "\n";
+    // s += "Country: " + String(COUNTRY) + "\n"; // TODO assign with config command
     s += "Current channel: " + String(WiFi.channel()) + "\n";
     s += "AP IP: " + WiFi.softAPIP().toString() + "\n";
     s += "Unique devices: " + String((int)uniqueMacs.size()) + "\n";
     s += "Targets: " + String(getTargetCount()) + "\n";
+    s += "Mesh Node ID: " + getNodeId() + "\n";
 
     // SD Card Status
     s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
@@ -256,23 +266,35 @@ void initializeSD()
     Serial.println("SD card initialization failed");
 }
 
-void initializeGPS()
-{
-    Serial.println("Initializing GPS...");
-    
+void initializeGPS() {
+    Serial.println("Initializing GPS…");
+
+    // Grow buffer and start UART
     GPS.setRxBufferSize(2048);
     GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    
-    delay(120); // enough time to let it settle
-    
-    if (GPS.available()) {
-        Serial.println("[GPS] GPS module responding");
-    } else {
-        Serial.println("[GPS] No initial response - GPS may need more time for cold start");
-        Serial.println("[GPS] Allow 5-15 minutes outdoors for first fix");
+
+    // Give it a moment to start spitting characters
+    delay(120);
+    unsigned long start = millis();
+    bool sawSentence = false;
+    while (millis() - start < 2000) {
+        if (GPS.available()) {
+            char c = GPS.read();
+            if (gps.encode(c)) {
+                sawSentence = true;
+                break;
+            }
+        }
     }
-    
-    Serial.printf("[GPS] UART initialized on pins RX:%d TX:%d\n", GPS_RX_PIN, GPS_TX_PIN);
+
+    if (sawSentence) {
+        Serial.println("[GPS] GPS module responding (NMEA detected)");
+    } else {
+        Serial.println("[GPS] No NMEA data – check wiring or allow cold-start time");
+        Serial.println("[GPS] First fix can take 5–15 minutes outdoors");
+    }
+
+    Serial.printf("[GPS] UART on RX:%d TX:%d\n", GPS_RX_PIN, GPS_TX_PIN);
 }
 
 void logToSD(const String &data)

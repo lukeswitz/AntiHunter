@@ -7,20 +7,7 @@
 // Global configuration
 Preferences prefs;
 volatile bool stopRequested = false;
-
-// Configuration constants
-#ifndef AP_SSID
-#define AP_SSID "Antihunter"
-#endif
-#ifndef AP_PASS
-#define AP_PASS "ouispy123"
-#endif
-#ifndef AP_CHANNEL
-#define AP_CHANNEL 6
-#endif
-#ifndef COUNTRY
-#define COUNTRY "NO"
-#endif
+static String meshInBuffer = "";
 
 // Global state
 ScanMode currentScanMode = SCAN_WIFI;
@@ -32,6 +19,40 @@ std::vector<uint8_t> CHANNELS;
 // Task handles
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
+
+// Task to forward incoming JSON from Serial1 (UART) to USB Serial
+void uartForwardTask(void *parameter) {
+  static String meshBuffer = "";
+  
+  for (;;) {
+    while (Serial1.available()) {
+      char c = Serial1.read();
+      Serial.write(c);  // Echo raw data to USB
+      
+      if (c == '\n' || c == '\r') {
+        if (meshBuffer.length() > 0) {
+          Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());  // Log what we received
+          
+          // Strip sender prefix if present
+          String toProcess = meshBuffer;
+          int colonPos = meshBuffer.indexOf(": ");
+          if (colonPos > 0) {
+            toProcess = meshBuffer.substring(colonPos + 2);
+          }
+          
+          processMeshMessage(toProcess);
+          meshBuffer = "";
+        }
+      } else {
+        meshBuffer += c;
+        if (meshBuffer.length() > 1024) {
+          meshBuffer = "";
+        }
+      }
+    }
+    delay(2);
+  }
+}
 
 // Helper functions
 String macFmt6(const uint8_t *m) {
@@ -105,11 +126,14 @@ void setup() {
     initializeHardware();
     initializeSD();
     initializeGPS();
-    delay(3000);
-    // testGPSPins(); // GPS diagnostic for testing
+    delay(2000);
     initializeScanner();
-    initializeNetwork(); 
-    
+    initializeNetwork();
+
+    // Handle incoming mesh commands
+    xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 1, NULL, 1);
+    delay(120);
+
     Serial.println("=== Boot Complete ===");
     Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
     Serial.println("Mesh: Serial1 @ 115200 baud on pins 4,5");
@@ -117,5 +141,7 @@ void setup() {
 
 void loop() {
     updateGPSLocation();
-    delay(100); 
+    processUSBToMesh();
+    
+    delay(100);
 }
