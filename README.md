@@ -1,7 +1,16 @@
+![Pre-release](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?include_prereleases&label=pre-release&color=orange)
+![GitHub last commit](https://img.shields.io/github/last-commit/lukeswitz/AntiHunter)
+![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)
+
+
+<!-- 
+//![Stable](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?label=stable) 
+![GitHub Release Date](https://img.shields.io/github/release-date/lukeswitz/AntiHunter?include_prereleases)
+-->
 
 # Antihunter
-
-![00C0E4AA-395F-4243-A6D5-737C3BED2442_1_105_c](https://github.com/user-attachments/assets/2f789984-bca3-4a45-8470-ba2d638e512f)
+<img width="1000" src="https://github.com/user-attachments/assets/2f789984-bca3-4a45-8470-ba2d638e512f">
 
 > [!NOTE]
 > Early release. Stablility issues, breaking changes and other unexpected behavior may occur.
@@ -92,7 +101,7 @@ Getting Antihunter up and running is straightforward. Use the quick flasher or b
 
 ### Quick Flasher Option
 
-<img width="262" height="209" alt="Screenshot 2025-09-01 at 9 18 36 AM" src="https://github.com/user-attachments/assets/fffaa0af-4562-4809-ab2a-7a18f1336154" />
+<img width="262" height="209" src="https://github.com/user-attachments/assets/fffaa0af-4562-4809-ab2a-7a18f1336154" />
 
 - If you choose not to build from source, precompiled bins are available in the `Dist` folder
 - For Linux & macOS 
