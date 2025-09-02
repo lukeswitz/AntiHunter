@@ -3,11 +3,10 @@
 #include "network.h"
 #include <algorithm> 
 #include <WiFi.h>
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEScan.h>
-#include <BLEAdvertisedDevice.h>
-
+#include <NimBLEAddress.h>
+#include <NimBLEDevice.h>
+#include <NimBLEAdvertisedDevice.h>
+#include <NimBLEScan.h>
 
 extern "C" {
 #include "esp_wifi.h"
@@ -36,8 +35,8 @@ static uint32_t lastScanStart = 0, lastScanEnd = 0;
 uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
 
-// BLE Scanner
-BLEScan *pBLEScan = nullptr;
+// NimBLE Scanner
+NimBLEScan* pBLEScan;
 
 // Tracker state
 volatile bool trackerMode = false;
@@ -71,42 +70,6 @@ inline int clampi(int v, int lo, int hi) {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
-}
-
-String extractBLEName(const uint8_t* advData, size_t advDataLen) {
-    String name = "";
-    if (!advData || advDataLen == 0) return name;
-    
-    size_t index = 0;
-    
-    while (index < advDataLen - 1) {
-        uint8_t fieldLen = advData[index++];
-        if (fieldLen == 0 || index + fieldLen > advDataLen) break;
-        
-        uint8_t fieldType = advData[index++];
-        
-        if (fieldType == 0x09 || fieldType == 0x08) {
-            size_t nameLen = fieldLen - 1;
-            if (nameLen > 0 && index + nameLen <= advDataLen) {
-                // Extract and filter the name
-                for (size_t i = 0; i < nameLen; i++) {
-                    char c = advData[index + i];
-                    if (c >= 32 && c <= 126) {
-                        name += c;
-                    } else if (c > 0) {
-                        name += '?';
-                    }
-                }
-                break; // Found name, exit loop
-            }
-        }
-        index += fieldLen - 1;
-    }
-    if (name.length() == 0) {
-        name = "Unknown";
-    }
-    
-    return name;
 }
 
 static bool parseMacLike(const String &ln, Target &out) {
@@ -235,37 +198,43 @@ static int freqFromRSSI(int8_t rssi) {
     return f;
 }
 
-// BLE Callback Class
-class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
-    void onResult(BLEAdvertisedDevice advertisedDevice) {
+// BLE Callback
+class MyBLEAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
+    void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
         bleFramesSeen = bleFramesSeen + 1;
 
         uint8_t mac[6];
-        String macStr = advertisedDevice.getAddress().toString();
+        NimBLEAddress addr = advertisedDevice->getAddress();
+        String macStr = addr.toString().c_str();
         if (!parseMac6(macStr, mac)) return;
 
-        String deviceName = "Unknown";
+        String deviceName = "";
         
-        String rawName = advertisedDevice.getName();
-        if (rawName.length() > 0) {
-            deviceName = "";
-            for (size_t i = 0; i < rawName.length(); i++) {
-                unsigned char c = (unsigned char)rawName[i];
-                if (c >= 32 && c <= 126 && c != '?' && c != 0x7F) {
-                    deviceName += (char)c;
-                } else {
-                    deviceName += '?';
+        // FIX: Don't use c_str() for conversion - it stops at null bytes!
+        if (advertisedDevice->haveName()) {
+            std::string nimbleName = advertisedDevice->getName();
+            if (nimbleName.length() > 0) {
+                // PROPER conversion that handles binary data:
+                deviceName = "";
+                for (size_t i = 0; i < nimbleName.length(); i++) {
+                    uint8_t c = (uint8_t)nimbleName[i];
+                    // Only add printable ASCII characters
+                    if (c >= 32 && c <= 126) {
+                        deviceName += (char)c;
+                    }
                 }
             }
-            deviceName.trim();
-            if (deviceName.length() == 0 || deviceName == "?" || deviceName == "??") {
-                deviceName = "Unknown";
-            }
+        }
+        
+        // If we got an empty or invalid name, use a default
+        if (deviceName.length() == 0) {
+            deviceName = "Unknown";
         }
 
+        // Rest of your code...
         if (trackerMode) {
             if (isTrackerTarget(mac)) {
-                trackerRssi = advertisedDevice.getRSSI();
+                trackerRssi = advertisedDevice->getRSSI();
                 trackerLastSeen = millis();
                 trackerPackets = trackerPackets + 1;
             }
@@ -273,15 +242,14 @@ class MyBLEAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
             if (matchesMac(mac)) {
                 Hit h;
                 memcpy(h.mac, mac, 6);
-                h.rssi = advertisedDevice.getRSSI();
+                h.rssi = advertisedDevice->getRSSI();
                 h.ch = 0;
-                h.name = deviceName;
+                strncpy(h.name, deviceName.c_str(), sizeof(h.name) - 1);
+                h.name[sizeof(h.name) - 1] = '\0';
                 h.isBLE = true;
 
-                BaseType_t w = false;
                 if (macQueue) { 
-                    xQueueSendFromISR(macQueue, &h, &w);
-                    if (w) portYIELD_FROM_ISR();
+                    xQueueSend(macQueue, &h, 0);
                 }
             }
         }
@@ -373,7 +341,8 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
             memcpy(h.mac, cand1, 6);
             h.rssi = ppkt->rx_ctrl.rssi;
             h.ch = ppkt->rx_ctrl.channel;
-            h.name = String("WiFi");
+            strncpy(h.name, "WiFi", sizeof(h.name) - 1);
+            h.name[sizeof(h.name) - 1] = '\0';
             h.isBLE = false;
             
             BaseType_t w = false;
@@ -387,7 +356,8 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
             memcpy(h.mac, cand2, 6);
             h.rssi = ppkt->rx_ctrl.rssi;
             h.ch = ppkt->rx_ctrl.channel;
-            h.name = String("WiFi");
+            strncpy(h.name, "WiFi", sizeof(h.name) - 1);
+            h.name[sizeof(h.name) - 1] = '\0';
             h.isBLE = false;
             
             BaseType_t w = false;
@@ -432,13 +402,31 @@ static void radioStartWiFi() {
     esp_timer_create(&targs, &hopTimer);
     esp_timer_start_periodic(hopTimer, 300000);
 }
+
 static void radioStartBLE() {
-    BLEDevice::init("");
-    pBLEScan = BLEDevice::getScan();
+    esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
+    
+    NimBLEDevice::init("");
+    NimBLEDevice::setSecurityAuth(false, false, false);
+    
+    pBLEScan = NimBLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new MyBLEAdvertisedDeviceCallbacks());
+    
     pBLEScan->setActiveScan(true);
-    pBLEScan->setInterval(100);
-    pBLEScan->setWindow(99);
+    pBLEScan->setInterval(160);
+    pBLEScan->setWindow(150);
+    pBLEScan->setMaxResults(0);
+    pBLEScan->setDuplicateFilter(false);
+    
+    Serial.println("[BLE] Scanner initialized with active scanning");
+}
+
+static void radioStopBLE() {
+    if (pBLEScan) {
+        pBLEScan->stop();
+        NimBLEDevice::deinit(false);
+        pBLEScan = nullptr;
+    }
 }
 
 static void radioStopWiFi() {
@@ -451,14 +439,6 @@ static void radioStopWiFi() {
     esp_wifi_stop();
 }
 
-static void radioStopBLE() {
-    if (pBLEScan) {
-        pBLEScan->stop();
-        BLEDevice::deinit(false);
-        pBLEScan = nullptr;
-    }
-}
-
 static void radioStartSTA() {
     esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
@@ -468,7 +448,6 @@ static void radioStartSTA() {
         radioStartBLE();
     }
 }
-
 static void radioStopSTA() {
     radioStopWiFi();
     radioStopBLE();
@@ -492,7 +471,10 @@ void listScanTask(void *pv) {
                   forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str(), 
                   modeStr.c_str());
 
-    stopAPAndServer();
+    // Only stop AP if we're doing WiFi scanning
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        stopAPAndServer();
+    }
 
     stopRequested = false;
     if (macQueue) {
@@ -512,6 +494,7 @@ void listScanTask(void *pv) {
     lastScanForever = forever;
 
     radioStartSTA();
+
     Serial.printf("[SCAN] Mode: %s\n", modeStr.c_str());
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         Serial.printf("[SCAN] WiFi channel hop list: ");
@@ -524,49 +507,49 @@ void listScanTask(void *pv) {
     Hit h;
 
     while ((forever && !stopRequested) || 
-           (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
-        
-        if ((int32_t)(millis() - nextStatus) >= 0) {
-            Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
-                          (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
-            nextStatus += 1000;
-        }
-
-        if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
-            if ((int32_t)(millis() - nextBLEScan) >= 0) {
-                pBLEScan->start(1, false);
-                nextBLEScan = millis() + 1100;
-            }
-        }
-
-        if (xQueueReceive(macQueue, &h, pdMS_TO_TICKS(50)) == pdTRUE)
-        {
-            totalHits = totalHits + 1;
-            hitsLog.push_back(h);
-            uniqueMacs.insert(macFmt6(h.mac));
-
-            String logEntry = String(h.isBLE ? "BLE" : "WiFi") + " " + macFmt6(h.mac) +
-                              " RSSI=" + String(h.rssi) + "dBm";
-            if (gpsValid) {
-                logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-            }
-
-            String safeName = h.name;
-            for (size_t i = 0; i < safeName.length(); i++) {
-                if (safeName[i] < 32 || safeName[i] > 126) {
-                    safeName[i] = '?';
-                }
-            }
-
-            Serial.printf("[HIT] %s ch=%u name=%s\n", logEntry.c_str(),
-                        (unsigned)h.ch, safeName.c_str());
-                        
-            logToSD(logEntry);
-
-            beepPattern(getBeepsPerHit(), getGapMs());
-            sendMeshNotification(h);
-        }
+       (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
+    
+    if ((int32_t)(millis() - nextStatus) >= 0) {
+        Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
+                      (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
+        nextStatus += 1000;
     }
+
+    if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
+        // Scan for longer duration to catch scan responses
+        pBLEScan->start(3, false);  // 3 seconds, don't restart
+        pBLEScan->clearResults();
+    }
+
+    if (xQueueReceive(macQueue, &h, pdMS_TO_TICKS(50)) == pdTRUE) {
+        totalHits = totalHits + 1;
+        hitsLog.push_back(h);
+        uniqueMacs.insert(macFmt6(h.mac));
+
+        String logEntry = String(h.isBLE ? "BLE" : "WiFi") + " " + macFmt6(h.mac) +
+                          " RSSI=" + String(h.rssi) + "dBm";
+        if (gpsValid) {
+            logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+        }
+
+        String safeName = h.name;
+        for (size_t i = 0; i < safeName.length(); i++) {
+            if (safeName[i] < 32 || safeName[i] > 126) {
+                safeName[i] = '?';
+            }
+        }
+
+        Serial.printf("[HIT] %s ch=%u name=%s\n", logEntry.c_str(),
+                    (unsigned)h.ch, safeName.c_str());
+                    
+        logToSD(logEntry);
+
+        beepPattern(getBeepsPerHit(), getGapMs());
+        sendMeshNotification(h);
+    }
+    
+    delay(100);
+}
 
     radioStopSTA();
     scanning = false;
@@ -584,8 +567,13 @@ void listScanTask(void *pv) {
     for (int i = 0; i < show; i++) {
         const auto &e = hitsLog[i];
         lastResults += String(e.isBLE ? "BLE " : "WiFi") + " " + macFmt6(e.mac) + "  RSSI=" + String((int)e.rssi) + "dBm";
-        if (!e.isBLE) lastResults += "  ch=" + String((int)e.ch);
-        if (e.name.length() > 0 && e.name != "WiFi") lastResults += "  name=" + e.name;
+        if (!e.isBLE)
+            lastResults += "  ch=" + String((int)e.ch);
+        if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0)
+        {
+            lastResults += "  name=";
+            lastResults += e.name;
+        }
         lastResults += "\n";
     }
     if ((int)hitsLog.size() > show) {
@@ -645,12 +633,6 @@ void trackerTask(void *pv) {
             nextStatus += 1000;
         }
 
-        if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
-            if ((int32_t)(millis() - nextBLEScan) >= 0) {
-                pBLEScan->start(1, false);
-                nextBLEScan = millis() + 1100;
-            }
-        }
 
         uint32_t now = millis();
         bool gotRecent = trackerLastSeen && (now - trackerLastSeen) < 2000;
