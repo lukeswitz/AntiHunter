@@ -52,28 +52,6 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
     *   Pinpointing the exact physical location of a transmitting device.
     *   Real-time "foxhunting" games and exercises.
 
-**3. RF Security Analysis (Blue Team Defense):**
-Antihunter's defensive suite transforms your device into a wireless threat detection platform, monitoring the RF spectrum for malicious activities commonly deployed by adversaries. The system analyzes 802.11 management frames in real-time, identifying attack patterns that could compromise network security or indicate active penetration testing. This mode is essential for:
-
-> [!IMPORTANT]
-> Scanners are in experimental phase- hardening and testing in prorgress.
-
-* **Deauth/Disassociation Detection:** Monitors for deauth and disassoc attack frames, capturing source/destination MACs, BSSID, signal strength, and reason codes.
-
-
-* **Beacon Flood Detection:** Identifies suspicious beacon patterns - tracks timing intervals and flags abnormally high beacon rates (>50 per 10s window) or short intervals (<50ms) indicating automated attacks.
-
-* **Evil Twin/Rogue AP Detection:** Detects potential rogue access points through multiple methods:
-     - Twin detection (multiple BSSIDs with same SSID)
-     - Strong signal analysis (unusually close equipment)  
-     - KARMA attack detection (excessive probe responses >10)
-     - Open network spoofing (secure networks appearing as open)
-     - Timing anomalies in beacon intervals
-
-    Real-time alerting with audio notifications, GPS logging, and detailed reporting via web interface. AP goes offline during monitoring for dedicated radio resources.
-
-    *More Coming Soon!*
-
 **GPS Location**
 
 - Parses NMEA on UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud (TinyGPSPlus).
@@ -163,7 +141,9 @@ Once flashed, Antihunter hosts a web interface for all operations.
     *   Open a web browser and navigate to `http://192.168.4.1/`.
 
 3.  **Core Functionality:**
-   <img width="1072" height="605" alt="image" src="https://github.com/user-attachments/assets/a0655482-0917-485e-b459-1ec46d322b94" />
+
+   <img width="1076" height="800" alt="d" src="https://github.com/user-attachments/assets/4cbcf933-3cc6-4212-a80a-4b47008e1266" />
+
 
 *   **Targets (List Scan Watchlist):**
       *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
