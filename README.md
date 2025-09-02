@@ -105,8 +105,6 @@ Getting Antihunter up and running is straightforward. Use the quick flasher or b
 
 ### Quick Flasher Option
 
-<img width="262" height="209" src="https://github.com/user-attachments/assets/fffaa0af-4562-4809-ab2a-7a18f1336154" />
-
 - If you choose not to build from source, precompiled bins are available in the `Dist` folder
 - For Linux & macOS 
 - Plug in your esp32s3 device, download & flash:
