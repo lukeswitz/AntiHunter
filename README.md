@@ -141,7 +141,9 @@ Once flashed, Antihunter hosts a web interface for all operations.
     *   Open a web browser and navigate to `http://192.168.4.1/`.
 
 3.  **Core Functionality:**
-   <img width="1072" height="605" alt="image" src="https://github.com/user-attachments/assets/a0655482-0917-485e-b459-1ec46d322b94" />
+
+   <img width="1076" height="800" alt="d" src="https://github.com/user-attachments/assets/4cbcf933-3cc6-4212-a80a-4b47008e1266" />
+
 
 *   **Targets (List Scan Watchlist):**
       *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
