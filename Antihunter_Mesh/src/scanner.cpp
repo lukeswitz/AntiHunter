@@ -616,9 +616,8 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
 // Radio Control Functions
 static void radioStartWiFi() {
     WiFi.mode(WIFI_MODE_STA);
-    wifi_country_t ctry = {.schan = 1, .nchan = 13, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
-    memcpy(ctry.cc, COUNTRY, 2);  // Use COUNTRY instead of hardcoded "NO" - TODO
-    ctry.cc[2] = 0;
+    wifi_country_t ctry = { .schan=1, .nchan=13, .max_tx_power=78, .policy=WIFI_COUNTRY_POLICY_MANUAL };
+    memcpy(ctry.cc, COUNTRY, 2);
     esp_wifi_set_country(&ctry);
     esp_wifi_start();
 
@@ -628,19 +627,25 @@ static void radioStartWiFi() {
     esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
     esp_wifi_set_promiscuous(true);
 
-    if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+    if (CHANNELS.empty()) CHANNELS = {1,6,11};
     esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
-    
-    const esp_timer_create_args_t targs = {
-        .callback = &hopTimerCb, 
-        .arg = nullptr, 
-        .dispatch_method = ESP_TIMER_TASK, 
-        .name = "hop"
+
+    // Delete old hopTimer if present - fix crash on scans
+    if (hopTimer) {
+        esp_timer_stop(hopTimer);
+        esp_timer_delete(hopTimer);
+        hopTimer = nullptr;
+    }
+
+    esp_timer_create_args_t targs = {
+        .callback = &hopTimerCb,
+        .arg      = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name     = "hop"
     };
     esp_timer_create(&targs, &hopTimer);
     esp_timer_start_periodic(hopTimer, 300000);
 }
-
 static void radioStartBLE() {
     BLEDevice::init("");
     pBLEScan = BLEDevice::getScan();
