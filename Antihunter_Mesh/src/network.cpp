@@ -515,15 +515,19 @@ void stopAPAndServer()
     delete server;
     server = nullptr;
   }
-  WiFi.softAPdisconnect(true);
+  
+  esp_wifi_set_promiscuous(false);
   delay(100);
+  
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_OFF);
+  delay(500);
 }
 
 void startAPAndServer()
 {
   Serial.println("[SYS] Starting AP and web server...");
 
-  // Ensure server is completely cleaned up first
   if (server)
   {
     server->end();
@@ -533,6 +537,7 @@ void startAPAndServer()
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
+  delay(1000);
 
   for (int i = 0; i < 10; i++)
   {
@@ -582,8 +587,8 @@ void sendMeshNotification(const Hit &hit) {
              hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
     
     String cleanName = "";
-    if (hit.name.length() > 0 && hit.name != "WiFi") {
-        for (size_t i = 0; i < hit.name.length() && i < 32; i++) {
+    if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0) {
+        for (size_t i = 0; i < strlen(hit.name) && i < 32; i++) {
             char c = hit.name[i];
             if (c >= 32 && c <= 126) {
                 cleanName += c;

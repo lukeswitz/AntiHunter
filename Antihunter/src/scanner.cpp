@@ -642,8 +642,8 @@ static void radioStartWiFi() {
 }
 
 static void radioStartBLE() {
-    BLEDevice::init("");
-    pBLEScan = BLEDevice::getScan();
+    NimBLEDevice::init("");
+    pBLEScan = NimBLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new MyBLEAdvertisedDeviceCallbacks());
     pBLEScan->setActiveScan(true);
     pBLEScan->setInterval(100);
