@@ -14,8 +14,8 @@ extern "C"
 AsyncWebServer *server = nullptr;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
-const unsigned long MESH_SEND_INTERVAL = 10000;
-const int MAX_MESH_SIZE = 230;
+const unsigned long MESH_SEND_INTERVAL = 3500;
+const int MAX_MESH_SIZE = 220;
 static String nodeId = "";
 
 // External references
@@ -26,7 +26,6 @@ extern int cfgBeeps, cfgGapMs;
 extern String lastResults;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
-extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
@@ -72,9 +71,9 @@ select option{background:#000;color:var(--fg)}
 .small{opacity:.65} pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:10px;padding:12px}
 a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
 .banner{font-size:12px;color:#0aff9d;border:1px dashed #004e2f;padding:8px;border-radius:10px;background:#001108}
-.grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
-@media(max-width:1200px){.grid{grid-template-columns:1fr 1fr}}
-@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
 #toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
 .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:10px 12px;border-radius:10px;box-shadow:0 8px 30px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s, transform .15s}
 .toast.show{opacity:1;transform:none}
@@ -156,34 +155,6 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   </div>
 
   <div class="card">
-  <h3>WiFi Traffic Sniffers</h3>
-  <form id="bt" method="POST" action="/blueteam">
-    <label>Detection Mode</label>
-    <select name="detection" id="detectionMode">
-      <option value="deauth">Deauth/Disassoc Detection</option>
-      <option value="beacon-flood">Beacon Flood Detection</option>
-      <option value="evil-twin">Evil Twin Detection</option>
-    </select>
-    
-    <div id="deauthSettings">
-      <label>Duration (seconds)</label>
-      <input type="number" name="secs" min="0" max="86400" value="300">
-      <div class="row"><input type="checkbox" id="forever3" name="forever" value="1"><label for="forever3">∞ Forever</label></div>
-      <div class="row">
-        <input type="checkbox" id="alertBeep" name="alertBeep" value="1" checked>
-        <label for="alertBeep">Audio Alert</label>
-      </div>
-    </div>
-    
-    <div class="row" style="margin-top:10px">
-      <button class="btn primary" type="submit">Start Detection</button>
-      <a class="btn" href="/stop" data-ajax="true">Stop</a>
-    </div>
-    <p class="small">Monitors adversarial & suspicious WiFi traffic. AP goes offline during detection. </p>
-  </form>
-</div>
-
-  <div class="card">
     <h3>Buzzer</h3>
     <form id="c" method="POST" action="/config">
       <label>Beeps per hit (List Scan)</label>
@@ -197,37 +168,32 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     </form>
   </div>
 
-  <div class="card">
-  <h3>Mesh Network</h3>
-  <div class="row">
-    <input type="checkbox" id="meshEnabled" checked>
-    <label for="meshEnabled">Enable Mesh Notifications</label>
-  </div>
-  <div class="row">
-  <h3>Node ID</h3>
+   <div class="card">
+    <h3>Mesh Network</h3>
+    <div class="row">
+      <input type="checkbox" id="meshEnabled" checked>
+      <label for="meshEnabled">Enable Mesh Notifications</label>
+    </div>
+    <label for="nodeId">Node ID</label>
     <form id="nodeForm" method="POST" action="/node-id">
-      <label>Node ID</label>
       <input type="text" id="nodeId" name="id" maxlength="16" placeholder="NODE_01">
-      <div class="row" style="margin-top:10px">
-      <button class="btn primary" type="submit">Save ID</button>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn primary" type="submit">Save ID</button>
+        <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
       </div>
     </form>
+    <p class="small">Sends list and tracker target alerts over Meshtastic.</p>
   </div>
-  <div class="row" style="margin-top:10px">
-    <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
-  </div>
-  <p class="small">Sends list and tracker target alerts over meshtastic.</p>
-</div>
 
   <div class="card">
     <h3>Diagnostics</h3>
     <pre id="diag">Loading…</pre>
   </div>
-</div>
 
-<div class="card" style="margin-top:14px">
-  <h3>Last Results</h3>
-  <pre id="r">None yet.</pre>
+  <div class="card">
+    <h3>Last Results</h3>
+    <pre id="r">None yet.</pre>
+  </div>
 </div>
 
 <div class="footer">© Team AntiHunter 2025</div>
@@ -333,14 +299,6 @@ document.getElementById('meshEnabled').addEventListener('change', e=>{
     .then(r=>r.text())
     .then(t=>toast(t))
     .catch(err=>toast('Error: '+err.message));
-});
-
-document.getElementById('bt').addEventListener('submit', e=>{
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  fetch('/blueteam', {method:'POST', body:fd}).then(()=>{
-    toast('Blue team detection started. AP will drop & return…');
-  }).catch(err=>toast('Error: '+err.message));
 });
 
 document.getElementById('t').addEventListener('submit', e=>{
@@ -476,84 +434,6 @@ void startWebServer()
         if (!workerTaskHandle) {
             xTaskCreatePinnedToCore(trackerTask, "tracker", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
         } });
-
-  server->on("/blueteam", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-        String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "deauth";
-        int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 300;
-        bool forever = req->hasParam("forever", true);
-        
-        if (detection == "deauth") {
-            if (secs < 0) secs = 0;
-            if (secs > 86400) secs = 86400;
-            
-            stopRequested = false;
-            req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
-            
-            if (!blueTeamTaskHandle) {
-                xTaskCreatePinnedToCore(deauthDetectionTask, "blueteam", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-            }
-        } else if (detection == "beacon-flood") {
-            if (secs < 0) secs = 0;
-            if (secs > 86400) secs = 86400;
-            
-            stopRequested = false;
-            req->send(200, "text/plain", forever ? "Beacon flood detection starting (forever)" : ("Beacon flood detection starting for " + String(secs) + "s"));
-            
-            if (!blueTeamTaskHandle) {
-                xTaskCreatePinnedToCore(beaconFloodTask, "beaconflood", 10240, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-            }
-        } else if (detection == "evil-twin") {
-            if (secs < 0) secs = 0;
-            if (secs > 86400) secs = 86400;
-            
-            stopRequested = false;
-            req->send(200, "text/plain", forever ? "Evil AP detection starting (forever)" : ("Evil AP detection starting for " + String(secs) + "s"));
-            
-            if (!blueTeamTaskHandle) {
-                xTaskCreatePinnedToCore(evilAPDetectionTask, "evilap", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-            }
-        } else {
-            req->send(400, "text/plain", "Detection mode not yet implemented");
-        } });
-
-  server->on("/evilap-results", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-        String results = "Evil AP Detection Results\n";
-        results += "Evil APs detected: " + String(evilAPCount) + "\n";
-        results += "Unique networks: " + String(getUniqueNetworkCount()) + "\n\n";
-        
-        int show = min((int)evilAPLog.size(), 100);
-        for (int i = 0; i < show; i++) {
-            const auto &hit = evilAPLog[i];
-            results += "EVIL_AP " + macFmt6(hit.bssid) + " '" + hit.ssid + "'";
-            results += " RSSI:" + String(hit.rssi) + "dBm";
-            results += " CH:" + String(hit.channel);
-            if (hit.detectionFlags & EVIL_AP_FLAG_TWIN) results += " [TWIN]";
-            if (hit.detectionFlags & EVIL_AP_FLAG_STRONG_SIGNAL) results += " [STRONG]";
-            if (hit.detectionFlags & EVIL_AP_FLAG_KARMA) results += " [KARMA]";
-            if (hit.detectionFlags & EVIL_AP_FLAG_OPEN_SPOOF) results += " [OPEN_SPOOF]";
-            if (hit.detectionFlags & EVIL_AP_FLAG_TIMING) results += " [TIMING]";
-            results += "\n";
-        }  
-        r->send(200, "text/plain", results); });
-  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-        String results = "Deauth Detection Results\n";
-        results += "Deauth frames: " + String(deauthCount) + "\n";
-        results += "Disassoc frames: " + String(disassocCount) + "\n\n";
-        
-        int show = min((int)deauthLog.size(), 100);
-        for (int i = 0; i < show; i++) {
-            const auto &hit = deauthLog[i];
-            results += String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
-            results += macFmt6(hit.srcMac) + " -> " + macFmt6(hit.destMac);
-            results += " BSSID:" + macFmt6(hit.bssid);
-            results += " RSSI:" + String(hit.rssi) + "dBm";
-            results += " CH:" + String(hit.channel);
-            results += " Reason:" + String(hit.reasonCode) + "\n";
-        }  
-        r->send(200, "text/plain", results); });
 
   server->on("/gps", HTTP_GET, [](AsyncWebServerRequest *r)
              {
@@ -695,24 +575,51 @@ void startAPAndServer()
 void sendMeshNotification(const Hit &hit) {
     if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
     lastMeshSend = millis();
-
+    
+    
     char mac_str[18];
     snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
              hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-
-    char mesh_msg[MAX_MESH_SIZE];
-    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg),
-                          "%s: Target: %s %s RSSI:%d",
-                          nodeId.c_str(), hit.isBLE ? "BLE" : "WiFi", mac_str, hit.rssi);
-
-    if (msg_len < MAX_MESH_SIZE && hit.name.length() > 0 && hit.name != "WiFi") {
-        msg_len += snprintf(mesh_msg + msg_len, sizeof(mesh_msg) - msg_len,
-                           " Name:%s", hit.name.c_str());
+    
+    String cleanName = "";
+    if (hit.name.length() > 0 && hit.name != "WiFi") {
+        for (size_t i = 0; i < hit.name.length() && i < 32; i++) {
+            char c = hit.name[i];
+            if (c >= 32 && c <= 126) {
+                cleanName += c;
+            }
+        }
     }
-
-    if (Serial1.availableForWrite() >= msg_len) {
-        Serial.printf("[MESH] %s\n", mesh_msg);
-        Serial1.println(mesh_msg);
+    
+    char mesh_msg[MAX_MESH_SIZE];
+    memset(mesh_msg, 0, sizeof(mesh_msg));
+    
+    int msg_len;
+    if (cleanName.length() > 0) {
+        msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
+                          "%s: Target: %s %s RSSI:%d Name:%s",
+                          nodeId.c_str(), 
+                          hit.isBLE ? "BLE" : "WiFi", 
+                          mac_str, 
+                          hit.rssi,
+                          cleanName.c_str());
+    } else {
+        msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
+                          "%s: Target: %s %s RSSI:%d",
+                          nodeId.c_str(), 
+                          hit.isBLE ? "BLE" : "WiFi", 
+                          mac_str, 
+                          hit.rssi);
+    }
+    if (msg_len > 0 && msg_len < MAX_MESH_SIZE) {
+        mesh_msg[msg_len] = '\0';
+        
+        delay(10);
+        if (Serial1.availableForWrite() >= msg_len + 2) {
+            Serial.printf("[MESH] %s\n", mesh_msg);
+            Serial1.println(mesh_msg);
+            Serial1.flush();
+        }
     }
 }
 
@@ -748,10 +655,18 @@ void sendTrackerMeshUpdate() {
 
 void initializeMesh() {
     Serial1.end();
-    delay(200);
-    
+    delay(100);
+  
     Serial1.setRxBufferSize(2048);
+    Serial1.setTxBufferSize(1024);
     Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
+    Serial1.setTimeout(100);
+    
+    // Clear any garbage data
+    delay(100);
+    while (Serial1.available()) {
+        Serial1.read();
+    }
     
     Serial.println("[MESH] UART initialized");
     Serial.printf("[MESH] Config: 115200 8N1 on RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
@@ -918,21 +833,39 @@ String getNodeId() {
 }
 
 void processMeshMessage(const String &message) {
-    Serial.printf("[MESH] Processing message: '%s'\n", message.c_str());
+    // Skip empty or corrupted messages
+    if (message.length() == 0 || message.length() > MAX_MESH_SIZE) {
+        return;
+    }
     
-    if (message.startsWith("@")) {
-        int spaceIndex = message.indexOf(' ');
+    // Clean the message - remove non-printable characters
+    String cleanMessage = "";
+    for (size_t i = 0; i < message.length(); i++) {
+        char c = message[i];
+        if (c >= 32 && c <= 126) {
+            cleanMessage += c;
+        }
+    }
+    
+    if (cleanMessage.length() == 0) {
+        return;
+    }
+    
+    Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
+    
+    if (cleanMessage.startsWith("@")) {
+        int spaceIndex = cleanMessage.indexOf(' ');
         if (spaceIndex > 0) {
-            String targetId = message.substring(1, spaceIndex);
+            String targetId = cleanMessage.substring(1, spaceIndex);
             
             if (targetId != nodeId && targetId != "ALL") {
                 return;
             }
-            String command = message.substring(spaceIndex + 1);
+            String command = cleanMessage.substring(spaceIndex + 1);
             processCommand(command);
         }
     } else {
-        processCommand(message);
+        processCommand(cleanMessage);
     }
 }
 
