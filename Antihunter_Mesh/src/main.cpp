@@ -20,32 +20,29 @@ std::vector<uint8_t> CHANNELS;
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
 
-// Task to forward incoming JSON from Serial1 (UART) to USB Serial
+// Mesh message catching
 void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
   
   for (;;) {
     while (Serial1.available()) {
       char c = Serial1.read();
-      Serial.write(c);  // Echo raw data to USB
+      Serial.write(c);
       
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
-          Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());  // Log what we received
-          
-          // Strip sender prefix if present
+          Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
           String toProcess = meshBuffer;
           int colonPos = meshBuffer.indexOf(": ");
           if (colonPos > 0) {
             toProcess = meshBuffer.substring(colonPos + 2);
           }
-          
           processMeshMessage(toProcess);
           meshBuffer = "";
         }
       } else {
         meshBuffer += c;
-        if (meshBuffer.length() > 1024) {
+        if (meshBuffer.length() > 2048) {
           meshBuffer = "";
         }
       }
@@ -119,7 +116,7 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
-    Serial.println("\n=== Antihunter v4 Boot ===");
+    Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
     delay(1000);
     

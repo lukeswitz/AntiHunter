@@ -181,12 +181,12 @@ String getDiagnostics() {
         }
     }
 
-    /// GPS Status
-    s += "GPS Status: ";
+    // GPS Status
+    s += "GPS: ";
     if (gpsValid) {
-        s += "Valid fix at " + String(gpsLat, 6) + ", " + String(gpsLon, 6) + "\n";
+        s += "Locked\n";
     } else {
-        s += "Searching for satellites\n";
+        s += "Waiting for data\n";
     }
 
     if (trackerMode) {
