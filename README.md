@@ -91,7 +91,7 @@ Antihunter's defensive suite transforms your device into a wireless threat detec
 
 Antihunter seamlessly integrates with Meshtastic-compatible mesh networks via UART serial connection. When enabled, it broadcasts alerts and receives remote commands through your mesh radio network, extending operational range far beyond traditional WiFi/Bluetooth limits.
 
-- **Target Alerts**: Automatically broadcasts detected targets from List Scan or Tracker modes over the mesh network
+- **Target Alerts**: Automatically broadcasts detected targets from List Scan over the mesh network
 - **Remote Control**: Receive and execute commands from any mesh-connected node
 - **Node Identification**: Each Antihunter device can be assigned a unique Node ID (up to 16 characters) for targeted control
 - **Configurable Intervals**: Alert broadcasts respect a 10-second default interval to prevent mesh flooding
