@@ -7,6 +7,7 @@
 // Global configuration
 Preferences prefs;
 volatile bool stopRequested = false;
+static String meshInBuffer = "";
 
 // Global state
 ScanMode currentScanMode = SCAN_WIFI;
@@ -18,6 +19,37 @@ std::vector<uint8_t> CHANNELS;
 // Task handles
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
+
+// Mesh message catching
+void uartForwardTask(void *parameter) {
+  static String meshBuffer = "";
+  
+  for (;;) {
+    while (Serial1.available()) {
+      char c = Serial1.read();
+      Serial.write(c);
+      
+      if (c == '\n' || c == '\r') {
+        if (meshBuffer.length() > 0) {
+          Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
+          String toProcess = meshBuffer;
+          int colonPos = meshBuffer.indexOf(": ");
+          if (colonPos > 0) {
+            toProcess = meshBuffer.substring(colonPos + 2);
+          }
+          processMeshMessage(toProcess);
+          meshBuffer = "";
+        }
+      } else {
+        meshBuffer += c;
+        if (meshBuffer.length() > 2048) {
+          meshBuffer = "";
+        }
+      }
+    }
+    delay(2);
+  }
+}
 
 // Helper functions
 String macFmt6(const uint8_t *m) {
@@ -84,23 +116,29 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
-    Serial.println("\n=== Antihunter v4 Boot ===");
+    Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
     delay(1000);
     
     initializeHardware();
     initializeSD();
     initializeGPS();
-    delay(3000);
-    // testGPSPins(); // GPS diagnostic for testing
+    delay(2000);
     initializeScanner();
-    initializeNetwork(); 
-    
+    initializeNetwork();
+
+    // Handle incoming mesh commands
+    xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 1, NULL, 1);
+    delay(120);
+
     Serial.println("=== Boot Complete ===");
     Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
+    Serial.println("Mesh: Serial1 @ 115200 baud on pins 4,5");
 }
 
 void loop() {
     updateGPSLocation();
-    delay(200); 
+    processUSBToMesh();
+    
+    delay(100);
 }
