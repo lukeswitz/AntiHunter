@@ -7,6 +7,7 @@
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
 extern AsyncWebServer *server;
+extern bool meshEnabled;
 
 #ifndef AP_SSID
 #define AP_SSID "Antihunter"
@@ -19,6 +20,14 @@ extern AsyncWebServer *server;
 #endif
 
 void initializeNetwork();
+void initializeMesh();
 void startWebServer();
-void stopAPAndServer();
 void startAPAndServer();
+void stopAPAndServer();
+void sendMeshNotification(const Hit &hit);
+void sendTrackerMeshUpdate();
+void sendMeshCommand(const String &command);
+void processMeshMessage(const String &message);
+void processUSBToMesh();
+void setNodeId(const String &id);
+String getNodeId();

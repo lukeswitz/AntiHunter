@@ -4,8 +4,7 @@ set -e
 # Variables
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
-    "AntiHunter - v3:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_s3_v3.bin"
-    "AntiHunter Mesh - v4:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_proto_v4.bin"
+    "AntiHunter - v5:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_v5.bin"
 )
 ESPTOOL_DIR="esptool"
 
@@ -53,9 +52,9 @@ else
 fi
 
 echo ""
-echo "============================"
-echo "Available firmware options:"
-echo "============================"
+echo "====================================="
+echo "Unified for multiple ESP32S3 project"
+echo "====================================="
 
 declare -a options_array
 for i in "${!FIRMWARE_OPTIONS[@]}"; do
