@@ -3,9 +3,6 @@
 #include <vector>
 #include <set>
 #include <map>
-#include <BLEDevice.h>
-#include <BLEScan.h>
-#include <BLEAdvertisedDevice.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
@@ -13,7 +10,7 @@ struct Hit {
     uint8_t mac[6];
     int8_t rssi;
     uint8_t ch;
-    String name;
+    char name[32]; 
     bool isBLE;
 };
 
