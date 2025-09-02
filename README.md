@@ -55,7 +55,11 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
 **3. RF Security Analysis (Blue Team Defense):**
 Antihunter's defensive suite transforms your device into a wireless threat detection platform, monitoring the RF spectrum for malicious activities commonly deployed by adversaries. The system analyzes 802.11 management frames in real-time, identifying attack patterns that could compromise network security or indicate active penetration testing. This mode is essential for:
 
+> [!IMPORTANT]
+> Scanners are in experimental phase- hardening and testing in prorgress.
+
 * **Deauth/Disassociation Detection:** Monitors for deauth and disassoc attack frames, capturing source/destination MACs, BSSID, signal strength, and reason codes.
+
 
 * **Beacon Flood Detection:** Identifies suspicious beacon patterns - tracks timing intervals and flags abnormally high beacon rates (>50 per 10s window) or short intervals (<50ms) indicating automated attacks.
 
