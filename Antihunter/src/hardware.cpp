@@ -19,7 +19,13 @@ String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
 
-// getDiagnostics vars
+// Viration Sensor
+volatile bool vibrationDetected = false;
+unsigned long lastVibrationTime = 0;
+unsigned long lastVibrationAlert = 0;
+const unsigned long VIBRATION_ALERT_INTERVAL = 5000; 
+
+// Diagnostics
 extern volatile bool scanning;
 extern volatile int totalHits;
 extern volatile uint32_t framesSeen;
@@ -146,6 +152,24 @@ String getDiagnostics() {
     s += "Unique devices: " + String((int)uniqueMacs.size()) + "\n";
     s += "Targets: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
+    s += "Vibration sensor: " + String(lastVibrationTime > 0 ? "Active" : "Standby") + "\n";
+    if (lastVibrationTime > 0) {
+        unsigned long vibrationTime = lastVibrationTime;
+        unsigned long seconds = vibrationTime / 1000;
+        unsigned long minutes = seconds / 60;
+        unsigned long hours = minutes / 60;
+        
+        seconds = seconds % 60;
+        minutes = minutes % 60;
+        hours = hours % 24;
+        
+        char timeStr[12];
+        snprintf(timeStr, sizeof(timeStr), "%02lu:%02lu:%02lu", hours, minutes, seconds);
+        
+        unsigned long agoSeconds = (millis() - lastVibrationTime) / 1000;
+        
+        s += "Last Movement: " + String(timeStr) + " (" + String(agoSeconds) + "s ago)\n";
+    }
 
     // SD Card Status
     s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
@@ -393,4 +417,65 @@ void testGPSPins() {
     }
     
     Serial.println("NO VALID GPS DATA FOUND AT ANY BAUD RATE - CHECK WIRING");
+}
+
+// Vibration Sensor
+void IRAM_ATTR vibrationISR() {
+    vibrationDetected = true;
+    lastVibrationTime = millis();
+}
+
+void initializeVibrationSensor() {
+    pinMode(VIBRATION_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, RISING);
+    Serial.println("[VIBRATION] Sensor initialized on GPIO1");
+}
+
+void checkAndSendVibrationAlert() {
+    if (vibrationDetected) {
+        vibrationDetected = false; // Clear the flag immediately
+        
+        // Only send alert if enough time has passed since last alert
+        if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
+            lastVibrationAlert = millis();
+            
+            // Format timestamp as HH:MM:SS
+            unsigned long currentTime = lastVibrationTime;
+            unsigned long seconds = currentTime / 1000;
+            unsigned long minutes = seconds / 60;
+            unsigned long hours = minutes / 60;
+            
+            seconds = seconds % 60;
+            minutes = minutes % 60;
+            hours = hours % 24;
+            
+            char timeStr[12];
+            snprintf(timeStr, sizeof(timeStr), "%02lu:%02lu:%02lu", hours, minutes, seconds);
+            int sensorValue = digitalRead(VIBRATION_PIN);
+            
+            String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + String(timeStr) + " (sensor=" + String(sensorValue) + ")";
+            
+            // Add GPS if we have it
+            if (gpsValid) {
+                vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            }
+            
+            Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg.c_str());
+            
+            if (Serial1.availableForWrite() >= vibrationMsg.length()) {
+                Serial1.println(vibrationMsg);
+                Serial1.flush();
+            }
+            
+            String logEntry = "Vibration detected at " + String(timeStr) + " (sensor=" + String(sensorValue) + ")";
+            if (gpsValid) {
+                logEntry += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            }
+            logToSD(logEntry);
+            
+            beepOnce(4000, 100);
+        } else {
+            Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
+        }
+    }
 }

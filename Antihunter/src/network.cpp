@@ -773,7 +773,6 @@ void processCommand(const String &command) {
         uint32_t uptime_mins = uptime_secs / 60;
         uint32_t uptime_hours = uptime_mins / 60;
         
-        // Compact status response with key info
         char status_msg[MAX_MESH_SIZE];
         snprintf(status_msg, sizeof(status_msg), 
                 "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
@@ -788,7 +787,6 @@ void processCommand(const String &command) {
         
         Serial1.println(status_msg);
         
-        // If actively tracking, send tracker info too
         if (trackerMode) {
             uint8_t trackerMac[6];
             int8_t trackerRssi;
@@ -804,8 +802,6 @@ void processCommand(const String &command) {
                     (unsigned)trackerPackets);
             Serial1.println(tracker_status);
         }
-        
-        // GPS status if available
         if (gpsValid) {
             char gps_status[MAX_MESH_SIZE];
             snprintf(gps_status, sizeof(gps_status),
@@ -817,6 +813,11 @@ void processCommand(const String &command) {
         beepPattern(getBeepsPerHit(), getGapMs());
         Serial.println("[MESH] Beep test via mesh");
         Serial1.println(nodeId + ": BEEP_ACK:OK");
+    } else if (command.startsWith("VIBRATION_STATUS")) {
+        String status = lastVibrationTime > 0 ? 
+                      ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") :
+                      "No vibrations detected";
+        Serial1.println(nodeId + ": VIBRATION_STATUS: " + status);
     }
 }
 
@@ -882,13 +883,13 @@ void processUSBToMesh() {
             if (usbBuffer.length() > 0) {
                 Serial.println(usbBuffer);  
                 processMeshMessage(usbBuffer.c_str());
-                Serial.printf("[MESH TX] %s\n", usbBuffer.c_str());
+                Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
                 usbBuffer = "";
             }
         } else {
             usbBuffer += c;
             Serial.println(usbBuffer); 
-            if (usbBuffer.length() > 1024) {
+            if (usbBuffer.length() > 2048) {
                 usbBuffer = "";
             }
         }
