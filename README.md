@@ -65,6 +65,14 @@ Antihunter provides powerful, real-time wireless intelligence through an intuiti
 - Logs to `/antihunter.log` with timestamp, type (WiFi/BLE), MAC, RSSI, and GPS (if valid).
 - Status and file list shown in Diagnostics.
 
+**Vibration Detection:**
+
+- SW-420 sensor with interrupt-driven detection
+- Continuous monitoring with mesh alerts (5s rate limiting)
+- Timestamp and GPS coordinates included in alerts
+- Real-time status in diagnostics panel
+- Alert format: `NODE_ABC: VIBRATION: Movement detected at 00:04:15 (sensor=xxxxx) GPS:xxxx,xxxx`
+
 ## **Mesh Network Integration:**
 
 Antihunter seamlessly integrates with Meshtastic-compatible mesh networks via UART serial connection. When enabled, it broadcasts alerts and receives remote commands through your mesh radio network, extending operational range far beyond traditional WiFi/Bluetooth limits.
