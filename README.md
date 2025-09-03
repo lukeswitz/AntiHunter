@@ -1,7 +1,7 @@
 [![Pre-release](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?include_prereleases&label=pre-release&color=orange)](https://github.com/lukeswitz/AntiHunter/releases)
 [![GitHub last commit](https://img.shields.io/github/last-commit/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/commits/main/)
 [![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter)
-[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter_Mesh/src)
+[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
 
 <!-- 
@@ -80,12 +80,11 @@ Antihunter seamlessly integrates with Meshtastic-compatible mesh networks via UA
 
 Getting Antihunter up and running is straightforward. Use the quick flasher or build from source: Simply clone the repository, open it in VS Code with PlatformIO, and flash your desired configuration.
 
-
 ### Quick Flasher Option
 
 - If you choose not to build from source, precompiled bins are available in the `Dist` folder
-- For Linux & macOS 
-- Plug in your esp32s3 device, download & flash:
+- For Linux & macOS, supports OUI-SPY, MeshDetect boards and most all esp32s3
+- Plug in your device and run the following:
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
 ```
@@ -119,12 +118,9 @@ Open the enclosed `AntiHunter` folder as your workspace in VS Code. PlatformIO w
 
 ### 4. Flashing the Firmware
 
-Antihunter supports multiple boards and two project variants (core `Antihunter` and `Antihunter_Mesh`). Your `platformio.ini` is set up to let you choose. 
-
 *   **Select Your Target:**
     *   In the **VS Code Status Bar** (the blue bar at the bottom), locate the PlatformIO environment selector. It typically shows something like `Default (esp32s3)`.
-    *   Click on it. A list of available environments will appear, clearly prefixed: `AntiHunter`, `AntiHunter_Mesh`
-    *   Select the environment corresponding to your board and the project variant you wish to upload.
+    *   Click on it, select the environment: `AntiHunter`
 
 *   **Upload:** Click the "Upload" button (the right arrow icon) in the PlatformIO status bar. PlatformIO will compile the selected project and flash it to your connected ESP32 board.
 
@@ -162,14 +158,11 @@ Once flashed, Antihunter hosts a web interface for all operations.
      *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
      *   Click `Start Tracker`. AP will disappear for the duration of the scan. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
 
-*   **WiFi Traffic Sniffers:**
-     *  Deauth/Disassoc Detection: Detects and logs deauthentication/disassociation frames (source, destination, BSSID, channel, RSSI, reason). Optional audio alert.
-     *  Beacon Flood Detection: Flags abnormal/excess beacons (short intervals, bursty timing). Logs SSID, channel, RSSI, interval.
-
  *   **Buzzer:**
      *   **Beeps per hit (List Scan):** Configure how many times the buzzer beeps when a target is detected in List Scan mode (default: 2).
      *   **Gap between beeps (ms):** Adjust the pause between beeps (default: 80 ms).
      *   `Save Config` applies changes. `Test Beep` triggers a single test pattern.
+     *   Sunset in headless firmware
 
 *   **Diagnostics:**
     *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, SD stats & files, GPS data and more.
@@ -180,7 +173,7 @@ Once flashed, Antihunter hosts a web interface for all operations.
 *   **Mesh Network:**
      *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
      *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
-     *   Mesh alerts are sent approximately every 10 seconds if a target is detected.
+     *   Mesh alerts are sent approximately every 4 seconds if a target is detected.
      *   Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=4`, `TX=5` at 115200 baud
 
 
