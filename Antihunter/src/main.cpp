@@ -27,7 +27,7 @@ void uartForwardTask(void *parameter) {
   for (;;) {
     while (Serial1.available()) {
       char c = Serial1.read();
-      Serial.write(c);
+      Serial.write(c);  // Echo raw data from UART
       
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
@@ -42,7 +42,7 @@ void uartForwardTask(void *parameter) {
         }
       } else {
         meshBuffer += c;
-        if (meshBuffer.length() > 2048) {
+        if (meshBuffer.length() > 1024) {
           meshBuffer = "";
         }
       }
@@ -119,26 +119,26 @@ void setup() {
     Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
     delay(1000);
-    
+
     initializeHardware();
     initializeSD();
     initializeGPS();
-    delay(2000);
+    delay(1200);
+    initializeVibrationSensor();
     initializeScanner();
     initializeNetwork();
-
-    // Handle incoming mesh commands
+    
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 1, NULL, 1);
     delay(120);
 
     Serial.println("=== Boot Complete ===");
     Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
-    Serial.println("Mesh: Serial1 @ 115200 baud on pins 4,5");
+    Serial.printf("Mesh @ 115200 on pins %d,%d\n", MESH_RX_PIN, MESH_TX_PIN);
 }
 
 void loop() {
     updateGPSLocation();
-    processUSBToMesh();
-    
-    delay(100);
+    processUSBToMesh(); // Always look for new mesh serial messages
+    checkAndSendVibrationAlert(); // Continuous vibration sensing
+    delay(1550);
 }
