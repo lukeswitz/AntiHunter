@@ -39,9 +39,9 @@ void initializeNetwork()
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-  delay(100);
+  delay(500);
   WiFi.setHostname("Antihunter");
-
+  delay(100);
   Serial.println("Starting web server...");
   startWebServer();
 }
@@ -533,6 +533,7 @@ void startAPAndServer()
     server->end();
     delete server;
     server = nullptr;
+    delay(1000);
   }
 
   WiFi.disconnect(true);
@@ -546,9 +547,8 @@ void startAPAndServer()
   }
 
   WiFi.mode(WIFI_AP);
-  delay(100);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  delay(100);
+  delay(1000);
 
   bool apStarted = false;
   for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
@@ -557,19 +557,14 @@ void startAPAndServer()
     apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
     if (!apStarted)
     {
-      delay(500); // Wait before retry
-      WiFi.mode(WIFI_OFF);
-      delay(500);
-      WiFi.mode(WIFI_AP);
-      delay(200);
+      delay(1500); // Wait 
     }
   }
 
   Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
-  delay(200);
+  delay(1200);
   WiFi.setHostname("Antihunter");
-
-  // Only start server if AP started successfully
+  
   if (apStarted)
   {
     startWebServer();
