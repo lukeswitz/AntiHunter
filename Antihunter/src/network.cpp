@@ -168,6 +168,21 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     </form>
   </div>
 
+    <div class="card">
+    <h3>WiFi Sniffer (AP Scanner)</h3>
+    <form id="sniff" method="POST" action="/sniffer">
+      <label>Duration (seconds)</label>
+      <input type="number" name="secs" min="0" max="86400" value="60">
+      <div class="row"><input type="checkbox" id="forever3" name="forever" value="1"><label for="forever3">∞ Forever</label></div>
+      <p class="small">Scans for WiFi access points and logs unique BSSIDs.</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" type="submit">Start Sniffer</button>
+        <a class="btn alt" href="/sniffer-cache" data-ajax="false">View Cache</a>
+        <a class="btn" href="/stop" data-ajax="true">Stop</a>
+      </div>
+    </form>
+  </div>
+
    <div class="card">
     <h3>Mesh Network</h3>
     <div class="row">
@@ -312,6 +327,14 @@ document.getElementById('t').addEventListener('submit', e=>{
 
 document.getElementById('scanMode').addEventListener('change', e=>{
   updateModeIndicator(e.target.value);
+});
+
+document.getElementById('sniff').addEventListener('submit', e=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  fetch('/sniffer', {method:'POST', body:fd}).then(()=>{
+    toast('Sniffer scan started. AP will drop & return…');
+  }).catch(err=>toast('Error: '+err.message));
 });
 
 document.querySelector('#t select[name="mode"]').addEventListener('change', e=>{
@@ -502,73 +525,105 @@ void startWebServer()
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
 
+  server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
+      int secs = 60;
+      bool forever = false;
+      
+      if (req->hasParam("forever", true)) forever = true;
+      if (req->hasParam("secs", true)) {
+          int v = req->getParam("secs", true)->value().toInt();
+          if (v < 0) v = 0;
+          if (v > 86400) v = 86400;
+          secs = v;
+      }
+      
+      stopRequested = false;
+      req->send(200, "text/plain", forever ? "Sniffer scan starting (forever)" : ("Sniffer scan starting for " + String(secs) + "s"));
+      
+      if (!workerTaskHandle) {
+          xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      }
+  });
+
+  server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "text/plain", getSnifferCache());
+  });
+
   server->begin();
   Serial.println("[WEB] Server started.");
 }
 
-void stopAPAndServer()
-{
-  Serial.println("[SYS] Stopping AP and web server...");
-  if (server)
-  {
-    server->end();
-    delete server;
-    server = nullptr;
-  }
-  
-  esp_wifi_set_promiscuous(false);
-  delay(100);
-  
-  WiFi.softAPdisconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(500);
+void stopAPAndServer() {
+    Serial.println("[SYS] Stopping AP and web server...");
+    
+    if (server) {
+        server->end();
+        delay(100);
+        delete server;
+        server = nullptr;
+        delay(100);
+    }
+    
+    esp_wifi_set_promiscuous(false);
+    delay(100);
+    
+    WiFi.softAPdisconnect(true);
+    delay(100);
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.mode(WIFI_OFF);
+    delay(500);
 }
 
-void startAPAndServer()
-{
-  Serial.println("[SYS] Starting AP and web server...");
+void startAPAndServer() {
+    Serial.println("[SYS] Starting AP and web server...");
 
-  if (server)
-  {
-    server->end();
-    delete server;
-    server = nullptr;
-    delay(1000);
-  }
-
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(1000);
-
-  for (int i = 0; i < 10; i++)
-  {
-    delay(100);
-    yield();
-  }
-
-  WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  delay(1000);
-
-  bool apStarted = false;
-  for (int attempt = 0; attempt < 3 && !apStarted; attempt++)
-  {
-    Serial.printf("AP start attempt %d...\n", attempt + 1);
-    apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
-    if (!apStarted)
-    {
-      delay(1500); // Wait 
+    if (server) {
+        server->end();
+        delay(100);
+        delete server;
+        server = nullptr;
+        delay(500);
     }
-  }
 
-  Serial.printf("AP restart %s\n", apStarted ? "SUCCESSFUL" : "FAILED");
-  delay(1200);
-  WiFi.setHostname("Antihunter");
-  
-  if (apStarted)
-  {
-    startWebServer();
-  }
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(1000);
+    WiFi.mode(WIFI_AP);
+    
+    IPAddress local_IP(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
+    
+    if (!WiFi.softAPConfig(local_IP, gateway, subnet)) {
+        Serial.println("AP Config Failed");
+    }
+    delay(500);
+
+    bool apStarted = false;
+    for (int attempt = 0; attempt < 3 && !apStarted; attempt++) {
+        Serial.printf("AP start attempt %d...\n", attempt + 1);
+        
+        apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0, 8);
+        
+        if (!apStarted) {
+            WiFi.mode(WIFI_OFF);
+            delay(1000);
+            WiFi.mode(WIFI_AP);
+            WiFi.softAPConfig(local_IP, gateway, subnet);
+            delay(500);
+        }
+    }
+
+    if (apStarted) {
+        Serial.printf("AP started successfully. IP: %s\n", WiFi.softAPIP().toString().c_str());
+        delay(500);
+        WiFi.setHostname("Antihunter");
+        delay(100);
+        startWebServer();
+    } else {
+        Serial.println("AP start failed after all attempts");
+    }
 }
 
 // Mesh UART Message Sender

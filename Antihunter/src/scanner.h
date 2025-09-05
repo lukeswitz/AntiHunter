@@ -14,6 +14,7 @@ struct Hit {
     bool isBLE;
 };
 
+void snifferScanTask(void *pv);
 void initializeScanner();
 void listScanTask(void *pv);
 void trackerTask(void *pv);
@@ -23,6 +24,7 @@ void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t
 String getTargetsList();
 String getDiagnostics();
 size_t getTargetCount();
+String getSnifferCache();
 
 // Globals
 extern volatile bool scanning;

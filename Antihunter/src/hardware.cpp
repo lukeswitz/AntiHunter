@@ -5,6 +5,7 @@
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
+#include "esp_wifi.h"
 
 extern Preferences prefs;
 extern int cfgBeeps, cfgGapMs;

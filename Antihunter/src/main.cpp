@@ -118,15 +118,19 @@ void setup() {
     delay(300);
     Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
+    
     delay(1000);
 
     initializeHardware();
+    delay(10);
+    initializeNetwork();
+    delay(100);
     initializeSD();
     initializeGPS();
-    delay(1200);
+    delay(500);
     initializeVibrationSensor();
     initializeScanner();
-    initializeNetwork();
+    
     
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 1, NULL, 1);
     delay(120);
