@@ -368,89 +368,88 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
         }
     }
 }
+ 
+// ---------- Radio common ----------
+static void radioStartWiFi()
+{
+  WiFi.mode(WIFI_MODE_STA);
+  wifi_country_t ctry = {.schan = 1, .nchan = 11, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
+  memcpy(ctry.cc, COUNTRY, 2);
+  ctry.cc[2] = 0;
+  esp_wifi_set_country(&ctry);
+  esp_wifi_start();
 
-// Radio Control Functions
-static void radioStartWiFi() {
-    WiFi.mode(WIFI_MODE_STA);
-    wifi_country_t ctry = { .schan=1, .nchan=13, .max_tx_power=78, .policy=WIFI_COUNTRY_POLICY_MANUAL };
-    memcpy(ctry.cc, COUNTRY, 2);
-    esp_wifi_set_country(&ctry);
-    esp_wifi_start();
+  wifi_promiscuous_filter_t filter = {};
+  filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
+  esp_wifi_set_promiscuous_filter(&filter);
+  esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
+  esp_wifi_set_promiscuous(true);
 
-    wifi_promiscuous_filter_t filter = {};
-    filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
-    esp_wifi_set_promiscuous_filter(&filter);
-    esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
-    esp_wifi_set_promiscuous(true);
-
-    if (CHANNELS.empty()) CHANNELS = {1,6,11};
-    esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
-
-    // Delete old hopTimer if present - fix crash on scans
-    if (hopTimer) {
-        esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-    }
-
-    esp_timer_create_args_t targs = {
-        .callback = &hopTimerCb,
-        .arg      = nullptr,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name     = "hop"
-    };
-    esp_timer_create(&targs, &hopTimer);
-    esp_timer_start_periodic(hopTimer, 300000);
+  if (CHANNELS.empty())
+    CHANNELS = {1, 6, 11};
+  esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+  if (hopTimer)
+  {
+      esp_timer_stop(hopTimer); // Clear old timer
+      esp_timer_delete(hopTimer);
+      hopTimer = nullptr;
+  }
+  const esp_timer_create_args_t targs = {.callback = &hopTimerCb, .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "hop"};
+  esp_timer_create(&targs, &hopTimer);
+  esp_timer_start_periodic(hopTimer, 300000); // 300ms
 }
 
-static void radioStartBLE() {
-    esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-    
-    NimBLEDevice::init("");
-    NimBLEDevice::setSecurityAuth(false, false, false);
-    
-    pBLEScan = NimBLEDevice::getScan();
-    pBLEScan->setAdvertisedDeviceCallbacks(new MyBLEAdvertisedDeviceCallbacks());
-    
-    pBLEScan->setActiveScan(true);
-    pBLEScan->setInterval(160);
-    pBLEScan->setWindow(150);
-    pBLEScan->setMaxResults(0);
-    pBLEScan->setDuplicateFilter(false);
-    
-    Serial.println("[BLE] Scanner initialized with active scanning");
+static void radioStartBLE()
+{
+  BLEDevice::init("");
+  pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyBLEAdvertisedDeviceCallbacks());
+  pBLEScan->setActiveScan(true); // More power but faster results
+  pBLEScan->setInterval(100);    // 100ms intervals
+  pBLEScan->setWindow(99);       // 99ms windows (must be <= interval)
 }
 
-static void radioStopBLE() {
-    if (pBLEScan) {
-        pBLEScan->stop();
-        NimBLEDevice::deinit(false);
-        pBLEScan = nullptr;
-    }
+static void radioStopWiFi()
+{
+  esp_wifi_set_promiscuous(false);
+  if (hopTimer)
+  {
+    esp_timer_stop(hopTimer);
+    esp_timer_delete(hopTimer);
+    hopTimer = nullptr;
+  }
+  esp_wifi_stop();
 }
 
-static void radioStopWiFi() {
-    esp_wifi_set_promiscuous(false);
-    if (hopTimer) {
-        esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-    }
-    esp_wifi_stop();
+static void radioStopBLE()
+{
+  if (pBLEScan)
+  {
+    pBLEScan->stop();
+    BLEDevice::deinit(false);
+    pBLEScan = nullptr;
+  }
 }
 
-static void radioStartSTA() {
-    esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        radioStartWiFi();
-    }
-    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
-        radioStartBLE();
-    }
+static void radioStartSTA()
+{
+  // Enable coexistence for WiFi+BLE
+  esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
+
+  if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH)
+  {
+    radioStartWiFi();
+  }
+  if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH)
+  {
+    radioStartBLE();
+  }
 }
-static void radioStopSTA() {
-    radioStopWiFi();
-    radioStopBLE();
+
+static void radioStopSTA()
+{
+  radioStopWiFi();
+  radioStopBLE();
 }
 
 void initializeScanner() {
