@@ -23,7 +23,9 @@ bool gpsValid = false;
 volatile bool vibrationDetected = false;
 unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
-const unsigned long VIBRATION_ALERT_INTERVAL = 5000; 
+const unsigned long VIBRATION_ALERT_INTERVAL = 5000;
+static volatile unsigned long lastDebounceTime = 0;
+const unsigned long DEBOUNCE_DELAY = 50;
 
 // Diagnostics
 extern volatile bool scanning;
@@ -421,25 +423,45 @@ void testGPSPins() {
 
 // Vibration Sensor
 void IRAM_ATTR vibrationISR() {
-    vibrationDetected = true;
-    lastVibrationTime = millis();
+    unsigned long currentTime = millis();
+    if (currentTime - lastDebounceTime > DEBOUNCE_DELAY) {
+        vibrationDetected = true;
+        lastVibrationTime = currentTime;
+        lastDebounceTime = currentTime;
+    }
 }
 
+
 void initializeVibrationSensor() {
-    pinMode(VIBRATION_PIN, INPUT);
-    attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, RISING);
-    Serial.println("[VIBRATION] Sensor initialized on GPIO1");
+    pinMode(VIBRATION_PIN, INPUT_PULLUP); 
+    
+    // Test if sensor is actually connected
+    delay(100);
+    int reading1 = digitalRead(VIBRATION_PIN);
+    delay(50);
+    int reading2 = digitalRead(VIBRATION_PIN);
+    
+    if (reading1 == reading2 && reading1 == HIGH) {
+        attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, FALLING); 
+        Serial.println("[VIBRATION] Sensor initialized on GPIO1");
+    } else {
+        Serial.println("[VIBRATION] No sensor detected on GPIO1, disabling");
+        return;
+    }
 }
 
 void checkAndSendVibrationAlert() {
     if (vibrationDetected) {
-        vibrationDetected = false; // Clear the flag immediately
+        vibrationDetected = false;
+        // Double-check the sensor is actually LOW
+        delay(10);
+        if (digitalRead(VIBRATION_PIN) == HIGH) {
+            return;  // False trigger, ignore
+        }
         
-        // Only send alert if enough time has passed since last alert
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
             lastVibrationAlert = millis();
             
-            // Format timestamp as HH:MM:SS
             unsigned long currentTime = lastVibrationTime;
             unsigned long seconds = currentTime / 1000;
             unsigned long minutes = seconds / 60;
@@ -455,7 +477,6 @@ void checkAndSendVibrationAlert() {
             
             String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + String(timeStr) + " (sensor=" + String(sensorValue) + ")";
             
-            // Add GPS if we have it
             if (gpsValid) {
                 vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
             }
@@ -474,8 +495,6 @@ void checkAndSendVibrationAlert() {
             logToSD(logEntry);
             
             beepOnce(4000, 100);
-        } else {
-            Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
         }
     }
 }
