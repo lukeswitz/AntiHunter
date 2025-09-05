@@ -34,6 +34,9 @@ static esp_timer_handle_t hopTimer = nullptr;
 static uint32_t lastScanStart = 0, lastScanEnd = 0;
 uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
+static std::map<String, String> apCache;
+static unsigned long lastSnifferScan = 0;
+const unsigned long SNIFFER_SCAN_INTERVAL = 30000; 
 
 // NimBLE Scanner
 NimBLEScan* pBLEScan;
@@ -256,7 +259,122 @@ class MyBLEAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
     }
 };
 
-// Main WiFi Sniffer Callback
+ // WiFi Sniffers
+
+ void snifferScanTask(void *pv) {
+    int duration = (int)(intptr_t)pv;
+    bool forever = (duration <= 0);
+    
+    Serial.printf("[SNIFFER] Starting sniffer scan %s\n", 
+                  forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
+    
+    stopAPAndServer();
+    
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    delay(100);
+    
+    scanning = true;
+    uniqueMacs.clear();
+    hitsLog.clear();
+    totalHits = 0;
+    framesSeen = 0;
+    stopRequested = false;
+    lastScanStart = millis();
+    lastScanSecs = duration;
+    lastScanForever = forever;
+    
+    int networksFound = 0;
+    
+    while ((forever && !stopRequested) || 
+           (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested)) {
+        
+        if (millis() - lastSnifferScan >= SNIFFER_SCAN_INTERVAL || lastSnifferScan == 0) {
+            lastSnifferScan = millis();
+            
+            Serial.println("[SNIFFER] Scanning for WiFi networks...");
+            networksFound = WiFi.scanNetworks(false, true, false, 300);
+            
+            if (networksFound > 0) {
+                for (int i = 0; i < networksFound; i++) {
+                    String bssid = WiFi.BSSIDstr(i);
+                    String ssid = WiFi.SSID(i);
+                    int32_t rssi = WiFi.RSSI(i);
+                    uint8_t* bssidBytes = WiFi.BSSID(i);
+                    
+                    if (ssid.length() == 0) {
+                        ssid = "[Hidden]";
+                    }
+                    
+                    if (apCache.find(bssid) == apCache.end()) {
+                        apCache[bssid] = ssid;
+                        uniqueMacs.insert(bssid);
+                        totalHits++;
+                        
+                        Hit h;
+                        memcpy(h.mac, bssidBytes, 6);
+                        h.rssi = rssi;
+                        h.ch = WiFi.channel(i);
+                        strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
+                        h.name[sizeof(h.name) - 1] = '\0';
+                        h.isBLE = false;
+                        
+                        hitsLog.push_back(h);
+                        
+                        String logEntry = "SNIFFER AP: " + bssid + " SSID: " + ssid + 
+                                        " RSSI: " + String(rssi) + "dBm CH: " + String(WiFi.channel(i));
+                        
+                        if (gpsValid) {
+                            logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                        }
+                        
+                        Serial.println("[SNIFFER] " + logEntry);
+                        logToSD(logEntry);
+                        
+                        if (matchesMac(bssidBytes)) {
+                            beepPattern(getBeepsPerHit(), getGapMs());
+                            sendMeshNotification(h);
+                        }
+                    }
+                }
+                
+                framesSeen += networksFound;
+            }
+            
+            Serial.printf("[SNIFFER] Found %d networks, %d unique APs cached\n", 
+                         networksFound, apCache.size());
+        }
+        
+        delay(100);
+    }
+    
+    scanning = false;
+    lastScanEnd = millis();
+    
+    lastResults = "Sniffer Scan Results\n";
+    lastResults += "Duration: " + (forever ? "∞" : String(duration)) + "s\n";
+    lastResults += "Unique APs found: " + String(apCache.size()) + "\n";
+    lastResults += "Total scans: " + String(framesSeen / max(networksFound, 1)) + "\n\n";
+    
+    for (const auto& entry : apCache) {
+        lastResults += "AP: " + entry.first + " SSID: " + entry.second + "\n";
+    }
+    
+    startAPAndServer();
+    extern TaskHandle_t workerTaskHandle;
+    workerTaskHandle = nullptr;
+    vTaskDelete(nullptr);
+}
+
+String getSnifferCache() {
+    String result = "Cached APs: " + String(apCache.size()) + "\n\n";
+    for (const auto& entry : apCache) {
+        result += entry.first + " : " + entry.second + "\n";
+    }
+    return result;
+}
+
+// Main WiFi Callback
 static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
