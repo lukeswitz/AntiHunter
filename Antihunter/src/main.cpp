@@ -4,30 +4,26 @@
 #include "scanner.h" 
 #include "hardware.h"
 
-// Global configuration
 Preferences prefs;
 volatile bool stopRequested = false;
 static String meshInBuffer = "";
 
-// Global state
 ScanMode currentScanMode = SCAN_WIFI;
 int cfgBeeps = 2;
 int cfgGapMs = 80;
 String lastResults;
 std::vector<uint8_t> CHANNELS;
 
-// Task handles
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
 
-// Mesh message catching
 void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
   
   for (;;) {
     while (Serial1.available()) {
       char c = Serial1.read();
-      Serial.write(c);  // Echo raw data from UART
+      Serial.write(c);
       
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
@@ -51,7 +47,6 @@ void uartForwardTask(void *parameter) {
   }
 }
 
-// Helper functions
 String macFmt6(const uint8_t *m) {
     char b[18];
     snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X", 
@@ -142,7 +137,7 @@ void setup() {
 
 void loop() {
     updateGPSLocation();
-    processUSBToMesh(); // Always look for new mesh serial messages
-    checkAndSendVibrationAlert(); // Continuous vibration sensing
+    processUSBToMesh();
+    checkAndSendVibrationAlert();
     delay(1550);
 }

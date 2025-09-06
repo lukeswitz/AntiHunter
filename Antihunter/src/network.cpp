@@ -15,7 +15,7 @@ AsyncWebServer *server = nullptr;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
 const unsigned long MESH_SEND_INTERVAL = 3500;
-const int MAX_MESH_SIZE = 220;
+const int MAX_MESH_SIZE = 230;
 static String nodeId = "";
 
 // External references
@@ -26,6 +26,7 @@ extern int cfgBeeps, cfgGapMs;
 extern String lastResults;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
+extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
@@ -123,7 +124,6 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       <input type="text" name="ch" value="1,6,11">
       <div class="row" style="margin-top:10px">
         <button class="btn primary" type="submit">Start List Scan</button>
-        <a class="btn alt" href="/beep" data-ajax="true">Test Buzzer</a>
         <a class="btn" href="/stop" data-ajax="true">Stop</a>
       </div>
       <p class="small">AP goes offline during scan and returns.</p>
@@ -154,27 +154,21 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     </form>
   </div>
 
-  <div class="card">
-    <h3>Buzzer</h3>
-    <form id="c" method="POST" action="/config">
-      <label>Beeps per hit (List Scan)</label>
-      <input type="number" id="beeps" name="beeps" min="1" max="10" value="2">
-      <label>Gap between beeps (ms)</label>
-      <input type="number" id="gap" name="gap" min="20" max="2000" value="80">
-      <div class="row" style="margin-top:10px">
-        <button class="btn primary" type="submit">Save Config</button>
-        <a class="btn alt" href="/beep" data-ajax="true">Test Beep</a>
-      </div>
-    </form>
-  </div>
-
     <div class="card">
-    <h3>WiFi Sniffer (AP Scanner)</h3>
-    <form id="sniff" method="POST" action="/sniffer">
+    <h3>Scan and Sniff</h3>
+    <form id="sniffer" method="POST" action="/sniffer">  
+    <label>Detection Method</label>
+    <select name="detection" id="detectionMode">
+      <option value="device-scan">Scan BLE/WiFi Devices</option>
+      <option value="deauth">Deauth/Disassoc Frames</option>
+      <option value="beacon-flood">Beacon Flood Detection</option>
+      <option value="ble-spam">BLE Spam Detection</option>
+      <option value="evil-twin" disabled>Evil Twin (Coming Soon)</option>
+    </select>
       <label>Duration (seconds)</label>
       <input type="number" name="secs" min="0" max="86400" value="60">
       <div class="row"><input type="checkbox" id="forever3" name="forever" value="1"><label for="forever3">∞ Forever</label></div>
-      <p class="small">Scans for WiFi access points and logs unique BSSIDs.</p>
+      <p class="small">Scans for devices. Monitors attacks. AP goes offline during detection</p>
       <div class="row" style="margin-top:10px">
         <button class="btn primary" type="submit">Start Sniffer</button>
         <a class="btn alt" href="/sniffer-cache" data-ajax="false">View Cache</a>
@@ -204,11 +198,11 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     <h3>Diagnostics</h3>
     <pre id="diag">Loading…</pre>
   </div>
-
-  <div class="card">
-    <h3>Last Results</h3>
-    <pre id="r">None yet.</pre>
-  </div>
+</div>
+ 
+<div class="card">
+  <h3>Last Results</h3>
+  <pre id="r">None yet.</pre>
 </div>
 
 <div class="footer">© Team AntiHunter 2025</div>
@@ -296,8 +290,9 @@ function updateModeIndicator(mode) {
   }
 }
 
-document.getElementById('f').addEventListener('submit', e=>{ e.preventDefault(); ajaxForm(e.target, 'Targets saved ✓'); });
-document.getElementById('c').addEventListener('submit', e=>{ e.preventDefault(); ajaxForm(e.target, 'Config saved ✓'); });
+document.getElementById('f').addEventListener('submit', e=>{ 
+  e.preventDefault(); ajaxForm(e.target, 'Targets saved ✓'); 
+});
 
 document.getElementById('s').addEventListener('submit', e=>{
   e.preventDefault();
@@ -329,11 +324,11 @@ document.getElementById('scanMode').addEventListener('change', e=>{
   updateModeIndicator(e.target.value);
 });
 
-document.getElementById('sniff').addEventListener('submit', e=>{
+document.getElementById('sniffer').addEventListener('submit', e=>{  // Now matches form id
   e.preventDefault();
   const fd = new FormData(e.target);
   fetch('/sniffer', {method:'POST', body:fd}).then(()=>{
-    toast('Sniffer scan started. AP will drop & return…');
+    toast('Sniffer scan started. AP will drop & return...');
   }).catch(err=>toast('Error: '+err.message));
 });
 
@@ -525,25 +520,74 @@ void startWebServer()
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
 
-  server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
-      int secs = 60;
-      bool forever = false;
-      
-      if (req->hasParam("forever", true)) forever = true;
-      if (req->hasParam("secs", true)) {
-          int v = req->getParam("secs", true)->value().toInt();
-          if (v < 0) v = 0;
-          if (v > 86400) v = 86400;
-          secs = v;
-      }
+  server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req)
+           {
+  String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
+  int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
+  bool forever = req->hasParam("forever", true);
+  
+  if (detection == "deauth") {
+    if (secs < 0) secs = 0; 
+    if (secs > 86400) secs = 86400;
+    
+    stopRequested = false;
+    req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+    
+  } else if (detection == "beacon-flood") {
+    if (secs < 0) secs = 0; 
+    if (secs > 86400) secs = 86400;
+    
+    stopRequested = false;
+    req->send(200, "text/plain", forever ? "Beacon flood detection starting (forever)" : ("Beacon flood detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+      xTaskCreatePinnedToCore(beaconFloodTask, "beaconflood", 10240, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+  } else if (detection == "ble-spam") {
+    if (secs < 0) secs = 0; 
+    if (secs > 86400) secs = 86400;
+    
+    stopRequested = false;
+    req->send(200, "text/plain", forever ? "BLE spam detection starting (forever)" : ("BLE spam detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+        xTaskCreatePinnedToCore(bleScannerTask, "blescan", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+  } else if (detection == "device-scan") {
+      if (secs < 0) secs = 0;
+      if (secs > 86400) secs = 86400;
       
       stopRequested = false;
-      req->send(200, "text/plain", forever ? "Sniffer scan starting (forever)" : ("Sniffer scan starting for " + String(secs) + "s"));
+      req->send(200, "text/plain", forever ? "Device scan starting (forever)" : ("Device scan starting for " + String(secs) + "s"));
       
       if (!workerTaskHandle) {
-          xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+          xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
       }
-  });
+  } else {
+    req->send(400, "text/plain", "Unknown detection mode");
+  } });
+
+  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
+  String results = "Deauth Detection Results\n";
+  results += "Deauth frames: " + String(deauthCount) + "\n";
+  results += "Disassoc frames: " + String(disassocCount) + "\n\n";
+  
+  int show = min((int)deauthLog.size(), 100);
+  for (int i = 0; i < show; i++) {
+    const auto &hit = deauthLog[i];
+    results += String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
+    results += macFmt6(hit.srcMac) + " -> " + macFmt6(hit.destMac);
+    results += " BSSID:" + macFmt6(hit.bssid);
+    results += " RSSI:" + String(hit.rssi) + "dBm";
+    results += " CH:" + String(hit.channel);
+    results += " Reason:" + String(hit.reasonCode) + "\n";
+  }  
+  r->send(200, "text/plain", results); });
 
   server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "text/plain", getSnifferCache());

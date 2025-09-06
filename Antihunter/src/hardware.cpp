@@ -324,19 +324,41 @@ void initializeGPS() {
     Serial.printf("[GPS] UART on RX:%d TX:%d\n", GPS_RX_PIN, GPS_TX_PIN);
 }
 
-void logToSD(const String &data)
-{
-    if (!sdAvailable)
-        return;
-
+void logToSD(const String &data) {
+    if (!sdAvailable) return;
+    
+    // Ensure directory exists
+    if (!SD.exists("/")) {
+        SD.mkdir("/");
+    }
+    
     File logFile = SD.open("/antihunter.log", FILE_APPEND);
-    if (logFile)
-    {
-        logFile.print("[");
-        logFile.print(millis());
-        logFile.print("] ");
-        logFile.println(data);
-        logFile.close();
+    if (!logFile) {
+        // Try to recreate the file
+        logFile = SD.open("/antihunter.log", FILE_WRITE);
+        if (!logFile) {
+            Serial.println("[SD] Failed to open log file");
+            return;
+        }
+    }
+    
+    // Write with timestamp
+    logFile.print("[");
+    logFile.print(millis());
+    logFile.print("] ");
+    logFile.println(data);
+    logFile.flush();  // Force write, TODO test in long operations
+    logFile.close();
+    
+    // Verify write
+    static unsigned long lastSizeCheck = 0;
+    if (millis() - lastSizeCheck > 10000) {
+        File checkFile = SD.open("/antihunter.log", FILE_READ);
+        if (checkFile) {
+            Serial.printf("[SD] Log file size: %lu bytes\n", checkFile.size());
+            checkFile.close();
+        }
+        lastSizeCheck = millis();
     }
 }
 
