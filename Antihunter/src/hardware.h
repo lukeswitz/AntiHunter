@@ -13,7 +13,7 @@
 #define BUZZER_IS_PASSIVE 1
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 4   // MESH PIN 20      (GPIO4)
+#define MESH_RX_PIN 6   // MESH PIN 20      (GPIO4)
 #endif
 #ifndef MESH_TX_PIN
 #define MESH_TX_PIN 5    // MESH PIN 19     (GPIO5)
