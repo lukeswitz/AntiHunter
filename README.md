@@ -60,7 +60,7 @@ This is Antihunter's specialty for close-quarters signal pursuit. Provide a sing
 > [!IMPORTANT]
 > Blue team tools are a WIP, false positives and missed detections are possible.
 
-Built by reverse engineering popular attack platforms like Aircrack-ng, Bettercap, and ESP32-based rogue tools, these modules empower defensive monitoring and rapid response. They continuously scan for malicious wireless activities, alerting you when threats are detected:
+Built by reverse engineering popular attack platforms like Aircrack-ng, Bettercap, and ESP32-based rogue tools, these modules empower defensive monitoring and rapid response. They scan for malicious wireless activities, alerting you when threats are detected:
 
 * **Deauthentication/Disassociation Floods**: Monitors for rapid, anomalous deauth/disassoc packets targeting specific clients or APs, which are common in Wi-Fi denial-of-service attacks. Triggers an alert if packet rates exceed safe thresholds (e.g., >10 packets/sec from a single source).
   
