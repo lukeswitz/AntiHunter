@@ -40,17 +40,37 @@ A low-cost, open-source tool for wireless threat detection, tracking, and counte
 
 Antihunter provides powerful, real-time wireless intelligence through an intuitive web-based interface. It operates in two primary modes:
 
-1.  **List Scan Mode (Area Surveillance):**
-    Upload a list of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte Vendor ID). Antihunter will meticulously sweep the designated WiFi channels and BLE frequencies. Upon detection, you receive immediate audible alerts (customizable beep patterns) and detailed logs, including signal strength (RSSI), channel, and device name. This mode is perfect for:
-    *   Passive monitoring of specific devices in an environment.
-    *   Initial reconnaissance in a wireless survey.
-    *   Identifying rogue access points or suspicious BLE beacons.
+### 1.  **List Scan Mode (Area Surveillance):**
+Upload a list of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte Vendor ID). Antihunter will meticulously sweep the designated WiFi channels and BLE frequencies. Upon detection, you receive immediate audible alerts (customizable beep patterns) and detailed logs, including signal strength (RSSI), channel, and device name. This mode is perfect for:
 
-2.  **Tracker Mode (The Digital Foxhunt):**
-    This is Antihunter's specialty for close-quarters signal pursuit. Provide a single target MAC address, and Antihunter transforms into a responsive "Geiger counter" for that specific device. As you move (or point a directional antenna), the device's integrated buzzer will dynamically adjust its pitch and tempo – faster and higher-pitched tones indicate you're closing in on the target, while a slow, deep click means the signal is weak or lost. Tracker mode is indispensable for:
-    *   Locating lost or stolen wireless devices.
-    *   Pinpointing the exact physical location of a transmitting device.
-    *   Real-time "foxhunting" games and exercises.
+ *   Passive monitoring of specific devices in an environment.
+ *   Initial reconnaissance in a wireless survey.
+ *   Identifying rogue access points or suspicious BLE beacons.
+
+### 2.  **Tracker Mode (The Digital Foxhunt):**
+
+This is Antihunter's specialty for close-quarters signal pursuit. Provide a single target MAC address, and Antihunter transforms into a responsive "Geiger counter" for that specific device. As you move (or point a directional antenna), the device's integrated buzzer will dynamically adjust its pitch and tempo – faster and higher-pitched tones indicate you're closing in on the target, while a slow, deep click means the signal is weak or lost. Tracker mode is indispensable for:
+    
+ *   Locating lost or stolen wireless devices.
+ *   Pinpointing the exact physical location of a transmitting device.
+ *   Real-time "foxhunting" games and exercises.
+
+### 3. **Attack Sniffers (Blue Team Tools)**
+
+> [!IMPORTANT]
+> Blue team tools are a WIP, false positives and missed detections are possible.
+
+Built by reverse engineering popular attack platforms like Aircrack-ng, Bettercap, and ESP32-based rogue tools, these modules empower defensive monitoring and rapid response. They continuously scan for malicious wireless activities, alerting you when threats are detected:
+
+* **Deauthentication/Disassociation Floods**: Monitors for rapid, anomalous deauth/disassoc packets targeting specific clients or APs, which are common in Wi-Fi denial-of-service attacks. Triggers an alert if packet rates exceed safe thresholds (e.g., >10 packets/sec from a single source).
+  
+* **Beacon/Probe Floods**: Identifies excessive fake beacon frames or probe requests that overwhelm networks, often used to create rogue APs or exhaust airtime. Configurable filters detect floods based on SSID repetition or unusual probe volumes.
+
+* **BLE Spam and Advertisement Overload**: Scans Bluetooth Low Energy (BLE) channels for spam attacks, such as flooding with bogus advertisements or connection requests, which can drain device batteries or disrupt IoT ecosystems. Alerts on high-rate, repetitive BLE packets from suspicious MACs.
+
+* **Evil Twin Detection**: Cross-references SSIDs and BSSIDs to spot cloned access points mimicking legitimate ones, including those using tools like WiFi Pineapple. Integrates with Tracker Mode for physical localization of the rogue device.
+
+* **Additional Threat Vectors**: Extends to PMKID sniffing attempts, KARMA attacks (where devices respond to any probe), and basic evil AP scanning (e.g., open networks with suspicious handshakes). All detections are logged with timestamps, signal strength (RSSI), and source MACs for forensic analysis.
 
 **GPS Location**
 
@@ -106,8 +126,10 @@ curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/Ant
 *   **PlatformIO Extension:** Install the PlatformIO IDE extension in VS Code.
 *   **Hardware:** 
     - ESP32 development board (Seeed XIAO ESP32S3 and other s3 varients) • **8MB** flash memory boards required for reliably
-    - Passive piezo buzzer connected to the designated pin (optional)
-    - Meshtastic board (Heltec, etc.) 
+    - Passive piezo buzzer (optional)
+    - SDHC (optional)
+    - GPS (optional)
+    - Meshtastic board (optional) 
 
 ### 2. Clone the Repository
 
@@ -146,7 +168,7 @@ Once flashed, Antihunter hosts a web interface for all operations.
 
 3.  **Core Functionality:**
 
-   <img width="1076" height="800" alt="d" src="https://github.com/user-attachments/assets/4cbcf933-3cc6-4212-a80a-4b47008e1266" />
+<img width="1072" height="1290" alt="s" src="https://github.com/user-attachments/assets/a0fd32da-81ce-401a-9f5e-4430340ab335" />
 
 
 *   **Targets (List Scan Watchlist):**
@@ -165,12 +187,6 @@ Once flashed, Antihunter hosts a web interface for all operations.
      *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
      *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
      *   Click `Start Tracker`. AP will disappear for the duration of the scan. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
-
- *   **Buzzer:**
-     *   **Beeps per hit (List Scan):** Configure how many times the buzzer beeps when a target is detected in List Scan mode (default: 2).
-     *   **Gap between beeps (ms):** Adjust the pause between beeps (default: 80 ms).
-     *   `Save Config` applies changes. `Test Beep` triggers a single test pattern.
-     *   Sunset in headless firmware
 
 *   **Diagnostics:**
     *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, SD stats & files, GPS data and more.
@@ -216,6 +232,12 @@ Thanks to
 ## Disclaimer
 
 ```
+AntiHunter (AH) is provided for lawful, authorized use only—such as research, training, and security operations on systems and radio spectrum you own or have explicit written permission to assess. You are solely responsible for compliance with all applicable laws and policies, including privacy/data-protection (e.g., GDPR), radio/telecom regulations (LoRa ISM band limits, duty cycle), and export controls. Do not use AH to track, surveil, or target individuals, or to collect personal data without a valid legal basis and consent where required.
+
+The software is provided “AS IS” without warranty of any kind. Authors and contributors are not liable for misuse, damages, or legal consequences arising from use of this project.
+By using AHCC, you accept full responsibility for your actions and agree to indemnify the authors and contributors against any claims related to your use.
+These tools are designed for ethical blue team use, such as securing events, auditing networks, or training exercises. To implement in code, ensure compliance with local laws (e.g., FCC regulations on transmissions) and pair with a directional antenna for enhanced accuracy.
+
 THE SOFTWARE IN THIS REPOSITORY (“SOFTWARE”) IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, OR RELIABILITY. TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE DEVELOPERS, MAINTAINERS, OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OF OR OTHER DEALINGS IN THE SOFTWARE, INCLUDING WITHOUT LIMITATION ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR LOSS OF DATA, PROFITS, GOODWILL, OR BUSINESS INTERRUPTION, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
 YOU ALONE ARE RESPONSIBLE FOR COMPLYING WITH ALL APPLICABLE LAWS, REGULATIONS, AND THIRD-PARTY RIGHTS. NO ADVICE OR INFORMATION, WHETHER ORAL OR WRITTEN, OBTAINED FROM THE PROJECT OR THROUGH THE SOFTWARE, CREATES ANY WARRANTY OR OBLIGATION NOT EXPRESSLY STATED HEREIN. IF APPLICABLE LAW DOES NOT ALLOW THE EXCLUSION OF CERTAIN WARRANTIES OR LIMITATION OF LIABILITY, THE DEVELOPERS’, MAINTAINERS’, AND CONTRIBUTORS’ AGGREGATE LIABILITY SHALL NOT EXCEED THE GREATER OF: (A) THE AMOUNT YOU PAID (IF ANY) FOR THE COPY OF THE SOFTWARE THAT GAVE RISE TO THE CLAIM, OR (B) USD $0.
