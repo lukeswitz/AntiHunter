@@ -1,7 +1,7 @@
 #pragma once
-#include <Arduino.h>
-#include <Preferences.h>
-#include <WiFi.h>
+#include "scanner.h"
+#include "network.h"
+#include "main.h"
 
 #ifndef COUNTRY
 #define COUNTRY "NO"
@@ -21,6 +21,8 @@
 #ifndef VIBRATION_PIN
 #define VIBRATION_PIN 1  // SW-420 PIN D0   (GPIO1)
 #endif
+
+#define TEMP_SENSOR_PIN 6
 
 // SD Card (SPI)
 #define SD_CS_PIN   2    // CS on D1        (GPIO2)
@@ -56,3 +58,6 @@ int getGapMs();
 void logToSD(const String &data);
 String getGPSData();
 void updateGPSLocation();
+extern float ambientTemp;
+extern bool tempSensorAvailable;
+void updateTemperature();

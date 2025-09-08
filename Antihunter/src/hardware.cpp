@@ -1,11 +1,14 @@
 #include "hardware.h"
-#include "scanner.h"
-#include "network.h"
+#include <Arduino.h>
+#include <Preferences.h>
+#include <WiFi.h>
 #include <SPI.h>
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include "esp_wifi.h"
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 extern Preferences prefs;
 extern int cfgBeeps, cfgGapMs;
@@ -20,13 +23,17 @@ String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
 
+// Temp
+OneWire oneWire(TEMP_SENSOR_PIN);
+DallasTemperature tempSensor(&oneWire);
+float ambientTemp = 0.0;
+bool tempSensorAvailable = false;
+
 // Viration Sensor
 volatile bool vibrationDetected = false;
 unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
-const unsigned long VIBRATION_ALERT_INTERVAL = 5000;
-static volatile unsigned long lastDebounceTime = 0;
-const unsigned long DEBOUNCE_DELAY = 50;
+const unsigned long VIBRATION_ALERT_INTERVAL = 5000; 
 
 // Diagnostics
 extern volatile bool scanning;
@@ -119,6 +126,28 @@ void initializeHardware()
         prefs.putString("nodeId", nodeId);
     }
     setNodeId(nodeId);
+
+    // Initialize DS18B20 temperature sensor (optional)
+    Serial.println("Checking for DS18B20 temperature sensor...");
+    tempSensor.begin();
+    delay(100);
+    
+    if (tempSensor.getDeviceCount() > 0) {
+        tempSensor.requestTemperatures();
+        float testTemp = tempSensor.getTempCByIndex(0);
+        
+        if (testTemp != DEVICE_DISCONNECTED_C && testTemp > -50 && testTemp < 85) {
+            tempSensorAvailable = true;
+            ambientTemp = testTemp;
+            Serial.printf("[DS18B20] Temperature sensor found: %.1f°C\n", ambientTemp);
+        } else {
+            tempSensorAvailable = false;
+            Serial.println("[DS18B20] Sensor connected but reading invalid");
+        }
+    } else {
+        tempSensorAvailable = false;
+        Serial.println("[DS18B20] No temperature sensor found (optional)");
+    }
 
     Serial.printf("Hardware initialized: beeps=%d, gap=%dms, nodeID=%s\n", cfgBeeps, cfgGapMs, nodeId);
 }
@@ -229,6 +258,13 @@ String getDiagnostics() {
 
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";
 
+    // DS18B20 Ambient Temperature
+    if (tempSensorAvailable) {
+        updateTemperature();
+        float temp_f = (ambientTemp * 9.0 / 5.0) + 32.0;
+        s += "Ambient Temp: " + String(ambientTemp, 1) + "°C / " + String(temp_f, 1) + "°F\n";
+    }
+
     float temp_c = temperatureRead();
     float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
     s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
@@ -249,12 +285,10 @@ void initializeSD()
     Serial.println("Initializing SD card...");
     Serial.printf("[SD] Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
 
-    // Reset SPI bus
     SPI.end();
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
-    delay(100); // Allow SPI bus to stabilize
+    delay(100);
 
-    // Try multiple frequencies
     const uint32_t tryFreqs[] = {1000000, 4000000, 8000000, 10000000};
     for (uint32_t f : tryFreqs)
     {
@@ -264,7 +298,6 @@ void initializeSD()
             Serial.println("SD card initialized successfully");
             sdAvailable = true;
 
-            // Print SD card details
             uint8_t cardType = SD.cardType();
             Serial.print("SD Card Type: ");
             if (cardType == CARD_MMC)
@@ -446,45 +479,25 @@ void testGPSPins() {
 
 // Vibration Sensor
 void IRAM_ATTR vibrationISR() {
-    unsigned long currentTime = millis();
-    if (currentTime - lastDebounceTime > DEBOUNCE_DELAY) {
-        vibrationDetected = true;
-        lastVibrationTime = currentTime;
-        lastDebounceTime = currentTime;
-    }
+    vibrationDetected = true;
+    lastVibrationTime = millis();
 }
 
-
 void initializeVibrationSensor() {
-    pinMode(VIBRATION_PIN, INPUT_PULLUP); 
-    
-    // Test if sensor is actually connected
-    delay(100);
-    int reading1 = digitalRead(VIBRATION_PIN);
-    delay(50);
-    int reading2 = digitalRead(VIBRATION_PIN);
-    
-    if (reading1 == reading2 && reading1 == HIGH) {
-        attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, FALLING); 
-        Serial.println("[VIBRATION] Sensor initialized on GPIO1");
-    } else {
-        Serial.println("[VIBRATION] No sensor detected on GPIO1, disabling");
-        return;
-    }
+    pinMode(VIBRATION_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, RISING);
+    Serial.println("[VIBRATION] Sensor initialized on GPIO1");
 }
 
 void checkAndSendVibrationAlert() {
     if (vibrationDetected) {
-        vibrationDetected = false;
-        // Double-check the sensor is actually LOW
-        delay(10);
-        if (digitalRead(VIBRATION_PIN) == HIGH) {
-            return;  // False trigger, ignore
-        }
+        vibrationDetected = false; // Clear the flag immediately
         
+        // Only send alert if enough time has passed since last alert
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
             lastVibrationAlert = millis();
             
+            // Format timestamp as HH:MM:SS
             unsigned long currentTime = lastVibrationTime;
             unsigned long seconds = currentTime / 1000;
             unsigned long minutes = seconds / 60;
@@ -500,6 +513,7 @@ void checkAndSendVibrationAlert() {
             
             String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + String(timeStr) + " (sensor=" + String(sensorValue) + ")";
             
+            // Add GPS if we have it
             if (gpsValid) {
                 vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
             }
@@ -518,6 +532,29 @@ void checkAndSendVibrationAlert() {
             logToSD(logEntry);
             
             beepOnce(4000, 100);
+        } else {
+            Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
         }
+    }
+}
+
+void updateTemperature() {
+    static unsigned long lastTempRead = 0;
+    
+    if (!tempSensorAvailable) return;
+    
+    // Only read every 10 seconds to avoid blocking
+    if (millis() - lastTempRead < 10000) return;
+    lastTempRead = millis();
+    
+    tempSensor.requestTemperatures();
+    float newTemp = tempSensor.getTempCByIndex(0);
+    
+    if (newTemp != DEVICE_DISCONNECTED_C && newTemp > -50 && newTemp < 85) {
+        ambientTemp = newTemp;
+    } else {
+        // Sensor disconnected or error
+        tempSensorAvailable = false;
+        Serial.println("[DS18B20] Temperature sensor error");
     }
 }

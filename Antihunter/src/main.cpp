@@ -1,21 +1,28 @@
+#include "main.h"
+#include <SPI.h>
 #include <Arduino.h>
 #include <Preferences.h>
 #include "network.h"
 #include "scanner.h" 
 #include "hardware.h"
+#include <SD.h>
+#include <TinyGPSPlus.h>
+#include <HardwareSerial.h>
+#include "esp_wifi.h"
+
 
 Preferences prefs;
-volatile bool stopRequested = false;
-static String meshInBuffer = "";
-
-ScanMode currentScanMode = SCAN_WIFI;
 int cfgBeeps = 2;
 int cfgGapMs = 80;
-String lastResults;
-std::vector<uint8_t> CHANNELS;
+ScanMode currentScanMode = SCAN_WIFI;
+std::vector<uint8_t> CHANNELS = {1, 6, 11};
+volatile bool stopRequested = false;
 
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
+
+std::string antihunter::lastResults = "No scan data yet.";
+std::mutex antihunter::lastResultsMutex;
 
 void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
@@ -118,17 +125,24 @@ void setup() {
 
     initializeHardware();
     delay(10);
-    initializeNetwork();
-    delay(100);
+    initializeNetwork();  // starts AP and mesh UART
+    delay(500);
     initializeSD();
     initializeGPS();
     delay(500);
     initializeVibrationSensor();
     initializeScanner();
     
-    
-    xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
+
+    esp_task_wdt_deinit();  // Clean any existing config
+    esp_task_wdt_config_t wdt_config = {
+        .timeout_ms = 30000,  // Increase timeout to 30 seconds
+        .idle_core_mask = 0,  // Don't monitor idle tasks
+        .trigger_panic = true
+    };
+    esp_task_wdt_init(&wdt_config);
 
     Serial.println("=== Boot Complete ===");
     Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
@@ -137,7 +151,8 @@ void setup() {
 
 void loop() {
     updateGPSLocation();
+    // updateTemperature(); 
     processUSBToMesh();
-    checkAndSendVibrationAlert();
-    delay(1550);
+    //checkAndSendVibrationAlert();
+    delay(1000);
 }

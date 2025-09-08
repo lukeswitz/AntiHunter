@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
+
 struct Hit {
    uint8_t mac[6];
    int8_t rssi;
@@ -104,16 +105,18 @@ struct BLEAnomalyHit {
     uint32_t timestamp;
 };
 
-static const uint32_t DEAUTH_FLOOD_THRESHOLD = 10;
-static const uint32_t DEAUTH_TIMING_WINDOW = 5000;
-static const uint32_t PROBE_FLOOD_THRESHOLD = 50;
-static const uint32_t PROBE_TIMING_WINDOW = 10000;
-static const uint32_t BEACON_FLOOD_THRESHOLD = 50;
-static const uint32_t BEACON_TIMING_WINDOW = 10000;
-static const uint32_t MIN_BEACON_INTERVAL = 50;
-static const uint32_t MAX_SSIDS_PER_MAC = 10;
-static const uint32_t BLE_SPAM_THRESHOLD = 10;
-static const uint32_t BLE_TIMING_WINDOW = 1000;
+// Attack detection thresholds
+static const uint32_t DEAUTH_FLOOD_THRESHOLD = 3;      // 3+ deauths in window = attack
+static const uint32_t DEAUTH_TIMING_WINDOW = 500;      // 500ms burst window
+static const uint32_t BEACON_FLOOD_THRESHOLD = 20;     // 20+ NEW MACs in window = flood
+static const uint32_t BEACON_TIMING_WINDOW = 5000;     // 5 second window
+static const uint32_t BEACON_BURST_THRESHOLD = 10;     // 10+ NEW MACs per second
+static const uint32_t BLE_SPAM_THRESHOLD = 5;          // 5+ per second for Apple
+static const uint32_t BLE_TIMING_WINDOW = 1000;        // 1 second
+static const uint32_t PROBE_FLOOD_THRESHOLD = 50;      // 50 probes/sec
+static const uint32_t PROBE_TIMING_WINDOW = 1000;      // 1 second
+static const uint32_t BEACON_RANDOM_MAC_THRESHOLD = 15; // 15+ random MACs = attack
+static const uint32_t MAX_SSIDS_PER_MAC = 3;           // Normal APs don't change SSIDs
 
 extern std::map<String, uint32_t> deauthSourceCounts;
 extern std::map<String, uint32_t> deauthTargetCounts;
@@ -163,6 +166,15 @@ extern QueueHandle_t bleAnomalyQueue;
 
 extern TaskHandle_t workerTaskHandle;
 
+extern uint8_t trackerMac[6];
+extern volatile int8_t trackerRssi;
+extern volatile uint32_t trackerLastSeen;
+extern volatile uint32_t trackerPackets;
+extern uint32_t lastScanSecs;
+extern bool lastScanForever;
+
+extern QueueHandle_t macQueue;
+
 static int blueTeamDuration = 300;
 static bool blueTeamForever = false;
 
@@ -182,20 +194,3 @@ size_t getTargetCount();
 String getSnifferCache();
 void cleanupMaps();
 
-extern volatile bool scanning;
-extern volatile int totalHits;
-extern volatile uint32_t framesSeen;
-extern volatile uint32_t bleFramesSeen;
-extern volatile bool trackerMode;
-
-extern std::set<String> uniqueMacs;
-extern std::vector<Hit> hitsLog;
-
-extern uint8_t trackerMac[6];
-extern volatile int8_t trackerRssi;
-extern volatile uint32_t trackerLastSeen;
-extern volatile uint32_t trackerPackets;
-extern uint32_t lastScanSecs;
-extern bool lastScanForever;
-
-extern QueueHandle_t macQueue;
