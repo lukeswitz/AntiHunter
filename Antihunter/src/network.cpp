@@ -1,7 +1,10 @@
 #include "network.h"
 #include "hardware.h"
 #include "scanner.h"
+#include "main.h"
 #include <AsyncTCP.h>
+#include "esp_task_wdt.h"
+
 
 extern "C"
 {
@@ -9,6 +12,7 @@ extern "C"
 #include "esp_wifi_types.h"
 #include "esp_coexist.h"
 }
+
 
 // Network vars
 AsyncWebServer *server = nullptr;
@@ -18,12 +22,17 @@ const unsigned long MESH_SEND_INTERVAL = 3500;
 const int MAX_MESH_SIZE = 230;
 static String nodeId = "";
 
-// External references
+// External references from scanner.cpp
+extern volatile bool scanning;
+extern volatile int totalHits;
+extern volatile bool trackerMode;
+extern std::set<String> uniqueMacs;
+
+// External references from other modules
 extern Preferences prefs;
 extern volatile bool stopRequested;
 extern ScanMode currentScanMode;
 extern int cfgBeeps, cfgGapMs;
-extern String lastResults;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
 extern TaskHandle_t blueTeamTaskHandle;
@@ -31,8 +40,10 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
+
 void initializeNetwork()
-{
+{ 
+  esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
   Serial.println("Initializing mesh UART...");
   initializeMesh();
 
@@ -262,7 +273,8 @@ async function tick(){
     const d = await fetch('/diag'); 
     const diagText = await d.text();
     document.getElementById('diag').innerText = diagText;
-    
+    const rr = await fetch('/results'); 
+    document.getElementById('r').innerText = await rr.text();
     if (diagText.includes('Scanning: yes')) {
       const modeMatch = diagText.match(/Scan Mode: (\w+)/);
       if (modeMatch) {
@@ -270,7 +282,6 @@ async function tick(){
         let modeValue = '0';
         if (serverMode === 'BLE') modeValue = '1';
         else if (serverMode === 'WiFi+BLE') modeValue = '2';
-        
         if (modeValue !== selectedMode) {
           updateModeIndicator(modeValue);
         }
@@ -364,7 +375,12 @@ void startWebServer()
              { r->send(200, "text/plain", getTargetsList()); });
 
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r)
-             { r->send(200, "text/plain", lastResults.length() ? lastResults : String("None yet.")); });
+           { 
+               std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+               String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
+               
+               r->send(200, "text/plain", results); 
+           });
 
   server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -534,7 +550,7 @@ void startWebServer()
     req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
     
     if (!blueTeamTaskHandle) {
-      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
     }
     
   } else if (detection == "beacon-flood") {
@@ -545,7 +561,7 @@ void startWebServer()
     req->send(200, "text/plain", forever ? "Beacon flood detection starting (forever)" : ("Beacon flood detection starting for " + String(secs) + "s"));
     
     if (!blueTeamTaskHandle) {
-      xTaskCreatePinnedToCore(beaconFloodTask, "beaconflood", 10240, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+      xTaskCreatePinnedToCore(beaconFloodTask, "beaconflood", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
     }
   } else if (detection == "ble-spam") {
     if (secs < 0) secs = 0; 
@@ -597,6 +613,172 @@ void startWebServer()
   Serial.println("[WEB] Server started.");
 }
 
+void startAPAndServer() {
+    Serial.println("[SYS] Starting AP and web server...");
+    
+    if (server) {
+        server->end();
+        server->reset();
+        delay(200);
+        delete server;
+        server = nullptr;
+        delay(500);
+    }
+
+    // Based on ESP32 forum solutions
+    WiFi.persistent(false); 
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(1000);
+    
+    // Try multiple times with different strategies
+    const int MAX_RETRIES = 3;
+    bool apStarted = false;
+    
+    for (int attempt = 1; attempt <= MAX_RETRIES && !apStarted; attempt++) {
+        Serial.printf("[SYS] AP start attempt %d/%d\n", attempt, MAX_RETRIES);
+        
+        // Try init on first attempt
+        if (attempt == 1) {
+            // Erase WiFi config from NVS if exists
+            WiFi.disconnect(true);
+            WiFi.mode(WIFI_OFF);
+            delay(500);
+            
+            // Initialize WiFi
+            wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+            esp_err_t ret = esp_wifi_init(&cfg);
+            if (ret == ESP_ERR_WIFI_NOT_INIT) {
+                esp_wifi_deinit();
+                delay(100);
+                ret = esp_wifi_init(&cfg);
+            }
+            
+            if (ret != ESP_OK && ret != ESP_ERR_WIFI_NOT_STOPPED) {
+                Serial.printf("[SYS] WiFi init failed: %d, trying next strategy\n", ret);
+                continue;
+            }
+        }
+        // Force deinit/reinit
+        else if (attempt == 2) {
+            Serial.println("[SYS] Forcing WiFi deinit/reinit...");
+            esp_wifi_stop();
+            delay(200);
+            esp_wifi_deinit();
+            delay(500);
+            
+            wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+            esp_err_t ret = esp_wifi_init(&cfg);
+            if (ret != ESP_OK) {
+                Serial.printf("[SYS] Reinit failed: %d\n", ret);
+                continue;
+            }
+        }
+        // Different channel and simpler config
+        else if (attempt == 3) {
+            Serial.println("[SYS] Trying alternate channel...");
+            // Use channel 11 instead of 6 as fallback
+        }
+        
+        // Set mode
+        WiFi.mode(WIFI_AP);
+        delay(500);
+        
+        // Configure IP
+        IPAddress local_IP(192, 168, 4, 1);
+        IPAddress gateway(192, 168, 4, 1);
+        IPAddress subnet(255, 255, 255, 0);
+        
+        if (!WiFi.softAPConfig(local_IP, gateway, subnet)) {
+            Serial.println("[SYS] AP Config failed, retrying...");
+            delay(500);
+            // Try without explicit config
+        }
+        delay(300);
+        
+        // Try different channels on retries
+        int channel = (attempt == 3) ? 11 : AP_CHANNEL;
+        
+        // Attempt to start AP
+        apStarted = WiFi.softAP(AP_SSID, AP_PASS, channel, 0, 8);
+        
+        if (!apStarted) {
+            Serial.printf("[SYS] AP start failed on attempt %d\n", attempt);
+            
+            // Additional recovery attempts
+            if (attempt < MAX_RETRIES) {
+                // Try with open network (no password) as fallback
+                if (attempt == 2) {
+                    Serial.println("[SYS] Trying open AP...");
+                    apStarted = WiFi.softAP(AP_SSID);
+                }
+                
+                if (!apStarted) {
+                    // Clear WiFi state
+                    WiFi.mode(WIFI_OFF);
+                    delay(1000);
+                }
+            }
+        }
+    }
+    
+    if (apStarted) {
+        // Wait for AP to fully initialize
+        delay(500);
+        
+        // Verify AP is really working
+        IPAddress ip = WiFi.softAPIP();
+        if (ip == IPAddress(0,0,0,0)) {
+            Serial.println("[SYS] AP IP is 0.0.0.0, waiting...");
+            delay(1000);
+            ip = WiFi.softAPIP();
+        }
+        
+        Serial.printf("[SYS] AP started successfully. IP: %s\n", ip.toString().c_str());
+        WiFi.setHostname("Antihunter");
+        delay(1000);
+        
+        // Start web server
+        if (!server) {
+            server = new AsyncWebServer(80);
+            startWebServer();
+        }
+    } else {
+        // Last resort - try minimal recovery
+        Serial.println("[ERROR] All AP start attempts failed!");
+        Serial.println("[SYS] Attempting minimal recovery...");
+        
+        // One final attempt with absolute minimal config
+        WiFi.mode(WIFI_OFF);
+        delay(2000);
+        WiFi.mode(WIFI_AP);
+        delay(1000);
+        
+        // Try with generated SSID based on MAC
+        uint8_t mac[6];
+        WiFi.macAddress(mac);
+        char fallbackSSID[32];
+        sprintf(fallbackSSID, "ANTIHUNTER_%02X%02X", mac[4], mac[5]);
+        
+        if (WiFi.softAP(fallbackSSID)) {
+            Serial.printf("[SYS] Emergency AP started: %s (no password)\n", fallbackSSID);
+            delay(1000);
+            
+            if (!server) {
+                server = new AsyncWebServer(80);
+                startWebServer();
+            }
+        } else {
+            // Only restart as absolute last resort
+            Serial.println("[CRITICAL] Cannot start ANY AP mode!");
+            Serial.println("[CRITICAL] Device will restart in 5 seconds...");
+            Serial.println("[CRITICAL] Check for hardware issues or corrupted NVS");
+            delay(5000);
+            ESP.restart();
+        }
+    }
+}
+
 void stopAPAndServer() {
     Serial.println("[SYS] Stopping AP and web server...");
     
@@ -608,66 +790,41 @@ void stopAPAndServer() {
         delay(100);
     }
     
+    // Stop promiscuous mode completely
     esp_wifi_set_promiscuous(false);
+    esp_wifi_set_promiscuous_rx_cb(nullptr);
+    esp_wifi_set_promiscuous_filter(nullptr);
     delay(100);
     
+    // Disconnect all
     WiFi.softAPdisconnect(true);
-    delay(100);
     WiFi.disconnect(true);
-    delay(100);
-    WiFi.mode(WIFI_OFF);
-    delay(500);
-}
-
-void startAPAndServer() {
-    Serial.println("[SYS] Starting AP and web server...");
-
-    if (server) {
-        server->end();
-        delay(100);
-        delete server;
-        server = nullptr;
-        delay(500);
+    delay(200);
+    
+    // Stop WiFi
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK) {
+        Serial.printf("[SYS] WiFi stop error: %d\n", err);
     }
-
-    WiFi.disconnect(true);
+    delay(200);
+    
+    // Deinit WiFi
+    err = esp_wifi_deinit();
+    if (err != ESP_OK) {
+        Serial.printf("[SYS] WiFi deinit error: %d\n", err);
+        // Force deinit
+        esp_wifi_stop();
+        delay(100);
+        esp_wifi_deinit();
+    }
+    delay(200);
+    
+    // Set to OFF mode
     WiFi.mode(WIFI_OFF);
     delay(1000);
-    WiFi.mode(WIFI_AP);
     
-    IPAddress local_IP(192, 168, 4, 1);
-    IPAddress gateway(192, 168, 4, 1);
-    IPAddress subnet(255, 255, 255, 0);
-    
-    if (!WiFi.softAPConfig(local_IP, gateway, subnet)) {
-        Serial.println("AP Config Failed");
-    }
-    delay(500);
-
-    bool apStarted = false;
-    for (int attempt = 0; attempt < 3 && !apStarted; attempt++) {
-        Serial.printf("AP start attempt %d...\n", attempt + 1);
-        
-        apStarted = WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0, 8);
-        
-        if (!apStarted) {
-            WiFi.mode(WIFI_OFF);
-            delay(1000);
-            WiFi.mode(WIFI_AP);
-            WiFi.softAPConfig(local_IP, gateway, subnet);
-            delay(500);
-        }
-    }
-
-    if (apStarted) {
-        Serial.printf("AP started successfully. IP: %s\n", WiFi.softAPIP().toString().c_str());
-        delay(500);
-        WiFi.setHostname("Antihunter");
-        delay(100);
-        startWebServer();
-    } else {
-        Serial.println("AP start failed after all attempts");
-    }
+    // Clear persistent flag
+    WiFi.persistent(false);
 }
 
 // Mesh UART Message Sender
@@ -695,21 +852,43 @@ void sendMeshNotification(const Hit &hit) {
     
     int msg_len;
     if (cleanName.length() > 0) {
-        msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
-                          "%s: Target: %s %s RSSI:%d Name:%s",
-                          nodeId.c_str(), 
-                          hit.isBLE ? "BLE" : "WiFi", 
-                          mac_str, 
-                          hit.rssi,
-                          cleanName.c_str());
+        if (tempSensorAvailable) {
+            msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
+                              "%s: Target: %s %s RSSI:%d Name:%s Temp:%.1fC",
+                              nodeId.c_str(), 
+                              hit.isBLE ? "BLE" : "WiFi", 
+                              mac_str, 
+                              hit.rssi,
+                              cleanName.c_str(),
+                              ambientTemp);
+        } else {
+            msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
+                              "%s: Target: %s %s RSSI:%d Name:%s",
+                              nodeId.c_str(), 
+                              hit.isBLE ? "BLE" : "WiFi", 
+                              mac_str, 
+                              hit.rssi,
+                              cleanName.c_str());
+        }
     } else {
-        msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
-                          "%s: Target: %s %s RSSI:%d",
-                          nodeId.c_str(), 
-                          hit.isBLE ? "BLE" : "WiFi", 
-                          mac_str, 
-                          hit.rssi);
+        if (tempSensorAvailable) {
+            msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
+                              "%s: Target: %s %s RSSI:%d Temp:%.1fC",
+                              nodeId.c_str(), 
+                              hit.isBLE ? "BLE" : "WiFi", 
+                              mac_str, 
+                              hit.rssi,
+                              ambientTemp);
+        } else {
+            msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1,
+                              "%s: Target: %s %s RSSI:%d",
+                              nodeId.c_str(), 
+                              hit.isBLE ? "BLE" : "WiFi", 
+                              mac_str, 
+                              hit.rssi);
+        }
     }
+    
     if (msg_len > 0 && msg_len < MAX_MESH_SIZE) {
         mesh_msg[msg_len] = '\0';
         
@@ -857,29 +1036,46 @@ void processCommand(const String &command) {
         Serial.println("[MESH] Stop command received via mesh");
         Serial1.println(nodeId + ": STOP_ACK:OK");
     } else if (command.startsWith("STATUS")) {
-        // Get current status info
-        float temp_c = temperatureRead();
-        float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
-        String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
-                         (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-        
-        uint32_t uptime_secs = millis() / 1000;
-        uint32_t uptime_mins = uptime_secs / 60;
-        uint32_t uptime_hours = uptime_mins / 60;
-        
-        char status_msg[MAX_MESH_SIZE];
+    // Get current status info
+    float esp_temp = temperatureRead();
+    float esp_temp_f = (esp_temp * 9.0 / 5.0) + 32.0;
+    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
+                     (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+    
+    uint32_t uptime_secs = millis() / 1000;
+    uint32_t uptime_mins = uptime_secs / 60;
+    uint32_t uptime_hours = uptime_mins / 60;
+    
+    char status_msg[MAX_MESH_SIZE];
+    
+    // Include both temperatures if DS18B20 is available
+    if (tempSensorAvailable) {
+        float ambient_f = (ambientTemp * 9.0 / 5.0) + 32.0;
         snprintf(status_msg, sizeof(status_msg), 
-                "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
+                "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d Ambient:%.1fC/%.1fF ESP:%.1fC/%.1fF Up:%02d:%02d:%02d",
                 nodeId.c_str(),
                 modeStr.c_str(),
                 scanning ? "YES" : "NO",
                 totalHits,
                 (int)getTargetCount(),
                 (int)uniqueMacs.size(),
-                temp_c, temp_f,
+                ambientTemp, ambient_f,
+                esp_temp, esp_temp_f,
                 (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
-        
-        Serial1.println(status_msg);
+    } else {
+        snprintf(status_msg, sizeof(status_msg), 
+                "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d ESP:%.1fC/%.1fF Up:%02d:%02d:%02d",
+                nodeId.c_str(),
+                modeStr.c_str(),
+                scanning ? "YES" : "NO",
+                totalHits,
+                (int)getTargetCount(),
+                (int)uniqueMacs.size(),
+                esp_temp, esp_temp_f,
+                (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+    }
+    
+    Serial1.println(status_msg);
         
         if (trackerMode) {
             uint8_t trackerMac[6];
@@ -989,3 +1185,26 @@ void processUSBToMesh() {
         }
     }
 }
+
+// void processUSBToMesh() {
+//     static String usbBuffer = "";
+//     while (Serial.available()) {
+//     int ch = Serial.read();  // read a byte (returns -1 if none)
+//     if (ch < 0) break;
+//     char c = (char)ch;
+//     Serial.write((uint8_t)c); // echo the byte back
+//     if (c == '\n' || c == '\r' || c == ':') {
+//         if (usbBuffer.length() > 0) {
+//             // only log/process when we have a complete message
+//             Serial.println(usbBuffer);
+//             processMeshMessage(usbBuffer);
+//             Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
+//             usbBuffer = "";
+//         }
+//     } else {
+//         usbBuffer += c;
+//         if (usbBuffer.length() > 2048) {
+//             usbBuffer = "";
+//         }
+//     }
+// }

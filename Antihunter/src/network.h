@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
+#include <Preferences.h>
 #include "scanner.h"
 
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
