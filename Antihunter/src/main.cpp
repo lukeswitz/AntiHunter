@@ -136,10 +136,10 @@ void setup() {
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    esp_task_wdt_deinit();  // Clean any existing config
+    esp_task_wdt_deinit();
     esp_task_wdt_config_t wdt_config = {
-        .timeout_ms = 30000,  // Increase timeout to 30 seconds
-        .idle_core_mask = 0,  // Don't monitor idle tasks
+        .timeout_ms = 30000,
+        .idle_core_mask = 0,
         .trigger_panic = true
     };
     esp_task_wdt_init(&wdt_config);
@@ -147,12 +147,14 @@ void setup() {
     Serial.println("=== Boot Complete ===");
     Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
     Serial.printf("Mesh @ 115200 on pins %d,%d\n", MESH_RX_PIN, MESH_TX_PIN);
+    
+    delay(2000);
 }
 
 void loop() {
     updateGPSLocation();
-    // updateTemperature(); 
+    updateTemperature(); 
     processUSBToMesh();
-    //checkAndSendVibrationAlert();
-    delay(1000);
+    checkAndSendVibrationAlert();
+    delay(300);
 }

@@ -7,13 +7,13 @@
 #define COUNTRY "NO"
 #endif
 #ifndef BUZZER_PIN
-#define BUZZER_PIN 3
+#define BUZZER_PIN 3    // BUZZER +         (GPIO3)
 #endif
 #ifndef BUZZER_IS_PASSIVE
 #define BUZZER_IS_PASSIVE 1
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 6   // MESH PIN 20      (GPIO4)
+#define MESH_RX_PIN 4   // MESH PIN 20      (GPIO4)
 #endif
 #ifndef MESH_TX_PIN
 #define MESH_TX_PIN 5    // MESH PIN 19     (GPIO5)
@@ -22,7 +22,7 @@
 #define VIBRATION_PIN 1  // SW-420 PIN D0   (GPIO1)
 #endif
 
-#define TEMP_SENSOR_PIN 6
+#define TEMP_SENSOR_PIN 6  // DS18B20       (GPIO6)
 
 // SD Card (SPI)
 #define SD_CS_PIN   2    // CS on D1        (GPIO2)
@@ -61,3 +61,5 @@ void updateGPSLocation();
 extern float ambientTemp;
 extern bool tempSensorAvailable;
 void updateTemperature();
+void sendStartupStatus();
+void sendGPSLockStatus(bool locked);
