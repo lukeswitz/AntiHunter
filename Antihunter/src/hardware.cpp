@@ -167,8 +167,17 @@ int getGapMs()
 {
     return cfgGapMs;
 }
-
 String getDiagnostics() {
+    static unsigned long lastDiagTime = 0;
+    static unsigned long lastSDTime = 0;
+    static String cachedDiag = "";
+    static String cachedSDInfo = "";
+    
+    if (millis() - lastDiagTime < 5000 && cachedDiag.length() > 0) {
+        return cachedDiag;
+    }
+    lastDiagTime = millis();
+    
     String s;
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
@@ -178,7 +187,6 @@ String getDiagnostics() {
     s += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
     s += "BLE Frames seen: " + String((unsigned)bleFramesSeen) + "\n";
     s += "Total hits: " + String(totalHits) + "\n";
-    // s += "Country: " + String(COUNTRY) + "\n"; // TODO assign with config command
     s += "Current channel: " + String(WiFi.channel()) + "\n";
     s += "AP IP: " + WiFi.softAPIP().toString() + "\n";
     s += "Unique devices: " + String((int)uniqueMacs.size()) + "\n";
@@ -203,41 +211,45 @@ String getDiagnostics() {
         s += "Last Movement: " + String(timeStr) + " (" + String(agoSeconds) + "s ago)\n";
     }
 
-    // SD Card Status
     s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
     if (sdAvailable) {
-        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-        uint8_t cardType = SD.cardType();
-        String cardTypeStr = (cardType == CARD_MMC) ? "MMC" :
-                             (cardType == CARD_SD) ? "SDSC" :
-                             (cardType == CARD_SDHC) ? "SDHC" : "UNKNOWN";
-        s += "SD Card Type: " + cardTypeStr + "\n";
-        s += "SD Card Size: " + String(cardSize) + "MB\n";
+        if (millis() - lastSDTime > 30000 || cachedSDInfo.length() == 0) {
+            lastSDTime = millis();
+            cachedSDInfo = "";
+            
+            uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+            uint8_t cardType = SD.cardType();
+            String cardTypeStr = (cardType == CARD_MMC) ? "MMC" :
+                                 (cardType == CARD_SD) ? "SDSC" :
+                                 (cardType == CARD_SDHC) ? "SDHC" : "UNKNOWN";
+            cachedSDInfo += "SD Card Type: " + cardTypeStr + "\n";
+            cachedSDInfo += "SD Card Size: " + String(cardSize) + "MB\n";
 
-        File root = SD.open("/");
-        if (root) {
-            s += "SD Card Files:\n";
-            while (true) {
-                File entry = root.openNextFile();
-                if (!entry)
-                    break;
+            File root = SD.open("/");
+            if (root) {
+                cachedSDInfo += "SD Card Files:\n";
+                while (true) {
+                    File entry = root.openNextFile();
+                    if (!entry)
+                        break;
 
-                String fileName = String(entry.name());
-                if (fileName.startsWith(".")) {
+                    String fileName = String(entry.name());
+                    if (fileName.startsWith(".")) {
+                        entry.close();
+                        continue;
+                    }
+
+                    cachedSDInfo += "  " + fileName + " (" + String(entry.size()) + " bytes)\n";
                     entry.close();
-                    continue;
                 }
-
-                s += "  " + fileName + " (" + String(entry.size()) + " bytes)\n";
-                entry.close();
+                root.close();
+            } else {
+                cachedSDInfo += "Failed to read SD card files.\n";
             }
-            root.close();
-        } else {
-            s += "Failed to read SD card files.\n";
         }
+        s += cachedSDInfo;
     }
 
-    // GPS Status
     s += "GPS: ";
     if (gpsValid) {
         s += "Locked\n";
@@ -258,7 +270,6 @@ String getDiagnostics() {
 
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";
 
-    // DS18B20 Ambient Temperature
     if (tempSensorAvailable) {
         updateTemperature();
         float temp_f = (ambientTemp * 9.0 / 5.0) + 32.0;
@@ -277,6 +288,7 @@ String getDiagnostics() {
     }
     s += "\n";
 
+    cachedDiag = s;
     return s;
 }
 
@@ -354,36 +366,136 @@ void initializeGPS() {
         Serial.println("[GPS] First fix can take 5–15 minutes outdoors");
     }
 
+    // Send startup GPS status to server
+    sendStartupStatus();
+
     Serial.printf("[GPS] UART on RX:%d TX:%d\n", GPS_RX_PIN, GPS_TX_PIN);
 }
+
+void sendStartupStatus() {
+    String startupMsg = getNodeId() + ": STARTUP: System initialized";
+    startupMsg += " GPS:";
+    startupMsg += (gpsValid ? "LOCKED" : "SEARCHING");
+    startupMsg += " Temp:";
+    startupMsg += (tempSensorAvailable ? String(ambientTemp, 1) + "C" : "N/A");
+    startupMsg += " SD:";
+    startupMsg += (sdAvailable ? "OK" : "FAIL");
+    startupMsg += " Status:ONLINE";
+    
+    Serial.printf("[STARTUP] %s\n", startupMsg.c_str());
+    
+    if (Serial1.availableForWrite() >= startupMsg.length()) {
+        Serial1.println(startupMsg);
+        Serial1.flush();
+    }
+    
+    logToSD("STARTUP: " + startupMsg);
+}
+
+void sendGPSLockStatus(bool locked) {
+    String gpsMsg = getNodeId() + ": GPS: ";
+    gpsMsg += (locked ? "LOCKED" : "LOST");
+    if (locked) {
+        gpsMsg += " Location:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+        gpsMsg += " Satellites:" + String(gps.satellites.value());
+        gpsMsg += " HDOP:" + String(gps.hdop.hdop(), 2);
+    }
+    
+    Serial.printf("[GPS] %s\n", gpsMsg.c_str());
+    
+    if (Serial1.availableForWrite() >= gpsMsg.length()) {
+        Serial1.println(gpsMsg);
+        Serial1.flush();
+    }
+    
+    logToSD("GPS Status: " + gpsMsg);
+}
+
+void updateGPSLocation() {
+    static unsigned long lastDataTime = 0;
+    static bool wasLocked = false;
+
+    while (GPS.available() > 0) {
+        char c = GPS.read();
+        if (gps.encode(c)) {
+            lastDataTime = millis();
+
+            bool nowLocked = gps.location.isValid();
+            
+            if (nowLocked) {
+                gpsLat = gps.location.lat();
+                gpsLon = gps.location.lng();
+                gpsValid = true;
+                lastGPSData = "Lat: " + String(gpsLat, 6)
+                            + ", Lon: " + String(gpsLon, 6)
+                            + " (" + String((millis() - lastDataTime) / 1000) 
+                            + "s ago)";
+                
+                if (!wasLocked && nowLocked) {
+                    sendGPSLockStatus(true);
+                }
+            } else {
+                gpsValid = false;
+                lastGPSData = "No valid GPS fix (" 
+                            + String((millis() - lastDataTime) / 1000)
+                            + "s ago)";
+                
+                if (wasLocked && !nowLocked) {
+                    sendGPSLockStatus(false);
+                }
+            }
+            
+            wasLocked = nowLocked;
+        }
+    }
+
+    if (lastDataTime > 0 && millis() - lastDataTime > 30000) {
+        if (gpsValid) {
+            gpsValid = false;
+            sendGPSLockStatus(false);
+        }
+        lastGPSData = "No data for " 
+                    + String((millis() - lastDataTime) / 1000)
+                    + "s";
+    }
+}
+
 
 void logToSD(const String &data) {
     if (!sdAvailable) return;
     
-    // Ensure directory exists
+    static uint32_t totalWrites = 0;
+    static File logFile;
+    
     if (!SD.exists("/")) {
         SD.mkdir("/");
     }
-    
-    File logFile = SD.open("/antihunter.log", FILE_APPEND);
-    if (!logFile) {
-        // Try to recreate the file
-        logFile = SD.open("/antihunter.log", FILE_WRITE);
+
+    if (!logFile || totalWrites % 50 == 0) {
+        if (logFile) {
+            logFile.close();
+        }
+        logFile = SD.open("/antihunter.log", FILE_APPEND);
         if (!logFile) {
-            Serial.println("[SD] Failed to open log file");
-            return;
+            logFile = SD.open("/antihunter.log", FILE_WRITE);
+            if (!logFile) {
+                Serial.println("[SD] Failed to open log file");
+                return;
+            }
         }
     }
     
-    // Write with timestamp
-    logFile.print("[");
-    logFile.print(millis());
-    logFile.print("] ");
-    logFile.println(data);
-    logFile.flush();  // Force write, TODO test in long operations
-    logFile.close();
+    uint32_t ts = millis();
+    uint8_t hours = (ts / 3600000) % 24;
+    uint8_t mins = (ts / 60000) % 60;
+    uint8_t secs = (ts / 1000) % 60;
     
-    // Verify write
+    logFile.printf("[%02d:%02d:%02d] %s\n", hours, mins, secs, data.c_str());
+    
+    // Batch flush every 10 writes 
+    if (++totalWrites % 10 == 0) {
+        logFile.flush();
+    }
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
         File checkFile = SD.open("/antihunter.log", FILE_READ);
@@ -395,86 +507,18 @@ void logToSD(const String &data) {
     }
 }
 
+void logVibrationEvent(int sensorValue) {
+    String event = String(sensorValue ? "Motion" : "Impact") + " detected";
+    if (gpsValid) {
+        event += " @" + String(gpsLat, 4) + "," + String(gpsLon, 4);
+    }
+    logToSD(event);
+    Serial.printf("[MOTION] %s\n", event.c_str());
+}
+
 String getGPSData()
 {
     return lastGPSData;
-}
-
-void updateGPSLocation() {
-    static unsigned long lastDataTime = 0;
-
-    while (GPS.available() > 0) {
-        char c = GPS.read();
-        if (gps.encode(c)) {
-            lastDataTime = millis();
-
-            if (gps.location.isValid()) {
-                gpsLat      = gps.location.lat();
-                gpsLon      = gps.location.lng();
-                gpsValid    = true;
-                lastGPSData = "Lat: " + String(gpsLat, 6)
-                            + ", Lon: " + String(gpsLon, 6)
-                            + " (" + String((millis() - lastDataTime) / 1000) 
-                            + "s ago)";
-            } else {
-                gpsValid    = false;
-                lastGPSData = "No valid GPS fix (" 
-                            + String((millis() - lastDataTime) / 1000)
-                            + "s ago)";
-            }
-        }
-    }
-
-    if (lastDataTime > 0 && millis() - lastDataTime > 30000) {
-        gpsValid    = false;
-        lastGPSData = "No data for " 
-                    + String((millis() - lastDataTime) / 1000)
-                    + "s";
-    }
-}
-
-void testGPSPins() {
-    Serial.println("\n=== GPS Connection Test ===");
-    Serial.printf("GPS_RX_PIN: %d, GPS_TX_PIN: %d\n", GPS_RX_PIN, GPS_TX_PIN);
-    
-    uint32_t baudRates[] = {4800, 9600, 19200, 38400, 57600, 115200};
-    
-    for (int i = 0; i < 6; i++) {
-        Serial.printf("Testing baud rate: %lu\n", baudRates[i]);
-        GPS.end();
-        delay(200);
-        GPS.begin(baudRates[i], SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-        delay(1000);
-        
-        unsigned long start = millis();
-        String receivedData = "";
-        int bytesRead = 0;
-        
-        while (millis() - start < 5000) {  // Test for 5 seconds
-            if (GPS.available()) {
-                char c = GPS.read();
-                receivedData += c;
-                bytesRead++;
-                Serial.print(c);
-            }
-        }
-        
-        Serial.printf("\nBytes received at %lu baud: %d\n", baudRates[i], bytesRead);
-        
-        // Check for actual NMEA sentences, not just random bytes
-        if (receivedData.indexOf("$GP") >= 0 || receivedData.indexOf("$GN") >= 0) {
-            Serial.printf("REAL GPS DATA FOUND at %lu baud!\n", baudRates[i]);
-            Serial.println("Sample data: " + receivedData.substring(0, 100));
-            return;
-        } else if (bytesRead > 0) {
-            Serial.printf("Got %d bytes but no NMEA sentences at %lu baud\n", baudRates[i], bytesRead);
-        } else {
-            Serial.printf("No data at %lu baud\n", baudRates[i]);
-        }
-        Serial.println("---");
-    }
-    
-    Serial.println("NO VALID GPS DATA FOUND AT ANY BAUD RATE - CHECK WIRING");
 }
 
 // Vibration Sensor
@@ -491,7 +535,7 @@ void initializeVibrationSensor() {
 
 void checkAndSendVibrationAlert() {
     if (vibrationDetected) {
-        vibrationDetected = false; // Clear the flag immediately
+        vibrationDetected = false;
         
         // Only send alert if enough time has passed since last alert
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
@@ -525,11 +569,7 @@ void checkAndSendVibrationAlert() {
                 Serial1.flush();
             }
             
-            String logEntry = "Vibration detected at " + String(timeStr) + " (sensor=" + String(sensorValue) + ")";
-            if (gpsValid) {
-                logEntry += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-            }
-            logToSD(logEntry);
+            logVibrationEvent(sensorValue);
             
             beepOnce(4000, 100);
         } else {
