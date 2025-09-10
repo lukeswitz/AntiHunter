@@ -1830,6 +1830,7 @@ static void radioStopWiFi()
         hopTimer = nullptr;
     }
     esp_wifi_stop();
+    esp_wifi_deinit(); // fix AP bind error
 }
 
 static void radioStopBLE()
