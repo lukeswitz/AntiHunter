@@ -618,16 +618,38 @@ void startAPAndServer() {
     
     if (server) {
         server->end();
-        delay(200);
+        delay(1000);
         delete server;
         server = nullptr;
         delay(1000);
     }
-
-    WiFi.persistent(false); 
+    
+    esp_wifi_set_promiscuous(false);
+    esp_wifi_set_promiscuous_rx_cb(nullptr);
+    esp_wifi_set_promiscuous_filter(nullptr);
+    delay(500);
+    
+    WiFi.persistent(false);
     WiFi.disconnect(true);
+    WiFi.softAPdisconnect(true);
+    delay(1000);
+    
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK) {
+        Serial.printf("[SYS] WiFi stop error: %d\n", err);
+        delay(500);
+    }
+    
+    err = esp_wifi_deinit();
+    if (err != ESP_OK) {
+        Serial.printf("[SYS] WiFi deinit error: %d\n", err);
+        esp_wifi_stop();
+        delay(500);
+        esp_wifi_deinit();
+    }
+    
     WiFi.mode(WIFI_OFF);
-    delay(2000);
+    delay(3000);
     
     const int MAX_RETRIES = 3;
     bool apStarted = false;
@@ -635,110 +657,56 @@ void startAPAndServer() {
     for (int attempt = 1; attempt <= MAX_RETRIES && !apStarted; attempt++) {
         Serial.printf("[SYS] AP start attempt %d/%d\n", attempt, MAX_RETRIES);
         
-        if (attempt == 1) {
-            wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-            esp_err_t ret = esp_wifi_init(&cfg);
-            if (ret == ESP_ERR_WIFI_NOT_INIT) {
-                esp_wifi_deinit();
-                delay(100);
-                ret = esp_wifi_init(&cfg);
-            }
-            
-            if (ret != ESP_OK && ret != ESP_ERR_WIFI_NOT_STOPPED) {
-                Serial.printf("[SYS] WiFi init failed: %d, trying next strategy\n", ret);
-                continue;
-            }
-        } else if (attempt == 2) {
-            esp_wifi_stop();
-            delay(200);
-            esp_wifi_deinit();
-            delay(500);
-            
-            wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-            esp_err_t ret = esp_wifi_init(&cfg);
-            if (ret != ESP_OK) {
-                Serial.printf("[SYS] Reinit failed: %d\n", ret);
-                continue;
-            }
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        err = esp_wifi_init(&cfg);
+        if (err != ESP_OK) {
+            Serial.printf("[SYS] WiFi init failed: %d\n", err);
+            delay(2000);
+            continue;
         }
         
         WiFi.mode(WIFI_AP);
-        delay(500);
+        delay(1500);
         
         IPAddress local_IP(192, 168, 4, 1);
         IPAddress gateway(192, 168, 4, 1);
         IPAddress subnet(255, 255, 255, 0);
         
         if (!WiFi.softAPConfig(local_IP, gateway, subnet)) {
-            Serial.println("[SYS] AP Config failed, retrying...");
-            delay(500);
+            Serial.println("[SYS] AP Config failed");
+            delay(1000);
         }
-        delay(300);
         
         int channel = (attempt == 3) ? 11 : AP_CHANNEL;
         apStarted = WiFi.softAP(AP_SSID, AP_PASS, channel, 0, 8);
         
         if (!apStarted) {
-            Serial.printf("[SYS] AP start failed on attempt %d\n", attempt);
-            
-            if (attempt == 2) {
-                Serial.println("[SYS] Trying open AP...");
-                apStarted = WiFi.softAP(AP_SSID);
-            }
-            
-            if (!apStarted) {
-                WiFi.mode(WIFI_OFF);
-                delay(2000);
-            }
+            WiFi.mode(WIFI_OFF);
+            delay(2000);
         }
     }
     
     if (apStarted) {
-        delay(1000);
+        delay(3000);
         
         IPAddress ip = WiFi.softAPIP();
-        if (ip == IPAddress(0,0,0,0)) {
-            Serial.println("[SYS] AP IP is 0.0.0.0, waiting...");
-            delay(1000);
+        for (int retries = 0; retries < 10 && ip == IPAddress(0,0,0,0); retries++) {
+            delay(500);
             ip = WiFi.softAPIP();
         }
         
         Serial.printf("[SYS] AP started successfully. IP: %s\n", ip.toString().c_str());
         WiFi.setHostname("Antihunter");
-        delay(1500);
+        delay(2000);
         
-        if (!server) {
-            server = new AsyncWebServer(80);
-            startWebServer();
-        }
+        server = new AsyncWebServer(80);
+        startWebServer();
+        
     } else {
-        Serial.println("[ERROR] All AP start attempts failed!");
-        Serial.println("[SYS] Attempting minimal recovery...");
-        
-        WiFi.mode(WIFI_OFF);
-        delay(3000);
-        WiFi.mode(WIFI_AP);
-        delay(1500);
-        
-        uint8_t mac[6];
-        WiFi.macAddress(mac);
-        char fallbackSSID[32];
-        sprintf(fallbackSSID, "ANTIHUNTER_%02X%02X", mac[4], mac[5]);
-        
-        if (WiFi.softAP(fallbackSSID)) {
-            Serial.printf("[SYS] Emergency AP started: %s (no password)\n", fallbackSSID);
-            delay(1500);
-            
-            if (!server) {
-                server = new AsyncWebServer(80);
-                startWebServer();
-            }
-        } else {
-            Serial.println("[CRITICAL] Cannot start ANY AP mode!");
-            Serial.println("[CRITICAL] Device will restart in 5 seconds...");
-            delay(5000);
-            ESP.restart();
-        }
+        Serial.println("[CRITICAL] Cannot start ANY AP mode!");
+        Serial.println("[CRITICAL] Device will restart in 5 seconds...");
+        delay(5000);
+        ESP.restart();
     }
 }
 
@@ -747,39 +715,39 @@ void stopAPAndServer() {
     
     if (server) {
         server->end();
-        delay(200);
+        delay(500);
         delete server;
         server = nullptr;
-        delay(200);
+        delay(500);
     }
     
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(nullptr);
     esp_wifi_set_promiscuous_filter(nullptr);
-    delay(100);
+    delay(200);
     
     WiFi.softAPdisconnect(true);
     WiFi.disconnect(true);
-    delay(500);
+    delay(1000);
     
     esp_err_t err = esp_wifi_stop();
     if (err != ESP_OK) {
         Serial.printf("[SYS] WiFi stop error: %d\n", err);
-        delay(200);
+        delay(500);
+        esp_wifi_stop();
     }
     
     err = esp_wifi_deinit();
     if (err != ESP_OK) {
         Serial.printf("[SYS] WiFi deinit error: %d\n", err);
+        delay(500);
         esp_wifi_stop();
         delay(200);
         esp_wifi_deinit();
     }
-    delay(500);
     
     WiFi.mode(WIFI_OFF);
     delay(2000);
-    
     WiFi.persistent(false);
 }
 
