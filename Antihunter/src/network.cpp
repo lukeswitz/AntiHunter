@@ -189,7 +189,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   </div>
 
    <div class="card">
-    <h3>Mesh Network</h3>
+    <h3>Node Configuration</h3>
     <div class="row">
       <input type="checkbox" id="meshEnabled" checked>
       <label for="meshEnabled">Enable Mesh Notifications</label>
@@ -202,7 +202,19 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
         <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
       </div>
     </form>
-    <p class="small">Sends list and tracker target alerts over Meshtastic.</p>
+    <hr>
+    <h4 style="margin:12px 0 8px;color:var(--fg)">Buzzer Settings</h4>
+    <form id="buzzerForm" method="POST" action="/config">
+      <label for="beeps">Beeps per Hit</label>
+      <input type="number" id="beeps" name="beeps" min="1" max="10" value="2">
+      <label for="gap">Gap Between Beeps (ms)</label>
+      <input type="number" id="gap" name="gap" min="20" max="2000" value="80">
+      <div class="row" style="margin-top:10px;">
+        <button class="btn primary" type="submit">Save Buzzer</button>
+        <a class="btn alt" href="/beep" data-ajax="true">Test Beep</a>
+      </div>
+    </form>
+    <p class="small">Configure mesh notifications and buzzer behavior for target detection alerts.</p>
   </div>
 
   <div class="card">
@@ -276,7 +288,7 @@ async function tick(){
     const rr = await fetch('/results'); 
     document.getElementById('r').innerText = await rr.text();
     if (diagText.includes('Scanning: yes')) {
-      const modeMatch = diagText.match(/Scan Mode: (\w+)/);
+      const modeMatch = diagText.match(/Scan Mode: (\w+)/);Node ID<
       if (modeMatch) {
         const serverMode = modeMatch[1];
         let modeValue = '0';
@@ -352,6 +364,11 @@ document.addEventListener('click', e=>{
   if (!a) return;
   e.preventDefault();
   fetch('/stop').then(r=>r.text()).then(t=>toast(t));
+});
+
+document.getElementById('buzzerForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  ajaxForm(e.target, 'Buzzer settings saved');
 });
 
 load();
