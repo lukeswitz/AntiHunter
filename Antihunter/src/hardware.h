@@ -19,7 +19,7 @@
 #define MESH_TX_PIN 5    // MESH PIN 19     (GPIO5)
 #endif
 #ifndef VIBRATION_PIN
-#define VIBRATION_PIN 1  // SW-420 PIN D0   (GPIO1)
+#define VIBRATION_PIN 1  // SW-420   (GPIO1)
 #endif
 
 #define TEMP_SENSOR_PIN 6  // DS18B20       (GPIO6)
@@ -47,7 +47,6 @@ void initializeHardware();
 void initializeVibrationSensor();
 void initializeSD();
 void initializeGPS();
-void testGPSPins();
 void checkAndSendVibrationAlert();
 void beepOnce(uint32_t freq = 3200, uint32_t ms = 80);
 void beepPattern(int count, int gap_ms);

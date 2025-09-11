@@ -162,12 +162,13 @@ void setup() {
 }
 
 void loop() {
+  // Update the node and gps every 3s
   static unsigned long lastNodeIdSend = 0;
   if (millis() - lastNodeIdSend > 30000) {
       sendNodeIdUpdate();
+      updateGPSLocation();
       lastNodeIdSend = millis();
   }
-  updateGPSLocation();
   updateTemperature(); 
   processUSBToMesh();
   checkAndSendVibrationAlert();
