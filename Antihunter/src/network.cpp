@@ -288,7 +288,7 @@ async function tick(){
     const rr = await fetch('/results'); 
     document.getElementById('r').innerText = await rr.text();
     if (diagText.includes('Scanning: yes')) {
-      const modeMatch = diagText.match(/Scan Mode: (\w+)/);Node ID<
+      const modeMatch = diagText.match(/Scan Mode: (\w+)/);
       if (modeMatch) {
         const serverMode = modeMatch[1];
         let modeValue = '0';
