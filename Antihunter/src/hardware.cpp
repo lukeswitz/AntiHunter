@@ -390,7 +390,7 @@ void sendStartupStatus() {
         Serial1.flush();
     }
     
-    logToSD("STARTUP: " + startupMsg);
+    logToSD(startupMsg);
 }
 
 void sendGPSLockStatus(bool locked) {
