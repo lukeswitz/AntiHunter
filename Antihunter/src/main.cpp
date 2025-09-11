@@ -116,8 +116,11 @@ void parseChannelsCSV(const String &csv) {
 
 void sendNodeIdUpdate() {
     String nodeMsg = "[NODE_ID] " + getNodeId();
+    // Add GPS coordinates if available
+    if (gpsValid) {
+        nodeMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+    }
     Serial.println(nodeMsg);
-    
     // send mesh
     if (Serial1.availableForWrite() >= nodeMsg.length()) {
         Serial1.println(nodeMsg);
@@ -162,13 +165,13 @@ void setup() {
 }
 
 void loop() {
-  // Update the node and gps every 3s
+  // NodeID HB every 15 minutes
   static unsigned long lastNodeIdSend = 0;
-  if (millis() - lastNodeIdSend > 30000) {
+  if (millis() - lastNodeIdSend > 900000) {
       sendNodeIdUpdate();
-      updateGPSLocation();
       lastNodeIdSend = millis();
   }
+  updateGPSLocation();
   updateTemperature(); 
   processUSBToMesh();
   checkAndSendVibrationAlert();
