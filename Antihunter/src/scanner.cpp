@@ -1109,7 +1109,6 @@ void bleScannerTask(void *pv) {
 
 void snifferScanTask(void *pv)
 {
-    esp_task_wdt_add(NULL);
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
                  (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
@@ -1121,9 +1120,7 @@ void snifferScanTask(void *pv)
 
     stopAPAndServer();
 
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    delay(100);
+    radioStartSTA();
 
     scanning = true;
     uniqueMacs.clear();
@@ -2010,7 +2007,6 @@ void listScanTask(void *pv) {
 
 void trackerTask(void *pv)
 {
-    // REMOVED: esp_task_wdt_add(NULL);
     int secs = (int)(intptr_t)pv;
     bool forever = (secs <= 0);
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE"
