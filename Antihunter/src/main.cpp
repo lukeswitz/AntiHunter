@@ -114,6 +114,16 @@ void parseChannelsCSV(const String &csv) {
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
 }
 
+void sendNodeIdUpdate() {
+    String nodeMsg = "[NODE_ID] " + getNodeId();
+    Serial.println(nodeMsg);
+    
+    // send mesh
+    if (Serial1.availableForWrite() >= nodeMsg.length()) {
+        Serial1.println(nodeMsg);
+    }
+}
+
 void setup() {
     delay(1000);
     Serial.begin(115200);
@@ -152,9 +162,15 @@ void setup() {
 }
 
 void loop() {
-    updateGPSLocation();
-    updateTemperature(); 
-    processUSBToMesh();
-    checkAndSendVibrationAlert();
-    delay(300);
+  static unsigned long lastNodeIdSend = 0;
+  if (millis() - lastNodeIdSend > 30000) {
+      sendNodeIdUpdate();
+      lastNodeIdSend = millis();
+  }
+  updateGPSLocation();
+  updateTemperature(); 
+  processUSBToMesh();
+  checkAndSendVibrationAlert();
+
+  delay(300);
 }
