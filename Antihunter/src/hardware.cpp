@@ -126,6 +126,7 @@ void initializeHardware()
         prefs.putString("nodeId", nodeId);
     }
     setNodeId(nodeId);
+    Serial.println("[NODE_ID] " + nodeId);
 
     // Initialize DS18B20 temperature sensor (optional)
     Serial.println("Checking for DS18B20 temperature sensor...");
