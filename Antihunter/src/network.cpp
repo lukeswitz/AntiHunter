@@ -633,12 +633,13 @@ void startWebServer()
 void startAPAndServer() {
     Serial.println("[SYS] Starting AP and web server...");
     
+    // Clean slate start each time
     if (server) {
         server->end();
-        delay(1000);
+        delay(500);
         delete server;
         server = nullptr;
-        delay(1000);
+        delay(500);
     }
     
     esp_wifi_set_promiscuous(false);
@@ -651,37 +652,15 @@ void startAPAndServer() {
     WiFi.softAPdisconnect(true);
     delay(1000);
     
-    esp_err_t err = esp_wifi_stop();
-    if (err != ESP_OK) {
-        Serial.printf("[SYS] WiFi stop error: %d\n", err);
-        delay(500);
-    }
-    
-    err = esp_wifi_deinit();
-    if (err != ESP_OK) {
-        Serial.printf("[SYS] WiFi deinit error: %d\n", err);
-        esp_wifi_stop();
-        delay(500);
-        esp_wifi_deinit();
-    }
-    
     WiFi.mode(WIFI_OFF);
-    delay(3000);
+    delay(1000);
     
     const int MAX_RETRIES = 3;
     bool apStarted = false;
     
     for (int attempt = 1; attempt <= MAX_RETRIES && !apStarted; attempt++) {
         Serial.printf("[SYS] AP start attempt %d/%d\n", attempt, MAX_RETRIES);
-        
-        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-        err = esp_wifi_init(&cfg);
-        if (err != ESP_OK) {
-            Serial.printf("[SYS] WiFi init failed: %d\n", err);
-            delay(2000);
-            continue;
-        }
-        
+    
         WiFi.mode(WIFI_AP);
         delay(1500);
         
@@ -699,12 +678,12 @@ void startAPAndServer() {
         
         if (!apStarted) {
             WiFi.mode(WIFI_OFF);
-            delay(2000);
+            delay(1000);
         }
     }
     
     if (apStarted) {
-        delay(3000);
+        delay(1000);
         
         IPAddress ip = WiFi.softAPIP();
         for (int retries = 0; retries < 10 && ip == IPAddress(0,0,0,0); retries++) {
@@ -714,7 +693,7 @@ void startAPAndServer() {
         
         Serial.printf("[SYS] AP started successfully. IP: %s\n", ip.toString().c_str());
         WiFi.setHostname("Antihunter");
-        delay(2000);
+        delay(1000);
         
         server = new AsyncWebServer(80);
         startWebServer();
@@ -732,10 +711,10 @@ void stopAPAndServer() {
     
     if (server) {
         server->end();
-        delay(500);
+        delay(200);
         delete server;
         server = nullptr;
-        delay(500);
+        delay(200);
     }
     
     esp_wifi_set_promiscuous(false);
@@ -745,26 +724,10 @@ void stopAPAndServer() {
     
     WiFi.softAPdisconnect(true);
     WiFi.disconnect(true);
-    delay(1000);
-    
-    esp_err_t err = esp_wifi_stop();
-    if (err != ESP_OK) {
-        Serial.printf("[SYS] WiFi stop error: %d\n", err);
-        delay(500);
-        esp_wifi_stop();
-    }
-    
-    err = esp_wifi_deinit();
-    if (err != ESP_OK) {
-        Serial.printf("[SYS] WiFi deinit error: %d\n", err);
-        delay(500);
-        esp_wifi_stop();
-        delay(200);
-        esp_wifi_deinit();
-    }
-    
+    delay(500);
+
     WiFi.mode(WIFI_OFF);
-    delay(2000);
+    delay(1000);
     WiFi.persistent(false);
 }
 
