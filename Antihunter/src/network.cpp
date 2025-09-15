@@ -5,7 +5,6 @@
 #include <AsyncTCP.h>
 #include "esp_task_wdt.h"
 
-
 extern "C"
 {
 #include "esp_wifi.h"
@@ -13,8 +12,7 @@ extern "C"
 #include "esp_coexist.h"
 }
 
-
-// Network vars
+// Network
 AsyncWebServer *server = nullptr;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
@@ -22,13 +20,13 @@ const unsigned long MESH_SEND_INTERVAL = 3500;
 const int MAX_MESH_SIZE = 230;
 static String nodeId = "";
 
-// External references from scanner.cpp
+// Scanner vars
 extern volatile bool scanning;
 extern volatile int totalHits;
 extern volatile bool trackerMode;
 extern std::set<String> uniqueMacs;
 
-// External references from other modules
+// Module refs
 extern Preferences prefs;
 extern volatile bool stopRequested;
 extern ScanMode currentScanMode;
@@ -36,6 +34,8 @@ extern int cfgBeeps, cfgGapMs;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
 extern TaskHandle_t blueTeamTaskHandle;
+TaskHandle_t karmaTaskHandle = nullptr;
+TaskHandle_t probeFloodTaskHandle = nullptr;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
@@ -170,16 +170,22 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
     <form id="sniffer" method="POST" action="/sniffer">  
     <label>Detection Method</label>
     <select name="detection" id="detectionMode">
-      <option value="device-scan">Scan BLE/WiFi Devices</option>
-      <option value="deauth">Deauth/Disassoc Frames</option>
-      <option value="beacon-flood">Beacon Flood Detection</option>
-      <option value="ble-spam">BLE Spam Detection</option>
-      <option value="evil-twin" disabled>Evil Twin (Coming Soon)</option>
-    </select>
+        <option value="device-scan">Scan BLE/WiFi Devices</option>
+        <!--
+        <option value="deauth">Deauth/Disassoc Frames</option>
+        <option value="pwnagotchi">Pwnagotchi Detection</option>
+        <option value="pineapple">WiFi Pineapple Detection</option>
+        <option value="multi-ssid">Multi-SSID AP Detection</option>
+        <option value="karma">Karma Attack Detection</option>
+        <option value="probe-flood">Probe Flood Detection</option>
+        <option value="beacon-flood">Beacon Flood Detection</option>
+        <option value="ble-spam">BLE Spam Detection</option>
+        --> 
+      </select>
       <label>Duration (seconds)</label>
       <input type="number" name="secs" min="0" max="86400" value="60">
       <div class="row"><input type="checkbox" id="forever3" name="forever" value="1"><label for="forever3">∞ Forever</label></div>
-      <p class="small">Scans for devices. Monitors attacks. AP goes offline during detection</p>
+      <p class="small">Scans for devices. AP goes offline during detection</p>
       <div class="row" style="margin-top:10px">
         <button class="btn primary" type="submit">Start Sniffer</button>
         <a class="btn alt" href="/sniffer-cache" data-ajax="false">View Cache</a>
@@ -580,7 +586,37 @@ void startWebServer()
     if (!blueTeamTaskHandle) {
       xTaskCreatePinnedToCore(beaconFloodTask, "beaconflood", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
     }
-  } else if (detection == "ble-spam") {
+  } else if (detection == "pwnagotchi") {
+    stopRequested = false;
+    req->send(200, "text/plain", "Pwnagotchi detection starting");
+    if (!blueTeamTaskHandle) {
+        xTaskCreatePinnedToCore(pwnagotchiDetectionTask, "pwn", 12288,
+                              (void*)(intptr_t)(forever ? 0 : secs),
+                              1, &blueTeamTaskHandle, 1);
+    }
+} else if (detection == "pineapple") {
+    pineappleDetectionEnabled = true;
+    stopRequested = false;
+    req->send(200, "text/plain", forever ? "Pineapple detection starting (forever)" : 
+             ("Pineapple detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+        xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
+                              (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+}
+
+else if (detection == "multi-ssid") {
+    multissidDetectionEnabled = true;
+    stopRequested = false;
+    req->send(200, "text/plain", forever ? "Multi-SSID detection starting (forever)" : 
+             ("Multi-SSID detection starting for " + String(secs) + "s"));
+    
+    if (!blueTeamTaskHandle) {
+        xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
+                              (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+} else if (detection == "ble-spam") {
     if (secs < 0) secs = 0; 
     if (secs > 86400) secs = 86400;
     
@@ -590,6 +626,7 @@ void startWebServer()
     if (!blueTeamTaskHandle) {
         xTaskCreatePinnedToCore(bleScannerTask, "blescan", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
     }
+  
   } else if (detection == "device-scan") {
       if (secs < 0) secs = 0;
       if (secs > 86400) secs = 86400;
@@ -599,6 +636,31 @@ void startWebServer()
       
       if (!workerTaskHandle) {
           xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      }
+   } else if (detection == "karma") {
+      karmaDetectionEnabled = true;
+      stopRequested = false;
+      req->send(200, "text/plain",
+                forever ? "Karma detection starting (forever)" :
+                ("Karma detection starting for " + String(secs) + "s"));
+
+      if (!blueTeamTaskHandle) {
+          xTaskCreatePinnedToCore(karmaDetectionTask, "karma", 12288,
+                                  (void*)(intptr_t)(forever ? 0 : secs),
+                                  1, &blueTeamTaskHandle, 1);
+      }
+
+  } else if (detection == "probe-flood") {
+      probeFloodDetectionEnabled = true;
+      stopRequested = false;
+      req->send(200, "text/plain",
+                forever ? "Probe flood detection starting (forever)" :
+                ("Probe flood detection starting for " + String(secs) + "s"));
+
+      if (!blueTeamTaskHandle) {
+          xTaskCreatePinnedToCore(probeFloodDetectionTask, "probe", 12288,
+                                  (void*)(intptr_t)(forever ? 0 : secs),
+                                  1, &blueTeamTaskHandle, 1);
       }
   } else {
     req->send(400, "text/plain", "Unknown detection mode");
@@ -653,17 +715,17 @@ void startAPAndServer() {
     
     esp_err_t err = esp_wifi_stop();
     if (err != ESP_OK) {
-        Serial.printf("[SYS] WiFi stop error: %d\n", err);
+        // Serial.printf("[SYS] WiFi stop error: %d\n", err);
         delay(500);
     }
     
-    err = esp_wifi_deinit();
-    if (err != ESP_OK) {
-        Serial.printf("[SYS] WiFi deinit error: %d\n", err);
-        esp_wifi_stop();
-        delay(500);
-        esp_wifi_deinit();
-    }
+    // err = esp_wifi_deinit();
+    // if (err != ESP_OK) {
+    //     // Serial.printf("[SYS] WiFi deinit error: %d\n", err);
+    //     esp_wifi_stop();
+    //     delay(500);
+    //     esp_wifi_deinit();
+    // }
     
     WiFi.mode(WIFI_OFF);
     delay(3000);

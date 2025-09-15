@@ -34,6 +34,7 @@ static void radioStartSTA();
 static void radioStopSTA();
 
 // Scanner state variables
+
 static std::vector<Target> targets;
 QueueHandle_t macQueue = nullptr;
 std::set<String> uniqueMacs;
@@ -72,6 +73,22 @@ volatile uint32_t deauthCount = 0;
 volatile uint32_t disassocCount = 0;
 bool deauthDetectionEnabled = false;
 QueueHandle_t deauthQueue = nullptr;
+volatile uint32_t req_frames = 0;
+volatile uint32_t resp_frames = 0; 
+volatile uint32_t beacon_frames = 0;
+volatile uint32_t deauth_frames = 0;
+volatile uint32_t num_eapol = 0;
+std::vector<PwnagotchiHit> pwnagotchiLog;
+std::vector<PineappleHit> pineappleLog;
+std::vector<MultiSSIDTracker> multissidTrackers;
+std::vector<ConfirmedMultiSSID> confirmedMultiSSID;
+volatile uint32_t pwnagotchiCount = 0;
+volatile uint32_t pineappleCount = 0;
+volatile uint32_t multissidCount = 0;
+bool pineappleDetectionEnabled = false;
+bool espressifDetectionEnabled = false;
+bool multissidDetectionEnabled = false;
+bool pwnagotchiDetectionEnabled = false;
 
 std::vector<BeaconHit> beaconLog;
 std::map<String, uint32_t> beaconCounts;
@@ -106,6 +123,8 @@ QueueHandle_t evilTwinQueue = nullptr;
 // Karma Attack Detection
 bool karmaDetectionEnabled = false;
 QueueHandle_t karmaQueue = nullptr;
+volatile uint32_t karmaCount = 0;
+volatile uint32_t probeFloodCount = 0;
 std::map<String, std::vector<String>> clientProbeRequests;
 std::map<String, uint32_t> karmaAPResponses;
 
@@ -129,7 +148,6 @@ extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern bool isZeroOrBroadcast(const uint8_t *mac);
-
 
 inline uint16_t u16(const uint8_t *p)
 {
@@ -306,297 +324,429 @@ static int freqFromRSSI(int8_t rssi)
     return f;
 }
 
-static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
-    if (!deauthDetectionEnabled) return;
+// ============== PWNAGOTCHI DETECTION ==============
+static void IRAM_ATTR detectPwnagotchi(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!pwnagotchiDetectionEnabled) return;
     
-    const uint8_t *p = ppkt->payload;
-    if (ppkt->rx_ctrl.sig_len < 26) return;
+    const uint8_t *payload = ppkt->payload;
     
-    uint16_t fc = u16(p);
-    uint8_t ftype = (fc >> 2) & 0x3;
-    uint8_t subtype = (fc >> 4) & 0xF;
-    
-    if (ftype != 0 || (subtype != 12 && subtype != 10)) return;
-    
-    DeauthHit hit;
-    memcpy(hit.destMac, p + 4, 6);
-    memcpy(hit.srcMac, p + 10, 6);
-    memcpy(hit.bssid, p + 16, 6);
-    
-    hit.reasonCode = (ppkt->rx_ctrl.sig_len >= 26) ? u16(p + 24) : 0;
-    if (hit.reasonCode > 255) return; // Invalid
-    
-    if (isZeroOrBroadcast(hit.srcMac)) return;
-    
-    hit.rssi = ppkt->rx_ctrl.rssi;
-    hit.channel = ppkt->rx_ctrl.channel;
-    hit.timestamp = millis();
-    hit.isDisassoc = (subtype == 10);
-    hit.isBroadcast = isZeroOrBroadcast(hit.destMac);
-    
-    String srcMacStr = macFmt6(hit.srcMac);
-    uint32_t now = millis();
-    
-    // Track deauth timing
-    static std::map<String, std::vector<uint32_t>> deauthTimes;
-    deauthTimes[srcMacStr].push_back(now);
-    
-    // Clean old entries
-    auto& times = deauthTimes[srcMacStr];
-    times.erase(std::remove_if(times.begin(), times.end(),
-        [now](uint32_t t) { return now - t > DEAUTH_TIMING_WINDOW; }), times.end());
-    
-    bool isAttack = false;
-    String attackType = "";
-    
-    // Check against thresholds
-    if (times.size() >= DEAUTH_FLOOD_THRESHOLD) {
-        isAttack = true;
-        attackType = "Deauth flood - " + String(times.size()) + " in " + 
-                     String(DEAUTH_TIMING_WINDOW/1000) + "s";
-    }
-    else if (hit.isBroadcast) {
-        isAttack = true;
-        attackType = "Broadcast deauth";
-    }
-    
-    if (isAttack) {
-        if (hit.isDisassoc) {
-            uint32_t temp = disassocCount;
-            disassocCount = temp + 1;
-        } else {
-            uint32_t temp = deauthCount;
-            deauthCount = temp + 1;
+    // Check for beacon frame (0x80) - EXACT Marauder check
+    if (payload[0] == 0x80) {
+        // Check for Marauder's exact pwnagotchi MAC: de:ad:be:ef:de:ad
+        uint8_t target_mac[6] = {0xde, 0xad, 0xbe, 0xef, 0xde, 0xad};
+        bool mac_match = true;
+        for (int i = 0; i < 6; i++) {
+            if (payload[10 + i] != target_mac[i]) {
+                mac_match = false;
+                break;
+            }
         }
         
-        if (deauthQueue && deauthLog.size() < 500) {
-            BaseType_t w = pdFALSE;
-            xQueueSendFromISR(deauthQueue, &hit, &w);
-            if (w) portYIELD_FROM_ISR();
+        if (mac_match) {
+            PwnagotchiHit hit;
+            memcpy(hit.mac, payload + 10, 6);
+            hit.rssi = ppkt->rx_ctrl.rssi;
+            hit.channel = ppkt->rx_ctrl.channel;
+            hit.timestamp = millis();
+            
+            // Extract JSON from SSID - EXACT Marauder method
+            uint8_t ssid_len = payload[37];
+            if (ssid_len > 0 && ssid_len <= 32) {
+                String essid = "";
+                for (int i = 0; i < ssid_len; i++) {
+                    if (isAscii(payload[38 + i])) {
+                        essid += (char)payload[38 + i];
+                    }
+                }
+                
+                // Parse JSON for name and pwnd_tot
+                int name_start = essid.indexOf("\"name\":\"") + 8;
+                int name_end = essid.indexOf("\"", name_start);
+                if (name_start > 7 && name_end > name_start) {
+                    hit.name = essid.substring(name_start, name_end);
+                }
+                
+                int pwnd_start = essid.indexOf("\"pwnd_tot\":") + 11;
+                int pwnd_end = essid.indexOf("}", pwnd_start);
+                if (pwnd_start > 10 && pwnd_end > pwnd_start) {
+                    hit.pwnd_tot = essid.substring(pwnd_start, pwnd_end).toInt();
+                }
+            }
+            
+            pwnagotchiLog.push_back(hit);
+            uint32_t temp = pwnagotchiCount;
+            pwnagotchiCount = temp + 1;
+            
+            String alert = "[PWNAGOTCHI] " + hit.name + " pwnd:" + String(hit.pwnd_tot) + 
+                          " RSSI:" + String(hit.rssi) + " CH:" + String(hit.channel);
+            Serial.println(alert);
+            logToSD(alert);
         }
     }
 }
 
+// ============== PINEAPPLE DETECTION ==============
+static int extractChannelFromBeacon(const uint8_t* payload, int len) {
+    // Skip fixed parameters (36 bytes) and SSID
+    uint8_t ssid_len = payload[37];
+    int pos = 38 + ssid_len;
+    
+    while (pos < len - 2) {
+        uint8_t tag_num = payload[pos];
+        uint8_t tag_len = payload[pos + 1];
+        
+        // DS Parameter Set (channel info)
+        if (tag_num == 3 && tag_len == 1) {
+            return payload[pos + 2];
+        }
+        
+        pos += 2 + tag_len;
+    }
+    return -1;
+}
+
+static bool hasSuspiciousPineappleTags(const uint8_t* payload, int len) {
+    uint8_t ssid_len = payload[37];
+    int pos = 38 + ssid_len;
+    
+    // Check if next tag is DS Parameter (tag 3)
+    if (pos < len - 2 && payload[pos] == 3 && payload[pos + 1] == 1) {
+        // Check for end after DS Parameter (minimal tags = suspicious)
+        int next_pos = pos + 2 + payload[pos + 1];
+        return (next_pos >= len || next_pos + 2 > len);
+    }
+    return false;
+}
+
+static void IRAM_ATTR detectPineapple(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!pineappleDetectionEnabled) return;
+    
+    const uint8_t *payload = ppkt->payload;
+    
+    // Check for beacon frame (0x80) - EXACT Marauder check
+    if (payload[0] == 0x80) {
+        uint8_t mac_addr[6];
+        memcpy(mac_addr, payload + 10, 6);
+        
+        // Extract capability flags - EXACT Marauder method
+        uint16_t capab_info = ((uint16_t)payload[34] | ((uint16_t)payload[35] << 8));
+        bool suspicious_capability = (capab_info == 0x0001);
+        
+        // Check for minimal tags - EXACT Marauder countPineScanTaggedParameters
+        bool minimal_tags = false;
+        if (ppkt->rx_ctrl.sig_len > 37) {
+            uint8_t ssid_len = payload[37];
+            int pos = 36 + ssid_len + 2;
+            
+            // Check if next tag is DS Parameter (tag 3) and then end
+            if (pos < ppkt->rx_ctrl.sig_len - 2 && payload[pos] == 3 && payload[pos+1] == 1) {
+                int next_pos = pos + 2 + payload[pos+1];
+                minimal_tags = (next_pos >= ppkt->rx_ctrl.sig_len || next_pos + 2 > ppkt->rx_ctrl.sig_len);
+            }
+        }
+        
+        if (suspicious_capability && minimal_tags) {
+            PineappleHit hit;
+            memcpy(hit.mac, mac_addr, 6);
+            hit.suspicious_capability = suspicious_capability;
+            hit.minimal_tags = minimal_tags;
+            hit.rssi = ppkt->rx_ctrl.rssi;
+            hit.channel = ppkt->rx_ctrl.channel;
+            hit.timestamp = millis();
+            
+            // Extract SSID
+            if (ppkt->rx_ctrl.sig_len > 37) {
+                uint8_t ssidLen = payload[37];
+                if (ssidLen > 0 && ssidLen <= 32 && ppkt->rx_ctrl.sig_len >= 38 + ssidLen) {
+                    char ssidBuf[33] = {0};
+                    memcpy(ssidBuf, payload + 38, ssidLen);
+                    hit.ssid = String(ssidBuf);
+                }
+            }
+            
+            pineappleLog.push_back(hit);
+            uint32_t temp = pineappleCount;
+            pineappleCount = temp + 1;
+            
+            String alert = "[PINEAPPLE] " + hit.ssid + " MAC:" + macFmt6(hit.mac) + 
+                          " CH:" + String(hit.channel) + " RSSI:" + String(hit.rssi);
+            Serial.println(alert);
+            logToSD(alert);
+        }
+    }
+}
+
+// ============== MULTI-SSID AP DETECTION ==============
+static void IRAM_ATTR detectMultiSSID(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!multissidDetectionEnabled) return;
+    
+    const uint8_t *payload = ppkt->payload;
+    
+    // Check for beacon frame (0x80) - EXACT Marauder check
+    if (payload[0] == 0x80) {
+        uint8_t mac_addr[6];
+        memcpy(mac_addr, payload + 10, 6);
+        String macStr = macFmt6(mac_addr);
+        
+        // Extract SSID - EXACT Marauder method
+        String essid = "";
+        if (ppkt->rx_ctrl.sig_len > 37) {
+            uint8_t ssid_len = payload[37];
+            if (ssid_len > 0 && ssid_len <= 32 && ppkt->rx_ctrl.sig_len >= 38 + ssid_len) {
+                for (uint8_t i = 0; i < ssid_len; i++) {
+                    essid += (char)payload[38 + i];
+                }
+            }
+        }
+        
+        if (essid.length() > 0) {
+            // Track SSIDs per MAC using static map (persistent across calls)
+            static std::map<String, std::set<String>> mac_to_ssids;
+            
+            mac_to_ssids[macStr].insert(essid);
+            
+            if (mac_to_ssids[macStr].size() >= 3) {
+                // Check if already logged this MAC
+                static std::set<String> logged_macs;
+                if (logged_macs.find(macStr) == logged_macs.end()) {
+                    logged_macs.insert(macStr);
+                    
+                    ConfirmedMultiSSID confirmed;
+                    memcpy(confirmed.mac, mac_addr, 6);
+                    confirmed.ssid_count = mac_to_ssids[macStr].size();
+                    confirmed.timestamp = millis();
+                    
+                    confirmedMultiSSID.push_back(confirmed);
+                    uint32_t temp = multissidCount;
+                    multissidCount = temp + 1;
+                    
+                    String alert = "[MULTI-SSID] MAC:" + macStr + 
+                                  " SSIDs:" + String(confirmed.ssid_count) + 
+                                  " Current:" + essid + 
+                                  " RSSI:" + String(ppkt->rx_ctrl.rssi) + 
+                                  " CH:" + String(ppkt->rx_ctrl.channel);
+                    Serial.println(alert);
+                    logToSD(alert);
+                }
+            }
+        }
+    }
+}
+
+// ============== ESPRESSIF DEVICE DETECTION ==============
+static void IRAM_ATTR detectEspressif(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!espressifDetectionEnabled) return;
+    
+    const uint8_t *payload = ppkt->payload;
+    
+    // Check for beacon frame (0x80)
+    if (payload[0] == 0x80) {
+        uint8_t mac_addr[6];
+        memcpy(mac_addr, payload + 10, 6);
+        
+        // Check for Espressif OUIs - EXACT Marauder method
+        bool isEspressif = false;
+        
+        if ((mac_addr[0] == 0x24 && mac_addr[1] == 0x0A && mac_addr[2] == 0xC4) ||
+            (mac_addr[0] == 0x30 && mac_addr[1] == 0xAE && mac_addr[2] == 0xA4) ||
+            (mac_addr[0] == 0x8C && mac_addr[1] == 0xAA && mac_addr[2] == 0xB5) ||
+            (mac_addr[0] == 0x3C && mac_addr[1] == 0x61 && mac_addr[2] == 0x05) ||
+            (mac_addr[0] == 0x7C && mac_addr[1] == 0x9E && mac_addr[2] == 0xBD)) {
+            isEspressif = true;
+        }
+        
+        // Also check SSID for ESP patterns
+        String essid = "";
+        if (ppkt->rx_ctrl.sig_len > 37) {
+            uint8_t ssidLen = payload[37];
+            if (ssidLen > 0 && ssidLen <= 32 && ppkt->rx_ctrl.sig_len >= 38 + ssidLen) {
+                char ssidBuf[33] = {0};
+                memcpy(ssidBuf, payload + 38, ssidLen);
+                essid = String(ssidBuf);
+                
+                if (essid.indexOf("ESP") != -1 || 
+                    essid.indexOf("esp") != -1 ||
+                    essid.indexOf("NodeMCU") != -1 ||
+                    essid.indexOf("Wemos") != -1) {
+                    isEspressif = true;
+                }
+            }
+        }
+        
+        if (isEspressif) {
+            // Track in static set to avoid duplicates
+            static std::set<String> detected_esp;
+            String macStr = macFmt6(mac_addr);
+            
+            if (detected_esp.find(macStr) == detected_esp.end()) {
+                detected_esp.insert(macStr);
+                
+                String alert = "[ESPRESSIF] " + essid + " MAC:" + macStr + 
+                              " CH:" + String(ppkt->rx_ctrl.channel) + 
+                              " RSSI:" + String(ppkt->rx_ctrl.rssi);
+                Serial.println(alert);
+                logToSD(alert);
+            }
+        }
+    }
+}
+static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!deauthDetectionEnabled) return;
+    
+    const uint8_t *payload = ppkt->payload;
+    
+    // Check for deauth (0xA0) or disassoc (0xC0) frames
+    if (payload[0] == 0xA0 || payload[0] == 0xC0) {
+        DeauthHit hit;
+        memcpy(hit.srcMac, payload + 10, 6);
+        memcpy(hit.destMac, payload + 4, 6);
+        memcpy(hit.bssid, payload + 16, 6);
+        hit.reasonCode = (payload[24] | (payload[25] << 8));
+        hit.rssi = ppkt->rx_ctrl.rssi;
+        hit.channel = ppkt->rx_ctrl.channel;
+        hit.timestamp = millis();
+        hit.isDisassoc = (payload[0] == 0xA0);
+        hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
+        
+        bool isAttack = false;
+        
+        // Broadcast deauth = always suspicious
+        if (hit.isBroadcast) {
+            isAttack = true;
+        } else {
+            // Track targeted attacks
+            static std::map<String, uint32_t> targetedClients;
+            static std::map<String, uint32_t> lastDeauthTime;
+            
+            String destMacStr = macFmt6(hit.destMac);
+            targetedClients[destMacStr]++;
+            
+            if (lastDeauthTime.count(destMacStr) > 0) {
+                uint32_t timeSince = millis() - lastDeauthTime[destMacStr];
+                if (timeSince < 10000 && targetedClients[destMacStr] >= 2) {
+                    isAttack = true;
+                }
+            }
+            lastDeauthTime[destMacStr] = millis();
+        }
+        
+        if (isAttack || hit.isBroadcast) {
+            deauthLog.push_back(hit);
+            
+            if (hit.isDisassoc) {
+                uint32_t temp = disassocCount;
+                disassocCount = temp + 1;
+            } else {
+                uint32_t temp = deauthCount;
+                deauthCount = temp + 1;
+            }
+            
+            String alert = "[DEAUTH] " + String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + 
+                          " " + macFmt6(hit.srcMac) + "->" + macFmt6(hit.destMac) + 
+                          " Reason:" + String(hit.reasonCode);
+            Serial.println(alert);
+            logToSD(alert);
+            
+            if (meshEnabled) {
+                String meshAlert = getNodeId() + ": " + alert;
+                if (Serial1.availableForWrite() >= (int)meshAlert.length()) {
+                    Serial1.println(meshAlert);
+                }
+            }
+        }
+    }
+}
 
 static void IRAM_ATTR detectBeaconFlood(const wifi_promiscuous_pkt_t *ppkt) {
     if (!beaconFloodDetectionEnabled) return;
     
-    const uint8_t *p = ppkt->payload;
-    if (ppkt->rx_ctrl.sig_len < 36) return;
+    const uint8_t *payload = ppkt->payload;
     
-    uint16_t fc = u16(p);
-    uint8_t ftype = (fc >> 2) & 0x3;
-    uint8_t subtype = (fc >> 4) & 0xF;
-    
-    if (ftype != 0 || subtype != 8) return; // Not a beacon
+    // Check if it's a beacon frame (0x80)
+    if (payload[0] != 0x80) return;
     
     BeaconHit hit;
-    memcpy(hit.srcMac, p + 10, 6);
-    memcpy(hit.bssid, p + 16, 6);
+    memcpy(hit.srcMac, payload + 10, 6);
     
-    if (isZeroOrBroadcast(hit.srcMac)) return;
-    
-    hit.rssi = ppkt->rx_ctrl.rssi;
-    hit.channel = ppkt->rx_ctrl.channel;
-    hit.timestamp = millis();
-    hit.beaconInterval = u16(p + 32);
-    
-    // SSID
-    hit.ssid = "";
-    const uint8_t *tags = p + 36;
-    uint32_t remaining = ppkt->rx_ctrl.sig_len - 36;
-    
-    if (remaining >= 2 && tags[0] == 0) {
-        uint8_t ssid_len = tags[1];
-        if (ssid_len <= 32 && ssid_len + 2 <= remaining) {
-            char ssid_str[33] = {0};
-            memcpy(ssid_str, tags + 2, ssid_len);
-            bool isPrintable = true;
-            for (int i = 0; i < ssid_len; i++) {
-                if (ssid_str[i] != 0 && (ssid_str[i] < 32 || ssid_str[i] > 126)) {
-                    isPrintable = false;
-                    break;
-                }
-            }
-            if (!isPrintable || ssid_len == 0) {
-                hit.ssid = "[Hidden/Invalid]";
-            } else {
-                hit.ssid = String(ssid_str);
-            }
+    // Extract SSID if present
+    if (ppkt->rx_ctrl.sig_len > 37) {
+        uint8_t ssidLen = payload[37];
+        if (ssidLen > 0 && ssidLen <= 32 && ppkt->rx_ctrl.sig_len >= 38 + ssidLen) {
+            char ssidBuf[33] = {0};
+            memcpy(ssidBuf, payload + 38, ssidLen);
+            hit.ssid = String(ssidBuf);
         }
     }
-    
-    uint32_t temp = totalBeaconsSeen;
-    totalBeaconsSeen = temp + 1;
     
     String macStr = macFmt6(hit.srcMac);
     uint32_t now = millis();
     
-    static std::set<String> uniqueMacsInWindow;
-    static uint32_t windowStart = 0;
-    static uint32_t lastSeenRandomMac = 0;
+    // Simple flood detection: count unique MACs in time window
+    static std::map<String, uint32_t> recentBeacons;
+    static uint32_t lastCleanup = 0;
     
-    if (now - windowStart > BEACON_TIMING_WINDOW) {
-        uniqueMacsInWindow.clear();
-        windowStart = now;
+    // Cleanup old entries every 5 seconds
+    if (now - lastCleanup > 5000) {
+        recentBeacons.clear();
+        lastCleanup = now;
     }
     
-    // Add to unique MACs
-    uniqueMacsInWindow.insert(macStr);
+    recentBeacons[macStr]++;
     
-    // Check if MAC is random (locally administered)
-    bool isRandomMac = (hit.srcMac[0] & 0x02) != 0;
-
-    if (isRandomMac) {
-        lastSeenRandomMac = now;
-    }
-    
-    bool suspicious = false;
-    String reason = "";
-    
-    // ATTACK PATTERN 1: Too many unique MACs in window (beacon spam signature)
-    if (uniqueMacsInWindow.size() > BEACON_FLOOD_THRESHOLD) {
-        suspicious = true;
-        reason = "Beacon flood - " + String(uniqueMacsInWindow.size()) + " unique MACs in " + 
-                 String(BEACON_TIMING_WINDOW/1000) + "s";
-    }
-    // ATTACK PATTERN 2: Burst of new MACs (rapid beacon spam)
-    else if (uniqueMacsInWindow.size() > BEACON_BURST_THRESHOLD && 
-             (now - windowStart) < 1000) {
-        suspicious = true;
-        reason = "Beacon burst - " + String(uniqueMacsInWindow.size()) + " MACs/sec";
-    }
-    // ATTACK PATTERN 3: Many random MACs appearing
-    else if (isRandomMac && uniqueMacsInWindow.size() > 20) {
-        // Count how many are random
-        int randomCount = 0;
-        for (const auto& mac : uniqueMacsInWindow) {
-            uint8_t firstByte = strtoul(mac.substring(0, 2).c_str(), nullptr, 16);
-            if (firstByte & 0x02) randomCount++;
-        }
-        if (randomCount > BEACON_RANDOM_MAC_THRESHOLD) {
-            suspicious = true;
-            reason = "Random MAC flood - " + String(randomCount) + " random MACs";
-        }
-    }
-    
-    if (suspicious) {
+    // If we see too many unique beacons, it's a flood
+    if (recentBeacons.size() > 20) {  // 20+ unique MACs in 5 seconds
+        hit.reason = "Flood: " + String(recentBeacons.size()) + " MACs";
+        hit.rssi = ppkt->rx_ctrl.rssi;
+        hit.channel = ppkt->rx_ctrl.channel;
+        hit.timestamp = now;
+        
         uint32_t temp = suspiciousBeacons;
         suspiciousBeacons = temp + 1;
         
-        if (beaconQueue && beaconLog.size() < 500) {
+        if (beaconQueue) {
             BaseType_t w = pdFALSE;
             xQueueSendFromISR(beaconQueue, &hit, &w);
             if (w) portYIELD_FROM_ISR();
         }
     }
     
-    // Update tracking
-    beaconCounts[macStr]++;
-    beaconLastSeen[macStr] = now;
+    uint32_t temp2 = totalBeaconsSeen;
+    totalBeaconsSeen = temp2 + 1;
 }
 
-static void IRAM_ATTR detectEvilTwin(const wifi_promiscuous_pkt_t *ppkt)
-{
-    if (!evilTwinDetectionEnabled)
-        return;
-
+static void IRAM_ATTR detectEvilTwin(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!evilTwinDetectionEnabled) return;
+    
     const uint8_t *p = ppkt->payload;
-    if (ppkt->rx_ctrl.sig_len < 36)
-        return;
-
-    uint16_t fc = u16(p);
-    uint8_t ftype = (fc >> 2) & 0x3;
-    uint8_t subtype = (fc >> 4) & 0xF;
-
-    if (ftype == 0 && subtype == 8)
-    {
+    if (ppkt->rx_ctrl.sig_len < 36) return;
+    
+    if (p[0] == 0x80) {
         uint8_t bssid[6];
-        memcpy(bssid, p + 16, 6);
-        String bssidStr = macFmt6(bssid);
-
-        uint16_t beaconInterval = u16(p + 32);
-        uint16_t capabilities = u16(p + 34);
-
+        memcpy(bssid, p + 10, 6);
+        
         String ssid = "";
-        const uint8_t *tags = p + 36;
-        uint32_t remaining = ppkt->rx_ctrl.sig_len - 36;
-
-        if (remaining >= 2 && tags[0] == 0)
-        {
-            uint8_t ssid_len = tags[1];
-            if (ssid_len > 0 && ssid_len <= 32 && ssid_len + 2 <= remaining)
-            {
-                char ssid_str[33] = {0};
-                memcpy(ssid_str, tags + 2, ssid_len);
-                ssid = String(ssid_str);
-            }
+        uint8_t ssidLen = p[37];
+        if (ssidLen > 0 && ssidLen <= 32 && ppkt->rx_ctrl.sig_len >= 38 + ssidLen) {
+            char ssidBuf[33] = {0};
+            memcpy(ssidBuf, p + 38, ssidLen);
+            ssid = String(ssidBuf);
         }
-
-        if (ssid.length() == 0)
-            return;
-
-        uint32_t now = millis();
-        bool suspicious = false;
-        String reason = "";
-
-        if (knownAPs.find(ssid) != knownAPs.end())
-        {
-            APProfile &known = knownAPs[ssid];
-
-            if (memcmp(known.bssid, bssid, 6) != 0)
-            {
-                if (abs((int)known.channel - (int)ppkt->rx_ctrl.channel) <= 2)
-                {
-                    suspicious = true;
-                    reason = "Same SSID, different BSSID on nearby channel";
-                }
-            }
-
-            if (abs((int)known.beaconInterval - (int)beaconInterval) > 50)
-            {
-                suspicious = true;
-                reason += (reason.length() > 0 ? " + " : "") + String("Beacon interval mismatch");
-            }
-
-            known.lastSeen = now;
-        }
-        else
-        {
-            APProfile newAP;
-            newAP.ssid = ssid;
-            memcpy(newAP.bssid, bssid, 6);
-            newAP.channel = ppkt->rx_ctrl.channel;
-            newAP.rssi = ppkt->rx_ctrl.rssi;
-            newAP.lastSeen = now;
-            newAP.beaconInterval = beaconInterval;
-            newAP.capabilities[0] = capabilities & 0xFF;
-            newAP.capabilities[1] = (capabilities >> 8) & 0xFF;
-            newAP.isLegitimate = true;
-            knownAPs[ssid] = newAP;
-        }
-
-        if (suspicious)
-        {
-            EvilTwinHit hit;
-            hit.ssid = ssid;
-            memcpy(hit.rogueMAC, bssid, 6);
-            if (knownAPs.find(ssid) != knownAPs.end())
-            {
-                memcpy(hit.legitimateMAC, knownAPs[ssid].bssid, 6);
-            }
-            hit.rssi = ppkt->rx_ctrl.rssi;
-            hit.channel = ppkt->rx_ctrl.channel;
-            hit.timestamp = now;
-            hit.suspicionReason = reason;
-
-            BaseType_t w = false;
-            if (evilTwinQueue)
-            {
-                xQueueSendFromISR(evilTwinQueue, &hit, &w);
-                if (w)
-                    portYIELD_FROM_ISR();
-            }
+        
+        if (ssid.length() == 0) return;
+        
+        EvilTwinHit hit;
+        hit.ssid = ssid;
+        memcpy(hit.rogueMAC, bssid, 6);
+        memset(hit.legitimateMAC, 0, 6);
+        hit.rssi = ppkt->rx_ctrl.rssi;
+        hit.channel = ppkt->rx_ctrl.channel;
+        hit.timestamp = millis();
+        hit.suspicionReason = "";
+        
+        if (evilTwinQueue) {
+            BaseType_t w = pdFALSE;
+            xQueueSendFromISR(evilTwinQueue, &hit, &w);
+            if (w) portYIELD_FROM_ISR();
         }
     }
 }
@@ -607,90 +757,33 @@ static void IRAM_ATTR detectKarmaAttack(const wifi_promiscuous_pkt_t *ppkt) {
     const uint8_t *p = ppkt->payload;
     if (ppkt->rx_ctrl.sig_len < 24) return;
     
-    uint16_t fc = u16(p);
-    uint8_t ftype = (fc >> 2) & 0x3;
-    uint8_t subtype = (fc >> 4) & 0xF;
-    
-    static std::map<String, uint32_t> probeRequestTimes;
-    static std::map<String, std::map<String, uint32_t>> apResponsePatterns;
-    
-    if (ftype == 0 && subtype == 4) {
-        uint8_t clientMAC[6];
-        memcpy(clientMAC, p + 10, 6);
-        String clientMacStr = macFmt6(clientMAC);
-        
-        String ssid = "";
-        const uint8_t *tags = p + 24;
-        uint32_t remaining = ppkt->rx_ctrl.sig_len - 24;
-        
-        if (remaining >= 2 && tags[0] == 0) {
-            uint8_t ssid_len = tags[1];
-            if (ssid_len > 0 && ssid_len <= 32 && ssid_len + 2 <= remaining) {
-                char ssid_str[33] = {0};
-                memcpy(ssid_str, tags + 2, ssid_len);
-                ssid = String(ssid_str);
-            }
-        }
-        
-        if (ssid.length() > 0) {
-            probeRequestTimes[clientMacStr + ":" + ssid] = millis();
-            
-            if (clientProbeRequests[clientMacStr].size() > 50) {
-                clientProbeRequests[clientMacStr].erase(
-                    clientProbeRequests[clientMacStr].begin());
-            }
-            clientProbeRequests[clientMacStr].push_back(ssid);
-        }
+    if (p[0] == 0x40) {
+        uint32_t temp = req_frames;
+        req_frames = temp + 1;
     }
-    else if (ftype == 0 && subtype == 5) {
+    else if (p[0] == 0x50) {
+        uint32_t temp = resp_frames;
+        resp_frames = temp + 1;
+        
         uint8_t apMAC[6];
         memcpy(apMAC, p + 10, 6);
-        String apMacStr = macFmt6(apMAC);
         
-        uint8_t destMAC[6];
-        memcpy(destMAC, p + 4, 6);
-        String destMacStr = macFmt6(destMAC);
+        KarmaHit hit;
+        memcpy(hit.apMAC, apMAC, 6);
+        memset(hit.clientMAC, 0, 6);
+        hit.clientSSID = "";
+        hit.reason = "";
+        hit.rssi = ppkt->rx_ctrl.rssi;
+        hit.channel = ppkt->rx_ctrl.channel;
+        hit.timestamp = millis();
         
-        String ssid = "";
-        const uint8_t *tags = p + 24;
-        uint32_t remaining = ppkt->rx_ctrl.sig_len - 24;
+        temp = karmaCount;
+        karmaCount = temp + 1;
         
-        if (remaining >= 2 && tags[0] == 0) {
-            uint8_t ssid_len = tags[1];
-            if (ssid_len > 0 && ssid_len <= 32 && ssid_len + 2 <= remaining) {
-                char ssid_str[33] = {0};
-                memcpy(ssid_str, tags + 2, ssid_len);
-                ssid = String(ssid_str);
-            }
-        }
-        
-        if (ssid.length() > 0) {
-            uint32_t now = millis();
-            String probeKey = destMacStr + ":" + ssid;
-            
-            if (probeRequestTimes.find(probeKey) != probeRequestTimes.end()) {
-                uint32_t responseTime = now - probeRequestTimes[probeKey];
-                
-                if (responseTime < 50) {
-                    apResponsePatterns[apMacStr][ssid]++;
-                    
-                    if (apResponsePatterns[apMacStr].size() > MAX_SSIDS_PER_MAC) {
-                        KarmaHit hit;
-                        memcpy(hit.apMAC, apMAC, 6);
-                        hit.clientSSID = ssid;
-                        memcpy(hit.clientMAC, destMAC, 6);
-                        hit.rssi = ppkt->rx_ctrl.rssi;
-                        hit.channel = ppkt->rx_ctrl.channel;
-                        hit.timestamp = now;
-                        
-                        BaseType_t w = false;
-                        if (karmaQueue) {
-                            xQueueSendFromISR(karmaQueue, &hit, &w);
-                            if (w) portYIELD_FROM_ISR();
-                        }
-                    }
-                }
-            }
+        if (karmaQueue) {
+            BaseType_t w = pdFALSE;
+            xQueueSendFromISR(karmaQueue, &hit, &w);
+            if (w) portYIELD_FROM_ISR();
         }
     }
 }
@@ -698,153 +791,304 @@ static void IRAM_ATTR detectKarmaAttack(const wifi_promiscuous_pkt_t *ppkt) {
 static void IRAM_ATTR detectProbeFlood(const wifi_promiscuous_pkt_t *ppkt) {
     if (!probeFloodDetectionEnabled) return;
     
-    const uint8_t *p = ppkt->payload;
-    if (ppkt->rx_ctrl.sig_len < 24) return;
+    const uint8_t *payload = ppkt->payload;
     
-    uint16_t fc = u16(p);
-    uint8_t ftype = (fc >> 2) & 0x3;
-    uint8_t subtype = (fc >> 4) & 0xF;
-    
-    if (ftype != 0 || subtype != 4) return;  // Not a probe request
+    // Check if it's a probe request (0x40)
+    if (payload[0] != 0x40) return;
     
     uint8_t clientMAC[6];
-    memcpy(clientMAC, p + 10, 6);
+    memcpy(clientMAC, payload + 10, 6);
     String clientMacStr = macFmt6(clientMAC);
     
+    // Simple rate tracking
+    static std::map<String, uint32_t> probeRates;
+    static uint32_t lastReset = 0;
     uint32_t now = millis();
-    probeRequestCounts[clientMacStr]++;
     
-    // Clean old timing entries
-    if (probeTimings[clientMacStr].size() > 200) {
-        probeTimings[clientMacStr].erase(probeTimings[clientMacStr].begin(), 
-                                         probeTimings[clientMacStr].begin() + 100);
-    }
-    probeTimings[clientMacStr].push_back(now);
-    
-    // Count probes in last second
-    uint32_t recentCount = 0;
-    for (auto& timing : probeTimings[clientMacStr]) {
-        if (now - timing < 1000) recentCount++;
+    // Reset every second
+    if (now - lastReset > 1000) {
+        probeRates.clear();
+        lastReset = now;
     }
     
-    // Track unique SSIDs per client
-    static std::map<String, std::set<String>> clientSSIDs;
+    probeRates[clientMacStr]++;
     
-    String ssid = "";
-    const uint8_t *tags = p + 24;
-    uint32_t remaining = ppkt->rx_ctrl.sig_len - 24;
-    
-    if (remaining >= 2 && tags[0] == 0) {
-        uint8_t ssid_len = tags[1];
-        if (ssid_len > 0 && ssid_len <= 32 && ssid_len + 2 <= remaining) {
-            char ssid_str[33] = {0};
-            memcpy(ssid_str, tags + 2, ssid_len);
-            ssid = String(ssid_str);
-            clientSSIDs[clientMacStr].insert(ssid);
-        }
-    }
-    
-    bool isFlood = false;
-    String reason = "";
-    
-    // MDK4 probe flood pattern - massive probe rate
-    if (recentCount >= 50) {
-        isFlood = true;
-        reason = "Probe flood (" + String(recentCount) + "/sec)";
-    }
-    // Wordlist attack - many different SSIDs
-    else if (clientSSIDs[clientMacStr].size() > 20 && recentCount > 10) {
-        isFlood = true;
-        reason = "SSID list attack (" + String(clientSSIDs[clientMacStr].size()) + " SSIDs)";
-    }
-    // Random MAC flood
-    else if ((clientMAC[0] & 0x02) && recentCount > 30) {
-        isFlood = true;
-        reason = "Random MAC probe flood";
-    }
-    
-    if (isFlood) {
+    // If one client sends too many probes, it's a flood
+    if (probeRates[clientMacStr] > 10) {  // 10+ probes per second
         ProbeFloodHit hit;
         memcpy(hit.clientMAC, clientMAC, 6);
-        hit.ssid = ssid;
-        hit.probeCount = recentCount;
+        hit.reason = "Rate: " + String(probeRates[clientMacStr]) + "/sec";
         hit.rssi = ppkt->rx_ctrl.rssi;
         hit.channel = ppkt->rx_ctrl.channel;
         hit.timestamp = now;
+        hit.probeCount = probeRates[clientMacStr];
         
-        BaseType_t w = false;
+        uint32_t temp = probeFloodCount;
+        probeFloodCount = temp + 1;
+        
         if (probeFloodQueue) {
+            BaseType_t w = pdFALSE;
             xQueueSendFromISR(probeFloodQueue, &hit, &w);
             if (w) portYIELD_FROM_ISR();
         }
     }
 }
 
-static void IRAM_ATTR detectEAPOLHarvesting(const wifi_promiscuous_pkt_t *ppkt)
-{
-    if (!eapolDetectionEnabled)
-        return;
-
+static void IRAM_ATTR detectEAPOLHarvesting(const wifi_promiscuous_pkt_t *ppkt) {
+    if (!eapolDetectionEnabled) return;
+    
     const uint8_t *p = ppkt->payload;
-    if (ppkt->rx_ctrl.sig_len < 32)
-        return;
+    if (ppkt->rx_ctrl.sig_len < 32) return;
+    
+    // Check for EAPOL packets (0x888e)
+    if ((p[30] == 0x88 && p[31] == 0x8e) || (p[32] == 0x88 && p[33] == 0x8e)) {
+        uint32_t temp = num_eapol;
+        num_eapol = temp + 1;
+        
+        uint8_t clientMAC[6], apMAC[6];
+        memcpy(apMAC, p + 4, 6);
+        memcpy(clientMAC, p + 10, 6);
+        
+        EAPOLHit hit;
+        memcpy(hit.clientMAC, clientMAC, 6);
+        memcpy(hit.apMAC, apMAC, 6);
+        hit.ssid = "";  // Can be populated if tracking SSID
+        hit.messageType = 1;  // EAPOL type
+        hit.hasPMKID = false;  // Can check for PMKID presence
+        hit.rssi = ppkt->rx_ctrl.rssi;
+        hit.channel = ppkt->rx_ctrl.channel;
+        hit.timestamp = millis();
+        
+        if (eapolQueue) {
+            BaseType_t w = pdFALSE;
+            xQueueSendFromISR(eapolQueue, &hit, &w);
+            if (w) portYIELD_FROM_ISR();
+        }
+        
+        // Alert
+        Serial.println("[EAPOL] Detected handshake from " + macFmt6(clientMAC) + 
+                      " to AP " + macFmt6(apMAC));
+        beepPattern(2, 100);
+    }
+}
 
-    uint16_t fc = u16(p);
-    uint8_t ftype = (fc >> 2) & 0x3;
+// Karma Detection Task
+void karmaDetectionTask(void *pv) {
+    int duration = (int)(intptr_t)pv;
+    bool forever = (duration <= 0);
 
-    if (ftype == 2)
-    {
-        const uint8_t *llc = p + 24;
-        if (ppkt->rx_ctrl.sig_len >= 32 &&
-            llc[0] == 0xAA && llc[1] == 0xAA && llc[2] == 0x03 &&
-            llc[6] == 0x88 && llc[7] == 0x8E)
-        {
+    Serial.printf("[KARMA] Starting Karma attack detection %s\n",
+                  forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
 
-            uint8_t clientMAC[6], apMAC[6];
-            memcpy(apMAC, p + 4, 6);
-            memcpy(clientMAC, p + 10, 6);
+    stopAPAndServer();
 
-            const uint8_t *eapol = llc + 8;
-            uint8_t eapolType = eapol[1];
-            uint8_t keyInfo = eapol[5];
+    // Isolate: Disable others, enable only Karma
+    deauthDetectionEnabled = false;
+    beaconFloodDetectionEnabled = false;
+    probeFloodDetectionEnabled = false;
+    evilTwinDetectionEnabled = false;
+    eapolDetectionEnabled = false;
+    karmaDetectionEnabled = true;
+    stopRequested = false;
 
-            bool hasPMKID = false;
-            if (ppkt->rx_ctrl.sig_len > 95)
-            {
-                for (int i = 0; i < ppkt->rx_ctrl.sig_len - 95; i++)
-                {
-                    if (eapol[i] == 0xDD && eapol[i + 1] >= 0x14 &&
-                        eapol[i + 2] == 0x00 && eapol[i + 3] == 0x0F &&
-                        eapol[i + 4] == 0xAC && eapol[i + 5] == 0x04)
-                    {
-                        hasPMKID = true;
-                        break;
-                    }
+    // Reset state/maps
+    clientProbeRequests.clear();
+    karmaAPResponses.clear();
+    uint32_t tempKarma = karmaCount;  // Volatile safe
+    karmaCount = 0;
+
+    if (karmaQueue) vQueueDelete(karmaQueue);
+    karmaQueue = xQueueCreate(256, sizeof(KarmaHit));
+
+    radioStartSTA();  // Enables WiFi sniffer; only Karma processes frames
+
+    uint32_t scanStart = millis();
+    uint32_t nextStatus = millis() + 5000;
+    uint32_t lastCleanup = millis();
+    KarmaHit hit;
+
+    const int BATCH_LIMIT = 4;  // Non-blocking batch processing
+
+    while ((forever && !stopRequested) || 
+           (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
+        
+        int processed = 0;
+        while (processed++ < BATCH_LIMIT && xQueueReceive(karmaQueue, &hit, 0) == pdTRUE) {
+            // Alert on hit
+            String alert = "KARMA ATTACK: AP:" + macFmt6(hit.apMAC) + 
+                           " Client:" + macFmt6(hit.clientMAC) + 
+                           " SSID:\"" + hit.clientSSID + "\"";
+            alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
+            if (hit.reason.length() > 0) alert += " [" + hit.reason + "]";
+
+            Serial.println("[ALERT] " + alert);
+            logToSD(alert);
+            beepPattern(3, 50);  // Distinct: 3 medium beeps
+
+            if (meshEnabled) {
+                String meshAlert = getNodeId() + ": KARMA: " + macFmt6(hit.apMAC) + " " + hit.clientSSID;
+                if (gpsValid) meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                if (hit.reason.length() > 0) meshAlert += " " + hit.reason;
+                if (Serial1.availableForWrite() >= (int)meshAlert.length()) {
+                    Serial1.println(meshAlert);
                 }
             }
 
-            String apMacStr = macFmt6(apMAC);
-            eapolCaptureAttempts[apMacStr]++;
-
-            EAPOLHit hit;
-            memcpy(hit.clientMAC, clientMAC, 6);
-            memcpy(hit.apMAC, apMAC, 6);
-            hit.ssid = "";
-            hit.messageType = keyInfo;
-            hit.hasPMKID = hasPMKID;
-            hit.rssi = ppkt->rx_ctrl.rssi;
-            hit.channel = ppkt->rx_ctrl.channel;
-            hit.timestamp = millis();
-
-            BaseType_t w = false;
-            if (eapolQueue)
-            {
-                xQueueSendFromISR(eapolQueue, &hit, &w);
-                if (w)
-                    portYIELD_FROM_ISR();
-            }
+            uint32_t temp = karmaCount;
+            karmaCount = temp + 1;
         }
+
+        if ((int32_t)(millis() - nextStatus) >= 0) {
+            Serial.printf("[KARMA] Detected:%u\n", karmaCount);
+            nextStatus += 5000;
+        }
+
+        if (millis() - lastCleanup > 60000) {
+            cleanupMaps();  // Cleans shared maps
+            lastCleanup = millis();
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
+
+    karmaDetectionEnabled = false;
+    radioStopSTA();
+    scanning = false;
+    lastScanEnd = millis();
+
+    // Store results (Karma-specific)
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        
+        std::string results = "Karma Attack Detection Results\n";
+        results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
+        results += "Karma attacks: " + std::to_string(karmaCount) + "\n\n";
+        
+        // Optional: List top APs from karmaAPResponses (corrected concatenation)
+        std::vector<std::pair<String, uint32_t>> topAPs(karmaAPResponses.begin(), karmaAPResponses.end());
+        std::sort(topAPs.begin(), topAPs.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+        for (size_t i = 0; i < std::min(topAPs.size(), size_t(10)); ++i) {
+            results += topAPs[i].first.c_str();  // String to const char*
+            results += ": ";
+            results += std::to_string(topAPs[i].second);
+            results += " SSIDs\n";
+        }
+        
+        antihunter::lastResults = results;
+    }
+
+    startAPAndServer();
+    blueTeamTaskHandle = nullptr;  // Reset shared handle
+    vTaskDelete(nullptr);
+}
+
+// Probe Flood Detection Task (Corrected, symmetric)
+void probeFloodDetectionTask(void *pv) {
+    int duration = (int)(intptr_t)pv;
+    bool forever = (duration <= 0);
+
+    Serial.printf("[PROBE] Starting probe flood detection %s\n",
+                  forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
+
+    stopAPAndServer();
+
+    // Isolate: Disable others, enable only Probe Flood
+    deauthDetectionEnabled = false;
+    beaconFloodDetectionEnabled = false;
+    karmaDetectionEnabled = false;
+    evilTwinDetectionEnabled = false;
+    eapolDetectionEnabled = false;
+    probeFloodDetectionEnabled = true;
+    stopRequested = false;
+
+    // Reset state/maps
+    probeRequestCounts.clear();
+    probeTimings.clear();
+    uint32_t tempProbe = probeFloodCount;  // Volatile safe
+    probeFloodCount = 0;
+
+    if (probeFloodQueue) vQueueDelete(probeFloodQueue);
+    probeFloodQueue = xQueueCreate(256, sizeof(ProbeFloodHit));
+
+    radioStartSTA();  // Enables WiFi sniffer; only Probe Flood processes
+
+    uint32_t scanStart = millis();
+    uint32_t nextStatus = millis() + 5000;
+    uint32_t lastCleanup = millis();
+    ProbeFloodHit hit;
+
+    const int BATCH_LIMIT = 4;
+
+    while ((forever && !stopRequested) || 
+           (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
+        
+        int processed = 0;
+        while (processed++ < BATCH_LIMIT && xQueueReceive(probeFloodQueue, &hit, 0) == pdTRUE) {
+            String alert = "PROBE FLOOD: Client:" + macFmt6(hit.clientMAC) + 
+                           " Count:" + String(hit.probeCount) + "/sec";
+            if (hit.ssid.length() > 0) alert += " SSID:\"" + hit.ssid + "\"";
+            alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
+            if (hit.reason.length() > 0) alert += " [" + hit.reason + "]";
+
+            Serial.println("[ALERT] " + alert);
+            logToSD(alert);
+            beepPattern(5, 30);  // Distinct: 5 quick beeps
+
+            if (meshEnabled) {
+                String meshAlert = getNodeId() + ": PROBE-FLOOD: " + macFmt6(hit.clientMAC) + " " + String(hit.probeCount);
+                if (gpsValid) meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                if (hit.reason.length() > 0) meshAlert += " " + hit.reason;
+                if (Serial1.availableForWrite() >= (int)meshAlert.length()) {
+                    Serial1.println(meshAlert);
+                }
+            }
+
+            uint32_t temp = probeFloodCount;
+            probeFloodCount = temp + 1;
+        }
+
+        if ((int32_t)(millis() - nextStatus) >= 0) {
+            Serial.printf("[PROBE] Detected:%u\n", probeFloodCount);
+            nextStatus += 5000;
+        }
+
+        if (millis() - lastCleanup > 60000) {
+            cleanupMaps();  // Cleans probe maps
+            lastCleanup = millis();
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    probeFloodDetectionEnabled = false;
+    radioStopSTA();
+    scanning = false;
+    lastScanEnd = millis();
+
+    // Store results (Probe-specific)
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        
+        std::string results = "Probe Flood Detection Results\n";
+        results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
+        results += "Probe floods: " + std::to_string(probeFloodCount) + "\n\n";
+        
+        // Optional: List top clients from probeRequestCounts (corrected concatenation)
+        std::vector<std::pair<String, uint32_t>> topClients(probeRequestCounts.begin(), probeRequestCounts.end());
+        std::sort(topClients.begin(), topClients.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+        for (size_t i = 0; i < std::min(topClients.size(), size_t(10)); ++i) {
+            results += topClients[i].first.c_str();  // String to const char*
+            results += ": ";
+            results += std::to_string(topClients[i].second);
+            results += " probes\n";
+        }
+        
+        antihunter::lastResults = results;
+    }
+
+    startAPAndServer();
+    blueTeamTaskHandle = nullptr;
+    vTaskDelete(nullptr);
 }
 
 // Main NimBLE callback
@@ -904,6 +1148,7 @@ class MyBLEAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
 class BLEAttackDetector : public NimBLEAdvertisedDeviceCallbacks {
 private:
     std::map<String, std::vector<uint32_t>> deviceTimings;
+    std::map<String, String> lastDeviceNames;
     uint32_t lastCleanup = 0;
     
 public:
@@ -943,34 +1188,46 @@ public:
         
         bool isSpam = false;
         String spamType = "";
+        uint16_t companyId = 0;
         
         // Check manufacturer data
         if (advertisedDevice->haveManufacturerData()) {
             std::string manData = advertisedDevice->getManufacturerData();
             if (manData.length() >= 2) {
-                uint16_t companyId = (manData[1] << 8) | manData[0];
+                companyId = (manData[1] << 8) | manData[0];
                 
-                // Check against thresholds based on company
-                if (companyId == 0x004C && packetsInWindow >= BLE_SPAM_THRESHOLD) {
+                if (companyId == 0x004C && packetsInWindow >= 15) {  // Apple
                     isSpam = true;
                     spamType = "Apple spam";
                 }
                 else if ((companyId == 0x00E0 || companyId == 0xFE2C) && 
-                         packetsInWindow >= BLE_SPAM_THRESHOLD * 2) {
+                         packetsInWindow >= 20) {  // Google Fast Pair
                     isSpam = true;
                     spamType = "Fast Pair spam";
                 }
-                else if (companyId == 0x0075 && packetsInWindow >= BLE_SPAM_THRESHOLD * 2) {
+                else if (companyId == 0x0075 && packetsInWindow >= 20) {  // Samsung
                     isSpam = true;
                     spamType = "Samsung spam";
                 }
             }
         }
         
-        // Generic flood detection
-        if (!isSpam && packetsInWindow >= 20) {
+        // Generic flood detection - much higher threshold
+        if (!isSpam && packetsInWindow >= 50) {
             isSpam = true;
             spamType = "BLE flood";
+        }
+        
+        // Check for name changes (spam indicator)
+        if (advertisedDevice->haveName()) {
+            String currentName = String(advertisedDevice->getName().c_str());
+            if (lastDeviceNames.find(macStr) != lastDeviceNames.end()) {
+                if (lastDeviceNames[macStr] != currentName && packetsInWindow >= 10) {
+                    isSpam = true;
+                    spamType = "Name-changing spam";
+                }
+            }
+            lastDeviceNames[macStr] = currentName;
         }
         
         if (isSpam) {
@@ -983,6 +1240,7 @@ public:
             hit.timestamp = now;
             hit.advCount = packetsInWindow;
             strncpy(hit.spamType, spamType.c_str(), sizeof(hit.spamType) - 1);
+            hit.companyId = companyId;
             
             if (bleSpamQueue && bleSpamLog.size() < 500) {
                 xQueueSend(bleSpamQueue, &hit, 0);
@@ -1397,7 +1655,6 @@ void blueTeamTask(void *pv) {
     disassocCount = 0;
     deauthDetectionEnabled = true;
     stopRequested = false;
-    
     deauthSourceCounts.clear();
     deauthTargetCounts.clear();
     deauthTimings.clear();
@@ -1430,6 +1687,11 @@ void blueTeamTask(void *pv) {
                 }
                 
                 String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
+                if (hit.isBroadcast) {
+                    alert += " [BROADCAST]";  // Deauth flood
+                } else {
+                    alert += " [TARGETED]";   // Targeted attack
+                }
                 alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
                 alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
                 alert += " Reason:" + String(hit.reasonCode);
@@ -1490,7 +1752,16 @@ void blueTeamTask(void *pv) {
         int show = min((int)deauthLog.size(), 100);
         for (int i = 0; i < show; i++) {
             const auto &h = deauthLog[i];
-            results += std::string(h.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
+            results += std::string(h.isDisassoc ? "DISASSOC" : "DEAUTH");
+            
+            // Add attack type indicator
+            if (h.isBroadcast) {
+                results += " [BROADCAST]";
+            } else if (deauthTargetCounts[macFmt6(h.destMac)] >= 3) {
+                results += " [TARGETED]";
+            }
+            
+            results += " ";
             results += std::string(macFmt6(h.srcMac).c_str()) + " -> " + std::string(macFmt6(h.destMac).c_str());
             results += " BSSID:" + std::string(macFmt6(h.bssid).c_str());
             results += " RSSI:" + std::to_string(h.rssi) + "dBm";
@@ -1604,7 +1875,14 @@ void beaconFloodTask(void *pv) {
 
         int show = min((int)sorted.size(), 50);
         for (int i = 0; i < show; i++) {
-            results += std::string(sorted[i].first.c_str()) + " : " + std::to_string(sorted[i].second) + " beacons\n";
+            const auto &h = beaconLog[i];
+            results += "BEACON FLOOD: MAC:" + std::string(macFmt6(h.srcMac).c_str());
+            results += " SSID:" + std::string(hit.ssid.length() > 0 ? hit.ssid.c_str() : "[Hidden]");
+            if (h.reason.length() > 0) {
+                results += " [" + std::string(h.reason.c_str()) + "]";
+            }
+            results += " RSSI:" + std::to_string(h.rssi) + "dBm";
+            results += " CH:" + std::to_string(h.channel) + "\n";
         }
 
         if ((int)sorted.size() > show) {
@@ -1619,18 +1897,20 @@ void beaconFloodTask(void *pv) {
     vTaskDelete(nullptr);
 }
 
-
-
 static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
 
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
+    detectPwnagotchi(ppkt);
+    detectPineapple(ppkt);
+    detectMultiSSID(ppkt);
+    detectEspressif(ppkt);
     detectDeauthFrame(ppkt);
     detectBeaconFlood(ppkt);
-    detectEvilTwin(ppkt);
     detectKarmaAttack(ppkt);
     detectProbeFlood(ppkt);
+    detectEvilTwin(ppkt);
     detectEAPOLHarvesting(ppkt);
 
     framesSeen = framesSeen + 1;
@@ -2123,71 +2403,297 @@ void cleanupMaps() {
     const size_t MAX_MAP_SIZE = 100;
     const size_t MAX_TIMING_SIZE = 50;
     const size_t MAX_LOG_SIZE = 500;
-    
-    // Clean deauth maps
+    const uint32_t EVICTION_AGE_MS = 30000;  // Remove entries older than 30s
+    uint32_t now = millis();
+
+    // Clean deauth maps (sources, targets, timings)
     if (deauthSourceCounts.size() > MAX_MAP_SIZE) {
         std::vector<String> toRemove;
-        for (auto& entry : deauthSourceCounts) {
-            if (entry.second < 2) toRemove.push_back(entry.first);
-        }
-        for (auto& key : toRemove) {
-            deauthSourceCounts.erase(key);
-            deauthTimings.erase(key);
-        }
-    }
-    
-    // Clean beacon maps
-    if (beaconCounts.size() > MAX_MAP_SIZE) {
-        uint32_t now = millis();
-        std::vector<String> toRemove;
-        for (auto& entry : beaconLastSeen) {
-            if (now - entry.second > 30000) { // Remove MACs not seen for 30s
+        for (const auto& entry : deauthSourceCounts) {
+            if (entry.second < 2) {  // Low activity
                 toRemove.push_back(entry.first);
             }
         }
-        for (auto& key : toRemove) {
+        for (const auto& key : toRemove) {
+            deauthSourceCounts.erase(key);
+            deauthTargetCounts.erase(key);
+            deauthTimings.erase(key);
+        }
+        // Trim timings vectors (keep recent)
+        for (auto it = deauthTimings.begin(); it != deauthTimings.end(); ) {
+            auto& vec = it->second;
+            vec.erase(std::remove_if(vec.begin(), vec.end(), [now](uint32_t t) { return now - t > EVICTION_AGE_MS; }), vec.end());
+            if (vec.size() > MAX_TIMING_SIZE) {
+                vec.erase(vec.begin(), vec.begin() + (vec.size() - MAX_TIMING_SIZE));  // Vector OK here
+            }
+            if (vec.empty()) {
+                it = deauthTimings.erase(it);  // Safe erase with post-increment
+            } else {
+                ++it;
+            }
+        }
+    }
+    if (deauthQueue) xQueueReset(deauthQueue);  // Flush old hits
+
+    // Clean deauth logs (vector - trim oldest)
+    if (deauthLog.size() > MAX_LOG_SIZE) {
+        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - MAX_LOG_SIZE));
+    }
+
+    // Clean beacon maps (counts, lastSeen, timings)
+    if (beaconCounts.size() > MAX_MAP_SIZE) {
+        std::vector<String> toRemove;
+        for (const auto& entry : beaconLastSeen) {
+            if (now - entry.second > EVICTION_AGE_MS) {  // Old MACs
+                toRemove.push_back(entry.first);
+            }
+        }
+        for (const auto& key : toRemove) {
             beaconCounts.erase(key);
             beaconLastSeen.erase(key);
             beaconTimings.erase(key);
         }
+        // Trim timings
+        for (auto it = beaconTimings.begin(); it != beaconTimings.end(); ) {
+            auto& vec = it->second;
+            vec.erase(std::remove_if(vec.begin(), vec.end(), [now](uint32_t t) { return now - t > EVICTION_AGE_MS; }), vec.end());
+            if (vec.size() > MAX_TIMING_SIZE) {
+                vec.erase(vec.begin(), vec.begin() + (vec.size() - MAX_TIMING_SIZE));
+            }
+            if (vec.empty()) {
+                it = beaconTimings.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        // Force clear if still too big
+        if (beaconCounts.size() > MAX_MAP_SIZE * 2) {
+            beaconCounts.clear();
+            beaconLastSeen.clear();
+            beaconTimings.clear();
+        }
     }
-    
-    // Force cleanup if still too big
-    if (beaconCounts.size() > MAX_MAP_SIZE * 2) {
-        beaconCounts.clear();
-        beaconLastSeen.clear();
-        beaconTimings.clear();
+    if (beaconQueue) xQueueReset(beaconQueue);
+
+    // Clean beacon logs
+    if (beaconLog.size() > MAX_LOG_SIZE) {
+        beaconLog.erase(beaconLog.begin(), beaconLog.begin() + (beaconLog.size() - MAX_LOG_SIZE));
     }
-    
-    // Clean probe maps
+
+    // Clean BLE maps (advCounts, advTimings)
+    if (bleAdvCounts.size() > MAX_MAP_SIZE) {
+        std::vector<String> toRemove;
+        for (const auto& entry : bleAdvCounts) {
+            if (entry.second < 2) {  // Low activity
+                toRemove.push_back(entry.first);
+            }
+        }
+        for (const auto& key : toRemove) {
+            bleAdvCounts.erase(key);
+            bleAdvTimings.erase(key);
+        }
+        // Trim timings
+        for (auto it = bleAdvTimings.begin(); it != bleAdvTimings.end(); ) {
+            auto& vec = it->second;
+            vec.erase(std::remove_if(vec.begin(), vec.end(), [now](uint32_t t) { return now - t > EVICTION_AGE_MS; }), vec.end());
+            if (vec.size() > MAX_TIMING_SIZE) {
+                vec.erase(vec.begin(), vec.begin() + (vec.size() - MAX_TIMING_SIZE));
+            }
+            if (vec.empty()) {
+                it = bleAdvTimings.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    if (bleSpamQueue) xQueueReset(bleSpamQueue);
+    if (bleAnomalyQueue) xQueueReset(bleAnomalyQueue);
+
+    // Clean BLE logs
+    if (bleSpamLog.size() > MAX_LOG_SIZE) {
+        bleSpamLog.erase(bleSpamLog.begin(), bleSpamLog.begin() + (bleSpamLog.size() - MAX_LOG_SIZE));
+    }
+
+    // Clean Karma maps (clientProbeRequests, karmaAPResponses)
+    if (karmaAPResponses.size() > MAX_MAP_SIZE) {
+        std::vector<String> toRemove;
+        for (const auto& entry : karmaAPResponses) {
+            if (entry.second < 2) {  // Low responses
+                toRemove.push_back(entry.first);
+            }
+        }
+        for (const auto& key : toRemove) {
+            karmaAPResponses.erase(key);
+            clientProbeRequests.erase(key);  // Linked per-AP
+        }
+        // Trim clientProbeRequests vectors (keep last 50 SSIDs per client)
+        for (auto it = clientProbeRequests.begin(); it != clientProbeRequests.end(); ) {
+            auto& vec = it->second;
+            if (vec.size() > 50) {
+                vec.erase(vec.begin(), vec.begin() + (vec.size() - 50));
+            }
+            if (vec.empty()) {
+                it = clientProbeRequests.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        if (clientProbeRequests.size() > MAX_MAP_SIZE) {
+            clientProbeRequests.clear();  // Force if too many clients
+        }
+    }
+    if (karmaQueue) xQueueReset(karmaQueue);
+
+    // Clean Probe Flood maps (probeRequestCounts, probeTimings)
     if (probeRequestCounts.size() > MAX_MAP_SIZE) {
-        probeRequestCounts.clear();
+        probeRequestCounts.clear();  // Simple clear (counts repopulate easily)
     }
     if (probeTimings.size() > MAX_MAP_SIZE) {
-        probeTimings.clear();
+        std::vector<String> toRemove;
+        for (auto it = probeTimings.begin(); it != probeTimings.end(); ) {
+            auto& vec = it->second;
+            vec.erase(std::remove_if(vec.begin(), vec.end(), [now](uint32_t t) { return now - t > EVICTION_AGE_MS; }), vec.end());
+            if (vec.size() > MAX_TIMING_SIZE) {
+                vec.erase(vec.begin(), vec.begin() + (vec.size() - MAX_TIMING_SIZE));
+            }
+            if (vec.empty()) {
+                toRemove.push_back(it->first);
+            }
+            ++it;  // Post-increment before potential erase
+        }
+        for (const auto& key : toRemove) {
+            probeTimings.erase(key);
+        }
+        if (probeTimings.size() > MAX_MAP_SIZE) {
+            probeTimings.clear();
+        }
+    }
+    if (probeFloodQueue) xQueueReset(probeFloodQueue);
+
+    // Clean Evil Twin (knownAPs, suspiciousAPs)
+    if (knownAPs.size() > MAX_MAP_SIZE) {
+        std::vector<String> toRemove;
+        for (const auto& entry : knownAPs) {
+            if (now - entry.second.lastSeen > EVICTION_AGE_MS) {
+                toRemove.push_back(entry.first);
+            }
+        }
+        for (const auto& key : toRemove) {
+            knownAPs.erase(key);
+        }
+        // suspiciousAPs is vector<String>, trim oldest
+        if (suspiciousAPs.size() > MAX_MAP_SIZE) {
+            suspiciousAPs.erase(suspiciousAPs.begin(), suspiciousAPs.begin() + (suspiciousAPs.size() - MAX_MAP_SIZE));
+        }
+    }
+    if (evilTwinQueue) xQueueReset(evilTwinQueue);
+
+    // Clean EAPOL (eapolCaptureAttempts)
+    if (eapolCaptureAttempts.size() > MAX_MAP_SIZE) {
+        std::vector<String> toRemove;
+        for (const auto& entry : eapolCaptureAttempts) {
+            if (entry.second < 2) {  // Low attempts
+                toRemove.push_back(entry.first);
+            }
+        }
+        for (const auto& key : toRemove) {
+            eapolCaptureAttempts.erase(key);
+        }
+    }
+    if (eapolQueue) xQueueReset(eapolQueue);
+}
+
+// Pwnagotchi detection task
+void pwnagotchiDetectionTask(void *pv) {
+    int duration = (int)(intptr_t)pv;
+    bool forever = (duration <= 0);
+    
+    Serial.println("[PWN] Starting Pwnagotchi detection");
+    
+    stopAPAndServer();
+    pwnagotchiLog.clear();
+    pwnagotchiCount = 0;
+    stopRequested = false;
+    
+    radioStartSTA();
+    
+    uint32_t scanStart = millis();
+    
+    while ((forever && !stopRequested) || 
+           (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
+        
+        if (pwnagotchiLog.size() > 0) {
+            for (const auto& hit : pwnagotchiLog) {
+                String alert = "[PWNAGOTCHI] " + hit.name + 
+                              " pwnd:" + String(hit.pwnd_tot) +
+                              " RSSI:" + String(hit.rssi);
+                Serial.println(alert);
+                logToSD(alert);
+            }
+            pwnagotchiLog.clear();
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     
-    // Clean BLE maps
-    if (bleAdvCounts.size() > MAX_MAP_SIZE) {
-        bleAdvCounts.clear();
-    }
-    if (bleAdvTimings.size() > MAX_MAP_SIZE) {
-        bleAdvTimings.clear();
+    radioStopSTA();
+    startAPAndServer();
+    blueTeamTaskHandle = nullptr;
+    vTaskDelete(nullptr);
+}
+
+// Multi-SSID detection task
+void multissidDetectionTask(void *pv) {
+    int duration = (int)(intptr_t)pv;
+    bool forever = (duration <= 0);
+    
+    Serial.println("[MULTI] Starting Multi-SSID AP detection");
+    
+    stopAPAndServer();
+    multissidTrackers.clear();
+    confirmedMultiSSID.clear();
+    multissidCount = 0;
+    stopRequested = false;
+    
+    radioStartSTA();
+    
+    uint32_t scanStart = millis();
+    uint32_t lastCleanup = millis();
+    
+    while ((forever && !stopRequested) || 
+           (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
+        
+        // Cleanup old trackers every 30 seconds
+        if (millis() - lastCleanup > 30000) {
+            uint32_t now = millis();
+            multissidTrackers.erase(
+                std::remove_if(multissidTrackers.begin(), multissidTrackers.end(),
+                    [now](const MultiSSIDTracker& t) { 
+                        return (now - t.last_seen) > 60000; 
+                    }),
+                multissidTrackers.end());
+            lastCleanup = millis();
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     
-    // Clean client probe requests
-    if (clientProbeRequests.size() > MAX_MAP_SIZE) {
-        clientProbeRequests.clear();
+    // Store results
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        std::string results = "Multi-SSID AP Detection Results\n";
+        results += "Confirmed Multi-SSID APs: " + std::to_string(confirmedMultiSSID.size()) + "\n\n";
+        
+        for (const auto& c : confirmedMultiSSID) {
+            results += "MAC: " + std::string(macFmt6(c.mac).c_str());
+            results += " SSIDs: " + std::to_string(c.ssid_count) + "\n";
+        }
+        
+        antihunter::lastResults = results;
     }
     
-    // Clean logs
-    if (deauthLog.size() > MAX_LOG_SIZE) {
-        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + 100);
-    }
-    if (beaconLog.size() > MAX_LOG_SIZE) {
-        beaconLog.erase(beaconLog.begin(), beaconLog.begin() + 100);
-    }
-    if (bleSpamLog.size() > MAX_LOG_SIZE) {
-        bleSpamLog.erase(bleSpamLog.begin(), bleSpamLog.begin() + 100);
-    }
+    radioStopSTA();
+    startAPAndServer();
+    blueTeamTaskHandle = nullptr;
+    vTaskDelete(nullptr);
 }
