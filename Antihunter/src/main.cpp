@@ -165,9 +165,9 @@ void setup() {
 }
 
 void loop() {
-  // NodeID HB every 15 minutes
-  static unsigned long lastNodeIdSend = 0;
-  if (millis() - lastNodeIdSend > 900000) {
+    // NodeID HB every 15 minutes
+    static unsigned long lastNodeIdSend = 0;
+    if (millis() - lastNodeIdSend > 900000) {
       sendNodeIdUpdate();
       lastNodeIdSend = millis();
   }
