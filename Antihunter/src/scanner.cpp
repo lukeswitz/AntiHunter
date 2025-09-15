@@ -1410,8 +1410,6 @@ void snifferScanTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
-        esp_task_wdt_reset();
-
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)
         {
             lastWiFiScan = millis();
@@ -1483,7 +1481,7 @@ void snifferScanTask(void *pv)
 
             if (bleScan)
             {
-                esp_task_wdt_reset();
+                // esp_task_wdt_reset();
                 BLEScanResults scanResults = bleScan->start(1, false);
 
                 for (int i = 0; i < scanResults.getCount(); i++)
@@ -1615,9 +1613,7 @@ void snifferScanTask(void *pv)
         antihunter::lastResults = results;
     }
 
-    esp_task_wdt_reset();
     vTaskDelay(pdMS_TO_TICKS(100));
-    esp_task_wdt_delete(NULL);
     
     startAPAndServer();
     workerTaskHandle = nullptr;
