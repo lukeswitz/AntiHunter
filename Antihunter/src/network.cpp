@@ -1108,21 +1108,31 @@ void processMeshMessage(const String &message) {
 
 void processUSBToMesh() {
     static String usbBuffer = "";
+    
     while (Serial.available()) {
-        char c = Serial.write(Serial.read());
-        if (c == '\n' || c == '\r' || c == ':') {
-            if (usbBuffer.length() > 0) {
-                Serial.println(usbBuffer);  
-                processMeshMessage(usbBuffer.c_str());
-                Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
+        char c = Serial.read();
+        Serial.write(c);
+        // Only process printable ASCII characters and line endings for mesh
+        if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
+            if (c == '\n' || c == '\r') {
+                if (usbBuffer.length() > 5 && usbBuffer.length() <= 240) {  // Mesh 240 char limit
+                    Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
+                    processMeshMessage(usbBuffer.c_str());
+                } else if (usbBuffer.length() > 0) {
+                    Serial.println("[MESH] Ignoring invalid message length");
+                }
                 usbBuffer = "";
+            } else {
+                usbBuffer += c;
             }
         } else {
-            usbBuffer += c;
-            Serial.println(usbBuffer); 
-            if (usbBuffer.length() > 2048) {
-                usbBuffer = "";
-            }
+            // ecchooooo
+        }
+        
+        // Prevent buffer overflow at mesh limit
+        if (usbBuffer.length() > 240) {
+            Serial.println("[MESH] at 240 chars, clearing");
+            usbBuffer = "";
         }
     }
 }
