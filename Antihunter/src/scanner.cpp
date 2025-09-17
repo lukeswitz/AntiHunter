@@ -1563,10 +1563,8 @@ void snifferScanTask(void *pv)
         delay(200);
     }
 
-    WiFi.scanDelete();
-    WiFi.disconnect(true);
-    delay(200);
-
+    stopAPAndServer();
+    
     scanning = false;
     lastScanEnd = millis();
 

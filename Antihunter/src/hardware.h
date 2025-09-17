@@ -22,8 +22,6 @@
 #define VIBRATION_PIN 1  // SW-420   (GPIO1)
 #endif
 
-#define TEMP_SENSOR_PIN 6  // DS18B20       (GPIO6)
-
 // SD Card (SPI)
 #define SD_CS_PIN   2    // CS on D1        (GPIO2)
 #define SD_CLK_PIN  7    // CLK (SCK)       (GPIO7)
@@ -57,8 +55,5 @@ int getGapMs();
 void logToSD(const String &data);
 String getGPSData();
 void updateGPSLocation();
-extern float ambientTemp;
-extern bool tempSensorAvailable;
-void updateTemperature();
 void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
