@@ -7,8 +7,7 @@
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include "esp_wifi.h"
-#include <OneWire.h>
-#include <DallasTemperature.h>
+
 
 extern Preferences prefs;
 extern int cfgBeeps, cfgGapMs;
@@ -22,12 +21,6 @@ bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
-
-// Temp
-OneWire oneWire(TEMP_SENSOR_PIN);
-DallasTemperature tempSensor(&oneWire);
-float ambientTemp = 0.0;
-bool tempSensorAvailable = false;
 
 // Viration Sensor
 volatile bool vibrationDetected = false;
@@ -127,29 +120,6 @@ void initializeHardware()
     }
     setNodeId(nodeId);
     Serial.println("[NODE_ID] " + nodeId);
-
-    // Initialize DS18B20 temperature sensor (optional)
-    Serial.println("Checking for DS18B20 temperature sensor...");
-    tempSensor.begin();
-    delay(100);
-    
-    if (tempSensor.getDeviceCount() > 0) {
-        tempSensor.requestTemperatures();
-        float testTemp = tempSensor.getTempCByIndex(0);
-        
-        if (testTemp != DEVICE_DISCONNECTED_C && testTemp > -50 && testTemp < 85) {
-            tempSensorAvailable = true;
-            ambientTemp = testTemp;
-            Serial.printf("[DS18B20] Temperature sensor found: %.1f°C\n", ambientTemp);
-        } else {
-            tempSensorAvailable = false;
-            Serial.println("[DS18B20] Sensor connected but reading invalid");
-        }
-    } else {
-        tempSensorAvailable = false;
-        Serial.println("[DS18B20] No temperature sensor found (optional)");
-    }
-
     Serial.printf("Hardware initialized: beeps=%d, gap=%dms, nodeID=%s\n", cfgBeeps, cfgGapMs, nodeId);
 }
 
@@ -271,12 +241,6 @@ String getDiagnostics() {
 
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";
 
-    if (tempSensorAvailable) {
-        updateTemperature();
-        float temp_f = (ambientTemp * 9.0 / 5.0) + 32.0;
-        s += "Ambient Temp: " + String(ambientTemp, 1) + "°C / " + String(temp_f, 1) + "°F\n";
-    }
-
     float temp_c = temperatureRead();
     float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
     s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
@@ -374,11 +338,13 @@ void initializeGPS() {
 }
 
 void sendStartupStatus() {
+    float temp_c = temperatureRead();
+    float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
+
     String startupMsg = getNodeId() + ": STARTUP: System initialized";
     startupMsg += " GPS:";
     startupMsg += (gpsValid ? "LOCKED" : "SEARCHING");
-    startupMsg += " Temp:";
-    startupMsg += (tempSensorAvailable ? String(ambientTemp, 1) + "C" : "N/A");
+    startupMsg += "TEMP: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
     startupMsg += " SD:";
     startupMsg += (sdAvailable ? "OK" : "FAIL");
     startupMsg += " Status:ONLINE";
@@ -576,26 +542,5 @@ void checkAndSendVibrationAlert() {
         } else {
             Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
         }
-    }
-}
-
-void updateTemperature() {
-    static unsigned long lastTempRead = 0;
-    
-    if (!tempSensorAvailable) return;
-    
-    // Only read every 10 seconds to avoid blocking
-    if (millis() - lastTempRead < 10000) return;
-    lastTempRead = millis();
-    
-    tempSensor.requestTemperatures();
-    float newTemp = tempSensor.getTempCByIndex(0);
-    
-    if (newTemp != DEVICE_DISCONNECTED_C && newTemp > -50 && newTemp < 85) {
-        ambientTemp = newTemp;
-    } else {
-        // Sensor disconnected or error
-        tempSensorAvailable = false;
-        Serial.println("[DS18B20] Temperature sensor error");
     }
 }
