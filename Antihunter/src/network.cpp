@@ -40,143 +40,6 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
-struct GPSObservation {
-    String mac;
-    String nodeId;
-    float lat;
-    float lon;
-    int rssi;
-    unsigned long timestamp;
-};
-std::vector<GPSObservation> gpsObservations;
-
-struct TriangulationResult {
-    bool success;
-    float lat;
-    float lon;
-    float errorRadius;
-    int nodeCount;
-    String error;
-};
-
-
-// Convert RSSI to distance in meters
-float rssiToDistance(int rssi) {
-    // Free space path loss: d = 10^((Ptx - Prx - 20*log10(f) + 27.55) / 20)
-    // Simplified: d = 10^((A - RSSI) / (10 * n))
-    // A = -40 dBm at 1m, n = 2.5 for mixed environment
-    return pow(10, (-40 - rssi) / 25.0);
-}
-
-// Haversine distance between two GPS points in meters
-float gpsDistance(float lat1, float lon1, float lat2, float lon2) {
-    const float R = 6371000; // Earth radius in meters
-    float dLat = (lat2 - lat1) * M_PI / 180;
-    float dLon = (lon2 - lon1) * M_PI / 180;
-    float a = sin(dLat/2) * sin(dLat/2) +
-              cos(lat1 * M_PI / 180) * cos(lat2 * M_PI / 180) *
-              sin(dLon/2) * sin(dLon/2);
-    float c = 2 * atan2(sqrt(a), sqrt(1-a));
-    return R * c;
-}
-
-// Convert GPS to local XY coordinates (meters from reference point)
-void gpsToXY(float refLat, float refLon, float lat, float lon, float& x, float& y) {
-    const float R = 6371000;
-    x = R * (lon - refLon) * M_PI / 180 * cos(refLat * M_PI / 180);
-    y = R * (lat - refLat) * M_PI / 180;
-}
-
-// Convert XY back to GPS
-void xyToGPS(float refLat, float refLon, float x, float y, float& lat, float& lon) {
-    const float R = 6371000;
-    lat = refLat + (y / R) * 180 / M_PI;
-    lon = refLon + (x / (R * cos(refLat * M_PI / 180))) * 180 / M_PI;
-}
-
-// Actual trilateration algorithm
-TriangulationResult triangulate(const String& targetMAC) {
-    TriangulationResult result = {false, 0, 0, 0, 0, ""};
-    
-    // Get fresh observations (last 30 seconds)
-    std::vector<GPSObservation> validObs;
-    unsigned long cutoff = millis() - 30000;
-    
-    for (const auto& obs : gpsObservations) {
-        if (obs.mac == targetMAC && obs.timestamp > cutoff && obs.lat != 0 && obs.lon != 0) {
-            validObs.push_back(obs);
-        }
-    }
-    
-    result.nodeCount = validObs.size();
-    
-    if (validObs.size() < 3) {
-        result.error = "Need at least 3 nodes with GPS (have " + String(validObs.size()) + ")";
-        return result;
-    }
-    
-    // Use first observation as reference point
-    float refLat = validObs[0].lat;
-    float refLon = validObs[0].lon;
-    
-    // Convert all observations to XY plane
-    std::vector<float> x, y, r;
-    for (const auto& obs : validObs) {
-        float xi, yi;
-        gpsToXY(refLat, refLon, obs.lat, obs.lon, xi, yi);
-        x.push_back(xi);
-        y.push_back(yi);
-        r.push_back(rssiToDistance(obs.rssi));
-    }
-    
-    // Trilateration using least squares for overdetermined system
-    // Solve: (x - xi)^2 + (y - yi)^2 = ri^2
-    // Linear form: 2(x1-xi)*x + 2(y1-yi)*y = r1^2 - ri^2 + xi^2 + yi^2 - x1^2 - y1^2
-    
-    float sumX = 0, sumY = 0, sumXX = 0, sumYY = 0, sumXY = 0;
-    float sumXR = 0, sumYR = 0, sumR = 0;
-    
-    for (int i = 1; i < validObs.size(); i++) {
-        float A = 2 * (x[0] - x[i]);
-        float B = 2 * (y[0] - y[i]);
-        float C = r[0]*r[0] - r[i]*r[i] + x[i]*x[i] + y[i]*y[i] - x[0]*x[0] - y[0]*y[0];
-        
-        sumX += A;
-        sumY += B;
-        sumXX += A * A;
-        sumYY += B * B;
-        sumXY += A * B;
-        sumXR += A * C;
-        sumYR += B * C;
-        sumR += C;
-    }
-    
-    // Solve 2x2 linear system
-    float det = sumXX * sumYY - sumXY * sumXY;
-    if (fabs(det) < 0.001) {
-        result.error = "Nodes too collinear for triangulation";
-        return result;
-    }
-    
-    float estX = (sumYY * sumXR - sumXY * sumYR) / det;
-    float estY = (sumXX * sumYR - sumXY * sumXR) / det;
-    
-    // Convert back to GPS
-    xyToGPS(refLat, refLon, estX, estY, result.lat, result.lon);
-    
-    // Calculate error estimate (RMS of residuals)
-    float errorSum = 0;
-    for (int i = 0; i < validObs.size(); i++) {
-        float dist = gpsDistance(result.lat, result.lon, validObs[i].lat, validObs[i].lon);
-        float residual = dist - r[i];
-        errorSum += residual * residual;
-    }
-    result.errorRadius = sqrt(errorSum / validObs.size());
-    
-    result.success = true;
-    return result;
-}
-
 
 void initializeNetwork()
 { 
@@ -273,7 +136,6 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       <div class="row" style="margin-top:10px">
         <button class="btn primary" type="submit">Start List Scan</button>
         <a class="btn" href="/stop" data-ajax="true">Stop</a>
-        <a class="btn alt" href="/triangulate_scan" data-ajax="true">Triangulate</a>
       </div>
       <p class="small">AP goes offline during scan and returns.</p>
     </form>
@@ -538,50 +400,6 @@ void startWebServer()
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
-      
-      // Group observations by MAC
-      std::map<String, int> macCounts;
-      for (const auto& obs : gpsObservations) {
-          if (millis() - obs.timestamp < 30000) {
-              macCounts[obs.mac]++;
-          }
-      }
-      
-      // Only triangulate if we have 3+ observations
-      bool hasTriangulation = false;
-      for (const auto& pair : macCounts) {
-          if (pair.second >= 3) {
-              if (!hasTriangulation) {
-                  results += "\n\n=== TRIANGULATION (3+ NODES) ===\n";
-                  hasTriangulation = true;
-              }
-              
-              TriangulationResult tri = triangulate(pair.first);
-              if (tri.success) {
-                  results += pair.first + ":\n";
-                  results += "  LOCATION: " + String(tri.lat, 6) + "," + String(tri.lon, 6) + "\n";
-                  results += "  ERROR: ±" + String(tri.errorRadius, 1) + "m\n";
-                  results += "  NODES: " + String(tri.nodeCount) + "\n";
-                  results += "  MAP: https://maps.google.com/?q=" + String(tri.lat, 6) + "," + String(tri.lon, 6) + "\n";
-              } else {
-                  results += pair.first + ": FAILED - " + tri.error + "\n";
-              }
-          }
-      }
-      
-      // Show observations that don't have enough nodes
-      bool hasPartial = false;
-      for (const auto& pair : macCounts) {
-          if (pair.second > 0 && pair.second < 3) {
-              if (!hasPartial) {
-                  results += "\n\n=== INSUFFICIENT DATA (<3 NODES) ===\n";
-                  hasPartial = true;
-              }
-              results += pair.first + ": " + String(pair.second) + " node(s) - need " + 
-                        String(3 - pair.second) + " more\n";
-          }
-      }
-      
       r->send(200, "text/plain", results);
   });
 
@@ -866,23 +684,6 @@ else if (detection == "multi-ssid") {
 
   server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "text/plain", getSnifferCache());
-  });
-
-  server->on("/triangulate_scan", HTTP_GET, [](AsyncWebServerRequest *r) {
-      // Clear old observations
-      gpsObservations.clear();
-      
-      // Trigger network-wide scan
-      String cmd = "@ALL SCAN_START:0:15:";  // 15 second scan
-      if (Serial1.availableForWrite() >= cmd.length()) {
-          Serial1.println(cmd);
-      }
-      
-      String response = "Network-wide triangulation scan started (15 seconds)\n";
-      response += "Minimum 3 nodes with GPS required for triangulation\n";
-      response += "Check /results in 20 seconds for triangulated positions";
-      
-      r->send(200, "text/plain", response);
   });
 
   server->begin();
@@ -1269,14 +1070,7 @@ void processCommand(const String &command) {
                       ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") :
                       "No vibrations detected";
         Serial1.println(nodeId + ": VIBRATION_STATUS: " + status);
-    } else if (command.startsWith("TRIANGULATE_SCAN")) {
-      // Trigger network-wide scan for triangulation
-      String scanCmd = "@ALL SCAN_START:0:10:";  // WiFi mode, 10 seconds
-      if (Serial1.availableForWrite() >= scanCmd.length()) {
-          Serial1.println(scanCmd);
-          Serial.println("[TRIANGULATE] Started network-wide scan for triangulation");
-      }
-  }
+    }
 }
 
 void sendMeshCommand(const String &command) {
@@ -1314,51 +1108,6 @@ void processMeshMessage(const String &message) {
     }
     
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
-    
-    int colonIdx = cleanMessage.indexOf(':');
-    if (colonIdx > 0) {
-        String sendingNodeId = cleanMessage.substring(0, colonIdx);
-        String remainder = cleanMessage.substring(colonIdx + 2);
-        
-        if (remainder.startsWith("Target:")) {
-            int macStart = remainder.indexOf(' ', 8) + 1;
-            int macEnd = remainder.indexOf(' ', macStart);
-            
-            if (macStart > 0 && macEnd > 0) {
-                String macStr = remainder.substring(macStart, macEnd);
-                
-                int rssiIdx = remainder.indexOf("RSSI:");
-                int rssi = -100;
-                if (rssiIdx > 0) {
-                    int rssiEnd = remainder.indexOf(' ', rssiIdx + 5);
-                    if (rssiEnd < 0) rssiEnd = remainder.length();
-                    rssi = remainder.substring(rssiIdx + 5, rssiEnd).toInt();
-                }
-                
-                int gpsIdx = remainder.indexOf("GPS=");
-                if (gpsIdx > 0) {
-                    int commaIdx = remainder.indexOf(',', gpsIdx);
-                    if (commaIdx > 0) {
-                        float lat = remainder.substring(gpsIdx + 4, commaIdx).toFloat();
-                        int gpsEnd = remainder.indexOf(' ', commaIdx);
-                        if (gpsEnd < 0) gpsEnd = remainder.length();
-                        float lon = remainder.substring(commaIdx + 1, gpsEnd).toFloat();
-                        
-                        GPSObservation obs = {macStr, sendingNodeId, lat, lon, rssi, millis()};
-                        gpsObservations.push_back(obs);
-                        if (gpsObservations.size() > 500) {
-                            gpsObservations.erase(gpsObservations.begin());
-                        }
-                        
-                        Serial.printf("[TRIANGULATE] %s saw %s at %ddBm (%.1fm) from %.6f,%.6f\n",
-                                     sendingNodeId.c_str(), macStr.c_str(), rssi, 
-                                     rssiToDistance(rssi), lat, lon);
-                    }
-                }
-            }
-            return;
-        }
-    }
     
     if (cleanMessage.startsWith("@")) {
         int spaceIndex = cleanMessage.indexOf(' ');
