@@ -20,11 +20,28 @@ extern bool meshEnabled;
 #define AP_CHANNEL 6
 #endif
 
+struct TriangulationNode {
+    String nodeId;
+    float lat, lon;
+    int8_t rssi;
+    uint32_t hitCount;
+    bool hasGPS;
+};
+
+// Triangulation functions
+String calculateTriangulationResults();
+void stopTriangulation();
+void startTriangulation(const String &targetMac, int duration);
+bool isTriangulationActive();
+
+// Network and Web Server functions
 void initializeNetwork();
 void initializeMesh();
 void startWebServer();
 void startAPAndServer();
 void stopAPAndServer();
+
+// Mesh communication functions
 void sendMeshNotification(const Hit &hit);
 void sendTrackerMeshUpdate();
 void sendMeshCommand(const String &command);

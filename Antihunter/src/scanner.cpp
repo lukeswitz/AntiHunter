@@ -2053,12 +2053,28 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 // ---------- Radio common ----------
 static void radioStartWiFi()
 {
+    // Clean initialization
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_err_t err = esp_wifi_init(&cfg);
+    if (err != ESP_OK) {
+        Serial.printf("[RADIO] WiFi init error: %d\n", err);
+        return;
+    }
+    
     WiFi.mode(WIFI_MODE_STA);
+    delay(500);
+    
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
-    esp_wifi_start();
+    
+    err = esp_wifi_start();
+    if (err != ESP_OK) {
+        Serial.printf("[RADIO] WiFi start error: %d\n", err);
+        return;
+    }
+    delay(300);
 
     wifi_promiscuous_filter_t filter = {};
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
@@ -2069,25 +2085,21 @@ static void radioStartWiFi()
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
     esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
     
-    // Setup channel hopping
+    // Setup channel hopping with cleanup check
     if (hopTimer) {
         esp_timer_stop(hopTimer);
         esp_timer_delete(hopTimer);
         hopTimer = nullptr;
     }
-    const esp_timer_create_args_t targs = {.callback = &hopTimerCb, .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "hop"};
+    
+    const esp_timer_create_args_t targs = {
+        .callback = &hopTimerCb, 
+        .arg = nullptr, 
+        .dispatch_method = ESP_TIMER_TASK, 
+        .name = "hop"
+    };
     esp_timer_create(&targs, &hopTimer);
     esp_timer_start_periodic(hopTimer, 300000); // 300ms
-}
-
-static void radioStartBLE()
-{
-    BLEDevice::init("");
-    pBLEScan = BLEDevice::getScan();
-    pBLEScan->setAdvertisedDeviceCallbacks(new MyBLEAdvertisedDeviceCallbacks());
-    pBLEScan->setActiveScan(true); // More power but faster results
-    pBLEScan->setInterval(100);    // 100ms intervals
-    pBLEScan->setWindow(99);       // 99ms windows (must be <= interval)
 }
 
 static void radioStopWiFi()
@@ -2101,7 +2113,7 @@ static void radioStopWiFi()
         hopTimer = nullptr;
     }
     esp_wifi_stop();
-    esp_wifi_deinit(); // fix AP bind error
+    esp_wifi_deinit();
 }
 
 static void radioStopBLE()
@@ -2114,9 +2126,23 @@ static void radioStopBLE()
     }
 }
 
+static void radioStartBLE()
+{
+    BLEDevice::init("");
+    pBLEScan = BLEDevice::getScan();
+    pBLEScan->setAdvertisedDeviceCallbacks(new MyBLEAdvertisedDeviceCallbacks());
+    pBLEScan->setActiveScan(true);
+    pBLEScan->setInterval(100);    
+    pBLEScan->setWindow(99); 
+}
+
 static void radioStartSTA()
 {
-    // Enable coexistence for WiFi+BLE
+    Serial.println("[RADIO] Starting STA mode for scanning");
+    
+    esp_wifi_set_mode(WIFI_MODE_NULL);
+    delay(200);
+    
     esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH)
@@ -2128,10 +2154,34 @@ static void radioStartSTA()
         radioStartBLE();
     }
 }
-
 static void radioStopSTA()
 {
-    radioStopWiFi();
+    esp_wifi_set_promiscuous(false);
+    esp_wifi_set_promiscuous_rx_cb(NULL);
+    delay(230);
+    
+    if (hopTimer) {
+        esp_timer_stop(hopTimer);
+        esp_timer_delete(hopTimer);
+        hopTimer = nullptr;
+        delay(50); 
+    }
+    
+    esp_wifi_set_mode(WIFI_MODE_NULL);
+    delay(200);
+    
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK) {
+        Serial.printf("[RADIO] WiFi stop warning: %d\n", err);
+    }
+    delay(300);
+    
+    err = esp_wifi_deinit();
+    if (err != ESP_OK) {
+        Serial.printf("[RADIO] WiFi deinit warning: %d\n", err);
+    }
+    delay(200);
+    
     radioStopBLE();
 }
 
@@ -2154,9 +2204,9 @@ void listScanTask(void *pv) {
                   forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str(),
                   modeStr.c_str());
 
-    
+
     stopAPAndServer();
-    
+
 
     stopRequested = false;
     if (macQueue) {
@@ -2239,18 +2289,18 @@ void listScanTask(void *pv) {
     // BUILD AND STORE RESULTS
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        
-        std::string results = 
+
+        std::string results =
             "List scan - Mode: " + std::string(modeStr.c_str()) +
             " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n" +
             "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
             "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
             "Total hits: " + std::to_string(totalHits) + "\n" +
             "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
-        
+
         // Sort hits by RSSI (strongest first)
         std::vector<Hit> sortedHits = hitsLog;
-        std::sort(sortedHits.begin(), sortedHits.end(), 
+        std::sort(sortedHits.begin(), sortedHits.end(),
                 [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
 
         int show = sortedHits.size();
@@ -2269,14 +2319,19 @@ void listScanTask(void *pv) {
         if (static_cast<int>(sortedHits.size()) > show) {
             results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
         }
-        
+
         antihunter::lastResults = results;
         Serial.printf("[DEBUG] Results stored: %d chars\n", results.length());
+
+        if (isTriangulationActive()) {
+            antihunter::lastResults += "\n\n" + std::string(calculateTriangulationResults().c_str());
+            triangulationActive = false;
+        }
     }
 
     startAPAndServer();
     workerTaskHandle = nullptr;
-    vTaskDelete(nullptr); 
+    vTaskDelete(nullptr);
 }
 
 void trackerTask(void *pv)
@@ -2413,7 +2468,6 @@ void cleanupMaps() {
             deauthTargetCounts.erase(key);
             deauthTimings.erase(key);
         }
-        // Trim timings vectors (keep recent)
         for (auto it = deauthTimings.begin(); it != deauthTimings.end(); ) {
             auto& vec = it->second;
             vec.erase(std::remove_if(vec.begin(), vec.end(), [now](uint32_t t) { return now - t > EVICTION_AGE_MS; }), vec.end());

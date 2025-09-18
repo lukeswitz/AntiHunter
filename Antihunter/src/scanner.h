@@ -262,6 +262,7 @@ extern volatile uint32_t trackerLastSeen;
 extern volatile uint32_t trackerPackets;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
+extern bool triangulationActive;
 
 extern bool pineappleDetectionEnabled;
 extern bool espressifDetectionEnabled; 
