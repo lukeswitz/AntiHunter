@@ -40,7 +40,79 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
+static std::vector<TriangulationNode> triangulationNodes;
+bool triangulationActive = false;
+static uint8_t triangulationTarget[6];
+static uint32_t triangulationStart = 0;
+static uint32_t triangulationDuration = 0;
 
+
+// Triangulation 
+
+bool isTriangulationActive() {
+    return triangulationActive;
+}
+
+float rssiToDistance(int8_t rssi) {
+    return pow(10.0, (-59.0 - rssi) / (10.0 * 2.0));
+}
+
+String calculateTriangulation() {
+    String results = "Triangulation Results\n";
+    results += "Target: " + macFmt6(triangulationTarget) + "\n";
+    results += "Duration: " + String(triangulationDuration) + "s\n";
+    results += "Nodes reporting: " + String(triangulationNodes.size()) + "\n\n";
+    
+    std::vector<TriangulationNode> gpsNodes;
+    for (const auto& node : triangulationNodes) {
+        results += node.nodeId + ": RSSI=" + String(node.rssi) + "dBm Hits=" + String(node.hitCount);
+        if (node.hasGPS) {
+            results += " GPS=" + String(node.lat, 6) + "," + String(node.lon, 6);
+            results += " Dist=" + String(rssiToDistance(node.rssi), 1) + "m";
+            gpsNodes.push_back(node);
+        }
+        results += "\n";
+    }
+    
+    if (gpsNodes.size() >= 3) {
+        float x1 = gpsNodes[0].lat, y1 = gpsNodes[0].lon, r1 = rssiToDistance(gpsNodes[0].rssi);
+        float x2 = gpsNodes[1].lat, y2 = gpsNodes[1].lon, r2 = rssiToDistance(gpsNodes[1].rssi);
+        float x3 = gpsNodes[2].lat, y3 = gpsNodes[2].lon, r3 = rssiToDistance(gpsNodes[2].rssi);
+        
+        float A = 2 * (x2 - x1);
+        float B = 2 * (y2 - y1);
+        float C = pow(r1, 2) - pow(r2, 2) - pow(x1, 2) + pow(x2, 2) - pow(y1, 2) + pow(y2, 2);
+        float D = 2 * (x3 - x2);
+        float E = 2 * (y3 - y2);
+        float F = pow(r2, 2) - pow(r3, 2) - pow(x2, 2) + pow(x3, 2) - pow(y2, 2) + pow(y3, 2);
+        
+        float denominator = A * E - B * D;
+        if (abs(denominator) > 0.0001) {
+            float estLat = (C * E - F * B) / denominator;
+            float estLon = (A * F - D * C) / denominator;
+            
+            results += "\nEstimated Position:\n";
+            results += "Latitude: " + String(estLat, 6) + "\n";
+            results += "Longitude: " + String(estLon, 6) + "\n";
+            results += "Method: GPS+RSSI Trilateration\n";
+        } else {
+            results += "\nTrilateration failed: nodes too close/collinear\n";
+        }
+    } else if (triangulationNodes.size() >= 3) {
+        results += "\nRSSI-only fallback (less accurate)\n";
+        results += "Need GPS coordinates for precise positioning\n";
+    } else {
+        results += "\nInsufficient nodes (" + String(triangulationNodes.size()) + "/3 minimum)\n";
+    }
+    
+    return results;
+}
+
+String calculateTriangulationResults() {
+    return calculateTriangulation();
+}
+
+// Main AP 
 void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
@@ -131,8 +203,13 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       <label>Duration (seconds)</label>
       <input type="number" name="secs" min="0" max="86400" value="60">
       <div class="row"><input type="checkbox" id="forever1" name="forever" value="1"><label for="forever1">∞ Forever</label></div>
-      <label>WiFi Channels CSV</label>
+      <label>WiFi Channels (CSV)</label>
       <input type="text" name="ch" value="1,6,11">
+      <div class="row"><input type="checkbox" id="triangulate" name="triangulate" value="1"><label for="triangulate">Triangulation Mode</label></div>
+      <div id="triangulateOptions" style="display:none;">
+        <label>Target MAC (AA:BB:CC:DD:EE:FF)</label>
+        <input type="text" name="targetMac" placeholder="34:21:09:83:D9:51">
+      </div>
       <div class="row" style="margin-top:10px">
         <button class="btn primary" type="submit">Start List Scan</button>
         <a class="btn" href="/stop" data-ajax="true">Stop</a>
@@ -155,7 +232,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       <label>Duration (seconds)</label>
       <input type="number" name="secs" min="0" max="86400" value="180">
       <div class="row"><input type="checkbox" id="forever2" name="forever" value="1"><label for="forever2">∞ Forever</label></div>
-      <label>WiFi Channels CSV (use single channel for smoother tracking)</label>
+      <label>WiFi Channels (CSV) (use single channel for smoother tracking)</label>
       <input type="text" name="ch" value="6">
       <p class="small">Closer = faster & higher-pitch beeps. Lost = slow click.</p>
       <div class="row" style="margin-top:10px">
@@ -319,6 +396,10 @@ function updateModeIndicator(mode) {
   }
 }
 
+document.getElementById('triangulate').addEventListener('change', e=>{
+  document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
+});
+
 document.getElementById('f').addEventListener('submit', e=>{ 
   e.preventDefault(); ajaxForm(e.target, 'Targets saved ✓'); 
 });
@@ -327,8 +408,12 @@ document.getElementById('s').addEventListener('submit', e=>{
   e.preventDefault();
   const fd = new FormData(e.target);
   updateModeIndicator(fd.get('mode'));
-  fetch('/scan', {method:'POST', body:fd}).then(()=>{
-    toast('List scan started. AP will drop & return…');
+  
+  const isTriangulation = fd.get('triangulate');
+  
+  fetch('/scan', {method:'POST', body:fd}).then(r=>r.text()).then(t=>{
+    const message = isTriangulation ? 'Triangulation started - collecting mesh data...' : 'List scan started. AP will drop & return…';
+    toast(message);
   }).catch(err=>toast('Error: '+err.message));
 });
 
@@ -400,6 +485,12 @@ void startWebServer()
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
+      
+      // Add triangulation results if active
+      if (triangulationActive || triangulationNodes.size() > 0) {
+          results += "\n\n" + calculateTriangulation();
+      }
+      
       r->send(200, "text/plain", results);
   });
 
@@ -429,7 +520,7 @@ void startWebServer()
     r->send(200, "application/json", j); });
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
+           {
         int secs = 60;
         bool forever = false;
         ScanMode mode = SCAN_WIFI;
@@ -445,12 +536,32 @@ void startWebServer()
             int m = req->getParam("mode", true)->value().toInt();
             if (m >= 0 && m <= 2) mode = (ScanMode)m;
         }
-        String ch = "1,6,11";
-        if (req->hasParam("ch", true)) ch = req->getParam("ch", true)->value();
+        if (req->hasParam("ch", true)) {
+            String ch = req->getParam("ch", true)->value();
+            parseChannelsCSV(ch);
+        }
         
-        parseChannelsCSV(ch);
         currentScanMode = mode;
         stopRequested = false;
+        
+        // triangulation handling
+        if (req->hasParam("triangulate", true) && req->hasParam("targetMac", true)) {
+            String targetMac = req->getParam("targetMac", true)->value();
+            uint8_t tmp[6];
+            if (!parseMac6(targetMac, tmp)) {
+                req->send(400, "text/plain", "Invalid target MAC");
+                return;
+            }
+            
+            triangulationNodes.clear();
+            triangulationActive = true;
+            triangulationStart = millis();
+            triangulationDuration = secs;
+            memcpy(triangulationTarget, tmp, 6);
+            
+            String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(secs);
+            sendMeshCommand(cmd);
+        }
         
         String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
         req->send(200, "text/plain", forever ? ("Scan starting (forever) - " + modeStr) : ("Scan starting for " + String(secs) + "s - " + modeStr));
@@ -927,153 +1038,207 @@ void initializeMesh() {
     Serial.printf("[MESH] Config: 115200 8N1 on RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
 }
 
-void processCommand(const String &command) {
-    if (command.startsWith("CONFIG_BEEPS:")) {
-        int beeps = command.substring(13).toInt();
-        if (beeps >= 1 && beeps <= 10) {
-            cfgBeeps = beeps;
-            saveConfiguration();
-            Serial.printf("[MESH] Updated beeps config: %d\n", cfgBeeps);
-            Serial1.println(nodeId + ": CONFIG_ACK:BEEPS:" + String(cfgBeeps));
-        }
-    } else if (command.startsWith("CONFIG_GAP:")) {
-        int gap = command.substring(11).toInt();
-        if (gap >= 20 && gap <= 2000) {
-            cfgGapMs = gap;
-            saveConfiguration();
-            Serial.printf("[MESH] Updated gap config: %d\n", cfgGapMs);
-            Serial1.println(nodeId + ": CONFIG_ACK:GAP:" + String(cfgGapMs));
-        }
-    } else if (command.startsWith("CONFIG_CHANNELS:")) {
-        String channels = command.substring(16);
+void processCommand(const String &command)
+{
+  if (command.startsWith("CONFIG_BEEPS:"))
+  {
+    int beeps = command.substring(13).toInt();
+    if (beeps >= 1 && beeps <= 10)
+    {
+      cfgBeeps = beeps;
+      saveConfiguration();
+      Serial.printf("[MESH] Updated beeps config: %d\n", cfgBeeps);
+      Serial1.println(nodeId + ": CONFIG_ACK:BEEPS:" + String(cfgBeeps));
+    }
+  }
+  else if (command.startsWith("CONFIG_GAP:"))
+  {
+    int gap = command.substring(11).toInt();
+    if (gap >= 20 && gap <= 2000)
+    {
+      cfgGapMs = gap;
+      saveConfiguration();
+      Serial.printf("[MESH] Updated gap config: %d\n", cfgGapMs);
+      Serial1.println(nodeId + ": CONFIG_ACK:GAP:" + String(cfgGapMs));
+    }
+  }
+  else if (command.startsWith("CONFIG_CHANNELS:"))
+  {
+    String channels = command.substring(16);
+    parseChannelsCSV(channels);
+    Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
+    Serial1.println(nodeId + ": CONFIG_ACK:CHANNELS:" + channels);
+  }
+  else if (command.startsWith("CONFIG_TARGETS:"))
+  {
+    String targets = command.substring(15);
+    saveTargetsList(targets);
+    Serial.printf("[MESH] Updated targets list\n");
+    Serial1.println(nodeId + ": CONFIG_ACK:TARGETS:OK");
+  }
+  else if (command.startsWith("SCAN_START:"))
+  {
+    String params = command.substring(11);
+    int modeDelim = params.indexOf(':');
+    int secsDelim = params.indexOf(':', modeDelim + 1);
+    int channelDelim = params.indexOf(':', secsDelim + 1);
+
+    if (modeDelim > 0 && secsDelim > 0)
+    {
+      int mode = params.substring(0, modeDelim).toInt();
+      int secs = params.substring(modeDelim + 1, secsDelim).toInt();
+      String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,6,11";
+      bool forever = (channelDelim > 0 && params.substring(channelDelim + 1) == "FOREVER");
+
+      if (mode >= 0 && mode <= 2)
+      {
+        currentScanMode = (ScanMode)mode;
         parseChannelsCSV(channels);
-        Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
-        Serial1.println(nodeId + ": CONFIG_ACK:CHANNELS:" + channels);
-    } else if (command.startsWith("CONFIG_TARGETS:")) {
-        String targets = command.substring(15);
-        saveTargetsList(targets);
-        Serial.printf("[MESH] Updated targets list\n");
-        Serial1.println(nodeId + ": CONFIG_ACK:TARGETS:OK");
-    } else if (command.startsWith("SCAN_START:")) {
-        String params = command.substring(11);
-        int modeDelim = params.indexOf(':');
-        int secsDelim = params.indexOf(':', modeDelim + 1);
-        int channelDelim = params.indexOf(':', secsDelim + 1);
-        
-        if (modeDelim > 0 && secsDelim > 0) {
-            int mode = params.substring(0, modeDelim).toInt();
-            int secs = params.substring(modeDelim + 1, secsDelim).toInt();
-            String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,6,11";
-            bool forever = (channelDelim > 0 && params.substring(channelDelim + 1) == "FOREVER");
-            
-            if (mode >= 0 && mode <= 2) {
-                currentScanMode = (ScanMode)mode;
-                parseChannelsCSV(channels);
-                stopRequested = false;
-                
-                if (!workerTaskHandle) {
-                    xTaskCreatePinnedToCore(listScanTask, "scan", 8192, 
-                                          (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-                }
-                Serial.printf("[MESH] Started scan via mesh command\n");
-                Serial1.println(nodeId + ": SCAN_ACK:STARTED");
-            }
+        stopRequested = false;
+
+        if (!workerTaskHandle)
+        {
+          xTaskCreatePinnedToCore(listScanTask, "scan", 8192,
+                                  (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
         }
-    } else if (command.startsWith("TRACK_START:")) {
-        String params = command.substring(12);
-        int macDelim = params.indexOf(':');
-        int modeDelim = params.indexOf(':', macDelim + 1);
-        int secsDelim = params.indexOf(':', modeDelim + 1);
-        int channelDelim = params.indexOf(':', secsDelim + 1);
-        
-        if (macDelim > 0 && modeDelim > 0 && secsDelim > 0) {
-            String mac = params.substring(0, macDelim);
-            int mode = params.substring(macDelim + 1, modeDelim).toInt();
-            int secs = params.substring(modeDelim + 1, secsDelim).toInt();
-            String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "6";
-            bool forever = (channelDelim > 0 && params.indexOf("FOREVER", channelDelim) > 0);
-            
-            uint8_t trackerMac[6];
-            if (parseMac6(mac, trackerMac) && mode >= 0 && mode <= 2) {
-                setTrackerMac(trackerMac);
-                currentScanMode = (ScanMode)mode;
-                parseChannelsCSV(channels);
-                stopRequested = false;
-                
-                if (!workerTaskHandle) {
-                    xTaskCreatePinnedToCore(trackerTask, "tracker", 8192, 
-                                          (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-                }
-                Serial.printf("[MESH] Started tracker via mesh command for %s\n", mac.c_str());
-                Serial1.println(nodeId + ": TRACK_ACK:STARTED:" + mac);
-            }
+        Serial.printf("[MESH] Started scan via mesh command\n");
+        Serial1.println(nodeId + ": SCAN_ACK:STARTED");
+      }
+    }
+  }
+  else if (command.startsWith("TRACK_START:"))
+  {
+    String params = command.substring(12);
+    int macDelim = params.indexOf(':');
+    int modeDelim = params.indexOf(':', macDelim + 1);
+    int secsDelim = params.indexOf(':', modeDelim + 1);
+    int channelDelim = params.indexOf(':', secsDelim + 1);
+
+    if (macDelim > 0 && modeDelim > 0 && secsDelim > 0)
+    {
+      String mac = params.substring(0, macDelim);
+      int mode = params.substring(macDelim + 1, modeDelim).toInt();
+      int secs = params.substring(modeDelim + 1, secsDelim).toInt();
+      String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "6";
+      bool forever = (channelDelim > 0 && params.indexOf("FOREVER", channelDelim) > 0);
+
+      uint8_t trackerMac[6];
+      if (parseMac6(mac, trackerMac) && mode >= 0 && mode <= 2)
+      {
+        setTrackerMac(trackerMac);
+        currentScanMode = (ScanMode)mode;
+        parseChannelsCSV(channels);
+        stopRequested = false;
+
+        if (!workerTaskHandle)
+        {
+          xTaskCreatePinnedToCore(trackerTask, "tracker", 8192,
+                                  (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
         }
-    } else if (command.startsWith("STOP")) {
-        stopRequested = true;
-        Serial.println("[MESH] Stop command received via mesh");
-        Serial1.println(nodeId + ": STOP_ACK:OK");
-    } else if (command.startsWith("STATUS")) {
+        Serial.printf("[MESH] Started tracker via mesh command for %s\n", mac.c_str());
+        Serial1.println(nodeId + ": TRACK_ACK:STARTED:" + mac);
+      }
+    }
+  }
+  else if (command.startsWith("STOP"))
+  {
+    stopRequested = true;
+    Serial.println("[MESH] Stop command received via mesh");
+    Serial1.println(nodeId + ": STOP_ACK:OK");
+  }
+  else if (command.startsWith("STATUS"))
+  {
     // Get current status info
     float esp_temp = temperatureRead();
     float esp_temp_f = (esp_temp * 9.0 / 5.0) + 32.0;
-    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
-                     (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-    
+    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE"
+                                                                                             : "WiFi+BLE";
+
     uint32_t uptime_secs = millis() / 1000;
     uint32_t uptime_mins = uptime_secs / 60;
     uint32_t uptime_hours = uptime_mins / 60;
-    
-    char status_msg[MAX_MESH_SIZE];
-    
-    snprintf(status_msg, sizeof(status_msg), 
-            "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
-            nodeId.c_str(),
-            modeStr.c_str(),
-            scanning ? "YES" : "NO",
-            totalHits,
-            (int)getTargetCount(),
-            (int)uniqueMacs.size(),
-            esp_temp, esp_temp_f,
-            (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
 
-    
+    char status_msg[MAX_MESH_SIZE];
+
+    snprintf(status_msg, sizeof(status_msg),
+             "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
+             nodeId.c_str(),
+             modeStr.c_str(),
+             scanning ? "YES" : "NO",
+             totalHits,
+             (int)getTargetCount(),
+             (int)uniqueMacs.size(),
+             esp_temp, esp_temp_f,
+             (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+
     Serial1.println(status_msg);
-        
-        if (trackerMode) {
-            uint8_t trackerMac[6];
-            int8_t trackerRssi;
-            uint32_t trackerLastSeen, trackerPackets;
-            getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
-            
-            char tracker_status[MAX_MESH_SIZE];
-            snprintf(tracker_status, sizeof(tracker_status),
-                    "%s: TRACKER: Target:%s RSSI:%ddBm Pkts:%u",
-                    nodeId.c_str(),
-                    macFmt6(trackerMac).c_str(),
-                    (int)trackerRssi,
-                    (unsigned)trackerPackets);
-            Serial1.println(tracker_status);
-        }
-        if (gpsValid) {
-            char gps_status[MAX_MESH_SIZE];
-            snprintf(gps_status, sizeof(gps_status),
-                    "%s: GPS: %.6f,%.6f",
-                    nodeId.c_str(), gpsLat, gpsLon);
-            Serial1.println(gps_status);
-        }
-    } else if (command.startsWith("BEEP_TEST")) {
-        beepPattern(getBeepsPerHit(), getGapMs());
-        Serial.println("[MESH] Beep test via mesh");
-        Serial1.println(nodeId + ": BEEP_ACK:OK");
-    } else if (command.startsWith("VIBRATION_STATUS")) {
-        String status = lastVibrationTime > 0 ? 
-                      ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") :
-                      "No vibrations detected";
-        Serial1.println(nodeId + ": VIBRATION_STATUS: " + status);
+
+    if (trackerMode)
+    {
+      uint8_t trackerMac[6];
+      int8_t trackerRssi;
+      uint32_t trackerLastSeen, trackerPackets;
+      getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
+
+      char tracker_status[MAX_MESH_SIZE];
+      snprintf(tracker_status, sizeof(tracker_status),
+               "%s: TRACKER: Target:%s RSSI:%ddBm Pkts:%u",
+               nodeId.c_str(),
+               macFmt6(trackerMac).c_str(),
+               (int)trackerRssi,
+               (unsigned)trackerPackets);
+      Serial1.println(tracker_status);
     }
+    if (gpsValid)
+    {
+      char gps_status[MAX_MESH_SIZE];
+      snprintf(gps_status, sizeof(gps_status),
+               "%s: GPS: %.6f,%.6f",
+               nodeId.c_str(), gpsLat, gpsLon);
+      Serial1.println(gps_status);
+    }
+  }
+  else if (command.startsWith("BEEP_TEST"))
+  {
+    beepPattern(getBeepsPerHit(), getGapMs());
+    Serial.println("[MESH] Beep test via mesh");
+    Serial1.println(nodeId + ": BEEP_ACK:OK");
+  }
+  else if (command.startsWith("VIBRATION_STATUS"))
+  {
+    String status = lastVibrationTime > 0 ? ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") : "No vibrations detected";
+    Serial1.println(nodeId + ": VIBRATION_STATUS: " + status);
+  }
+  else if (command.startsWith("TRIANGULATE_START:"))
+  {
+    String params = command.substring(18);
+    int colonPos = params.indexOf(':');
+    String mac = params.substring(0, colonPos);
+    int duration = params.substring(colonPos + 1).toInt();
+
+    if (parseMac6(mac, triangulationTarget))
+    {
+      triangulationNodes.clear();
+      triangulationActive = true;
+      triangulationStart = millis();
+      triangulationDuration = duration;
+
+      currentScanMode = SCAN_BOTH;
+      stopRequested = false;
+      if (!workerTaskHandle)
+      {
+        xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
+                                (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
+      }
+
+      Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", mac.c_str(), duration);
+      Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
+    }
+  }
 }
 
-void sendMeshCommand(const String &command) {
+void sendMeshCommand(const String &command)
+  {
     if (meshEnabled && Serial1.availableForWrite() >= command.length()) {
         Serial.printf("[MESH] Sending command: %s\n", command.c_str());
         Serial1.println(command);
@@ -1091,32 +1256,79 @@ String getNodeId() {
 }
 
 void processMeshMessage(const String &message) {
-    if (message.length() == 0 || message.length() > MAX_MESH_SIZE) {
-        return;
-    }
+    if (message.length() == 0 || message.length() > MAX_MESH_SIZE) return;
     
     String cleanMessage = "";
     for (size_t i = 0; i < message.length(); i++) {
         char c = message[i];
-        if (c >= 32 && c <= 126) {
-            cleanMessage += c;
-        }
+        if (c >= 32 && c <= 126) cleanMessage += c;
     }
-    
-    if (cleanMessage.length() == 0) {
-        return;
-    }
+    if (cleanMessage.length() == 0) return;
     
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
+    
+    // Triangulation data collection
+    int colonPos = cleanMessage.indexOf(':');
+    if (triangulationActive && colonPos > 0) {
+        String sendingNode = cleanMessage.substring(0, colonPos);
+        String content = cleanMessage.substring(colonPos + 2);
+        
+        if (content.startsWith("Target:")) {
+            int macStart = content.indexOf(' ', 8) + 1;
+            int macEnd = content.indexOf(' ', macStart);
+            if (macEnd > macStart) {
+                String macStr = content.substring(macStart, macEnd);
+                uint8_t mac[6];
+                if (parseMac6(macStr, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
+                    int rssiIdx = content.indexOf("RSSI:");
+                    if (rssiIdx > 0) {
+                        int rssiEnd = content.indexOf(' ', rssiIdx + 5);
+                        if (rssiEnd < 0) rssiEnd = content.length();
+                        int rssi = content.substring(rssiIdx + 5, rssiEnd).toInt();
+                        
+                        float lat = 0, lon = 0;
+                        bool hasGPS = false;
+                        int gpsIdx = content.indexOf("GPS=");
+                        if (gpsIdx > 0) {
+                            int commaIdx = content.indexOf(',', gpsIdx);
+                            if (commaIdx > 0) {
+                                lat = content.substring(gpsIdx + 4, commaIdx).toFloat();
+                                int gpsEnd = content.indexOf(' ', commaIdx);
+                                if (gpsEnd < 0) gpsEnd = content.length();
+                                lon = content.substring(commaIdx + 1, gpsEnd).toFloat();
+                                hasGPS = true;
+                            }
+                        }
+                        
+                        bool found = false;
+                        for (auto &node : triangulationNodes) {
+                            if (node.nodeId == sendingNode) {
+                                node.rssi = rssi;
+                                node.hitCount++;
+                                if (hasGPS) {
+                                    node.lat = lat;
+                                    node.lon = lon;
+                                    node.hasGPS = true;
+                                }
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            TriangulationNode newNode = {sendingNode, lat, lon, (int8_t)rssi, 1, hasGPS};
+                            triangulationNodes.push_back(newNode);
+                        }
+                    }
+                }
+            }
+        }
+    }
     
     if (cleanMessage.startsWith("@")) {
         int spaceIndex = cleanMessage.indexOf(' ');
         if (spaceIndex > 0) {
             String targetId = cleanMessage.substring(1, spaceIndex);
-            
-            if (targetId != nodeId && targetId != "ALL") {
-                return;
-            }
+            if (targetId != nodeId && targetId != "ALL") return;
             String command = cleanMessage.substring(spaceIndex + 1);
             processCommand(command);
         }
