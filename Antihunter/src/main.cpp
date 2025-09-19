@@ -16,6 +16,9 @@ ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = {1, 6, 11};
 volatile bool stopRequested = false;
 
+unsigned long lastNodeIdSend = 0;
+unsigned long lastRTCUpdate = 0;
+
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
 
@@ -132,14 +135,15 @@ void setup() {
     Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
     
-    delay(1000);
-
+    delay(400);
     initializeHardware();
     delay(10);
     initializeNetwork();  // starts AP and mesh UART
     delay(500);
     initializeSD();
     initializeGPS();
+    delay(1000);
+    initializeRTC();
     delay(500);
     initializeVibrationSensor();
     initializeScanner();
@@ -166,10 +170,17 @@ void loop() {
     if (millis() - lastNodeIdSend > 900000) {
       sendNodeIdUpdate();
       lastNodeIdSend = millis();
-  }
-  updateGPSLocation();
-  processUSBToMesh();
-  checkAndSendVibrationAlert();
+    }
+
+    // Update RTC time every second
+    if (millis() - lastRTCUpdate > 1000) {
+        updateRTCTime();
+        lastRTCUpdate = millis();
+    }
+
+    updateGPSLocation();
+    processUSBToMesh();
+    checkAndSendVibrationAlert();
 
   delay(120);
 }
