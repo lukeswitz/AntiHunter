@@ -6,6 +6,8 @@
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
+#include <Wire.h>
+#include <RTClib.h>
 #include "esp_wifi.h"
 
 
@@ -20,6 +22,13 @@ bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
+
+// RTC
+RTC_DS3231 rtc;
+bool rtcAvailable = false;
+bool rtcSynced = false;
+time_t lastRTCSync = 0;
+String rtcTimeString = "RTC not initialized";
 
 // Viration Sensor
 volatile bool vibrationDetected = false;
@@ -78,6 +87,15 @@ String getDiagnostics() {
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
+    uint32_t uptime_total_seconds = millis() / 1000;
+    uint32_t uptime_hours = uptime_total_seconds / 3600;
+    uint32_t uptime_minutes = (uptime_total_seconds % 3600) / 60;
+    uint32_t uptime_seconds = uptime_total_seconds % 60;
+
+    char uptimeBuffer[10];
+    snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02lu:%02lu:%02lu", uptime_hours, uptime_minutes, uptime_seconds);
+    s += "Up:" + String(uptimeBuffer) + "\n";
+
     s += "Scan Mode: " + modeStr + "\n";
     s += String("Scanning: ") + (scanning ? "yes" : "no") + "\n";
     s += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
@@ -114,34 +132,16 @@ String getDiagnostics() {
             cachedSDInfo = "";
             
             uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+            uint64_t totalBytes = SD.totalBytes();
+            uint64_t usedBytes = SD.usedBytes();
+            uint64_t freeBytes = totalBytes - usedBytes;
+
             uint8_t cardType = SD.cardType();
             String cardTypeStr = (cardType == CARD_MMC) ? "MMC" :
-                                 (cardType == CARD_SD) ? "SDSC" :
-                                 (cardType == CARD_SDHC) ? "SDHC" : "UNKNOWN";
+                                (cardType == CARD_SD) ? "SDSC" :
+                                (cardType == CARD_SDHC) ? "SDHC" : "UNKNOWN";
             cachedSDInfo += "SD Card Type: " + cardTypeStr + "\n";
-            cachedSDInfo += "SD Card Size: " + String(cardSize) + "MB\n";
-
-            File root = SD.open("/");
-            if (root) {
-                cachedSDInfo += "SD Card Files:\n";
-                while (true) {
-                    File entry = root.openNextFile();
-                    if (!entry)
-                        break;
-
-                    String fileName = String(entry.name());
-                    if (fileName.startsWith(".")) {
-                        entry.close();
-                        continue;
-                    }
-
-                    cachedSDInfo += "  " + fileName + " (" + String(entry.size()) + " bytes)\n";
-                    entry.close();
-                }
-                root.close();
-            } else {
-                cachedSDInfo += "Failed to read SD card files.\n";
-            }
+            cachedSDInfo += "SD Free Space: " + String(freeBytes / (1024 * 1024)) + "MB\n";
         }
         s += cachedSDInfo;
     }
@@ -151,6 +151,16 @@ String getDiagnostics() {
         s += "Locked\n";
     } else {
         s += "Waiting for data\n";
+    }
+    s += "RTC: ";
+    if (rtcAvailable) {
+        s += rtcSynced ? "Synced" : "Not synced";
+        s += " Time: " + getRTCTimeString() + "\n";
+        if (lastRTCSync > 0) {
+            s += "Last sync: " + String((millis() - lastRTCSync) / 1000) + "s ago\n";
+        }
+    } else {
+        s += "Not available\n";
     }
 
     if (trackerMode) {
@@ -266,7 +276,7 @@ void sendStartupStatus() {
 
     String startupMsg = getNodeId() + ": STARTUP: System initialized";
     startupMsg += " GPS:";
-    startupMsg += (gpsValid ? "LOCKED" : "SEARCHING");
+    startupMsg += (gpsValid ? "LOCKED " : "SEARCHING ");
     startupMsg += "TEMP: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
     startupMsg += " SD:";
     startupMsg += (sdAvailable ? "OK" : "FAIL");
@@ -375,17 +385,16 @@ void logToSD(const String &data) {
         }
     }
     
-    uint32_t ts = millis();
-    uint8_t hours = (ts / 3600000) % 24;
-    uint8_t mins = (ts / 60000) % 60;
-    uint8_t secs = (ts / 1000) % 60;
+    // Use RTC time if available, otherwise fall back to millis
+    String timestamp = getFormattedTimestamp();
     
-    logFile.printf("[%02d:%02d:%02d] %s\n", hours, mins, secs, data.c_str());
+    logFile.printf("[%s] %s\n", timestamp.c_str(), data.c_str());
     
     // Batch flush every 10 writes 
     if (++totalWrites % 10 == 0) {
         logFile.flush();
     }
+    
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
         File checkFile = SD.open("/antihunter.log", FILE_READ);
@@ -396,7 +405,6 @@ void logToSD(const String &data) {
         lastSizeCheck = millis();
     }
 }
-
 void logVibrationEvent(int sensorValue) {
     String event = String(sensorValue ? "Motion" : "Impact") + " detected";
     if (gpsValid) {
@@ -445,7 +453,7 @@ void checkAndSendVibrationAlert() {
             snprintf(timeStr, sizeof(timeStr), "%02lu:%02lu:%02lu", hours, minutes, seconds);
             int sensorValue = digitalRead(VIBRATION_PIN);
             
-            String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + String(timeStr) + " (sensor=" + String(sensorValue) + ")";
+            String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + String(timeStr);
             
             // Add GPS if we have it
             if (gpsValid) {
@@ -465,4 +473,187 @@ void checkAndSendVibrationAlert() {
             Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
         }
     }
+}
+
+// RTC functions
+void initializeRTC() {
+    Serial.println("Initializing RTC...");
+    Serial.printf("[RTC] Using SDA:%d SCL:%d\n", RTC_SDA_PIN, RTC_SCL_PIN);
+
+    // Initialize I2C with correct pins and speed once
+    Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 100000); // Start at 100kHz
+    delay(100);
+    
+    // Scan for I2C devices
+    Serial.println("[RTC] Scanning I2C bus...");
+    byte error, address;
+    int nDevices = 0;
+    
+    for(address = 1; address < 127; address++) {
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+        
+        if (error == 0) {
+            Serial.printf("[RTC] I2C device found at address 0x%02X\n", address);
+            nDevices++;
+        }
+    }
+    
+    if (nDevices == 0) {
+        Serial.println("[RTC] No I2C devices found!");
+        Serial.println("[RTC] Check wiring: SDA->GPIO3, SCL->GPIO5, VCC->3.3V, GND->GND");
+        rtcAvailable = false;
+        return;
+    }
+    
+    // Now try to initialize the RTC
+    if (!rtc.begin()) {
+        Serial.println("[RTC] DS3231 not found at 0x68!");
+        rtcAvailable = false;
+        return;
+    }
+    
+    rtcAvailable = true;
+    Serial.println("[RTC] DS3231 initialized successfully!");
+    delay(100); // Give it a moment
+
+    
+    // Check if RTC lost power
+    if (rtc.lostPower()) {
+        Serial.println("[RTC] RTC lost power, setting to compile time...");
+        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+        rtcSynced = false;
+    } else {
+        DateTime now = rtc.now();
+        rtcSynced = true;
+        Serial.printf("[RTC] Current time: %04d-%02d-%02d %02d:%02d:%02d\n", 
+                      now.year(), now.month(), now.day(),
+                      now.hour(), now.minute(), now.second());
+    }
+    
+    rtc.disable32K();
+    Serial.printf("[RTC] Successfully initialized on SDA:%d SCL:%d\n", 
+                  RTC_SDA_PIN, RTC_SCL_PIN);
+}
+
+void syncRTCFromGPS() {
+    if (!rtcAvailable || !gpsValid) return;
+    
+    // Only sync if we have a good GPS fix with valid date/time
+    if (!gps.date.isValid() || !gps.time.isValid()) return;
+    
+    // Sync once per hour max
+    if (lastRTCSync > 0 && (millis() - lastRTCSync) < 3600000) return;
+    
+    int year = gps.date.year();
+    int month = gps.date.month();
+    int day = gps.date.day();
+    int hour = gps.time.hour();
+    int minute = gps.time.minute();
+    int second = gps.time.second();
+    
+    // Validate GPS time
+    if (year < 2020 || year > 2050) return;
+    if (month < 1 || month > 12) return;
+    if (day < 1 || day > 31) return;
+    if (hour > 23 || minute > 59 || second > 59) return;
+    
+    DateTime gpsTime(year, month, day, hour, minute, second);
+    DateTime rtcTime = rtc.now();
+    
+    // Only sync if difference is more than 2 seconds
+    int timeDiff = abs((int)(gpsTime.unixtime() - rtcTime.unixtime()));
+    if (timeDiff > 2) {
+        rtc.adjust(gpsTime);
+        rtcSynced = true;
+        lastRTCSync = millis();
+        
+        Serial.printf("[RTC] Synced from GPS: %04d-%02d-%02d %02d:%02d:%02d UTC\n",
+                      year, month, day, hour, minute, second);
+        
+        // Log the sync event
+        String syncMsg = "RTC synced from GPS: " + String(year) + "-" + 
+                        String(month) + "-" + String(day) + " " +
+                        String(hour) + ":" + String(minute) + ":" + String(second);
+        logToSD(syncMsg);
+        
+        // Send sync status over mesh
+        if (Serial1.availableForWrite() >= 100) {
+            String meshMsg = getNodeId() + ": RTC_SYNC: " + syncMsg;
+            Serial1.println(meshMsg);
+        }
+    }
+}
+
+void updateRTCTime() {
+    if (!rtcAvailable) {
+        rtcTimeString = "RTC not available";
+        return;
+    }
+    
+    DateTime now = rtc.now();
+    
+    char buffer[30];
+    snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
+             now.year(), now.month(), now.day(),
+             now.hour(), now.minute(), now.second());
+    
+    rtcTimeString = String(buffer);
+    
+    // Auto-sync from GPS if available
+    if (gpsValid && !rtcSynced) {
+        syncRTCFromGPS();
+    }
+    
+    // Periodic re-sync (every hour if GPS available)
+    if (gpsValid && rtcSynced && (millis() - lastRTCSync) > 3600000) {
+        syncRTCFromGPS();
+    }
+}
+
+String getRTCTimeString() {
+    updateRTCTime();
+    return rtcTimeString;
+}
+
+String getFormattedTimestamp() {
+    if (!rtcAvailable) {
+        // Fallback to millis-based timestamp
+        uint32_t ts = millis();
+        uint8_t hours = (ts / 3600000) % 24;
+        uint8_t mins = (ts / 60000) % 60;
+        uint8_t secs = (ts / 1000) % 60;
+        
+        char buffer[12];
+        snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d", hours, mins, secs);
+        return String(buffer);
+    }
+    
+    DateTime now = rtc.now();
+    char buffer[30];
+    snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
+             now.year(), now.month(), now.day(),
+             now.hour(), now.minute(), now.second());
+    
+    return String(buffer);
+}
+
+time_t getRTCEpoch() {
+    if (!rtcAvailable) return 0;
+    
+    DateTime now = rtc.now();
+    return now.unixtime();
+}
+
+bool setRTCTime(int year, int month, int day, int hour, int minute, int second) {
+    if (!rtcAvailable) return false;
+    
+    DateTime newTime(year, month, day, hour, minute, second);
+    rtc.adjust(newTime);
+    rtcSynced = true;
+    
+    Serial.printf("[RTC] Manually set to: %04d-%02d-%02d %02d:%02d:%02d\n",
+                  year, month, day, hour, minute, second);
+    
+    return true;
 }

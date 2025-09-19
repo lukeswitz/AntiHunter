@@ -7,24 +7,34 @@
 #define COUNTRY "NO"
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 4   // MESH PIN 20      (GPIO4)
+#define MESH_RX_PIN 4   // MESH PIN 20      (GPIO 04)
 #endif
 #ifndef MESH_TX_PIN
-#define MESH_TX_PIN 5    // MESH PIN 19     (GPIO5)
+#define MESH_TX_PIN 5    // MESH PIN 19     (GPIO 05)
 #endif
 #ifndef VIBRATION_PIN
-#define VIBRATION_PIN 1  // SW-420   (GPIO1)
+#define VIBRATION_PIN 1  // SW-420          (GPIO 01)
 #endif
 
 // SD Card (SPI)
-#define SD_CS_PIN   2    // CS on D1        (GPIO2)
-#define SD_CLK_PIN  7    // CLK (SCK)       (GPIO7)
-#define SD_MISO_PIN 8    // MISO on D9      (GPIO8)
-#define SD_MOSI_PIN 9    // MOSI on D10     (GPIO9)
+#define SD_CS_PIN   2    // CS on D1        (GPIO 02)
+#define SD_CLK_PIN  7    // CLK (SCK)       (GPIO 07)
+#define SD_MISO_PIN 8    // MISO on D9      (GPIO 08)
+#define SD_MOSI_PIN 9    // MOSI on D10     (GPIO 09)
 
 // GPS (UART)
-#define GPS_RX_PIN 44   // GPS RX          (GPIO 44)
-#define GPS_TX_PIN 43   // GPS TX          (GPIO 43)
+#define GPS_RX_PIN 44   // GPS RX           (GPIO 44)
+#define GPS_TX_PIN 43   // GPS TX           (GPIO 43)
+
+// RTC (I2C)
+#define RTC_SDA_PIN 6    // RTC SDA on      (GPIO 05)
+#define RTC_SCL_PIN 3    // RTC SCL on       (GPIO 02)
+
+// RTC Status
+extern bool rtcAvailable;
+extern bool rtcSynced;
+extern time_t lastRTCSync;
+extern String rtcTimeString;
 
 extern bool sdAvailable;
 extern bool gpsValid;
@@ -47,3 +57,12 @@ String getGPSData();
 void updateGPSLocation();
 void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
+
+// RTC Functions
+void initializeRTC();
+void syncRTCFromGPS();
+void updateRTCTime();
+String getRTCTimeString();
+String getFormattedTimestamp();
+time_t getRTCEpoch();
+bool setRTCTime(int year, int month, int day, int hour, int minute, int second);
