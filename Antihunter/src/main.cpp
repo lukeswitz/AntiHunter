@@ -141,6 +141,7 @@ void setup() {
     initializeNetwork();  // starts AP and mesh UART
     delay(500);
     initializeSD();
+    delay(500);
     initializeGPS();
     delay(1000);
     initializeRTC();
