@@ -30,7 +30,6 @@ extern std::set<String> uniqueMacs;
 extern Preferences prefs;
 extern volatile bool stopRequested;
 extern ScanMode currentScanMode;
-extern int cfgBeeps, cfgGapMs;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
 extern TaskHandle_t blueTeamTaskHandle;
@@ -102,7 +101,7 @@ String calculateTriangulation() {
         results += "\nRSSI-only fallback (less accurate)\n";
         results += "Need GPS coordinates for precise positioning\n";
     } else {
-        results += "\nInsufficient nodes (" + String(triangulationNodes.size()) + "/3 minimum)\n";
+        results += "\nInsufficient nodes with GPS (" + String(triangulationNodes.size()) + "/3)\n";
     }
     
     return results;
@@ -217,7 +216,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       <p class="small">AP goes offline during scan and returns.</p>
     </form>
   </div>
-
+  <!--
   <div class="card">
     <h3>Tracker (single MAC "Geiger")</h3>
     <form id="t" method="POST" action="/track">
@@ -241,7 +240,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       </div>
     </form>
   </div>
-
+  --> 
     <div class="card">
     <h3>Scan and Sniff</h3>
     <form id="sniffer" method="POST" action="/sniffer">  
@@ -286,18 +285,6 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       </div>
     </form>
     <hr>
-    <h4 style="margin:12px 0 8px;color:var(--fg)">Buzzer Settings</h4>
-    <form id="buzzerForm" method="POST" action="/config">
-      <label for="beeps">Beeps per Hit</label>
-      <input type="number" id="beeps" name="beeps" min="1" max="10" value="2">
-      <label for="gap">Gap Between Beeps (ms)</label>
-      <input type="number" id="gap" name="gap" min="20" max="2000" value="80">
-      <div class="row" style="margin-top:10px;">
-        <button class="btn primary" type="submit">Save Buzzer</button>
-        <a class="btn alt" href="/beep" data-ajax="true">Test Beep</a>
-      </div>
-    </form>
-    <p class="small">Configure mesh notifications and buzzer behavior for target detection alerts.</p>
   </div>
 
   <div class="card">
@@ -342,8 +329,6 @@ async function load(){
     const r = await fetch('/export'); 
     document.getElementById('list').value = await r.text();
     const cfg = await fetch('/config').then(r=>r.json());
-    document.getElementById('beeps').value = cfg.beeps;
-    document.getElementById('gap').value = cfg.gap;
     const rr = await fetch('/results'); 
     document.getElementById('r').innerText = await rr.text();
     loadNodeId();
@@ -455,11 +440,6 @@ document.addEventListener('click', e=>{
   if (!a) return;
   e.preventDefault();
   fetch('/stop').then(r=>r.text()).then(t=>toast(t));
-});
-
-document.getElementById('buzzerForm').addEventListener('submit', e=>{
-  e.preventDefault();
-  ajaxForm(e.target, 'Buzzer settings saved');
 });
 
 load();
@@ -622,27 +602,13 @@ void startWebServer()
         stopRequested = true;
         r->send(200, "text/plain", "Stopping… (AP will return shortly)"); });
 
-  server->on("/beep", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-        beepPattern(getBeepsPerHit(), getGapMs());
-        r->send(200, "text/plain", "Beeped"); });
-
   server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
              {
-        String j = String("{\"beeps\":") + cfgBeeps + ",\"gap\":" + cfgGapMs + "}";
-        r->send(200, "application/json", j); });
+        // TODO 
+        r->send(200, "application/json", ""); });
 
   server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
              {
-        int beeps = cfgBeeps, gap = cfgGapMs;
-        if (req->hasParam("beeps", true)) beeps = req->getParam("beeps", true)->value().toInt();
-        if (req->hasParam("gap", true)) gap = req->getParam("gap", true)->value().toInt();
-        if (beeps < 1) beeps = 1;
-        if (beeps > 10) beeps = 10;
-        if (gap < 20) gap = 20;
-        if (gap > 2000) gap = 2000;
-        cfgBeeps = beeps;
-        cfgGapMs = gap;
         saveConfiguration();
         req->send(200, "text/plain", "Config saved"); });
 
@@ -1040,29 +1006,8 @@ void initializeMesh() {
 
 void processCommand(const String &command)
 {
-  if (command.startsWith("CONFIG_BEEPS:"))
-  {
-    int beeps = command.substring(13).toInt();
-    if (beeps >= 1 && beeps <= 10)
-    {
-      cfgBeeps = beeps;
-      saveConfiguration();
-      Serial.printf("[MESH] Updated beeps config: %d\n", cfgBeeps);
-      Serial1.println(nodeId + ": CONFIG_ACK:BEEPS:" + String(cfgBeeps));
-    }
-  }
-  else if (command.startsWith("CONFIG_GAP:"))
-  {
-    int gap = command.substring(11).toInt();
-    if (gap >= 20 && gap <= 2000)
-    {
-      cfgGapMs = gap;
-      saveConfiguration();
-      Serial.printf("[MESH] Updated gap config: %d\n", cfgGapMs);
-      Serial1.println(nodeId + ": CONFIG_ACK:GAP:" + String(cfgGapMs));
-    }
-  }
-  else if (command.startsWith("CONFIG_CHANNELS:"))
+
+  if (command.startsWith("CONFIG_CHANNELS:"))
   {
     String channels = command.substring(16);
     parseChannelsCSV(channels);
@@ -1197,12 +1142,6 @@ void processCommand(const String &command)
                nodeId.c_str(), gpsLat, gpsLon);
       Serial1.println(gps_status);
     }
-  }
-  else if (command.startsWith("BEEP_TEST"))
-  {
-    beepPattern(getBeepsPerHit(), getGapMs());
-    Serial.println("[MESH] Beep test via mesh");
-    Serial1.println(nodeId + ": BEEP_ACK:OK");
   }
   else if (command.startsWith("VIBRATION_STATUS"))
   {
