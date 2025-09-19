@@ -157,7 +157,7 @@ select option{background:#000;color:var(--fg)}
 pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:10px;padding:12px;font-size:12px;line-height:1.4;overflow-x:auto}
 a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
 .banner{font-size:12px;color:#0aff9d;border:1px dashed #004e2f;padding:8px;border-radius:10px;background:#001108}
-.grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(380px, 1fr));gap:14px}
+.grid{display:grid;grid-template-columns:repeat(2, minmax(380px, 1fr));grid-auto-rows:minmax(200px, auto);gap:14px}
 .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:900px){.grid-2col{grid-template-columns:1fr}}
 #toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
