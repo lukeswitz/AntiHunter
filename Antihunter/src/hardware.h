@@ -6,12 +6,6 @@
 #ifndef COUNTRY
 #define COUNTRY "NO"
 #endif
-#ifndef BUZZER_PIN
-#define BUZZER_PIN 3    // BUZZER +         (GPIO3)
-#endif
-#ifndef BUZZER_IS_PASSIVE
-#define BUZZER_IS_PASSIVE 1
-#endif
 #ifndef MESH_RX_PIN
 #define MESH_RX_PIN 4   // MESH PIN 20      (GPIO4)
 #endif
@@ -46,12 +40,8 @@ void initializeVibrationSensor();
 void initializeSD();
 void initializeGPS();
 void checkAndSendVibrationAlert();
-void beepOnce(uint32_t freq = 3200, uint32_t ms = 80);
-void beepPattern(int count, int gap_ms);
 void saveConfiguration();
 String getDiagnostics();
-int getBeepsPerHit();
-int getGapMs();
 void logToSD(const String &data);
 String getGPSData();
 void updateGPSLocation();

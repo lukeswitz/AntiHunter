@@ -868,7 +868,6 @@ static void IRAM_ATTR detectEAPOLHarvesting(const wifi_promiscuous_pkt_t *ppkt) 
         // Alert
         Serial.println("[EAPOL] Detected handshake from " + macFmt6(clientMAC) + 
                       " to AP " + macFmt6(apMAC));
-        beepPattern(2, 100);
     }
 }
 
@@ -923,7 +922,6 @@ void karmaDetectionTask(void *pv) {
 
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
-            beepPattern(3, 50);  // Distinct: 3 medium beeps
 
             if (meshEnabled) {
                 String meshAlert = getNodeId() + ": KARMA: " + macFmt6(hit.apMAC) + " " + hit.clientSSID;
@@ -1032,7 +1030,6 @@ void probeFloodDetectionTask(void *pv) {
 
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
-            beepPattern(5, 30);  // Distinct: 5 quick beeps
 
             if (meshEnabled) {
                 String meshAlert = getNodeId() + ": PROBE-FLOOD: " + macFmt6(hit.clientMAC) + " " + String(hit.probeCount);
@@ -1301,7 +1298,6 @@ void bleScannerTask(void *pv) {
             
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
-            beepPattern(4, 40);
             
             if (meshEnabled) {
                 String meshAlert = getNodeId() + ": BLE-ATTACK: " + String(spamHit.spamType);
@@ -1319,7 +1315,6 @@ void bleScannerTask(void *pv) {
             
             Serial.println("[ANOMALY] " + alert);
             logToSD(alert);
-            beepPattern(2, 100);
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
@@ -1462,7 +1457,6 @@ void snifferScanTask(void *pv)
                         uint8_t mac[6];
                         if (parseMac6(bssid, mac) && matchesMac(mac))
                         {
-                            beepPattern(getBeepsPerHit(), getGapMs());
                             sendMeshNotification(h);
                         }
                     }
@@ -1536,7 +1530,6 @@ void snifferScanTask(void *pv)
 
                             if (matchesMac(mac))
                             {
-                                beepPattern(getBeepsPerHit(), getGapMs());
                                 sendMeshNotification(h);
                             }
                         }
@@ -1821,8 +1814,6 @@ void beaconFloodTask(void *pv) {
 
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
-
-            beepPattern(4, 40);
 
             if (meshEnabled) {
                 String meshAlert = getNodeId() + ": FLOOD: " + alert;
@@ -2266,7 +2257,6 @@ void listScanTask(void *pv) {
 
             Serial.printf("[HIT] %s\n", logEntry.c_str());
             logToSD(logEntry);
-            beepPattern(getBeepsPerHit(), getGapMs());
             sendMeshNotification(h);
         }
 
@@ -2370,7 +2360,6 @@ void trackerTask(void *pv)
     }
 
     uint32_t nextStatus = millis() + 1000;
-    uint32_t nextBeep = millis() + 400;
     uint32_t nextBLEScan = millis();
     float ema = -90.0f;
 
@@ -2400,12 +2389,6 @@ void trackerTask(void *pv)
         int period = gotRecent ? periodFromRSSI((int8_t)ema) : 1400;
         int freq = gotRecent ? freqFromRSSI((int8_t)ema) : 2200;
         int dur = gotRecent ? 60 : 40;
-
-        if ((int32_t)(now - nextBeep) >= 0)
-        {
-            beepOnce((uint32_t)freq, (uint32_t)dur);
-            nextBeep = now + period;
-        }
 
         if (trackerMode)
         {

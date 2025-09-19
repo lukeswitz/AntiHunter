@@ -216,7 +216,6 @@ Once flashed, Antihunter hosts a web interface for all operations.
 | `SCAN_START:m:s:ch[:F]` | Start scan | m: 0=WiFi/1=BLE/2=Both<br>s: seconds<br>ch: channels<br>F: FOREVER (optional) | `@ALL SCAN_START:0:60:1,6,11` | `SCAN_ACK:STARTED` |
 | `TRACK_START:MAC:m:s:ch[:F]` | Track MAC | MAC: target<br>m/s/ch/F: as above | `@NODE_22 TRACK_START:AA:BB:CC:DD:EE:FF:0:0:6:FOREVER` | `Tracking: AA:BB:CC:DD:EE:FF RSSI:-62dBm LastSeen:3s Pkts:42` |
 | `STOP` | Halt operations | - | `@ALL STOP` | `STOP_ACK:OK` |
-| `BEEP_TEST` | Test buzzer | - | `@NODE_22 BEEP_TEST` | `BEEP_ACK:OK` |
 
 *Note: All responses are prefixed with `NodeID:`. Mesh messages auto-prefix sender ID which is stripped before processing.*
 

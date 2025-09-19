@@ -10,7 +10,6 @@
 
 
 extern Preferences prefs;
-extern int cfgBeeps, cfgGapMs;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 
@@ -41,75 +40,11 @@ extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets);
 
-// Buzzer control
-#if BUZZER_IS_PASSIVE
-static bool buzzerInit = false;
-
-static void buzzerInitIfNeeded(uint32_t f)
-{
-    if (!buzzerInit)
-    {
-        ledcAttach(BUZZER_PIN, f, 10);
-        buzzerInit = true;
-    }
-    else
-    {
-        ledcDetach(BUZZER_PIN);
-        ledcAttach(BUZZER_PIN, f, 10);
-    }
-}
-
-static void buzzerTone(uint32_t f)
-{
-    buzzerInitIfNeeded(f);
-    ledcWrite(BUZZER_PIN, 512); // 50% duty cycle
-}
-
-static void buzzerOff()
-{
-    if (buzzerInit)
-        ledcWrite(BUZZER_PIN, 0);
-}
-
-#else
-static void buzzerTone(uint32_t)
-{
-    pinMode(BUZZER_PIN, OUTPUT);
-    digitalWrite(BUZZER_PIN, HIGH);
-}
-
-static void buzzerOff()
-{
-    digitalWrite(BUZZER_PIN, LOW);
-}
-#endif
-
-void beepOnce(uint32_t freq, uint32_t ms)
-{
-    buzzerTone(freq);
-    delay(ms);
-    buzzerOff();
-}
-
-void beepPattern(int count, int gap_ms)
-{
-    if (count < 1)
-        return;
-    for (int i = 0; i < count; i++)
-    {
-        beepOnce();
-        if (i != count - 1)
-            delay(gap_ms);
-    }
-}
 
 void initializeHardware()
 {
     Serial.println("Loading preferences...");
     prefs.begin("ouispy", false);
-
-    cfgBeeps = prefs.getInt("beeps", 2);
-    cfgGapMs = prefs.getInt("gap", 80);
 
     String nodeId = prefs.getString("nodeId", "");
     if (nodeId.length() == 0)
@@ -120,24 +55,14 @@ void initializeHardware()
     }
     setNodeId(nodeId);
     Serial.println("[NODE_ID] " + nodeId);
-    Serial.printf("Hardware initialized: beeps=%d, gap=%dms, nodeID=%s\n", cfgBeeps, cfgGapMs, nodeId);
+    Serial.printf("Hardware initialized: nodeID=%s\n", nodeId);
 }
 
 void saveConfiguration()
 {
-    prefs.putInt("beeps", cfgBeeps);
-    prefs.putInt("gap", cfgGapMs);
+  // TODO save wifi channels and other granular stuff
 }
 
-int getBeepsPerHit()
-{
-    return cfgBeeps;
-}
-
-int getGapMs()
-{
-    return cfgGapMs;
-}
 String getDiagnostics() {
     static unsigned long lastDiagTime = 0;
     static unsigned long lastSDTime = 0;
@@ -244,9 +169,7 @@ String getDiagnostics() {
     float temp_c = temperatureRead();
     float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
     s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
-
-    s += "Beeps/Hit: " + String(cfgBeeps) + "  Gap(ms): " + String(cfgGapMs) + "\n";
-
+    
     s += "WiFi Channels: ";
     for (auto c : CHANNELS) {
         s += String((int)c) + " ";
@@ -538,7 +461,6 @@ void checkAndSendVibrationAlert() {
             
             logVibrationEvent(sensorValue);
             
-            beepOnce(4000, 100);
         } else {
             Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
         }

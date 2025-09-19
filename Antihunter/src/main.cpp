@@ -11,9 +11,7 @@
 #include "esp_wifi.h"
 
 
-Preferences prefs;
-int cfgBeeps = 2;
-int cfgGapMs = 80;
+Preferences prefs;;
 ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = {1, 6, 11};
 volatile bool stopRequested = false;
