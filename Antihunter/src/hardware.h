@@ -27,7 +27,7 @@
 #define GPS_TX_PIN 43   // GPS TX           (GPIO 43)
 
 // RTC (I2C)
-#define RTC_SDA_PIN 6    // RTC SDA on      (GPIO 05)
+#define RTC_SDA_PIN 6    // RTC SDA on       (GPIO 05)
 #define RTC_SCL_PIN 3    // RTC SCL on       (GPIO 02)
 
 // RTC Status
