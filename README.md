@@ -76,7 +76,7 @@ The Triangulation System coordinates multiple AntiHunter nodes across a mesh net
 - **Interface**: SPI (CS=GPIO2, SCK=GPIO7, MISO=GPIO8, MOSI=GPIO9)
 - **Storage**: Logs to `/antihunter.log` with timestamps, detection types, and metadata
 - **Format**: Structured entries including MAC addresses, RSSI, GPS data, and timestamps
-- **Diagnostics**: Web interface shows storage status, file listing, and usage statistics
+- **Diagnostics**: Web interface shows storage status and usage statistics
 
 #### **Vibration/Tamper Detection**
 - **Sensor**: SW-420 vibration sensor connected to GPIO1
