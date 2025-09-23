@@ -2127,53 +2127,43 @@ static void radioStartBLE()
     pBLEScan->setWindow(99); 
 }
 
-static void radioStartSTA()
-{
-    Serial.println("[RADIO] Starting STA mode for scanning");
+void radioStopSTA() {
+    Serial.println("[RADIO] Stopping STA mode");
     
-    esp_wifi_set_mode(WIFI_MODE_NULL);
-    delay(200);
-    
-    esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-
-    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH)
-    {
-        radioStartWiFi();
-    }
-    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH)
-    {
-        radioStartBLE();
-    }
-}
-static void radioStopSTA()
-{
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(NULL);
-    delay(230);
+    esp_wifi_set_promiscuous_filter(NULL);
+    delay(100);
     
     if (hopTimer) {
         esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer);
+        esp_timer_delete(hopTimer); 
         hopTimer = nullptr;
-        delay(50); 
+        delay(50);
     }
     
-    esp_wifi_set_mode(WIFI_MODE_NULL);
-    delay(200);
+    esp_wifi_stop();
+    delay(100);
+}
+
+void radioStartSTA() {
+    Serial.println("[RADIO] Starting STA mode");
     
-    esp_err_t err = esp_wifi_stop();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_err_t err = esp_wifi_init(&cfg);
     if (err != ESP_OK) {
-        Serial.printf("[RADIO] WiFi stop warning: %d\n", err);
+        Serial.printf("[ERROR] WiFi init failed: %d\n", err);
+        delay(1000);
+        return;
     }
-    delay(300);
-    
-    err = esp_wifi_deinit();
-    if (err != ESP_OK) {
-        Serial.printf("[RADIO] WiFi deinit warning: %d\n", err);
+    delay(100);
+
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        radioStartWiFi();
     }
-    delay(200);
-    
-    radioStopBLE();
+    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
+        radioStartBLE();
+    }
 }
 
 void initializeScanner()
