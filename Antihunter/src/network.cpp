@@ -166,6 +166,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
 .toast .title{color:#0aff9d;font-weight:bold}
 .footer{opacity:.7;font-size:12px;padding:8px 16px;text-align:center}
 .logo{width:28px;height:28px}
+.status-bar, .tab-buttons, .btn { user-select: none; } pre, textarea, input[type="text"] { user-select: text; } ::selection { background-color: rgba(10, 255, 157, 0.3); color: var(--fg); }
 .status-bar{display:flex;gap:10px;align-items:center;margin-left:auto;font-size:12px}
 .status-item{background:#001a10;border:1px solid #003b24;padding:6px 10px;border-radius:6px}
 .status-item.active{border-color:#00cc66;background:#002417}
@@ -463,62 +464,29 @@ function updateStatusIndicators(diagText) {
 }
 
 async function tick(){
+  if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
   try{
     const d = await fetch('/diag'); 
     const diagText = await d.text();
-    
-    // Parse diagnostics for different sections
     const sections = diagText.split('\n');
     let overview = '';
     let hardware = '';
     let network = '';
-    let currentSection = 'overview';
-    
     sections.forEach(line => {
-      if (line.includes('WiFi Frames')) {
-        const match = line.match(/(\d+)/);
-        if (match) document.getElementById('wifiFrames').innerText = match[1];
-      }
-      if (line.includes('BLE Frames')) {
-        const match = line.match(/(\d+)/);
-        if (match) document.getElementById('bleFrames').innerText = match[1];
-      }
-      if (line.includes('Total hits')) {
-        const match = line.match(/(\d+)/);
-        if (match) document.getElementById('totalHits').innerText = match[1];
-      }
-      if (line.includes('Unique devices')) {
-        const match = line.match(/(\d+)/);
-        if (match) document.getElementById('uniqueDevices').innerText = match[1];
-      }
-      if (line.includes('ESP32 Temp')) {
-        const match = line.match(/([\d.]+)°C/);
-        if (match) document.getElementById('temperature').innerText = match[1] + '°C';
-      }
-      
-      // Build sections
-      if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
-        hardware += line + '\n';
-      } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
-        network += line + '\n';
-      } else {
-        overview += line + '\n';
-      }
+      if (line.includes('WiFi Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('wifiFrames').innerText = match[1]; }
+      if (line.includes('BLE Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('bleFrames').innerText = match[1]; }
+      if (line.includes('Total hits')) { const match = line.match(/(\d+)/); if (match) document.getElementById('totalHits').innerText = match[1]; }
+      if (line.includes('Unique devices')) { const match = line.match(/(\d+)/); if (match) document.getElementById('uniqueDevices').innerText = match[1]; }
+      if (line.includes('ESP32 Temp')) { const match = line.match(/([\d.]+)°C/); if (match) document.getElementById('temperature').innerText = match[1] + '°C'; }
+      if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) { hardware += line + '\n'; } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) { network += line + '\n'; } else { overview += line + '\n'; }
     });
-    
     document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
     document.getElementById('networkDiag').innerText = network || 'No network data';
-    
-    // Update uptime
     const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
-    if (uptimeMatch) {
-      document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
-    }
-    
+    if (uptimeMatch) { document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3]; }
     updateStatusIndicators(diagText);
-    
-    const rr = await fetch('/results'); 
-    document.getElementById('r').innerText = await rr.text();
+    const resultsElement = document.getElementById('r');
+    if (resultsElement && !resultsElement.contains(document.activeElement)) { const rr = await fetch('/results'); document.getElementById('r').innerText = await rr.text(); }
   }catch(e){}
 }
 
