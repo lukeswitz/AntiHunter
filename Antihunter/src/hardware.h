@@ -30,6 +30,10 @@
 #define RTC_SDA_PIN 6    // RTC SDA on       (GPIO 05)
 #define RTC_SCL_PIN 3    // RTC SCL on       (GPIO 02)
 
+// Configuration constants
+#define CONFIG_FILE "/config.json"
+#define MAX_CONFIG_SIZE 4096
+
 // RTC Status
 extern bool rtcAvailable;
 extern bool rtcSynced;
@@ -57,6 +61,10 @@ String getGPSData();
 void updateGPSLocation();
 void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
+void parseChannelsCSV(const String &csv);
+void saveTargetsList(const String &txt);
+void saveConfiguration();
+void loadConfiguration();
 
 // RTC Functions
 void initializeRTC();
