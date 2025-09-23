@@ -2130,34 +2130,47 @@ static void radioStartBLE()
 void radioStopSTA() {
     Serial.println("[RADIO] Stopping STA mode");
     
+    // Promiscuous cleanup
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(NULL);
     esp_wifi_set_promiscuous_filter(NULL);
     delay(100);
     
+    // Channel hopping cleanup
     if (hopTimer) {
         esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer); 
+        esp_timer_delete(hopTimer);
         hopTimer = nullptr;
         delay(50);
     }
     
+    // Full WiFi stop 
     esp_wifi_stop();
+    delay(100);
+    
+    // Complete deinit
+    esp_wifi_deinit();
     delay(100);
 }
 
 void radioStartSTA() {
     Serial.println("[RADIO] Starting STA mode");
+
+    // Start fresh
+    WiFi.mode(WIFI_OFF);
+    delay(500);
     
+    // Init WiFi
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_err_t err = esp_wifi_init(&cfg);
     if (err != ESP_OK) {
         Serial.printf("[ERROR] WiFi init failed: %d\n", err);
-        delay(1000);
+        delay(800);
         return;
     }
     delay(100);
 
+    // Mode-specific setup
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStartWiFi();
     }
