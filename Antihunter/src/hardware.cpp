@@ -1,6 +1,8 @@
 #include "hardware.h"
+#include "network.h"
 #include <Arduino.h>
 #include <Preferences.h>
+#include <ArduinoJson.h>
 #include <WiFi.h>
 #include <SPI.h>
 #include <SD.h>
@@ -53,7 +55,7 @@ extern void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, u
 void initializeHardware()
 {
     Serial.println("Loading preferences...");
-    prefs.begin("ouispy", false);
+    prefs.begin("antihunter", false);
 
     String nodeId = prefs.getString("nodeId", "");
     if (nodeId.length() == 0)
@@ -67,9 +69,105 @@ void initializeHardware()
     Serial.printf("Hardware initialized: nodeID=%s\n", nodeId);
 }
 
-void saveConfiguration()
-{
-  // TODO save wifi channels and other granular stuff
+void saveConfiguration() {
+    if (!sdAvailable) {
+        Serial.println("SD card not available, cannot save configuration");
+        return;
+    }
+    
+    File configFile = SD.open("/config.json", FILE_WRITE);
+    if (!configFile) {
+        Serial.println("Failed to open config file for writing!");
+        return;
+    }
+
+    String config = "{\n";
+    config += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
+    config += "\"scanMode\":" + String(currentScanMode) + ",\n";
+    config += "\"channels\":\"";
+
+    String channelsCSV;
+    for (size_t i = 0; i < CHANNELS.size(); i++) {
+        channelsCSV += String(CHANNELS[i]);
+        if (i < CHANNELS.size() - 1) {
+            channelsCSV += ",";
+        }
+    }
+    config += channelsCSV + "\",\n";
+    config += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
+    config += "}";
+
+    configFile.println(config);
+    configFile.close();
+    Serial.println("Configuration saved to SD card");
+}
+
+void loadConfiguration() {
+    if (!sdAvailable) {
+        Serial.println("SD card not available, cannot load configuration from SD");
+        return;
+    }
+    
+    if (!SD.exists("/config.json")) {
+        Serial.println("No config file found on SD card");
+        return;
+    }
+
+    File configFile = SD.open("/config.json", FILE_READ);
+    if (!configFile) {
+        Serial.println("Failed to open config file!");
+        return;
+    }
+
+    String config = configFile.readString();
+    configFile.close();
+
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, config);
+    
+    if (error) {
+        Serial.println("Failed to parse config file: " + String(error.c_str()));
+        return;
+    }
+
+    if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
+        String nodeId = doc["nodeId"].as<String>();
+        if (nodeId.length() > 0) {
+            prefs.putString("nodeId", nodeId);
+            setNodeId(nodeId);
+            Serial.println("Loaded nodeId from SD: " + nodeId);
+        }
+    }
+
+    if (doc.containsKey("scanMode") && doc["scanMode"].is<int>()) {
+        int scanMode = doc["scanMode"].as<int>();
+        if (scanMode >= 0 && scanMode <= 2) {
+            currentScanMode = (ScanMode)scanMode;
+            prefs.putInt("scanMode", scanMode);
+            Serial.println("Loaded scanMode from SD: " + String(scanMode));
+        }
+    }
+
+    if (doc.containsKey("channels") && doc["channels"].is<String>()) {
+        String channels = doc["channels"].as<String>();
+        if (channels.length() > 0) {
+            parseChannelsCSV(channels);
+            prefs.putString("channels", channels);
+            Serial.println("Loaded channels from SD: " + channels);
+        }
+    }
+
+    if (doc.containsKey("targets") && doc["targets"].is<String>()) {
+        String targets = doc["targets"].as<String>();
+        if (targets.length() > 0) {
+            saveTargetsList(targets);
+            prefs.putString("maclist", targets);
+            Serial.println("Loaded targets from SD: " + targets);
+            Serial.println("Target count: " + String(getTargetCount()));
+        }
+    }
+
+    Serial.println("Configuration loaded from SD card");
 }
 
 String getDiagnostics() {
@@ -426,9 +524,13 @@ void IRAM_ATTR vibrationISR() {
 }
 
 void initializeVibrationSensor() {
-    pinMode(VIBRATION_PIN, INPUT);
-    attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, RISING);
-    Serial.println("[VIBRATION] Sensor initialized on GPIO1");
+    try {
+        pinMode(VIBRATION_PIN, INPUT);
+        attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, RISING);
+        Serial.println("[VIBRATION] Sensor initialized on GPIO1");
+    } catch (...) {
+        Serial.println("[VIBRATION] Failed to initialize vibration sensor");
+    }
 }
 
 void checkAndSendVibrationAlert() {
@@ -484,40 +586,23 @@ void initializeRTC() {
     Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 100000); // Start at 100kHz
     delay(100);
     
-    // Scan for I2C devices
-    Serial.println("[RTC] Scanning I2C bus...");
-    byte error, address;
-    int nDevices = 0;
-    
-    for(address = 1; address < 127; address++) {
-        Wire.beginTransmission(address);
-        error = Wire.endTransmission();
-        
-        if (error == 0) {
-            Serial.printf("[RTC] I2C device found at address 0x%02X\n", address);
-            nDevices++;
-        }
-    }
-    
-    if (nDevices == 0) {
-        Serial.println("[RTC] No I2C devices found!");
-        Serial.println("[RTC] Check wiring: SDA->GPIO3, SCL->GPIO5, VCC->3.3V, GND->GND");
-        rtcAvailable = false;
-        return;
-    }
-    
-    // Now try to initialize the RTC
+    // Try to initialize the RTC
     if (!rtc.begin()) {
         Serial.println("[RTC] DS3231 not found at 0x68!");
+        Serial.println("[RTC] Check wiring: SDA->GPIO6, SCL->GPIO3, VCC->3.3V, GND->GND");
         rtcAvailable = false;
+        
+        // Clear any potential I2C errors
+        Wire.end();
+        delay(100);
+        Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 100000);
         return;
     }
     
     rtcAvailable = true;
     Serial.println("[RTC] DS3231 initialized successfully!");
-    delay(100); // Give it a moment
+    delay(100);
 
-    
     // Check if RTC lost power
     if (rtc.lostPower()) {
         Serial.println("[RTC] RTC lost power, setting to compile time...");

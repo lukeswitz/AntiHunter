@@ -618,6 +618,7 @@ void startWebServer()
         }
         String txt = req->getParam("list", true)->value();
         saveTargetsList(txt);
+        saveConfiguration();
         req->send(200, "text/plain", "Saved"); });
 
   server->on("/node-id", HTTP_POST, [](AsyncWebServerRequest *req)
@@ -625,6 +626,7 @@ void startWebServer()
     String id = req->hasParam("id", true) ? req->getParam("id", true)->value() : "";
     if (id.length() > 0 && id.length() <= 16) {
         setNodeId(id);
+        saveConfiguration();
         req->send(200, "text/plain", "Node ID updated");
     } else {
         req->send(400, "text/plain", "Invalid ID (1-16 chars)");
@@ -656,6 +658,8 @@ void startWebServer()
             String ch = req->getParam("ch", true)->value();
             parseChannelsCSV(ch);
         }
+        
+        saveConfiguration();
         
         currentScanMode = mode;
         stopRequested = false;
@@ -739,14 +743,43 @@ void startWebServer()
         r->send(200, "text/plain", "Stopping… (AP will return shortly)"); });
 
   server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-        // TODO 
-        r->send(200, "application/json", ""); });
+  {
+      String configJson = "{\n";
+      configJson += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
+      configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
+      configJson += "\"channels\":\"";
+      
+      String channelsCSV;
+      for (size_t i = 0; i < CHANNELS.size(); i++) {
+          channelsCSV += String(CHANNELS[i]);
+          if (i < CHANNELS.size() - 1) {
+              channelsCSV += ",";
+          }
+      }
+      configJson += channelsCSV + "\",\n";
+      configJson += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
+      configJson += "}";
+      
+      r->send(200, "application/json", configJson);
+  });
 
-  server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-        saveConfiguration();
-        req->send(200, "text/plain", "Config saved"); });
+  server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (!req->hasParam("channels") || !req->hasParam("targets")) {
+          req->send(400, "text/plain", "Missing parameters");
+          return;
+      }
+
+      String channelsCSV = req->getParam("channels")->value();
+      parseChannelsCSV(channelsCSV);
+      prefs.putString("channels", channelsCSV);
+
+      String targets = req->getParam("targets")->value();
+      saveTargetsList(targets);
+      prefs.putString("maclist", targets);
+
+      saveConfiguration();
+      req->send(200, "text/plain", "Configuration updated");
+  });
 
   server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req)
              {

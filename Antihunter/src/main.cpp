@@ -11,7 +11,7 @@
 #include "esp_wifi.h"
 
 
-Preferences prefs;;
+Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = {1, 6, 11};
 volatile bool stopRequested = false;
@@ -113,6 +113,8 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+
+    saveConfiguration();
 }
 
 void sendNodeIdUpdate() {
@@ -134,13 +136,14 @@ void setup() {
     delay(300);
     Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
-    
+
     delay(400);
-    initializeHardware();
+    initializeHardware();  // Sets up preferences and node ID
     delay(10);
-    initializeNetwork();  // starts AP and mesh UART
-    delay(500);
     initializeSD();
+    delay(500);
+    loadConfiguration();
+    initializeNetwork();   // starts AP and mesh UART
     delay(500);
     initializeGPS();
     delay(1000);
@@ -166,15 +169,15 @@ void setup() {
 }
 
 void loop() {
-    // NodeID HB every 15 minutes
-    static unsigned long lastNodeIdSend = 0;
-    if (millis() - lastNodeIdSend > 900000) {
+    static unsigned long lastSaveSend = 0;
+    
+    if (millis() - lastSaveSend > 900000) { // Node HB, SD config save - 15min
+      saveConfiguration();
       sendNodeIdUpdate();
-      lastNodeIdSend = millis();
+      lastSaveSend = millis();
     }
 
-    // Update RTC time every second
-    if (millis() - lastRTCUpdate > 1000) {
+    if (millis() - lastRTCUpdate > 1000) {  // RTC - 1s
         updateRTCTime();
         lastRTCUpdate = millis();
     }
