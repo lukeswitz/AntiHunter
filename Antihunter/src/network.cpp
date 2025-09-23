@@ -12,8 +12,9 @@ extern "C"
 #include "esp_coexist.h"
 }
 
-// Network
+// Network and LoRa
 AsyncWebServer *server = nullptr;
+const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
 const unsigned long MESH_SEND_INTERVAL = 3500;
@@ -39,14 +40,12 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
+// Triangulation 
 static std::vector<TriangulationNode> triangulationNodes;
 bool triangulationActive = false;
 static uint8_t triangulationTarget[6];
 static uint32_t triangulationStart = 0;
 static uint32_t triangulationDuration = 0;
-
-
-// Triangulation 
 
 bool isTriangulationActive() {
     return triangulationActive;
@@ -111,7 +110,8 @@ String calculateTriangulationResults() {
     return calculateTriangulation();
 }
 
-// Main AP 
+// AP HTML
+
 void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
@@ -240,7 +240,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
       </div>
       
       <label>WiFi Channels</label>
-      <input type="text" name="ch" value="1,6,11" placeholder="1,6,11 or 1..14">
+      <input type="text" name="ch" value="1..14" placeholder="1,6,11 or 1..14">
       
       <div class="row" style="margin-top:10px">
         <input type="checkbox" id="triangulate" name="triangulate" value="1">
@@ -905,57 +905,66 @@ else if (detection == "multi-ssid") {
 
 void stopAPAndServer() {
     Serial.println("[SYS] Stopping AP and web server...");
-
+    
     if (server) {
-        server->end();
+        server->end(); // AsyncWebServer cleanup first
         delete server;
         server = nullptr;
+        delay(200);
     }
     delay(500);
     
     WiFi.softAPdisconnect(true);
-    WiFi.disconnect(true);
-    delay(200);
+    delay(100);
     
     esp_wifi_stop();
-    delay(200);
+    delay(100);
     
     esp_wifi_deinit();
-    delay(200);
+    delay(100);
 }
 
 void startAPAndServer() {
     Serial.println("[SYS] Starting AP and web server...");
     
-    WiFi.mode(WIFI_OFF);
-    delay(500);
+    const int MAX_RETRIES = 10;
+    int tries = 0;
     
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_err_t err = esp_wifi_init(&cfg);
-    if (err != ESP_OK) {
-        Serial.printf("[ERROR] WiFi init failed: %d\n", err);
-        return;
-    }
-    delay(200);
+    while (tries < MAX_RETRIES) {
+        tries++;
+        Serial.printf("[AP] Attempt %d/%d\n", tries, MAX_RETRIES);
+        
+        WiFi.mode(WIFI_OFF);
+        delay(100);
+        
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        esp_wifi_init(&cfg);
+        delay(500);
 
-    WiFi.mode(WIFI_AP);
-    delay(200);
-    
-    if (!WiFi.softAPConfig(IPAddress(192,168,4,1), 
-                          IPAddress(192,168,4,1),
-                          IPAddress(255,255,255,0))) {
-        Serial.println("[ERROR] AP Config failed");
-        return;
+        WiFi.mode(WIFI_AP);
+        delay(100);
+        
+        if (!WiFi.softAPConfig(IPAddress(192,168,4,1), 
+                              IPAddress(192,168,4,1),
+                              IPAddress(255,255,255,0))) {
+            delay(100);
+            continue;
+        }
+        
+        if (WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0, 8)) {
+            delay(100);
+            server = new AsyncWebServer(80);
+            startWebServer();
+            Serial.println("[AP] Started successfully"); 
+            return;
+        }
+        
+        delay(500);
     }
     
-    if (!WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0, 8)) {
-        Serial.println("[ERROR] softAP failed");
-        return;
-    }
-    delay(500);
-    
-    server = new AsyncWebServer(80);
-    startWebServer();
+    Serial.println("[FATAL] Failed to start AP after max retries, resetting...");
+    delay(100);
+    esp_restart();
 }
 
 // Mesh UART Message Sender
