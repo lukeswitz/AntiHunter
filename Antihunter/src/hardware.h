@@ -7,28 +7,28 @@
 #define COUNTRY "NO"
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 4   // MESH PIN 20      (GPIO 04)
+#define MESH_RX_PIN 4   // MESH PIN 9
 #endif
 #ifndef MESH_TX_PIN
-#define MESH_TX_PIN 5    // MESH PIN 19     (GPIO 05)
+#define MESH_TX_PIN 5    // MESH PIN 10
 #endif
 #ifndef VIBRATION_PIN
-#define VIBRATION_PIN 1  // SW-420          (GPIO 01)
+#define VIBRATION_PIN 2  // SW-420
 #endif
 
 // SD Card (SPI)
-#define SD_CS_PIN   2    // CS on D1        (GPIO 02)
-#define SD_CLK_PIN  7    // CLK (SCK)       (GPIO 07)
-#define SD_MISO_PIN 8    // MISO on D9      (GPIO 08)
-#define SD_MOSI_PIN 9    // MOSI on D10     (GPIO 09)
+#define SD_CS_PIN   1    // CS on D0
+#define SD_CLK_PIN  7    // CLK on D8
+#define SD_MISO_PIN 8    // MISO on D9
+#define SD_MOSI_PIN 9   // MOSI on D10
 
 // GPS (UART)
-#define GPS_RX_PIN 44   // GPS RX           (GPIO 44)
-#define GPS_TX_PIN 43   // GPS TX           (GPIO 43)
+#define GPS_RX_PIN 44   // GPS RX
+#define GPS_TX_PIN 43   // GPS TX
 
 // RTC (I2C)
-#define RTC_SDA_PIN 6    // RTC SDA on       (GPIO 05)
-#define RTC_SCL_PIN 3    // RTC SCL on       (GPIO 02)
+#define RTC_SDA_PIN 3    // RTC SDA
+#define RTC_SCL_PIN 6    // RTC SCL
 
 // Configuration constants
 #define CONFIG_FILE "/config.json"
