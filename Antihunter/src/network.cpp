@@ -183,6 +183,32 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
 .diag-section{margin:8px 0}
 .diag-label{color:var(--accent);font-weight:bold}
 .scan-controls{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10000}
+.modal-content{background:var(--card);border:2px solid #ff4444;border-radius:12px;padding:24px;max-width:600px;width:90%;text-align:center;box-shadow:0 0 30px rgba(255,68,68,0.3)}
+.modal-content h3{color:#ff6666;margin:0 0 20px 0;font-size:18px}
+.progress-container{margin:20px 0}
+.progress-bar{width:100%;height:24px;background:#000;border:1px solid #003b24;border-radius:12px;overflow:hidden;margin:15px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,#ff4444,#ff6666,#ff4444);background-size:200% 100%;animation:progress-pulse 2s ease-in-out infinite;width:0%;transition:width 0.5s ease;border-radius:12px}
+@keyframes progress-pulse{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+#eraseProgressText{font-weight:bold;color:var(--fg);margin:10px 0}
+.progress-details{max-height:200px;overflow-y:auto;background:#000;border:1px dashed #003b24;border-radius:8px;padding:12px;margin:15px 0;font-size:11px;text-align:left;font-family:monospace;color:var(--muted)}
+.progress-details div{margin:2px 0;border-bottom:1px dotted #003b24;padding:2px 0}
+.warning-text{color:#ff6666;font-weight:bold;margin-top:20px;padding:12px;background:rgba(255,68,68,0.1);border-radius:8px;border:1px solid #ff4444;font-size:14px}
+.toast{display:flex;align-items:flex-start;gap:12px;background:var(--card);border-radius:10px;padding:14px;margin:8px 0;min-width:320px;opacity:0;transform:translateY(8px);transition:all 0.3s ease;box-shadow:0 8px 30px rgba(10,255,157,0.2)}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-success{border-left:4px solid #00cc66;background:linear-gradient(135deg,#001d12,#002417)}
+.toast-error{border-left:4px solid #ff4444;background:linear-gradient(135deg,#330000,#1a0000)}
+.toast-warning{border-left:4px solid #ffaa00;background:linear-gradient(135deg,#331a00,#2a1500)}
+.toast-info{border-left:4px solid #0aff9d;background:linear-gradient(135deg,#001d12,#00140d)}
+.toast-content{flex:1}
+.toast-title{font-weight:bold;font-size:12px;margin-bottom:4px;font-family:monospace;opacity:0.8}
+.toast-message{font-size:13px;color:var(--fg);line-height:1.3}
+.status-disabled{color:#888;background:rgba(136,136,136,0.1);border:1px solid #444}
+.status-setup{color:#ffaa00;background:rgba(255,170,0,0.1);border:1px solid #ffaa00}
+.status-active{color:#00cc66;background:rgba(0,204,102,0.1);border:1px solid #00cc66}
+.status-danger{color:#ff4444;background:rgba(255,68,68,0.1);border:1px solid #ff4444;animation:pulse-danger 2s infinite}
+@keyframes pulse-danger{0%,100%{opacity:1}50%{opacity:0.7}}
+#autoEraseStatus{padding:12px;border-radius:8px;font-weight:bold;text-align:center;margin:10px 0;font-size:13px;font-family:monospace}
 </style></head><body>
 <div class="header">
   <svg class="logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -376,6 +402,9 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   <div class="banner">WARNING: This will permanently wipe all config data and logs.</div>
   
   <form id="eraseForm">
+    <label for="eraseReason">Reason for Emergency Erase</label>
+    <input type="text" id="eraseReason" placeholder="Emergency situation, device compromise, etc.">
+    
     <label for="eraseConfirm">Confirmation Code</label>
     <input type="text" id="eraseConfirm" placeholder="Type: WIPE_ALL_DATA">
     
@@ -553,39 +582,153 @@ function updateAutoEraseStatus() {
     });
 }
 
-function requestErase() {
-    const reason = document.getElementById('eraseReason').value;
-    const confirm = document.getElementById('eraseConfirm').value;
+function updateEraseProgress(message, percentage) {
+    const progressBar = document.getElementById('eraseProgressBar');
+    const progressText = document.getElementById('eraseProgressText');
+    const progressDetails = document.getElementById('eraseProgressDetails');
     
-    if (!reason.trim()) {
-        alert('Please provide a reason for the emergency erase');
-        return;
+    if (progressBar) {
+        progressBar.style.width = percentage + '%';
     }
-    
-    if (confirm !== 'DESTROY_ALL_DATA') {
-        alert('Please type "DESTROY_ALL_DATA" exactly to confirm');
-        return;
+    if (progressText) {
+        progressText.textContent = message;
     }
-    
-    if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
-        return;
+    if (progressDetails) {
+        progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+        progressDetails.scrollTop = progressDetails.scrollHeight;
     }
+}
+
+function pollEraseProgress() {
+    const poll = setInterval(() => {
+        fetch('/api/erase/progress')
+        .then(response => response.json())
+        .then(data => {
+            updateEraseProgress(data.message, data.percentage);
+            
+            if (data.status === 'COMPLETE') {
+                clearInterval(poll);
+                finalizeEraseProcess(true);
+            } else if (data.status === 'ERROR') {
+                clearInterval(poll);
+                finalizeEraseProcess(false, data.error);
+            } else if (data.status === 'CANCELLED') {
+                clearInterval(poll);
+                hideEraseProgressModal();
+                toast('Secure erase cancelled', 'info');
+            }
+        })
+        .catch(error => {
+            clearInterval(poll);
+            finalizeEraseProcess(false, 'Communication error');
+        });
+    }, 1000);
+}
+
+function finalizeEraseProcess(success, error = null) {
+    if (success) {
+        updateEraseProgress('Secure erase completed successfully', 100);
+        toast('All data has been securely destroyed', 'success');
+        
+        setTimeout(() => {
+            hideEraseProgressModal();
+            window.location.reload();
+        }, 3000);
+    } else {
+        updateEraseProgress('Secure erase failed: ' + error, 0);
+        toast('Erase operation failed: ' + error, 'error');
+        
+        setTimeout(() => {
+            hideEraseProgressModal();
+        }, 5000);
+    }
+}
+
+function hideEraseProgressModal() {
+    const modal = document.getElementById('eraseProgressModal');
+    if (modal) {
+        document.body.removeChild(modal);
+    }
+}
+
+function toast(msg, type = 'info') {
+    const wrap = document.getElementById('toast');
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
     
-    fetch('/api/erase/request', {
+    const typeLabels = {
+        'success': 'SUCCESS',
+        'error': 'ERROR',
+        'warning': 'WARNING',
+        'info': 'INFO'
+    };
+    
+    el.innerHTML = `
+        <div class="toast-content">
+            <div class="toast-title">[${typeLabels[type] || typeLabels.info}]</div>
+            <div class="toast-message">${msg}</div>
+        </div>
+    `;
+    
+    wrap.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    
+    const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
+    
+    setTimeout(() => {
+        el.classList.remove('show');
+        setTimeout(() => wrap.removeChild(el), 300);
+    }, duration);
+}
+
+function saveAutoEraseConfig() {
+    const enabled = document.getElementById('autoEraseEnabled').checked;
+    const vibrationsRequired = document.getElementById('vibrationsRequired').value;
+    const detectionWindow = document.getElementById('detectionWindow').value;
+    
+    fetch('/api/config/autoerase', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `reason=${encodeURIComponent(reason)}&confirm=${encodeURIComponent(confirm)}`
+        body: `enabled=${enabled}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}`
     })
     .then(response => response.text())
     .then(data => {
-        document.getElementById('eraseStatus').style.display = 'block';
-        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-        
-        // Start polling status
-        pollEraseStatus();
+        toast('Auto-erase configuration saved', 'success');
+        updateAutoEraseStatus();
     })
     .catch(error => {
-        alert('Error: ' + error);
+        toast('Failed to save configuration: ' + error, 'error');
+    });
+}
+
+function updateAutoEraseStatus() {
+    fetch('/api/config/autoerase')
+    .then(response => response.json())
+    .then(data => {
+        const statusDiv = document.getElementById('autoEraseStatus');
+        let statusText = '';
+        let statusClass = '';
+        
+        if (!data.enabled) {
+            statusText = 'DISABLED - Manual erase only';
+            statusClass = 'status-disabled';
+        } else if (data.inSetupMode) {
+            const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
+            statusText = `SETUP MODE - Activating in ${remaining}s`;
+            statusClass = 'status-setup';
+        } else if (data.tamperActive) {
+            statusText = 'TAMPER DETECTED - Auto-erase in progress';
+            statusClass = 'status-danger';
+        } else {
+            statusText = 'ACTIVE - Monitoring for tampering';
+            statusClass = 'status-active';
+        }
+        
+        statusDiv.textContent = statusText;
+        statusDiv.className = statusClass;
+    })
+    .catch(error => {
+        document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
     });
 }
 
@@ -601,15 +744,69 @@ function pollEraseStatus() {
     const poll = setInterval(() => {
         fetch('/api/erase/status')
         .then(response => response.text())
-        .then(data => {
-            const statusDiv = document.getElementById('eraseStatus');
-            statusDiv.innerHTML = '<pre>' + data + '</pre>';
+        .then(status => {
+            document.getElementById('eraseStatus').innerHTML = '<pre>Status: ' + status + '</pre>';
             
-            if (data.includes('INACTIVE') || data.includes('COMPLETE')) {
+            if (status === 'COMPLETED') {
                 clearInterval(poll);
+                // Show persistent success message
+                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
+                toast('All data has been securely destroyed', 'success');
+                
+                // Clear the form
+                document.getElementById('eraseReason').value = '';
+                document.getElementById('eraseConfirm').value = '';
+                
+            } else if (status.startsWith('FAILED')) {
+                clearInterval(poll);
+                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
+                toast('Secure erase failed: ' + status, 'error');
             }
+        })
+        .catch(error => {
+            clearInterval(poll);
+            toast('Status check failed: ' + error, 'error');
         });
-    }, 2000);
+    }, 1000); // Check every second for faster feedback
+}
+
+function requestErase() {
+    const reason = document.getElementById('eraseReason').value;
+    const confirm = document.getElementById('eraseConfirm').value;
+    
+    if (!reason.trim()) {
+        toast('Please provide a reason for the emergency erase', 'error');
+        return;
+    }
+    
+    if (confirm !== 'WIPE_ALL_DATA') {
+        toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
+        return;
+    }
+    
+    if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
+        return;
+    }
+    
+    toast('Initiating secure erase operation...', 'warning');
+    
+    fetch('/api/erase/request', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `reason=${encodeURIComponent(reason)}&confirm=${encodeURIComponent(confirm)}`
+    })
+    .then(response => response.text())
+    .then(data => {
+        document.getElementById('eraseStatus').style.display = 'block';
+        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+        toast('Secure erase started', 'info');
+        
+        // Start polling for status
+        pollEraseStatus();
+    })
+    .catch(error => {
+        toast('Network error: ' + error, 'error');
+    });
 }
 
 async function tick(){
