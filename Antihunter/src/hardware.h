@@ -88,6 +88,8 @@ extern uint32_t detectionWindow;
 extern uint32_t setupDelay;
 extern uint32_t setupStartTime;
 extern bool inSetupMode;
+extern String eraseStatus;
+extern bool eraseInProgress;
 
 bool initiateTamperErase();
 void cancelTamperErase();
