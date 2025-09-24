@@ -74,3 +74,27 @@ String getRTCTimeString();
 String getFormattedTimestamp();
 time_t getRTCEpoch();
 bool setRTCTime(int year, int month, int day, int hour, int minute, int second);
+
+// Tamper Detection System
+#define TAMPER_DETECTION_WINDOW 30000  // 30 seconds to cancel
+extern bool tamperEraseActive;
+extern uint32_t tamperSequenceStart;
+extern String tamperAuthToken;
+extern bool autoEraseEnabled;
+extern uint32_t autoEraseDelay;
+extern uint32_t autoEraseCooldown;
+extern uint32_t vibrationsRequired;
+extern uint32_t detectionWindow;
+extern uint32_t setupDelay;
+extern uint32_t setupStartTime;
+extern bool inSetupMode;
+
+bool initiateTamperErase();
+void cancelTamperErase();
+bool checkTamperTimeout();
+bool performSecureWipe();
+void deleteAllFiles(const String &dirname);
+bool executeSecureErase(const String &reason);
+String generateEraseToken();
+bool validateEraseToken(const String &token);
+void logEraseAttempt(const String &reason, bool success);

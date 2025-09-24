@@ -371,6 +371,60 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
   <pre id="r">No scan data yet.</pre>
 </div>
 
+<div class="card">
+  <h3>Secure Data Destruction</h3>
+  <div class="banner">WARNING: This will permanently wipe all config data and logs.</div>
+  
+  <form id="eraseForm">
+    <label for="eraseConfirm">Confirmation Code</label>
+    <input type="text" id="eraseConfirm" placeholder="Type: WIPE_ALL_DATA">
+    
+    <div class="row" style="margin-top:10px">
+      <button class="btn danger" type="button" onclick="requestErase()">INITIATE SECURE WIPE</button>
+      <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
+    </div>
+  </form>
+  
+  <div id="eraseStatus" style="display:none; margin-top:10px; padding:8px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;"></div>
+</div>
+
+<div class="card">
+  <h3>Auto-Erase Configuration</h3>
+  <div class="banner">Configure automatic data destruction on tampering detection.</div>
+  
+  <div class="row" style="margin:10px 0">
+    <input type="checkbox" id="autoEraseEnabled">
+    <label for="autoEraseEnabled" style="margin:0">Enable automatic erase on device tampering</label>
+  </div>
+  
+  <div class="grid-2col">
+    <div>
+      <label>Vibrations required</label>
+      <select id="vibrationsRequired">
+        <option value="2">2 vibrations</option>
+        <option value="3" selected>3 vibrations</option>
+        <option value="4">4 vibrations</option>
+        <option value="5">5 vibrations</option>
+      </select>
+    </div>
+    <div>
+      <label>Within time window</label>
+      <select id="detectionWindow">
+        <option value="10000">10 seconds</option>
+        <option value="20000" selected>20 seconds</option>
+        <option value="30000">30 seconds</option>
+        <option value="60000">1 minute</option>
+      </select>
+    </div>
+  </div>
+  
+  <div class="row" style="margin-top:10px">
+    <button class="btn primary" type="button" onclick="saveAutoEraseConfig()">SAVE CONFIG</button>
+  </div>
+  
+  <div id="autoEraseStatus" style="margin-top:10px; padding:8px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;">DISABLED - Manual erase only</div>
+</div>
+
 <div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
 </div>
 <script>
@@ -461,6 +515,101 @@ function updateStatusIndicators(diagText) {
     document.getElementById('rtcStatus').classList.remove('active');
     document.getElementById('rtcStatus').innerText = 'RTC';
   }
+}
+
+function saveAutoEraseConfig() {
+    const enabled = document.getElementById('autoEraseEnabled').checked;
+    const delay = document.getElementById('autoEraseDelay').value;
+    const cooldown = document.getElementById('autoEraseCooldown').value;
+    const vibrationsRequired = document.getElementById('vibrationsRequired').value;
+    const detectionWindow = document.getElementById('detectionWindow').value;
+    const setupDelay = document.getElementById('setupDelay').value;
+    
+    fetch('/api/config/autoerase', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
+    })
+    .then(response => response.text())
+    .then(data => {
+        document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
+        updateAutoEraseStatus();
+    });
+}
+
+function updateAutoEraseStatus() {
+    fetch('/api/config/autoerase')
+    .then(response => response.json())
+    .then(data => {
+        if (data.enabled) {
+            if (data.inSetupMode) {
+                document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
+            } else {
+                document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
+            }
+        } else {
+            document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+        }
+    });
+}
+
+function requestErase() {
+    const reason = document.getElementById('eraseReason').value;
+    const confirm = document.getElementById('eraseConfirm').value;
+    
+    if (!reason.trim()) {
+        alert('Please provide a reason for the emergency erase');
+        return;
+    }
+    
+    if (confirm !== 'DESTROY_ALL_DATA') {
+        alert('Please type "DESTROY_ALL_DATA" exactly to confirm');
+        return;
+    }
+    
+    if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
+        return;
+    }
+    
+    fetch('/api/erase/request', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `reason=${encodeURIComponent(reason)}&confirm=${encodeURIComponent(confirm)}`
+    })
+    .then(response => response.text())
+    .then(data => {
+        document.getElementById('eraseStatus').style.display = 'block';
+        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+        
+        // Start polling status
+        pollEraseStatus();
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+function cancelErase() {
+    fetch('/api/erase/cancel', {method: 'POST'})
+    .then(response => response.text())
+    .then(data => {
+        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+    });
+}
+
+function pollEraseStatus() {
+    const poll = setInterval(() => {
+        fetch('/api/erase/status')
+        .then(response => response.text())
+        .then(data => {
+            const statusDiv = document.getElementById('eraseStatus');
+            statusDiv.innerHTML = '<pre>' + data + '</pre>';
+            
+            if (data.includes('INACTIVE') || data.includes('COMPLETE')) {
+                clearInterval(poll);
+            }
+        });
+    }, 2000);
 }
 
 async function tick(){
@@ -770,6 +919,111 @@ void startWebServer()
              {
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
+
+  server->on("/api/secure/destruct", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("confirm", true) || req->getParam("confirm", true)->value() != "WIPE_ALL_DATA") {
+        req->send(400, "text/plain", "Invalid confirmation");
+        return;
+    }
+    
+    tamperAuthToken = generateEraseToken();
+    executeSecureErase("Manual web request");
+    req->send(200, "text/plain", "Secure wipe executed");
+});
+
+server->on("/api/secure/generate-token", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("target", true) || !req->hasParam("confirm", true)) {
+        req->send(400, "text/plain", "Missing target node or confirmation");
+        return;
+    }
+    
+    String target = req->getParam("target", true)->value();
+    String confirm = req->getParam("confirm", true)->value();
+    
+    if (confirm != "GENERATE_ERASE_TOKEN") {
+        req->send(400, "text/plain", "Invalid confirmation");
+        return;
+    }
+    
+    // Use existing generateEraseToken() function
+    String token = generateEraseToken();
+    String command = "@" + target + " ERASE_FORCE:" + token;
+    
+    String response = "Mesh erase command generated:\n\n";
+    response += command + "\n\n";
+    response += "Token expires in 5 minutes\n";
+    response += "Send this exact command via mesh to execute remote erase";
+    
+    req->send(200, "text/plain", response);
+});
+
+server->on("/api/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String response = "{";
+    response += "\"enabled\":" + String(autoEraseEnabled ? "true" : "false") + ",";
+    response += "\"delay\":" + String(autoEraseDelay) + ",";
+    response += "\"cooldown\":" + String(autoEraseCooldown) + ",";
+    response += "\"vibrationsRequired\":" + String(vibrationsRequired) + ",";
+    response += "\"detectionWindow\":" + String(detectionWindow) + ",";
+    response += "\"setupDelay\":" + String(setupDelay) + ",";
+    response += "\"inSetupMode\":" + String(inSetupMode ? "true" : "false");
+    response += "}";
+    req->send(200, "application/json", response);
+});
+
+server->on("/api/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("enabled", true) || !req->hasParam("delay", true) || 
+        !req->hasParam("cooldown", true) || !req->hasParam("vibrationsRequired", true) ||
+        !req->hasParam("detectionWindow", true)) {
+        req->send(400, "text/plain", "Missing parameters");
+        return;
+    }
+    if (!req->hasParam("setupDelay", true)) {
+        req->send(400, "text/plain", "Missing setupDelay parameter");
+        return;
+    }
+    
+    autoEraseEnabled = req->getParam("enabled", true)->value() == "true";
+    autoEraseDelay = req->getParam("delay", true)->value().toInt();
+    autoEraseCooldown = req->getParam("cooldown", true)->value().toInt();
+    vibrationsRequired = req->getParam("vibrationsRequired", true)->value().toInt();
+    detectionWindow = req->getParam("detectionWindow", true)->value().toInt();
+    setupDelay = req->getParam("setupDelay", true)->value().toInt();
+    
+    // Validate ranges
+    autoEraseDelay = max(10000, min(300000, (int)autoEraseDelay));
+    autoEraseCooldown = max(60000, min(3600000, (int)autoEraseCooldown));
+    vibrationsRequired = max(2, min(10, (int)vibrationsRequired));
+    detectionWindow = max(5000, min(120000, (int)detectionWindow));
+    setupDelay = max(30000, min(600000, (int)setupDelay));  // 30s - 10min
+    
+    // Start setup mode when auto-erase is enabled
+    if (autoEraseEnabled) {
+        inSetupMode = true;
+        setupStartTime = millis();
+        
+        Serial.printf("[SETUP] Setup mode started - auto-erase activates in %us\n", setupDelay/1000);
+        
+        String setupMsg = getNodeId() + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
+        if (Serial1.availableForWrite() >= setupMsg.length()) {
+            Serial1.println(setupMsg);
+        }
+    }
+    
+    saveConfiguration();
+    req->send(200, "text/plain", "Auto-erase config updated");
+});
+
+server->on("/api/secure/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String status = tamperEraseActive ? 
+        "TAMPER_ACTIVE:" + String((TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart))/1000) + "s" : 
+        "INACTIVE";
+    req->send(200, "text/plain", status);
+});
+
+server->on("/api/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req) {
+    cancelTamperErase();
+    req->send(200, "text/plain", "Cancelled");
+});
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req)
            {
@@ -1237,6 +1491,17 @@ void processCommand(const String &command)
       Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
     }
   }
+  else if (command.startsWith("ERASE_FORCE:")) {
+        String token = command.substring(12);
+        if (validateEraseToken(token)) {
+            executeSecureErase("Force command");
+            Serial1.println(nodeId + ": ERASE_ACK:COMPLETE");
+        }
+    }
+    else if (command == "ERASE_CANCEL") {
+        cancelTamperErase();
+        Serial1.println(nodeId + ": ERASE_ACK:CANCELLED");
+    }
 }
 
 void sendMeshCommand(const String &command)
@@ -1370,6 +1635,53 @@ void processUSBToMesh() {
         }
     }
 }
+
+void handleEraseRequest(AsyncWebServerRequest *request) {
+    if (!request->hasParam("confirm") || !request->hasParam("reason")) {
+        request->send(400, "text/plain", "Missing parameters");
+        return;
+    }
+    
+    String confirm = request->getParam("confirm")->value();
+    String reason = request->getParam("reason")->value();
+    
+    if (confirm != "WIPE_ALL_DATA") {
+        request->send(400, "text/plain", "Invalid confirmation");
+        return;
+    }
+
+    tamperAuthToken = generateEraseToken();
+    
+    String response = "Emergency Erase Token Generated: " + tamperAuthToken + "\n\n";
+    response += "INSTRUCTIONS:\n";
+    response += "1. This will execute immediately\n";
+    response += "2. This will PERMANENTLY DESTROY ALL DATA\n\n";
+    response += "Reason: " + reason + "\n";
+    
+    executeSecureErase("Manual web request: " + reason);
+    
+    request->send(200, "text/plain", response);
+}
+
+void handleEraseStatus(AsyncWebServerRequest *request) {
+    String status;
+    if (tamperEraseActive) {
+        uint32_t timeLeft = TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart);
+        status = "ACTIVE - Tamper erase countdown\n";
+        status += "Time remaining: " + String(timeLeft / 1000) + " seconds\n";
+        status += "Send ERASE_CANCEL to abort";
+    } else {
+        status = "INACTIVE";
+    }
+    
+    request->send(200, "text/plain", status);
+}
+
+void handleEraseCancel(AsyncWebServerRequest *request) {
+    cancelTamperErase();
+    request->send(200, "text/plain", "Tamper erase sequence cancelled");
+}
+
 
 // void processUSBToMesh() {
 //     static String usbBuffer = "";

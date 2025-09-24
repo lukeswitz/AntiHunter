@@ -32,7 +32,7 @@ bool rtcSynced = false;
 time_t lastRTCSync = 0;
 String rtcTimeString = "RTC not initialized";
 
-// Viration Sensor
+// Vibration Sensor
 volatile bool vibrationDetected = false;
 unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
@@ -50,6 +50,20 @@ extern bool lastScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets);
+
+// Tamper Detection Erase
+uint32_t setupDelay = 120000;  // 2 minutes default
+uint32_t setupStartTime = 0;
+bool inSetupMode = false;
+bool tamperEraseActive = false;
+uint32_t tamperSequenceStart = 0;
+String tamperAuthToken = "";
+bool autoEraseEnabled = false;
+uint32_t autoEraseDelay = 30000;      // 30 seconds default
+uint32_t autoEraseCooldown = 300000;  // 5 minutes default
+static uint32_t lastAutoEraseAttempt = 0;
+uint32_t vibrationsRequired = 3;
+uint32_t detectionWindow = 20000;  // 20 seconds
 
 
 void initializeHardware()
@@ -81,27 +95,32 @@ void saveConfiguration() {
         return;
     }
 
-    String config = "{\n";
-    config += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
-    config += "\"scanMode\":" + String(currentScanMode) + ",\n";
-    config += "\"channels\":\"";
-
-    String channelsCSV;
+    String channelsCSV = "";
     for (size_t i = 0; i < CHANNELS.size(); i++) {
         channelsCSV += String(CHANNELS[i]);
         if (i < CHANNELS.size() - 1) {
             channelsCSV += ",";
         }
     }
-    config += channelsCSV + "\",\n";
-    config += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
+
+    String config = "{\n";
+    config += "  \"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
+    config += "  \"scanMode\":" + String(currentScanMode) + ",\n";
+    config += "  \"channels\":\"" + channelsCSV + "\",\n";
+    config += "  \"autoEraseEnabled\":" + String(autoEraseEnabled ? "true" : "false") + ",\n";
+    config += "  \"autoEraseDelay\":" + String(autoEraseDelay) + ",\n";
+    config += "  \"autoEraseCooldown\":" + String(autoEraseCooldown) + ",\n";
+    config += "  \"vibrationsRequired\":" + String(vibrationsRequired) + ",\n";
+    config += "  \"detectionWindow\":" + String(detectionWindow) + ",\n";
+    config += "  \"setupDelay\":" + String(setupDelay) + ",\n";
+    config += "  \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
     config += "}";
 
-    configFile.println(config);
+    configFile.print(config);
     configFile.close();
     Serial.println("Configuration saved to SD card");
+    Serial.println("Saved JSON: " + config); // Debug
 }
-
 void loadConfiguration() {
     if (!sdAvailable) {
         Serial.println("SD card not available, cannot load configuration from SD");
@@ -121,12 +140,15 @@ void loadConfiguration() {
 
     String config = configFile.readString();
     configFile.close();
-
-    DynamicJsonDocument doc(1024);
+    
+    Serial.println("Raw config: " + config);
+    
+    DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, config);
     
     if (error) {
         Serial.println("Failed to parse config file: " + String(error.c_str()));
+        Serial.println("Config content was: " + config);
         return;
     }
 
@@ -165,6 +187,30 @@ void loadConfiguration() {
             Serial.println("Loaded targets from SD: " + targets);
             Serial.println("Target count: " + String(getTargetCount()));
         }
+    }
+    if (doc.containsKey("autoEraseEnabled")) {
+        autoEraseEnabled = doc["autoEraseEnabled"].as<bool>();
+    }
+    if (doc.containsKey("autoEraseDelay")) {
+        autoEraseDelay = doc["autoEraseDelay"].as<uint32_t>();
+    }
+    if (doc.containsKey("autoEraseCooldown")) {
+        autoEraseCooldown = doc["autoEraseCooldown"].as<uint32_t>();
+    }
+    if (doc.containsKey("autoEraseEnabled")) {
+        autoEraseEnabled = doc["autoEraseEnabled"].as<bool>();
+    }
+    if (doc.containsKey("autoEraseDelay")) {
+        autoEraseDelay = doc["autoEraseDelay"].as<uint32_t>();
+    }
+    if (doc.containsKey("autoEraseCooldown")) {
+        autoEraseCooldown = doc["autoEraseCooldown"].as<uint32_t>();
+    }
+    if (doc.containsKey("vibrationsRequired")) {
+        vibrationsRequired = doc["vibrationsRequired"].as<uint32_t>();
+    }
+    if (doc.containsKey("detectionWindow")) {
+        detectionWindow = doc["detectionWindow"].as<uint32_t>();
     }
 
     Serial.println("Configuration loaded from SD card");
@@ -463,7 +509,17 @@ void logToSD(const String &data) {
     if (!sdAvailable) return;
     
     static uint32_t totalWrites = 0;
+    static uint32_t failCount = 0;
     static File logFile;
+
+    if (!SD.exists("/")) {
+        failCount++;
+        if (failCount > 5) {
+            Serial.println("[SD] Multiple failures, marking unavailable");
+            sdAvailable = false;
+        }
+        return;
+    }
     
     if (!SD.exists("/")) {
         SD.mkdir("/");
@@ -537,6 +593,44 @@ void checkAndSendVibrationAlert() {
     if (vibrationDetected) {
         vibrationDetected = false;
         
+        // Check if we're in setup mode
+        if (inSetupMode) {
+            uint32_t elapsed = millis() - setupStartTime;
+            if (elapsed >= setupDelay) {
+                inSetupMode = false;
+                Serial.println("[SETUP] Setup period complete - auto-erase now ACTIVE");
+                
+                String setupMsg = getNodeId() + ": SETUP_COMPLETE: Auto-erase activated";
+                if (Serial1.availableForWrite() >= setupMsg.length()) {
+                    Serial1.println(setupMsg);
+                }
+            } else {
+                uint32_t remaining = (setupDelay - elapsed) / 1000;
+                Serial.printf("[SETUP] Setup mode - auto-erase activates in %us\n", remaining);
+                
+                // Send setup status in vibration alert
+                String vibrationMsg = getNodeId() + ": VIBRATION: Movement in setup mode (active in " + String(remaining) + "s)";
+                if (gpsValid) {
+                    vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                }
+                
+                if (Serial1.availableForWrite() >= vibrationMsg.length()) {
+                    Serial1.println(vibrationMsg);
+                }
+                return;
+            }
+        }
+
+        if (autoEraseEnabled && !tamperEraseActive && 
+            millis() - lastVibrationTime < 1000 &&
+            millis() - lastAutoEraseAttempt > autoEraseCooldown) {
+            
+            Serial.println("[TAMPER] Device movement detected - auto-erase enabled");
+            tamperAuthToken = generateEraseToken();
+            initiateTamperErase();
+            lastAutoEraseAttempt = millis();
+        }
+        
         // Only send alert if enough time has passed since last alert
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
             lastVibrationAlert = millis();
@@ -560,6 +654,12 @@ void checkAndSendVibrationAlert() {
             // Add GPS if we have it
             if (gpsValid) {
                 vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            }
+            
+            // Add tamper status
+            if (tamperEraseActive) {
+                uint32_t timeLeft = (TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart)) / 1000;
+                vibrationMsg += " TAMPER_ERASE_IN:" + String(timeLeft) + "s";
             }
             
             Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg.c_str());
@@ -675,6 +775,12 @@ void updateRTCTime() {
         rtcTimeString = "RTC not available";
         return;
     }
+
+    if (!rtc.begin()) {
+        Serial.println("[RTC] Communication lost, disabling");
+        rtcAvailable = false;
+        return;
+    }
     
     DateTime now = rtc.now();
     
@@ -741,4 +847,157 @@ bool setRTCTime(int year, int month, int day, int hour, int minute, int second) 
                   year, month, day, hour, minute, second);
     
     return true;
+}
+
+// SD Erase
+
+String generateEraseToken() {
+    uint32_t token1 = esp_random();
+    uint32_t token2 = esp_random();
+    uint32_t timestamp = millis() / 1000;
+    
+    char tokenBuffer[32];
+    snprintf(tokenBuffer, sizeof(tokenBuffer), "AH_%08X_%08X_%08X", 
+             token1, token2, timestamp);
+    
+    return String(tokenBuffer);
+}
+
+bool validateEraseToken(const String &token) {
+    if (token != tamperAuthToken) return false;
+    
+    int lastUnderscorePos = token.lastIndexOf('_');
+    if (lastUnderscorePos < 0) return false;
+    
+    String timestampStr = token.substring(lastUnderscorePos + 1);
+    uint32_t tokenTime = strtoul(timestampStr.c_str(), nullptr, 16);
+    uint32_t currentTime = millis() / 1000;
+    
+    return (currentTime - tokenTime) < 300;
+}
+
+bool initiateTamperErase() {
+    if (tamperEraseActive) return false;
+    
+    tamperEraseActive = true;
+    tamperSequenceStart = millis();
+    tamperAuthToken = generateEraseToken();
+    
+    Serial.println("[TAMPER] Device movement detected - auto-erase in 30 seconds");
+    
+    String alertMsg = getNodeId() + ": TAMPER_DETECTED: Auto-erase in 30s";
+    if (gpsValid) {
+        alertMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+    }
+    
+    if (Serial1.availableForWrite() >= alertMsg.length()) {
+        Serial1.println(alertMsg);
+    }
+    
+    logEraseAttempt("Tamper detection triggered", true);
+    return true;
+}
+
+void cancelTamperErase() {
+    if (tamperEraseActive) {
+        Serial.println("[TAMPER] Auto-erase cancelled");
+        String cancelMsg = getNodeId() + ": TAMPER_CANCELLED";
+        if (Serial1.availableForWrite() >= cancelMsg.length()) {
+            Serial1.println(cancelMsg);
+        }
+    }
+    
+    tamperEraseActive = false;
+    tamperSequenceStart = 0;
+    tamperAuthToken = "";
+}
+
+bool checkTamperTimeout() {
+    if (!tamperEraseActive) return false;
+    
+    uint32_t elapsed = millis() - tamperSequenceStart;
+    
+    if (elapsed >= TAMPER_DETECTION_WINDOW) {
+        Serial.println("[TAMPER] Timeout - executing erase");
+        return executeSecureErase("Tamper timeout");
+    }
+    
+    return false;
+}
+
+bool executeSecureErase(const String &reason) {
+    Serial.println("EXECUTING SECURE ERASE: " + reason);
+    
+    if (!sdAvailable) {
+        cancelTamperErase();
+        return false;
+    }
+    
+    String finalAlert = getNodeId() + ": ERASE_EXECUTING: " + reason;
+    if (gpsValid) {
+        finalAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+    }
+    
+    if (Serial1.availableForWrite() >= finalAlert.length()) {
+        Serial1.println(finalAlert);
+        Serial1.flush();
+    }
+    
+    delay(1000);
+    bool success = performSecureWipe();
+    
+    if (success) {
+        String confirmMsg = getNodeId() + ": ERASE_COMPLETE";
+        if (Serial1.availableForWrite() >= confirmMsg.length()) {
+            Serial1.println(confirmMsg);
+        }
+    }
+    
+    cancelTamperErase();
+    return success;
+}
+
+bool performSecureWipe() {
+    Serial.println("[WIPE] Starting secure wipe");
+    
+    deleteAllFiles("/");
+    
+    File marker = SD.open("/ERASED.txt", FILE_WRITE);
+    if (marker) {
+        marker.println("Securely erased by AntiHunter");
+        marker.println("Time: " + getRTCTimeString());
+        marker.println("Node: " + getNodeId());
+        if (gpsValid) {
+            marker.println("Location: " + String(gpsLat, 6) + "," + String(gpsLon, 6));
+        }
+        marker.close();
+    }
+    
+    return true;
+}
+
+void deleteAllFiles(const String &dirname) {
+    File root = SD.open(dirname);
+    if (!root || !root.isDirectory()) return;
+    
+    File file = root.openNextFile();
+    while (file) {
+        String fileName = String(file.name());
+        if (file.isDirectory()) {
+            deleteAllFiles(dirname + "/" + fileName);
+            SD.rmdir(dirname + "/" + fileName);
+        } else {
+            SD.remove(dirname + "/" + fileName);
+        }
+        file = root.openNextFile();
+    }
+    root.close();
+}
+
+void logEraseAttempt(const String &reason, bool success) {
+    String logEntry = "ERASE: " + reason + " Success:" + (success ? "YES" : "NO");
+    Serial.println(logEntry);
+    if (sdAvailable && !success) {
+        logToSD(logEntry);
+    }
 }
