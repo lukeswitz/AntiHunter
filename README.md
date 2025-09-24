@@ -3,232 +3,460 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
-
-<!-- 
-//![Stable](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?label=stable) 
-![GitHub Release Date](https://img.shields.io/github/release-date/lukeswitz/AntiHunter?include_prereleases)
--->
-
-# Antihunter
+# AntiHunter
 <img width="1000" src="https://github.com/user-attachments/assets/2f789984-bca3-4a45-8470-ba2d638e512f">
 
-> [!NOTE]
-> Early release. Stablility issues, breaking changes and other unexpected behavior may occur.
+## Table of Contents
 
-# Table of Contents
+1. [Overview](#overview)
+2. [Core Capabilities](#core-capabilities)
+3. [System Architecture](#system-architecture)
+4. [Secure Data Destruction](#secure-data-destruction)
+5. [Hardware Requirements](#hardware-requirements)
+6. [Getting Started](#getting-started)
+   - [Quick Flasher](#quick-flasher)
+   - [Development Setup](#development-setup)
+   - [Firmware Flashing](#firmware-flashing)
+7. [Web Interface](#web-interface)
+8. [Mesh Network Integration](#mesh-network-integration)
+9. [Command Reference](#command-reference)
+10. [API Endpoints](#api-endpoints)
 
-1. [What is Antihunter?](#what-is-antihunter)
-2. [What Does Antihunter Do?](#what-does-antihunter-do)
-3. [How to Get Started](#how-to-get-started)
-   - [Quick Flasher Option](#quick-flasher-option)
-   - [Prerequisites](#1-prerequisites)
-   - [Flashing the Firmware](#4-flashing-the-firmware)
-4. [How to Use Antihunter](#how-to-use-antihunter-web-interface)
-5. [Mesh Commands Reference](#mesh-commands-reference)
-6. [Credits](#credits)
-7. [Disclaimer](#disclaimer)
+> [!NOTE]  
+> **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
 
-## What is Antihunter?
+## Overview
 
-A low-cost, open-source tool for wireless threat detection, tracking, and counter-surveillance. Antihunter empowers you to assert control over your wireless environment, turning the invisible into actionable intelligence. Happy hunting.
+**AntiHunter** is a low-cost, open-source distributed perimeter defense system for wireless network security and operational awareness. It enables comprehensive monitoring and protection of wireless environments, transforming spectrum activity into actionable security intelligence for defensive operations.
 
-## What Does Antihunter Do?
+Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalable sensor network for real-time threat detection, device tracking, and perimeter security. The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide robust wireless security capabilities.
 
-- Detect rogue WiFi/BLE devices and activity
-- Hunt with directional antennas or proximity
-- Deploy distributed perimeters via Meshtastic
+## Core Capabilities
 
-Antihunter provides powerful, real-time wireless intelligence through an intuitive web-based interface. It operates in two primary modes:
+### Primary Detection Modes
 
-### 1.  **List Scan Mode (Area Surveillance):**
-Upload a list of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte Vendor ID). Antihunter will meticulously sweep the designated WiFi channels and BLE frequencies. Upon detection, you receive immediate audible alerts (customizable beep patterns) and detailed logs, including signal strength (RSSI), channel, and device name. This mode is perfect for:
+#### 1. **List Scan Mode (Area Surveillance)**
 
- *   Passive monitoring of specific devices in an environment.
- *   Initial reconnaissance in a wireless survey.
- *   Identifying rogue access points or suspicious BLE beacons.
+Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
-### 2.  **Tracker Mode (The Digital Foxhunt):**
+**Key Features:**
+- **Targeted Monitoring**: Track specific devices by MAC address or vendor
+- **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
+- **Real-time Alerts**: Immediate notifications via web interface and mesh network
+- **Use Cases**:
+  - Passive monitoring of authorized devices in secure environments
+  - Wireless survey and network auditing
+  - Rogue access point and suspicious beacon identification
 
-This is Antihunter's specialty for close-quarters signal pursuit. Provide a single target MAC address, and Antihunter transforms into a responsive "Geiger counter" for that specific device. As you move (or point a directional antenna), the device's integrated buzzer will dynamically adjust its pitch and tempo – faster and higher-pitched tones indicate you're closing in on the target, while a slow, deep click means the signal is weak or lost. Tracker mode is indispensable for:
-    
- *   Locating lost or stolen wireless devices.
- *   Pinpointing the exact physical location of a transmitting device.
- *   Real-time "foxhunting" games and exercises.
+#### 2. **Experimental: Triangulation System (Distributed Tracking)**
 
-### 3. **Attack Sniffers (Blue Team Tools)**
-
-> [!IMPORTANT]
-> Blue team tools are a WIP, false positives and missed detections are possible.
-
-Built by reverse engineering popular attack platforms like Aircrack-ng, Bettercap, and ESP32-based rogue tools, these modules empower defensive monitoring and rapid response. They scan for malicious wireless activities, alerting you when threats are detected:
-
-* **Deauthentication/Disassociation Floods**: Monitors for rapid, anomalous deauth/disassoc packets targeting specific clients or APs, which are common in Wi-Fi denial-of-service attacks. Triggers an alert if packet rates exceed safe thresholds (e.g., >10 packets/sec from a single source).
-  
-* **Beacon/Probe Floods**: Identifies excessive fake beacon frames or probe requests that overwhelm networks, often used to create rogue APs or exhaust airtime. Configurable filters detect floods based on SSID repetition or unusual probe volumes.
-
-* **BLE Spam and Advertisement Overload**: Scans Bluetooth Low Energy (BLE) channels for spam attacks, such as flooding with bogus advertisements or connection requests, which can drain device batteries or disrupt IoT ecosystems. Alerts on high-rate, repetitive BLE packets from suspicious MACs.
-
-* **Evil Twin Detection**: Cross-references SSIDs and BSSIDs to spot cloned access points mimicking legitimate ones, including those using tools like WiFi Pineapple. Integrates with Tracker Mode for physical localization of the rogue device.
-
-* **Additional Threat Vectors**: Extends to PMKID sniffing attempts, KARMA attacks (where devices respond to any probe), and basic evil AP scanning (e.g., open networks with suspicious handshakes). All detections are logged with timestamps, signal strength (RSSI), and source MACs for forensic analysis.
-
-**GPS Location**
-
-- Parses NMEA on UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud (TinyGPSPlus).
-- Web UI shows GPS Status and Last GPS Data; `/gps` endpoint returns lat/lon.
-- Hits include GPS lat/lon when a valid fix exists.
-- Perimeter mapping and more integrations on the way
-
-**SD Logging:**
-
-- SPI pins: CS=2, SCK=7, MISO=8, MOSI=9 (ESP32S3).
-- Logs to `/antihunter.log` with timestamp, type (WiFi/BLE), MAC, RSSI, and GPS (if valid).
-- Status and file list shown in Diagnostics.
-
-**Vibration Detection:**
-
-- SW-420 sensor with interrupt-driven detection
-- Continuous monitoring with mesh alerts (5s rate limiting)
-- Timestamp and GPS coordinates included in alerts
-- Real-time status in diagnostics panel
-- Alert format: `NODE_ABC: VIBRATION: Movement detected at 00:04:15 (sensor=xxxxx) GPS:xxxx,xxxx`
-
-## **Mesh Network Integration:**
-
-Antihunter seamlessly integrates with Meshtastic-compatible mesh networks via UART serial connection. When enabled, it broadcasts alerts and receives remote commands through your mesh radio network, extending operational range far beyond traditional WiFi/Bluetooth limits.
-
-- **Target Alerts**: Automatically broadcasts detected targets from List Scan over the mesh network
-- **Remote Control**: Receive and execute commands from any mesh-connected node
-- **Node Identification**: Each Antihunter device can be assigned a unique Node ID (up to 16 characters) for targeted control
-- **Configurable Intervals**: Alert broadcasts respect a 10-second default interval to prevent mesh flooding
-- **GPS Integration**: Location data included in alerts when GPS fix is available
-- **Multi-node Coordination**: Control multiple devices simultaneously using @ALL broadcasts
-
-## How to Get Started
-
-Getting Antihunter up and running is straightforward. Use the quick flasher or build from source: Simply clone the repository, open it in VS Code with PlatformIO, and flash your desired configuration.
-
-### Quick Flasher Option
-
-- If you choose not to build from source, precompiled bins are available in the `Dist` folder
-- For Linux & macOS, supports OUI-SPY, MeshDetect boards and most all esp32s3
-- Plug in your device and run the following:
-```bash
-curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/main/Dist/flashAntihunter.sh && chmod +x flashAntihunter.sh && ./flashAntihunter.sh
-```
-
-> [!IMPORTANT]
-> Early stage project, the hardware requirements shown here will be rapidly evolving. 
-
-### 1. Prerequisites
-
-*   **VS Code:** Visual Studio Code IDE.
-*   **PlatformIO Extension:** Install the PlatformIO IDE extension in VS Code.
-*   **Hardware:** 
-    - ESP32 development board (Seeed XIAO ESP32S3 and other s3 varients) • **8MB** flash memory boards required for reliably
-    - Passive piezo buzzer (optional)
-    - SDHC (optional)
-    - GPS (optional)
-    - Meshtastic board (optional) 
-
-### 2. Clone the Repository
-
-Open your terminal or command prompt and execute:
-
-```bash
-git clone https://github.com/lukeswitz/AntiHunter.git Antihunter_Project
-cd Antihunter_Project
-```
-
-This creates a new folder `Antihunter_Project` containing the Antihunter source code.
-
-### 3. Open in VS Code
-
-Open the enclosed `AntiHunter` folder as your workspace in VS Code. PlatformIO will automatically detect the `platformio.ini` file at the root.
-
-### 4. Flashing the Firmware
-
-*   **Select Your Target:**
-    *   In the **VS Code Status Bar** (the blue bar at the bottom), locate the PlatformIO environment selector. It typically shows something like `Default (esp32s3)`.
-    *   Click on it, select the environment: `AntiHunter`
-
-*   **Upload:** Click the "Upload" button (the right arrow icon) in the PlatformIO status bar. PlatformIO will compile the selected project and flash it to your connected ESP32 board.
-
-## How to Use Antihunter (Web Interface)
-
-Once flashed, Antihunter hosts a web interface for all operations.
-
-1.  **Connect to Antihunter's Access Point (AP):**
-    *   On your computer, phone, or tablet, scan for WiFi networks.
-    *   Connect to the network: `Antihunter` 
-    *   Default Password: `ouispy123`
-
-2.  **Access the Web UI:**
-    *   Open a web browser and navigate to `http://192.168.4.1/`.
-
-3.  **Core Functionality:**
-
-<img width="1072" height="1290" alt="s" src="https://github.com/user-attachments/assets/a0fd32da-81ce-401a-9f5e-4430340ab335" />
+The Triangulation System coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
 
 
-*   **Targets (List Scan Watchlist):**
-      *   Enter full MAC addresses (e.g., `00:11:22:33:44:55`) or OUI prefixes (e.g., `00:11:22`), one per line.
-      *   Click `Save` to update your watchlist.
-      *   `Download` exports your current target list.
+**Key Features:**
+- **Multi-node Coordination**: Distributed scanning across mesh network nodes
+- **GPS Integration**: Each node contributes location data for accurate positioning
+- **Real-time Tracking**: Continuous monitoring with position updates
+- **AH Command Center Integration**: Data forwarded for centralized processing and mapping
+- **Use Cases**:
+  - Perimeter defense and intrusion detection
+  - Asset tracking and geofencing
+  - Incident response and tactical operations
+  - Large-area device monitoring
 
-*   **List Scan:**
-      *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
-      *   **Duration:** Set the scan duration in seconds (0 for "Forever").
-      *   **WiFi Channels CSV:** Specify channels to hop through (e.g., `1,6,11` or `1..13`).
-      *   Click `Start List Scan`. (Note: The AP will go offline during the scan and return when stopped).
-    
-*   **Tracker (Single MAC "Geiger"):**
-     *   **Scan Mode:** Choose `WiFi Only`, `BLE Only`, or `WiFi + BLE`.
-     *   **Target MAC:** Enter the precise MAC address of the device you're tracking (e.g., `34:21:09:83:D9:51`).
-     *   **Duration:** Set the tracking duration in seconds (0 for "Forever").
-     *   Click `Start Tracker`. AP will disappear for the duration of the scan. The buzzer will emit tones that change in frequency and period based on the target's signal strength (RSSI) – higher pitch/faster for closer, lower pitch/slower for further.
+### Sensor Integration
 
-*   **Diagnostics:**
-    *   Provides real-time system status: scan mode, scanning status, frames seen (WiFi/BLE), total hits, unique devices, active targets, ESP32 temperature, SD stats & files, GPS data and more.
+#### **GPS Positioning**
+- **Interface**: UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud using TinyGPS++
+- **Functionality**: Parses NMEA sentences for location, altitude, and satellite data
+- **Web Interface**: Real-time GPS status, last known position, and fix quality
+- **API Endpoint**: `/gps` returns current latitude/longitude coordinates
+- **Integration**: All detection events include GPS coordinates when available
 
-*   **Last Results:**
-    *   Displays a summary of the most recent scan or tracking session, including identified MACs, RSSI values, frame count, and other pertinent data.
+#### **SD Card Logging**
+- **Interface**: SPI (CS=GPIO2, SCK=GPIO7, MISO=GPIO8, MOSI=GPIO9)
+- **Storage**: Logs to `/antihunter.log` with timestamps, detection types, and metadata
+- **Format**: Structured entries including MAC addresses, RSSI, GPS data, and timestamps
+- **Diagnostics**: Web interface shows storage status and usage statistics
 
-*   **Mesh Network:**
-     *   **Enable Mesh Notifications:** Toggle this checkbox to send detected target alerts over your connected Meshtastic device (default: enabled).
-     *   `Test Mesh`: Sends a test message via UART to confirm mesh communication is active.
-     *   Mesh alerts are sent approximately every 4 seconds if a target is detected.
-     *   Hardware: The ESP32 communicates with your Meshtastic radio via `Serial1` on pins `RX=4`, `TX=5` at 115200 baud
+#### **Vibration/Tamper Detection**
+- **Sensor**: SW-420 vibration sensor connected to GPIO1
+- **Detection**: Interrupt-driven monitoring with 5-second rate limiting
+- **Alerts**: Mesh network notifications with GPS coordinates and timestamps
+- **Format**: `NODE_ABC: VIBRATION: Movement detected at HH:MM:SS GPS:lat,lon`
+- **Status**: Real-time sensor state displayed in diagnostics panel
+
+#### **Real-Time Clock (RTC)**
+- **Module**: DS3231 RTC via I2C (SDA=GPIO6, SCL=GPIO3)
+- **Functionality**: Accurate timekeeping during power outages and GPS synchronization
+- **Features**: Automatic time sync from GPS, manual time setting, sync status monitoring
+- **Web Interface**: Current time display and synchronization status
+
+## Secure Data Destruction
+
+AntiHunter includes tamper detection and emergency data wiping capabilities to protect surveillance data from unauthorized access.
+
+### Features
+- **Auto-erase on tampering**: Configurable vibration detection triggers automatic data destruction
+- **Setup delay**: Grace period after enabling auto-erase to complete deployment and walk away
+- **Manual secure wipe**: Web interface for operator-initiated data destruction  
+- **Remote force erase**: Immediate mesh-commanded data destruction with token authentication
+- **Mesh integration**: Real-time tamper alerts and erase status monitoring
+- **Token-based authentication**: Time-limited tokens prevent unauthorized mesh erase commands
+
+### Configuration
+Configure auto-erase settings via the web interface:
+- **Setup delay**: Grace period before auto-erase becomes active (30 seconds - 10 minutes)
+- **Vibrations required**: Number of device movements to trigger (2-5)
+- **Detection window**: Time frame for vibration detection (10-60 seconds)
+- **Erase delay**: Countdown period before data destruction (10-300 seconds)
+- **Cooldown period**: Minimum time between tamper attempts (5-60 minutes)
+
+### Mesh Commands
+- `@NODE_ID ERASE_FORCE:token` - Immediate data destruction (requires web-generated token)
+- `@NODE_ID ERASE_CANCEL` - Cancel active tamper countdown sequence
+- `@NODE_ID ERASE_STATUS` - Check current tamper detection status
+
+### Security
+- Auto-erase is **disabled by default** for safety
+- Setup delay prevents accidental triggering during deployment
+- `ERASE_FORCE` requires web-generated authentication tokens that expire in 5 minutes
+- All erase attempts are logged with GPS coordinates and timestamps
+- Secure wipe process overwrites data before deletion
+
+### Usage
+1. Enable auto-erase via web interface with appropriate setup delay
+2. Configure detection thresholds based on deployment environment
+3. Deploy device and walk away during setup period
+4. Monitor mesh alerts for tamper detection events
+5. Use web interface to generate authenticated mesh erase tokens for remote destruction
+
+> **Warning**: Data destruction is permanent and irreversible. Configure thresholds carefully to prevent false triggers.
 
 
-## Mesh Commands Reference
+## System Architecture
 
-- **Node Addressing:** Target specific nodes with `@NodeID COMMAND` or all nodes with `@ALL COMMAND`. Each Antihunter device can be assigned a unique Node ID (up to 16 characters) for targeted control.
-- **MAC Address Formats:** Use full MAC addresses (e.g., `AA:BB:CC:DD:EE:FF`) or OUI prefixes (first 3 bytes, e.g., `AA:BB:CC`) for vendor identification.
+### **Distributed Node Network**
+AntiHunter operates as a distributed sensor network where each node functions independently while contributing to the overall security picture. Nodes communicate via Meshtastic mesh networking, enabling:
 
-| Command | Description | Parameters | Example | Response Format |
-|---------|-------------|------------|---------|-----------------|
-| `STATUS` | Get operational status | - | `@NODE_22 STATUS` | `STATUS: Mode:WiFi Scan:YES Hits:5 Targets:3 Unique:2 Temp:42.3C/108.1F Up:01:23:45` |
-| `CONFIG_BEEPS:n` | Set beep count | n: 1-10 | `@NODE_22 CONFIG_BEEPS:3` | `CONFIG_ACK:BEEPS:3` |
-| `CONFIG_GAP:ms` | Set beep gap | ms: 20-2000 | `@NODE_22 CONFIG_GAP:100` | `CONFIG_ACK:GAP:100` |
-| `CONFIG_CHANNELS:list` | Set WiFi channels | list: `1,6,11` or `1..14` | `@NODE_22 CONFIG_CHANNELS:2,7,12` | `CONFIG_ACK:CHANNELS:2,7,12` |
-| `CONFIG_TARGETS:macs` | Update target MACs | macs: pipe-delimited | `@NODE_22 CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF:11:22:33` | `CONFIG_ACK:TARGETS:OK` |
-| `SCAN_START:m:s:ch[:F]` | Start scan | m: 0=WiFi/1=BLE/2=Both<br>s: seconds<br>ch: channels<br>F: FOREVER (optional) | `@ALL SCAN_START:0:60:1,6,11` | `SCAN_ACK:STARTED` |
-| `TRACK_START:MAC:m:s:ch[:F]` | Track MAC | MAC: target<br>m/s/ch/F: as above | `@NODE_22 TRACK_START:AA:BB:CC:DD:EE:FF:0:0:6:FOREVER` | `Tracking: AA:BB:CC:DD:EE:FF RSSI:-62dBm LastSeen:3s Pkts:42` |
-| `STOP` | Halt operations | - | `@ALL STOP` | `STOP_ACK:OK` |
+- **Scalable Coverage**: Deploy multiple nodes to cover large areas
+- **Redundant Detection**: Multiple nodes improve detection reliability
+- **Distributed Processing**: Local decision-making with centralized coordination
+- **Resilient Communications**: Mesh networking ensures connectivity in challenging environments
 
-*Note: All responses are prefixed with `NodeID:`. Mesh messages auto-prefix sender ID which is stripped before processing.*
+### **Operational Workflow**
+1. **Local Detection**: Each node performs independent WiFi/BLE scanning based on configured parameters
+2. **Target Identification**: Matches detected devices against configured watchlists
+3. **Data Collection**: Records detection metadata (RSSI, GPS, timestamp, etc.)
+4. **Mesh Coordination**: Broadcasts alerts and status to other nodes and command center
+5. **Central Processing**: Command center aggregates data for advanced analytics and visualization
+6. **Response Actions**: Local and coordinated responses based on threat assessment
+
+### **Command Center Integration**
+While individual nodes provide standalone capability, the full system power comes from integration with a central command center that:
+- Aggregates detection data from all nodes
+- Performs advanced trilateration calculations
+- Provides real-time mapping and visualization
+- Enables coordinated response operations
+- Maintains historical threat intelligence
+
+## Hardware Requirements
+
+_PCBs and kits in production_
+
+<img width="500" src="https://github.com/user-attachments/assets/1cdfc65f-3dd3-4290-9ae9-adbfecaf7381">
+
+
+### **Core Components**
+- **ESP32-S3 Development Board** (Seeed Studio XIAO ESP32S3 recommended)
+  - Minimum 8MB flash memory required for reliable operation
+  - Supports WiFi 2.4GHz and Bluetooth Low Energy scanning
+- **Meshtastic Board** (LoRa-based mesh networking)
+  - UART1 connection (RX=GPIO4, TX=GPIO5) at 115200 baud
+  - Extends operational range beyond WiFi/Bluetooth limits
+- **GPS Module** (NMEA-compatible)
+  - UART2 connection (RX=GPIO44, TX=GPIO43) at 9600 baud
+  - Provides location data for all detections
+- **SD Card Module** (microSD compatible)
+  - SPI connection for persistent logging
+  - Stores detection history and system diagnostics
+
+### **Environmental Sensors**
+- **SW-420 Vibration Sensor**
+  - GPIO1 connection for tamper/movement detection
+  - Interrupt-driven monitoring with mesh alerts
+- **DS3231 RTC Module**
+  - I2C connection (SDA=GPIO6, SCL=GPIO3)
+  - Maintains accurate timekeeping during power loss
+
+### **Pinout Reference**
+
+> [!IMPORTANT]  
+> **Hardware Note**: This is an early-stage project. Pin assignments and hardware requirements will evolve as the system matures. Always verify compatibility with your specific board.
+
+| **Function** | **GPIO Pin** | **Description** |
+|--------------|--------------|-----------------|
+| Vibration Sensor | GPIO1 | SW-420 tamper detection (interrupt) |
+| RTC SDA | GPIO6 | DS3231 I2C data line |
+| RTC SCL | GPIO3 | DS3231 I2C clock line |
+| GPS RX | GPIO44 | NMEA data receive |
+| GPS TX | GPIO43 | GPS transmit (unused) |
+| SD CS | GPIO2 | SD card chip select |
+| SD SCK | GPIO7 | SPI clock |
+| SD MISO | GPIO8 | SPI master-in slave-out |
+| SD MOSI | GPIO9 | SPI master-out slave-in |
+| Mesh RX | GPIO4 | Meshtastic UART receive |
+| Mesh TX | GPIO5 | Meshtastic UART transmit |
 
 ---
 
+## Getting Started
+
+### **Quick Flasher**
+
+For rapid deployment without building from source, precompiled binaries are available:
+
+**Linux/macOS:**
+```bash
+# Download and run the flasher script
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+chmod +x flashAntihunter.sh
+./flashAntihunter.sh
+```
+
+**Process:**
+1. Connect your ESP32-S3 board via USB
+2. Run the flasher script
+3. The device will reboot with AntiHunter firmware
+4. Connect to the `Antihunter` WiFi AP (password: `ouispy123`)
+5. Access the web interface at `http://192.168.4.1`
+
+### **Development Setup**
+
+For developers and advanced users:
+
+#### **Prerequisites**
+- **Visual Studio Code** with PlatformIO IDE extension
+- **Git** for repository management
+- **ESP32-S3 development board** (8MB flash minimum)
+- **USB cable** for programming and debugging
+- **Optional**: Hardware components for full functionality
+
+#### **Repository Setup**
+```bash
+# Clone the AntiHunter repository
+git clone https://github.com/lukeswitz/AntiHunter.git AntiHunter_Project
+cd AntiHunter_Project
+
+# Open in VS Code (with PlatformIO extension)
+code .
+```
+
+PlatformIO will automatically detect the `platformio.ini` configuration file and set up the development environment.
+
+#### **Firmware Flashing**
+
+1. **Connect Hardware**: Plug your ESP32-S3 board into USB
+2. **Select Environment**: In VS Code's PlatformIO toolbar, select the `AntiHunter` environment
+3. **Build & Upload**: Click the "Upload" button (→) in the PlatformIO status bar
+4. **Monitor Output**: Use the Serial Monitor to verify successful boot
+
+
+## Web Interface
+
+After flashing, AntiHunter creates a WiFi access point for configuration and monitoring.
+
+<img width="1077" height="1211" alt="s" src="https://github.com/user-attachments/assets/d8a4522a-9158-446a-8211-8e8a8d21f158" />
+
+### **Connection**
+1. **Join Network**: Connect to `Antihunter` WiFi AP
+   - **Password**: `ouispy123`
+   - **IP Address**: `192.168.4.1`
+2. **Access Interface**: Open browser to `http://192.168.4.1`
+
+### **Main Interface Sections**
+
+#### **Target Configuration**
+- **Watchlist Management**: Add/remove MAC addresses and OUI prefixes
+- **Format**: Full MAC (`AA:BB:CC:DD:EE:FF`) or OUI (`AA:BB:CC`)
+- **Export/Import**: Save/load target lists for deployment
+- **Validation**: Real-time format checking and duplicate detection
+
+#### **Scanning Operations**
+- **List Scan**: Area surveillance for configured targets
+  - **Modes**: WiFi Only, BLE Only, WiFi+BLE Combined
+  - **Duration**: Configurable scan time (0 = continuous)
+  - **Channels**: Custom WiFi channel selection (`1,6,11` or `1..14`)
+  - **Triangulation**: Enable multi-node tracking (requires mesh)
+
+- **Triangulation Mode**:
+  - **Target MAC**: Specify device for location tracking
+  - **Node Coordination**: Automatically syncs with mesh network
+  - **Duration**: Tracking period for position calculations
+  - **Status**: Shows participating nodes and signal data
+
+#### **Detection & Analysis**
+- **Device Discovery**: General scanning for all WiFi/BLE devices
+- **Cache Viewer**: Recent device history and signal patterns
+
+#### **System Diagnostics**
+**Overview Tab:**
+- Real-time system status and performance metrics
+- Detection statistics (frames seen, hits, unique devices)
+- Temperature monitoring and uptime tracking
+
+**Hardware Tab:**
+- GPS status and satellite information
+- SD card storage usage and file management
+- RTC time synchronization status
+- Vibration sensor state and history
+
+**Network Tab:**
+- Mesh connectivity and node status
+- WiFi access point configuration
+- Channel usage and scanning parameters
+
+#### **Network Configuration**
+- **Node Identification**: Set unique node ID (1-16 characters)
+- **Mesh Integration**: Enable/disable Meshtastic communications
+- **Test Functions**: Verify mesh connectivity and GPS functionality
+- **RTC Management**: Manual time setting and GPS synchronization
+
+### **Operational Notes**
+- **AP Offline During Scans**: The access point temporarily disconnects during active scanning
+- **Reconnection**: The AP automatically restarts after scan completion
+- **Persistent Storage**: Configuration saved to non-volatile memory
+- **Real-time Updates**: Web interface refreshes every 2 seconds
+
+## Mesh Network Integration
+
+AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communication, creating a robust long-range sensor network.
+
+### **Key Features**
+- **Extended Range**: LoRa mesh extends detection beyond WiFi/Bluetooth range
+- **Node Coordination**: Distributed scanning and data sharing across nodes
+- **Remote Control**: Command and control via mesh messages
+- **Alert Propagation**: Real-time threat notifications across the network
+- **Position Reporting**: GPS coordinates included in all relevant alerts
+
+### **Hardware Integration**
+- **Connection**: UART1 (RX=GPIO4, TX=GPIO5) at 115200 baud
+- **Protocol**: Standard Meshtastic serial interface
+- **Configuration**: Automatic detection and initialization
+- **Power Management**: Optimized for battery-powered deployments
+
+### **Network Behavior**
+- **Alert Rate Limiting**: 10-second intervals prevent mesh flooding
+- **Node Identification**: Each device uses a unique Node ID prefix
+- **Broadcast Commands**: `@ALL` commands coordinate multiple nodes
+- **Targeted Control**: `@NODE_XX` commands address specific nodes
+- **Status Reporting**: Periodic heartbeats and operational status
+
+## Command Reference
+
+### **Node Addressing**
+- **Specific Node**: `@NODE_22 COMMAND` - Targets individual node
+- **All Nodes**: `@ALL COMMAND` - Broadcast to entire network
+- **Node ID Format**: Up to 16 alphanumeric characters
+- **Response Format**: All responses prefixed with sending Node ID
+
+### **Core Commands**
+
+| Command | Parameters | Example | Response |
+|---------|------------|---------|----------|
+| `STATUS` | None | `@NODE_22 STATUS` | `NODE_22: STATUS: Mode:WiFi Scan:YES Hits:5 Targets:3 Unique:2 Temp:42.3°C Up:01:23:45` |
+| `CONFIG_BEEPS` | `n` (1-10) | `@NODE_22 CONFIG_BEEPS:3` | `NODE_22: CONFIG_ACK:BEEPS:3` |
+| `CONFIG_GAP` | `ms` (20-2000) | `@NODE_22 CONFIG_GAP:100` | `NODE_22: CONFIG_ACK:GAP:100` |
+| `CONFIG_CHANNELS` | `list` (CSV or range) | `@NODE_22 CONFIG_CHANNELS:2,7,12` | `NODE_22: CONFIG_ACK:CHANNELS:2,7,12` |
+| `CONFIG_TARGETS` | `macs` (pipe-delimited) | `@NODE_22 CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` | `NODE_22: CONFIG_ACK:TARGETS:OK` |
+| `SCAN_START` | `m:s:ch[:F]` | `@ALL SCAN_START:0:60:1,6,11` | `NODE_22: SCAN_ACK:STARTED` |
+| `TRACK_START` | `MAC:m:s:ch[:F]` | `@NODE_22 TRACK_START:AA:BB:CC:DD:EE:FF:0:0:6` | `NODE_22: TRACK_ACK:STARTED:AA:BB:CC:DD:EE:FF` |
+| `TRIANGULATE_START` | `MAC:s` | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` | `NODE_22: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` |
+| `STOP` | None | `@ALL STOP` | `NODE_22: STOP_ACK:OK` |
+| `VIBRATION_STATUS` | None | `@NODE_22 VIBRATION_STATUS` | `NODE_22: VIBRATION_STATUS: Last vibration: 12345ms (5s ago)` |
+| `ERASE_FORCE` | `token` | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` | `NODE_22: ERASE_ACK:COMPLETE` or `NODE_22: ERASE_NACK:INVALID_TOKEN` |
+| `ERASE_CANCEL` | None | `@NODE_22 ERASE_CANCEL` | `NODE_22: ERASE_ACK:CANCELLED` |
+| `ERASE_STATUS` | None | `@NODE_22 ERASE_STATUS` | `NODE_22: ERASE_STATUS:TAMPER_ACTIVE:25s_remaining` or `NODE_22: ERASE_STATUS:INACTIVE` |
+
+**Parameter Details:**
+- `m`: Scan mode (0=WiFi, 1=BLE, 2=Both)
+- `s`: Duration in seconds (0=forever)
+- `ch`: WiFi channels (CSV: `1,6,11` or range: `1..14`)
+- `F`: Forever flag for continuous operation
+- `MAC`: Target MAC address (6-byte format)
+
+### **Auto-Generated Alerts**
+
+| **Alert Type** | **Trigger** | **Format** | **Example** |
+|----------------|-------------|------------|-------------|
+| **Target Detection** | Watchlist match | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:NAME] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:MyDevice GPS=40.7128,-74.0060` |
+| **Tracker Update** | Periodic (15s) | `NODE_ID: Tracking: MAC RSSI:ddBm LastSeen:s Pkts:N` | `NODE_ABC: Tracking: AA:BB:CC:DD:EE:FF RSSI:-62dBm LastSeen:3s Pkts:42` |
+| **Vibration Alert** | Tamper detection | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS:lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS:40.7128,-74.0060` |
+| **GPS Status** | Fix change | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location:40.7128,-74.0060 Satellites:8 HDOP:1.23` |
+| **Startup Status** | Boot complete | `NODE_ID: STARTUP: System init GPS:STATUS TEMP:X°C SD:STATUS` | `NODE_ABC: STARTUP: System init GPS:LOCKED TEMP:42.3°C SD:OK` |
+| **RTC Sync** | GPS time sync | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
+| **Node Heartbeat** | 15min interval | `[NODE_ID] NODE_ID GPS:lat,lon` | `[NODE_ID] NODE_ABC GPS:40.7128,-74.0060` |
+
+## API Endpoints
+
+### **Core Endpoints**
+
+| **Endpoint** | **Method** | **Parameters** | **Response** | **Description** |
+|--------------|------------|----------------|--------------|-----------------|
+| `/` | GET | None | HTML | Main web interface |
+| `/export` | GET | None | `text/plain` | Current target MAC list |
+| `/results` | GET | None | `text/plain` | Latest scan results + triangulation data |
+| `/save` | POST | `list` | `text/plain` | Save target configuration |
+| `/node-id` | POST | `id` (1-16 chars) | `text/plain` | Update node identifier |
+| `/node-id` | GET | None | `application/json` | Current node ID |
+| `/scan` | POST | `mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac` | `text/plain` | Start scanning operation |
+| `/track` | POST | `mac`, `secs`, `forever`, `mode`, `ch` | `text/plain` | Start device tracking |
+| `/gps` | GET | None | `text/plain` | Current GPS coordinates and status |
+| `/sd-status` | GET | None | `text/plain` | SD card availability and stats |
+| `/stop` | GET | None | `text/plain` | Stop all scanning operations |
+| `/config` | GET | None | `application/json` | Current system configuration |
+| `/config` | POST | None | `text/plain` | Save configuration changes |
+| `/mesh` | POST | `enabled` | `text/plain` | Enable/disable mesh networking |
+| `/mesh-test` | GET | None | `text/plain` | Send test message to mesh |
+| `/diag` | GET | None | `text/plain` | Comprehensive system diagnostics |
+
+### **Detection Endpoints**
+
+| **Endpoint** | **Method** | **Parameters** | **Response** | **Description** |
+|--------------|------------|----------------|--------------|-----------------|
+| `/sniffer` | POST | `detection`, `secs`, `forever` | `text/plain` | Start specialized detection mode |
+| `/deauth-results` | GET | None | `text/plain` | Deauth/disassociation attack logs |
+| `/sniffer-cache` | GET | None | `text/plain` | Cached WiFi APs and BLE devices |
+
+### **Parameter Reference**
+
+**Scan Parameters:**
+- `mode`: `0` = WiFi Only, `1` = BLE Only, `2` = WiFi+BLE
+- `secs`: Duration in seconds (0 = continuous operation)
+- `forever`: `1` = Run indefinitely
+- `ch`: WiFi channels (`1,6,11` or `1..14`)
+
+**Triangulation Parameters:**
+- `triangulate`: `1` = Enable multi-node tracking
+- `targetMac`: Target device MAC address for location tracking
+
+**Detection Modes:**
+- `device-scan`: General WiFi/BLE device discovery
+
+In testing:
+- `deauth`: Deauthentication attack detection
+- `beacon-flood`: Rogue beacon flood monitoring
+- `karma`: Karma attack detection
+- `probe-flood`: Probe request flood detection
+- `ble-spam`: BLE advertisement spam detection
+
 ## Credits
 
-Thanks to
+AntiHunter is the result of collaborative development by security researchers, embedded systems engineers, and open-source contributors.
 
-- @colonelpanichacks gadgets for pushing this development
-- All the hackers/builders making it happen, and those who taught us along the way
+The project continues to evolve through community contributions. Contributions via pull requests, issue reports, and documentation improvements are welcome.
 
-## Disclaimer
+## Legal Disclaimer
 
 ```
 AntiHunter (AH) is provided for lawful, authorized use only—such as research, training, and security operations on systems and radio spectrum you own or have explicit written permission to assess. You are solely responsible for compliance with all applicable laws and policies, including privacy/data-protection (e.g., GDPR), radio/telecom regulations (LoRa ISM band limits, duty cycle), and export controls. Do not use AH to track, surveil, or target individuals, or to collect personal data without a valid legal basis and consent where required.
