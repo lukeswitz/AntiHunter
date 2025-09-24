@@ -11,6 +11,7 @@
 #include <Wire.h>
 #include <RTClib.h>
 #include "esp_wifi.h"
+#include "esp_task_wdt.h"
 
 
 extern Preferences prefs;
@@ -59,11 +60,13 @@ bool tamperEraseActive = false;
 uint32_t tamperSequenceStart = 0;
 String tamperAuthToken = "";
 bool autoEraseEnabled = false;
-uint32_t autoEraseDelay = 30000;      // 30 seconds default
+uint32_t autoEraseDelay = 30000;
 uint32_t autoEraseCooldown = 300000;  // 5 minutes default
 static uint32_t lastAutoEraseAttempt = 0;
 uint32_t vibrationsRequired = 3;
-uint32_t detectionWindow = 20000;  // 20 seconds
+uint32_t detectionWindow = 20000;
+String eraseStatus = "INACTIVE";
+bool eraseInProgress = false;
 
 
 void initializeHardware()
@@ -926,10 +929,14 @@ bool checkTamperTimeout() {
 }
 
 bool executeSecureErase(const String &reason) {
+    eraseStatus = "EXECUTING";
+    eraseInProgress = true;
+    
     Serial.println("EXECUTING SECURE ERASE: " + reason);
     
     if (!sdAvailable) {
-        cancelTamperErase();
+        eraseStatus = "FAILED - SD card not available";
+        eraseInProgress = false;
         return false;
     }
     
@@ -943,17 +950,24 @@ bool executeSecureErase(const String &reason) {
         Serial1.flush();
     }
     
-    delay(1000);
     bool success = performSecureWipe();
     
     if (success) {
+        eraseStatus = "COMPLETED";
         String confirmMsg = getNodeId() + ": ERASE_COMPLETE";
         if (Serial1.availableForWrite() >= confirmMsg.length()) {
             Serial1.println(confirmMsg);
         }
+    } else {
+        eraseStatus = "FAILED";
     }
     
-    cancelTamperErase();
+    eraseInProgress = false;
+    
+    if (tamperEraseActive) {
+        cancelTamperErase();
+    }
+    
     return success;
 }
 
