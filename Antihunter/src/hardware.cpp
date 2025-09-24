@@ -976,12 +976,12 @@ bool performSecureWipe() {
     
     deleteAllFiles("/");
     
-    File marker = SD.open("/weatherFeed.txt", FILE_WRITE);
+    File marker = SD.open("/weather-air-feed.txt", FILE_WRITE);
     if (marker) {
-        marker.println("Weather data could not be sent... check your API key");
+        marker.println("Weather and AQ data could not be sent to your network. Check your API key and settings or contact support.");
         marker.close();
     
-        if (SD.exists("/weatherFeed.txt")) {
+        if (SD.exists("/weather-air-feed.txt")) {
             Serial.println("[WIPE] Marker file created successfully - wipe completed");
             return true;
         } else {

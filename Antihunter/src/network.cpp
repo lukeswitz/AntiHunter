@@ -131,772 +131,800 @@ void initializeNetwork()
 
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Antihunter</title>
-<style>
-:root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444}
-*{box-sizing:border-box} html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-.header{padding:22px 18px;border-bottom:1px solid #003b24;background:linear-gradient(180deg,#001a10,#000);display:flex;align-items:center;gap:14px}
-h1{margin:0;font-size:22px;letter-spacing:1px}
-h3{margin:12px 0 8px;color:var(--fg)}
-.container{max-width:1400px;margin:0 auto;padding:16px}
-.card{background:var(--card);border:1px solid #003b24;border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 8px 30px rgba(0,255,127,.05)}
-label{display:block;margin:6px 0 4px;color:var(--muted);font-size:13px}
-textarea, input[type=text], input[type=number], select{width:100%;background:#000;border:1px solid #003b24;border-radius:10px;color:var(--fg);padding:10px 12px;outline:none;font-family:inherit;font-size:13px}
-textarea{min-height:128px;resize:vertical}
-select{cursor:pointer}
-select option{background:#000;color:var(--fg)}
-.btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;transition:transform .05s ease, box-shadow .2s;font-size:13px}
-.btn:hover{box-shadow:0 6px 18px rgba(10,255,157,.15);transform:translateY(-1px)}
-.btn.primary{background:#002417;border-color:#00cc66}
-.btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
-.btn.danger{background:#330000;border-color:#ff4444;color:#ff6666}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.small{opacity:.65;font-size:12px} 
-pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:10px;padding:12px;font-size:12px;line-height:1.4;overflow-x:auto}
-a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
-.banner{font-size:12px;color:#0aff9d;border:1px dashed #004e2f;padding:8px;border-radius:10px;background:#001108}
-.grid{display:grid;grid-template-columns:repeat(2, minmax(380px, 1fr));grid-auto-rows:minmax(200px, auto);gap:14px}
-.grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media(max-width:900px){.grid-2col{grid-template-columns:1fr}}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}
-#toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
-.toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:10px 12px;border-radius:10px;box-shadow:0 8px 30px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s, transform .15s}
-.toast.show{opacity:1;transform:none}
-.toast .title{color:#0aff9d;font-weight:bold}
-.footer{opacity:.7;font-size:12px;padding:8px 16px;text-align:center}
-.logo{width:28px;height:28px}
-.status-bar, .tab-buttons, .btn { user-select: none; } pre, textarea, input[type="text"] { user-select: text; } ::selection { background-color: rgba(10, 255, 157, 0.3); color: var(--fg); }
-.status-bar{display:flex;gap:10px;align-items:center;margin-left:auto;font-size:12px}
-.status-item{background:#001a10;border:1px solid #003b24;padding:6px 10px;border-radius:6px}
-.status-item.active{border-color:#00cc66;background:#002417}
-.status-item.error{border-color:#ff4444;background:#330000}
-.tab-buttons{display:flex;gap:8px;margin-bottom:12px}
-.tab-btn{padding:8px 16px;background:#001b12;border:1px solid #003b24;border-radius:8px;cursor:pointer;color:var(--muted)}
-.tab-btn.active{background:#002417;border-color:#00cc66;color:var(--fg)}
-.tab-content{display:none}
-.tab-content.active{display:block}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;margin:10px 0}
-.stat-item{background:#001108;border:1px solid #003b24;padding:10px;border-radius:8px}
-.stat-label{color:var(--muted);font-size:11px;text-transform:uppercase}
-.stat-value{color:var(--fg);font-size:18px;font-weight:bold}
-.diag-section{margin:8px 0}
-.diag-label{color:var(--accent);font-weight:bold}
-.scan-controls{display:grid;grid-template-columns:2fr 1fr;gap:10px}
-.modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10000}
-.modal-content{background:var(--card);border:2px solid #ff4444;border-radius:12px;padding:24px;max-width:600px;width:90%;text-align:center;box-shadow:0 0 30px rgba(255,68,68,0.3)}
-.modal-content h3{color:#ff6666;margin:0 0 20px 0;font-size:18px}
-.progress-container{margin:20px 0}
-.progress-bar{width:100%;height:24px;background:#000;border:1px solid #003b24;border-radius:12px;overflow:hidden;margin:15px 0}
-.progress-fill{height:100%;background:linear-gradient(90deg,#ff4444,#ff6666,#ff4444);background-size:200% 100%;animation:progress-pulse 2s ease-in-out infinite;width:0%;transition:width 0.5s ease;border-radius:12px}
-@keyframes progress-pulse{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-#eraseProgressText{font-weight:bold;color:var(--fg);margin:10px 0}
-.progress-details{max-height:200px;overflow-y:auto;background:#000;border:1px dashed #003b24;border-radius:8px;padding:12px;margin:15px 0;font-size:11px;text-align:left;font-family:monospace;color:var(--muted)}
-.progress-details div{margin:2px 0;border-bottom:1px dotted #003b24;padding:2px 0}
-.warning-text{color:#ff6666;font-weight:bold;margin-top:20px;padding:12px;background:rgba(255,68,68,0.1);border-radius:8px;border:1px solid #ff4444;font-size:14px}
-.toast{display:flex;align-items:flex-start;gap:12px;background:var(--card);border-radius:10px;padding:14px;margin:8px 0;min-width:320px;opacity:0;transform:translateY(8px);transition:all 0.3s ease;box-shadow:0 8px 30px rgba(10,255,157,0.2)}
-.toast.show{opacity:1;transform:translateY(0)}
-.toast-success{border-left:4px solid #00cc66;background:linear-gradient(135deg,#001d12,#002417)}
-.toast-error{border-left:4px solid #ff4444;background:linear-gradient(135deg,#330000,#1a0000)}
-.toast-warning{border-left:4px solid #ffaa00;background:linear-gradient(135deg,#331a00,#2a1500)}
-.toast-info{border-left:4px solid #0aff9d;background:linear-gradient(135deg,#001d12,#00140d)}
-.toast-content{flex:1}
-.toast-title{font-weight:bold;font-size:12px;margin-bottom:4px;font-family:monospace;opacity:0.8}
-.toast-message{font-size:13px;color:var(--fg);line-height:1.3}
-.status-disabled{color:#888;background:rgba(136,136,136,0.1);border:1px solid #444}
-.status-setup{color:#ffaa00;background:rgba(255,170,0,0.1);border:1px solid #ffaa00}
-.status-active{color:#00cc66;background:rgba(0,204,102,0.1);border:1px solid #00cc66}
-.status-danger{color:#ff4444;background:rgba(255,68,68,0.1);border:1px solid #ff4444;animation:pulse-danger 2s infinite}
-@keyframes pulse-danger{0%,100%{opacity:1}50%{opacity:0.7}}
-#autoEraseStatus{padding:12px;border-radius:8px;font-weight:bold;text-align:center;margin:10px 0;font-size:13px;font-family:monospace}
-</style></head><body>
-<div class="header">
-  <svg class="logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <rect x="6" y="6" width="52" height="52" rx="8" fill="#00180F" stroke="#00ff7f" stroke-width="2"/>
-    <path d="M16 40 L32 16 L48 40" fill="none" stroke="#0aff9d" stroke-width="3"/>
-    <circle cx="32" cy="44" r="3" fill="#00ff7f"/>
-  </svg>
-  <h1>Antihunter v5</h1>
-  <div class="status-bar">
-    <div class="status-item" id="modeStatus">WiFi</div>
-    <div class="status-item" id="scanStatus">Idle</div>
-    <div class="status-item" id="meshStatus">Mesh</div>
-    <div class="status-item" id="gpsStatus">GPS</div>
-    <div class="status-item" id="rtcStatus">RTC</div>
-  </div>
-</div>
-<div id="toast"></div>
-<div class="container">
-
-<div class="grid">
-  <div class="card">
-    <h3>Target Configuration</h3>
-    <div class="banner">Enter full MACs (<code>AA:BB:CC:DD:EE:FF</code>) or OUIs (<code>AA:BB:CC</code>), one per line.</div>
-    <form id="f" method="POST" action="/save">
-      <label for="list">Target MAC Addresses</label>
-      <textarea id="list" name="list" placeholder="AA:BB:CC:DD:EE:FF&#10;DC:A6:32&#10;# Comments allowed"></textarea>
-      <div class="row" style="margin-top:10px">
-        <button class="btn primary" type="submit">Save Targets</button>
-        <a class="btn" href="/export" data-ajax="false">Export List</a>
-        <span class="small" id="targetCount">0 targets</span>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AntiHunter</title>
+  <style>
+    :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .header{padding:16px 14px;border-bottom:1px solid #003b24;background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+    h1{margin:0;font-size:20px;letter-spacing:1px}
+    h3{margin:12px 0 8px;color:var(--fg)}
+    .container{max-width:1400px;margin:0 auto;padding:16px}
+    .card{background:var(--card);border:1px solid #003b24;border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 8px 30px rgba(0,255,127,.05)}
+    label{display:block;margin:6px 0 4px;color:var(--muted);font-size:13px}
+    textarea, input[type=text], input[type=number], select{width:100%;background:#000;border:1px solid #003b24;border-radius:10px;color:var(--fg);padding:10px 12px;outline:none;font-family:inherit;font-size:13px}
+    textarea{min-height:128px;resize:vertical}
+    select{cursor:pointer}
+    select option{background:#000;color:var(--fg)}
+    .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;transition:transform .05s ease, box-shadow .2s;font-size:13px}
+    .btn:hover{box-shadow:0 6px 18px rgba(10,255,157,.15);transform:translateY(-1px)}
+    .btn.primary{background:#002417;border-color:#00cc66}
+    .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
+    .btn.danger{background:#330000;border-color:#ff4444;color:#ff6666}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .small{opacity:.65;font-size:12px} 
+    pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:10px;padding:12px;font-size:12px;line-height:1.4;overflow-x:auto}
+    a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
+    .banner{font-size:12px;color:#0aff9d;border:1px dashed #004e2f;padding:8px;border-radius:10px;background:#001108}
+    .grid{display:grid;grid-template-columns:repeat(2, minmax(380px, 1fr));grid-auto-rows:minmax(200px, auto);gap:14px}
+    .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:900px){.grid-2col{grid-template-columns:1fr}}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+    #toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
+    .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:10px 12px;border-radius:10px;box-shadow:0 8px 30px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s, transform .15s}
+    .toast.show{opacity:1;transform:none}
+    .toast .title{color:#0aff9d;font-weight:bold}
+    .footer{opacity:.7;font-size:12px;padding:8px 16px;text-align:center}
+    .logo{width:28px;height:28px}
+    .status-bar, .tab-buttons, .btn { user-select: none; } pre, textarea, input[type="text"] { user-select: text; } ::selection { background-color: rgba(10, 255, 157, 0.3); color: var(--fg); }
+    .status-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto;font-size:12px}
+    .status-item{background:#001a10;border:1px solid #003b24;padding:4px 8px;border-radius:6px;font-size:11px;white-space:nowrap}
+    .status-item.active{border-color:#00cc66;background:#002417}
+    .status-item.error{border-color:#ff4444;background:#330000}
+    .tab-buttons{display:flex;gap:8px;margin-bottom:12px}
+    .tab-btn{padding:8px 16px;background:#001b12;border:1px solid #003b24;border-radius:8px;cursor:pointer;color:var(--muted)}
+    .tab-btn.active{background:#002417;border-color:#00cc66;color:var(--fg)}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;margin:10px 0}
+    .stat-item{background:#001108;border:1px solid #003b24;padding:10px;border-radius:8px}
+    .stat-label{color:var(--muted);font-size:11px;text-transform:uppercase}
+    .stat-value{color:var(--fg);font-size:18px;font-weight:bold}
+    .diag-section{margin:8px 0}
+    .diag-label{color:var(--accent);font-weight:bold}
+    .scan-controls{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+    .modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10000}
+    .modal-content{background:var(--card);border:2px solid #ff4444;border-radius:12px;padding:24px;max-width:600px;width:90%;text-align:center;box-shadow:0 0 30px rgba(255,68,68,0.3)}
+    .modal-content h3{color:#ff6666;margin:0 0 20px 0;font-size:18px}
+    .progress-container{margin:20px 0}
+    .progress-bar{width:100%;height:24px;background:#000;border:1px solid #003b24;border-radius:12px;overflow:hidden;margin:15px 0}
+    .progress-fill{height:100%;background:linear-gradient(90deg,#ff4444,#ff6666,#ff4444);background-size:200% 100%;animation:progress-pulse 2s ease-in-out infinite;width:0%;transition:width 0.5s ease;border-radius:12px}
+    @keyframes progress-pulse{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+    #eraseProgressText{font-weight:bold;color:var(--fg);margin:10px 0}
+    .progress-details{max-height:200px;overflow-y:auto;background:#000;border:1px dashed #003b24;border-radius:8px;padding:12px;margin:15px 0;font-size:11px;text-align:left;font-family:monospace;color:var(--muted)}
+    .progress-details div{margin:2px 0;border-bottom:1px dotted #003b24;padding:2px 0}
+    .warning-text{color:#ff6666;font-weight:bold;margin-top:20px;padding:12px;background:rgba(255,68,68,0.1);border-radius:8px;border:1px solid #ff4444;font-size:14px}
+    .toast{display:flex;align-items:flex-start;gap:12px;background:var(--card);border-radius:10px;padding:14px;margin:8px 0;min-width:320px;opacity:0;transform:translateY(8px);transition:all 0.3s ease;box-shadow:0 8px 30px rgba(10,255,157,0.2)}
+    .toast.show{opacity:1;transform:translateY(0)}
+    .toast-success{border-left:4px solid #00cc66;background:linear-gradient(135deg,#001d12,#002417)}
+    .toast-error{border-left:4px solid #ff4444;background:linear-gradient(135deg,#330000,#1a0000)}
+    .toast-warning{border-left:4px solid #ffaa00;background:linear-gradient(135deg,#331a00,#2a1500)}
+    .toast-info{border-left:4px solid #0aff9d;background:linear-gradient(135deg,#001d12,#00140d)}
+    .toast-content{flex:1}
+    .toast-title{font-weight:bold;font-size:12px;margin-bottom:4px;font-family:monospace;opacity:0.8}
+    .toast-message{font-size:13px;color:var(--fg);line-height:1.3}
+    .status-disabled{color:#888;background:rgba(136,136,136,0.1);border:1px solid #444}
+    .status-setup{color:#ffaa00;background:rgba(255,170,0,0.1);border:1px solid #ffaa00}
+    .status-active{color:#00cc66;background:rgba(0,204,102,0.1);border:1px solid #00cc66}
+    .status-danger{color:#ff4444;background:rgba(255,68,68,0.1);border:1px solid #ff4444;animation:pulse-danger 2s infinite}
+    @keyframes pulse-danger{0%,100%{opacity:1}50%{opacity:0.7}}
+    #autoEraseStatus{padding:12px;border-radius:8px;font-weight:bold;text-align:center;margin:10px 0;font-size:13px;font-family:monospace}
+    @media (max-width:600px){.header{padding:12px 10px;gap:8px}h1{font-size:18px}.logo{width:24px;height:24px}.status-bar{width:100%;margin-left:0;margin-top:8px;justify-content:space-between;gap:4px}.status-item{flex:1;min-width:0;text-align:center;padding:4px 6px;font-size:10px;overflow:hidden;text-overflow:ellipsis}.container{padding:12px}.card{padding:12px;margin:12px 0}}
+  </style></head><body>
+    <div class="header">
+      <svg class="logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="6" y="6" width="52" height="52" rx="8" fill="#00180F" stroke="#00ff7f" stroke-width="2"/>
+        <path d="M16 40 L32 16 L48 40" fill="none" stroke="#0aff9d" stroke-width="3"/>
+        <circle cx="32" cy="44" r="3" fill="#00ff7f"/>
+      </svg>
+      <h1>Antihunter v5</h1>
+      <div class="status-bar">
+        <div class="status-item" id="modeStatus">WiFi</div>
+        <div class="status-item" id="scanStatus">Idle</div>
+        <div class="status-item" id="meshStatus">Mesh</div>
+        <div class="status-item" id="gpsStatus">GPS</div>
+        <div class="status-item" id="rtcStatus">RTC</div>
       </div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h3>Scanning Operations</h3>
-    <form id="s" method="POST" action="/scan">
-      <div class="scan-controls">
-        <div>
-          <label>Scan Mode</label>
-          <select name="mode" id="scanMode">
-            <option value="0">WiFi Only</option>
-            <option value="1">BLE Only</option>
-            <option value="2">WiFi + BLE Combined</option>
-          </select>
+    </div>
+    <div id="toast"></div>
+    <div class="container">
+      
+      <div class="grid">
+        <div class="card">
+          <h3>Target Configuration</h3>
+          <div class="banner">Enter full MACs (<code>AA:BB:CC:DD:EE:FF</code>) or OUIs (<code>AA:BB:CC</code>), one per line.</div>
+          <form id="f" method="POST" action="/save">
+            <label for="list">Target MAC Addresses</label>
+            <textarea id="list" name="list" placeholder="AA:BB:CC:DD:EE:FF&#10;DC:A6:32&#10;# Comments allowed"></textarea>
+            <div class="row" style="margin-top:10px">
+              <button class="btn primary" type="submit">Save Targets</button>
+              <a class="btn" href="/export" data-ajax="false">Export List</a>
+              <span class="small" id="targetCount">0 targets</span>
+            </div>
+          </form>
         </div>
-        <div>
-          <label>Duration (seconds)</label>
-          <input type="number" name="secs" min="0" max="86400" value="60" id="scanDuration">
+        
+        <div class="card">
+          <h3>Scanning Operations</h3>
+          <form id="s" method="POST" action="/scan">
+            <div class="scan-controls">
+              <div>
+                <label>Scan Mode</label>
+                <select name="mode" id="scanMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="1">BLE Only</option>
+                  <option value="2">WiFi + BLE Combined</option>
+                </select>
+              </div>
+              <div>
+                <label>Duration (seconds)</label>
+                <input type="number" name="secs" min="0" max="86400" value="60" id="scanDuration">
+              </div>
+            </div>
+            
+            <div class="row" style="margin:10px 0">
+              <input type="checkbox" id="forever1" name="forever" value="1">
+              <label for="forever1" style="margin:0">Run Forever</label>
+            </div>
+            
+            <label>WiFi Channels</label>
+            <input type="text" name="ch" value="1..14" placeholder="1,6,11 or 1..14">
+            
+            <div class="row" style="margin-top:10px">
+              <input type="checkbox" id="triangulate" name="triangulate" value="1">
+              <label for="triangulate" style="margin:0">Triangulation Mode (Multi-node)</label>
+            </div>
+            
+            <div id="triangulateOptions" style="display:none;margin-top:10px">
+              <label>Target MAC for Triangulation</label>
+              <input type="text" name="targetMac" placeholder="34:21:09:83:D9:51">
+            </div>
+            
+            <div class="row" style="margin-top:12px">
+              <button class="btn primary" type="submit">Start Scan</button>
+              <!--
+              <a class="btn danger" href="/stop" data-ajax="true">Stop All</a>
+              -->
+            </div>
+          </form>
+        </div>
+        
+        <div class="card">
+          <h3>Detection & Analysis</h3>
+          <form id="sniffer" method="POST" action="/sniffer">  
+            <label>Detection Method</label>
+            <select name="detection" id="detectionMode">
+              <option value="device-scan">Device Discovery (WiFi/BLE)</option>
+              <!--
+              <option value="deauth">Deauth Attack Detection</option>
+              <option value="beacon-flood">Beacon Flood Detection</option>
+              <option value="karma">Karma Attack Detection</option>
+              <option value="probe-flood">Probe Flood Detection</option>
+              <option value="ble-spam">BLE Spam Detection</option>
+              -->
+            </select>
+            
+            <div class="scan-controls" style="margin-top:10px">
+              <div>
+                <label>Duration (seconds)</label>
+                <input type="number" name="secs" min="0" max="86400" value="60">
+              </div>
+              <div>
+                <input type="checkbox" id="forever3" name="forever" value="1">
+                <label for="forever3" style="margin:0">Run Forever</label>
+              </div>
+            </div>
+            
+            <div class="row" style="margin-top:12px">
+              <button class="btn primary" type="submit">Start Detection</button>
+              <a class="btn alt" href="/sniffer-cache" data-ajax="false">View Cache</a>
+            </div>
+          </form>
+        </div>
+        
+        <div class="card">
+          <h3>Node Configuration</h3>
+          <form id="nodeForm" method="POST" action="/node-id">
+            <label for="nodeId">Node Identifier</label>
+            <input type="text" id="nodeId" name="id" maxlength="16" placeholder="NODE_01">
+            <div class="row" style="margin-top:10px">
+              <button class="btn primary" type="submit">Update Node ID</button>
+            </div>
+          </form>
+          
+          <hr>
+          
+          <div class="row" style="margin-top:10px">
+            <input type="checkbox" id="meshEnabled" checked>
+            <label for="meshEnabled" style="margin:0">Enable Mesh Communications</label>
+          </div>
+          
+          <div class="row" style="margin-top:10px">
+            <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
+            <a class="btn" href="/gps" data-ajax="false">GPS Status</a>
+            <a class="btn" href="/sd-status" data-ajax="false">SD Card</a>
+          </div>
         </div>
       </div>
       
-      <div class="row" style="margin:10px 0">
-        <input type="checkbox" id="forever1" name="forever" value="1">
-        <label for="forever1" style="margin:0">Run Forever</label>
-      </div>
-      
-      <label>WiFi Channels</label>
-      <input type="text" name="ch" value="1..14" placeholder="1,6,11 or 1..14">
-      
-      <div class="row" style="margin-top:10px">
-        <input type="checkbox" id="triangulate" name="triangulate" value="1">
-        <label for="triangulate" style="margin:0">Triangulation Mode (Multi-node)</label>
-      </div>
-      
-      <div id="triangulateOptions" style="display:none;margin-top:10px">
-        <label>Target MAC for Triangulation</label>
-        <input type="text" name="targetMac" placeholder="34:21:09:83:D9:51">
-      </div>
-      
-      <div class="row" style="margin-top:12px">
-        <button class="btn primary" type="submit">Start Scan</button>
-        <!--
-        <a class="btn danger" href="/stop" data-ajax="true">Stop All</a>
-        -->
-      </div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h3>Detection & Analysis</h3>
-    <form id="sniffer" method="POST" action="/sniffer">  
-      <label>Detection Method</label>
-      <select name="detection" id="detectionMode">
-        <option value="device-scan">Device Discovery (WiFi/BLE)</option>
-        <!--
-        <option value="deauth">Deauth Attack Detection</option>
-        <option value="beacon-flood">Beacon Flood Detection</option>
-        <option value="karma">Karma Attack Detection</option>
-        <option value="probe-flood">Probe Flood Detection</option>
-        <option value="ble-spam">BLE Spam Detection</option>
-        -->
-      </select>
-      
-      <div class="scan-controls" style="margin-top:10px">
-        <div>
-          <label>Duration (seconds)</label>
-          <input type="number" name="secs" min="0" max="86400" value="60">
+      <div class="card">
+        <h3>System Diagnostics</h3>
+        <div class="tab-buttons">
+          <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
+          <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
+          <div class="tab-btn" onclick="switchTab('network')">Network</div>
         </div>
-        <div>
-          <input type="checkbox" id="forever3" name="forever" value="1">
-          <label for="forever3" style="margin:0">Run Forever</label>
+        
+        <div id="overview" class="tab-content active">
+          <div class="stat-grid">
+            <div class="stat-item">
+              <div class="stat-label">Uptime</div>
+              <div class="stat-value" id="uptime">--:--:--</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">WiFi Frames</div>
+              <div class="stat-value" id="wifiFrames">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">BLE Frames</div>
+              <div class="stat-value" id="bleFrames">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Total Hits</div>
+              <div class="stat-value" id="totalHits">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Unique MACs</div>
+              <div class="stat-value" id="uniqueDevices">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Temperature</div>
+              <div class="stat-value" id="temperature">--°C</div>
+            </div>
+          </div>
+        </div>
+        
+        <div id="hardware" class="tab-content">
+          <pre id="hardwareDiag">Loading hardware info...</pre>
+        </div>
+        
+        <div id="network" class="tab-content">
+          <pre id="networkDiag">Loading network info...</pre>
         </div>
       </div>
       
-      <div class="row" style="margin-top:12px">
-        <button class="btn primary" type="submit">Start Detection</button>
-        <a class="btn alt" href="/sniffer-cache" data-ajax="false">View Cache</a>
+      <div class="card">
+        <h3>Scan Results</h3>
+        <pre id="r">No scan data yet.</pre>
       </div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h3>Node Configuration</h3>
-    <form id="nodeForm" method="POST" action="/node-id">
-      <label for="nodeId">Node Identifier</label>
-      <input type="text" id="nodeId" name="id" maxlength="16" placeholder="NODE_01">
-      <div class="row" style="margin-top:10px">
-        <button class="btn primary" type="submit">Update Node ID</button>
+      
+      <div class="card">
+        <h3>Secure Data Destruction</h3>
+        <div class="banner">WARNING: This will permanently wipe all config data and logs.</div>
+        
+        <form id="eraseForm">
+          <label for="eraseConfirm">Confirmation Code</label>
+          <input type="text" id="eraseConfirm" placeholder="Type: WIPE_ALL_DATA">
+          
+          <div class="row" style="margin-top:10px">
+            <button class="btn danger" type="button" onclick="requestErase()">INITIATE SECURE WIPE</button>
+            <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
+          </div>
+        </form>
+        
+        <div id="eraseStatus" style="display:none; margin-top:10px; padding:8px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;"></div>
       </div>
-    </form>
-    
-    <hr>
-    
-    <div class="row" style="margin-top:10px">
-      <input type="checkbox" id="meshEnabled" checked>
-      <label for="meshEnabled" style="margin:0">Enable Mesh Communications</label>
+      
+      <div class="card">
+        <h3 onclick="toggleCard('autoEraseCard')" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
+          Auto-Erase Configuration 
+          <span id="autoEraseToggle" style="font-size:14px; transform:rotate(0deg); transition:transform 0.3s;">▼</span>
+        </h3>
+        
+        <div id="autoEraseCard" style="display:block;">
+          <div class="banner">Configure automatic data destruction on tampering detection.</div>
+          
+          <div class="row" style="margin:15px 0">
+            <input type="checkbox" id="autoEraseEnabled">
+            <label for="autoEraseEnabled" style="margin:0">Enable automatic erase on device tampering</label>
+          </div>
+          
+          <div class="grid-2col" style="margin:20px 0">
+            <div>
+              <label>Erase Delay (seconds)</label>
+              <select id="autoEraseDelay" style="margin-bottom:8px">
+                <option value="10000">10 seconds</option>
+                <option value="20000">20 seconds</option>
+                <option value="30000" selected>30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000">2 minutes</option>
+                <option value="300000">5 minutes</option>
+              </select>
+            </div>
+            <div>
+              <label>Cooldown Period</label>
+              <select id="autoEraseCooldown" style="margin-bottom:8px">
+                <option value="60000">1 minute</option>
+                <option value="300000" selected>5 minutes</option>
+                <option value="600000">10 minutes</option>
+                <option value="1800000">30 minutes</option>
+                <option value="3600000">1 hour</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="grid-2col" style="margin:20px 0">
+            <div>
+              <label>Vibrations required</label>
+              <select id="vibrationsRequired" style="margin-bottom:8px">
+                <option value="2">2 vibrations</option>
+                <option value="3" selected>3 vibrations</option>
+                <option value="4">4 vibrations</option>
+                <option value="5">5 vibrations</option>
+              </select>
+            </div>
+            <div>
+              <label>Within time window</label>
+              <select id="detectionWindow" style="margin-bottom:8px">
+                <option value="10000">10 seconds</option>
+                <option value="20000" selected>20 seconds</option>
+                <option value="30000">30 seconds</option>
+                <option value="60000">1 minute</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="grid-2col" style="margin:20px 0">
+            <div>
+              <label>Setup Delay (activation time)</label>
+              <select id="setupDelay" style="margin-bottom:8px">
+                <option value="30000">30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000" selected>2 minutes</option>
+                <option value="300000">5 minutes</option>
+                <option value="600000">10 minutes</option>
+              </select>
+            </div>
+            <div></div>
+          </div>
+          
+          <div class="row" style="margin-top:20px">
+            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()">SAVE CONFIG</button>
+          </div>
+          
+          <div id="autoEraseStatus" style="margin-top:20px; padding:12px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;">DISABLED - Manual erase only</div>
+        </div>
+      </div>
+      
+      <div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
     </div>
-    
-    <div class="row" style="margin-top:10px">
-      <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
-      <a class="btn" href="/gps" data-ajax="false">GPS Status</a>
-      <a class="btn" href="/sd-status" data-ajax="false">SD Card</a>
-    </div>
-  </div>
-</div>
-
-<div class="card">
-  <h3>System Diagnostics</h3>
-  <div class="tab-buttons">
-    <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
-    <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
-    <div class="tab-btn" onclick="switchTab('network')">Network</div>
-  </div>
-  
-  <div id="overview" class="tab-content active">
-    <div class="stat-grid">
-      <div class="stat-item">
-        <div class="stat-label">Uptime</div>
-        <div class="stat-value" id="uptime">--:--:--</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-label">WiFi Frames</div>
-        <div class="stat-value" id="wifiFrames">0</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-label">BLE Frames</div>
-        <div class="stat-value" id="bleFrames">0</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-label">Total Hits</div>
-        <div class="stat-value" id="totalHits">0</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-label">Unique MACs</div>
-        <div class="stat-value" id="uniqueDevices">0</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-label">Temperature</div>
-        <div class="stat-value" id="temperature">--°C</div>
-      </div>
-    </div>
-  </div>
-  
-  <div id="hardware" class="tab-content">
-    <pre id="hardwareDiag">Loading hardware info...</pre>
-  </div>
-  
-  <div id="network" class="tab-content">
-    <pre id="networkDiag">Loading network info...</pre>
-  </div>
-</div>
- 
-<div class="card">
-  <h3>Scan Results</h3>
-  <pre id="r">No scan data yet.</pre>
-</div>
-
-<div class="card">
-  <h3>Secure Data Destruction</h3>
-  <div class="banner">WARNING: This will permanently wipe all config data and logs.</div>
-  
-  <form id="eraseForm">
-    <label for="eraseReason">Reason for Emergency Erase</label>
-    <input type="text" id="eraseReason" placeholder="Emergency situation, device compromise, etc.">
-    
-    <label for="eraseConfirm">Confirmation Code</label>
-    <input type="text" id="eraseConfirm" placeholder="Type: WIPE_ALL_DATA">
-    
-    <div class="row" style="margin-top:10px">
-      <button class="btn danger" type="button" onclick="requestErase()">INITIATE SECURE WIPE</button>
-      <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
-    </div>
-  </form>
-  
-  <div id="eraseStatus" style="display:none; margin-top:10px; padding:8px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;"></div>
-</div>
-
-<div class="card">
-  <h3>Auto-Erase Configuration</h3>
-  <div class="banner">Configure automatic data destruction on tampering detection.</div>
-  
-  <div class="row" style="margin:10px 0">
-    <input type="checkbox" id="autoEraseEnabled">
-    <label for="autoEraseEnabled" style="margin:0">Enable automatic erase on device tampering</label>
-  </div>
-  
-  <div class="grid-2col">
-    <div>
-      <label>Vibrations required</label>
-      <select id="vibrationsRequired">
-        <option value="2">2 vibrations</option>
-        <option value="3" selected>3 vibrations</option>
-        <option value="4">4 vibrations</option>
-        <option value="5">5 vibrations</option>
-      </select>
-    </div>
-    <div>
-      <label>Within time window</label>
-      <select id="detectionWindow">
-        <option value="10000">10 seconds</option>
-        <option value="20000" selected>20 seconds</option>
-        <option value="30000">30 seconds</option>
-        <option value="60000">1 minute</option>
-      </select>
-    </div>
-  </div>
-  
-  <div class="row" style="margin-top:10px">
-    <button class="btn primary" type="button" onclick="saveAutoEraseConfig()">SAVE CONFIG</button>
-  </div>
-  
-  <div id="autoEraseStatus" style="margin-top:10px; padding:8px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;">DISABLED - Manual erase only</div>
-</div>
-
-<div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
-</div>
-<script>
-let selectedMode = '0';
-
-function toast(msg){
-  const wrap = document.getElementById('toast');
-  const el = document.createElement('div');
-  el.className = 'toast';
-  el.innerHTML = '<div class="title">System</div><div class="msg">'+msg+'</div>';
-  wrap.appendChild(el);
-  requestAnimationFrame(()=>{ el.classList.add('show'); });
-  setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>wrap.removeChild(el), 200); }, 3000);
-}
-
-function switchTab(tabName) {
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-  
-  event.target.classList.add('active');
-  document.getElementById(tabName).classList.add('active');
-}
-
-async function ajaxForm(form, okMsg){
-  const fd = new FormData(form);
-  try{
-    const r = await fetch(form.action, {method:'POST', body:fd});
-    const t = await r.text();
-    toast(okMsg || t);
-  }catch(e){
-    toast('Error: '+e.message);
-  }
-}
-
-async function load(){
-  try{
-    const r = await fetch('/export'); 
-    const text = await r.text();
-    document.getElementById('list').value = text;
-    const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-    document.getElementById('targetCount').innerText = lines.length + ' targets';
-    
-    const rr = await fetch('/results'); 
-    document.getElementById('r').innerText = await rr.text();
-    loadNodeId();
-  }catch(e){}
-}
-
-async function loadNodeId(){
-  try{
-    const r = await fetch('/node-id');
-    const data = await r.json();
-    document.getElementById('nodeId').value = data.nodeId;
-    document.getElementById('footerNodeId').innerText = data.nodeId;
-  }catch(e){}
-}
-
-function updateStatusIndicators(diagText) {
-  // Scan status
-  if (diagText.includes('Scanning: yes')) {
-    document.getElementById('scanStatus').innerText = 'Active';
-    document.getElementById('scanStatus').classList.add('active');
-  } else {
-    document.getElementById('scanStatus').innerText = 'Idle';
-    document.getElementById('scanStatus').classList.remove('active');
-  }
-  
-  // Mode status
-  const modeMatch = diagText.match(/Scan Mode: (\w+)/);
-  if (modeMatch) {
-    document.getElementById('modeStatus').innerText = modeMatch[1];
-  }
-  
-  // GPS status
-  if (diagText.includes('GPS: Locked')) {
-    document.getElementById('gpsStatus').classList.add('active');
-    document.getElementById('gpsStatus').innerText = 'GPS Lock';
-  } else {
-    document.getElementById('gpsStatus').classList.remove('active');
-    document.getElementById('gpsStatus').innerText = 'GPS';
-  }
-  
-  // RTC status
-  if (diagText.includes('RTC: Synced')) {
-    document.getElementById('rtcStatus').classList.add('active');
-    document.getElementById('rtcStatus').innerText = 'RTC OK';
-  } else if (diagText.includes('RTC: Not')) {
-    document.getElementById('rtcStatus').classList.remove('active');
-    document.getElementById('rtcStatus').innerText = 'RTC';
-  }
-}
-
-function saveAutoEraseConfig() {
-    const enabled = document.getElementById('autoEraseEnabled').checked;
-    const delay = document.getElementById('autoEraseDelay').value;
-    const cooldown = document.getElementById('autoEraseCooldown').value;
-    const vibrationsRequired = document.getElementById('vibrationsRequired').value;
-    const detectionWindow = document.getElementById('detectionWindow').value;
-    const setupDelay = document.getElementById('setupDelay').value;
-    
-    fetch('/api/config/autoerase', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
-    })
-    .then(response => response.text())
-    .then(data => {
-        document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
-        updateAutoEraseStatus();
-    });
-}
-
-function updateAutoEraseStatus() {
-    fetch('/api/config/autoerase')
-    .then(response => response.json())
-    .then(data => {
-        if (data.enabled) {
-            if (data.inSetupMode) {
-                document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
-            } else {
-                document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
-            }
-        } else {
-            document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+    <script>
+      let selectedMode = '0';
+      
+      function toast(msg){
+        const wrap = document.getElementById('toast');
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.innerHTML = '<div class="title">System</div><div class="msg">'+msg+'</div>';
+        wrap.appendChild(el);
+        requestAnimationFrame(()=>{ el.classList.add('show'); });
+        setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>wrap.removeChild(el), 200); }, 3000);
+      }
+      
+      function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        event.target.classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+      }
+      
+      async function ajaxForm(form, okMsg){
+        const fd = new FormData(form);
+        try{
+          const r = await fetch(form.action, {method:'POST', body:fd});
+          const t = await r.text();
+          toast(okMsg || t);
+        }catch(e){
+          toast('Error: '+e.message);
         }
-    });
-}
-
-function updateEraseProgress(message, percentage) {
-    const progressBar = document.getElementById('eraseProgressBar');
-    const progressText = document.getElementById('eraseProgressText');
-    const progressDetails = document.getElementById('eraseProgressDetails');
-    
-    if (progressBar) {
-        progressBar.style.width = percentage + '%';
-    }
-    if (progressText) {
-        progressText.textContent = message;
-    }
-    if (progressDetails) {
-        progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
-        progressDetails.scrollTop = progressDetails.scrollHeight;
-    }
-}
-
-function pollEraseProgress() {
-    const poll = setInterval(() => {
-        fetch('/api/erase/progress')
+      }
+      
+      async function load(){
+        try{
+          const r = await fetch('/export'); 
+          const text = await r.text();
+          document.getElementById('list').value = text;
+          const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+          document.getElementById('targetCount').innerText = lines.length + ' targets';
+          
+          const rr = await fetch('/results'); 
+          document.getElementById('r').innerText = await rr.text();
+          loadNodeId();
+        }catch(e){}
+      }
+      
+      async function loadNodeId(){
+        try{
+          const r = await fetch('/node-id');
+          const data = await r.json();
+          document.getElementById('nodeId').value = data.nodeId;
+          document.getElementById('footerNodeId').innerText = data.nodeId;
+        }catch(e){}
+      }
+      
+      function toggleCard(cardId) {
+        const card = document.getElementById(cardId);
+        const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
+        
+        if (card.style.display === 'none') {
+          card.style.display = 'block';
+          toggle.style.transform = 'rotate(0deg)';
+        } else {
+          card.style.display = 'none';
+          toggle.style.transform = 'rotate(-90deg)';
+        }
+      }
+      
+      function updateStatusIndicators(diagText) {
+        // Scan status
+        if (diagText.includes('Scanning: yes')) {
+          document.getElementById('scanStatus').innerText = 'Active';
+          document.getElementById('scanStatus').classList.add('active');
+        } else {
+          document.getElementById('scanStatus').innerText = 'Idle';
+          document.getElementById('scanStatus').classList.remove('active');
+        }
+        
+        // Mode status
+        const modeMatch = diagText.match(/Scan Mode: (\w+)/);
+        if (modeMatch) {
+          document.getElementById('modeStatus').innerText = modeMatch[1];
+        }
+        
+        // GPS status
+        if (diagText.includes('GPS: Locked')) {
+          document.getElementById('gpsStatus').classList.add('active');
+          document.getElementById('gpsStatus').innerText = 'GPS Lock';
+        } else {
+          document.getElementById('gpsStatus').classList.remove('active');
+          document.getElementById('gpsStatus').innerText = 'GPS';
+        }
+        
+        // RTC status
+        if (diagText.includes('RTC: Synced')) {
+          document.getElementById('rtcStatus').classList.add('active');
+          document.getElementById('rtcStatus').innerText = 'RTC OK';
+        } else if (diagText.includes('RTC: Not')) {
+          document.getElementById('rtcStatus').classList.remove('active');
+          document.getElementById('rtcStatus').innerText = 'RTC';
+        }
+      }
+      
+      function saveAutoEraseConfig() {
+        const enabled = document.getElementById('autoEraseEnabled').checked;
+        const delay = document.getElementById('autoEraseDelay').value;
+        const cooldown = document.getElementById('autoEraseCooldown').value;
+        const vibrationsRequired = document.getElementById('vibrationsRequired').value;
+        const detectionWindow = document.getElementById('detectionWindow').value;
+        const setupDelay = document.getElementById('setupDelay').value;
+        
+        fetch('/api/config/autoerase', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
+        })
+        .then(response => response.text())
+        .then(data => {
+          document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
+          updateAutoEraseStatus();
+        });
+      }
+      
+      function updateAutoEraseStatus() {
+        fetch('/api/config/autoerase')
         .then(response => response.json())
         .then(data => {
+          if (data.enabled) {
+            if (data.inSetupMode) {
+              document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
+            } else {
+              document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
+            }
+          } else {
+            document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+          }
+        });
+      }
+      
+      function updateEraseProgress(message, percentage) {
+        const progressBar = document.getElementById('eraseProgressBar');
+        const progressText = document.getElementById('eraseProgressText');
+        const progressDetails = document.getElementById('eraseProgressDetails');
+        
+        if (progressBar) {
+          progressBar.style.width = percentage + '%';
+        }
+        if (progressText) {
+          progressText.textContent = message;
+        }
+        if (progressDetails) {
+          progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+          progressDetails.scrollTop = progressDetails.scrollHeight;
+        }
+      }
+      
+      function pollEraseProgress() {
+        const poll = setInterval(() => {
+          fetch('/api/erase/progress')
+          .then(response => response.json())
+          .then(data => {
             updateEraseProgress(data.message, data.percentage);
             
             if (data.status === 'COMPLETE') {
-                clearInterval(poll);
-                finalizeEraseProcess(true);
+              clearInterval(poll);
+              finalizeEraseProcess(true);
             } else if (data.status === 'ERROR') {
-                clearInterval(poll);
-                finalizeEraseProcess(false, data.error);
+              clearInterval(poll);
+              finalizeEraseProcess(false, data.error);
             } else if (data.status === 'CANCELLED') {
-                clearInterval(poll);
-                hideEraseProgressModal();
-                toast('Secure erase cancelled', 'info');
+              clearInterval(poll);
+              hideEraseProgressModal();
+              toast('Secure erase cancelled', 'info');
             }
-        })
-        .catch(error => {
+          })
+          .catch(error => {
             clearInterval(poll);
             finalizeEraseProcess(false, 'Communication error');
-        });
-    }, 1000);
-}
-
-function finalizeEraseProcess(success, error = null) {
-    if (success) {
-        updateEraseProgress('Secure erase completed successfully', 100);
-        toast('All data has been securely destroyed', 'success');
-        
-        setTimeout(() => {
+          });
+        }, 1000);
+      }
+      
+      function finalizeEraseProcess(success, error = null) {
+        if (success) {
+          updateEraseProgress('Secure erase completed successfully', 100);
+          toast('All data has been securely destroyed', 'success');
+          
+          setTimeout(() => {
             hideEraseProgressModal();
             window.location.reload();
-        }, 3000);
-    } else {
-        updateEraseProgress('Secure erase failed: ' + error, 0);
-        toast('Erase operation failed: ' + error, 'error');
-        
-        setTimeout(() => {
+          }, 3000);
+        } else {
+          updateEraseProgress('Secure erase failed: ' + error, 0);
+          toast('Erase operation failed: ' + error, 'error');
+          
+          setTimeout(() => {
             hideEraseProgressModal();
-        }, 5000);
-    }
-}
-
-function hideEraseProgressModal() {
-    const modal = document.getElementById('eraseProgressModal');
-    if (modal) {
-        document.body.removeChild(modal);
-    }
-}
-
-function toast(msg, type = 'info') {
-    const wrap = document.getElementById('toast');
-    const el = document.createElement('div');
-    el.className = `toast toast-${type}`;
-    
-    const typeLabels = {
-        'success': 'SUCCESS',
-        'error': 'ERROR',
-        'warning': 'WARNING',
-        'info': 'INFO'
-    };
-    
-    el.innerHTML = `
+          }, 5000);
+        }
+      }
+      
+      function hideEraseProgressModal() {
+        const modal = document.getElementById('eraseProgressModal');
+        if (modal) {
+          document.body.removeChild(modal);
+        }
+      }
+      
+      function toast(msg, type = 'info') {
+        const wrap = document.getElementById('toast');
+        const el = document.createElement('div');
+        el.className = `toast toast-${type}`;
+        
+        const typeLabels = {
+          'success': 'SUCCESS',
+          'error': 'ERROR',
+          'warning': 'WARNING',
+          'info': 'INFO'
+        };
+        
+        el.innerHTML = `
         <div class="toast-content">
             <div class="toast-title">[${typeLabels[type] || typeLabels.info}]</div>
             <div class="toast-message">${msg}</div>
         </div>
     `;
-    
-    wrap.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    
-    const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
-    
-    setTimeout(() => {
-        el.classList.remove('show');
-        setTimeout(() => wrap.removeChild(el), 300);
-    }, duration);
-}
-
-function saveAutoEraseConfig() {
-    const enabled = document.getElementById('autoEraseEnabled').checked;
-    const vibrationsRequired = document.getElementById('vibrationsRequired').value;
-    const detectionWindow = document.getElementById('detectionWindow').value;
-    
-    fetch('/api/config/autoerase', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `enabled=${enabled}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}`
-    })
-    .then(response => response.text())
-    .then(data => {
-        toast('Auto-erase configuration saved', 'success');
-        updateAutoEraseStatus();
-    })
-    .catch(error => {
-        toast('Failed to save configuration: ' + error, 'error');
-    });
-}
-
-function updateAutoEraseStatus() {
-    fetch('/api/config/autoerase')
-    .then(response => response.json())
-    .then(data => {
-        const statusDiv = document.getElementById('autoEraseStatus');
-        let statusText = '';
-        let statusClass = '';
         
-        if (!data.enabled) {
+        wrap.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('show'));
+        
+        const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
+        
+        setTimeout(() => {
+          el.classList.remove('show');
+          setTimeout(() => wrap.removeChild(el), 300);
+        }, duration);
+      }
+      
+      function updateAutoEraseStatus() {
+        fetch('/api/config/autoerase')
+        .then(response => response.json())
+        .then(data => {
+          const statusDiv = document.getElementById('autoEraseStatus');
+          let statusText = '';
+          let statusClass = '';
+          
+          if (!data.enabled) {
             statusText = 'DISABLED - Manual erase only';
             statusClass = 'status-disabled';
-        } else if (data.inSetupMode) {
+          } else if (data.inSetupMode) {
             const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
             statusText = `SETUP MODE - Activating in ${remaining}s`;
             statusClass = 'status-setup';
-        } else if (data.tamperActive) {
+          } else if (data.tamperActive) {
             statusText = 'TAMPER DETECTED - Auto-erase in progress';
             statusClass = 'status-danger';
-        } else {
+          } else {
             statusText = 'ACTIVE - Monitoring for tampering';
             statusClass = 'status-active';
-        }
-        
-        statusDiv.textContent = statusText;
-        statusDiv.className = statusClass;
-    })
-    .catch(error => {
-        document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
-    });
-}
-
-function cancelErase() {
-    fetch('/api/erase/cancel', {method: 'POST'})
-    .then(response => response.text())
-    .then(data => {
-        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-    });
-}
-
-function pollEraseStatus() {
-    const poll = setInterval(() => {
-        fetch('/api/erase/status')
+          }
+          
+          statusDiv.textContent = statusText;
+          statusDiv.className = statusClass;
+        })
+        .catch(error => {
+          document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
+        });
+      }
+      
+      function cancelErase() {
+        fetch('/api/erase/cancel', {method: 'POST'})
         .then(response => response.text())
-        .then(status => {
+        .then(data => {
+          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+        });
+      }
+      
+      function pollEraseStatus() {
+        const poll = setInterval(() => {
+          fetch('/api/erase/status')
+          .then(response => response.text())
+          .then(status => {
             document.getElementById('eraseStatus').innerHTML = '<pre>Status: ' + status + '</pre>';
             
             if (status === 'COMPLETED') {
-                clearInterval(poll);
-                // Show persistent success message
-                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
-                toast('All data has been securely destroyed', 'success');
-                
-                // Clear the form
-                document.getElementById('eraseReason').value = '';
-                document.getElementById('eraseConfirm').value = '';
-                
+              clearInterval(poll);
+              // Show persistent success message
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
+              toast('All data has been securely destroyed', 'success');
+              
+              // Clear the form
+              document.getElementById('eraseConfirm').value = '';
+              
             } else if (status.startsWith('FAILED')) {
-                clearInterval(poll);
-                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
-                toast('Secure erase failed: ' + status, 'error');
+              clearInterval(poll);
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
+              toast('Secure erase failed: ' + status, 'error');
             }
-        })
-        .catch(error => {
+          })
+          .catch(error => {
             clearInterval(poll);
             toast('Status check failed: ' + error, 'error');
-        });
-    }, 1000); // Check every second for faster feedback
-}
-
-function requestErase() {
-    const reason = document.getElementById('eraseReason').value;
-    const confirm = document.getElementById('eraseConfirm').value;
-    
-    if (!reason.trim()) {
-        toast('Please provide a reason for the emergency erase', 'error');
-        return;
-    }
-    
-    if (confirm !== 'WIPE_ALL_DATA') {
-        toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
-        return;
-    }
-    
-    if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
-        return;
-    }
-    
-    toast('Initiating secure erase operation...', 'warning');
-    
-    fetch('/api/erase/request', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `reason=${encodeURIComponent(reason)}&confirm=${encodeURIComponent(confirm)}`
-    })
-    .then(response => response.text())
-    .then(data => {
-        document.getElementById('eraseStatus').style.display = 'block';
-        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-        toast('Secure erase started', 'info');
+          });
+        }, 1000); // Check every second for faster feedback
+      }
+      
+      function requestErase() {
+        const confirm = document.getElementById('eraseConfirm').value;
         
-        // Start polling for status
-        pollEraseStatus();
-    })
-    .catch(error => {
-        toast('Network error: ' + error, 'error');
-    });
-}
-
-async function tick(){
-  if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
-  try{
-    const d = await fetch('/diag'); 
-    const diagText = await d.text();
-    const sections = diagText.split('\n');
-    let overview = '';
-    let hardware = '';
-    let network = '';
-    sections.forEach(line => {
-      if (line.includes('WiFi Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('wifiFrames').innerText = match[1]; }
-      if (line.includes('BLE Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('bleFrames').innerText = match[1]; }
-      if (line.includes('Total hits')) { const match = line.match(/(\d+)/); if (match) document.getElementById('totalHits').innerText = match[1]; }
-      if (line.includes('Unique devices')) { const match = line.match(/(\d+)/); if (match) document.getElementById('uniqueDevices').innerText = match[1]; }
-      if (line.includes('ESP32 Temp')) { const match = line.match(/([\d.]+)°C/); if (match) document.getElementById('temperature').innerText = match[1] + '°C'; }
-      if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) { hardware += line + '\n'; } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) { network += line + '\n'; } else { overview += line + '\n'; }
-    });
-    document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
-    document.getElementById('networkDiag').innerText = network || 'No network data';
-    const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
-    if (uptimeMatch) { document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3]; }
-    updateStatusIndicators(diagText);
-    const resultsElement = document.getElementById('r');
-    if (resultsElement && !resultsElement.contains(document.activeElement)) { const rr = await fetch('/results'); document.getElementById('r').innerText = await rr.text(); }
-  }catch(e){}
-}
-
-document.getElementById('triangulate').addEventListener('change', e=>{
-  document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
-});
-
-document.getElementById('f').addEventListener('submit', e=>{ 
-  e.preventDefault(); 
-  ajaxForm(e.target, 'Targets saved ✓'); 
-  setTimeout(load, 500);
-});
-
-document.getElementById('nodeForm').addEventListener('submit', e=>{
-  e.preventDefault();
-  ajaxForm(e.target, 'Node ID updated');
-  setTimeout(loadNodeId, 500);
-});
-
-document.getElementById('s').addEventListener('submit', e=>{
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  fetch('/scan', {method:'POST', body:fd}).then(r=>r.text()).then(t=>toast(t))
-    .catch(err=>toast('Error: '+err.message));
-});
-
-document.getElementById('meshEnabled').addEventListener('change', e=>{
-  const enabled = e.target.checked;
-  fetch('/mesh', {method:'POST', body: new URLSearchParams({enabled: enabled})})
-    .then(r=>r.text())
-    .then(t=>{
-      toast(t);
-      document.getElementById('meshStatus').classList.toggle('active', enabled);
-    })
-    .catch(err=>toast('Error: '+err.message));
-});
-
-document.getElementById('sniffer').addEventListener('submit', e=>{
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  fetch('/sniffer', {method:'POST', body:fd}).then(()=>toast('Detection started'))
-    .catch(err=>toast('Error: '+err.message));
-});
-
-document.addEventListener('click', e=>{
-  const a = e.target.closest('a[href="/stop"]');
-  if (!a) return;
-  e.preventDefault();
-  fetch('/stop').then(r=>r.text()).then(t=>toast(t));
-});
-
-document.addEventListener('click', e=>{
-  const a = e.target.closest('a[href="/mesh-test"]');
-  if (!a) return;
-  e.preventDefault();
-  fetch('/mesh-test').then(r=>r.text()).then(t=>toast('Mesh test sent'));
-});
-
-// Initialize
-load();
-setInterval(tick, 2000);
-</script>
-</body></html>
+        if (confirm !== 'WIPE_ALL_DATA') {
+          toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
+          return;
+        }
+        
+        if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
+          return;
+        }
+        
+        toast('Initiating secure erase operation...', 'warning');
+        
+        fetch('/api/erase/request', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: `confirm=${encodeURIComponent(confirm)}`
+        })
+        .then(response => response.text())
+        .then(data => {
+          document.getElementById('eraseStatus').style.display = 'block';
+          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+          toast('Secure erase started', 'info');
+          
+          // Start polling for status
+          pollEraseStatus();
+        })
+        .catch(error => {
+          toast('Network error: ' + error, 'error');
+        });
+      }
+      
+      async function tick(){
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
+        try{
+          const d = await fetch('/diag'); 
+          const diagText = await d.text();
+          const sections = diagText.split('\n');
+          let overview = '';
+          let hardware = '';
+          let network = '';
+          sections.forEach(line => {
+            if (line.includes('WiFi Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('wifiFrames').innerText = match[1]; }
+              if (line.includes('BLE Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('bleFrames').innerText = match[1]; }
+                if (line.includes('Total hits')) { const match = line.match(/(\d+)/); if (match) document.getElementById('totalHits').innerText = match[1]; }
+                  if (line.includes('Unique devices')) { const match = line.match(/(\d+)/); if (match) document.getElementById('uniqueDevices').innerText = match[1]; }
+                    if (line.includes('ESP32 Temp')) { const match = line.match(/([\d.]+)°C/); if (match) document.getElementById('temperature').innerText = match[1] + '°C'; }
+                      if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) { hardware += line + '\n'; } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) { network += line + '\n'; } else { overview += line + '\n'; }
+                    });
+                    document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
+                    document.getElementById('networkDiag').innerText = network || 'No network data';
+                    const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
+                    if (uptimeMatch) { document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3]; }
+                    updateStatusIndicators(diagText);
+                    const resultsElement = document.getElementById('r');
+                    if (resultsElement && !resultsElement.contains(document.activeElement)) { const rr = await fetch('/results'); document.getElementById('r').innerText = await rr.text(); }
+                  }catch(e){}
+                }
+                
+                document.getElementById('triangulate').addEventListener('change', e=>{
+                  document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
+                });
+                
+                document.getElementById('f').addEventListener('submit', e=>{ 
+                  e.preventDefault(); 
+                  ajaxForm(e.target, 'Targets saved ✓'); 
+                  setTimeout(load, 500);
+                });
+                
+                document.getElementById('nodeForm').addEventListener('submit', e=>{
+                  e.preventDefault();
+                  ajaxForm(e.target, 'Node ID updated');
+                  setTimeout(loadNodeId, 500);
+                });
+                
+                document.getElementById('s').addEventListener('submit', e=>{
+                  e.preventDefault();
+                  const fd = new FormData(e.target);
+                  fetch('/scan', {method:'POST', body:fd}).then(r=>r.text()).then(t=>toast(t))
+                  .catch(err=>toast('Error: '+err.message));
+                });
+                
+                document.getElementById('meshEnabled').addEventListener('change', e=>{
+                  const enabled = e.target.checked;
+                  fetch('/mesh', {method:'POST', body: new URLSearchParams({enabled: enabled})})
+                  .then(r=>r.text())
+                  .then(t=>{
+                    toast(t);
+                    document.getElementById('meshStatus').classList.toggle('active', enabled);
+                  })
+                  .catch(err=>toast('Error: '+err.message));
+                });
+                
+                document.getElementById('sniffer').addEventListener('submit', e=>{
+                  e.preventDefault();
+                  const fd = new FormData(e.target);
+                  fetch('/sniffer', {method:'POST', body:fd}).then(()=>toast('Detection started'))
+                  .catch(err=>toast('Error: '+err.message));
+                });
+                
+                document.addEventListener('click', e=>{
+                  const a = e.target.closest('a[href="/stop"]');
+                  if (!a) return;
+                  e.preventDefault();
+                  fetch('/stop').then(r=>r.text()).then(t=>toast(t));
+                });
+                
+                document.addEventListener('click', e=>{
+                  const a = e.target.closest('a[href="/mesh-test"]');
+                  if (!a) return;
+                  e.preventDefault();
+                  fetch('/mesh-test').then(r=>r.text()).then(t=>toast('Mesh test sent'));
+                });
+                
+                // Initialize
+                load();
+                setInterval(tick, 2000);
+    </script>
+  </body></html>
 )HTML";
 
 void startWebServer()
@@ -1163,7 +1191,9 @@ server->on("/api/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req) {
     response += "\"vibrationsRequired\":" + String(vibrationsRequired) + ",";
     response += "\"detectionWindow\":" + String(detectionWindow) + ",";
     response += "\"setupDelay\":" + String(setupDelay) + ",";
-    response += "\"inSetupMode\":" + String(inSetupMode ? "true" : "false");
+    response += "\"inSetupMode\":" + String(inSetupMode ? "true" : "false") + ",";
+    response += "\"setupStartTime\":" + String(setupStartTime) + ",";
+    response += "\"tamperActive\":" + String(tamperEraseActive ? "true" : "false");
     response += "}";
     req->send(200, "application/json", response);
 });
