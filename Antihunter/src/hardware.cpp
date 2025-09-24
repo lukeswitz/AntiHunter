@@ -37,7 +37,7 @@ String rtcTimeString = "RTC not initialized";
 volatile bool vibrationDetected = false;
 unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
-const unsigned long VIBRATION_ALERT_INTERVAL = 5000; 
+const unsigned long VIBRATION_ALERT_INTERVAL = 3000; 
 
 // Diagnostics
 extern volatile bool scanning;
@@ -287,7 +287,6 @@ String getDiagnostics() {
             String cardTypeStr = (cardType == CARD_MMC) ? "MMC" :
                                 (cardType == CARD_SD) ? "SDSC" :
                                 (cardType == CARD_SDHC) ? "SDHC" : "UNKNOWN";
-            cachedSDInfo += "SD Card Type: " + cardTypeStr + "\n";
             cachedSDInfo += "SD Free Space: " + String(freeBytes / (1024 * 1024)) + "MB\n";
         }
         s += cachedSDInfo;
@@ -346,41 +345,29 @@ void initializeSD()
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
     delay(100);
 
-    const uint32_t tryFreqs[] = {1000000, 4000000, 8000000, 10000000};
-    for (uint32_t f : tryFreqs)
-    {
-        Serial.printf("[SD] Trying frequency: %lu Hz\n", f);
-        if (SD.begin(SD_CS_PIN, SPI, f))
-        {
-            Serial.println("SD card initialized successfully");
-            sdAvailable = true;
-
-            uint8_t cardType = SD.cardType();
-            Serial.print("SD Card Type: ");
-            if (cardType == CARD_MMC)
-            {
-                Serial.println("MMC");
-            }
-            else if (cardType == CARD_SD)
-            {
-                Serial.println("SDSC");
-            }
-            else if (cardType == CARD_SDHC)
-            {
-                Serial.println("SDHC");
-            }
-            else
-            {
-                Serial.println("UNKNOWN");
-            }
-
-            uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-            Serial.printf("SD Card Size: %lluMB\n", cardSize);
-            return;
+    if (SD.begin(SD_CS_PIN, SPI, 400000)) {
+        Serial.println("SD card initialized");
+        sdAvailable = true;
+        
+        uint8_t cardType = SD.cardType();
+        Serial.print("SD Card Type: ");
+        if (cardType == CARD_MMC) {
+            Serial.println("MMC");
+        } else if (cardType == CARD_SD) {
+            Serial.println("SDSC");
+        } else if (cardType == CARD_SDHC) {
+            Serial.println("SDHC");
+        } else {
+            Serial.println("UNKNOWN");
         }
-        delay(100);
+
+        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+        Serial.printf("SD Card Size: %lluMB\n", cardSize);
+        return;
     }
-    Serial.println("SD card initialization failed");
+
+    Serial.println("[SD] FAILED");
+    sdAvailable = false;
 }
 
 void initializeGPS() {
@@ -586,7 +573,7 @@ void initializeVibrationSensor() {
     try {
         pinMode(VIBRATION_PIN, INPUT);
         attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, RISING);
-        Serial.println("[VIBRATION] Sensor initialized on GPIO1");
+        Serial.println("[VIBRATION] Sensor initialized");
     } catch (...) {
         Serial.println("[VIBRATION] Failed to initialize vibration sensor");
     }
