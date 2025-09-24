@@ -1013,6 +1013,55 @@ server->on("/api/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req) {
     req->send(200, "text/plain", "Auto-erase config updated");
 });
 
+server->on("/api/erase/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String status;
+    
+    if (eraseStatus == "COMPLETED") {
+        status = "COMPLETED";
+    }
+    else if (eraseInProgress) {
+        status = eraseStatus;
+    }
+    else if (tamperEraseActive) {
+        uint32_t timeLeft = TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart);
+        status = "ACTIVE - Tamper erase countdown: " + String(timeLeft / 1000) + " seconds remaining";
+    } else {
+        status = "INACTIVE";
+    }
+    
+    req->send(200, "text/plain", status);
+});
+
+server->on("/api/erase/request", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("confirm", true)) {
+        req->send(400, "text/plain", "Missing confirmation");
+        return;
+    }
+    
+    String confirm = req->getParam("confirm", true)->value();
+    if (confirm != "WIPE_ALL_DATA") {
+        req->send(400, "text/plain", "Invalid confirmation");
+        return;
+    }
+    
+    String reason = req->hasParam("reason", true) ? req->getParam("reason", true)->value() : "Manual web request";
+    req->send(200, "text/plain", "Secure erase initiated");
+    
+    xTaskCreate([](void* param) {
+        String* reasonPtr = (String*)param;
+        delay(1000); // Give web server time to send response
+        bool success = executeSecureErase(*reasonPtr);
+        Serial.println(success ? "Erase completed" : "Erase failed");
+        delete reasonPtr;
+        vTaskDelete(NULL);
+    }, "secure_erase", 8192, new String(reason), 1, NULL);
+});
+
+server->on("/api/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req) {
+    cancelTamperErase();
+    req->send(200, "text/plain", "Tamper erase cancelled");
+});
+
 server->on("/api/secure/status", HTTP_GET, [](AsyncWebServerRequest *req) {
     String status = tamperEraseActive ? 
         "TAMPER_ACTIVE:" + String((TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart))/1000) + "s" : 
