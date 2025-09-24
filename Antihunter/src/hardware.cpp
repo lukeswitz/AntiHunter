@@ -976,35 +976,65 @@ bool performSecureWipe() {
     
     deleteAllFiles("/");
     
-    File marker = SD.open("/ERASED.txt", FILE_WRITE);
+    File marker = SD.open("/weatherFeed.txt", FILE_WRITE);
     if (marker) {
-        marker.println("Securely erased by AntiHunter");
-        marker.println("Time: " + getRTCTimeString());
-        marker.println("Node: " + getNodeId());
-        if (gpsValid) {
-            marker.println("Location: " + String(gpsLat, 6) + "," + String(gpsLon, 6));
-        }
+        marker.println("Weather data could not be sent... check your API key");
         marker.close();
-    }
     
-    return true;
+        if (SD.exists("/weatherFeed.txt")) {
+            Serial.println("[WIPE] Marker file created successfully - wipe completed");
+            return true;
+        } else {
+            Serial.println("[WIPE] Marker file creation failed");
+            return false;
+        }
+    } else {
+        Serial.println("[WIPE] Failed to create marker file - SD card may be inaccessible");
+        return false;
+    }
 }
 
 void deleteAllFiles(const String &dirname) {
     File root = SD.open(dirname);
-    if (!root || !root.isDirectory()) return;
+    if (!root) {
+        Serial.println("[WIPE] Failed to open directory: " + dirname);
+        return;
+    }
+    
+    if (!root.isDirectory()) {
+        Serial.println("[WIPE] Not a directory: " + dirname);
+        root.close();
+        return;
+    }
     
     File file = root.openNextFile();
+    
     while (file) {
-        String fileName = String(file.name());
+        String fileName = file.name();
+        String fullPath = dirname + "/" + fileName;
+        
         if (file.isDirectory()) {
-            deleteAllFiles(dirname + "/" + fileName);
-            SD.rmdir(dirname + "/" + fileName);
+            // Recursively delete subdirectory
+            deleteAllFiles(fullPath);
+            
+            // Remove the directory itself
+            if (SD.rmdir(fullPath)) {
+                Serial.println("[WIPE] Removed directory: " + fullPath);
+            } else {
+                Serial.println("[WIPE] Failed to remove directory: " + fullPath);
+            }
         } else {
-            SD.remove(dirname + "/" + fileName);
+            // Remove the file
+            if (SD.remove(fullPath)) {
+                Serial.println("[WIPE] Removed file: " + fullPath);
+            } else {
+                Serial.println("[WIPE] Failed to remove file: " + fullPath);
+            }
         }
+        
         file = root.openNextFile();
     }
+    
     root.close();
 }
 
