@@ -160,6 +160,7 @@ a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
 .grid{display:grid;grid-template-columns:repeat(2, minmax(380px, 1fr));grid-auto-rows:minmax(200px, auto);gap:14px}
 .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:900px){.grid-2col{grid-template-columns:1fr}}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
 #toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
 .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:10px 12px;border-radius:10px;box-shadow:0 8px 30px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s, transform .15s}
 .toast.show{opacity:1;transform:none}
