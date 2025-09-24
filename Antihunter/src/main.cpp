@@ -170,6 +170,7 @@ void setup() {
 
 void loop() {
     static unsigned long lastSaveSend = 0;
+    static unsigned long lastSDCheck = 0;
     
     if (millis() - lastSaveSend > 900000) { // Node HB, SD config save - 15min
       saveConfiguration();
@@ -180,6 +181,18 @@ void loop() {
     if (millis() - lastRTCUpdate > 1000) {  // RTC - 1s
         updateRTCTime();
         lastRTCUpdate = millis();
+    }
+
+    if (millis() - lastSDCheck > 10000) {
+        if (!sdAvailable && SD.begin(SD_CS_PIN, SPI, 4000000)) {
+            Serial.println("[SD] Card detected, reinitializing...");
+            initializeSD();
+        }
+        lastSDCheck = millis();
+    }
+
+    if (tamperEraseActive) {
+        checkTamperTimeout();
     }
 
     updateGPSLocation();
