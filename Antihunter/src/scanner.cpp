@@ -19,10 +19,6 @@ extern "C"
 #include "esp_coexist.h"
 }
 
-// ================================
-// GLOBAL VARIABLE DEFINITIONS
-// ================================
-
 // Struct definition for Target
 struct Target {
     uint8_t bytes[6];
@@ -30,8 +26,8 @@ struct Target {
 };
 
 // AP handlers
-static void radioStartSTA();
-static void radioStopSTA();
+void radioStartSTA();
+void radioStopSTA();
 
 // Scanner state variables
 
@@ -90,6 +86,7 @@ bool espressifDetectionEnabled = false;
 bool multissidDetectionEnabled = false;
 bool pwnagotchiDetectionEnabled = false;
 
+// Beacon Detections
 std::vector<BeaconHit> beaconLog;
 std::map<String, uint32_t> beaconCounts;
 std::map<String, uint32_t> beaconLastSeen;
@@ -1887,6 +1884,10 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
+    if (droneDetectionEnabled) {
+        processDronePacket(ppkt->payload, ppkt->rx_ctrl.sig_len, ppkt->rx_ctrl.rssi);
+    }
+    
     detectPwnagotchi(ppkt);
     detectPineapple(ppkt);
     detectMultiSSID(ppkt);

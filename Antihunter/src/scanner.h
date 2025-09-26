@@ -1,4 +1,5 @@
 #pragma once
+#include "drone_detector.h"
 #include <Arduino.h>
 #include <vector>
 #include <set>
@@ -267,6 +268,9 @@ extern bool triangulationActive;
 extern bool pineappleDetectionEnabled;
 extern bool espressifDetectionEnabled; 
 extern bool multissidDetectionEnabled;
+
+extern bool droneDetectionEnabled;
+extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 
 extern QueueHandle_t macQueue;
 
