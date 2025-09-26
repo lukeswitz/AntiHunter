@@ -36,11 +36,11 @@ Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalab
 ### Primary Detection Modes
 
 #### 1. **List Scan Mode (Area Surveillance)**
-
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
 **Key Features:**
-- **Targeted Monitoring**: Track specific devices by MAC address or vendor
+- **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
+- **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
 - **Real-time Alerts**: Immediate notifications via web interface and mesh network
 - **Use Cases**:
@@ -49,9 +49,7 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
   - Rogue access point and suspicious beacon identification
 
 #### 2. **Experimental: Triangulation System (Distributed Tracking)**
-
 The Triangulation System coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
-
 
 **Key Features:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
@@ -63,6 +61,29 @@ The Triangulation System coordinates multiple AntiHunter nodes across a mesh net
   - Asset tracking and geofencing
   - Incident response and tactical operations
   - Large-area device monitoring
+
+#### 3. **Detection & Analysis Scan**
+Comprehensive wireless environment analysis combining general device discovery with specialized Remote ID drone detection capabilities.
+
+**Device Scanner:**
+- Captures all WiFi and Bluetooth devices in range
+- Records MAC addresses, SSIDs, signal strength, and channels
+- Provides complete 2.4Ghz wireless spectrum visibility
+
+**RID Drone Detection:**
+- Identifies drones broadcasting Remote ID (FAA/EASA compliant)
+- Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
+- Detects French drone ID format (OUI 0x6a5c35)
+- Extracts UAV ID, pilot location, flight telemetry, and operator information
+- Sends immediate mesh alerts with drone detection data
+
+**Use Cases:**
+- Airport and critical infrastructure drone monitoring
+- Counter-UAS operations and airspace security
+- Wireless environment surveying and spectrum analysis
+- Compliance verification for drone operations
+
+---
 
 ### Sensor Integration
 
