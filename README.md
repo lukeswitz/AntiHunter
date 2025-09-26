@@ -172,7 +172,6 @@ _PCBs and kits in production_
   - Minimum 8MB flash memory required for reliable operation
   - Supports WiFi 2.4GHz and Bluetooth Low Energy scanning
 - **Meshtastic Board** (LoRa-based mesh networking)
-  - UART1 connection (RX=GPIO4, TX=GPIO5) at 115200 baud
   - Extends operational range beyond WiFi/Bluetooth limits
 - **GPS Module** (NMEA-compatible)
   - UART2 connection (RX=GPIO44, TX=GPIO43) at 9600 baud
@@ -187,7 +186,6 @@ _PCBs and kits in production_
   - Interrupt-driven monitoring with mesh alerts
 - **DS3231 RTC Module**
   - I2C connection (SDA=GPIO6, SCL=GPIO3)
-  - Maintains accurate timekeeping during power loss
 
 ### **Pinout Reference**
 
@@ -287,7 +285,7 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
   - **Modes**: WiFi Only, BLE Only, WiFi+BLE Combined
   - **Duration**: Configurable scan time (0 = continuous)
   - **Channels**: Custom WiFi channel selection (`1,6,11` or `1..14`)
-  - **Triangulation**: Enable multi-node tracking (requires mesh)
+  - **Triangulation**: Enable multi-node tracking (requires mesh, GPS, RTC)
 
 - **Triangulation Mode**:
   - **Target MAC**: Specify device for location tracking
@@ -325,7 +323,7 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 ### **Operational Notes**
 - **AP Offline During Scans**: The access point temporarily disconnects during active scanning
 - **Reconnection**: The AP automatically restarts after scan completion
-- **Persistent Storage**: Configuration saved to non-volatile memory
+- **Persistent Storage**: Configuration and logs saved to volatile and SD memory 
 - **Real-time Updates**: Web interface refreshes every 2 seconds
 
 ## Mesh Network Integration
@@ -342,8 +340,10 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ### **Hardware Integration**
 - **Connection**: UART1 (RX=GPIO4, TX=GPIO5) at 115200 baud
 - **Protocol**: Standard Meshtastic serial interface
-- **Configuration**: Automatic detection and initialization
-- **Power Management**: Optimized for battery-powered deployments
+- **Configuration**: Set the device to the following under Serial Settings
+
+![image](https://github.com/user-attachments/assets/76a74acc-b14b-433a-86ea-b817ccec0343)
+
 
 ### **Network Behavior**
 - **Alert Rate Limiting**: 10-second intervals prevent mesh flooding
@@ -353,6 +353,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Status Reporting**: Periodic heartbeats and operational status
 
 ## Command Reference
+
+> [!IMPORTANT]
+> Node and command names are case sensitive 
 
 ### **Node Addressing**
 - **Specific Node**: `@NODE_22 COMMAND` - Targets individual node
