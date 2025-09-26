@@ -7,11 +7,27 @@ FIRMWARE_OPTIONS=(
     "AntiHunter - v5:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_v5.bin"
 )
 ESPTOOL_DIR="esptool"
+CUSTOM_BIN=""
 
 # PlatformIO Config Values
 MONITOR_SPEED=115200
 UPLOAD_SPEED=115200
 ESP32_PORT=""
+
+# Function to display help
+show_help() {
+    cat << EOF
+Usage: $0 [OPTION]
+Flash firmware to ESP32 devices.
+
+Options:
+  -f, --file FILE    Path to custom .bin file to flash
+  -h, --help         Display this help message and exit
+  -l, --list         List available firmware options and exit
+
+Without options, the script will run in interactive mode.
+EOF
+}
 
 # Function to find serial devices
 find_serial_devices() {
@@ -31,6 +47,33 @@ find_serial_devices() {
 
     echo "$devices"
 }
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--file)
+            CUSTOM_BIN="$2"
+            shift
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -l|--list)
+            echo "Available firmware options:"
+            for option in "${FIRMWARE_OPTIONS[@]}"; do
+                echo "  ${option%%:*}"
+            done
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
 
 clear
 
@@ -53,39 +96,61 @@ fi
 
 echo ""
 echo "====================================="
-echo "Unified for multiple ESP32S3 project"
+echo "Unified for multiple ESP32S3 configs"
 echo "====================================="
 
-declare -a options_array
-for i in "${!FIRMWARE_OPTIONS[@]}"; do
-    echo "$((i+1)). ${FIRMWARE_OPTIONS[$i]%%:*}"
-    options_array[i]="${FIRMWARE_OPTIONS[$i]%%:*}"
-done
-echo ""
-
-while true; do
-    read -p "Select number to flash (1-${#FIRMWARE_OPTIONS[@]}): " choice
-
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
-        firmware_choice="${options_array[$((choice-1))]}"
-
-        for option in "${FIRMWARE_OPTIONS[@]}"; do
-            if [[ "$option" == "$firmware_choice:"* ]]; then
-                FIRMWARE_URL="${option#*:}"
-                FIRMWARE_FILE=$(basename "$FIRMWARE_URL")
-                break
-            fi
-        done
-
-        echo ""
-        echo "Downloading fresh $firmware_choice firmware..."
-        curl -fLo "$FIRMWARE_FILE" "$FIRMWARE_URL" || { echo "Error downloading firmware. Please check the URL and your connection."; exit 1; }
-
-        break
-    else
-        echo "Invalid selection. Please enter a number between 1 and ${#FIRMWARE_OPTIONS[@]}."
+# Handle custom bin file
+if [ -n "$CUSTOM_BIN" ]; then
+    if [ ! -f "$CUSTOM_BIN" ]; then
+        echo "Error: Custom file '$CUSTOM_BIN' not found."
+        exit 1
     fi
-done
+    FIRMWARE_FILE="$CUSTOM_BIN"
+    firmware_choice="Custom firmware: $(basename "$CUSTOM_BIN")"
+else
+    # Interactive firmware selection
+    declare -a options_array
+    for i in "${!FIRMWARE_OPTIONS[@]}"; do
+        echo "$((i+1)). ${FIRMWARE_OPTIONS[$i]%%:*}"
+        options_array[i]="${FIRMWARE_OPTIONS[$i]%%:*}"
+    done
+    echo "$((${#FIRMWARE_OPTIONS[@]}+1)). Custom .bin file"
+    echo ""
+
+    while true; do
+        read -p "Select option (1-$((${#FIRMWARE_OPTIONS[@]}+1))): " choice
+
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le $((${#FIRMWARE_OPTIONS[@]}+1)) ]; then
+            if [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
+                firmware_choice="${options_array[$((choice-1))]}"
+                
+                for option in "${FIRMWARE_OPTIONS[@]}"; do
+                    if [[ "$option" == "$firmware_choice:"* ]]; then
+                        FIRMWARE_URL="${option#*:}"
+                        FIRMWARE_FILE=$(basename "$FIRMWARE_URL")
+                        break
+                    fi
+                done
+                
+                echo ""
+                echo "Downloading fresh $firmware_choice firmware..."
+                curl -fLo "$FIRMWARE_FILE" "$FIRMWARE_URL" || { echo "Error downloading firmware. Please check the URL and your connection."; exit 1; }
+            else
+                # Custom file selection
+                read -p "Enter path to custom .bin file: " custom_file
+                if [ ! -f "$custom_file" ]; then
+                    echo "Error: File '$custom_file' not found."
+                    exit 1
+                fi
+                FIRMWARE_FILE="$custom_file"
+                firmware_choice="Custom firmware: $(basename "$custom_file")"
+            fi
+            break
+        else
+            echo "Invalid selection. Please enter a number between 1 and $((${#FIRMWARE_OPTIONS[@]}+1))."
+        fi
+    done
+fi
 
 echo ""
 echo "Searching for USB serial devices..."
@@ -148,7 +213,9 @@ echo "==================================================="
 echo "Firmware flashing complete!"
 echo "==================================================="
 
-cd ..
-rm -f "$FIRMWARE_FILE"
+# Delete downloads
+if [ -z "$CUSTOM_BIN" ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
+    rm -f "$FIRMWARE_FILE"
+fi
 
 echo "Done."
