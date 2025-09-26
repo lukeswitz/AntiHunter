@@ -242,7 +242,6 @@ String getDiagnostics() {
     char uptimeBuffer[10];
     snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02lu:%02lu:%02lu", uptime_hours, uptime_minutes, uptime_seconds);
     s += "Up:" + String(uptimeBuffer) + "\n";
-
     s += "Scan Mode: " + modeStr + "\n";
     s += String("Scanning: ") + (scanning ? "yes" : "no") + "\n";
     s += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
@@ -271,7 +270,6 @@ String getDiagnostics() {
         
         s += "Last Movement: " + String(timeStr) + " (" + String(agoSeconds) + "s ago)\n";
     }
-
     s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
     if (sdAvailable) {
         if (millis() - lastSDTime > 30000 || cachedSDInfo.length() == 0) {
@@ -291,7 +289,6 @@ String getDiagnostics() {
         }
         s += cachedSDInfo;
     }
-
     s += "GPS: ";
     if (gpsValid) {
         s += "Locked\n";
@@ -308,16 +305,10 @@ String getDiagnostics() {
     } else {
         s += "Not available\n";
     }
-
-    if (trackerMode) {
-        uint8_t trackerMac[6];
-        int8_t trackerRssi;
-        uint32_t trackerLastSeen, trackerPackets;
-        getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
-
-        s += "Tracker: target=" + macFmt6(trackerMac) + " lastRSSI=" + String((int)trackerRssi) + "dBm";
-        s += "  lastSeen(ms ago)=" + String((unsigned)(millis() - trackerLastSeen));
-        s += " pkts=" + String((unsigned)trackerPackets) + "\n";
+    s += "Drone Detection: " + String(droneDetectionEnabled ? "Active" : "Inactive") + "\n";
+    if (droneDetectionEnabled) {
+        s += "Drones detected: " + String(droneDetectionCount) + "\n";
+        s += "Unique drones: " + String(detectedDrones.size()) + "\n";
     }
 
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";

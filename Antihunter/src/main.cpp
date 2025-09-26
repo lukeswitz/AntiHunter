@@ -140,6 +140,8 @@ void setup() {
     delay(400);
     initializeHardware();  // Sets up preferences and node ID
     delay(10);
+    initializeDroneDetector();
+    delay(20);
     initializeSD();
     delay(500);
     loadConfiguration();

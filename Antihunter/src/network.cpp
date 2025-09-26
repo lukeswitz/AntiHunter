@@ -41,8 +41,8 @@ extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
 // Triangulation 
-static std::vector<TriangulationNode> triangulationNodes;
 bool triangulationActive = false;
+std::vector<TriangulationNode> triangulationNodes;
 static uint8_t triangulationTarget[6];
 static uint32_t triangulationStart = 0;
 static uint32_t triangulationDuration = 0;
@@ -296,6 +296,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <label>Detection Method</label>
             <select name="detection" id="detectionMode">
               <option value="device-scan">Device Discovery (WiFi/BLE)</option>
+              <option value="drone-detection">Drone Detection (Remote ID)</option>
               <!--
               <option value="deauth">Deauth Attack Detection</option>
               <option value="beacon-flood">Beacon Flood Detection</option>
@@ -318,7 +319,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <div class="row" style="margin-top:12px">
               <button class="btn primary" type="submit">Start Detection</button>
-              <a class="btn alt" href="/sniffer-cache" data-ajax="false">View Cache</a>
+              <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn">View Cache</a>
+              <a class="btn alt" href="/drone-log" data-ajax="false" style="display:none;" id="droneLogBtn">View Event Log</a>
+              <a class="btn" href="/drone-results" data-ajax="false" style="display:none;" id="droneResultsBtn">View Results</a>
             </div>
           </form>
         </div>
@@ -838,16 +841,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
       }
       
-      async function tick(){
+      async function tick() {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
         try{
-          const d = await fetch('/diag'); 
-          const diagText = await d.text();
-          const sections = diagText.split('\n');
-          let overview = '';
-          let hardware = '';
-          let network = '';
-          sections.forEach(line => {
+            const d = await fetch('/diag'); 
+            const diagText = await d.text();
+            const sections = diagText.split('\n');
+            try {
+                const droneStatus = await fetch('/api/drone/status');
+                const droneData = await droneStatus.json();
+                if (droneData.enabled) { document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)'; document.getElementById('droneStatus').classList.add('active'); }
+                else { document.getElementById('droneStatus').innerText = 'Drone Detection: Idle'; document.getElementById('droneStatus').classList.remove('active'); }
+            } catch(e) {}
+            let overview = '';
+            let hardware = '';
+            let network = '';
+            sections.forEach(line => {
             if (line.includes('WiFi Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('wifiFrames').innerText = match[1]; }
               if (line.includes('BLE Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('bleFrames').innerText = match[1]; }
                 if (line.includes('Total hits')) { const match = line.match(/(\d+)/); if (match) document.getElementById('totalHits').innerText = match[1]; }
@@ -898,12 +907,42 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   })
                   .catch(err=>toast('Error: '+err.message));
                 });
+
+                document.getElementById('detectionMode').addEventListener('change', function(e) {
+                  const selectedMethod = e.target.value;
+                  const cacheBtn = document.getElementById('cacheBtn');
+                  const droneLogBtn = document.getElementById('droneLogBtn');
+                  const droneResultsBtn = document.getElementById('droneResultsBtn');
+                  
+                  if (selectedMethod === 'drone-detection') {
+                    // Show drone-specific buttons, hide cache button
+                    cacheBtn.style.display = 'none';
+                    droneLogBtn.style.display = 'inline-block';
+                    droneResultsBtn.style.display = 'inline-block';
+                  } else {
+                    // Show cache button, hide drone-specific buttons
+                    cacheBtn.style.display = 'inline-block';
+                    droneLogBtn.style.display = 'none';
+                    droneResultsBtn.style.display = 'none';
+                  }
+                });
                 
-                document.getElementById('sniffer').addEventListener('submit', e=>{
+                document.getElementById('sniffer').addEventListener('submit', e => {
                   e.preventDefault();
                   const fd = new FormData(e.target);
-                  fetch('/sniffer', {method:'POST', body:fd}).then(()=>toast('Detection started'))
-                  .catch(err=>toast('Error: '+err.message));
+                  const detectionMethod = fd.get('detection');
+                  
+                  let endpoint = '/sniffer';
+                  if (detectionMethod === 'drone-detection') {
+                    endpoint = '/drone';
+                    // Remove the 'detection' parameter for drone endpoint
+                    fd.delete('detection');
+                  }
+                  
+                  fetch(endpoint, {method:'POST', body:fd})
+                    .then(r=>r.text())
+                    .then(t=>toast(t))
+                    .catch(err=>toast('Error: '+err.message));
                 });
                 
                 document.addEventListener('click', e=>{
@@ -1083,6 +1122,11 @@ void startWebServer()
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *r)
              {
         stopRequested = true;
+        droneDetectionEnabled = false;
+        if (droneQueue) {
+            xQueueReset(droneQueue);
+        }
+        
         r->send(200, "text/plain", "Stopping… (AP will return shortly)"); });
 
   server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
@@ -1123,6 +1167,47 @@ void startWebServer()
       saveConfiguration();
       req->send(200, "text/plain", "Configuration updated");
   });
+
+  server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req) {
+        int secs = 60;
+        bool forever = false;
+        
+        if (req->hasParam("forever", true)) forever = true;
+        if (req->hasParam("secs", true)) {
+            int v = req->getParam("secs", true)->value().toInt();
+            if (v < 0) v = 0;
+            if (v > 86400) v = 86400;
+            secs = v;
+        }
+        
+        stopRequested = false;
+        req->send(200, "text/plain", forever ? 
+                  "Drone detection starting (forever)" : 
+                  ("Drone detection starting for " + String(secs) + "s"));
+        
+        if (!workerTaskHandle) {
+            xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288, 
+                                  (void*)(intptr_t)(forever ? 0 : secs), 
+                                  1, &workerTaskHandle, 1);
+        }
+    });
+    
+    server->on("/drone-results", HTTP_GET, [](AsyncWebServerRequest *r) {
+        r->send(200, "text/plain", getDroneDetectionResults());
+    });
+    
+    server->on("/drone-log", HTTP_GET, [](AsyncWebServerRequest *r) {
+        r->send(200, "application/json", getDroneEventLog());
+    });
+    
+    server->on("/api/drone/status", HTTP_GET, [](AsyncWebServerRequest *r) {
+        String status = "{";
+        status += "\"enabled\":" + String(droneDetectionEnabled ? "true" : "false") + ",";
+        status += "\"count\":" + String(droneDetectionCount) + ",";
+        status += "\"unique\":" + String(detectedDrones.size());
+        status += "}";
+        r->send(200, "application/json", status);
+    });
 
   server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req)
              {
