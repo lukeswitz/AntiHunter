@@ -34,7 +34,7 @@ Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalab
 
 ### Primary Detection Modes
 
-#### 1. **List Scan Mode (Area Surveillance)**
+#### 1. **List Scan Mode**
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
 **Key Features:**
@@ -47,8 +47,8 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
   - Wireless survey and network auditing
   - Rogue access point and suspicious beacon identification
 
-#### 2. **Experimental: Triangulation System (Distributed Tracking)**
-The Triangulation System coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
+#### 2. **Experimental: Triangulation  (Distributed Tracking)**
+Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
 
 **Key Features:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
@@ -62,7 +62,7 @@ The Triangulation System coordinates multiple AntiHunter nodes across a mesh net
   - Large-area device monitoring
 
 #### 3. **Detection & Analysis Scan**
-Comprehensive wireless environment analysis combining general device discovery with specialized Remote ID drone detection capabilities.
+Comprehensive wireless environment analysis combining general device discovery with specialized Remote ID drone detection.
 
 **Device Scanner:**
 - Captures all WiFi and Bluetooth devices in range
@@ -111,6 +111,8 @@ Comprehensive wireless environment analysis combining general device discovery w
 - **Features**: Automatic time sync from GPS, manual time setting, sync status monitoring
 - **Web Interface**: Current time display and synchronization status
 
+--- 
+
 ## Secure Data Destruction
 
 AntiHunter includes tamper detection and emergency data wiping capabilities to protect surveillance data from unauthorized access.
@@ -131,11 +133,6 @@ Configure auto-erase settings via the web interface:
 - **Erase delay**: Countdown period before data destruction (10-300 seconds)
 - **Cooldown period**: Minimum time between tamper attempts (5-60 minutes)
 
-### Mesh Commands
-- `@NODE_ID ERASE_FORCE:token` - Immediate data destruction (requires web-generated token)
-- `@NODE_ID ERASE_CANCEL` - Cancel active tamper countdown sequence
-- `@NODE_ID ERASE_STATUS` - Check current tamper detection status
-
 ### Security
 - Auto-erase is **disabled by default** for safety
 - Setup delay prevents accidental triggering during deployment
@@ -152,6 +149,7 @@ Configure auto-erase settings via the web interface:
 
 > **Warning**: Data destruction is permanent and irreversible. Configure thresholds carefully to prevent false triggers.
 
+---
 
 ## System Architecture
 
@@ -344,6 +342,8 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 - **Reconnection**: The AP automatically restarts after scan completion
 - **Persistent Storage**: Configuration and logs saved to volatile and SD memory 
 - **Real-time Updates**: Web interface refreshes every 2 seconds
+
+---
 
 ## Mesh Network Integration
 
