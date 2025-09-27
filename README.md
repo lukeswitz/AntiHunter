@@ -41,7 +41,7 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 - **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
 - **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
-- **Real-time Alerts**: Immediate notifications via web interface and mesh network
+- **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
 - **Use Cases**:
   - Passive monitoring of authorized devices in secure environments
   - Wireless survey and network auditing
@@ -54,7 +54,7 @@ The Triangulation System coordinates multiple AntiHunter nodes across a mesh net
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
 - **Real-time Tracking**: Continuous monitoring with position updates
-- **AH Command Center Integration**: Data forwarded for centralized processing and mapping
+- **AH Command Center Integration**: Data forwarded for centralized processing, MQTT broker and mapping. 
 - **Use Cases**:
   - Perimeter defense and intrusion detection
   - Asset tracking and geofencing
@@ -74,13 +74,12 @@ Comprehensive wireless environment analysis combining general device discovery w
 - Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
 - Detects French drone ID format (OUI 0x6a5c35)
 - Extracts UAV ID, pilot location, flight telemetry, and operator information
-- Sends immediate mesh alerts with drone detection data
+- Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data. 
 
 **Use Cases:**
 - Airport and critical infrastructure drone monitoring
 - Counter-UAS operations and airspace security
-- Wireless environment surveying and spectrum analysis
-- Compliance verification for drone operations
+
 
 ---
 
