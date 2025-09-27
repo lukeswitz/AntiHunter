@@ -3,8 +3,7 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
-# AntiHunter
-<img width="1000" src="https://github.com/user-attachments/assets/2f789984-bca3-4a45-8470-ba2d638e512f">
+<img width="600" height="260" alt="antilogo" src="https://github.com/user-attachments/assets/89a970a4-3f95-4b3d-8788-0d09ff33110d" />
 
 ## Table of Contents
 
@@ -35,27 +34,27 @@ Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalab
 
 ### Primary Detection Modes
 
-#### 1. **List Scan Mode (Area Surveillance)**
+#### 1. **List Scan Mode**
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
 **Key Features:**
 - **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
 - **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
-- **Real-time Alerts**: Immediate notifications via web interface and mesh network
+- **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
 - **Use Cases**:
   - Passive monitoring of authorized devices in secure environments
   - Wireless survey and network auditing
   - Rogue access point and suspicious beacon identification
 
-#### 2. **Experimental: Triangulation System (Distributed Tracking)**
-The Triangulation System coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
+#### 2. **Experimental: Triangulation  (Distributed Tracking)**
+Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
 
 **Key Features:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
 - **Real-time Tracking**: Continuous monitoring with position updates
-- **AH Command Center Integration**: Data forwarded for centralized processing and mapping
+- **AH Command Center Integration**: Data forwarded for centralized processing, MQTT broker and mapping. 
 - **Use Cases**:
   - Perimeter defense and intrusion detection
   - Asset tracking and geofencing
@@ -63,7 +62,7 @@ The Triangulation System coordinates multiple AntiHunter nodes across a mesh net
   - Large-area device monitoring
 
 #### 3. **Detection & Analysis Scan**
-Comprehensive wireless environment analysis combining general device discovery with specialized Remote ID drone detection capabilities.
+Comprehensive wireless environment analysis combining general device discovery with specialized Remote ID drone detection.
 
 **Device Scanner:**
 - Captures all WiFi and Bluetooth devices in range
@@ -75,13 +74,12 @@ Comprehensive wireless environment analysis combining general device discovery w
 - Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
 - Detects French drone ID format (OUI 0x6a5c35)
 - Extracts UAV ID, pilot location, flight telemetry, and operator information
-- Sends immediate mesh alerts with drone detection data
+- Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data. 
 
 **Use Cases:**
 - Airport and critical infrastructure drone monitoring
 - Counter-UAS operations and airspace security
-- Wireless environment surveying and spectrum analysis
-- Compliance verification for drone operations
+
 
 ---
 
@@ -113,6 +111,8 @@ Comprehensive wireless environment analysis combining general device discovery w
 - **Features**: Automatic time sync from GPS, manual time setting, sync status monitoring
 - **Web Interface**: Current time display and synchronization status
 
+--- 
+
 ## Secure Data Destruction
 
 AntiHunter includes tamper detection and emergency data wiping capabilities to protect surveillance data from unauthorized access.
@@ -133,11 +133,6 @@ Configure auto-erase settings via the web interface:
 - **Erase delay**: Countdown period before data destruction (10-300 seconds)
 - **Cooldown period**: Minimum time between tamper attempts (5-60 minutes)
 
-### Mesh Commands
-- `@NODE_ID ERASE_FORCE:token` - Immediate data destruction (requires web-generated token)
-- `@NODE_ID ERASE_CANCEL` - Cancel active tamper countdown sequence
-- `@NODE_ID ERASE_STATUS` - Check current tamper detection status
-
 ### Security
 - Auto-erase is **disabled by default** for safety
 - Setup delay prevents accidental triggering during deployment
@@ -154,6 +149,7 @@ Configure auto-erase settings via the web interface:
 
 > **Warning**: Data destruction is permanent and irreversible. Configure thresholds carefully to prevent false triggers.
 
+---
 
 ## System Architecture
 
@@ -347,6 +343,8 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 - **Persistent Storage**: Configuration and logs saved to volatile and SD memory 
 - **Real-time Updates**: Web interface refreshes every 2 seconds
 
+---
+
 ## Mesh Network Integration
 
 AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communication, creating a robust long-range sensor network.
@@ -386,71 +384,98 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ### **Core Commands**
 
-| Command | Parameters | Example | Response |
-|---------|------------|---------|----------|
-| `STATUS` | None | `@NODE_22 STATUS` | `NODE_22: STATUS: Mode:WiFi Scan:YES Hits:5 Targets:3 Unique:2 Temp:42.3°C Up:01:23:45` |
-| `CONFIG_BEEPS` | `n` (1-10) | `@NODE_22 CONFIG_BEEPS:3` | `NODE_22: CONFIG_ACK:BEEPS:3` |
-| `CONFIG_GAP` | `ms` (20-2000) | `@NODE_22 CONFIG_GAP:100` | `NODE_22: CONFIG_ACK:GAP:100` |
-| `CONFIG_CHANNELS` | `list` (CSV or range) | `@NODE_22 CONFIG_CHANNELS:2,7,12` | `NODE_22: CONFIG_ACK:CHANNELS:2,7,12` |
-| `CONFIG_TARGETS` | `macs` (pipe-delimited) | `@NODE_22 CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` | `NODE_22: CONFIG_ACK:TARGETS:OK` |
-| `SCAN_START` | `m:s:ch[:F]` | `@ALL SCAN_START:0:60:1,6,11` | `NODE_22: SCAN_ACK:STARTED` |
-| `TRACK_START` | `MAC:m:s:ch[:F]` | `@NODE_22 TRACK_START:AA:BB:CC:DD:EE:FF:0:0:6` | `NODE_22: TRACK_ACK:STARTED:AA:BB:CC:DD:EE:FF` |
-| `TRIANGULATE_START` | `MAC:s` | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` | `NODE_22: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` |
-| `STOP` | None | `@ALL STOP` | `NODE_22: STOP_ACK:OK` |
-| `VIBRATION_STATUS` | None | `@NODE_22 VIBRATION_STATUS` | `NODE_22: VIBRATION_STATUS: Last vibration: 12345ms (5s ago)` |
-| `ERASE_FORCE` | `token` | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` | `NODE_22: ERASE_ACK:COMPLETE` or `NODE_22: ERASE_NACK:INVALID_TOKEN` |
-| `ERASE_CANCEL` | None | `@NODE_22 ERASE_CANCEL` | `NODE_22: ERASE_ACK:CANCELLED` |
-| `ERASE_STATUS` | None | `@NODE_22 ERASE_STATUS` | `NODE_22: ERASE_STATUS:TAMPER_ACTIVE:25s_remaining` or `NODE_22: ERASE_STATUS:INACTIVE` |
+## Mesh Commands
 
-**Parameter Details:**
-- `m`: Scan mode (0=WiFi, 1=BLE, 2=Both)
-- `s`: Duration in seconds (0=forever)
-- `ch`: WiFi channels (CSV: `1,6,11` or range: `1..14`)
-- `F`: Forever flag for continuous operation
-- `MAC`: Target MAC address (6-byte format)
+| Command | Parameters | Description | Example |
+|---------|------------|-------------|---------|
+| `STATUS` | None | Reports current system status | `@NODE_22 STATUS` |
+| `CONFIG_CHANNELS` | `list` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
+| `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@NODE_22 CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
+| `SCAN_START` | `m:s:ch[:F]` | Starts scanning operation | `@NODE_22 SCAN_START:0:60:1,6,11` |
+| `TRACK_START` | `MAC:m:s:ch[:F]` | Starts device tracking | `@NODE_22 TRACK_START:AA:BB:CC:DD:EE:FF:0:0:6` |
+| `TRIANGULATE_START` | `MAC:s` | Initiates triangulation | `@NODE_22 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
+| `STOP` | None | Stops all operations | `@NODE_22 STOP` |
+| `VIBRATION_STATUS` | None | Checks tamper sensor status | `@NODE_22 VIBRATION_STATUS` |
+| `ERASE_FORCE` | `token` | Forces emergency data erasure | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` |
+| `ERASE_CANCEL` | None | Cancels ongoing erasure | `@NODE_22 ERASE_CANCEL` |
+| `ERASE_STATUS` | None | Checks erasure status | `@NODE_22 ERASE_STATUS` |
 
-### **Auto-Generated Alerts**
+## Specialized Detection Modes
 
-| **Alert Type** | **Trigger** | **Format** | **Example** |
-|----------------|-------------|------------|-------------|
-| **Target Detection** | Watchlist match | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:NAME] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:MyDevice GPS=40.7128,-74.0060` |
-| **Tracker Update** | Periodic (15s) | `NODE_ID: Tracking: MAC RSSI:ddBm LastSeen:s Pkts:N` | `NODE_ABC: Tracking: AA:BB:CC:DD:EE:FF RSSI:-62dBm LastSeen:3s Pkts:42` |
-| **Vibration Alert** | Tamper detection | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS:lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS:40.7128,-74.0060` |
-| **GPS Status** | Fix change | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location:40.7128,-74.0060 Satellites:8 HDOP:1.23` |
-| **Startup Status** | Boot complete | `NODE_ID: STARTUP: System init GPS:STATUS TEMP:X°C SD:STATUS` | `NODE_ABC: STARTUP: System init GPS:LOCKED TEMP:42.3°C SD:OK` |
-| **RTC Sync** | GPS time sync | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
-| **Node Heartbeat** | 15min interval | `[NODE_ID] NODE_ID GPS:lat,lon` | `[NODE_ID] NODE_ABC GPS:40.7128,-74.0060` |
+| Command | Parameters | Description | Example |
+|---------|------------|-------------|---------|
+| `DRONE_DETECT` | `detection`, `secs`, `forever` | Detects drones via remote ID | `@ALL DRONE:drone-detection:60` |
+| `DEAUTH_DETECT` | `detection`, `secs`, `forever` | Detects deauthentication attacks | `@ALL DEAUTH:deauth:120` |
+| `BEACON_FLOOD_DETECT` | `detection`, `secs`, `forever` | Detects beacon flooding | `@ALL BEACON:beacon-flood:300` |
+| `KARMA_DETECT` | `detection`, `secs`, `forever` | Karma attack detection | `@ALL KARMA:karma:180` |
+| `PROBE_FLOOD_DETECT` | `detection`, `secs`, `forever` | Probe flood detection | `@ALL PROBE:probe-flood:240` |
+| `BLE_SPAM_DETECT` | `detection`, `secs`, `forever` | BLE advertisement spam detection | `@ALL BLE:ble-spam:180` |
+
+## Security Features
+
+### Emergency Data Erasure
+- **ERASE_FORCE**: Requires authentication token to initiate secure erasure
+- **ERASE_CANCEL**: Aborts ongoing erasure sequences
+- **ERASE_STATUS**: Monitors erasure progress and status
+
+### Auto-Erase Configuration
+Configurable parameters:
+- `autoEraseEnabled`: Toggle auto-erasure on/off
+- `autoEraseDelay`: Time before activation (milliseconds)
+- `autoEraseCooldown`: Recovery period after erasure (milliseconds)
+- `vibrationsRequired`: Number of vibrations to trigger
+- `detectionWindow`: Time window for vibration detection
+- `setupDelay`: Activation delay after power-up
 
 ## API Endpoints
 
-### **Core Endpoints**
+### Core Functionality
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Main web interface |
+| `/export` | GET | Export target MAC list |
+| `/results` | GET | Latest scan/triangulation results |
+| `/save` | POST | Save configuration changes |
+| `/node-id` | POST/GET | Node identifier management |
+| `/scan` | POST | Start scanning operation |
+| `/track` | POST | Start device tracking |
+| `/gps` | GET | Current GPS status and location |
+| `/sd-status` | GET | SD card status and health |
+| `/stop` | GET | Stop all operations |
+| `/config` | GET/POST | System configuration |
+| `/mesh` | POST | Enable/disable mesh networking |
+| `/mesh-test` | GET | Test mesh connectivity |
 
-| **Endpoint** | **Method** | **Parameters** | **Response** | **Description** |
-|--------------|------------|----------------|--------------|-----------------|
-| `/` | GET | None | HTML | Main web interface |
-| `/export` | GET | None | `text/plain` | Current target MAC list |
-| `/results` | GET | None | `text/plain` | Latest scan results + triangulation data |
-| `/save` | POST | `list` | `text/plain` | Save target configuration |
-| `/node-id` | POST | `id` (1-16 chars) | `text/plain` | Update node identifier |
-| `/node-id` | GET | None | `application/json` | Current node ID |
-| `/scan` | POST | `mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac` | `text/plain` | Start scanning operation |
-| `/track` | POST | `mac`, `secs`, `forever`, `mode`, `ch` | `text/plain` | Start device tracking |
-| `/gps` | GET | None | `text/plain` | Current GPS coordinates and status |
-| `/sd-status` | GET | None | `text/plain` | SD card availability and stats |
-| `/stop` | GET | None | `text/plain` | Stop all scanning operations |
-| `/config` | GET | None | `application/json` | Current system configuration |
-| `/config` | POST | None | `text/plain` | Save configuration changes |
-| `/mesh` | POST | `enabled` | `text/plain` | Enable/disable mesh networking |
-| `/mesh-test` | GET | None | `text/plain` | Send test message to mesh |
-| `/diag` | GET | None | `text/plain` | Comprehensive system diagnostics |
+### Detection Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/drone` | POST | Start drone detection |
+| `/drone-results` | GET | View drone detection results |
+| `/drone-log` | GET | Access drone event logs |
+| `/sniffer` | POST | Start generic sniffer operation |
+| `/sniffer-cache` | GET | View cached device detections |
+| `/deauth-results` | GET | View deauthentication attack logs |
 
-### **Detection Endpoints**
+## Alert Messages
 
-| **Endpoint** | **Method** | **Parameters** | **Response** | **Description** |
-|--------------|------------|----------------|--------------|-----------------|
-| `/sniffer` | POST | `detection`, `secs`, `forever` | `text/plain` | Start specialized detection mode |
-| `/deauth-results` | GET | None | `text/plain` | Deauth/disassociation attack logs |
-| `/sniffer-cache` | GET | None | `text/plain` | Cached WiFi APs and BLE devices |
+| Alert Type | Format | Example |
+|------------|--------|---------|
+| **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
+| **Tracker Update** | `NODE_ID: Tracking: MAC RSSI:ddBm LastSeen:s Pkts:N` | `NODE_ABC: Tracking: AA:BB:CC:DD:EE:FF RSSI:-62dBm LastSeen:3s Pkts:42` |
+| **Vibration Alert** | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS=lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS=40.7128,-74.0060` |
+| **GPS Status Change** | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
+| **RTC Sync** | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
+| **Node Heartbeat** | `[NODE_ID] NODE_ID GPS:lat,lon` | `[NODE_ABC] NODE_ABC GPS=40.7128,-74.0060` |
+
+## Diagnostics
+
+### System Diagnostics Endpoint
+- `/diag` provides comprehensive system diagnostics including:
+  - Hardware status (temperature, voltage)
+  - Network configuration (AP, mesh)
+  - Scan statistics
+  - Memory usage
+  - Error logs
 
 ### **Parameter Reference**
 
