@@ -218,7 +218,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <path d="M16 40 L32 16 L48 40" fill="none" stroke="#0aff9d" stroke-width="3"/>
         <circle cx="32" cy="44" r="3" fill="#00ff7f"/>
       </svg>
-      <h1>Antihunter v5</h1>
+      <h1>AntiHunter</h1>
       <div class="status-bar">
         <div class="status-item" id="modeStatus">WiFi</div>
         <div class="status-item" id="scanStatus">Idle</div>
