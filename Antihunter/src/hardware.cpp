@@ -44,13 +44,11 @@ extern volatile bool scanning;
 extern volatile int totalHits;
 extern volatile uint32_t framesSeen;
 extern volatile uint32_t bleFramesSeen;
-extern volatile bool trackerMode;
 extern std::set<String> uniqueMacs;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
-extern void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets);
 
 // Tamper Detection Erase
 uint32_t setupDelay = 120000;  // 2 minutes default

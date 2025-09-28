@@ -362,7 +362,7 @@ void droneDetectorTask(void *pv) {
     Serial.printf("[DRONE] Starting drone detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
     
-    stopAPAndServer();
+    // stopAPAndServer();
     
     initializeDroneDetector();
     droneDetectionEnabled = true;
@@ -403,7 +403,7 @@ void droneDetectorTask(void *pv) {
         antihunter::lastResults = getDroneDetectionResults().c_str();
     }
     
-    startAPAndServer();
+    // startAPAndServer();
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
