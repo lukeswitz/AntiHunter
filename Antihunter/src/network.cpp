@@ -1495,6 +1495,84 @@ else if (detection == "multi-ssid") {
   Serial.println("[WEB] Server started.");
 }
 
+// void stopAPAndServer() {
+//     Serial.println("[SYS] Stopping AP and web server...");
+    
+//     if (server) {
+//         server->reset(); // Clear handlers
+//         server->end();   // Stop server
+//         delay(100);
+//         delete server;
+//         server = nullptr;
+//         delay(200);
+//     }
+    
+//     WiFi.softAPdisconnect(true);
+//     delay(100);
+    
+//     esp_wifi_stop();
+//     delay(100);
+    
+//     esp_wifi_deinit();
+//     delay(100);
+    
+//     WiFi.mode(WIFI_OFF); // Ensure clean state
+//     delay(100);
+// }
+
+// void startAPAndServer() {
+//     Serial.println("[SYS] Starting AP and web server...");
+    
+//     const int MAX_RETRIES = 10;
+//     int tries = 0;
+    
+//     while (tries < MAX_RETRIES) {
+//         tries++;
+//         Serial.printf("[AP] Attempt %d/%d\n", tries, MAX_RETRIES);
+        
+//         WiFi.mode(WIFI_OFF);
+//         delay(100);
+        
+//         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+//         esp_err_t err = esp_wifi_init(&cfg);
+//         if (err == ESP_ERR_WIFI_NOT_INIT) {
+//             // Already init, that's ok
+//         } else if (err != ESP_OK) {
+//             Serial.printf("[ERROR] WiFi init failed: %d\n", err);
+//             delay(500);
+//             continue;
+//         }
+//         delay(100);
+
+//         WiFi.mode(WIFI_AP);
+//         delay(100);
+        
+//         if (!WiFi.softAPConfig(IPAddress(192,168,4,1), 
+//                               IPAddress(192,168,4,1),
+//                               IPAddress(255,255,255,0))) {
+//             delay(100);
+//             continue;
+//         }
+        
+//         if (WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0, 8)) {
+//             delay(200);
+//             // Fresh server
+//             if (!server) {
+//                 server = new AsyncWebServer(80);
+//                 startWebServer();
+//                 Serial.println("[AP] Started successfully"); 
+//                 return;
+//             }
+//         }
+        
+//         delay(500);
+//     }
+    
+//     Serial.println("[FATAL] Failed to start AP after max retries, resetting...");
+//     delay(100);
+//     esp_restart();
+// }
+
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
     if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
