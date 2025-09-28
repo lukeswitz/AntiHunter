@@ -50,13 +50,6 @@ const unsigned long SNIFFER_SCAN_INTERVAL = 10000;
 NimBLEScan *pBLEScan;
 static void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
 
-// Tracker variables
-volatile bool trackerMode = false;
-uint8_t trackerMac[6] = {0};
-volatile int8_t trackerRssi = -127;
-volatile uint32_t trackerLastSeen = 0;
-volatile uint32_t trackerPackets = 0;
-
 // Scanner status variables
 volatile bool scanning = false;
 volatile int totalHits = 0;
@@ -242,19 +235,6 @@ void saveTargetsList(const String &txt)
     }
 }
 
-void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets)
-{
-    memcpy(mac, trackerMac, 6);
-    rssi = trackerRssi;
-    lastSeen = trackerLastSeen;
-    packets = trackerPackets;
-}
-
-void setTrackerMac(const uint8_t mac[6])
-{
-    memcpy(trackerMac, mac, 6);
-}
-
 static inline bool matchesMac(const uint8_t *mac)
 {
     for (auto &t : targets)
@@ -282,16 +262,6 @@ static inline bool matchesMac(const uint8_t *mac)
         }
     }
     return false;
-}
-
-static inline bool isTrackerTarget(const uint8_t *mac)
-{
-    for (int i = 0; i < 6; i++)
-    {
-        if (mac[i] != trackerMac[i])
-            return false;
-    }
-    return true;
 }
 
 static void hopTimerCb(void *)
@@ -876,7 +846,7 @@ void karmaDetectionTask(void *pv) {
     Serial.printf("[KARMA] Starting Karma attack detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
 
-    stopAPAndServer();
+    // stopAPAndServer();
 
     // Isolate: Disable others, enable only Karma
     deauthDetectionEnabled = false;
@@ -947,7 +917,6 @@ void karmaDetectionTask(void *pv) {
     }
 
     karmaDetectionEnabled = false;
-    radioStopSTA();
     scanning = false;
     lastScanEnd = millis();
 
@@ -971,8 +940,9 @@ void karmaDetectionTask(void *pv) {
         
         antihunter::lastResults = results;
     }
-
-    startAPAndServer();
+    radioStopSTA();
+    delay(500); 
+    // startAPAndServer();
     blueTeamTaskHandle = nullptr;  // Reset shared handle
     vTaskDelete(nullptr);
 }
@@ -985,7 +955,7 @@ void probeFloodDetectionTask(void *pv) {
     Serial.printf("[PROBE] Starting probe flood detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
 
-    stopAPAndServer();
+    // stopAPAndServer();
 
     // Isolate: Disable others, enable only Probe Flood
     deauthDetectionEnabled = false;
@@ -1055,7 +1025,6 @@ void probeFloodDetectionTask(void *pv) {
     }
 
     probeFloodDetectionEnabled = false;
-    radioStopSTA();
     scanning = false;
     lastScanEnd = millis();
 
@@ -1079,8 +1048,10 @@ void probeFloodDetectionTask(void *pv) {
         
         antihunter::lastResults = results;
     }
-
-    startAPAndServer();
+    
+    radioStopSTA();
+    delay(500); 
+    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1112,26 +1083,18 @@ class MyBLEAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
             }
         }
 
-        if (trackerMode) {
-            if (isTrackerTarget(mac)) {
-                trackerRssi = advertisedDevice->getRSSI();
-                trackerLastSeen = millis();
-                trackerPackets =    trackerPackets + 1;
-            }
-        } else {
-            if (matchesMac(mac)) {
-                Hit h;
-                memcpy(h.mac, mac, 6);
-                h.rssi = advertisedDevice->getRSSI();
-                h.ch = 0;
-                strncpy(h.name, deviceName.c_str(), sizeof(h.name) - 1);
-                h.name[sizeof(h.name) - 1] = '\0';
-                h.isBLE = true;
+        if (matchesMac(mac)) {
+            Hit h;
+            memcpy(h.mac, mac, 6);
+            h.rssi = advertisedDevice->getRSSI();
+            h.ch = 0;
+            strncpy(h.name, deviceName.c_str(), sizeof(h.name) - 1);
+            h.name[sizeof(h.name) - 1] = '\0';
+            h.isBLE = true;
 
-                if (macQueue) {
-                    if (xQueueSend(macQueue, &h, pdMS_TO_TICKS(10)) != pdTRUE) {
-                        Serial.printf("[BLE] Queue full for %s\n", macStr.c_str());
-                    }
+            if (macQueue) {
+                if (xQueueSend(macQueue, &h, pdMS_TO_TICKS(10)) != pdTRUE) {
+                    Serial.printf("[BLE] Queue full for %s\n", macStr.c_str());
                 }
             }
         }
@@ -1252,7 +1215,7 @@ void bleScannerTask(void *pv) {
     Serial.printf("[BLE-SEC] Starting BLE attack detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
     
-    stopAPAndServer();
+    // stopAPAndServer();
     
     bleSpamLog.clear();
     bleAdvCounts.clear();
@@ -1352,7 +1315,7 @@ void bleScannerTask(void *pv) {
         antihunter::lastResults = results;
     }
     
-    startAPAndServer();
+    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1368,7 +1331,7 @@ void snifferScanTask(void *pv)
     Serial.printf("[SNIFFER] Starting device scan %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
 
-    stopAPAndServer();
+    // stopAPAndServer();
 
     radioStartSTA();
 
@@ -1553,7 +1516,7 @@ void snifferScanTask(void *pv)
         delay(200);
     }
 
-    stopAPAndServer();
+    // stopAPAndServer();
     
     scanning = false;
     lastScanEnd = millis();
@@ -1603,7 +1566,7 @@ void snifferScanTask(void *pv)
 
     vTaskDelay(pdMS_TO_TICKS(100));
     
-    startAPAndServer();
+    // startAPAndServer();
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1632,7 +1595,7 @@ void blueTeamTask(void *pv) {
                               : String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
     Serial.print(startMsg);
 
-    stopAPAndServer();
+    // stopAPAndServer();
     
     deauthLog.clear();
     deauthCount = 0;
@@ -1761,7 +1724,7 @@ void blueTeamTask(void *pv) {
     }
 
     
-    startAPAndServer();
+    // startAPAndServer();
     vTaskDelay(pdMS_TO_TICKS(1000));
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
@@ -1774,7 +1737,7 @@ void beaconFloodTask(void *pv) {
     Serial.printf("[BEACON] Starting beacon flood detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
 
-    stopAPAndServer();
+    // stopAPAndServer();
 
     beaconLog.clear();
     beaconCounts.clear();
@@ -1874,7 +1837,7 @@ void beaconFloodTask(void *pv) {
         antihunter::lastResults = results;
     }
 
-    startAPAndServer();
+    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1986,60 +1949,44 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-    if (trackerMode && currentScanMode != SCAN_BLE)
+
+    if (c1 && matchesMac(cand1))
     {
-        if (c1 && isTrackerTarget(cand1))
+        Hit h;
+        memcpy(h.mac, cand1, 6);
+        h.rssi = ppkt->rx_ctrl.rssi;
+        h.ch = ppkt->rx_ctrl.channel;
+        strncpy(h.name, "WiFi", sizeof(h.name) - 1);
+        h.name[sizeof(h.name) - 1] = '\0';
+        h.isBLE = false;
+
+        BaseType_t w = false;
+        if (macQueue)
         {
-            trackerRssi = ppkt->rx_ctrl.rssi;
-            trackerLastSeen = millis();
-            trackerPackets = trackerPackets + 1;
-        }
-        if (c2 && isTrackerTarget(cand2))
-        {
-            trackerRssi = ppkt->rx_ctrl.rssi;
-            trackerLastSeen = millis();
-            trackerPackets = trackerPackets + 1;
+            xQueueSendFromISR(macQueue, &h, &w);
+            if (w)
+                portYIELD_FROM_ISR();
         }
     }
-    else if (!trackerMode)
+    if (c2 && matchesMac(cand2))
     {
-        if (c1 && matchesMac(cand1))
-        {
-            Hit h;
-            memcpy(h.mac, cand1, 6);
-            h.rssi = ppkt->rx_ctrl.rssi;
-            h.ch = ppkt->rx_ctrl.channel;
-            strncpy(h.name, "WiFi", sizeof(h.name) - 1);
-            h.name[sizeof(h.name) - 1] = '\0';
-            h.isBLE = false;
+        Hit h;
+        memcpy(h.mac, cand2, 6);
+        h.rssi = ppkt->rx_ctrl.rssi;
+        h.ch = ppkt->rx_ctrl.channel;
+        strncpy(h.name, "WiFi", sizeof(h.name) - 1);
+        h.name[sizeof(h.name) - 1] = '\0';
+        h.isBLE = false;
 
-            BaseType_t w = false;
-            if (macQueue)
-            {
-                xQueueSendFromISR(macQueue, &h, &w);
-                if (w)
-                    portYIELD_FROM_ISR();
-            }
-        }
-        if (c2 && matchesMac(cand2))
+        BaseType_t w = false;
+        if (macQueue)
         {
-            Hit h;
-            memcpy(h.mac, cand2, 6);
-            h.rssi = ppkt->rx_ctrl.rssi;
-            h.ch = ppkt->rx_ctrl.channel;
-            strncpy(h.name, "WiFi", sizeof(h.name) - 1);
-            h.name[sizeof(h.name) - 1] = '\0';
-            h.isBLE = false;
-
-            BaseType_t w = false;
-            if (macQueue)
-            {
-                xQueueSendFromISR(macQueue, &h, &w);
-                if (w)
-                    portYIELD_FROM_ISR();
-            }
+            xQueueSendFromISR(macQueue, &h, &w);
+            if (w)
+                portYIELD_FROM_ISR();
         }
     }
+
 }
 
 // ---------- Radio common ----------
@@ -2131,50 +2078,70 @@ static void radioStartBLE()
 void radioStopSTA() {
     Serial.println("[RADIO] Stopping STA mode");
     
-    // Promiscuous cleanup
+    // Stop promiscuous but keep AP running
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(NULL);
-    esp_wifi_set_promiscuous_filter(NULL);
-    delay(100);
+    delay(50);
     
-    // Channel hopping cleanup
+    // Stop channel hopping
     if (hopTimer) {
         esp_timer_stop(hopTimer);
         esp_timer_delete(hopTimer);
         hopTimer = nullptr;
-        delay(50);
     }
     
-    // Full WiFi stop 
-    esp_wifi_stop();
-    delay(100);
+    // Stop BLE if running
+    if (pBLEScan) {
+        pBLEScan->stop();
+        BLEDevice::deinit(false);
+        pBLEScan = nullptr;
+    }
     
-    // Complete deinit
-    esp_wifi_deinit();
+    // Switch back to AP only mode
+    WiFi.mode(WIFI_AP);
     delay(100);
 }
 
 void radioStartSTA() {
     Serial.println("[RADIO] Starting STA mode");
-
-    // Start fresh
-    WiFi.mode(WIFI_OFF);
-    delay(500);
     
-    // Init WiFi
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_err_t err = esp_wifi_init(&cfg);
-    if (err != ESP_OK) {
-        Serial.printf("[ERROR] WiFi init failed: %d\n", err);
-        delay(800);
-        return;
-    }
+    // Use AP_STA mode instead of just STA
+    WiFi.mode(WIFI_AP_STA);
     delay(100);
-
-    // Mode-specific setup
-    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        radioStartWiFi();
+    
+    // Configure STA for scanning while keeping AP alive
+    wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
+    memcpy(ctry.cc, COUNTRY, 2);
+    ctry.cc[2] = 0;
+    esp_wifi_set_country(&ctry);
+    
+    // Start promiscuous on STA interface
+    wifi_promiscuous_filter_t filter = {};
+    filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
+    esp_wifi_set_promiscuous_filter(&filter);
+    esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
+    esp_wifi_set_promiscuous(true);
+    
+    if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+    esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+    
+    // Setup channel hopping
+    if (hopTimer) {
+        esp_timer_stop(hopTimer);
+        esp_timer_delete(hopTimer);
+        hopTimer = nullptr;
     }
+    
+    const esp_timer_create_args_t targs = {
+        .callback = &hopTimerCb, 
+        .arg = nullptr, 
+        .dispatch_method = ESP_TIMER_TASK, 
+        .name = "hop"
+    };
+    esp_timer_create(&targs, &hopTimer);
+    esp_timer_start_periodic(hopTimer, 300000);
+    
+    // Start BLE if needed
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
         radioStartBLE();
     }
@@ -2200,7 +2167,7 @@ void listScanTask(void *pv) {
                   modeStr.c_str());
 
 
-    stopAPAndServer();
+    // stopAPAndServer();
 
 
     stopRequested = false;
@@ -2276,7 +2243,7 @@ void listScanTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    radioStopSTA();
+    
     scanning = false;
     lastScanEnd = millis();
 
@@ -2322,115 +2289,10 @@ void listScanTask(void *pv) {
             triangulationActive = false;
         }
     }
-
-    startAPAndServer();
-    workerTaskHandle = nullptr;
-    vTaskDelete(nullptr);
-}
-
-void trackerTask(void *pv)
-{
-    int secs = (int)(intptr_t)pv;
-    bool forever = (secs <= 0);
-    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE"
-                                                                                             : "WiFi+BLE";
-
-    Serial.printf("[TRACK] Tracker %s (%s)... target=%s\n",
-                  forever ? "(forever)" : String(String("for ") + secs + " s").c_str(),
-                  modeStr.c_str(), macFmt6(trackerMac).c_str());
-
-    stopAPAndServer();
-
-    trackerMode = true;
-    trackerPackets = 0;
-    trackerRssi = -90;
-    trackerLastSeen = 0;
-    framesSeen = 0;
-    bleFramesSeen = 0;
-    scanning = true;
-    lastScanStart = millis();
-    lastScanSecs = secs;
-    lastScanForever = forever;
-    stopRequested = false;
-
-    radioStartSTA();
-    Serial.printf("[TRACK] Mode: %s\n", modeStr.c_str());
-    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH)
-    {
-        Serial.printf("[TRACK] WiFi channel hop list: ");
-        for (auto c : CHANNELS)
-            Serial.printf("%d ", c);
-        Serial.println();
-    }
-
-    uint32_t nextStatus = millis() + 1000;
-    uint32_t nextBLEScan = millis();
-    float ema = -90.0f;
-
-    while ((forever && !stopRequested) ||
-           (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested))
-    {
-        if ((int32_t)(millis() - nextStatus) >= 0)
-        {
-            uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) : 0;
-            Serial.printf("Status: WiFi frames=%u BLE frames=%u target_rssi=%ddBm seen_ago=%ums packets=%u\n",
-                          (unsigned)framesSeen, (unsigned)bleFramesSeen, (int)trackerRssi, (unsigned)ago, (unsigned)trackerPackets);
-            nextStatus += 1000;
-        }
-
-        uint32_t now = millis();
-        bool gotRecent = trackerLastSeen && (now - trackerLastSeen) < 2000;
-
-        if (gotRecent)
-        {
-            ema = 0.75f * ema + 0.25f * (float)trackerRssi;
-        }
-        else
-        {
-            ema = 0.995f * ema - 0.05f;
-        }
-
-        int period = gotRecent ? periodFromRSSI((int8_t)ema) : 1400;
-        int freq = gotRecent ? freqFromRSSI((int8_t)ema) : 2200;
-        int dur = gotRecent ? 60 : 40;
-
-        if (trackerMode)
-        {
-            sendTrackerMeshUpdate();
-        }
-
-        // BLE scanning if needed
-        if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
-            if (millis() - nextBLEScan >= 1000) {
-                pBLEScan->start(1, false);
-                pBLEScan->clearResults();
-                nextBLEScan = millis();
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
+    
     radioStopSTA();
-    scanning = false;
-    trackerMode = false;
-    lastScanEnd = millis();
-
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        
-        std::string results = "Tracker - Mode: " + std::string(modeStr.c_str()) + 
-                                " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n";
-        results += "WiFi Frames seen: " + std::to_string(framesSeen) + "\n";
-        results += "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n";
-        results += "Target: " + std::string(macFmt6(trackerMac).c_str()) + "\n";
-        results += "Packets from target: " + std::to_string(trackerPackets) + "\n";
-        results += "Last RSSI: " + std::to_string((int)trackerRssi) + "dBm\n";
-        
-        antihunter::lastResults = results;
-    }
-
-    startAPAndServer();
+    delay(500);
+    // startAPAndServer();
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -2645,7 +2507,7 @@ void pwnagotchiDetectionTask(void *pv) {
     
     Serial.println("[PWN] Starting Pwnagotchi detection");
     
-    stopAPAndServer();
+    // stopAPAndServer();
     pwnagotchiLog.clear();
     pwnagotchiCount = 0;
     stopRequested = false;
@@ -2672,7 +2534,7 @@ void pwnagotchiDetectionTask(void *pv) {
     }
     
     radioStopSTA();
-    startAPAndServer();
+    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -2684,7 +2546,7 @@ void multissidDetectionTask(void *pv) {
     
     Serial.println("[MULTI] Starting Multi-SSID AP detection");
     
-    stopAPAndServer();
+    // stopAPAndServer();
     multissidTrackers.clear();
     confirmedMultiSSID.clear();
     multissidCount = 0;
@@ -2728,7 +2590,7 @@ void multissidDetectionTask(void *pv) {
     }
     
     radioStopSTA();
-    startAPAndServer();
+    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

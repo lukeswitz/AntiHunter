@@ -257,10 +257,6 @@ extern QueueHandle_t bleAnomalyQueue;
 
 extern TaskHandle_t workerTaskHandle;
 
-extern uint8_t trackerMac[6];
-extern volatile int8_t trackerRssi;
-extern volatile uint32_t trackerLastSeen;
-extern volatile uint32_t trackerPackets;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern bool triangulationActive;
@@ -280,7 +276,6 @@ static bool blueTeamForever = false;
 void snifferScanTask(void *pv);
 void initializeScanner();
 void listScanTask(void *pv);
-void trackerTask(void *pv);
 void karmaDetectionTask(void *pv);
 void probeFloodDetectionTask(void *pv);
 void pwnagotchiDetectionTask(void *pv);
@@ -289,8 +284,6 @@ void blueTeamTask(void *pv);
 void beaconFloodTask(void *pv);
 void bleScannerTask(void *pv);
 void saveTargetsList(const String &txt);
-void setTrackerMac(const uint8_t mac[6]);
-void getTrackerStatus(uint8_t mac[6], int8_t &rssi, uint32_t &lastSeen, uint32_t &packets);
 String getTargetsList();
 String getDiagnostics();
 size_t getTargetCount();

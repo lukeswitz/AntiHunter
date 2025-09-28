@@ -10,7 +10,10 @@ extern "C"
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
 #include "esp_coexist.h"
+#include "lwip/err.h"
+#include "lwip/sockets.h"
 }
+
 
 // Network and LoRa
 AsyncWebServer *server = nullptr;
@@ -24,7 +27,6 @@ static String nodeId = "";
 // Scanner vars
 extern volatile bool scanning;
 extern volatile int totalHits;
-extern volatile bool trackerMode;
 extern std::set<String> uniqueMacs;
 
 // Module refs
@@ -1045,6 +1047,8 @@ void startWebServer()
         
         currentScanMode = mode;
         stopRequested = false;
+
+        delay(100); 
         
         // triangulation handling
         if (req->hasParam("triangulate", true) && req->hasParam("targetMac", true)) {
@@ -1070,37 +1074,6 @@ void startWebServer()
         
         if (!workerTaskHandle) {
             xTaskCreatePinnedToCore(listScanTask, "scan", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-        } });
-
-  server->on("/track", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-        String mac = req->getParam("mac", true) ? req->getParam("mac", true)->value() : "";
-        int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 180;
-        bool forever = req->hasParam("forever", true);
-        ScanMode mode = SCAN_WIFI;
-        
-        if (req->hasParam("mode", true)) {
-            int m = req->getParam("mode", true)->value().toInt();
-            if (m >= 0 && m <= 2) mode = (ScanMode)m;
-        }
-        String ch = req->getParam("ch", true) ? req->getParam("ch", true)->value() : "6";
-        
-        uint8_t tmp[6];
-        if (!parseMac6(mac, tmp)) {
-            req->send(400, "text/plain", "Invalid MAC");
-            return;
-        }
-        
-        setTrackerMac(tmp);
-        parseChannelsCSV(ch);
-        currentScanMode = mode;
-        stopRequested = false;
-        
-        String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-        req->send(200, "text/plain", forever ? ("Tracker starting (forever) - " + modeStr) : ("Tracker starting for " + String(secs) + "s - " + modeStr));
-        
-        if (!workerTaskHandle) {
-            xTaskCreatePinnedToCore(trackerTask, "tracker", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
         } });
 
   server->on("/gps", HTTP_GET, [](AsyncWebServerRequest *r)
@@ -1181,9 +1154,11 @@ void startWebServer()
         }
         
         stopRequested = false;
+        
         req->send(200, "text/plain", forever ? 
                   "Drone detection starting (forever)" : 
                   ("Drone detection starting for " + String(secs) + "s"));
+        delay(100); 
         
         if (!workerTaskHandle) {
             xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288, 
@@ -1520,70 +1495,6 @@ else if (detection == "multi-ssid") {
   Serial.println("[WEB] Server started.");
 }
 
-void stopAPAndServer() {
-    Serial.println("[SYS] Stopping AP and web server...");
-    
-    if (server) {
-        server->end(); // AsyncWebServer cleanup first
-        delete server;
-        server = nullptr;
-        delay(200);
-    }
-    delay(500);
-    
-    WiFi.softAPdisconnect(true);
-    delay(100);
-    
-    esp_wifi_stop();
-    delay(100);
-    
-    esp_wifi_deinit();
-    delay(100);
-}
-
-void startAPAndServer() {
-    Serial.println("[SYS] Starting AP and web server...");
-    
-    const int MAX_RETRIES = 10;
-    int tries = 0;
-    
-    while (tries < MAX_RETRIES) {
-        tries++;
-        Serial.printf("[AP] Attempt %d/%d\n", tries, MAX_RETRIES);
-        
-        WiFi.mode(WIFI_OFF);
-        delay(100);
-        
-        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-        esp_wifi_init(&cfg);
-        delay(500);
-
-        WiFi.mode(WIFI_AP);
-        delay(100);
-        
-        if (!WiFi.softAPConfig(IPAddress(192,168,4,1), 
-                              IPAddress(192,168,4,1),
-                              IPAddress(255,255,255,0))) {
-            delay(100);
-            continue;
-        }
-        
-        if (WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0, 8)) {
-            delay(100);
-            server = new AsyncWebServer(80);
-            startWebServer();
-            Serial.println("[AP] Started successfully"); 
-            return;
-        }
-        
-        delay(500);
-    }
-    
-    Serial.println("[FATAL] Failed to start AP after max retries, resetting...");
-    delay(100);
-    esp_restart();
-}
-
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
     if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
@@ -1631,36 +1542,6 @@ void sendMeshNotification(const Hit &hit) {
             Serial1.println(mesh_msg);
             Serial1.flush();
         }
-    }
-}
-
-void sendTrackerMeshUpdate() {
-    static unsigned long lastTrackerMesh = 0;
-    const unsigned long trackerInterval = 15000;
-
-    if (millis() - lastTrackerMesh < trackerInterval) return;
-    lastTrackerMesh = millis();
-
-    uint8_t trackerMac[6];
-    int8_t trackerRssi;
-    uint32_t trackerLastSeen, trackerPackets;
-    getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
-
-    char mac_str[18];
-    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-             trackerMac[0], trackerMac[1], trackerMac[2],
-             trackerMac[3], trackerMac[4], trackerMac[5]);
-
-    char tracker_msg[MAX_MESH_SIZE];
-    uint32_t ago = trackerLastSeen ? (millis() - trackerLastSeen) / 1000 : 999;
-
-    int msg_len = snprintf(tracker_msg, sizeof(tracker_msg),
-                          "%s: Tracking: %s RSSI:%ddBm LastSeen:%us Pkts:%u",
-                          nodeId.c_str(), mac_str, (int)trackerRssi, ago, (unsigned)trackerPackets);
-
-    if (Serial1.availableForWrite() >= msg_len) {
-        Serial.printf("[MESH] %s\n", tracker_msg);
-        Serial1.println(tracker_msg);
     }
 }
 
@@ -1730,40 +1611,6 @@ void processCommand(const String &command)
       }
     }
   }
-  else if (command.startsWith("TRACK_START:"))
-  {
-    String params = command.substring(12);
-    int macDelim = params.indexOf(':');
-    int modeDelim = params.indexOf(':', macDelim + 1);
-    int secsDelim = params.indexOf(':', modeDelim + 1);
-    int channelDelim = params.indexOf(':', secsDelim + 1);
-
-    if (macDelim > 0 && modeDelim > 0 && secsDelim > 0)
-    {
-      String mac = params.substring(0, macDelim);
-      int mode = params.substring(macDelim + 1, modeDelim).toInt();
-      int secs = params.substring(modeDelim + 1, secsDelim).toInt();
-      String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "6";
-      bool forever = (channelDelim > 0 && params.indexOf("FOREVER", channelDelim) > 0);
-
-      uint8_t trackerMac[6];
-      if (parseMac6(mac, trackerMac) && mode >= 0 && mode <= 2)
-      {
-        setTrackerMac(trackerMac);
-        currentScanMode = (ScanMode)mode;
-        parseChannelsCSV(channels);
-        stopRequested = false;
-
-        if (!workerTaskHandle)
-        {
-          xTaskCreatePinnedToCore(trackerTask, "tracker", 8192,
-                                  (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-        }
-        Serial.printf("[MESH] Started tracker via mesh command for %s\n", mac.c_str());
-        Serial1.println(nodeId + ": TRACK_ACK:STARTED:" + mac);
-      }
-    }
-  }
   else if (command.startsWith("STOP"))
   {
     stopRequested = true;
@@ -1796,23 +1643,6 @@ void processCommand(const String &command)
              (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
 
     Serial1.println(status_msg);
-
-    if (trackerMode)
-    {
-      uint8_t trackerMac[6];
-      int8_t trackerRssi;
-      uint32_t trackerLastSeen, trackerPackets;
-      getTrackerStatus(trackerMac, trackerRssi, trackerLastSeen, trackerPackets);
-
-      char tracker_status[MAX_MESH_SIZE];
-      snprintf(tracker_status, sizeof(tracker_status),
-               "%s: TRACKER: Target:%s RSSI:%ddBm Pkts:%u",
-               nodeId.c_str(),
-               macFmt6(trackerMac).c_str(),
-               (int)trackerRssi,
-               (unsigned)trackerPackets);
-      Serial1.println(tracker_status);
-    }
     if (gpsValid)
     {
       char gps_status[MAX_MESH_SIZE];
