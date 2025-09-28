@@ -7,7 +7,7 @@
 #define COUNTRY "NO"
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 6   // MESH PIN 9
+#define MESH_RX_PIN 4   // MESH PIN 9
 #endif
 #ifndef MESH_TX_PIN
 #define MESH_TX_PIN 5    // MESH PIN 10

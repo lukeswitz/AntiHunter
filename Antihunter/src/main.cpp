@@ -190,7 +190,7 @@ void loop() {
 
     updateGPSLocation();
     processUSBToMesh();
-    // checkAndSendVibrationAlert();
+    checkAndSendVibrationAlert();
 
   delay(120);
 }
