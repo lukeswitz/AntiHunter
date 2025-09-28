@@ -122,7 +122,7 @@ void saveConfiguration() {
     configFile.print(config);
     configFile.close();
     Serial.println("Configuration saved to SD card");
-    Serial.println("Saved JSON: " + config); // Debug
+    // Serial.println("Saved JSON: " + config); // Debug
 }
 void loadConfiguration() {
     if (!sdAvailable) {
@@ -144,7 +144,7 @@ void loadConfiguration() {
     String config = configFile.readString();
     configFile.close();
     
-    Serial.println("Raw config: " + config);
+    // Serial.println("Raw config: " + config);
     
     DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, config);
