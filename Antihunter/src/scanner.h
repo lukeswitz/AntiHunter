@@ -7,7 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
-
+// Target Match
 struct Hit {
    uint8_t mac[6];
    int8_t rssi;
@@ -15,6 +15,48 @@ struct Hit {
    char name[32];
    bool isBLE;
 };
+
+struct BaselineDevice {
+    uint8_t mac[6];
+    int8_t avgRssi;
+    int8_t minRssi;
+    int8_t maxRssi;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    char name[32];
+    bool isBLE;
+    uint8_t channel;
+    uint16_t hitCount;
+};
+
+struct AnomalyHit {
+    uint8_t mac[6];
+    int8_t rssi;
+    uint8_t channel;
+    char name[32];
+    bool isBLE;
+    uint32_t timestamp;
+    String reason;
+};
+
+// Baseline detection configuration
+const uint32_t BASELINE_SCAN_DURATION = 300000;  // 5 minutes default
+const uint32_t BASELINE_DEVICE_TIMEOUT = 600000;  // 10 minutes before device removed
+const uint32_t BASELINE_MAX_DEVICES = 500;       // Maximum baseline devices
+const uint32_t BASELINE_MAX_ANOMALIES = 200;     // Maximum anomaly log entries
+const uint32_t BASELINE_CLEANUP_INTERVAL = 60000; // Cleanup every 60 seconds
+
+// Baseline detection state
+extern bool baselineDetectionEnabled;
+extern bool baselineEstablished;
+extern uint32_t baselineStartTime;
+extern uint32_t baselineDuration;
+extern std::map<String, BaselineDevice> baselineDevices;
+extern std::vector<AnomalyHit> anomalyLog;
+extern uint32_t anomalyCount;
+extern uint32_t baselineDeviceCount;
+extern QueueHandle_t anomalyQueue;
+extern int8_t baselineRssiThreshold;
 
 struct DeauthHit {
    uint8_t srcMac[6];
@@ -148,9 +190,6 @@ struct ConfirmedMultiSSID {
     int ssid_count;
     uint32_t timestamp;
 };
-
-
-// Attack detection thresholds
 
 // Deauth/Disassoc Detection - Multi-pattern detection
 const uint32_t DEAUTH_TARGETED_THRESHOLD = 2;      // 2+ deauths to same target = targeted attack
@@ -289,4 +328,12 @@ String getDiagnostics();
 size_t getTargetCount();
 String getSnifferCache();
 void cleanupMaps();
-
+void baselineDetectionTask(void *pv);
+void resetBaselineDetection();
+String getBaselineResults();
+bool isDeviceInBaseline(const uint8_t *mac);
+void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
+void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
+void cleanupBaselineMemory();
+int8_t getBaselineRssiThreshold();
+void setBaselineRssiThreshold(int8_t threshold);

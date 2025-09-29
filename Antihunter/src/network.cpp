@@ -285,9 +285,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <div class="row" style="margin-top:12px">
               <button class="btn primary" type="submit">Start Scan</button>
-              <!--
               <a class="btn danger" href="/stop" data-ajax="true">Stop All</a>
-              -->
             </div>
           </form>
         </div>
@@ -298,20 +296,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <label>Detection Method</label>
             <select name="detection" id="detectionMode">
               <option value="device-scan">Device Discovery (WiFi/BLE)</option>
+              <option value="baseline">Baseline Anomaly Detection</option>
               <option value="drone-detection">Drone Detection (Remote ID)</option>
-              <!--
-              <option value="deauth">Deauth Attack Detection</option>
-              <option value="beacon-flood">Beacon Flood Detection</option>
-              <option value="karma">Karma Attack Detection</option>
-              <option value="probe-flood">Probe Flood Detection</option>
-              <option value="ble-spam">BLE Spam Detection</option>
-              -->
             </select>
             
-            <div class="scan-controls" style="margin-top:10px">
+            <div id="standardDurationControls" class="scan-controls" style="margin-top:10px">
               <div>
                 <label>Duration (seconds)</label>
-                <input type="number" name="secs" min="0" max="86400" value="60">
+                <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
               </div>
               <div>
                 <input type="checkbox" id="forever3" name="forever" value="1">
@@ -319,14 +311,114 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
             </div>
             
+            <div id="baselineConfigControls" style="display:none; margin-top:10px">
+              <div class="banner" style="margin-bottom:10px">Configure anomaly detection based on network baseline profiling.</div>
+              
+              <div class="grid-2col">
+                <div>
+                  <label>RSSI Alert Threshold (dBm)</label>
+                  <select id="baselineRssiThreshold" name="rssiThreshold" style="margin-bottom:8px">
+                    <option value="-40">-40 dBm (Very Close)</option>
+                    <option value="-50">-50 dBm (Close)</option>
+                    <option value="-60" selected>-60 dBm (Moderate)</option>
+                    <option value="-70">-70 dBm (Distant)</option>
+                    <option value="-80">-80 dBm (Very Distant)</option>
+                  </select>
+                  <div class="small">Only devices at or above this signal strength will trigger anomaly alerts</div>
+                </div>
+                <div>
+                  <label>Baseline Duration (seconds)</label>
+                  <select id="baselineDuration" name="baselineDuration" style="margin-bottom:8px">
+                    <option value="60">1 minute</option>
+                    <option value="120">2 minutes</option>
+                    <option value="180">3 minutes</option>
+                    <option value="300" selected>5 minutes</option>
+                    <option value="600">10 minutes</option>
+                  </select>
+                  <div class="small">Time to establish the baseline before monitoring</div>
+                </div>
+              </div>
+              
+              <div>
+                <label>Monitoring Duration (seconds)</label>
+                <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-top:8px">
+                <div class="small">Duration to monitor for anomalies after baseline is established (0 = forever)</div>
+              </div>
+              
+              <div id="baselineStatus" style="margin-top:12px; padding:12px; background:var(--card); border:1px solid #003b24; border-radius:10px; font-size:12px;">
+                <div style="color:#888;">No baseline data</div>
+                <div style="margin-top:8px; font-size:11px; color:var(--muted);">
+                  <span id="baselineDevices">0 devices</span> • 
+                  <span id="baselineAnomalies">0 anomalies</span>
+                </div>
+              </div>
+            </div>
+            
             <div class="row" style="margin-top:12px">
-              <button class="btn primary" type="submit">Start Detection</button>
+              <button class="btn primary" type="submit" id="startDetectionBtn">Start Detection</button>
               <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn">View Cache</a>
               <a class="btn alt" href="/drone-log" data-ajax="false" style="display:none;" id="droneLogBtn">View Event Log</a>
               <a class="btn" href="/drone-results" data-ajax="false" style="display:none;" id="droneResultsBtn">View Results</a>
+              <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">View Results</a>
+              <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset Baseline</button>
             </div>
           </form>
         </div>
+        
+     <div class="card" id="baselineConfigCard" style="display:none;">
+          <h3>Baseline Detection Configuration</h3>
+          <div class="banner">Configure anomaly detection based on network baseline profiling.</div>
+          
+          <div class="grid-2col" style="margin:20px 0">
+            <div>
+              <label>RSSI Alert Threshold (dBm)</label>
+              <select id="baselineRssiThreshold" style="margin-bottom:8px">
+                <option value="-40">-40 dBm (Very Close)</option>
+                <option value="-50">-50 dBm (Close)</option>
+                <option value="-60" selected>-60 dBm (Moderate)</option>
+                <option value="-70">-70 dBm (Distant)</option>
+                <option value="-80">-80 dBm (Very Distant)</option>
+              </select>
+              <div class="small">Only devices with signal strength at or above this level will trigger anomaly alerts</div>
+            </div>
+            <div>
+              <label>Baseline Duration (seconds)</label>
+              <select id="baselineDuration" style="margin-bottom:8px">
+                <option value="60">1 minute</option>
+                <option value="120">2 minutes</option>
+                <option value="180">3 minutes</option>
+                <option value="300" selected>5 minutes</option>
+                <option value="600">10 minutes</option>
+              </select>
+              <div class="small">Time to establish the baseline before monitoring</div>
+            </div>
+          </div>
+          
+          <div class="row" style="margin-top:20px">
+            <button class="btn primary" type="button" onclick="saveBaselineConfig()">SAVE CONFIG</button>
+            <button class="btn alt" type="button" onclick="resetBaseline()">RESET BASELINE</button>
+            <a class="btn" href="/baseline-results" data-ajax="false">View Results</a>
+          </div>
+          
+          <div id="baselineStatus" style="margin-top:20px; padding:12px; background:var(--card); border:1px solid #003b24; border-radius:10px; font-size:12px;">
+            <div id="baselineState" class="status-disabled">Status: Not Configured</div>
+            <div id="baselineProgress" style="margin-top:8px; display:none;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span>Progress:</span>
+                <span id="baselinePercent">0%</span>
+              </div>
+              <div style="width:100%; height:6px; background:#001a10; border-radius:3px;">
+                <div id="baselineProgressBar" style="height:100%; width:0%; background:#00cc66; border-radius:3px; transition:width 0.5s;"></div>
+              </div>
+            </div>
+            <div id="baselineStats" style="margin-top:8px; font-size:11px; color:var(--muted);">
+              <span id="baselineDevices">0 devices</span> • 
+              <span id="baselineAnomalies">0 anomalies</span>
+            </div>
+          </div>
+        </div>
+      
+      <div class="card">
         
         <div class="card">
           <h3>Node Configuration</h3>
@@ -348,7 +440,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div class="row" style="margin-top:10px">
             <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
             <a class="btn" href="/gps" data-ajax="false">GPS Status</a>
-            <a class="btn" href="/sd-status" data-ajax="false">SD Card</a>
           </div>
         </div>
       </div>
@@ -424,10 +515,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <div class="card">
         <h3 onclick="toggleCard('autoEraseCard')" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
           Auto-Erase Configuration 
-          <span id="autoEraseToggle" style="font-size:14px; transform:rotate(0deg); transition:transform 0.3s;">▼</span>
+          <span id="autoEraseToggle" style="font-size:14px; transform:rotate(-90deg); transition:transform 0.3s;">▼</span>
         </h3>
         
-        <div id="autoEraseCard" style="display:block;">
+        <div id="autoEraseCard" style="display:none;">
           <div class="banner">Configure automatic data destruction on tampering detection.</div>
           
           <div class="row" style="margin:15px 0">
@@ -558,7 +649,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('footerNodeId').innerText = data.nodeId;
         }catch(e){}
       }
-      
+
       function toggleCard(cardId) {
         const card = document.getElementById(cardId);
         const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
@@ -571,7 +662,66 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toggle.style.transform = 'rotate(-90deg)';
         }
       }
-      
+
+      function updateBaselineStatus() {
+        fetch('/api/baseline/config')
+          .then(response => response.json())
+          .then(config => {
+            const statusDiv = document.getElementById('baselineStatus');
+            if (!statusDiv) return;
+            
+            let statusHTML = '';
+            if (config.enabled && !config.established) {
+              statusHTML = '<div style="color:#00cc66;">Scanning in progress...</div>';
+            } else if (config.established) {
+              statusHTML = '<div style="color:#00cc66;">✓ Baseline established: ' + config.deviceCount + ' devices</div>';
+            } else {
+              statusHTML = '<div style="color:#888;">No baseline data</div>';
+            }
+            
+            statusDiv.innerHTML = statusHTML + 
+              '<div style="margin-top:8px; font-size:11px; color:var(--muted);">' +
+              '<span id="baselineDevices">' + config.deviceCount + ' devices</span> • ' +
+              '<span id="baselineAnomalies">' + config.anomalyCount + ' anomalies</span>' +
+              '</div>';
+          })
+          .catch(error => console.error('Status update error:', error));
+      }
+
+      function saveBaselineConfig() {
+        const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
+        const duration = document.getElementById('baselineDuration').value;
+        
+        fetch('/api/baseline/config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
+        })
+        .then(response => response.text())
+        .then(data => {
+          toast('Baseline configuration saved', 'success');
+          updateBaselineStatus();
+        })
+        .catch(error => {
+          toast('Error saving config: ' + error, 'error');
+        });
+      }
+
+      function resetBaseline() {
+        if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.'))
+          return;
+        
+        fetch('/api/baseline/reset', {method: 'POST'})
+          .then(response => response.text())
+          .then(data => {
+            toast(data, 'success');
+            updateBaselineStatus();
+          })
+          .catch(error => {
+            toast('Error resetting baseline: ' + error, 'error');
+          });
+      }
+
       function updateStatusIndicators(diagText) {
         // Scan status
         if (diagText.includes('Scanning: yes')) {
@@ -910,41 +1060,71 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   .catch(err=>toast('Error: '+err.message));
                 });
 
-                document.getElementById('detectionMode').addEventListener('change', function(e) {
-                  const selectedMethod = e.target.value;
+              document.getElementById('detectionMode').addEventListener('change', function() {
+                  const selectedMethod = this.value;
+                  const standardControls = document.getElementById('standardDurationControls');
+                  const baselineControls = document.getElementById('baselineConfigControls');
                   const cacheBtn = document.getElementById('cacheBtn');
                   const droneLogBtn = document.getElementById('droneLogBtn');
                   const droneResultsBtn = document.getElementById('droneResultsBtn');
+                  const baselineResultsBtn = document.getElementById('baselineResultsBtn');
+                  const resetBaselineBtn = document.getElementById('resetBaselineBtn');
+                  
+                  cacheBtn.style.display = 'none';
+                  droneLogBtn.style.display = 'none';
+                  droneResultsBtn.style.display = 'none';
+                  baselineResultsBtn.style.display = 'none';
+                  resetBaselineBtn.style.display = 'none';
+                  standardControls.style.display = 'none';
+                  baselineControls.style.display = 'none';
                   
                   if (selectedMethod === 'drone-detection') {
-                    // Show drone-specific buttons, hide cache button
-                    cacheBtn.style.display = 'none';
+                    standardControls.style.display = 'block';
                     droneLogBtn.style.display = 'inline-block';
                     droneResultsBtn.style.display = 'inline-block';
+                  } else if (selectedMethod === 'baseline') {
+                    baselineControls.style.display = 'block';
+                    baselineResultsBtn.style.display = 'inline-block';
+                    resetBaselineBtn.style.display = 'inline-block';
+                    updateBaselineStatus();
                   } else {
-                    // Show cache button, hide drone-specific buttons
+                    standardControls.style.display = 'block';
                     cacheBtn.style.display = 'inline-block';
-                    droneLogBtn.style.display = 'none';
-                    droneResultsBtn.style.display = 'none';
                   }
                 });
-                
+
                 document.getElementById('sniffer').addEventListener('submit', e => {
                   e.preventDefault();
                   const fd = new FormData(e.target);
                   const detectionMethod = fd.get('detection');
-                  
                   let endpoint = '/sniffer';
                   if (detectionMethod === 'drone-detection') {
                     endpoint = '/drone';
-                    // Remove the 'detection' parameter for drone endpoint
                     fd.delete('detection');
                   }
                   
-                  fetch(endpoint, {method:'POST', body:fd})
-                    .then(r=>r.text())
-                    .then(t=>toast(t))
-                    .catch(err=>toast('Error: '+err.message));
+                  if (detectionMethod === 'baseline') {
+                    const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
+                    const duration = document.getElementById('baselineDuration').value;
+                    
+                    fetch('/api/baseline/config', {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                      body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
+                    }).then(() => {
+                      return fetch(endpoint, {method:'POST', body:fd});
+                    }).then(r=>r.text())
+                      .then(t=>{
+                        toast(t, 'success');
+                        updateBaselineStatus();
+                      })
+                      .catch(err=>toast('Error: '+err, 'error'));
+                  } else {
+                    fetch(endpoint, {method:'POST', body:fd})
+                      .then(r=>r.text())
+                      .then(t=>toast(t, 'success'))
+                      .catch(err=>toast('Error: '+err, 'error'));
+                  }
                 });
                 
                 document.addEventListener('click', e=>{
@@ -982,7 +1162,8 @@ void startWebServer()
   server->on("/export", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", getTargetsList()); });
 
-  server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
       
@@ -991,8 +1172,7 @@ void startWebServer()
           results += "\n\n" + calculateTriangulation();
       }
       
-      r->send(200, "text/plain", results);
-  });
+      r->send(200, "text/plain", results); });
 
   server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -1022,7 +1202,7 @@ void startWebServer()
     r->send(200, "application/json", j); });
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req)
-           {
+             {
         int secs = 60;
         bool forever = false;
         ScanMode mode = SCAN_WIFI;
@@ -1042,15 +1222,11 @@ void startWebServer()
             String ch = req->getParam("ch", true)->value();
             parseChannelsCSV(ch);
         }
-        
         saveConfiguration();
-        
         currentScanMode = mode;
         stopRequested = false;
-
         delay(100); 
         
-        // triangulation handling
         if (req->hasParam("triangulate", true) && req->hasParam("targetMac", true)) {
             String targetMac = req->getParam("targetMac", true)->value();
             uint8_t tmp[6];
@@ -1076,6 +1252,47 @@ void startWebServer()
             xTaskCreatePinnedToCore(listScanTask, "scan", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
         } });
 
+  server->on("/api/baseline/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+      String json = "{";
+      json += "\"scanning\":" + String(scanning ? "true" : "false") + ",";
+      json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+      json += "\"devices\":" + String(baselineDeviceCount);
+      json += "}";
+      
+      req->send(200, "application/json", json);
+  });
+
+  server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
+             {
+        String json = "{";
+        json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
+        json += "\"baselineDuration\":" + String(baselineDuration / 1000) + ",";
+        json += "\"enabled\":" + String(baselineDetectionEnabled ? "true" : "false") + ",";
+        json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+        json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
+        json += "\"anomalyCount\":" + String(anomalyCount);
+        json += "}";
+        req->send(200, "application/json", json); });
+
+  server->on("/api/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (req->hasParam("rssiThreshold", true)) {
+            int8_t threshold = req->getParam("rssiThreshold", true)->value().toInt();
+            setBaselineRssiThreshold(threshold);
+        }
+        if (req->hasParam("baselineDuration", true)) {
+            baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
+        }
+        req->send(200, "text/plain", "Baseline configuration updated"); });
+
+  server->on("/api/baseline/reset", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        resetBaselineDetection();
+        req->send(200, "text/plain", "Baseline reset complete"); });
+
+  server->on("/baseline-results", HTTP_GET, [](AsyncWebServerRequest *req)
+             { req->send(200, "text/plain", getBaselineResults()); });
+
   server->on("/gps", HTTP_GET, [](AsyncWebServerRequest *r)
              {
     String gpsInfo = "GPS Data: " + getGPSData() + "\n";
@@ -1099,11 +1316,10 @@ void startWebServer()
         if (droneQueue) {
             xQueueReset(droneQueue);
         }
-        
-        r->send(200, "text/plain", "Stopping… (AP will return shortly)"); });
+      });
 
   server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
-  {
+             {
       String configJson = "{\n";
       configJson += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
       configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
@@ -1120,10 +1336,10 @@ void startWebServer()
       configJson += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
       configJson += "}";
       
-      r->send(200, "application/json", configJson);
-  });
+      r->send(200, "application/json", configJson); });
 
-  server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
       if (!req->hasParam("channels") || !req->hasParam("targets")) {
           req->send(400, "text/plain", "Missing parameters");
           return;
@@ -1138,10 +1354,10 @@ void startWebServer()
       prefs.putString("maclist", targets);
 
       saveConfiguration();
-      req->send(200, "text/plain", "Configuration updated");
-  });
+      req->send(200, "text/plain", "Configuration updated"); });
 
-  server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
         int secs = 60;
         bool forever = false;
         
@@ -1164,25 +1380,22 @@ void startWebServer()
             xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288, 
                                   (void*)(intptr_t)(forever ? 0 : secs), 
                                   1, &workerTaskHandle, 1);
-        }
-    });
-    
-    server->on("/drone-results", HTTP_GET, [](AsyncWebServerRequest *r) {
-        r->send(200, "text/plain", getDroneDetectionResults());
-    });
-    
-    server->on("/drone-log", HTTP_GET, [](AsyncWebServerRequest *r) {
-        r->send(200, "application/json", getDroneEventLog());
-    });
-    
-    server->on("/api/drone/status", HTTP_GET, [](AsyncWebServerRequest *r) {
+        } });
+
+  server->on("/drone-results", HTTP_GET, [](AsyncWebServerRequest *r)
+             { r->send(200, "text/plain", getDroneDetectionResults()); });
+
+  server->on("/drone-log", HTTP_GET, [](AsyncWebServerRequest *r)
+             { r->send(200, "application/json", getDroneEventLog()); });
+
+  server->on("/api/drone/status", HTTP_GET, [](AsyncWebServerRequest *r)
+             {
         String status = "{";
         status += "\"enabled\":" + String(droneDetectionEnabled ? "true" : "false") + ",";
         status += "\"count\":" + String(droneDetectionCount) + ",";
         status += "\"unique\":" + String(detectedDrones.size());
         status += "}";
-        r->send(200, "application/json", status);
-    });
+        r->send(200, "application/json", status); });
 
   server->on("/mesh", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -1206,7 +1419,8 @@ void startWebServer()
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
 
-  server->on("/api/secure/destruct", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/api/secure/destruct", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
     if (!req->hasParam("confirm", true) || req->getParam("confirm", true)->value() != "WIPE_ALL_DATA") {
         req->send(400, "text/plain", "Invalid confirmation");
         return;
@@ -1214,10 +1428,10 @@ void startWebServer()
     
     tamperAuthToken = generateEraseToken();
     executeSecureErase("Manual web request");
-    req->send(200, "text/plain", "Secure wipe executed");
-});
+    req->send(200, "text/plain", "Secure wipe executed"); });
 
-server->on("/api/secure/generate-token", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/api/secure/generate-token", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
     if (!req->hasParam("target", true) || !req->hasParam("confirm", true)) {
         req->send(400, "text/plain", "Missing target node or confirmation");
         return;
@@ -1240,10 +1454,10 @@ server->on("/api/secure/generate-token", HTTP_POST, [](AsyncWebServerRequest *re
     response += "Token expires in 5 minutes\n";
     response += "Send this exact command via mesh to execute remote erase";
     
-    req->send(200, "text/plain", response);
-});
+    req->send(200, "text/plain", response); });
 
-server->on("/api/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req) {
+  server->on("/api/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
+             {
     String response = "{";
     response += "\"enabled\":" + String(autoEraseEnabled ? "true" : "false") + ",";
     response += "\"delay\":" + String(autoEraseDelay) + ",";
@@ -1255,10 +1469,10 @@ server->on("/api/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req) {
     response += "\"setupStartTime\":" + String(setupStartTime) + ",";
     response += "\"tamperActive\":" + String(tamperEraseActive ? "true" : "false");
     response += "}";
-    req->send(200, "application/json", response);
-});
+    req->send(200, "application/json", response); });
 
-server->on("/api/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/api/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
     if (!req->hasParam("enabled", true) || !req->hasParam("delay", true) || 
         !req->hasParam("cooldown", true) || !req->hasParam("vibrationsRequired", true) ||
         !req->hasParam("detectionWindow", true)) {
@@ -1298,10 +1512,10 @@ server->on("/api/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req) {
     }
     
     saveConfiguration();
-    req->send(200, "text/plain", "Auto-erase config updated");
-});
+    req->send(200, "text/plain", "Auto-erase config updated"); });
 
-server->on("/api/erase/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+  server->on("/api/erase/status", HTTP_GET, [](AsyncWebServerRequest *req)
+             {
     String status;
     
     if (eraseStatus == "COMPLETED") {
@@ -1317,10 +1531,10 @@ server->on("/api/erase/status", HTTP_GET, [](AsyncWebServerRequest *req) {
         status = "INACTIVE";
     }
     
-    req->send(200, "text/plain", status);
-});
+    req->send(200, "text/plain", status); });
 
-server->on("/api/erase/request", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/api/erase/request", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
     if (!req->hasParam("confirm", true)) {
         req->send(400, "text/plain", "Missing confirmation");
         return;
@@ -1342,28 +1556,27 @@ server->on("/api/erase/request", HTTP_POST, [](AsyncWebServerRequest *req) {
         Serial.println(success ? "Erase completed" : "Erase failed");
         delete reasonPtr;
         vTaskDelete(NULL);
-    }, "secure_erase", 8192, new String(reason), 1, NULL);
-});
+    }, "secure_erase", 8192, new String(reason), 1, NULL); });
 
-server->on("/api/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/api/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
     cancelTamperErase();
-    req->send(200, "text/plain", "Tamper erase cancelled");
-});
+    req->send(200, "text/plain", "Tamper erase cancelled"); });
 
-server->on("/api/secure/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+  server->on("/api/secure/status", HTTP_GET, [](AsyncWebServerRequest *req)
+             {
     String status = tamperEraseActive ? 
         "TAMPER_ACTIVE:" + String((TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart))/1000) + "s" : 
         "INACTIVE";
-    req->send(200, "text/plain", status);
-});
+    req->send(200, "text/plain", status); });
 
-server->on("/api/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/api/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
     cancelTamperErase();
-    req->send(200, "text/plain", "Cancelled");
-});
+    req->send(200, "text/plain", "Cancelled"); });
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req)
-           {
+             {
   String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
   int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
   bool forever = req->hasParam("forever", true);
@@ -1379,7 +1592,22 @@ server->on("/api/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req) {
       xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
     }
     
-  } else if (detection == "beacon-flood") {
+  } else if (detection == "baseline") {
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
+    
+    stopRequested = false;
+    req->send(200, "text/plain", 
+              forever ? "Baseline detection starting (forever)" : 
+              ("Baseline detection starting for " + String(secs) + "s"));
+    
+    if (!workerTaskHandle) {
+        xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288, 
+                              (void*)(intptr_t)(forever ? 0 : secs), 
+                              1, &workerTaskHandle, 1);
+    }
+  }
+   else if (detection == "beacon-flood") {
     if (secs < 0) secs = 0; 
     if (secs > 86400) secs = 86400;
     
@@ -1487,91 +1715,12 @@ else if (detection == "multi-ssid") {
   }  
   r->send(200, "text/plain", results); });
 
-  server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "text/plain", getSnifferCache());
-  });
+  server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r)
+             { r->send(200, "text/plain", getSnifferCache()); });
 
   server->begin();
   Serial.println("[WEB] Server started.");
 }
-
-// void stopAPAndServer() {
-//     Serial.println("[SYS] Stopping AP and web server...");
-    
-//     if (server) {
-//         server->reset(); // Clear handlers
-//         server->end();   // Stop server
-//         delay(100);
-//         delete server;
-//         server = nullptr;
-//         delay(200);
-//     }
-    
-//     WiFi.softAPdisconnect(true);
-//     delay(100);
-    
-//     esp_wifi_stop();
-//     delay(100);
-    
-//     esp_wifi_deinit();
-//     delay(100);
-    
-//     WiFi.mode(WIFI_OFF); // Ensure clean state
-//     delay(100);
-// }
-
-// void startAPAndServer() {
-//     Serial.println("[SYS] Starting AP and web server...");
-    
-//     const int MAX_RETRIES = 10;
-//     int tries = 0;
-    
-//     while (tries < MAX_RETRIES) {
-//         tries++;
-//         Serial.printf("[AP] Attempt %d/%d\n", tries, MAX_RETRIES);
-        
-//         WiFi.mode(WIFI_OFF);
-//         delay(100);
-        
-//         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-//         esp_err_t err = esp_wifi_init(&cfg);
-//         if (err == ESP_ERR_WIFI_NOT_INIT) {
-//             // Already init, that's ok
-//         } else if (err != ESP_OK) {
-//             Serial.printf("[ERROR] WiFi init failed: %d\n", err);
-//             delay(500);
-//             continue;
-//         }
-//         delay(100);
-
-//         WiFi.mode(WIFI_AP);
-//         delay(100);
-        
-//         if (!WiFi.softAPConfig(IPAddress(192,168,4,1), 
-//                               IPAddress(192,168,4,1),
-//                               IPAddress(255,255,255,0))) {
-//             delay(100);
-//             continue;
-//         }
-        
-//         if (WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0, 8)) {
-//             delay(200);
-//             // Fresh server
-//             if (!server) {
-//                 server = new AsyncWebServer(80);
-//                 startWebServer();
-//                 Serial.println("[AP] Started successfully"); 
-//                 return;
-//             }
-//         }
-        
-//         delay(500);
-//     }
-    
-//     Serial.println("[FATAL] Failed to start AP after max retries, resetting...");
-//     delay(100);
-//     esp_restart();
-// }
 
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
