@@ -1,0 +1,40 @@
+name: Feature Request
+description: Suggest a new feature or improvement for the AntiHunter.
+title: "[Feature Request]: "
+labels: [enhancement, needs-triage]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We appreciate your interest in improving the AntiHunter. Please provide details about the feature or improvement you are suggesting.
+
+  - type: input
+    id: feature_name
+    attributes:
+      label: Feature Name
+      description: What is the name of the feature or improvement?
+    validations:
+      required: true
+
+  - type: textarea
+    id: feature_description
+    attributes:
+      label: Feature Description
+      description: Describe the feature or improvement in detail.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use Case
+      description: Explain the use case and how this feature will benefit users.
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: Add any other context or screenshots related to the feature request.
