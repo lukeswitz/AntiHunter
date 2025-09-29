@@ -173,7 +173,7 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     
-    if (millis() - lastSaveSend > 900000) { // Node HB, SD config save - 15min
+    if (millis() - lastSaveSend > 600000) { // Node HB, SD config save - 10min
       saveConfiguration();
       sendNodeIdUpdate();
       lastSaveSend = millis();
