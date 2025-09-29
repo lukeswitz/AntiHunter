@@ -1,0 +1,12 @@
+# These templates are designed to encourage clear communication and efficient issue tracking, reflecting owner commitment to quality and customer focus
+blank_issues_enabled: true
+contact_links:
+  - name: Support
+    url: https://github.com/lukeswitz/AntiHunter/issues
+    about: If you have questions or need support, please visit our issue tracker.
+  - name: Documentation
+    url: https://github.com/lukeswitz/AntiHunter/blob/main/README.md
+    about: For detailed documentation and guides, please visit our documentation sub-page.
+  - name: Community
+    url: https://<TO_BE_DONE>/
+    about: Join our community discussions and connect with other users.
