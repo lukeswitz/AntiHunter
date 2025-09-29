@@ -61,25 +61,44 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
   - Incident response and tactical operations
   - Large-area device monitoring
 
-#### 3. **Detection & Analysis Scan**
-Comprehensive wireless environment analysis combining general device discovery with specialized Remote ID drone detection.
+#### 3. **Detection & Analysis**
+Comprehensive wireless environment analysis combining general device discovery, baseline anomaly detection, and specialized Remote ID drone detection.
 
 **Device Scanner:**
 - Captures all WiFi and Bluetooth devices in range
 - Records MAC addresses, SSIDs, signal strength, and channels
-- Provides complete 2.4Ghz wireless spectrum visibility
+- Provides complete 2.4GHz wireless spectrum visibility
+
+**Baseline Anomaly Detection:**
+- Two-phase scanning: establishes normal environment baseline, then monitors for new devices
+- Configurable RSSI threshold for proximity-based alerting
+- Real-time progress tracking with WiFi/BLE device breakdown
+- Use cases: perimeter awareness, detecting approaching devices, identifying new threats
 
 **RID Drone Detection:**
 - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
 - Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
 - Detects French drone ID format (OUI 0x6a5c35)
 - Extracts UAV ID, pilot location, flight telemetry, and operator information
-- Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data. 
+- Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
+
+**Coming: Threat Detection Capabilities:**
+- Deauth/disassoc attack detection (flood and targeted)
+- WiFi Pineapple and rogue access point identification
+- Pwnagotchi device detection
+- Evil twin and multi-SSID attack detection
+- Beacon flood and probe request flood monitoring
+- EAPOL handshake capture detection
+- Karma attack identification
 
 **Use Cases:**
 - Airport and critical infrastructure drone monitoring
 - Counter-UAS operations and airspace security
-
+- Perimeter security and intrusion detection
+- WiFi penetration testing and security auditing
+- Event security and crowd monitoring
+- Red team detection and defensive operations
+- Wireless threat hunting and forensics
 
 ---
 
