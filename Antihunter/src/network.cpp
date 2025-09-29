@@ -663,30 +663,86 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
+      let baselineUpdateInterval = null;
+      
       function updateBaselineStatus() {
-        fetch('/api/baseline/config')
+        fetch('/api/baseline/stats')
           .then(response => response.json())
-          .then(config => {
+          .then(stats => {
             const statusDiv = document.getElementById('baselineStatus');
             if (!statusDiv) return;
             
             let statusHTML = '';
-            if (config.enabled && !config.established) {
-              statusHTML = '<div style="color:#00cc66;">Scanning in progress...</div>';
-            } else if (config.established) {
-              statusHTML = '<div style="color:#00cc66;">✓ Baseline established: ' + config.deviceCount + ' devices</div>';
+            let progressHTML = '';
+            
+            if (stats.scanning && !stats.phase1Complete) {
+              // Phase 1: Establishing baseline
+              const progress = Math.min(100, (stats.elapsedTime / stats.totalDuration) * 100);
+              statusHTML = '<div style="color:#00cc66;font-weight:bold;">Phase 1: Establishing Baseline...</div>';
+              progressHTML = '<div style="margin-top:10px;">' +
+                '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' +
+                '<span>Progress</span>' +
+                '<span>' + Math.floor(progress) + '%</span>' +
+                '</div>' +
+                '<div style="width:100%;height:6px;background:#001a10;border-radius:3px;overflow:hidden;">' +
+                '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,#0aff9d);transition:width 0.5s;"></div>' +
+                '</div>' +
+                '</div>';
+            } else if (stats.scanning && stats.phase1Complete) {
+              // Phase 2: Monitoring
+              statusHTML = '<div style="color:#0aff9d;font-weight:bold;">Phase 2: Monitoring for Anomalies</div>';
+            } else if (stats.established) {
+              // Complete
+              statusHTML = '<div style="color:#00cc66;">✓ Baseline Complete</div>';
             } else {
               statusHTML = '<div style="color:#888;">No baseline data</div>';
             }
             
-            statusDiv.innerHTML = statusHTML + 
-              '<div style="margin-top:8px; font-size:11px; color:var(--muted);">' +
-              '<span id="baselineDevices">' + config.deviceCount + ' devices</span> • ' +
-              '<span id="baselineAnomalies">' + config.anomalyCount + ' anomalies</span>' +
+            const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' +
+              '<div>' +
+              '<div style="color:var(--muted);">WiFi Devices</div>' +
+              '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' +
+              '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' hits</div>' +
+              '</div>' +
+              '<div>' +
+              '<div style="color:var(--muted);">BLE Devices</div>' +
+              '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' +
+              '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' hits</div>' +
+              '</div>' +
+              '<div>' +
+              '<div style="color:var(--muted);">Total Devices</div>' +
+              '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' +
+              '</div>' +
+              '<div>' +
+              '<div style="color:var(--muted);">Anomalies</div>' +
+              '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' +
+              '</div>' +
+              '</div>' +
               '</div>';
+            
+            statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
+            
+            // Start/stop polling based on scan state
+            if (stats.scanning && !baselineUpdateInterval) {
+              baselineUpdateInterval = setInterval(updateBaselineStatus, 1000);
+            } else if (!stats.scanning && baselineUpdateInterval) {
+              clearInterval(baselineUpdateInterval);
+              baselineUpdateInterval = null;
+            }
           })
           .catch(error => console.error('Status update error:', error));
       }
+      
+      // Initial load
+      updateBaselineStatus();
+      
+      // Poll every 2 seconds when not actively scanning
+      setInterval(() => {
+        if (!baselineUpdateInterval) {
+          updateBaselineStatus();
+        }
+      }, 2000);
 
       function saveBaselineConfig() {
         const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
@@ -1257,6 +1313,24 @@ void startWebServer()
       json += "\"scanning\":" + String(scanning ? "true" : "false") + ",";
       json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
       json += "\"devices\":" + String(baselineDeviceCount);
+      json += "}";
+      
+      req->send(200, "application/json", json);
+  });
+
+  server->on("/api/baseline/stats", HTTP_GET, [](AsyncWebServerRequest *req) {
+      String json = "{";
+      json += "\"scanning\":" + String(baselineStats.isScanning ? "true" : "false") + ",";
+      json += "\"phase1Complete\":" + String(baselineStats.phase1Complete ? "true" : "false") + ",";
+      json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+      json += "\"wifiDevices\":" + String(baselineStats.wifiDevices) + ",";
+      json += "\"bleDevices\":" + String(baselineStats.bleDevices) + ",";
+      json += "\"totalDevices\":" + String(baselineStats.totalDevices) + ",";
+      json += "\"wifiHits\":" + String(baselineStats.wifiHits) + ",";
+      json += "\"bleHits\":" + String(baselineStats.bleHits) + ",";
+      json += "\"anomalies\":" + String(anomalyCount) + ",";
+      json += "\"elapsedTime\":" + String(baselineStats.elapsedTime) + ",";
+      json += "\"totalDuration\":" + String(baselineStats.totalDuration);
       json += "}";
       
       req->send(200, "application/json", json);

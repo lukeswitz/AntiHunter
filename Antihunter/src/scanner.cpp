@@ -19,18 +19,11 @@ extern "C"
 #include "esp_coexist.h"
 }
 
-// Struct definition for Target
-struct Target {
-    uint8_t bytes[6];
-    uint8_t len;
-};
-
 // AP handlers
 void radioStartSTA();
 void radioStopSTA();
 
 // Scanner state variables
-
 static std::vector<Target> targets;
 QueueHandle_t macQueue = nullptr;
 std::set<String> uniqueMacs;
@@ -57,6 +50,7 @@ volatile uint32_t framesSeen = 0;
 volatile uint32_t bleFramesSeen = 0;
 
 // Baseline Detection System Variables
+BaselineStats baselineStats;  
 bool baselineDetectionEnabled = false;
 bool baselineEstablished = false;
 uint32_t baselineStartTime = 0;
@@ -2765,6 +2759,24 @@ String getBaselineResults() {
     return results;
 }
 
+void updateBaselineStats() {
+    baselineStats.wifiDevices = 0;
+    baselineStats.bleDevices = 0;
+    
+    for (const auto& device : baselineDevices) {
+        if (device.second.isBLE) {
+            baselineStats.bleDevices++;
+        } else {
+            baselineStats.wifiDevices++;
+        }
+    }
+    
+    baselineStats.totalDevices = baselineDeviceCount;
+    baselineStats.wifiHits = framesSeen;
+    baselineStats.bleHits = bleFramesSeen;
+}
+
+
 void baselineDetectionTask(void *pv) {
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
@@ -2776,7 +2788,7 @@ void baselineDetectionTask(void *pv) {
     baselineDetectionEnabled = true;
     baselineEstablished = false;
     baselineStartTime = millis();
-    currentScanMode = SCAN_BOTH;  // Enable both WiFi and BLE
+    currentScanMode = SCAN_BOTH;
     
     resetBaselineDetection();
     
@@ -2790,10 +2802,17 @@ void baselineDetectionTask(void *pv) {
     bleFramesSeen = 0;
     scanning = true;
     
+    // Initialize baseline stats
+    baselineStats = BaselineStats();
+    baselineStats.isScanning = true;
+    baselineStats.phase1Complete = false;
+    baselineStats.totalDuration = baselineDuration;
+    
     radioStartSTA();
     
     uint32_t phaseStart = millis();
     uint32_t nextStatus = millis() + 5000;
+    uint32_t nextStatsUpdate = millis() + 1000;  // Update stats every second
     uint32_t lastCleanup = millis();
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
@@ -2804,6 +2823,13 @@ void baselineDetectionTask(void *pv) {
     
     // Phase 1: Establish baseline
     while (millis() - phaseStart < baselineDuration && !stopRequested) {
+        baselineStats.elapsedTime = millis() - phaseStart;
+        
+        if ((int32_t)(millis() - nextStatsUpdate) >= 0) {
+            updateBaselineStats();
+            nextStatsUpdate += 1000;
+        }
+        
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Establishing... Devices:%d WiFi:%u BLE:%u Heap:%u\n",
                          baselineDeviceCount, framesSeen, bleFramesSeen, ESP.getFreeHeap());
@@ -2835,7 +2861,7 @@ void baselineDetectionTask(void *pv) {
                     if (macQueue) {
                         xQueueSend(macQueue, &wh, 0);
                     }
-                    framesSeen++;
+                    framesSeen = framesSeen + 1;
                 }
             }
             WiFi.scanDelete();
@@ -2866,7 +2892,7 @@ void baselineDetectionTask(void *pv) {
                     if (macQueue) {
                         xQueueSend(macQueue, &bh, 0);
                     }
-                    bleFramesSeen++;
+                    bleFramesSeen = bleFramesSeen + 1;
                 }
             }
             pBLEScan->clearResults();
@@ -2886,18 +2912,29 @@ void baselineDetectionTask(void *pv) {
     }
     
     baselineEstablished = true;
+    baselineStats.phase1Complete = true;
+    updateBaselineStats();
+    
     Serial.printf("[BASELINE] Baseline established with %d devices\n", baselineDeviceCount);
     Serial.printf("[BASELINE] Phase 2: Monitoring for anomalies (threshold: %d dBm)\n", baselineRssiThreshold);
     
     // Phase 2: Anomaly Detection
     uint32_t monitorStart = millis();
     nextStatus = millis() + 5000;
+    nextStatsUpdate = millis() + 1000;
     lastCleanup = millis();
     lastWiFiScan = 0;
     lastBLEScan = 0;
     
     while ((forever && !stopRequested) || 
            (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
+        
+        baselineStats.elapsedTime = (millis() - phaseStart);
+        
+        if ((int32_t)(millis() - nextStatsUpdate) >= 0) {
+            updateBaselineStats();
+            nextStatsUpdate += 1000;
+        }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Monitoring... Baseline:%d Anomalies:%d Heap:%u\n",
@@ -2965,7 +3002,7 @@ void baselineDetectionTask(void *pv) {
             pBLEScan->clearResults();
         }
         
-        // Process queue
+        // Process queue for anomaly detection
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
             checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
@@ -2978,21 +3015,22 @@ void baselineDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
-    baselineDetectionEnabled = false;
-    scanning = false;
+    baselineStats.isScanning = false;
+    updateBaselineStats();
+    
+    uint32_t finalHeap = ESP.getFreeHeap();
+    Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%u bytes\n",
+                 baselineDeviceCount, anomalyCount, finalHeap);
+    
     radioStopSTA();
     
-    cleanupBaselineMemory();
-    
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        String results = getBaselineResults();
-        antihunter::lastResults = std::string(results.c_str());
-    }
-    
+    Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%u bytes\n",
+                 baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
     Serial.printf("[BASELINE] Detection complete. Baseline:%d Anomalies:%d Final heap:%u\n",
                  baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
     
+    scanning = false;
+    baselineDetectionEnabled = false;
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

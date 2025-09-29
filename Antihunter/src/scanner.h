@@ -58,6 +58,24 @@ extern uint32_t baselineDeviceCount;
 extern QueueHandle_t anomalyQueue;
 extern int8_t baselineRssiThreshold;
 
+
+struct Target {
+    uint8_t bytes[6];
+    uint8_t len;
+};
+
+struct BaselineStats {
+    uint32_t wifiDevices;
+    uint32_t bleDevices;
+    uint32_t totalDevices;
+    uint32_t wifiHits;
+    uint32_t bleHits;
+    bool isScanning;
+    bool phase1Complete;
+    uint32_t elapsedTime;
+    uint32_t totalDuration;
+};
+
 struct DeauthHit {
    uint8_t srcMac[6];
    uint8_t destMac[6];
@@ -311,6 +329,7 @@ extern QueueHandle_t macQueue;
 
 static int blueTeamDuration = 300;
 static bool blueTeamForever = false;
+extern BaselineStats baselineStats;  
 
 void snifferScanTask(void *pv);
 void initializeScanner();
