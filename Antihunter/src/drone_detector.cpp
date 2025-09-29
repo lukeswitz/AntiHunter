@@ -216,8 +216,31 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     
     if (validDrone) {
         String macStr = macFmt6(drone.mac);
-        detectedDrones[macStr] = drone;
-        droneDetectionCount = droneDetectionCount + 1;
+        String uavIdStr = String(drone.uavId);
+        
+        // Deduplicate by UAV ID, not MAC
+        bool foundExisting = false;
+        for (auto& entry : detectedDrones) {
+            if (String(entry.second.uavId) == uavIdStr && uavIdStr.length() > 0) {
+                entry.second.rssi = drone.rssi;
+                entry.second.lastSeen = millis();
+                memcpy(entry.second.mac, drone.mac, 6);
+                
+                if (drone.latitude != 0) entry.second.latitude = drone.latitude;
+                if (drone.longitude != 0) entry.second.longitude = drone.longitude;
+                if (drone.altitudeMsl != 0) entry.second.altitudeMsl = drone.altitudeMsl;
+                if (drone.operatorLat != 0) entry.second.operatorLat = drone.operatorLat;
+                if (drone.operatorLon != 0) entry.second.operatorLon = drone.operatorLon;
+                
+                foundExisting = true;
+                break;
+            }
+        }
+        
+        if (!foundExisting) {
+            detectedDrones[macStr] = drone;
+            droneDetectionCount = droneDetectionCount + 1;
+        }
         
         if (millis() - lastDroneLog >= DRONE_LOG_INTERVAL) {
             lastDroneLog = millis();
@@ -226,7 +249,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             doc["timestamp"] = drone.timestamp;
             doc["mac"] = macStr;
             doc["rssi"] = drone.rssi;
-            doc["uav_id"] = String(drone.uavId);
+            doc["uav_id"] = uavIdStr;
             doc["type"] = drone.uaType;
             
             if (drone.latitude != 0 || drone.longitude != 0) {
@@ -251,11 +274,9 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             
             logToSD("DRONE: " + jsonStr);
             
-            String meshMsg = getNodeId() + ": DRONE: " + macStr + 
-                           " ID:" + String(drone.uavId);
+            String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + uavIdStr;
             if (drone.latitude != 0) {
-                meshMsg += " GPS:" + String(drone.latitude, 6) + "," + 
-                          String(drone.longitude, 6);
+                meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
             }
             if (Serial1.availableForWrite() >= meshMsg.length()) {
                 Serial1.println(meshMsg);
