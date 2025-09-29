@@ -3,7 +3,7 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
-<img width="600" height="260" alt="antilogo" src="https://github.com/user-attachments/assets/89a970a4-3f95-4b3d-8788-0d09ff33110d" />
+<img width="90%" height="90%" src="https://github.com/user-attachments/assets/89a970a4-3f95-4b3d-8788-0d09ff33110d"/>
 
 ## Table of Contents
 
@@ -312,6 +312,7 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 
 #### **Detection & Analysis**
 - **Device Discovery**: General scanning for all WiFi/BLE devices
+- **Drone WiFi RID**: Detect remote ID compliant drones & pilots
 - **Cache Viewer**: Recent device history and signal patterns
 
 #### **System Diagnostics**
@@ -334,14 +335,6 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 #### **Network Configuration**
 - **Node Identification**: Set unique node ID (1-16 characters)
 - **Mesh Integration**: Enable/disable Meshtastic communications
-- **Test Functions**: Verify mesh connectivity and GPS functionality
-- **RTC Management**: Manual time setting and GPS synchronization
-
-### **Operational Notes**
-- **AP Offline During Scans**: The access point temporarily disconnects during active scanning
-- **Reconnection**: The AP automatically restarts after scan completion
-- **Persistent Storage**: Configuration and logs saved to volatile and SD memory 
-- **Real-time Updates**: Web interface refreshes every 2 seconds
 
 ---
 
@@ -392,7 +385,6 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `CONFIG_CHANNELS` | `list` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@NODE_22 CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
 | `SCAN_START` | `m:s:ch[:F]` | Starts scanning operation | `@NODE_22 SCAN_START:0:60:1,6,11` |
-| `TRACK_START` | `MAC:m:s:ch[:F]` | Starts device tracking | `@NODE_22 TRACK_START:AA:BB:CC:DD:EE:FF:0:0:6` |
 | `TRIANGULATE_START` | `MAC:s` | Initiates triangulation | `@NODE_22 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
 | `STOP` | None | Stops all operations | `@NODE_22 STOP` |
 | `VIBRATION_STATUS` | None | Checks tamper sensor status | `@NODE_22 VIBRATION_STATUS` |
@@ -438,7 +430,6 @@ Configurable parameters:
 | `/save` | POST | Save configuration changes |
 | `/node-id` | POST/GET | Node identifier management |
 | `/scan` | POST | Start scanning operation |
-| `/track` | POST | Start device tracking |
 | `/gps` | GET | Current GPS status and location |
 | `/sd-status` | GET | SD card status and health |
 | `/stop` | GET | Stop all operations |
@@ -461,7 +452,6 @@ Configurable parameters:
 | Alert Type | Format | Example |
 |------------|--------|---------|
 | **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
-| **Tracker Update** | `NODE_ID: Tracking: MAC RSSI:ddBm LastSeen:s Pkts:N` | `NODE_ABC: Tracking: AA:BB:CC:DD:EE:FF RSSI:-62dBm LastSeen:3s Pkts:42` |
 | **Vibration Alert** | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS=lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS=40.7128,-74.0060` |
 | **GPS Status Change** | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
 | **RTC Sync** | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
