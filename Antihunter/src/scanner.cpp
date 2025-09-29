@@ -56,6 +56,18 @@ volatile int totalHits = 0;
 volatile uint32_t framesSeen = 0;
 volatile uint32_t bleFramesSeen = 0;
 
+// Baseline Detection System Variables
+bool baselineDetectionEnabled = false;
+bool baselineEstablished = false;
+uint32_t baselineStartTime = 0;
+uint32_t baselineDuration = 300000;  // 5 minutes default
+std::map<String, BaselineDevice> baselineDevices;
+std::vector<AnomalyHit> anomalyLog;
+uint32_t anomalyCount = 0;  // Not volatile
+uint32_t baselineDeviceCount = 0;  // Not volatile
+QueueHandle_t anomalyQueue = nullptr;
+int8_t baselineRssiThreshold = -60;  // Default -60 dBm
+
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
 volatile uint32_t deauthCount = 0;
@@ -2593,4 +2605,501 @@ void multissidDetectionTask(void *pv) {
     // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
+}
+
+// Baseline Scanner 
+int8_t getBaselineRssiThreshold() {
+    return baselineRssiThreshold;
+}
+
+void setBaselineRssiThreshold(int8_t threshold) {
+    if (threshold >= -100 && threshold <= -30) {
+        baselineRssiThreshold = threshold;
+        prefs.putInt("baselineRSSI", threshold);
+        Serial.printf("[BASELINE] RSSI threshold set to %d dBm\n", threshold);
+    }
+}
+
+void resetBaselineDetection() {
+    baselineDevices.clear();
+    anomalyLog.clear();
+    anomalyCount = 0;
+    baselineDeviceCount = 0;
+    baselineEstablished = false;
+    Serial.println("[BASELINE] Reset complete");
+}
+
+bool isDeviceInBaseline(const uint8_t *mac) {
+    String macStr = macFmt6(mac);
+    return baselineDevices.find(macStr) != baselineDevices.end();
+}
+
+void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
+    String macStr = macFmt6(mac);
+    uint32_t now = millis();
+    
+    if (baselineDevices.find(macStr) == baselineDevices.end()) {
+        // New device in baseline
+        BaselineDevice dev;
+        memcpy(dev.mac, mac, 6);
+        dev.avgRssi = rssi;
+        dev.minRssi = rssi;
+        dev.maxRssi = rssi;
+        dev.firstSeen = now;
+        dev.lastSeen = now;
+        strncpy(dev.name, name, sizeof(dev.name) - 1);
+        dev.name[sizeof(dev.name) - 1] = '\0';
+        dev.isBLE = isBLE;
+        dev.channel = channel;
+        dev.hitCount = 1;
+        
+        baselineDevices[macStr] = dev;
+        baselineDeviceCount = baselineDeviceCount + 1;
+    } else {
+        // Update existing device
+        BaselineDevice &dev = baselineDevices[macStr];
+        dev.avgRssi = (dev.avgRssi * dev.hitCount + rssi) / (dev.hitCount + 1);
+        if (rssi < dev.minRssi) dev.minRssi = rssi;
+        if (rssi > dev.maxRssi) dev.maxRssi = rssi;
+        dev.lastSeen = now;
+        dev.hitCount++;
+        
+        // Update name if it changed
+        if (strlen(name) > 0 && strcmp(name, "Unknown") != 0 && strcmp(name, "WiFi") != 0) {
+            strncpy(dev.name, name, sizeof(dev.name) - 1);
+            dev.name[sizeof(dev.name) - 1] = '\0';
+        }
+    }
+}
+
+void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
+    // Only alert on strong signals at or above threshold
+    if (rssi < baselineRssiThreshold) {
+        return;
+    }
+    
+    String macStr = macFmt6(mac);
+    
+    // Check if device is in baseline
+    if (baselineDevices.find(macStr) == baselineDevices.end()) {
+        // New hit!
+        AnomalyHit hit;
+        memcpy(hit.mac, mac, 6);
+        hit.rssi = rssi;
+        hit.channel = channel;
+        strncpy(hit.name, name, sizeof(hit.name) - 1);
+        hit.name[sizeof(hit.name) - 1] = '\0';
+        hit.isBLE = isBLE;
+        hit.timestamp = millis();
+        hit.reason = "New device (not in baseline)";
+        
+        if (anomalyQueue) {
+            xQueueSend(anomalyQueue, &hit, 0);
+        }
+        anomalyLog.push_back(hit);
+        anomalyCount = anomalyCount + 1;
+        
+        String alert = "[ANOMALY] New device detected: " + macStr;
+        alert += " RSSI:" + String(rssi) + "dBm";
+        alert += " Type:" + String(isBLE ? "BLE" : "WiFi");
+        if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
+            alert += " Name:" + String(name);
+        }
+        if (gpsValid) {
+            alert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+        }
+        
+        Serial.println(alert);
+        logToSD(alert);
+        
+        // Send mesh alert
+        if (meshEnabled) {
+            String meshAlert = getNodeId() + ": ANOMALY: " + String(isBLE ? "BLE" : "WiFi") + 
+                             " " + macStr + " RSSI:" + String(rssi) + "dBm";
+            if (Serial1.availableForWrite() >= meshAlert.length()) {
+                Serial1.println(meshAlert);
+            }
+        }
+    }
+}
+
+String getBaselineResults() {
+    String results = "=== Baseline Detection Results ===\n\n";
+    results += "Status: " + String(baselineEstablished ? "ACTIVE" : "ESTABLISHING") + "\n";
+    results += "RSSI Threshold: " + String(baselineRssiThreshold) + " dBm\n";
+    results += "Baseline Devices: " + String(baselineDeviceCount) + "\n";
+    results += "Anomalies Detected: " + String(anomalyCount) + "\n\n";
+    
+    if (baselineEstablished) {
+        results += "=== Baseline Profile ===\n";
+        for (const auto &entry : baselineDevices) {
+            const BaselineDevice &dev = entry.second;
+            results += String(dev.isBLE ? "BLE  " : "WiFi ") + entry.first;
+            results += " Avg:" + String(dev.avgRssi) + "dBm";
+            results += " Range:[" + String(dev.minRssi) + " to " + String(dev.maxRssi) + "]";
+            results += " Hits:" + String(dev.hitCount);
+            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0) {
+                results += " \"" + String(dev.name) + "\"";
+            }
+            results += "\n";
+        }
+    }
+    
+    if (anomalyCount > 0) {
+        results += "\n=== Recent Anomalies ===\n";
+        int shown = 0;
+        for (auto it = anomalyLog.rbegin(); it != anomalyLog.rend() && shown < 50; ++it, ++shown) {
+            const AnomalyHit &hit = *it;
+            results += String(hit.isBLE ? "BLE  " : "WiFi ") + macFmt6(hit.mac);
+            results += " RSSI:" + String(hit.rssi) + "dBm";
+            if (!hit.isBLE && hit.channel > 0) {
+                results += " CH:" + String(hit.channel);
+            }
+            if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0) {
+                results += " \"" + String(hit.name) + "\"";
+            }
+            results += "\n";
+        }
+    }
+    
+    return results;
+}
+
+void baselineDetectionTask(void *pv) {
+    int duration = (int)(intptr_t)pv;
+    bool forever = (duration <= 0);
+    
+    Serial.printf("[BASELINE] Starting detection - Threshold: %d dBm\n", baselineRssiThreshold);
+    Serial.printf("[BASELINE] Phase 1: Establishing baseline for %d seconds\n", baselineDuration / 1000);
+    
+    stopRequested = false;
+    baselineDetectionEnabled = true;
+    baselineEstablished = false;
+    baselineStartTime = millis();
+    currentScanMode = SCAN_BOTH;  // Enable both WiFi and BLE
+    
+    resetBaselineDetection();
+    
+    if (anomalyQueue) vQueueDelete(anomalyQueue);
+    anomalyQueue = xQueueCreate(256, sizeof(AnomalyHit));
+    
+    if (macQueue) vQueueDelete(macQueue);
+    macQueue = xQueueCreate(512, sizeof(Hit));
+    
+    framesSeen = 0;
+    bleFramesSeen = 0;
+    scanning = true;
+    
+    radioStartSTA();
+    
+    uint32_t phaseStart = millis();
+    uint32_t nextStatus = millis() + 5000;
+    uint32_t lastCleanup = millis();
+    uint32_t lastWiFiScan = 0;
+    uint32_t lastBLEScan = 0;
+    const uint32_t WIFI_SCAN_INTERVAL = 3000;
+    const uint32_t BLE_SCAN_INTERVAL = 5000;
+    
+    Hit h;
+    
+    // Phase 1: Establish baseline
+    while (millis() - phaseStart < baselineDuration && !stopRequested) {
+        if ((int32_t)(millis() - nextStatus) >= 0) {
+            Serial.printf("[BASELINE] Establishing... Devices:%d WiFi:%u BLE:%u Heap:%u\n",
+                         baselineDeviceCount, framesSeen, bleFramesSeen, ESP.getFreeHeap());
+            nextStatus += 5000;
+        }
+        
+        // WiFi scanning
+        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
+            lastWiFiScan = millis();
+            int networksFound = WiFi.scanNetworks(false, false, false, 120);
+            
+            if (networksFound > 0) {
+                for (int i = 0; i < networksFound; i++) {
+                    uint8_t *bssidBytes = WiFi.BSSID(i);
+                    String ssid = WiFi.SSID(i);
+                    int32_t rssi = WiFi.RSSI(i);
+                    uint8_t channel = WiFi.channel(i);
+                    
+                    if (ssid.length() == 0) ssid = "[Hidden]";
+                    
+                    Hit wh;
+                    memcpy(wh.mac, bssidBytes, 6);
+                    wh.rssi = rssi;
+                    wh.ch = channel;
+                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+                    wh.name[sizeof(wh.name) - 1] = '\0';
+                    wh.isBLE = false;
+                    
+                    if (macQueue) {
+                        xQueueSend(macQueue, &wh, 0);
+                    }
+                    framesSeen++;
+                }
+            }
+            WiFi.scanDelete();
+        }
+        
+        // BLE scanning
+        if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+            lastBLEScan = millis();
+            
+            BLEScanResults scanResults = pBLEScan->start(1, false);
+            
+            for (int i = 0; i < scanResults.getCount(); i++) {
+                BLEAdvertisedDevice device = scanResults.getDevice(i);
+                String macStr = device.getAddress().toString().c_str();
+                String name = device.haveName() ? String(device.getName().c_str()) : "Unknown";
+                int8_t rssi = device.getRSSI();
+                
+                uint8_t mac[6];
+                if (parseMac6(macStr, mac)) {
+                    Hit bh;
+                    memcpy(bh.mac, mac, 6);
+                    bh.rssi = rssi;
+                    bh.ch = 0;
+                    strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
+                    bh.name[sizeof(bh.name) - 1] = '\0';
+                    bh.isBLE = true;
+                    
+                    if (macQueue) {
+                        xQueueSend(macQueue, &bh, 0);
+                    }
+                    bleFramesSeen++;
+                }
+            }
+            pBLEScan->clearResults();
+        }
+        
+        // Process queue
+        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+            updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+        }
+        
+        if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
+            cleanupBaselineMemory();
+            lastCleanup = millis();
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
+    baselineEstablished = true;
+    Serial.printf("[BASELINE] Baseline established with %d devices\n", baselineDeviceCount);
+    Serial.printf("[BASELINE] Phase 2: Monitoring for anomalies (threshold: %d dBm)\n", baselineRssiThreshold);
+    
+    // Phase 2: Anomaly Detection
+    uint32_t monitorStart = millis();
+    nextStatus = millis() + 5000;
+    lastCleanup = millis();
+    lastWiFiScan = 0;
+    lastBLEScan = 0;
+    
+    while ((forever && !stopRequested) || 
+           (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
+        
+        if ((int32_t)(millis() - nextStatus) >= 0) {
+            Serial.printf("[BASELINE] Monitoring... Baseline:%d Anomalies:%d Heap:%u\n",
+                         baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
+            nextStatus += 5000;
+        }
+        
+        // WiFi scanning
+        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
+            lastWiFiScan = millis();
+            int networksFound = WiFi.scanNetworks(false, false, false, 120);
+            
+            if (networksFound > 0) {
+                for (int i = 0; i < networksFound; i++) {
+                    uint8_t *bssidBytes = WiFi.BSSID(i);
+                    String ssid = WiFi.SSID(i);
+                    int32_t rssi = WiFi.RSSI(i);
+                    uint8_t channel = WiFi.channel(i);
+                    
+                    if (ssid.length() == 0) ssid = "[Hidden]";
+                    
+                    Hit wh;
+                    memcpy(wh.mac, bssidBytes, 6);
+                    wh.rssi = rssi;
+                    wh.ch = channel;
+                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+                    wh.name[sizeof(wh.name) - 1] = '\0';
+                    wh.isBLE = false;
+                    
+                    if (macQueue) {
+                        xQueueSend(macQueue, &wh, 0);
+                    }
+                }
+            }
+            WiFi.scanDelete();
+        }
+        
+        // BLE scanning
+        if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+            lastBLEScan = millis();
+            
+            BLEScanResults scanResults = pBLEScan->start(1, false);
+            
+            for (int i = 0; i < scanResults.getCount(); i++) {
+                BLEAdvertisedDevice device = scanResults.getDevice(i);
+                String macStr = device.getAddress().toString().c_str();
+                String name = device.haveName() ? String(device.getName().c_str()) : "Unknown";
+                int8_t rssi = device.getRSSI();
+                
+                uint8_t mac[6];
+                if (parseMac6(macStr, mac)) {
+                    Hit bh;
+                    memcpy(bh.mac, mac, 6);
+                    bh.rssi = rssi;
+                    bh.ch = 0;
+                    strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
+                    bh.name[sizeof(bh.name) - 1] = '\0';
+                    bh.isBLE = true;
+                    
+                    if (macQueue) {
+                        xQueueSend(macQueue, &bh, 0);
+                    }
+                }
+            }
+            pBLEScan->clearResults();
+        }
+        
+        // Process queue
+        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+            checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+        }
+        
+        if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
+            cleanupBaselineMemory();
+            lastCleanup = millis();
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
+    baselineDetectionEnabled = false;
+    scanning = false;
+    radioStopSTA();
+    
+    cleanupBaselineMemory();
+    
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        String results = getBaselineResults();
+        antihunter::lastResults = std::string(results.c_str());
+    }
+    
+    Serial.printf("[BASELINE] Detection complete. Baseline:%d Anomalies:%d Final heap:%u\n",
+                 baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
+    
+    workerTaskHandle = nullptr;
+    vTaskDelete(nullptr);
+}
+
+void cleanupBaselineMemory() {
+    uint32_t now = millis();
+    
+    if (baselineEstablished) {
+        std::vector<String> toRemove;
+        for (const auto& entry : baselineDevices) {
+            if (now - entry.second.lastSeen > BASELINE_DEVICE_TIMEOUT) {
+                toRemove.push_back(entry.first);
+            }
+        }
+        
+        for (const auto& key : toRemove) {
+            baselineDevices.erase(key);
+            baselineDeviceCount = baselineDeviceCount - 1;
+        }
+        
+        if (!toRemove.empty()) {
+            Serial.printf("[BASELINE] Removed %d stale devices from baseline\n", toRemove.size());
+        }
+    }
+    
+    // 2. Enforce maximum baseline device limit using LRU eviction
+    if (baselineDevices.size() > BASELINE_MAX_DEVICES) {
+        Serial.printf("[BASELINE] Device limit exceeded (%d/%d), evicting oldest\n", 
+                     baselineDevices.size(), BASELINE_MAX_DEVICES);
+        
+        std::vector<std::pair<String, uint32_t>> deviceTimes;
+        for (const auto& entry : baselineDevices) {
+            deviceTimes.push_back({entry.first, entry.second.lastSeen});
+        }
+        
+        std::sort(deviceTimes.begin(), deviceTimes.end(),
+                 [](const auto& a, const auto& b) { return a.second < b.second; });
+        
+        size_t toRemoveCount = baselineDevices.size() - BASELINE_MAX_DEVICES;
+        for (size_t i = 0; i < toRemoveCount && i < deviceTimes.size(); i++) {
+            baselineDevices.erase(deviceTimes[i].first);
+            baselineDeviceCount = baselineDeviceCount - 1;
+        }
+        
+        Serial.printf("[BASELINE] Evicted %d oldest devices (LRU)\n", toRemoveCount);
+    }
+    
+    // 3. Trim anomaly log
+    if (anomalyLog.size() > BASELINE_MAX_ANOMALIES) {
+        size_t toErase = anomalyLog.size() - BASELINE_MAX_ANOMALIES;
+        anomalyLog.erase(anomalyLog.begin(), anomalyLog.begin() + toErase);
+        Serial.printf("[BASELINE] Trimmed anomaly log: removed %d oldest entries\n", toErase);
+    }
+    
+    if (anomalyQueue) {
+        UBaseType_t queueLength = uxQueueMessagesWaiting(anomalyQueue);
+        if (queueLength > 200) {
+            AnomalyHit dummy;
+            while (xQueueReceive(anomalyQueue, &dummy, 0) == pdTRUE) {
+                // Drain excess items
+            }
+            Serial.printf("[BASELINE] Drained anomaly queue: %d items\n", queueLength);
+        }
+    }
+    
+    // 5. Emergency memory protection
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < 30000) {
+        Serial.printf("[BASELINE] LOW MEMORY WARNING: %d bytes free\n", freeHeap);
+        
+        if (baselineDevices.size() > 50) {
+            std::vector<std::pair<String, uint32_t>> deviceTimes;
+            for (const auto& entry : baselineDevices) {
+                deviceTimes.push_back({entry.first, entry.second.lastSeen});
+            }
+            
+            std::sort(deviceTimes.begin(), deviceTimes.end(),
+                     [](const auto& a, const auto& b) { return a.second > b.second; });
+            
+            std::set<String> toKeep;
+            for (size_t i = 0; i < 50 && i < deviceTimes.size(); i++) {
+                toKeep.insert(deviceTimes[i].first);
+            }
+            
+            std::vector<String> toRemove;
+            for (const auto& entry : baselineDevices) {
+                if (toKeep.find(entry.first) == toKeep.end()) {
+                    toRemove.push_back(entry.first);
+                }
+            }
+            
+            for (const auto& key : toRemove) {
+                baselineDevices.erase(key);
+                baselineDeviceCount = baselineDeviceCount - 1;
+            }
+            
+            Serial.printf("[BASELINE] EMERGENCY: Kept only 50 most recent devices\n");
+        }
+        
+        if (anomalyLog.size() > 50) {
+            anomalyLog.erase(anomalyLog.begin(), anomalyLog.begin() + (anomalyLog.size() - 50));
+            Serial.printf("[BASELINE] EMERGENCY: Trimmed anomaly log to 50 entries\n");
+        }
+        
+        Serial.printf("[BASELINE] After cleanup: %d bytes free\n", ESP.getFreeHeap());
+    }
+    
+    Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%d bytes\n",
+                 baselineDeviceCount, anomalyLog.size(), ESP.getFreeHeap());
 }
