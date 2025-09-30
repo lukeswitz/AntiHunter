@@ -1,0 +1,21 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community Discussions
+    url: https://github.com/lukeswitz/AntiHunter/discussions
+    about: Ask questions, share ideas, and discuss with the community
+  
+  - name: Documentation
+    url: https://github.com/lukeswitz/AntiHunter/wiki
+    about: Read the project documentation and guides
+  
+  - name: Security Vulnerability
+    url: https://github.com/lukeswitz/AntiHunter/security/advisories/new
+    about: Report security vulnerabilities privately (do not create public issues)
+  
+  - name: Feature Ideas
+    url: https://github.com/lukeswitz/AntiHunter/discussions/categories/ideas
+    about: Share feature ideas and vote on existing proposals
+  
+  - name: Hardware Compatibility
+    url: https://github.com/lukeswitz/AntiHunter/discussions/categories/hardware
+    about: Discuss hardware compatibility, configurations, and modifications

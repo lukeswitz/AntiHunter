@@ -1,0 +1,165 @@
+name: Issue Report
+description: Report a bug, security issue, or request a feature
+title: "[TYPE] Brief description"
+labels: ["needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue with AntiHunter.
+        
+        Before submitting, please search existing issues to avoid duplicates.
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      description: What type of issue are you reporting?
+      options:
+        - Bug Report
+        - Feature Request
+        - Security Vulnerability
+        - Documentation Issue
+        - Performance Issue
+        - Hardware Compatibility
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the issue or feature request.
+      placeholder: Describe what you're experiencing or requesting...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Hardware Platform
+      description: Which board are you using?
+      options:
+        - PCB v1
+        - Other (specify in description)
+    validations:
+      required: false
+
+  - type: input
+    id: firmware-version
+    attributes:
+      label: Firmware Version
+      description: Found in Settings tab or serial output
+      placeholder: "e.g., 0.1.0-pre-release"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: peripherals
+    attributes:
+      label: Peripherals Connected
+      description: Select all that apply
+      options:
+        - label: SD Card Module
+        - label: GPS Module (NEO-6M or similar)
+        - label: Vibration Sensor
+        - label: RTC Module
+        - label: External Antenna
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: For bugs, provide detailed steps to reproduce the issue
+      placeholder: |
+        1. Configure device with...
+        2. Navigate to...
+        3. Click on...
+        4. Observe error...
+      render: markdown
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe the expected outcome...
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Describe what actually occurred...
+    validations:
+      required: false
+
+  - type: textarea
+    id: serial-output
+    attributes:
+      label: Serial Output / Logs
+      description: Paste relevant serial monitor output or log files
+      placeholder: |
+        [SCANNER] Starting WiFi scan...
+        [ERROR] Memory allocation failed...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration
+      description: Relevant configuration settings (if applicable)
+      placeholder: |
+        - Scan mode: WiFi + BLE
+        - Channels: 1,6,11
+        - Baseline enabled: Yes
+        - Mesh networking: No
+      render: markdown
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity / Priority
+      description: How severe is this issue?
+      options:
+        - Critical (device unusable)
+        - High (major feature broken)
+        - Medium (feature partially works)
+        - Low (minor issue or enhancement)
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or references
+      placeholder: |
+        - WiFi environment details
+        - Specific targets being scanned
+        - Related issues or PRs
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for existing issues
+          required: true
+        - label: I have provided enough information to reproduce the issue
+          required: false
+        - label: I have tested on the latest firmware version
+          required: false
