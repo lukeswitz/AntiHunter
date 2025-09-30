@@ -385,128 +385,175 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ## Command Reference
 
-> [!IMPORTANT]
-> Node and command names are case sensitive 
-
 ### **Node Addressing**
 - **Specific Node**: `@NODE_22 COMMAND` - Targets individual node
 - **All Nodes**: `@ALL COMMAND` - Broadcast to entire network
 - **Node ID Format**: Up to 16 alphanumeric characters
 - **Response Format**: All responses prefixed with sending Node ID
 
-### **Core Commands**
+---
 
-## Mesh Commands
+## **Mesh Commands**
 
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
-| `STATUS` | None | Reports current system status | `@NODE_22 STATUS` |
-| `CONFIG_CHANNELS` | `list` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
-| `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@NODE_22 CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
-| `SCAN_START` | `m:s:ch[:F]` | Starts scanning operation | `@NODE_22 SCAN_START:0:60:1,6,11` |
-| `TRIANGULATE_START` | `MAC:s` | Initiates triangulation | `@NODE_22 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
-| `STOP` | None | Stops all operations | `@NODE_22 STOP` |
+| `STATUS` | None | Reports system status (mode, scan state, hits, targets, unique MACs, temperature, uptime, GPS) | `@ALL STATUS` |
+| `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
+| `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
+| `SCAN_START` | `mode:secs:channels[:FOREVER]` | Starts scanning (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
+| `STOP` | None | Stops all operations | `@ALL STOP` |
 | `VIBRATION_STATUS` | None | Checks tamper sensor status | `@NODE_22 VIBRATION_STATUS` |
-| `ERASE_FORCE` | `token` | Forces emergency data erasure | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` |
-| `ERASE_CANCEL` | None | Cancels ongoing erasure | `@NODE_22 ERASE_CANCEL` |
-| `ERASE_STATUS` | None | Checks erasure status | `@NODE_22 ERASE_STATUS` |
+| `TRIANGULATE_START` | `MAC:duration` | Initiates triangulation for target MAC | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
+| `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` |
+| `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
 
-## Specialized Detection Modes
+---
 
-| Command | Parameters | Description | Example |
-|---------|------------|-------------|---------|
-| `DRONE_DETECT` | `detection`, `secs`, `forever` | Detects drones via remote ID | `@ALL DRONE:drone-detection:60` |
-| `DEAUTH_DETECT` | `detection`, `secs`, `forever` | Detects deauthentication attacks | `@ALL DEAUTH:deauth:120` |
-| `BEACON_FLOOD_DETECT` | `detection`, `secs`, `forever` | Detects beacon flooding | `@ALL BEACON:beacon-flood:300` |
-| `KARMA_DETECT` | `detection`, `secs`, `forever` | Karma attack detection | `@ALL KARMA:karma:180` |
-| `PROBE_FLOOD_DETECT` | `detection`, `secs`, `forever` | Probe flood detection | `@ALL PROBE:probe-flood:240` |
-| `BLE_SPAM_DETECT` | `detection`, `secs`, `forever` | BLE advertisement spam detection | `@ALL BLE:ble-spam:180` |
+## **API Endpoints**
 
-## Security Features
-
-### Emergency Data Erasure
-- **ERASE_FORCE**: Requires authentication token to initiate secure erasure
-- **ERASE_CANCEL**: Aborts ongoing erasure sequences
-- **ERASE_STATUS**: Monitors erasure progress and status
-
-### Auto-Erase Configuration
-Configurable parameters:
-- `autoEraseEnabled`: Toggle auto-erasure on/off
-- `autoEraseDelay`: Time before activation (milliseconds)
-- `autoEraseCooldown`: Recovery period after erasure (milliseconds)
-- `vibrationsRequired`: Number of vibrations to trigger
-- `detectionWindow`: Time window for vibration detection
-- `setupDelay`: Activation delay after power-up
-
-## API Endpoints
-
-### Core Functionality
+### **Core Functionality**
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Main web interface |
 | `/export` | GET | Export target MAC list |
 | `/results` | GET | Latest scan/triangulation results |
-| `/save` | POST | Save configuration changes |
-| `/node-id` | POST/GET | Node identifier management |
-| `/scan` | POST | Start scanning operation |
-| `/gps` | GET | Current GPS status and location |
-| `/sd-status` | GET | SD card status and health |
+| `/save` | POST | Save target configuration (param: `list`) |
 | `/stop` | GET | Stop all operations |
-| `/config` | GET/POST | System configuration |
-| `/mesh` | POST | Enable/disable mesh networking |
-| `/mesh-test` | GET | Test mesh connectivity |
+| `/diag` | GET | System diagnostics |
 
-### Detection Endpoints
+### **Node Configuration**
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/drone` | POST | Start drone detection |
-| `/drone-results` | GET | View drone detection results |
-| `/drone-log` | GET | Access drone event logs |
-| `/sniffer` | POST | Start generic sniffer operation |
+| `/node-id` | GET | Get current node ID (JSON) |
+| `/node-id` | POST | Set node ID (param: `id`, 1-16 chars) |
+| `/config` | GET | Get system configuration (JSON) |
+| `/config` | POST | Update configuration (params: `channels`, `targets`) |
+
+### **Scanning Operations**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/scan` | POST | Start scan (params: `mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`) |
+| `/sniffer` | POST | Start detection mode (params: `detection`, `secs`, `forever`) |
 | `/sniffer-cache` | GET | View cached device detections |
+
+### **Drone Detection**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/drone` | POST | Start drone detection (params: `secs`, `forever`) |
+| `/drone-results` | GET | View drone detection results |
+| `/drone-log` | GET | Access drone event logs (JSON) |
+| `/api/drone/status` | GET | Drone detection status (JSON) |
+
+### **Deauth Detection**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/deauth-results` | GET | View deauthentication attack logs |
 
-## Alert Messages
+### **Baseline Detection**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/baseline/status` | GET | Baseline scan status (JSON) |
+| `/api/baseline/stats` | GET | Detailed baseline statistics (JSON) |
+| `/api/baseline/config` | GET | Get baseline configuration (JSON) |
+| `/api/baseline/config` | POST | Update baseline config (params: `rssiThreshold`, `baselineDuration`) |
+| `/api/baseline/reset` | POST | Reset baseline detection |
+| `/baseline-results` | GET | View baseline detection results |
+
+### **GPS & Hardware**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/gps` | GET | Current GPS status and location |
+| `/sd-status` | GET | SD card status and health |
+
+### **Mesh Networking**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/mesh` | POST | Enable/disable mesh (param: `enabled`) |
+| `/mesh-test` | GET | Test mesh connectivity |
+
+### **Security & Erasure**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/erase/status` | GET | Check erasure status |
+| `/api/erase/request` | POST | Request secure erase (params: `confirm="WIPE_ALL_DATA"`, `reason`) |
+| `/api/erase/cancel` | POST | Cancel tamper erase sequence |
+| `/api/secure/status` | GET | Tamper detection status |
+| `/api/secure/abort` | POST | Abort tamper sequence |
+| `/api/secure/destruct` | POST | Execute immediate secure wipe (param: `confirm="WIPE_ALL_DATA"`) |
+| `/api/secure/generate-token` | POST | Generate remote erase token (params: `target`, `confirm="GENERATE_ERASE_TOKEN"`) |
+| `/api/config/autoerase` | GET | Get auto-erase configuration (JSON) |
+| `/api/config/autoerase` | POST | Update auto-erase config (params: `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`) |
+
+---
+
+## **Alert Messages**
 
 | Alert Type | Format | Example |
 |------------|--------|---------|
 | **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
 | **Vibration Alert** | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS=lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS=40.7128,-74.0060` |
-| **GPS Status Change** | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
+| **GPS Status** | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
 | **RTC Sync** | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
 | **Node Heartbeat** | `[NODE_ID] NODE_ID GPS:lat,lon` | `[NODE_ABC] NODE_ABC GPS=40.7128,-74.0060` |
+| **Setup Mode** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
+| **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:MAC` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` |
+| **Erase ACK** | `NODE_ID: ERASE_ACK:STATUS` | `NODE_ABC: ERASE_ACK:COMPLETE` |
 
-## Diagnostics
+---
 
-### System Diagnostics Endpoint
-- `/diag` provides comprehensive system diagnostics including:
-  - Hardware status (temperature, voltage)
-  - Network configuration (AP, mesh)
-  - Scan statistics
-  - Memory usage
-  - Error logs
+## **Parameter Reference**
 
-### **Parameter Reference**
-
-**Scan Parameters:**
+### **Scan Parameters**
 - `mode`: `0` = WiFi Only, `1` = BLE Only, `2` = WiFi+BLE
-- `secs`: Duration in seconds (0 = continuous operation)
-- `forever`: `1` = Run indefinitely
-- `ch`: WiFi channels (`1,6,11` or `1..14`)
+- `secs`: Duration in seconds (0 or omit for continuous, max 86400)
+- `forever`: `1` or present = Run indefinitely
+- `ch`: WiFi channels (CSV: `1,6,11` or range: `1..14`)
+- `triangulate`: `1` = Enable multi-node triangulation
+- `targetMac`: Target device MAC address (format: `AA:BB:CC:DD:EE:FF`)
 
-**Triangulation Parameters:**
-- `triangulate`: `1` = Enable multi-node tracking
-- `targetMac`: Target device MAC address for location tracking
-
-**Detection Modes:**
-- `device-scan`: General WiFi/BLE device discovery
-
-In testing:
+### **Detection Modes** (via `/sniffer` endpoint)
+- `device-scan`: General WiFi/BLE device discovery (default)
 - `deauth`: Deauthentication attack detection
-- `beacon-flood`: Rogue beacon flood monitoring
-- `karma`: Karma attack detection
+- `baseline`: Baseline environment establishment
 - `probe-flood`: Probe request flood detection
-- `ble-spam`: BLE advertisement spam detection
+
+### **Baseline Configuration**
+- `rssiThreshold`: Minimum RSSI for device detection (dBm)
+- `baselineDuration`: Baseline establishment duration (seconds)
+
+### **Auto-Erase Configuration**
+- `enabled`: Enable/disable auto-erase (`true`/`false`)
+- `delay`: Time before erase activation (10000-300000ms)
+- `cooldown`: Recovery period after erase (60000-3600000ms)
+- `vibrationsRequired`: Vibrations needed to trigger (2-10)
+- `detectionWindow`: Time window for vibration detection (5000-120000ms)
+- `setupDelay`: Activation delay after power-up (30000-600000ms)
+
+---
+
+## **Command Examples**
+
+### Basic Operations
+@ALL STATUS
+@NODE_22 STATUS
+@ALL STOP
+@NODE_22 CONFIG_CHANNELS:1,6,11
+@ALL CONFIG_CHANNELS:1..14
+@NODE_22 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33:44:55:66
+
+### Scanning
+@ALL SCAN_START:0:60:1,6,11
+@NODE_22 SCAN_START:2:300:1..14:FOREVER
+@ALL SCAN_START:1:120:1,6,11
+
+### Triangulation
+@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300
+@NODE_22 TRIANGULATE_START:12:34:56:78:9A:BC:600
+
+### Security
+@NODE_22 VIBRATION_STATUS
+@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234
+@ALL ERASE_CANCEL
 
 ## Credits
 
