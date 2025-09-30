@@ -1,0 +1,32 @@
+# AntiHunter ShellCheck Configuration
+# Static analysis configuration for shell scripts
+
+# Disable specific warnings that are acceptable for this project
+disable=SC2034  # Variable appears unused (common in build scripts)
+disable=SC2086  # Double quote to prevent globbing (intentional in some cases)
+disable=SC1091  # File not found when sourcing (may be generated)
+
+# Enable all optional checks
+enable=all
+
+# Specify shell dialect
+shell=bash
+
+# Source path for libraries and includes
+source-path=SCRIPTDIR
+
+# External sources to check
+external-sources=true
+
+# Check sourced files
+check-sourced=true
+
+# Exclude specific directories
+exclude-dir=.git
+exclude-dir=.pio
+exclude-dir=.vscode
+exclude-dir=lib
+exclude-dir=include
+
+# Severity level: error, warning, info, style
+severity=style
