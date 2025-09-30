@@ -294,6 +294,7 @@ PlatformIO will automatically detect the `platformio.ini` configuration file and
 3. **Build & Upload**: Click the "Upload" button (→) in the PlatformIO status bar
 4. **Monitor Output**: Use the Serial Monitor to verify successful boot
 
+---
 
 ## Web Interface
 
@@ -351,7 +352,7 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 - WiFi access point configuration
 - Channel usage and scanning parameters
 
-#### **Network Configuration**
+#### **Configuration**
 - **Node Identification**: Set unique node ID (1-16 characters)
 - **Mesh Integration**: Enable/disable Meshtastic communications
 
@@ -373,7 +374,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Protocol**: Standard Meshtastic serial interface
 - **Configuration**: Set the device to the following under Serial Settings
 
-![image](https://github.com/user-attachments/assets/76a74acc-b14b-433a-86ea-b817ccec0343)
+<img width="69%" src="https://github.com/user-attachments/assets/76a74acc-b14b-433a-86ea-b817ccec0343">
 
 
 ### **Network Behavior**
@@ -392,6 +393,35 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Response Format**: All responses prefixed with sending Node ID
 
 ---
+## **Parameter Reference**
+
+### **Scan Parameters**
+- `mode`: `0` = WiFi Only, `1` = BLE Only, `2` = WiFi+BLE
+- `secs`: Duration in seconds (0 or omit for continuous, max 86400)
+- `forever`: `1` or present = Run indefinitely
+- `ch`: WiFi channels (CSV: `1,6,11` or range: `1..14`)
+- `triangulate`: `1` = Enable multi-node triangulation
+- `targetMac`: Target device MAC address (format: `AA:BB:CC:DD:EE:FF`)
+
+### **Detection Modes** (via `/sniffer` endpoint)
+- `device-scan`: General WiFi/BLE device discovery (default)
+- `deauth`: Deauthentication attack detection
+- `baseline`: Baseline environment establishment
+- `probe-flood`: Probe request flood detection
+
+### **Baseline Configuration**
+- `rssiThreshold`: Minimum RSSI for device detection (dBm)
+- `baselineDuration`: Baseline establishment duration (seconds)
+
+### **Auto-Erase Configuration**
+- `enabled`: Enable/disable auto-erase (`true`/`false`)
+- `delay`: Time before erase activation (10000-300000ms)
+- `cooldown`: Recovery period after erase (60000-3600000ms)
+- `vibrationsRequired`: Vibrations needed to trigger (2-10)
+- `detectionWindow`: Time window for vibration detection (5000-120000ms)
+- `setupDelay`: Activation delay after power-up (30000-600000ms)
+
+---
 
 ## **Mesh Commands**
 
@@ -406,6 +436,55 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `TRIANGULATE_START` | `MAC:duration` | Initiates triangulation for target MAC | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
 | `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
+
+---
+
+### **Mesh Alert Messages**
+
+| Alert Type | Format | Example |
+|------------|--------|---------|
+| **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
+| **Vibration Alert** | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS=lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS=40.7128,-74.0060` |
+| **GPS Status** | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
+| **RTC Sync** | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
+| **Node Heartbeat** | `[NODE_ID] NODE_ID GPS:lat,lon` | `[NODE_ABC] NODE_ABC GPS=40.7128,-74.0060` |
+| **Setup Mode** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
+| **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:MAC` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` |
+| **Erase ACK** | `NODE_ID: ERASE_ACK:STATUS` | `NODE_ABC: ERASE_ACK:COMPLETE` |
+
+---
+
+### **Command Workflow Example**
+
+#### Basic Operations
+```
+@ALL STATUS
+@NODE_22 STATUS
+@ALL STOP
+@NODE_22 CONFIG_CHANNELS:1,6,11
+@ALL CONFIG_CHANNELS:1..14
+@NODE_22 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33:44:55:66
+```
+
+#### Scanning
+```
+@ALL SCAN_START:0:60:1,6,11
+@NODE_22 SCAN_START:2:300:1..14:FOREVER
+@ALL SCAN_START:1:120:1,6,11
+```
+
+#### Triangulation
+```
+@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300
+@NODE_22 TRIANGULATE_START:12:34:56:78:9A:BC:600
+```
+
+#### Security
+```
+@NODE_22 VIBRATION_STATUS
+@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234
+@ALL ERASE_CANCEL
+```
 
 ---
 
@@ -483,77 +562,6 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `/api/secure/generate-token` | POST | Generate remote erase token (params: `target`, `confirm="GENERATE_ERASE_TOKEN"`) |
 | `/api/config/autoerase` | GET | Get auto-erase configuration (JSON) |
 | `/api/config/autoerase` | POST | Update auto-erase config (params: `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`) |
-
----
-
-## **Alert Messages**
-
-| Alert Type | Format | Example |
-|------------|--------|---------|
-| **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
-| **Vibration Alert** | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS=lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS=40.7128,-74.0060` |
-| **GPS Status** | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
-| **RTC Sync** | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
-| **Node Heartbeat** | `[NODE_ID] NODE_ID GPS:lat,lon` | `[NODE_ABC] NODE_ABC GPS=40.7128,-74.0060` |
-| **Setup Mode** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
-| **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:MAC` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` |
-| **Erase ACK** | `NODE_ID: ERASE_ACK:STATUS` | `NODE_ABC: ERASE_ACK:COMPLETE` |
-
----
-
-## **Parameter Reference**
-
-### **Scan Parameters**
-- `mode`: `0` = WiFi Only, `1` = BLE Only, `2` = WiFi+BLE
-- `secs`: Duration in seconds (0 or omit for continuous, max 86400)
-- `forever`: `1` or present = Run indefinitely
-- `ch`: WiFi channels (CSV: `1,6,11` or range: `1..14`)
-- `triangulate`: `1` = Enable multi-node triangulation
-- `targetMac`: Target device MAC address (format: `AA:BB:CC:DD:EE:FF`)
-
-### **Detection Modes** (via `/sniffer` endpoint)
-- `device-scan`: General WiFi/BLE device discovery (default)
-- `deauth`: Deauthentication attack detection
-- `baseline`: Baseline environment establishment
-- `probe-flood`: Probe request flood detection
-
-### **Baseline Configuration**
-- `rssiThreshold`: Minimum RSSI for device detection (dBm)
-- `baselineDuration`: Baseline establishment duration (seconds)
-
-### **Auto-Erase Configuration**
-- `enabled`: Enable/disable auto-erase (`true`/`false`)
-- `delay`: Time before erase activation (10000-300000ms)
-- `cooldown`: Recovery period after erase (60000-3600000ms)
-- `vibrationsRequired`: Vibrations needed to trigger (2-10)
-- `detectionWindow`: Time window for vibration detection (5000-120000ms)
-- `setupDelay`: Activation delay after power-up (30000-600000ms)
-
----
-
-## **Command Examples**
-
-### Basic Operations
-@ALL STATUS
-@NODE_22 STATUS
-@ALL STOP
-@NODE_22 CONFIG_CHANNELS:1,6,11
-@ALL CONFIG_CHANNELS:1..14
-@NODE_22 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33:44:55:66
-
-### Scanning
-@ALL SCAN_START:0:60:1,6,11
-@NODE_22 SCAN_START:2:300:1..14:FOREVER
-@ALL SCAN_START:1:120:1,6,11
-
-### Triangulation
-@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300
-@NODE_22 TRIANGULATE_START:12:34:56:78:9A:BC:600
-
-### Security
-@NODE_22 VIBRATION_STATUS
-@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234
-@ALL ERASE_CANCEL
 
 ## Credits
 
