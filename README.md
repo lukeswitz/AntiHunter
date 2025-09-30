@@ -79,7 +79,7 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
 - Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
 - Detects French drone ID format (OUI 0x6a5c35)
-- Extracts UAV ID, pilot location, flight telemetry, and operator information
+- Extracts UAV ID, pilot location, and flight telemetry data
 - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
 
 **Coming: Threat Detection Capabilities:**
@@ -115,11 +115,11 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - **Interface**: SPI (CS=GPIO2, SCK=GPIO7, MISO=GPIO8, MOSI=GPIO9)
 - **Storage**: Logs to `/antihunter.log` with timestamps, detection types, and metadata
 - **Format**: Structured entries including MAC addresses, RSSI, GPS data, and timestamps
-- **Diagnostics**: Web interface shows storage status and usage statistics
+- **Diagnostics**: Web interface shows storage status and usage stats
 
 #### **Vibration/Tamper Detection**
 - **Sensor**: SW-420 vibration sensor connected to GPIO1
-- **Detection**: Interrupt-driven monitoring with 5-second rate limiting
+- **Detection**: Interrupt-driven monitoring with 3-second rate limiting
 - **Alerts**: Mesh network notifications with GPS coordinates and timestamps
 - **Format**: `NODE_ABC: VIBRATION: Movement detected at HH:MM:SS GPS:lat,lon`
 - **Status**: Real-time sensor state displayed in diagnostics panel
@@ -134,7 +134,7 @@ Comprehensive wireless environment analysis combining general device discovery, 
 
 ## Secure Data Destruction
 
-AntiHunter includes tamper detection and emergency data wiping capabilities to protect surveillance data from unauthorized access.
+AntiHunter includes tamper detection and emergency data wiping capabilities to protect data from unauthorized access.
 
 ### Features
 - **Auto-erase on tampering**: Configurable vibration detection triggers automatic data destruction
@@ -156,8 +156,8 @@ Configure auto-erase settings via the web interface:
 - Auto-erase is **disabled by default** for safety
 - Setup delay prevents accidental triggering during deployment
 - `ERASE_FORCE` requires web-generated authentication tokens that expire in 5 minutes
-- All erase attempts are logged with GPS coordinates and timestamps
-- Secure wipe process overwrites data before deletion
+- Overwrites SD buffer, erases all (including hidden) files and folders
+- Creates a dummy IoT weather device config file for obfuscation 
 
 ### Usage
 1. Enable auto-erase via web interface with appropriate setup delay
@@ -186,7 +186,6 @@ AntiHunter operates as a distributed sensor network where each node functions in
 3. **Data Collection**: Records detection metadata (RSSI, GPS, timestamp, etc.)
 4. **Mesh Coordination**: Broadcasts alerts and status to other nodes and command center
 5. **Central Processing**: Command center aggregates data for advanced analytics and visualization
-6. **Response Actions**: Local and coordinated responses based on threat assessment
 
 ### **Command Center Integration**
 While individual nodes provide standalone capability, the full system power comes from integration with a central command center that:
@@ -331,6 +330,7 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 
 #### **Detection & Analysis**
 - **Device Discovery**: General scanning for all WiFi/BLE devices
+- **Baseline Anomaly Scan**: Be alerted to new/approaching devices
 - **Drone WiFi RID**: Detect remote ID compliant drones & pilots
 - **Cache Viewer**: Recent device history and signal patterns
 
