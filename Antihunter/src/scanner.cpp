@@ -40,8 +40,13 @@ static std::map<String, String> bleDeviceCache;
 static unsigned long lastSnifferScan = 0;
 const unsigned long SNIFFER_SCAN_INTERVAL = 10000;
 
+// BLE 
 NimBLEScan *pBLEScan;
 static void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
+
+// Baseline scan intervals
+const uint32_t WIFI_SCAN_INTERVAL = 4000;
+const uint32_t BLE_SCAN_INTERVAL = 2000;
 
 // Scanner status variables
 volatile bool scanning = false;
@@ -2795,19 +2800,19 @@ void baselineDetectionTask(void *pv) {
     baselineStats.totalDuration = baselineDuration;
     
     radioStartSTA();
-    
+
     uint32_t phaseStart = millis();
     uint32_t nextStatus = millis() + 5000;
-    uint32_t nextStatsUpdate = millis() + 1000;  // Update stats every second
+    uint32_t nextStatsUpdate = millis() + 1000;
     uint32_t lastCleanup = millis();
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
-    const uint32_t WIFI_SCAN_INTERVAL = 4000;   // WiFi every 4s BLE every 2s
-    const uint32_t BLE_SCAN_INTERVAL = 2000;
     
     Hit h;
     
     // Phase 1: Establish baseline
+    Serial.printf("[BASELINE] Phase 1 starting at %u ms, will run until %u ms\n", 
+                  phaseStart, phaseStart + baselineDuration);
     while (millis() - phaseStart < baselineDuration && !stopRequested) {
         baselineStats.elapsedTime = millis() - phaseStart;
         
@@ -2903,36 +2908,46 @@ void baselineDetectionTask(void *pv) {
     
     Serial.printf("[BASELINE] Baseline established with %d devices\n", baselineDeviceCount);
     Serial.printf("[BASELINE] Phase 2: Monitoring for anomalies (threshold: %d dBm)\n", baselineRssiThreshold);
-    
+    if (forever) {
+        Serial.printf("[BASELINE] Phase 2 will run forever until stopped\n");
+    } else {
+        Serial.printf("[BASELINE] Phase 2 will run for %d seconds (%d ms)\n", duration, duration * 1000);
+    }
+
     // Phase 2: Anomaly Detection
     uint32_t monitorStart = millis();
+    phaseStart = millis();
     nextStatus = millis() + 5000;
     nextStatsUpdate = millis() + 1000;
     lastCleanup = millis();
     lastWiFiScan = 0;
     lastBLEScan = 0;
-    
+    uint32_t monitorDurationMs = forever ? UINT32_MAX : ((uint32_t)duration * 1000);
+
+    Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n", 
+                monitorStart, monitorDurationMs);
+        
     while ((forever && !stopRequested) || 
            (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
         
         baselineStats.elapsedTime = (millis() - phaseStart);
-        
+
         if ((int32_t)(millis() - nextStatsUpdate) >= 0) {
             updateBaselineStats();
             nextStatsUpdate += 1000;
         }
-        
+
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Monitoring... Baseline:%d Anomalies:%d Heap:%u\n",
                          baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
             nextStatus += 5000;
         }
-        
+
         // WiFi scanning
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
             int networksFound = WiFi.scanNetworks(false, false, false, 120);
-            
+
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
                     uint8_t *bssidBytes = WiFi.BSSID(i);
@@ -2957,7 +2972,7 @@ void baselineDetectionTask(void *pv) {
             }
             WiFi.scanDelete();
         }
-        
+
         // BLE scanning
         if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
@@ -2992,12 +3007,12 @@ void baselineDetectionTask(void *pv) {
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
             checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
-        
+
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
             lastCleanup = millis();
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     

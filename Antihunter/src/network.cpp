@@ -958,15 +958,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           
           // Show relevant controls
           if (selectedMethod === 'baseline') {
-            baselineControls.style.display = 'block';
-            baselineResultsBtn.style.display = 'inline-block';
-            resetBaselineBtn.style.display = 'inline-block';
-            updateBaselineStatus();
+              baselineControls.style.display = 'block';
+              baselineResultsBtn.style.display = 'inline-block';
+              resetBaselineBtn.style.display = 'inline-block';
+              document.getElementById('detectionDuration').disabled = true;
+              document.getElementById('baselineMonitorDuration').disabled = false;
+              updateBaselineStatus();
           } else if (selectedMethod === 'drone-detection') {
-            standardControls.style.display = 'block';
+              standardControls.style.display = 'block';
+              document.getElementById('detectionDuration').disabled = false;
+              document.getElementById('baselineMonitorDuration').disabled = true;
           } else {
-            standardControls.style.display = 'block';
-            cacheBtn.style.display = 'inline-block';
+              standardControls.style.display = 'block';
+              cacheBtn.style.display = 'inline-block';
+              document.getElementById('detectionDuration').disabled = false;
+              document.getElementById('baselineMonitorDuration').disabled = true;
           }
         });
         document.getElementById('sniffer').addEventListener('submit', e => {
