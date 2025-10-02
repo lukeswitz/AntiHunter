@@ -628,7 +628,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             document.getElementById('scanStatus').classList.remove('active');
           }
           // Mode status
-          const modeMatch = diagText.match(/Scan Mode: (\w+)/);
+          const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
           if (modeMatch) {
             document.getElementById('modeStatus').innerText = modeMatch[1];
           }
@@ -1276,6 +1276,7 @@ void startWebServer()
             secs = v;
         }
         
+        currentScanMode = SCAN_WIFI;  
         stopRequested = false;
         
         req->send(200, "text/plain", forever ? 
@@ -1500,6 +1501,7 @@ void startWebServer()
     }
     
   } else if (detection == "baseline") {
+    currentScanMode = SCAN_BOTH;
     if (secs < 0) secs = 0;
     if (secs > 86400) secs = 86400;
     
@@ -1566,6 +1568,7 @@ else if (detection == "multi-ssid") {
     }
   
   } else if (detection == "device-scan") {
+      currentScanMode = SCAN_BOTH;
       if (secs < 0) secs = 0;
       if (secs > 86400) secs = 86400;
       
