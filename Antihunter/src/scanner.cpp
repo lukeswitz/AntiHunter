@@ -1213,8 +1213,6 @@ void bleScannerTask(void *pv) {
     Serial.printf("[BLE-SEC] Starting BLE attack detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
     
-    // stopAPAndServer();
-    
     bleSpamLog.clear();
     bleAdvCounts.clear();
     bleAdvTimings.clear();
@@ -1232,7 +1230,7 @@ void bleScannerTask(void *pv) {
     NimBLEDevice::init("");
     NimBLEScan* pBLEScan = NimBLEDevice::getScan();
     pBLEScan->setScanCallbacks(new BLEAttackDetector(), true);
-    pBLEScan->setActiveScan(false);
+    pBLEScan->setActiveScan(true);
     pBLEScan->setInterval(50);
     pBLEScan->setWindow(30);
     
@@ -1245,7 +1243,6 @@ void bleScannerTask(void *pv) {
     while ((forever && !stopRequested) || 
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
         
-        // Use getResults for blocking scan instead of start
         NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
         
         while (xQueueReceive(bleSpamQueue, &spamHit, 0) == pdTRUE) {
@@ -1436,7 +1433,7 @@ void snifferScanTask(void *pv)
             if (bleScan)
             {
                 // Use getResults for blocking scan
-                NimBLEScanResults scanResults = bleScan->getResults(1000, false);
+                NimBLEScanResults scanResults = bleScan->getResults(2000, false);
 
                 for (int i = 0; i < scanResults.getCount(); i++)
                 {
@@ -2070,8 +2067,8 @@ static void radioStartBLE()
     pBLEScan = BLEDevice::getScan();
     pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
     pBLEScan->setActiveScan(true);
-    pBLEScan->setInterval(100);    
-    pBLEScan->setWindow(99); 
+    pBLEScan->setInterval(160);    
+    pBLEScan->setWindow(80); 
 }
 
 void radioStopSTA() {
@@ -2613,6 +2610,13 @@ void resetBaselineDetection() {
     anomalyCount = 0;
     baselineDeviceCount = 0;
     baselineEstablished = false;
+    
+    baselineStats.wifiDevices = 0;
+    baselineStats.bleDevices = 0;
+    baselineStats.totalDevices = 0;
+    baselineStats.wifiHits = 0;
+    baselineStats.bleHits = 0;
+    
     Serial.println("[BASELINE] Reset complete");
 }
 
@@ -2862,7 +2866,7 @@ void baselineDetectionTask(void *pv) {
         if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
             
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
@@ -2977,7 +2981,7 @@ void baselineDetectionTask(void *pv) {
         if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
             
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
@@ -3004,7 +3008,7 @@ void baselineDetectionTask(void *pv) {
         }
         
         // Process queue for anomaly detection
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) { 
             checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
 
