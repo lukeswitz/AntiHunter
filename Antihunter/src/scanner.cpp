@@ -1357,8 +1357,8 @@ void snifferScanTask(void *pv)
     int networksFound = 0;
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
-    const unsigned long BLE_SCAN_INTERVAL = 8000;
-    const unsigned long WIFI_SCAN_INTERVAL = 5000;
+    const unsigned long BLE_SCAN_INTERVAL = 4000;
+    const unsigned long WIFI_SCAN_INTERVAL = 2000;
 
     NimBLEScan *bleScan = nullptr;
 
@@ -2790,8 +2790,6 @@ void baselineDetectionTask(void *pv) {
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
     
-    resetBaselineDetection();
-    
     if (anomalyQueue) vQueueDelete(anomalyQueue);
     anomalyQueue = xQueueCreate(256, sizeof(AnomalyHit));
     
@@ -2816,8 +2814,8 @@ void baselineDetectionTask(void *pv) {
     uint32_t lastCleanup = millis();
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
-    const uint32_t WIFI_SCAN_INTERVAL = 3000;
-    const uint32_t BLE_SCAN_INTERVAL = 5000;
+    const uint32_t WIFI_SCAN_INTERVAL = 4000;   // WiFi every 4s BLE every 2s
+    const uint32_t BLE_SCAN_INTERVAL = 2000;
     
     Hit h;
     

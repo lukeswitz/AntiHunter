@@ -112,8 +112,6 @@ String calculateTriangulationResults() {
     return calculateTriangulation();
 }
 
-// AP HTML
-
 void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
@@ -131,89 +129,80 @@ void initializeNetwork()
   startWebServer();
 }
 
+// ======= AP HTML ===========
 static const char INDEX_HTML[] PROGMEM = R"HTML(
-<!doctype html><html><head><meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AntiHunter</title>
-  <style>
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AntiHunter</title>
+   <style>
     :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444}
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .header{padding:16px 14px;border-bottom:1px solid #003b24;background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-    h1{margin:0;font-size:20px;letter-spacing:1px}
-    h3{margin:12px 0 8px;color:var(--fg)}
-    .container{max-width:1400px;margin:0 auto;padding:16px}
-    .card{background:var(--card);border:1px solid #003b24;border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 8px 30px rgba(0,255,127,.05)}
-    label{display:block;margin:6px 0 4px;color:var(--muted);font-size:13px}
-    textarea, input[type=text], input[type=number], select{width:100%;background:#000;border:1px solid #003b24;border-radius:10px;color:var(--fg);padding:10px 12px;outline:none;font-family:inherit;font-size:13px}
-    textarea{min-height:128px;resize:vertical}
-    select{cursor:pointer}
-    select option{background:#000;color:var(--fg)}
-    .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;transition:transform .05s ease, box-shadow .2s;font-size:13px}
-    .btn:hover{box-shadow:0 6px 18px rgba(10,255,157,.15);transform:translateY(-1px)}
-    .btn.primary{background:#002417;border-color:#00cc66}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body,html{height:100%;margin:0}
+    body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.5}
+    .header{padding:14px;border-bottom:1px solid #003b24;background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+    h1{font-size:18px;letter-spacing:1px}
+    h3{margin:0 0 10px;color:var(--fg);font-size:15px}
+    .container{max-width:1400px;margin:0 auto;padding:12px}
+    .card{background:var(--card);border:1px solid #003b24;border-radius:10px;padding:14px;box-shadow:0 4px 20px rgba(0,255,127,.05)}
+    label{display:block;margin:6px 0 4px;color:var(--muted);font-size:12px}
+    input[type=number],input[type=text],select,textarea{width:100%;background:#000;border:1px solid #003b24;border-radius:8px;color:var(--fg);padding:9px;font-family:inherit;font-size:13px}
+    textarea{min-height:80px;resize:vertical}
+    .btn{display:inline-block;padding:9px 13px;border-radius:8px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:12px;transition:all .2s}
+    .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
+    .btn.primary{background:#002417;border-color:#0c6}
     .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
-    .btn.danger{background:#330000;border-color:#ff4444;color:#ff6666}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .small{opacity:.65;font-size:12px} 
-    pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:10px;padding:12px;font-size:12px;line-height:1.4;overflow-x:auto}
-    a{color:var(--accent)} hr{border:0;border-top:1px dashed #003b24;margin:14px 0}
-    .banner{font-size:12px;color:#0aff9d;border:1px dashed #004e2f;padding:8px;border-radius:10px;background:#001108}
-    .grid{display:grid;grid-template-columns:repeat(2, minmax(380px, 1fr));grid-auto-rows:minmax(200px, auto);gap:14px}
-    .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    @media(max-width:900px){.grid-2col{grid-template-columns:1fr}}
-    @media(max-width:900px){.grid{grid-template-columns:1fr}}
-    #toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
-    .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:10px 12px;border-radius:10px;box-shadow:0 8px 30px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s, transform .15s}
+    .btn.danger{background:#300;border-color:#f44;color:#f66}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .small{opacity:.65;font-size:11px}
+    pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:8px;padding:10px;font-size:11px;line-height:1.4;overflow-x:auto;max-height:400px;overflow-y:auto}
+    hr{border:0;border-top:1px dashed #003b24;margin:12px 0}
+    .banner{font-size:11px;color:#0aff9d;border:1px dashed #004e2f;padding:6px 8px;border-radius:8px;background:#001108;margin-bottom:10px}
+    #toast{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:9999}
+    .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:9px 11px;border-radius:8px;box-shadow:0 6px 24px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s;font-size:12px}
     .toast.show{opacity:1;transform:none}
-    .toast .title{color:#0aff9d;font-weight:bold}
-    .footer{opacity:.7;font-size:12px;padding:8px 16px;text-align:center}
-    .logo{width:28px;height:28px}
-    .status-bar, .tab-buttons, .btn { user-select: none; } pre, textarea, input[type="text"] { user-select: text; } ::selection { background-color: rgba(10, 255, 157, 0.3); color: var(--fg); }
-    .status-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto;font-size:12px}
-    .status-item{background:#001a10;border:1px solid #003b24;padding:4px 8px;border-radius:6px;font-size:11px;white-space:nowrap}
-    .status-item.active{border-color:#00cc66;background:#002417}
-    .status-item.error{border-color:#ff4444;background:#330000}
-    .tab-buttons{display:flex;gap:8px;margin-bottom:12px}
-    .tab-btn{padding:8px 16px;background:#001b12;border:1px solid #003b24;border-radius:8px;cursor:pointer;color:var(--muted)}
-    .tab-btn.active{background:#002417;border-color:#00cc66;color:var(--fg)}
+    .toast.success{border-color:#00cc66;background:#002200}
+    .toast.error{border-color:#ff4444;background:#300}
+    .toast.warning{border-color:#ffaa00;background:#332200}
+    .footer{opacity:.7;font-size:11px;padding:8px;text-align:center;margin-top:16px}
+    .logo{width:26px;height:26px}
+    .status-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto;font-size:11px}
+    .status-item{background:#001a10;border:1px solid #003b24;padding:4px 9px;border-radius:6px;font-size:10px;white-space:nowrap}
+    .status-item.active{border-color:#0c6;background:#002417}
+    .tab-buttons{display:flex;gap:6px;margin-bottom:10px}
+    .tab-btn{padding:7px 13px;background:#001b12;border:1px solid #003b24;border-radius:7px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .2s}
+    .tab-btn.active{background:#002417;border-color:#0c6;color:var(--fg)}
     .tab-content{display:none}
     .tab-content.active{display:block}
-    .stat-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;margin:10px 0}
-    .stat-item{background:#001108;border:1px solid #003b24;padding:10px;border-radius:8px}
-    .stat-label{color:var(--muted);font-size:11px;text-transform:uppercase}
-    .stat-value{color:var(--fg);font-size:18px;font-weight:bold}
-    .diag-section{margin:8px 0}
-    .diag-label{color:var(--accent);font-weight:bold}
-    .scan-controls{display:grid;grid-template-columns:2fr 1fr;gap:10px}
-    .modal-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10000}
-    .modal-content{background:var(--card);border:2px solid #ff4444;border-radius:12px;padding:24px;max-width:600px;width:90%;text-align:center;box-shadow:0 0 30px rgba(255,68,68,0.3)}
-    .modal-content h3{color:#ff6666;margin:0 0 20px 0;font-size:18px}
-    .progress-container{margin:20px 0}
-    .progress-bar{width:100%;height:24px;background:#000;border:1px solid #003b24;border-radius:12px;overflow:hidden;margin:15px 0}
-    .progress-fill{height:100%;background:linear-gradient(90deg,#ff4444,#ff6666,#ff4444);background-size:200% 100%;animation:progress-pulse 2s ease-in-out infinite;width:0%;transition:width 0.5s ease;border-radius:12px}
-    @keyframes progress-pulse{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-    #eraseProgressText{font-weight:bold;color:var(--fg);margin:10px 0}
-    .progress-details{max-height:200px;overflow-y:auto;background:#000;border:1px dashed #003b24;border-radius:8px;padding:12px;margin:15px 0;font-size:11px;text-align:left;font-family:monospace;color:var(--muted)}
-    .progress-details div{margin:2px 0;border-bottom:1px dotted #003b24;padding:2px 0}
-    .warning-text{color:#ff6666;font-weight:bold;margin-top:20px;padding:12px;background:rgba(255,68,68,0.1);border-radius:8px;border:1px solid #ff4444;font-size:14px}
-    .toast{display:flex;align-items:flex-start;gap:12px;background:var(--card);border-radius:10px;padding:14px;margin:8px 0;min-width:320px;opacity:0;transform:translateY(8px);transition:all 0.3s ease;box-shadow:0 8px 30px rgba(10,255,157,0.2)}
-    .toast.show{opacity:1;transform:translateY(0)}
-    .toast-success{border-left:4px solid #00cc66;background:linear-gradient(135deg,#001d12,#002417)}
-    .toast-error{border-left:4px solid #ff4444;background:linear-gradient(135deg,#330000,#1a0000)}
-    .toast-warning{border-left:4px solid #ffaa00;background:linear-gradient(135deg,#331a00,#2a1500)}
-    .toast-info{border-left:4px solid #0aff9d;background:linear-gradient(135deg,#001d12,#00140d)}
-    .toast-content{flex:1}
-    .toast-title{font-weight:bold;font-size:12px;margin-bottom:4px;font-family:monospace;opacity:0.8}
-    .toast-message{font-size:13px;color:var(--fg);line-height:1.3}
-    .status-disabled{color:#888;background:rgba(136,136,136,0.1);border:1px solid #444}
-    .status-setup{color:#ffaa00;background:rgba(255,170,0,0.1);border:1px solid #ffaa00}
-    .status-active{color:#00cc66;background:rgba(0,204,102,0.1);border:1px solid #00cc66}
-    .status-danger{color:#ff4444;background:rgba(255,68,68,0.1);border:1px solid #ff4444;animation:pulse-danger 2s infinite}
-    @keyframes pulse-danger{0%,100%{opacity:1}50%{opacity:0.7}}
-    #autoEraseStatus{padding:12px;border-radius:8px;font-weight:bold;text-align:center;margin:10px 0;font-size:13px;font-family:monospace}
-    @media (max-width:600px){.header{padding:12px 10px;gap:8px}h1{font-size:18px}.logo{width:24px;height:24px}.status-bar{width:100%;margin-left:0;margin-top:8px;justify-content:space-between;gap:4px}.status-item{flex:1;min-width:0;text-align:center;padding:4px 6px;font-size:10px;overflow:hidden;text-overflow:ellipsis}.container{padding:12px}.card{padding:12px;margin:12px 0}}
-  </style></head><body>
+    .stat-item{background:#001108;border:1px solid #003b24;padding:10px;border-radius:7px}
+    .stat-label{color:var(--muted);font-size:10px;text-transform:uppercase;margin-bottom:4px}
+    .stat-value{color:var(--fg);font-size:16px;font-weight:700}
+
+    /* RESPONSIVE GRID LAYOUTS */
+    @media (min-width:900px){
+      .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+      .grid-node-diag{display:grid;grid-template-columns:minmax(280px,auto) 1fr;gap:14px}
+      .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    }
+    @media (max-width:899px){
+      .grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:14px}
+      .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+      .container{padding:10px}
+      .card{padding:12px}
+      h1{font-size:16px}
+      .status-bar{width:100%;margin-left:0;margin-top:8px}
+    }
+    @media (max-width:600px){
+      .stat-grid{grid-template-columns:1fr}
+      .status-item{font-size:9px;padding:3px 6px}
+    }
+   </style>
+  </head>
+  <body>
+    <div id="toast"></div>
+    <!-- STATUS BAR - Stop All only shows when scanning -->
     <div class="header">
       <svg class="logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <rect x="6" y="6" width="52" height="52" rx="8" fill="#00180F" stroke="#00ff7f" stroke-width="2"/>
@@ -224,505 +213,364 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <div class="status-bar">
         <div class="status-item" id="modeStatus">WiFi</div>
         <div class="status-item" id="scanStatus">Idle</div>
-        <div class="status-item" id="meshStatus">Mesh</div>
         <div class="status-item" id="gpsStatus">GPS</div>
         <div class="status-item" id="rtcStatus">RTC</div>
+        <a class="btn danger" href="/stop" data-ajax="true" id="stopAllBtn" style="margin-left:auto;padding:6px 12px;font-size:11px;display:none;">STOP ALL</a>
       </div>
     </div>
-    <div id="toast"></div>
     <div class="container">
       
-      <div class="grid">
+      <!-- Top Grid: Target Scan + Detection -->
+      <div class="grid-2" style="margin-bottom:16px;">
+        <!-- Target Scan -->
         <div class="card">
-          <h3>Target Configuration</h3>
-          <div class="banner">Enter full MACs (<code>AA:BB:CC:DD:EE:FF</code>) or OUIs (<code>AA:BB:CC</code>), one per line.</div>
+          <h3>Target Scan</h3>
           <form id="f" method="POST" action="/save">
-            <label for="list">Target MAC Addresses</label>
-            <textarea id="list" name="list" placeholder="AA:BB:CC:DD:EE:FF&#10;DC:A6:32&#10;# Comments allowed"></textarea>
-            <div class="row" style="margin-top:10px">
-              <button class="btn primary" type="submit">Save Targets</button>
-              <a class="btn" href="/export" data-ajax="false">Export List</a>
-              <span class="small" id="targetCount">0 targets</span>
+            <label for="list">Target MAC Addresses & OUIs</label>
+            <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF"" rows="4"></textarea>
+            <div id="targetCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 targets</div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+              <button class="btn primary" type="submit">Save</button>
+              <a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
             </div>
           </form>
-        </div>
-        
-        <div class="card">
-          <h3>Scanning Operations</h3>
+          
           <form id="s" method="POST" action="/scan">
-            <div class="scan-controls">
-              <div>
-                <label>Scan Mode</label>
-                <select name="mode" id="scanMode">
-                  <option value="0">WiFi Only</option>
-                  <option value="1">BLE Only</option>
-                  <option value="2">WiFi + BLE Combined</option>
-                </select>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="font-size:11px;">Mode</label>
+                  <select name="mode">
+                    <option value="0">WiFi</option>
+                    <option value="1">BLE</option>
+                    <option value="2" selected>WiFi+BLE</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11px;">Duration (s)</label>
+                  <input type="number" name="secs" min="0" max="86400" value="60">
+                </div>
               </div>
-              <div>
-                <label>Duration (seconds)</label>
-                <input type="number" name="secs" min="0" max="86400" value="60" id="scanDuration">
+              
+              <label style="font-size:11px;">Channels</label>
+              <input type="text" name="ch" placeholder="1..14" value="1..14" style="margin-bottom:8px;">
+              
+              <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="forever" name="forever" value="1">Forever
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="triangulate">Triangulate
+                </label>
               </div>
-            </div>
-            
-            <div class="row" style="margin:10px 0">
-              <input type="checkbox" id="forever1" name="forever" value="1">
-              <label for="forever1" style="margin:0">Run Forever</label>
-            </div>
-            
-            <label>WiFi Channels</label>
-            <input type="text" name="ch" value="1..14" placeholder="1,6,11 or 1..14">
-            
-            <div class="row" style="margin-top:10px">
-              <input type="checkbox" id="triangulate" name="triangulate" value="1">
-              <label for="triangulate" style="margin:0">Triangulation Mode (Multi-node)</label>
-            </div>
-            
-            <div id="triangulateOptions" style="display:none;margin-top:10px">
-              <label>Target MAC for Triangulation</label>
-              <input type="text" name="targetMac" placeholder="34:21:09:83:D9:51">
-            </div>
-            
-            <div class="row" style="margin-top:12px">
-              <button class="btn primary" type="submit">Start Scan</button>
-              <a class="btn danger" href="/stop" data-ajax="true">Stop All</a>
-            </div>
-          </form>
-        </div>
+              
+              <div id="triangulateOptions" style="display:none;margin-bottom:8px;">
+                <input type="text" name="targetMac" placeholder="Target MAC">
+              </div>
+              
+              <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
+            </form>
+          </div>
         
+        <!-- Detection & Analysis -->
         <div class="card">
           <h3>Detection & Analysis</h3>
           <form id="sniffer" method="POST" action="/sniffer">  
-            <label>Detection Method</label>
+            <label>Method</label>
             <select name="detection" id="detectionMode">
-              <option value="device-scan">Device Discovery (WiFi/BLE)</option>
+              <option value="device-scan">Device Discovery Scan</option>
               <option value="baseline">Baseline Anomaly Detection</option>
-              <option value="drone-detection">Drone Detection (Remote ID)</option>
+              <option value="drone-detection">Drone RID Detection (WiFi)</option>
             </select>
             
-            <div id="standardDurationControls" class="scan-controls" style="margin-top:10px">
-              <div>
-                <label>Duration (seconds)</label>
-                <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
-              </div>
-              <div>
-                <input type="checkbox" id="forever3" name="forever" value="1">
-                <label for="forever3" style="margin:0">Run Forever</label>
+            <div id="standardDurationControls" style="margin-top:10px;">
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+                <div>
+                  <label style="font-size:11px;">Duration (s)</label>
+                  <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
+                  <input type="checkbox" id="forever3" name="forever" value="1">Forever
+                </label>
               </div>
             </div>
             
-            <div id="baselineConfigControls" style="display:none; margin-top:10px">
-              <div class="banner" style="margin-bottom:10px">Configure anomaly detection based on network baseline profiling.</div>
-              
-              <div class="grid-2col">
+            <div id="baselineConfigControls" style="display:none;margin-top:10px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                 <div>
-                  <label>RSSI Alert Threshold (dBm)</label>
-                  <select id="baselineRssiThreshold" name="rssiThreshold" style="margin-bottom:8px">
-                    <option value="-40">-40 dBm (Very Close)</option>
-                    <option value="-50">-50 dBm (Close)</option>
-                    <option value="-60" selected>-60 dBm (Moderate)</option>
-                    <option value="-70">-70 dBm (Distant)</option>
-                    <option value="-80">-80 dBm (Very Distant)</option>
+                  <label style="font-size:11px;">RSSI</label>
+                  <select id="baselineRssiThreshold" name="rssiThreshold">
+                    <option value="-40">-40</option>
+                    <option value="-50">-50</option>
+                    <option value="-60" selected>-60</option>
+                    <option value="-70">-70</option>
+                    <option value="-80">-80</option>
                   </select>
-                  <div class="small">Only devices at or above this signal strength will trigger anomaly alerts</div>
                 </div>
                 <div>
-                  <label>Baseline Duration (seconds)</label>
-                  <select id="baselineDuration" name="baselineDuration" style="margin-bottom:8px">
-                    <option value="60">1 minute</option>
-                    <option value="120">2 minutes</option>
-                    <option value="180">3 minutes</option>
-                    <option value="300" selected>5 minutes</option>
-                    <option value="600">10 minutes</option>
+                  <label style="font-size:11px;">Baseline</label>
+                  <select id="baselineDuration" name="baselineDuration">
+                    <option value="60">1m</option>
+                    <option value="120">2m</option>
+                    <option value="180">3m</option>
+                    <option value="300" selected>5m</option>
+                    <option value="600">10m</option>
                   </select>
-                  <div class="small">Time to establish the baseline before monitoring</div>
                 </div>
               </div>
               
-              <div>
-                <label>Monitoring Duration (seconds)</label>
-                <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-top:8px">
-                <div class="small">Duration to monitor for anomalies after baseline is established (0 = forever)</div>
-              </div>
+              <label style="font-size:11px;">Monitor (s)</label>
+              <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
               
-              <div id="baselineStatus" style="margin-top:12px; padding:12px; background:var(--card); border:1px solid #003b24; border-radius:10px; font-size:12px;">
+              <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:11px;margin-bottom:8px;">
                 <div style="color:#888;">No baseline data</div>
-                <div style="margin-top:8px; font-size:11px; color:var(--muted);">
-                  <span id="baselineDevices">0 devices</span> • 
-                  <span id="baselineAnomalies">0 anomalies</span>
+                <div style="margin-top:4px;font-size:10px;color:var(--muted);">
+                  <span id="baselineDevices">0</span> devices • <span id="baselineAnomalies">0</span> anomalies
                 </div>
               </div>
             </div>
             
-            <div class="row" style="margin-top:12px">
-              <button class="btn primary" type="submit" id="startDetectionBtn">Start Detection</button>
-              <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn">View Cache</a>
-              <a class="btn alt" href="/drone-log" data-ajax="false" style="display:none;" id="droneLogBtn">View Event Log</a>
-              <a class="btn" href="/drone-results" data-ajax="false" style="display:none;" id="droneResultsBtn">View Results</a>
-              <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">View Results</a>
-              <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset Baseline</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+              <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
+              <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
+              <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
+              <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
             </div>
           </form>
         </div>
-        
-     <div class="card" id="baselineConfigCard" style="display:none;">
-          <h3>Baseline Detection Configuration</h3>
-          <div class="banner">Configure anomaly detection based on network baseline profiling.</div>
-          
-          <div class="grid-2col" style="margin:20px 0">
-            <div>
-              <label>RSSI Alert Threshold (dBm)</label>
-              <select id="baselineRssiThreshold" style="margin-bottom:8px">
-                <option value="-40">-40 dBm (Very Close)</option>
-                <option value="-50">-50 dBm (Close)</option>
-                <option value="-60" selected>-60 dBm (Moderate)</option>
-                <option value="-70">-70 dBm (Distant)</option>
-                <option value="-80">-80 dBm (Very Distant)</option>
-              </select>
-              <div class="small">Only devices with signal strength at or above this level will trigger anomaly alerts</div>
-            </div>
-            <div>
-              <label>Baseline Duration (seconds)</label>
-              <select id="baselineDuration" style="margin-bottom:8px">
-                <option value="60">1 minute</option>
-                <option value="120">2 minutes</option>
-                <option value="180">3 minutes</option>
-                <option value="300" selected>5 minutes</option>
-                <option value="600">10 minutes</option>
-              </select>
-              <div class="small">Time to establish the baseline before monitoring</div>
-            </div>
-          </div>
-          
-          <div class="row" style="margin-top:20px">
-            <button class="btn primary" type="button" onclick="saveBaselineConfig()">SAVE CONFIG</button>
-            <button class="btn alt" type="button" onclick="resetBaseline()">RESET BASELINE</button>
-            <a class="btn" href="/baseline-results" data-ajax="false">View Results</a>
-          </div>
-          
-          <div id="baselineStatus" style="margin-top:20px; padding:12px; background:var(--card); border:1px solid #003b24; border-radius:10px; font-size:12px;">
-            <div id="baselineState" class="status-disabled">Status: Not Configured</div>
-            <div id="baselineProgress" style="margin-top:8px; display:none;">
-              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                <span>Progress:</span>
-                <span id="baselinePercent">0%</span>
-              </div>
-              <div style="width:100%; height:6px; background:#001a10; border-radius:3px;">
-                <div id="baselineProgressBar" style="height:100%; width:0%; background:#00cc66; border-radius:3px; transition:width 0.5s;"></div>
-              </div>
-            </div>
-            <div id="baselineStats" style="margin-top:8px; font-size:11px; color:var(--muted);">
-              <span id="baselineDevices">0 devices</span> • 
-              <span id="baselineAnomalies">0 anomalies</span>
-            </div>
-          </div>
-        </div>
+      </div>
       
-      <div class="card">
+      <!-- Full Width Results -->
+      <div class="card" style="margin-bottom:16px;">
+        <h3>Scan Results</h3>
+        <pre id="r" style="margin:0;">No scan data yet.</pre>
+      </div>
+      
+      <!-- Bottom Grid: Node + Diagnostics -->
+      <div class="grid-node-diag" style="margin-bottom:16px;">
         
-        <div class="card">
+        <div class="card" style="min-width:280px;">
           <h3>Node Configuration</h3>
           <form id="nodeForm" method="POST" action="/node-id">
-            <label for="nodeId">Node Identifier</label>
+            <label>Node ID</label>
             <input type="text" id="nodeId" name="id" maxlength="16" placeholder="NODE_01">
-            <div class="row" style="margin-top:10px">
-              <button class="btn primary" type="submit">Update Node ID</button>
-            </div>
+            <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
           </form>
           
           <hr>
           
-          <div class="row" style="margin-top:10px">
+          <label style="display:flex;align-items:center;gap:8px;margin:12px 0;">
             <input type="checkbox" id="meshEnabled" checked>
-            <label for="meshEnabled" style="margin:0">Enable Mesh Communications</label>
+            <span style="font-size:13px;">Mesh Communications</span>
+          </label>
+          
+          <div style="display:flex;gap:8px;">
+            <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
+            <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
+          </div>
+        </div>
+        
+        <div class="card">
+          <h3>System Diagnostics</h3>
+          <div class="tab-buttons">
+            <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
+            <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
+            <div class="tab-btn" onclick="switchTab('network')">Network</div>
           </div>
           
-          <div class="row" style="margin-top:10px">
-            <a class="btn alt" href="/mesh-test" data-ajax="true">Test Mesh</a>
-            <a class="btn" href="/gps" data-ajax="false">GPS Status</a>
+          <div id="overview" class="tab-content active">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;">
+              <div class="stat-item">
+                <div class="stat-label">Uptime</div>
+                <div class="stat-value" id="uptime">--:--:--</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">WiFi</div>
+                <div class="stat-value" id="wifiFrames">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">BLE</div>
+                <div class="stat-value" id="bleFrames">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Hits</div>
+                <div class="stat-value" id="totalHits">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Unique</div>
+                <div class="stat-value" id="uniqueDevices">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Temp</div>
+                <div class="stat-value" id="temperature">--°C</div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="hardware" class="tab-content">
+            <pre id="hardwareDiag" style="margin:0;">Loading...</pre>
+          </div>
+          
+          <div id="network" class="tab-content">
+            <pre id="networkDiag" style="margin:0;">Loading...</pre>
           </div>
         </div>
       </div>
       
-      <div class="card">
-        <h3>System Diagnostics</h3>
-        <div class="tab-buttons">
-          <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
-          <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
-          <div class="tab-btn" onclick="switchTab('network')">Network</div>
-        </div>
-        
-        <div id="overview" class="tab-content active">
-          <div class="stat-grid">
-            <div class="stat-item">
-              <div class="stat-label">Uptime</div>
-              <div class="stat-value" id="uptime">--:--:--</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">WiFi Frames</div>
-              <div class="stat-value" id="wifiFrames">0</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">BLE Frames</div>
-              <div class="stat-value" id="bleFrames">0</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">Total Hits</div>
-              <div class="stat-value" id="totalHits">0</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">Unique MACs</div>
-              <div class="stat-value" id="uniqueDevices">0</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">Temperature</div>
-              <div class="stat-value" id="temperature">--°C</div>
-            </div>
-          </div>
-        </div>
-        
-        <div id="hardware" class="tab-content">
-          <pre id="hardwareDiag">Loading hardware info...</pre>
-        </div>
-        
-        <div id="network" class="tab-content">
-          <pre id="networkDiag">Loading network info...</pre>
-        </div>
-      </div>
-      
-      <div class="card">
-        <h3>Scan Results</h3>
-        <pre id="r">No scan data yet.</pre>
-      </div>
-      
+      <!-- Secure Data Destruction -->
       <div class="card">
         <h3>Secure Data Destruction</h3>
-        <div class="banner">WARNING: This will permanently wipe all config data and logs.</div>
+        <div class="banner">WARNING: Permanent data wipe</div>
         
-        <form id="eraseForm">
-          <label for="eraseConfirm">Confirmation Code</label>
-          <input type="text" id="eraseConfirm" placeholder="Type: WIPE_ALL_DATA">
+        <form id="eraseForm" style="margin-top:12px;">
+          <label>Confirmation Code</label>
+          <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA">
           
-          <div class="row" style="margin-top:10px">
-            <button class="btn danger" type="button" onclick="requestErase()">INITIATE SECURE WIPE</button>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button class="btn danger" type="button" onclick="requestErase()">WIPE</button>
             <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
           </div>
         </form>
         
-        <div id="eraseStatus" style="display:none; margin-top:10px; padding:8px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;"></div>
-      </div>
-      
-      <div class="card">
-        <h3 onclick="toggleCard('autoEraseCard')" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
-          Auto-Erase Configuration 
-          <span id="autoEraseToggle" style="font-size:14px; transform:rotate(-90deg); transition:transform 0.3s;">▼</span>
-        </h3>
+        <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:12px;"></div>
         
-        <div id="autoEraseCard" style="display:none;">
-          <div class="banner">Configure automatic data destruction on tampering detection.</div>
-          
-          <div class="row" style="margin:15px 0">
-            <input type="checkbox" id="autoEraseEnabled">
-            <label for="autoEraseEnabled" style="margin:0">Enable automatic erase on device tampering</label>
-          </div>
-          
-          <div class="grid-2col" style="margin:20px 0">
-            <div>
-              <label>Erase Delay (seconds)</label>
-              <select id="autoEraseDelay" style="margin-bottom:8px">
-                <option value="10000">10 seconds</option>
-                <option value="20000">20 seconds</option>
-                <option value="30000" selected>30 seconds</option>
-                <option value="60000">1 minute</option>
-                <option value="120000">2 minutes</option>
-                <option value="300000">5 minutes</option>
-              </select>
+        <details style="margin-top:16px;">
+          <summary style="cursor:pointer;font-weight:bold;color:var(--accent);">Auto-Erase Configuration</summary>
+          <div style="margin-top:12px;">
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <input type="checkbox" id="autoEraseEnabled">
+              <span>Enable auto-erase on tampering</span>
+            </label>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:11px;">Delay</label>
+                <select id="autoEraseDelay">
+                  <option value="30000" selected>30s</option>
+                  <option value="60000">1m</option>
+                  <option value="120000">2m</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;">Cooldown</label>
+                <select id="autoEraseCooldown">
+                  <option value="300000" selected>5m</option>
+                  <option value="600000">10m</option>
+                  <option value="1800000">30m</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label>Cooldown Period</label>
-              <select id="autoEraseCooldown" style="margin-bottom:8px">
-                <option value="60000">1 minute</option>
-                <option value="300000" selected>5 minutes</option>
-                <option value="600000">10 minutes</option>
-                <option value="1800000">30 minutes</option>
-                <option value="3600000">1 hour</option>
-              </select>
-            </div>
+            
+            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Config</button>
+            <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
           </div>
-          
-          <div class="grid-2col" style="margin:20px 0">
-            <div>
-              <label>Vibrations required</label>
-              <select id="vibrationsRequired" style="margin-bottom:8px">
-                <option value="2">2 vibrations</option>
-                <option value="3" selected>3 vibrations</option>
-                <option value="4">4 vibrations</option>
-                <option value="5">5 vibrations</option>
-              </select>
-            </div>
-            <div>
-              <label>Within time window</label>
-              <select id="detectionWindow" style="margin-bottom:8px">
-                <option value="10000">10 seconds</option>
-                <option value="20000" selected>20 seconds</option>
-                <option value="30000">30 seconds</option>
-                <option value="60000">1 minute</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="grid-2col" style="margin:20px 0">
-            <div>
-              <label>Setup Delay (activation time)</label>
-              <select id="setupDelay" style="margin-bottom:8px">
-                <option value="30000">30 seconds</option>
-                <option value="60000">1 minute</option>
-                <option value="120000" selected>2 minutes</option>
-                <option value="300000">5 minutes</option>
-                <option value="600000">10 minutes</option>
-              </select>
-            </div>
-            <div></div>
-          </div>
-          
-          <div class="row" style="margin-top:20px">
-            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()">SAVE CONFIG</button>
-          </div>
-          
-          <div id="autoEraseStatus" style="margin-top:20px; padding:12px; background:var(--card); border:1px solid #003b24; border-radius:10px; color:var(--accent); font-size:12px;">DISABLED - Manual erase only</div>
-        </div>
+        </details>
       </div>
       
-      <div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
+      <div class="footer">© AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
     </div>
-    <script>
-      let selectedMode = '0';
-      
-      function toast(msg){
-        const wrap = document.getElementById('toast');
-        const el = document.createElement('div');
-        el.className = 'toast';
-        el.innerHTML = '<div class="title">System</div><div class="msg">'+msg+'</div>';
-        wrap.appendChild(el);
-        requestAnimationFrame(()=>{ el.classList.add('show'); });
-        setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>wrap.removeChild(el), 200); }, 3000);
-      }
-      
-      function switchTab(tabName) {
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        
-        event.target.classList.add('active');
-        document.getElementById(tabName).classList.add('active');
-      }
-      
-      async function ajaxForm(form, okMsg){
-        const fd = new FormData(form);
-        try{
-          const r = await fetch(form.action, {method:'POST', body:fd});
-          const t = await r.text();
-          toast(okMsg || t);
-        }catch(e){
-          toast('Error: '+e.message);
-        }
-      }
-      
-      async function load(){
-        try{
-          const r = await fetch('/export'); 
-          const text = await r.text();
-          document.getElementById('list').value = text;
-          const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-          document.getElementById('targetCount').innerText = lines.length + ' targets';
-          
-          const rr = await fetch('/results'); 
-          document.getElementById('r').innerText = await rr.text();
-          loadNodeId();
-        }catch(e){}
-      }
-      
-      async function loadNodeId(){
-        try{
-          const r = await fetch('/node-id');
-          const data = await r.json();
-          document.getElementById('nodeId').value = data.nodeId;
-          document.getElementById('footerNodeId').innerText = data.nodeId;
-        }catch(e){}
-      }
+      <script>
+        let selectedMode = '0';
+        let baselineUpdateInterval = null;
+        let lastScanningState = false;
 
-      function toggleCard(cardId) {
-        const card = document.getElementById(cardId);
-        const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
-        
-        if (card.style.display === 'none') {
-          card.style.display = 'block';
-          toggle.style.transform = 'rotate(0deg)';
-        } else {
-          card.style.display = 'none';
-          toggle.style.transform = 'rotate(-90deg)';
+        function switchTab(tabName) {
+          document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+          event.target.classList.add('active');
+          document.getElementById(tabName).classList.add('active');
         }
-      }
+        async function ajaxForm(form, okMsg) {
+          const fd = new FormData(form);
+          try {
+            const r = await fetch(form.action, {
+              method: 'POST',
+              body: fd
+            });
+            const t = await r.text();
+            toast(okMsg || t);
+          } catch (e) {
+            toast('Error: ' + e.message);
+          }
+        }
+        async function load() {
+          try {
+            const r = await fetch('/export');
+            const text = await r.text();
+            document.getElementById('list').value = text;
+            const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+            document.getElementById('targetCount').innerText = lines.length + ' targets';
+            const rr = await fetch('/results');
+            document.getElementById('r').innerText = await rr.text();
+            loadNodeId();
+          } catch (e) {}
+        }
+        async function loadNodeId() {
+          try {
+            const r = await fetch('/node-id');
+            const data = await r.json();
+            document.getElementById('nodeId').value = data.nodeId;
+            document.getElementById('footerNodeId').innerText = data.nodeId;
+          } catch (e) {}
+        }
 
-      let baselineUpdateInterval = null;
-      
-      function updateBaselineStatus() {
-        fetch('/api/baseline/stats')
-          .then(response => response.json())
-          .then(stats => {
+        function toggleCard(cardId) {
+          const card = document.getElementById(cardId);
+          const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
+          if (card.style.display === 'none') {
+            card.style.display = 'block';
+            toggle.style.transform = 'rotate(0deg)';
+          } else {
+            card.style.display = 'none';
+            toggle.style.transform = 'rotate(-90deg)';
+          }
+        }
+
+        function updateBaselineStatus() {
+          fetch('/api/baseline/stats').then(response => response.json()).then(stats => {
             const statusDiv = document.getElementById('baselineStatus');
             if (!statusDiv) return;
-            
             let statusHTML = '';
             let progressHTML = '';
-            
             if (stats.scanning && !stats.phase1Complete) {
               // Phase 1: Establishing baseline
               const progress = Math.min(100, (stats.elapsedTime / stats.totalDuration) * 100);
-              statusHTML = '<div style="color:#00cc66;font-weight:bold;">Phase 1: Establishing Baseline...</div>';
-              progressHTML = '<div style="margin-top:10px;">' +
-                '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' +
-                '<span>Progress</span>' +
-                '<span>' + Math.floor(progress) + '%</span>' +
-                '</div>' +
-                '<div style="width:100%;height:6px;background:#001a10;border-radius:3px;overflow:hidden;">' +
-                '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,#0aff9d);transition:width 0.5s;"></div>' +
-                '</div>' +
-                '</div>';
+              statusHTML = '<div style="color:#00cc66;font-weight:bold;">⬤ Phase 1: Establishing Baseline...</div>';
+              progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:#001a10;border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,#0aff9d);transition:width 0.5s;"></div>' + '</div>' + '</div>';
             } else if (stats.scanning && stats.phase1Complete) {
-              // Phase 2: Monitoring
-              statusHTML = '<div style="color:#0aff9d;font-weight:bold;">Phase 2: Monitoring for Anomalies</div>';
+              // Phase 2: Monitoring - add active status indicator
+              statusHTML = '<div style="color:#0aff9d;font-weight:bold;">⬤ Phase 2: Monitoring for Anomalies</div>';
+              // Add elapsed time indicator for Phase 2
+              const monitorTime = Math.floor(stats.elapsedTime / 1000);
+              const monitorMins = Math.floor(monitorTime / 60);
+              const monitorSecs = monitorTime % 60;
+              progressHTML = '<div style="margin-top:10px;color:#00cc66;font-size:11px;">' + 'Active monitoring: ' + monitorMins + 'm ' + monitorSecs + 's' + '</div>';
             } else if (stats.established) {
               // Complete
               statusHTML = '<div style="color:#00cc66;">✓ Baseline Complete</div>';
             } else {
               statusHTML = '<div style="color:#888;">No baseline data</div>';
             }
-            
-            const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' +
-              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' +
-              '<div>' +
-              '<div style="color:var(--muted);">WiFi Devices</div>' +
-              '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' +
-              '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' hits</div>' +
-              '</div>' +
-              '<div>' +
-              '<div style="color:var(--muted);">BLE Devices</div>' +
-              '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' +
-              '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' hits</div>' +
-              '</div>' +
-              '<div>' +
-              '<div style="color:var(--muted);">Total Devices</div>' +
-              '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' +
-              '</div>' +
-              '<div>' +
-              '<div style="color:var(--muted);">Anomalies</div>' +
-              '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' +
-              '</div>' +
-              '</div>' +
-              '</div>';
-            
+            const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' hits</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' hits</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
             statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
+            const startDetectionBtn = document.getElementById('startDetectionBtn');
+            const detectionMode = document.getElementById('detectionMode').value;
             
+            if (detectionMode === 'baseline' && stats.scanning) {
+              startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
+              startDetectionBtn.classList.remove('primary');
+              startDetectionBtn.classList.add('danger');
+              startDetectionBtn.type = 'button';
+              startDetectionBtn.onclick = function(e) {
+                e.preventDefault();
+                fetch('/stop').then(r=>r.text()).then(t=>toast(t));
+              };
+            } else {
+              startDetectionBtn.textContent = 'Start';
+              startDetectionBtn.classList.remove('danger');
+              startDetectionBtn.classList.add('primary');
+              startDetectionBtn.type = 'submit';
+              startDetectionBtn.onclick = null;
+            }    
             // Start/stop polling based on scan state
             if (stats.scanning && !baselineUpdateInterval) {
               baselineUpdateInterval = setInterval(updateBaselineStatus, 1000);
@@ -730,478 +578,449 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               clearInterval(baselineUpdateInterval);
               baselineUpdateInterval = null;
             }
-          })
-          .catch(error => console.error('Status update error:', error));
-      }
-      
-      // Initial load
-      updateBaselineStatus();
-      
-      // Poll every 2 seconds when not actively scanning
-      setInterval(() => {
-        if (!baselineUpdateInterval) {
-          updateBaselineStatus();
+          }).catch(error => console.error('Status update error:', error));
         }
-      }, 2000);
+        // Initial load
+        updateBaselineStatus();
+        // Poll every 2 seconds when not actively scanning
+        setInterval(() => {
+          if (!baselineUpdateInterval) {
+            updateBaselineStatus();
+          }
+        }, 2000);
 
-      function saveBaselineConfig() {
-        const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
-        const duration = document.getElementById('baselineDuration').value;
-        
-        fetch('/api/baseline/config', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
-        })
-        .then(response => response.text())
-        .then(data => {
-          toast('Baseline configuration saved', 'success');
-          updateBaselineStatus();
-        })
-        .catch(error => {
-          toast('Error saving config: ' + error, 'error');
-        });
-      }
+        function saveBaselineConfig() {
+          const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
+          const duration = document.getElementById('baselineDuration').value;
+          fetch('/api/baseline/config', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
+          }).then(response => response.text()).then(data => {
+            toast('Baseline configuration saved', 'success');
+            updateBaselineStatus();
+          }).catch(error => {
+            toast('Error saving config: ' + error, 'error');
+          });
+        }
 
-      function resetBaseline() {
-        if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.'))
-          return;
-        
-        fetch('/api/baseline/reset', {method: 'POST'})
-          .then(response => response.text())
-          .then(data => {
+        function resetBaseline() {
+          if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.')) return;
+          fetch('/api/baseline/reset', {
+            method: 'POST'
+          }).then(response => response.text()).then(data => {
             toast(data, 'success');
             updateBaselineStatus();
-          })
-          .catch(error => {
+          }).catch(error => {
             toast('Error resetting baseline: ' + error, 'error');
           });
-      }
+        }
 
-      function updateStatusIndicators(diagText) {
-        // Scan status
-        if (diagText.includes('Scanning: yes')) {
-          document.getElementById('scanStatus').innerText = 'Active';
-          document.getElementById('scanStatus').classList.add('active');
-        } else {
-          document.getElementById('scanStatus').innerText = 'Idle';
-          document.getElementById('scanStatus').classList.remove('active');
+        function updateStatusIndicators(diagText) {
+          // Scan status
+          if (diagText.includes('Scanning: yes')) {
+            document.getElementById('scanStatus').innerText = 'Active';
+            document.getElementById('scanStatus').classList.add('active');
+          } else {
+            document.getElementById('scanStatus').innerText = 'Idle';
+            document.getElementById('scanStatus').classList.remove('active');
+          }
+          // Mode status
+          const modeMatch = diagText.match(/Scan Mode: (\w+)/);
+          if (modeMatch) {
+            document.getElementById('modeStatus').innerText = modeMatch[1];
+          }
+          // GPS status
+          if (diagText.includes('GPS: Locked')) {
+            document.getElementById('gpsStatus').classList.add('active');
+            document.getElementById('gpsStatus').innerText = 'GPS Lock';
+          } else {
+            document.getElementById('gpsStatus').classList.remove('active');
+            document.getElementById('gpsStatus').innerText = 'GPS';
+          }
+          // RTC status
+          if (diagText.includes('RTC: Synced')) {
+            document.getElementById('rtcStatus').classList.add('active');
+            document.getElementById('rtcStatus').innerText = 'RTC OK';
+          } else if (diagText.includes('RTC: Not')) {
+            document.getElementById('rtcStatus').classList.remove('active');
+            document.getElementById('rtcStatus').innerText = 'RTC';
+          }
         }
-        
-        // Mode status
-        const modeMatch = diagText.match(/Scan Mode: (\w+)/);
-        if (modeMatch) {
-          document.getElementById('modeStatus').innerText = modeMatch[1];
+
+        function saveAutoEraseConfig() {
+          const enabled = document.getElementById('autoEraseEnabled').checked;
+          const delay = document.getElementById('autoEraseDelay').value;
+          const cooldown = document.getElementById('autoEraseCooldown').value;
+          const vibrationsRequired = document.getElementById('vibrationsRequired').value;
+          const detectionWindow = document.getElementById('detectionWindow').value;
+          const setupDelay = document.getElementById('setupDelay').value;
+          fetch('/api/config/autoerase', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
+          }).then(response => response.text()).then(data => {
+            document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
+            updateAutoEraseStatus();
+          });
         }
-        
-        // GPS status
-        if (diagText.includes('GPS: Locked')) {
-          document.getElementById('gpsStatus').classList.add('active');
-          document.getElementById('gpsStatus').innerText = 'GPS Lock';
-        } else {
-          document.getElementById('gpsStatus').classList.remove('active');
-          document.getElementById('gpsStatus').innerText = 'GPS';
-        }
-        
-        // RTC status
-        if (diagText.includes('RTC: Synced')) {
-          document.getElementById('rtcStatus').classList.add('active');
-          document.getElementById('rtcStatus').innerText = 'RTC OK';
-        } else if (diagText.includes('RTC: Not')) {
-          document.getElementById('rtcStatus').classList.remove('active');
-          document.getElementById('rtcStatus').innerText = 'RTC';
-        }
-      }
-      
-      function saveAutoEraseConfig() {
-        const enabled = document.getElementById('autoEraseEnabled').checked;
-        const delay = document.getElementById('autoEraseDelay').value;
-        const cooldown = document.getElementById('autoEraseCooldown').value;
-        const vibrationsRequired = document.getElementById('vibrationsRequired').value;
-        const detectionWindow = document.getElementById('detectionWindow').value;
-        const setupDelay = document.getElementById('setupDelay').value;
-        
-        fetch('/api/config/autoerase', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
-        })
-        .then(response => response.text())
-        .then(data => {
-          document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
-          updateAutoEraseStatus();
-        });
-      }
-      
-      function updateAutoEraseStatus() {
-        fetch('/api/config/autoerase')
-        .then(response => response.json())
-        .then(data => {
-          if (data.enabled) {
-            if (data.inSetupMode) {
-              document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
+
+        function updateAutoEraseStatus() {
+          fetch('/api/config/autoerase').then(response => response.json()).then(data => {
+            if (data.enabled) {
+              if (data.inSetupMode) {
+                document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
+              } else {
+                document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
+              }
             } else {
-              document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
+              document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
             }
-          } else {
-            document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+          });
+        }
+
+        function updateEraseProgress(message, percentage) {
+          const progressBar = document.getElementById('eraseProgressBar');
+          const progressText = document.getElementById('eraseProgressText');
+          const progressDetails = document.getElementById('eraseProgressDetails');
+          if (progressBar) {
+            progressBar.style.width = percentage + '%';
           }
-        });
-      }
-      
-      function updateEraseProgress(message, percentage) {
-        const progressBar = document.getElementById('eraseProgressBar');
-        const progressText = document.getElementById('eraseProgressText');
-        const progressDetails = document.getElementById('eraseProgressDetails');
-        
-        if (progressBar) {
-          progressBar.style.width = percentage + '%';
+          if (progressText) {
+            progressText.textContent = message;
+          }
+          if (progressDetails) {
+            progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+            progressDetails.scrollTop = progressDetails.scrollHeight;
+          }
         }
-        if (progressText) {
-          progressText.textContent = message;
+
+        function pollEraseProgress() {
+          const poll = setInterval(() => {
+            fetch('/api/erase/progress').then(response => response.json()).then(data => {
+              updateEraseProgress(data.message, data.percentage);
+              if (data.status === 'COMPLETE') {
+                clearInterval(poll);
+                finalizeEraseProcess(true);
+              } else if (data.status === 'ERROR') {
+                clearInterval(poll);
+                finalizeEraseProcess(false, data.error);
+              } else if (data.status === 'CANCELLED') {
+                clearInterval(poll);
+                hideEraseProgressModal();
+                toast('Secure erase cancelled', 'info');
+              }
+            }).catch(error => {
+              clearInterval(poll);
+              finalizeEraseProcess(false, 'Communication error');
+            });
+          }, 1000);
         }
-        if (progressDetails) {
-          progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
-          progressDetails.scrollTop = progressDetails.scrollHeight;
-        }
-      }
-      
-      function pollEraseProgress() {
-        const poll = setInterval(() => {
-          fetch('/api/erase/progress')
-          .then(response => response.json())
-          .then(data => {
-            updateEraseProgress(data.message, data.percentage);
-            
-            if (data.status === 'COMPLETE') {
-              clearInterval(poll);
-              finalizeEraseProcess(true);
-            } else if (data.status === 'ERROR') {
-              clearInterval(poll);
-              finalizeEraseProcess(false, data.error);
-            } else if (data.status === 'CANCELLED') {
-              clearInterval(poll);
+
+        function finalizeEraseProcess(success, error = null) {
+          if (success) {
+            updateEraseProgress('Secure erase completed successfully', 100);
+            toast('All data has been securely destroyed', 'success');
+            setTimeout(() => {
               hideEraseProgressModal();
-              toast('Secure erase cancelled', 'info');
-            }
-          })
-          .catch(error => {
-            clearInterval(poll);
-            finalizeEraseProcess(false, 'Communication error');
-          });
-        }, 1000);
-      }
-      
-      function finalizeEraseProcess(success, error = null) {
-        if (success) {
-          updateEraseProgress('Secure erase completed successfully', 100);
-          toast('All data has been securely destroyed', 'success');
-          
-          setTimeout(() => {
-            hideEraseProgressModal();
-            window.location.reload();
-          }, 3000);
-        } else {
-          updateEraseProgress('Secure erase failed: ' + error, 0);
-          toast('Erase operation failed: ' + error, 'error');
-          
-          setTimeout(() => {
-            hideEraseProgressModal();
-          }, 5000);
-        }
-      }
-      
-      function hideEraseProgressModal() {
-        const modal = document.getElementById('eraseProgressModal');
-        if (modal) {
-          document.body.removeChild(modal);
-        }
-      }
-      
-      function toast(msg, type = 'info') {
-        const wrap = document.getElementById('toast');
-        const el = document.createElement('div');
-        el.className = `toast toast-${type}`;
-        
-        const typeLabels = {
-          'success': 'SUCCESS',
-          'error': 'ERROR',
-          'warning': 'WARNING',
-          'info': 'INFO'
-        };
-        
-        el.innerHTML = `
-        <div class="toast-content">
-            <div class="toast-title">[${typeLabels[type] || typeLabels.info}]</div>
-            <div class="toast-message">${msg}</div>
-        </div>
-    `;
-        
-        wrap.appendChild(el);
-        requestAnimationFrame(() => el.classList.add('show'));
-        
-        const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
-        
-        setTimeout(() => {
-          el.classList.remove('show');
-          setTimeout(() => wrap.removeChild(el), 300);
-        }, duration);
-      }
-      
-      function updateAutoEraseStatus() {
-        fetch('/api/config/autoerase')
-        .then(response => response.json())
-        .then(data => {
-          const statusDiv = document.getElementById('autoEraseStatus');
-          let statusText = '';
-          let statusClass = '';
-          
-          if (!data.enabled) {
-            statusText = 'DISABLED - Manual erase only';
-            statusClass = 'status-disabled';
-          } else if (data.inSetupMode) {
-            const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
-            statusText = `SETUP MODE - Activating in ${remaining}s`;
-            statusClass = 'status-setup';
-          } else if (data.tamperActive) {
-            statusText = 'TAMPER DETECTED - Auto-erase in progress';
-            statusClass = 'status-danger';
+              window.location.reload();
+            }, 3000);
           } else {
-            statusText = 'ACTIVE - Monitoring for tampering';
-            statusClass = 'status-active';
+            updateEraseProgress('Secure erase failed: ' + error, 0);
+            toast('Erase operation failed: ' + error, 'error');
+            setTimeout(() => {
+              hideEraseProgressModal();
+            }, 5000);
           }
-          
-          statusDiv.textContent = statusText;
-          statusDiv.className = statusClass;
-        })
-        .catch(error => {
-          document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
-        });
-      }
-      
-      function cancelErase() {
-        fetch('/api/erase/cancel', {method: 'POST'})
-        .then(response => response.text())
-        .then(data => {
-          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-        });
-      }
-      
-      function pollEraseStatus() {
-        const poll = setInterval(() => {
-          fetch('/api/erase/status')
-          .then(response => response.text())
-          .then(status => {
-            document.getElementById('eraseStatus').innerHTML = '<pre>Status: ' + status + '</pre>';
-            
-            if (status === 'COMPLETED') {
-              clearInterval(poll);
-              // Show persistent success message
-              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
-              toast('All data has been securely destroyed', 'success');
-              
-              // Clear the form
-              document.getElementById('eraseConfirm').value = '';
-              
-            } else if (status.startsWith('FAILED')) {
-              clearInterval(poll);
-              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
-              toast('Secure erase failed: ' + status, 'error');
+        }
+
+        function hideEraseProgressModal() {
+          const modal = document.getElementById('eraseProgressModal');
+          if (modal) {
+            document.body.removeChild(modal);
+          }
+        }
+
+        function toast(msg, type = 'info') {
+          const wrap = document.getElementById('toast');
+          const el = document.createElement('div');
+          el.className = `toast toast-${type}`;
+          const typeLabels = {
+            'success': 'SUCCESS',
+            'error': 'ERROR',
+            'warning': 'WARNING',
+            'info': 'INFO'
+          };
+          el.innerHTML = `<div class="toast-content"><div class="toast-title">[${typeLabels[type] || typeLabels.info}]</div><div class="toast-message">${msg}</div></div>`;
+          wrap.appendChild(el);
+          requestAnimationFrame(() => el.classList.add('show'));
+          const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
+          setTimeout(() => {
+            el.classList.remove('show');
+            setTimeout(() => wrap.removeChild(el), 300);
+          }, duration);
+        }
+
+        function updateAutoEraseStatus() {
+          fetch('/api/config/autoerase').then(response => response.json()).then(data => {
+            const statusDiv = document.getElementById('autoEraseStatus');
+            let statusText = '';
+            let statusClass = '';
+            if (!data.enabled) {
+              statusText = 'DISABLED - Manual erase only';
+              statusClass = 'status-disabled';
+            } else if (data.inSetupMode) {
+              const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
+              statusText = `SETUP MODE - Activating in ${remaining}s`;
+              statusClass = 'status-setup';
+            } else if (data.tamperActive) {
+              statusText = 'TAMPER DETECTED - Auto-erase in progress';
+              statusClass = 'status-danger';
+            } else {
+              statusText = 'ACTIVE - Monitoring for tampering';
+              statusClass = 'status-active';
             }
-          })
-          .catch(error => {
-            clearInterval(poll);
-            toast('Status check failed: ' + error, 'error');
+            statusDiv.textContent = statusText;
+            statusDiv.className = statusClass;
+          }).catch(error => {
+            document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
           });
-        }, 1000); // Check every second for faster feedback
-      }
-      
-      function requestErase() {
-        const confirm = document.getElementById('eraseConfirm').value;
-        
-        if (confirm !== 'WIPE_ALL_DATA') {
-          toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
-          return;
         }
-        
-        if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
-          return;
+
+        function cancelErase() {
+          fetch('/api/erase/cancel', {
+            method: 'POST'
+          }).then(response => response.text()).then(data => {
+            document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+          });
         }
-        
-        toast('Initiating secure erase operation...', 'warning');
-        
-        fetch('/api/erase/request', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: `confirm=${encodeURIComponent(confirm)}`
-        })
-        .then(response => response.text())
-        .then(data => {
-          document.getElementById('eraseStatus').style.display = 'block';
-          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-          toast('Secure erase started', 'info');
-          
-          // Start polling for status
-          pollEraseStatus();
-        })
-        .catch(error => {
-          toast('Network error: ' + error, 'error');
-        });
-      }
-      
-      async function tick() {
-        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
-        try{
-            const d = await fetch('/diag'); 
+
+        function pollEraseStatus() {
+          const poll = setInterval(() => {
+            fetch('/api/erase/status').then(response => response.text()).then(status => {
+              document.getElementById('eraseStatus').innerHTML = '<pre>Status: ' + status + '</pre>';
+              if (status === 'COMPLETED') {
+                clearInterval(poll);
+                // Show persistent success message
+                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
+                toast('All data has been securely destroyed', 'success');
+                // Clear the form
+                document.getElementById('eraseConfirm').value = '';
+              } else if (status.startsWith('FAILED')) {
+                clearInterval(poll);
+                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
+                toast('Secure erase failed: ' + status, 'error');
+              }
+            }).catch(error => {
+              clearInterval(poll);
+              toast('Status check failed: ' + error, 'error');
+            });
+          }, 1000); // Check every second for faster feedback
+        }
+
+        function requestErase() {
+          const confirm = document.getElementById('eraseConfirm').value;
+          if (confirm !== 'WIPE_ALL_DATA') {
+            toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
+            return;
+          }
+          if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
+            return;
+          }
+          toast('Initiating secure erase operation...', 'warning');
+          fetch('/api/erase/request', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `confirm=${encodeURIComponent(confirm)}`
+          }).then(response => response.text()).then(data => {
+            document.getElementById('eraseStatus').style.display = 'block';
+            document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+            toast('Secure erase started', 'info');
+            // Start polling for status
+            pollEraseStatus();
+          }).catch(error => {
+            toast('Network error: ' + error, 'error');
+          });
+        }
+        async function tick() {
+          if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
+          try {
+            const d = await fetch('/diag');
             const diagText = await d.text();
+            const isScanning = diagText.includes('Scanning: yes');
             const sections = diagText.split('\n');
             try {
-                const droneStatus = await fetch('/api/drone/status');
-                const droneData = await droneStatus.json();
-                if (droneData.enabled) { document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)'; document.getElementById('droneStatus').classList.add('active'); }
-                else { document.getElementById('droneStatus').innerText = 'Drone Detection: Idle'; document.getElementById('droneStatus').classList.remove('active'); }
-            } catch(e) {}
+              const droneStatus = await fetch('/api/drone/status');
+              const droneData = await droneStatus.json();
+              if (droneData.enabled) {
+                document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
+                document.getElementById('droneStatus').classList.add('active');
+              } else {
+                document.getElementById('droneStatus').innerText = 'Drone Detection: Idle';
+                document.getElementById('droneStatus').classList.remove('active');
+              }
+            } catch (e) {}
             let overview = '';
             let hardware = '';
             let network = '';
             sections.forEach(line => {
-            if (line.includes('WiFi Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('wifiFrames').innerText = match[1]; }
-              if (line.includes('BLE Frames')) { const match = line.match(/(\d+)/); if (match) document.getElementById('bleFrames').innerText = match[1]; }
-                if (line.includes('Total hits')) { const match = line.match(/(\d+)/); if (match) document.getElementById('totalHits').innerText = match[1]; }
-                  if (line.includes('Unique devices')) { const match = line.match(/(\d+)/); if (match) document.getElementById('uniqueDevices').innerText = match[1]; }
-                    if (line.includes('ESP32 Temp')) { const match = line.match(/([\d.]+)°C/); if (match) document.getElementById('temperature').innerText = match[1] + '°C'; }
-                      if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) { hardware += line + '\n'; } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) { network += line + '\n'; } else { overview += line + '\n'; }
-                    });
-                    document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
-                    document.getElementById('networkDiag').innerText = network || 'No network data';
-                    const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
-                    if (uptimeMatch) { document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3]; }
-                    updateStatusIndicators(diagText);
-                    const resultsElement = document.getElementById('r');
-                    if (resultsElement && !resultsElement.contains(document.activeElement)) { const rr = await fetch('/results'); document.getElementById('r').innerText = await rr.text(); }
-                  }catch(e){}
-                }
-                
-                document.getElementById('triangulate').addEventListener('change', e=>{
-                  document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
-                });
-                
-                document.getElementById('f').addEventListener('submit', e=>{ 
-                  e.preventDefault(); 
-                  ajaxForm(e.target, 'Targets saved ✓'); 
-                  setTimeout(load, 500);
-                });
-                
-                document.getElementById('nodeForm').addEventListener('submit', e=>{
-                  e.preventDefault();
-                  ajaxForm(e.target, 'Node ID updated');
-                  setTimeout(loadNodeId, 500);
-                });
-                
-                document.getElementById('s').addEventListener('submit', e=>{
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  fetch('/scan', {method:'POST', body:fd}).then(r=>r.text()).then(t=>toast(t))
-                  .catch(err=>toast('Error: '+err.message));
-                });
-                
-                document.getElementById('meshEnabled').addEventListener('change', e=>{
-                  const enabled = e.target.checked;
-                  fetch('/mesh', {method:'POST', body: new URLSearchParams({enabled: enabled})})
-                  .then(r=>r.text())
-                  .then(t=>{
-                    toast(t);
-                    document.getElementById('meshStatus').classList.toggle('active', enabled);
-                  })
-                  .catch(err=>toast('Error: '+err.message));
-                });
+              if (line.includes('WiFi Frames')) {
+                const match = line.match(/(\d+)/);
+                if (match) document.getElementById('wifiFrames').innerText = match[1];
+              }
+              if (line.includes('BLE Frames')) {
+                const match = line.match(/(\d+)/);
+                if (match) document.getElementById('bleFrames').innerText = match[1];
+              }
+              if (line.includes('Total hits')) {
+                const match = line.match(/(\d+)/);
+                if (match) document.getElementById('totalHits').innerText = match[1];
+              }
+              if (line.includes('Unique devices')) {
+                const match = line.match(/(\d+)/);
+                if (match) document.getElementById('uniqueDevices').innerText = match[1];
+              }
+              if (line.includes('ESP32 Temp')) {
+                const match = line.match(/([\d.]+)°C/);
+                if (match) document.getElementById('temperature').innerText = match[1] + '°C';
+              }
+              if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
+                hardware += line + '\n';
+              } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
+                network += line + '\n';
+              } else {
+                overview += line + '\n';
+              }
+            });
+            document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
+            document.getElementById('networkDiag').innerText = network || 'No network data';
+            const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
+            if (uptimeMatch) {
+              document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
+            }
+            updateStatusIndicators(diagText);
+            const stopAllBtn = document.getElementById('stopAllBtn');
+            if (stopAllBtn) {
+              stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
+            }
+            const resultsElement = document.getElementById('r');
+            if (resultsElement && !resultsElement.contains(document.activeElement)) {
+              if (isScanning || (lastScanningState && !isScanning)) {
+                const rr = await fetch('/results');
+                document.getElementById('r').innerText = await rr.text();
+              }
+            }
+            lastScanningState = isScanning;
+          } catch (e) {}
+        }
 
-              document.getElementById('detectionMode').addEventListener('change', function() {
-                  const selectedMethod = this.value;
-                  const standardControls = document.getElementById('standardDurationControls');
-                  const baselineControls = document.getElementById('baselineConfigControls');
-                  const cacheBtn = document.getElementById('cacheBtn');
-                  const droneLogBtn = document.getElementById('droneLogBtn');
-                  const droneResultsBtn = document.getElementById('droneResultsBtn');
-                  const baselineResultsBtn = document.getElementById('baselineResultsBtn');
-                  const resetBaselineBtn = document.getElementById('resetBaselineBtn');
-                  
-                  cacheBtn.style.display = 'none';
-                  droneLogBtn.style.display = 'none';
-                  droneResultsBtn.style.display = 'none';
-                  baselineResultsBtn.style.display = 'none';
-                  resetBaselineBtn.style.display = 'none';
-                  standardControls.style.display = 'none';
-                  baselineControls.style.display = 'none';
-                  
-                  if (selectedMethod === 'drone-detection') {
-                    standardControls.style.display = 'block';
-                    droneLogBtn.style.display = 'inline-block';
-                    droneResultsBtn.style.display = 'inline-block';
-                  } else if (selectedMethod === 'baseline') {
-                    baselineControls.style.display = 'block';
-                    baselineResultsBtn.style.display = 'inline-block';
-                    resetBaselineBtn.style.display = 'inline-block';
-                    updateBaselineStatus();
-                  } else {
-                    standardControls.style.display = 'block';
-                    cacheBtn.style.display = 'inline-block';
-                  }
-                });
-
-                document.getElementById('sniffer').addEventListener('submit', e => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const detectionMethod = fd.get('detection');
-                  let endpoint = '/sniffer';
-                  if (detectionMethod === 'drone-detection') {
-                    endpoint = '/drone';
-                    fd.delete('detection');
-                  }
-                  
-                  if (detectionMethod === 'baseline') {
-                    const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
-                    const duration = document.getElementById('baselineDuration').value;
-                    
-                    fetch('/api/baseline/config', {
-                      method: 'POST',
-                      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                      body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
-                    }).then(() => {
-                      return fetch(endpoint, {method:'POST', body:fd});
-                    }).then(r=>r.text())
-                      .then(t=>{
-                        toast(t, 'success');
-                        updateBaselineStatus();
-                      })
-                      .catch(err=>toast('Error: '+err, 'error'));
-                  } else {
-                    fetch(endpoint, {method:'POST', body:fd})
-                      .then(r=>r.text())
-                      .then(t=>toast(t, 'success'))
-                      .catch(err=>toast('Error: '+err, 'error'));
-                  }
-                });
-                
-                document.addEventListener('click', e=>{
-                  const a = e.target.closest('a[href="/stop"]');
-                  if (!a) return;
-                  e.preventDefault();
-                  fetch('/stop').then(r=>r.text()).then(t=>toast(t));
-                });
-                
-                document.addEventListener('click', e=>{
-                  const a = e.target.closest('a[href="/mesh-test"]');
-                  if (!a) return;
-                  e.preventDefault();
-                  fetch('/mesh-test').then(r=>r.text()).then(t=>toast('Mesh test sent'));
-                });
-                
-                // Initialize
-                load();
-                setInterval(tick, 2000);
-    </script>
-  </body></html>
+        document.getElementById('triangulate').addEventListener('change', e => {
+          document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
+        });
+        document.getElementById('f').addEventListener('submit', e => {
+          e.preventDefault();
+          ajaxForm(e.target, 'Targets saved ✓');
+          setTimeout(load, 500);
+        });
+        document.getElementById('nodeForm').addEventListener('submit', e => {
+          e.preventDefault();
+          ajaxForm(e.target, 'Node ID updated');
+          setTimeout(loadNodeId, 500);
+        });
+        document.getElementById('s').addEventListener('submit', e => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          fetch('/scan', {
+            method: 'POST',
+            body: fd
+          }).then(r => r.text()).then(t => toast(t)).catch(err => toast('Error: ' + err.message));
+        });
+        document.getElementById('detectionMode').addEventListener('change', function() {
+          const selectedMethod = this.value;
+          const standardControls = document.getElementById('standardDurationControls');
+          const baselineControls = document.getElementById('baselineConfigControls');
+          const cacheBtn = document.getElementById('cacheBtn');
+          const baselineResultsBtn = document.getElementById('baselineResultsBtn');
+          const resetBaselineBtn = document.getElementById('resetBaselineBtn');
+          
+          // Hide everything first
+          cacheBtn.style.display = 'none';
+          baselineResultsBtn.style.display = 'none';
+          resetBaselineBtn.style.display = 'none';
+          standardControls.style.display = 'none';
+          baselineControls.style.display = 'none';
+          
+          // Show relevant controls
+          if (selectedMethod === 'baseline') {
+            baselineControls.style.display = 'block';
+            baselineResultsBtn.style.display = 'inline-block';
+            resetBaselineBtn.style.display = 'inline-block';
+            updateBaselineStatus();
+          } else if (selectedMethod === 'drone-detection') {
+            standardControls.style.display = 'block';
+          } else {
+            standardControls.style.display = 'block';
+            cacheBtn.style.display = 'inline-block';
+          }
+        });
+        document.getElementById('sniffer').addEventListener('submit', e => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const detectionMethod = fd.get('detection');
+          let endpoint = '/sniffer';
+          if (detectionMethod === 'drone-detection') {
+            endpoint = '/drone';
+            fd.delete('detection');
+          }
+          if (detectionMethod === 'baseline') {
+            const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
+            const duration = document.getElementById('baselineDuration').value;
+            fetch('/api/baseline/config', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
+            }).then(() => {
+              return fetch(endpoint, {
+                method: 'POST',
+                body: fd
+              });
+            }).then(r => r.text()).then(t => {
+              toast(t, 'success');
+              updateBaselineStatus();
+            }).catch(err => toast('Error: ' + err, 'error'));
+          } else {
+            fetch(endpoint, {
+              method: 'POST',
+              body: fd
+            }).then(r => r.text()).then(t => toast(t, 'success')).catch(err => toast('Error: ' + err, 'error'));
+          }
+        });
+        document.addEventListener('click', e => {
+          const a = e.target.closest('a[href="/stop"]');
+          if (!a) return;
+          e.preventDefault();
+          fetch('/stop').then(r => r.text()).then(t => toast(t));
+        });
+        document.addEventListener('click', e => {
+          const a = e.target.closest('a[href="/mesh-test"]');
+          if (!a) return;
+          e.preventDefault();
+          fetch('/mesh-test').then(r => r.text()).then(t => toast('Mesh test sent'));
+        });
+        // Initialize
+        load();
+        setInterval(tick, 2000);
+      </script>
+  </body>
+</html>
 )HTML";
 
 void startWebServer()
@@ -1346,7 +1165,8 @@ void startWebServer()
         json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
         json += "\"anomalyCount\":" + String(anomalyCount);
         json += "}";
-        req->send(200, "application/json", json); });
+        req->send(200, "application/json", json); 
+      });
 
   server->on("/api/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -1357,7 +1177,8 @@ void startWebServer()
         if (req->hasParam("baselineDuration", true)) {
             baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
         }
-        req->send(200, "text/plain", "Baseline configuration updated"); });
+        req->send(200, "text/plain", "Baseline configuration updated"); 
+      });
 
   server->on("/api/baseline/reset", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -1383,14 +1204,20 @@ void startWebServer()
     String status = sdAvailable ? "SD card: Available" : "SD card: Not available";
     r->send(200, "text/plain", status); });
 
-  server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-        stopRequested = true;
-        droneDetectionEnabled = false;
-        if (droneQueue) {
-            xQueueReset(droneQueue);
-        }
-      });
+  server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
+      stopRequested = true;
+      
+      if (workerTaskHandle) {
+          workerTaskHandle = nullptr;
+      }
+      if (blueTeamTaskHandle) {
+          blueTeamTaskHandle = nullptr;
+      }
+      
+      scanning = false;
+      
+      req->send(200, "text/plain", "Scan stopped");
+  });
 
   server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
              {
@@ -1912,6 +1739,41 @@ void processCommand(const String &command)
       }
     }
   }
+  else if (command.startsWith("BASELINE_START:"))
+  {
+    String params = command.substring(15);
+    int durationDelim = params.indexOf(':');
+    int secs = params.substring(0, durationDelim > 0 ? durationDelim : params.length()).toInt();
+    bool forever = (durationDelim > 0 && params.substring(durationDelim + 1) == "FOREVER");
+
+    if (secs < 0)
+      secs = 0;
+    if (secs > 86400)
+      secs = 86400;
+
+    stopRequested = false;
+
+    if (!workerTaskHandle)
+    {
+      xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
+                              (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+    }
+    Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
+    Serial1.println(nodeId + ": BASELINE_ACK:STARTED");
+  }
+  else if (command.startsWith("BASELINE_STATUS"))
+  {
+    char status_msg[MAX_MESH_SIZE];
+    snprintf(status_msg, sizeof(status_msg),
+             "%s: BASELINE_STATUS: Scanning:%s Established:%s Devices:%d Anomalies:%d Phase1:%s",
+             nodeId.c_str(),
+             baselineStats.isScanning ? "YES" : "NO",
+             baselineEstablished ? "YES" : "NO",
+             baselineDeviceCount,
+             anomalyCount,
+             baselineStats.phase1Complete ? "COMPLETE" : "ACTIVE");
+    Serial1.println(status_msg);
+  }
   else if (command.startsWith("STOP"))
   {
     stopRequested = true;
@@ -1984,17 +1846,20 @@ void processCommand(const String &command)
       Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
     }
   }
-  else if (command.startsWith("ERASE_FORCE:")) {
-        String token = command.substring(12);
-        if (validateEraseToken(token)) {
-            executeSecureErase("Force command");
-            Serial1.println(nodeId + ": ERASE_ACK:COMPLETE");
-        }
+  else if (command.startsWith("ERASE_FORCE:"))
+  {
+    String token = command.substring(12);
+    if (validateEraseToken(token))
+    {
+      executeSecureErase("Force command");
+      Serial1.println(nodeId + ": ERASE_ACK:COMPLETE");
     }
-    else if (command == "ERASE_CANCEL") {
-        cancelTamperErase();
-        Serial1.println(nodeId + ": ERASE_ACK:CANCELLED");
-    }
+  }
+  else if (command == "ERASE_CANCEL")
+  {
+    cancelTamperErase();
+    Serial1.println(nodeId + ": ERASE_ACK:CANCELLED");
+  }
 }
 
 void sendMeshCommand(const String &command)
