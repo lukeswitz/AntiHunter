@@ -1063,8 +1063,8 @@ void probeFloodDetectionTask(void *pv) {
 }
 
 // Main NimBLE callback
-class MyBLEAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
-    void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
+class MyBLEScanCallbacks : public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
         bleFramesSeen = bleFramesSeen + 1;
 
         uint8_t mac[6];
@@ -1108,14 +1108,14 @@ class MyBLEAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
 };
 
 // BLE Attack Callback
-class BLEAttackDetector : public NimBLEAdvertisedDeviceCallbacks {
+class BLEAttackDetector : public NimBLEScanCallbacks {
 private:
     std::map<String, std::vector<uint32_t>> deviceTimings;
     std::map<String, String> lastDeviceNames;
     uint32_t lastCleanup = 0;
     
 public:
-    void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
+    void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
         uint8_t mac[6];
         NimBLEAddress addr = advertisedDevice->getAddress();
         String macStr = addr.toString().c_str();
@@ -1175,22 +1175,9 @@ public:
             }
         }
         
-        // Generic flood detection - much higher threshold
         if (!isSpam && packetsInWindow >= 50) {
             isSpam = true;
             spamType = "BLE flood";
-        }
-        
-        // Check for name changes (spam indicator)
-        if (advertisedDevice->haveName()) {
-            String currentName = String(advertisedDevice->getName().c_str());
-            if (lastDeviceNames.find(macStr) != lastDeviceNames.end()) {
-                if (lastDeviceNames[macStr] != currentName && packetsInWindow >= 10) {
-                    isSpam = true;
-                    spamType = "Name-changing spam";
-                }
-            }
-            lastDeviceNames[macStr] = currentName;
         }
         
         if (isSpam) {
@@ -1237,9 +1224,9 @@ void bleScannerTask(void *pv) {
     bleSpamQueue = xQueueCreate(256, sizeof(BLESpamHit));
     bleAnomalyQueue = xQueueCreate(256, sizeof(BLEAnomalyHit));
     
-    BLEDevice::init("");
-    NimBLEScan* pBLEScan = BLEDevice::getScan();
-    pBLEScan->setAdvertisedDeviceCallbacks(new BLEAttackDetector());
+    NimBLEDevice::init("");
+    NimBLEScan* pBLEScan = NimBLEDevice::getScan();
+    pBLEScan->setScanCallbacks(new BLEAttackDetector(), true);
     pBLEScan->setActiveScan(false);
     pBLEScan->setInterval(50);
     pBLEScan->setWindow(30);
@@ -1253,7 +1240,8 @@ void bleScannerTask(void *pv) {
     while ((forever && !stopRequested) || 
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
         
-        pBLEScan->start(1, false);
+        // Use getResults for blocking scan instead of start
+        NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
         
         while (xQueueReceive(bleSpamQueue, &spamHit, 0) == pdTRUE) {
             String alert = "BLE SPAM: ";
@@ -1267,16 +1255,17 @@ void bleScannerTask(void *pv) {
             
             if (meshEnabled) {
                 String meshAlert = getNodeId() + ": BLE-ATTACK: " + String(spamHit.spamType);
-                if (Serial1.availableForWrite() >= meshAlert.length()) {
+                
+            if (Serial1.availableForWrite() >= meshAlert.length()) {
                     Serial1.println(meshAlert);
                 }
             }
         }
         
         while (xQueueReceive(bleAnomalyQueue, &anomalyHit, 0) == pdTRUE) {
-            String alert = "BLE ANOMALY: ";
-            alert += anomalyHit.anomalyType;
-            alert += " MAC:" + macFmt6(anomalyHit.mac);
+                String alert = "BLE ANOMALY: ";
+                alert += anomalyHit.anomalyType;
+                alert += " MAC:" + macFmt6(anomalyHit.mac);
             alert += " " + String(anomalyHit.details);
             
             Serial.println("[ANOMALY] " + alert);
@@ -1299,7 +1288,7 @@ void bleScannerTask(void *pv) {
     
     bleSpamDetectionEnabled = false;
     pBLEScan->stop();
-    BLEDevice::deinit(false);
+    NimBLEDevice::deinit(false);
     
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -1441,17 +1430,17 @@ void snifferScanTask(void *pv)
 
             if (bleScan)
             {
-                // esp_task_wdt_reset();
-                BLEScanResults scanResults = bleScan->start(1, false);
+                // Use getResults for blocking scan
+                NimBLEScanResults scanResults = bleScan->getResults(1000, false);
 
                 for (int i = 0; i < scanResults.getCount(); i++)
                 {
-                    BLEAdvertisedDevice device = scanResults.getDevice(i);
-                    String macStr = device.getAddress().toString().c_str();
+                    const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
+                    String macStr = device->getAddress().toString().c_str();
 
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
-                        String name = device.haveName() ? device.getName().c_str() : "Unknown";
+                        String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
 
                         String cleanName = "";
                         for (size_t j = 0; j < name.length(); j++)
@@ -1475,7 +1464,7 @@ void snifferScanTask(void *pv)
                         {
                             Hit h;
                             memcpy(h.mac, mac, 6);
-                            h.rssi = device.getRSSI();
+                            h.rssi = device->getRSSI();
                             h.ch = 0;
                             strncpy(h.name, cleanName.c_str(), sizeof(h.name) - 1);
                             h.name[sizeof(h.name) - 1] = '\0';
@@ -1484,7 +1473,7 @@ void snifferScanTask(void *pv)
                             hitsLog.push_back(h);
 
                             String logEntry = "BLE Device: " + macStr + " Name: " + cleanName +
-                                              " RSSI: " + String(device.getRSSI()) + "dBm";
+                                            " RSSI: " + String(device->getRSSI()) + "dBm";
 
                             if (gpsValid)
                             {
@@ -1729,7 +1718,6 @@ void blueTeamTask(void *pv) {
         antihunter::lastResults = results;
     }
 
-    
     // startAPAndServer();
     vTaskDelay(pdMS_TO_TICKS(1000));
     blueTeamTaskHandle = nullptr;
@@ -2075,7 +2063,7 @@ static void radioStartBLE()
 {
     BLEDevice::init("");
     pBLEScan = BLEDevice::getScan();
-    pBLEScan->setAdvertisedDeviceCallbacks(new MyBLEAdvertisedDeviceCallbacks());
+    pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
     pBLEScan->setActiveScan(true);
     pBLEScan->setInterval(100);    
     pBLEScan->setWindow(99); 
@@ -2240,7 +2228,7 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
             static uint32_t lastBLEScan = 0;
             if (millis() - lastBLEScan >= 3000) {
-                pBLEScan->start(1, false);
+                NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
                 pBLEScan->clearResults();
                 lastBLEScan = millis();
             }
@@ -2869,13 +2857,13 @@ void baselineDetectionTask(void *pv) {
         if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
             
-            BLEScanResults scanResults = pBLEScan->start(1, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
             
             for (int i = 0; i < scanResults.getCount(); i++) {
-                BLEAdvertisedDevice device = scanResults.getDevice(i);
-                String macStr = device.getAddress().toString().c_str();
-                String name = device.haveName() ? String(device.getName().c_str()) : "Unknown";
-                int8_t rssi = device.getRSSI();
+                const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
+                String macStr = device->getAddress().toString().c_str();
+                String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                int8_t rssi = device->getRSSI();
                 
                 uint8_t mac[6];
                 if (parseMac6(macStr, mac)) {
@@ -2974,13 +2962,13 @@ void baselineDetectionTask(void *pv) {
         if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
             
-            BLEScanResults scanResults = pBLEScan->start(1, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
             
             for (int i = 0; i < scanResults.getCount(); i++) {
-                BLEAdvertisedDevice device = scanResults.getDevice(i);
-                String macStr = device.getAddress().toString().c_str();
-                String name = device.haveName() ? String(device.getName().c_str()) : "Unknown";
-                int8_t rssi = device.getRSSI();
+                const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
+                String macStr = device->getAddress().toString().c_str();
+                String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                int8_t rssi = device->getRSSI();
                 
                 uint8_t mac[6];
                 if (parseMac6(macStr, mac)) {
