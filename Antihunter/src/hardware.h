@@ -4,23 +4,23 @@
 #include "main.h"
 
 #ifndef COUNTRY
-#define COUNTRY "NO"
+#define COUNTRY "US"
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 4   // MESH PIN 9
+#define MESH_RX_PIN 4    // TO MESH PIN 9
 #endif
 #ifndef MESH_TX_PIN
-#define MESH_TX_PIN 5    // MESH PIN 10
+#define MESH_TX_PIN 5    // TO MESH PIN 10
 #endif
 #ifndef VIBRATION_PIN
-#define VIBRATION_PIN 2  // SW-420
+#define VIBRATION_PIN 2  // TO SW-420 D0
 #endif
 
 // SD Card (SPI)
 #define SD_CS_PIN   1    // CS on D0
 #define SD_CLK_PIN  7    // CLK on D8
 #define SD_MISO_PIN 8    // MISO on D9
-#define SD_MOSI_PIN 9   // MOSI on D10
+#define SD_MOSI_PIN 9    // MOSI on D10
 
 // GPS (UART)
 #define GPS_RX_PIN 44   // GPS RX
