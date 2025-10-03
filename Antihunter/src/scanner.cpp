@@ -84,9 +84,9 @@ struct DeviceHistory {
 };
 
 std::map<String, DeviceHistory> deviceHistory;
-const uint32_t DEVICE_ABSENCE_THRESHOLD = 120000;  // 2 minutes = disappeared
-const uint32_t REAPPEARANCE_ALERT_WINDOW = 300000; // 5 minutes = suspicious
-const int8_t SIGNIFICANT_RSSI_CHANGE = 20;  // 20dBm change is significant
+uint32_t deviceAbsenceThreshold = 120000;
+uint32_t reappearanceAlertWindow = 300000;
+int8_t significantRssiChange = 20;
 
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
@@ -2775,7 +2775,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         // Device is in baseline - check for suspicious patterns
         
         // Check for reappearance after absence
-        if (history.disappearedAt > 0 && (now - history.disappearedAt < REAPPEARANCE_ALERT_WINDOW)) {
+        if (history.disappearedAt > 0 && (now - history.disappearedAt < reappearanceAlertWindow)) {
             uint32_t absenceDuration = history.disappearedAt - history.lastSeen;
             
             AnomalyHit hit;
@@ -2812,7 +2812,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         
         // Check for significant RSSI change
         int8_t rssiDelta = abs(rssi - history.lastRssi);
-        if (rssiDelta >= SIGNIFICANT_RSSI_CHANGE) {
+        if (rssiDelta >= significantRssiChange) {
             history.significantChanges++;
             
             // Only alert on first few changes to avoid spam
@@ -3209,7 +3209,7 @@ void cleanupBaselineMemory() {
     for (auto& entry : deviceHistory) {
         DeviceHistory &hist = entry.second;
         
-        if (hist.wasPresent && (now - hist.lastSeen > DEVICE_ABSENCE_THRESHOLD)) {
+        if (hist.wasPresent && (now - hist.lastSeen > deviceAbsenceThreshold)) {
             if (hist.disappearedAt == 0) {
                 hist.disappearedAt = now;
                 Serial.printf("[BASELINE] Device disappeared: %s (absent %us)\n", 
@@ -3223,7 +3223,7 @@ void cleanupBaselineMemory() {
         std::vector<String> toRemove;
         for (const auto& entry : deviceHistory) {
             if (entry.second.disappearedAt > 0 && 
-                (now - entry.second.disappearedAt > REAPPEARANCE_ALERT_WINDOW)) {
+                (now - entry.second.disappearedAt > reappearanceAlertWindow)) {
                 toRemove.push_back(entry.first);
             }
         }
@@ -3550,5 +3550,41 @@ void setBaselineSdMaxDevices(uint32_t size) {
         baselineSdMaxDevices = size;
         prefs.putUInt("baselineSdMax", size);
         Serial.printf("[BASELINE] SD max devices set to %u\n", size);
+    }
+}
+
+uint32_t getDeviceAbsenceThreshold() {
+    return deviceAbsenceThreshold;
+}
+
+void setDeviceAbsenceThreshold(uint32_t ms) {
+    if (ms >= 30000 && ms <= 600000) {  // 30s - 10min
+        deviceAbsenceThreshold = ms;
+        prefs.putUInt("absenceThresh", ms);
+        Serial.printf("[BASELINE] Absence threshold set to %u ms\n", ms);
+    }
+}
+
+uint32_t getReappearanceAlertWindow() {
+    return reappearanceAlertWindow;
+}
+
+void setReappearanceAlertWindow(uint32_t ms) {
+    if (ms >= 60000 && ms <= 1800000) {  // 1min - 30min
+        reappearanceAlertWindow = ms;
+        prefs.putUInt("reappearWin", ms);
+        Serial.printf("[BASELINE] Reappearance window set to %u ms\n", ms);
+    }
+}
+
+int8_t getSignificantRssiChange() {
+    return significantRssiChange;
+}
+
+void setSignificantRssiChange(int8_t dBm) {
+    if (dBm >= 5 && dBm <= 50) {
+        significantRssiChange = dBm;
+        prefs.putInt("rssiChange", dBm);
+        Serial.printf("[BASELINE] RSSI change threshold set to %d dBm\n", dBm);
     }
 }

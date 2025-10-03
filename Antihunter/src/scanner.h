@@ -58,6 +58,9 @@ extern uint32_t anomalyCount;
 extern uint32_t baselineDeviceCount;
 extern QueueHandle_t anomalyQueue;
 extern int8_t baselineRssiThreshold;
+extern uint32_t deviceAbsenceThreshold;
+extern uint32_t reappearanceAlertWindow;
+extern int8_t significantRssiChange;
 
 // SD-backed baseline storage
 extern uint32_t totalDevicesOnSD;
@@ -379,3 +382,9 @@ uint32_t getBaselineRamCacheSize();
 void setBaselineRamCacheSize(uint32_t size);
 uint32_t getBaselineSdMaxDevices();
 void setBaselineSdMaxDevices(uint32_t size);
+uint32_t getDeviceAbsenceThreshold();
+void setDeviceAbsenceThreshold(uint32_t ms);
+uint32_t getReappearanceAlertWindow();
+void setReappearanceAlertWindow(uint32_t ms);
+int8_t getSignificantRssiChange();
+void setSignificantRssiChange(int8_t dBm);
