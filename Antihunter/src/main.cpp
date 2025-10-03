@@ -118,7 +118,7 @@ void parseChannelsCSV(const String &csv) {
 }
 
 void sendNodeIdUpdate() {
-    String nodeMsg = "[NODE_ID] " + getNodeId();
+    String nodeMsg = "[NODE_HB] " + getNodeId();
     // Add GPS coordinates if available
     if (gpsValid) {
         nodeMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);

@@ -27,7 +27,8 @@ struct BaselineDevice {
     bool isBLE;
     uint8_t channel;
     uint16_t hitCount;
-};
+    uint8_t checksum;
+} __attribute__((packed));
 
 struct AnomalyHit {
     uint8_t mac[6];
@@ -42,7 +43,7 @@ struct AnomalyHit {
 // Baseline detection configuration
 const uint32_t BASELINE_SCAN_DURATION = 300000;  // 5 minutes default
 const uint32_t BASELINE_DEVICE_TIMEOUT = 600000;  // 10 minutes before device removed
-const uint32_t BASELINE_MAX_DEVICES = 500;       // Maximum baseline devices
+const uint32_t BASELINE_SD_FLUSH_INTERVAL = 5000;  // Flush every 5s
 const uint32_t BASELINE_MAX_ANOMALIES = 200;     // Maximum anomaly log entries
 const uint32_t BASELINE_CLEANUP_INTERVAL = 60000; // Cleanup every 60 seconds
 
@@ -51,13 +52,17 @@ extern bool baselineDetectionEnabled;
 extern bool baselineEstablished;
 extern uint32_t baselineStartTime;
 extern uint32_t baselineDuration;
-extern std::map<String, BaselineDevice> baselineDevices;
+extern std::map<String, BaselineDevice> baselineCache;
 extern std::vector<AnomalyHit> anomalyLog;
 extern uint32_t anomalyCount;
 extern uint32_t baselineDeviceCount;
 extern QueueHandle_t anomalyQueue;
 extern int8_t baselineRssiThreshold;
 
+// SD-backed baseline storage
+extern uint32_t totalDevicesOnSD;
+extern uint32_t lastSDFlush;
+extern bool sdBaselineInitialized;
 
 struct Target {
     uint8_t bytes[6];
@@ -314,6 +319,9 @@ extern QueueHandle_t bleAnomalyQueue;
 
 extern TaskHandle_t workerTaskHandle;
 
+extern uint32_t baselineRamCacheSize;
+extern uint32_t baselineSdMaxDevices;
+
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern bool triangulationActive;
@@ -331,28 +339,43 @@ static int blueTeamDuration = 300;
 static bool blueTeamForever = false;
 extern BaselineStats baselineStats;  
 
-void snifferScanTask(void *pv);
 void initializeScanner();
+void saveTargetsList(const String &txt);
+void snifferScanTask(void *pv);
+void bleScannerTask(void *pv);
 void listScanTask(void *pv);
 void karmaDetectionTask(void *pv);
 void probeFloodDetectionTask(void *pv);
 void pwnagotchiDetectionTask(void *pv);
 void multissidDetectionTask(void *pv);
+void baselineDetectionTask(void *pv);
 void blueTeamTask(void *pv);
 void beaconFloodTask(void *pv);
-void bleScannerTask(void *pv);
-void saveTargetsList(const String &txt);
+
 String getTargetsList();
 String getDiagnostics();
 size_t getTargetCount();
 String getSnifferCache();
-void cleanupMaps();
-void baselineDetectionTask(void *pv);
-void resetBaselineDetection();
 String getBaselineResults();
+
+void cleanupMaps();
+
+void resetBaselineDetection();
 bool isDeviceInBaseline(const uint8_t *mac);
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
 void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
 void cleanupBaselineMemory();
 int8_t getBaselineRssiThreshold();
 void setBaselineRssiThreshold(int8_t threshold);
+bool initializeBaselineSD();
+bool writeBaselineDeviceToSD(const BaselineDevice& device);
+bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device);
+bool flushBaselineCacheToSD();
+void loadBaselineFromSD();
+void saveBaselineStatsToSD();
+void loadBaselineStatsFromSD();
+uint8_t calculateDeviceChecksum(BaselineDevice& device);
+uint32_t getBaselineRamCacheSize();
+void setBaselineRamCacheSize(uint32_t size);
+uint32_t getBaselineSdMaxDevices();
+void setBaselineSdMaxDevices(uint32_t size);

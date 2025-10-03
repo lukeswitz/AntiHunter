@@ -1,11 +1,13 @@
-#include <algorithm>
-#include <string>
-#include <mutex>
+#include <ArduinoJson.h>
+#include <SD.h>
 #include <WiFi.h>
 #include <NimBLEAddress.h>
 #include <NimBLEDevice.h>
 #include <NimBLEAdvertisedDevice.h>
 #include <NimBLEScan.h>
+#include <algorithm>
+#include <string>
+#include <mutex>
 #include "scanner.h"
 #include "hardware.h"
 #include "network.h"
@@ -59,13 +61,18 @@ BaselineStats baselineStats;
 bool baselineDetectionEnabled = false;
 bool baselineEstablished = false;
 uint32_t baselineStartTime = 0;
-uint32_t baselineDuration = 300000;  // 5 minutes default
-std::map<String, BaselineDevice> baselineDevices;
+uint32_t baselineDuration = 300000;
+std::map<String, BaselineDevice> baselineCache;
+uint32_t totalDevicesOnSD = 0;
+uint32_t lastSDFlush = 0;
+bool sdBaselineInitialized = false;
 std::vector<AnomalyHit> anomalyLog;
-uint32_t anomalyCount = 0;  // Not volatile
-uint32_t baselineDeviceCount = 0;  // Not volatile
+uint32_t anomalyCount = 0;
+uint32_t baselineDeviceCount = 0;
 QueueHandle_t anomalyQueue = nullptr;
-int8_t baselineRssiThreshold = -60;  // Default -60 dBm
+int8_t baselineRssiThreshold = -60;
+uint32_t baselineRamCacheSize = 400;
+uint32_t baselineSdMaxDevices = 50000;
 
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
@@ -857,7 +864,7 @@ void karmaDetectionTask(void *pv) {
     Serial.printf("[KARMA] Starting Karma attack detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
 
-    // stopAPAndServer();
+    
 
     // Isolate: Disable others, enable only Karma
     deauthDetectionEnabled = false;
@@ -953,7 +960,7 @@ void karmaDetectionTask(void *pv) {
     }
     radioStopSTA();
     delay(500); 
-    // startAPAndServer();
+    
     blueTeamTaskHandle = nullptr;  // Reset shared handle
     vTaskDelete(nullptr);
 }
@@ -965,8 +972,7 @@ void probeFloodDetectionTask(void *pv) {
 
     Serial.printf("[PROBE] Starting probe flood detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
-
-    // stopAPAndServer();
+    
 
     // Isolate: Disable others, enable only Probe Flood
     deauthDetectionEnabled = false;
@@ -1062,7 +1068,7 @@ void probeFloodDetectionTask(void *pv) {
     
     radioStopSTA();
     delay(500); 
-    // startAPAndServer();
+    
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1312,7 +1318,6 @@ void bleScannerTask(void *pv) {
         antihunter::lastResults = results;
     }
     
-    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1327,8 +1332,6 @@ void snifferScanTask(void *pv)
 
     Serial.printf("[SNIFFER] Starting device scan %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
-
-    // stopAPAndServer();
 
     radioStartSTA();
 
@@ -1367,7 +1370,7 @@ void snifferScanTask(void *pv)
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
-            networksFound = WiFi.scanNetworks(false, true, false, 300);
+            networksFound = WiFi.scanNetworks(false, true, false, 120);
 
             if (networksFound > 0)
             {
@@ -1512,8 +1515,6 @@ void snifferScanTask(void *pv)
         BLEDevice::deinit(false);
         delay(200);
     }
-
-    // stopAPAndServer();
     
     scanning = false;
     lastScanEnd = millis();
@@ -1562,8 +1563,6 @@ void snifferScanTask(void *pv)
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    
-    // startAPAndServer();
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1591,8 +1590,6 @@ void blueTeamTask(void *pv) {
     String startMsg = forever ? String("[BLUE] Starting deauth detection (forever)\n")
                               : String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
     Serial.print(startMsg);
-
-    // stopAPAndServer();
     
     deauthLog.clear();
     deauthCount = 0;
@@ -1720,7 +1717,6 @@ void blueTeamTask(void *pv) {
         antihunter::lastResults = results;
     }
 
-    // startAPAndServer();
     vTaskDelay(pdMS_TO_TICKS(1000));
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
@@ -1732,8 +1728,6 @@ void beaconFloodTask(void *pv) {
 
     Serial.printf("[BEACON] Starting beacon flood detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
-
-    // stopAPAndServer();
 
     beaconLog.clear();
     beaconCounts.clear();
@@ -1833,7 +1827,6 @@ void beaconFloodTask(void *pv) {
         antihunter::lastResults = results;
     }
 
-    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -2162,10 +2155,6 @@ void listScanTask(void *pv) {
                   forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str(),
                   modeStr.c_str());
 
-
-    // stopAPAndServer();
-
-
     stopRequested = false;
     if (macQueue) {
         vQueueDelete(macQueue);
@@ -2288,7 +2277,7 @@ void listScanTask(void *pv) {
     
     radioStopSTA();
     delay(500);
-    // startAPAndServer();
+    
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -2503,7 +2492,7 @@ void pwnagotchiDetectionTask(void *pv) {
     
     Serial.println("[PWN] Starting Pwnagotchi detection");
     
-    // stopAPAndServer();
+    
     pwnagotchiLog.clear();
     pwnagotchiCount = 0;
     stopRequested = false;
@@ -2530,7 +2519,6 @@ void pwnagotchiDetectionTask(void *pv) {
     }
     
     radioStopSTA();
-    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -2542,7 +2530,7 @@ void multissidDetectionTask(void *pv) {
     
     Serial.println("[MULTI] Starting Multi-SSID AP detection");
     
-    // stopAPAndServer();
+    
     multissidTrackers.clear();
     confirmedMultiSSID.clear();
     multissidCount = 0;
@@ -2586,7 +2574,6 @@ void multissidDetectionTask(void *pv) {
     }
     
     radioStopSTA();
-    // startAPAndServer();
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -2605,11 +2592,12 @@ void setBaselineRssiThreshold(int8_t threshold) {
 }
 
 void resetBaselineDetection() {
-    baselineDevices.clear();
+    baselineCache.clear();
     anomalyLog.clear();
     anomalyCount = 0;
     baselineDeviceCount = 0;
     baselineEstablished = false;
+    totalDevicesOnSD = 0;
     
     baselineStats.wifiDevices = 0;
     baselineStats.bleDevices = 0;
@@ -2617,20 +2605,63 @@ void resetBaselineDetection() {
     baselineStats.wifiHits = 0;
     baselineStats.bleHits = 0;
     
+    // Clear SD storage
+    if (sdAvailable) {
+        if (SD.exists("/baseline_data.bin")) {
+            SD.remove("/baseline_data.bin");
+            Serial.println("[BASELINE] Removed SD data file");
+        }
+        if (SD.exists("/baseline_stats.json")) {
+            SD.remove("/baseline_stats.json");
+            Serial.println("[BASELINE] Removed SD stats file");
+        }
+    }
+    
+    sdBaselineInitialized = false;
+    initializeBaselineSD();
+    
     Serial.println("[BASELINE] Reset complete");
 }
 
 bool isDeviceInBaseline(const uint8_t *mac) {
     String macStr = macFmt6(mac);
-    return baselineDevices.find(macStr) != baselineDevices.end();
+    
+    // Check RAM cache quicjk
+    if (baselineCache.find(macStr) != baselineCache.end()) {
+        return true;
+    }
+    
+    // Check SD (slower)
+    BaselineDevice dev;
+    return readBaselineDeviceFromSD(mac, dev);
 }
 
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
     String macStr = macFmt6(mac);
     uint32_t now = millis();
     
-    if (baselineDevices.find(macStr) == baselineDevices.end()) {
-        // New device in baseline
+    // Check RAM cache first
+    if (baselineCache.find(macStr) == baselineCache.end()) {
+        // Not in cache - make room if needed
+        if (baselineCache.size() >= baselineRamCacheSize) {
+            // Evict oldest from cache to SD
+            String oldestKey;
+            uint32_t oldestTime = UINT32_MAX;
+            
+            for (const auto& entry : baselineCache) {
+                if (entry.second.lastSeen < oldestTime) {
+                    oldestTime = entry.second.lastSeen;
+                    oldestKey = entry.first;
+                }
+            }
+            
+            if (oldestKey.length() > 0) {
+                writeBaselineDeviceToSD(baselineCache[oldestKey]);
+                baselineCache.erase(oldestKey);
+            }
+        }
+        
+        // Create new device in cache
         BaselineDevice dev;
         memcpy(dev.mac, mac, 6);
         dev.avgRssi = rssi;
@@ -2643,23 +2674,29 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         dev.isBLE = isBLE;
         dev.channel = channel;
         dev.hitCount = 1;
+        dev.checksum = 0;
         
-        baselineDevices[macStr] = dev;
-        baselineDeviceCount = baselineDeviceCount + 1;
+        baselineCache[macStr] = dev;
+        baselineDeviceCount++;
     } else {
-        // Update existing device
-        BaselineDevice &dev = baselineDevices[macStr];
+        // Update existing device in cache
+        BaselineDevice &dev = baselineCache[macStr];
         dev.avgRssi = (dev.avgRssi * dev.hitCount + rssi) / (dev.hitCount + 1);
         if (rssi < dev.minRssi) dev.minRssi = rssi;
         if (rssi > dev.maxRssi) dev.maxRssi = rssi;
         dev.lastSeen = now;
         dev.hitCount++;
         
-        // Update name if it changed
         if (strlen(name) > 0 && strcmp(name, "Unknown") != 0 && strcmp(name, "WiFi") != 0) {
             strncpy(dev.name, name, sizeof(dev.name) - 1);
             dev.name[sizeof(dev.name) - 1] = '\0';
         }
+    }
+    
+    // Periodic flush to SD
+    if (millis() - lastSDFlush >= BASELINE_SD_FLUSH_INTERVAL) {
+        flushBaselineCacheToSD();
+        lastSDFlush = millis();
     }
 }
 
@@ -2672,7 +2709,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     String macStr = macFmt6(mac);
     
     // Check if device is in baseline
-    if (baselineDevices.find(macStr) == baselineDevices.end()) {
+    if (baselineCache.find(macStr) == baselineCache.end()) { 
         // New hit!
         AnomalyHit hit;
         memcpy(hit.mac, mac, 6);
@@ -2715,42 +2752,50 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
 }
 
 String getBaselineResults() {
-    String results = "=== Baseline Detection Results ===\n\n";
-    results += "Status: " + String(baselineEstablished ? "ACTIVE" : "ESTABLISHING") + "\n";
-    results += "RSSI Threshold: " + String(baselineRssiThreshold) + " dBm\n";
-    results += "Baseline Devices: " + String(baselineDeviceCount) + "\n";
-    results += "Anomalies Detected: " + String(anomalyCount) + "\n\n";
+    String results;
     
     if (baselineEstablished) {
-        results += "=== Baseline Profile ===\n";
-        for (const auto &entry : baselineDevices) {
+        results += "=== BASELINE ESTABLISHED ===\n";
+        results += "Total devices in baseline: " + String(baselineDeviceCount) + "\n";
+        results += "WiFi devices: " + String(baselineStats.wifiDevices) + "\n";
+        results += "BLE devices: " + String(baselineStats.bleDevices) + "\n";
+        results += "RSSI threshold: " + String(baselineRssiThreshold) + " dBm\n\n";
+        
+        results += "=== BASELINE DEVICES (Cached in RAM) ===\n";
+        for (const auto &entry : baselineCache) {
             const BaselineDevice &dev = entry.second;
-            results += String(dev.isBLE ? "BLE  " : "WiFi ") + entry.first;
+            results += String(dev.isBLE ? "BLE  " : "WiFi ") + macFmt6(dev.mac);
             results += " Avg:" + String(dev.avgRssi) + "dBm";
-            results += " Range:[" + String(dev.minRssi) + " to " + String(dev.maxRssi) + "]";
+            results += " Min:" + String(dev.minRssi) + "dBm";
+            results += " Max:" + String(dev.maxRssi) + "dBm";
             results += " Hits:" + String(dev.hitCount);
-            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0) {
+            if (!dev.isBLE && dev.channel > 0) {
+                results += " CH:" + String(dev.channel);
+            }
+            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
                 results += " \"" + String(dev.name) + "\"";
             }
             results += "\n";
         }
-    }
-    
-    if (anomalyCount > 0) {
-        results += "\n=== Recent Anomalies ===\n";
-        int shown = 0;
-        for (auto it = anomalyLog.rbegin(); it != anomalyLog.rend() && shown < 50; ++it, ++shown) {
-            const AnomalyHit &hit = *it;
-            results += String(hit.isBLE ? "BLE  " : "WiFi ") + macFmt6(hit.mac);
-            results += " RSSI:" + String(hit.rssi) + "dBm";
-            if (!hit.isBLE && hit.channel > 0) {
-                results += " CH:" + String(hit.channel);
+        
+        results += "\n=== ANOMALIES DETECTED ===\n";
+        results += "Total anomalies: " + String(anomalyCount) + "\n\n";
+        
+        for (const auto &anomaly : anomalyLog) {
+            results += String(anomaly.isBLE ? "BLE  " : "WiFi ") + macFmt6(anomaly.mac);
+            results += " RSSI:" + String(anomaly.rssi) + "dBm";
+            if (!anomaly.isBLE && anomaly.channel > 0) {
+                results += " CH:" + String(anomaly.channel);
             }
-            if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0) {
-                results += " \"" + String(hit.name) + "\"";
+            if (strlen(anomaly.name) > 0 && strcmp(anomaly.name, "Unknown") != 0) {
+                results += " \"" + String(anomaly.name) + "\"";
             }
+            results += " - " + anomaly.reason;
             results += "\n";
         }
+    } else {
+        results += "Baseline not yet established\n";
+        results += "Devices detected so far: " + String(baselineDeviceCount) + "\n";
     }
     
     return results;
@@ -2760,7 +2805,7 @@ void updateBaselineStats() {
     baselineStats.wifiDevices = 0;
     baselineStats.bleDevices = 0;
     
-    for (const auto& device : baselineDevices) {
+    for (const auto& device : baselineCache) {
         if (device.second.isBLE) {
             baselineStats.bleDevices++;
         } else {
@@ -2777,8 +2822,19 @@ void updateBaselineStats() {
 void baselineDetectionTask(void *pv) {
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
+
+    if (!sdBaselineInitialized) {
+        if (initializeBaselineSD()) {
+            loadBaselineFromSD();
+            if (baselineDeviceCount > 0) {
+                Serial.printf("[BASELINE] Resuming with %d devices from SD\n", baselineDeviceCount);
+                baselineEstablished = true;
+            }
+        }
+    }
     
     Serial.printf("[BASELINE] Starting detection - Threshold: %d dBm\n", baselineRssiThreshold);
+    Serial.printf("[BASELINE] RAM cache: %u devices, SD limit: %u devices\n", baselineRamCacheSize, baselineSdMaxDevices);
     Serial.printf("[BASELINE] Phase 1: Establishing baseline for %d seconds\n", baselineDuration / 1000);
     
     stopRequested = false;
@@ -2834,7 +2890,8 @@ void baselineDetectionTask(void *pv) {
         // WiFi scanning
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, false, false, 120);
+            //scanNetworks(bool async, bool show_hidden, bool passive, uint32_t max_ms_per_chan, uint8_t channel)
+            int networksFound = WiFi.scanNetworks(false,true,false,110);
             
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
@@ -2926,7 +2983,7 @@ void baselineDetectionTask(void *pv) {
     lastCleanup = millis();
     lastWiFiScan = 0;
     lastBLEScan = 0;
-    uint32_t monitorDurationMs = forever ? UINT32_MAX : ((uint32_t)duration * 1000);
+    uint32_t monitorDurationMs = forever ? UINT32_MAX : (uint32_t)duration * 1000;
 
     Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n", 
                 monitorStart, monitorDurationMs);
@@ -2950,7 +3007,7 @@ void baselineDetectionTask(void *pv) {
         // WiFi scanning
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, false, false, 120);
+            int networksFound = WiFi.scanNetworks(false, true, false, 120);
 
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
@@ -3034,6 +3091,11 @@ void baselineDetectionTask(void *pv) {
     Serial.printf("[BASELINE] Detection complete. Baseline:%d Anomalies:%d Final heap:%u\n",
                  baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
     
+    if (sdBaselineInitialized) {
+        flushBaselineCacheToSD();
+        Serial.printf("[BASELINE] Final flush: %d total devices\n", baselineDeviceCount);
+    }
+
     scanning = false;
     baselineDetectionEnabled = false;
     workerTaskHandle = nullptr;
@@ -3045,104 +3107,323 @@ void cleanupBaselineMemory() {
     
     if (baselineEstablished) {
         std::vector<String> toRemove;
-        for (const auto& entry : baselineDevices) {
+        for (const auto& entry : baselineCache) {
             if (now - entry.second.lastSeen > BASELINE_DEVICE_TIMEOUT) {
                 toRemove.push_back(entry.first);
             }
         }
         
         for (const auto& key : toRemove) {
-            baselineDevices.erase(key);
-            baselineDeviceCount = baselineDeviceCount - 1;
+            baselineCache.erase(key);
         }
         
         if (!toRemove.empty()) {
-            Serial.printf("[BASELINE] Removed %d stale devices from baseline\n", toRemove.size());
+            Serial.printf("[BASELINE] Removed %d stale devices from cache\n", toRemove.size());
         }
     }
     
-    // 2. Enforce maximum baseline device limit using LRU eviction
-    if (baselineDevices.size() > BASELINE_MAX_DEVICES) {
-        Serial.printf("[BASELINE] Device limit exceeded (%d/%d), evicting oldest\n", 
-                     baselineDevices.size(), BASELINE_MAX_DEVICES);
-        
-        std::vector<std::pair<String, uint32_t>> deviceTimes;
-        for (const auto& entry : baselineDevices) {
-            deviceTimes.push_back({entry.first, entry.second.lastSeen});
-        }
-        
-        std::sort(deviceTimes.begin(), deviceTimes.end(),
-                 [](const auto& a, const auto& b) { return a.second < b.second; });
-        
-        size_t toRemoveCount = baselineDevices.size() - BASELINE_MAX_DEVICES;
-        for (size_t i = 0; i < toRemoveCount && i < deviceTimes.size(); i++) {
-            baselineDevices.erase(deviceTimes[i].first);
-            baselineDeviceCount = baselineDeviceCount - 1;
-        }
-        
-        Serial.printf("[BASELINE] Evicted %d oldest devices (LRU)\n", toRemoveCount);
-    }
-    
-    // 3. Trim anomaly log
+    // Trim anomaly log
     if (anomalyLog.size() > BASELINE_MAX_ANOMALIES) {
         size_t toErase = anomalyLog.size() - BASELINE_MAX_ANOMALIES;
         anomalyLog.erase(anomalyLog.begin(), anomalyLog.begin() + toErase);
-        Serial.printf("[BASELINE] Trimmed anomaly log: removed %d oldest entries\n", toErase);
     }
     
-    if (anomalyQueue) {
-        UBaseType_t queueLength = uxQueueMessagesWaiting(anomalyQueue);
-        if (queueLength > 200) {
-            AnomalyHit dummy;
-            while (xQueueReceive(anomalyQueue, &dummy, 0) == pdTRUE) {
-                // Drain excess items
-            }
-            Serial.printf("[BASELINE] Drained anomaly queue: %d items\n", queueLength);
+    Serial.printf("[BASELINE] Cache: %d devices, Anomalies: %d, Heap: %u\n",
+                 baselineCache.size(), anomalyLog.size(), ESP.getFreeHeap());
+}
+
+// Baseline SD 
+uint8_t calculateDeviceChecksum(BaselineDevice& device) {
+    uint8_t sum = 0;
+    uint8_t* ptr = (uint8_t*)&device;
+    for (size_t i = 0; i < sizeof(BaselineDevice) - 1; i++) {
+        sum ^= ptr[i];
+    }
+    device.checksum = sum;
+    return sum;
+}
+
+bool initializeBaselineSD() {
+    if (!sdAvailable) {
+        Serial.println("[BASELINE_SD] SD card not available");
+        return false;
+    }
+    
+    if (!SD.exists("/baseline_data.bin")) {
+        Serial.println("[BASELINE_SD] Creating baseline data file");
+        File dataFile = SD.open("/baseline_data.bin", FILE_WRITE);
+        if (!dataFile) {
+            Serial.println("[BASELINE_SD] Failed to create data file");
+            return false;
+        }
+        
+        // Throw a header on there
+        uint32_t magic = 0xBA5EBA11;
+        uint16_t version = 1;
+        uint32_t deviceCount = 0;
+        
+        dataFile.write((uint8_t*)&magic, sizeof(magic));
+        dataFile.write((uint8_t*)&version, sizeof(version));
+        dataFile.write((uint8_t*)&deviceCount, sizeof(deviceCount));
+        dataFile.close();
+        
+        Serial.println("[BASELINE_SD] Data file created");
+    }
+    
+    if (!SD.exists("/baseline_stats.json")) {
+        Serial.println("[BASELINE_SD] Creating stats file");
+        File statsFile = SD.open("/baseline_stats.json", FILE_WRITE);
+        if (!statsFile) {
+            Serial.println("[BASELINE_SD] Failed to create stats file");
+            return false;
+        }
+        
+        statsFile.print("{\"totalDevices\":0,\"wifiDevices\":0,\"bleDevices\":0,\"established\":false,\"rssiThreshold\":");
+        statsFile.print(baselineRssiThreshold);
+        statsFile.print(",\"createdAt\":");
+        statsFile.print(millis());
+        statsFile.println("}");
+        statsFile.close();
+    }
+    
+    sdBaselineInitialized = true;
+    Serial.println("[BASELINE_SD] Initialized");
+    return true;
+}
+
+bool writeBaselineDeviceToSD(const BaselineDevice& device) {
+    if (!sdAvailable || !sdBaselineInitialized) {
+        return false;
+    }
+    
+    BaselineDevice writeDevice = device;
+    calculateDeviceChecksum(writeDevice);
+    
+    File dataFile = SD.open("/baseline_data.bin", FILE_APPEND);
+    if (!dataFile) {
+        Serial.println("[BASELINE_SD] Failed to open for append");
+        return false;
+    }
+    
+    size_t written = dataFile.write((uint8_t*)&writeDevice, sizeof(BaselineDevice));
+    dataFile.close();
+    
+    if (written == sizeof(BaselineDevice)) {
+        totalDevicesOnSD++;
+        return true;
+    }
+    
+    return false;
+}
+
+bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
+    if (!sdAvailable || !sdBaselineInitialized) {
+        return false;
+    }
+    
+    File dataFile = SD.open("/baseline_data.bin", FILE_READ);
+    if (!dataFile) {
+        return false;
+    }
+    
+    dataFile.seek(10);  // Skip header
+    
+    BaselineDevice rec;
+    String targetMac = macFmt6(mac);
+    
+    while (dataFile.available() >= sizeof(BaselineDevice)) {
+        size_t bytesRead = dataFile.read((uint8_t*)&rec, sizeof(BaselineDevice));
+        
+        if (bytesRead != sizeof(BaselineDevice)) {
+            break;
+        }
+        
+        uint8_t storedChecksum = rec.checksum;
+        uint8_t calcChecksum = calculateDeviceChecksum(rec);
+        
+        if (calcChecksum != storedChecksum) {
+            Serial.println("[BASELINE_SD] Checksum fail");
+            continue;
+        }
+        
+        if (macFmt6(rec.mac) == targetMac) {
+            device = rec;
+            dataFile.close();
+            return true;
         }
     }
     
-    // 5. Emergency memory protection
-    uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < 30000) {
-        Serial.printf("[BASELINE] LOW MEMORY WARNING: %d bytes free\n", freeHeap);
-        
-        if (baselineDevices.size() > 50) {
-            std::vector<std::pair<String, uint32_t>> deviceTimes;
-            for (const auto& entry : baselineDevices) {
-                deviceTimes.push_back({entry.first, entry.second.lastSeen});
-            }
-            
-            std::sort(deviceTimes.begin(), deviceTimes.end(),
-                     [](const auto& a, const auto& b) { return a.second > b.second; });
-            
-            std::set<String> toKeep;
-            for (size_t i = 0; i < 50 && i < deviceTimes.size(); i++) {
-                toKeep.insert(deviceTimes[i].first);
-            }
-            
-            std::vector<String> toRemove;
-            for (const auto& entry : baselineDevices) {
-                if (toKeep.find(entry.first) == toKeep.end()) {
-                    toRemove.push_back(entry.first);
-                }
-            }
-            
-            for (const auto& key : toRemove) {
-                baselineDevices.erase(key);
-                baselineDeviceCount = baselineDeviceCount - 1;
-            }
-            
-            Serial.printf("[BASELINE] EMERGENCY: Kept only 50 most recent devices\n");
-        }
-        
-        if (anomalyLog.size() > 50) {
-            anomalyLog.erase(anomalyLog.begin(), anomalyLog.begin() + (anomalyLog.size() - 50));
-            Serial.printf("[BASELINE] EMERGENCY: Trimmed anomaly log to 50 entries\n");
-        }
-        
-        Serial.printf("[BASELINE] After cleanup: %d bytes free\n", ESP.getFreeHeap());
+    dataFile.close();
+    return false;
+}
+
+bool flushBaselineCacheToSD() {
+    if (!sdAvailable || !sdBaselineInitialized || baselineCache.empty()) {
+        return false;
     }
     
-    Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%d bytes\n",
-                 baselineDeviceCount, anomalyLog.size(), ESP.getFreeHeap());
+    Serial.printf("[BASELINE_SD] Flushing %d devices\n", baselineCache.size());
+    
+    uint32_t flushed = 0;
+    for (const auto& entry : baselineCache) {
+        if (writeBaselineDeviceToSD(entry.second)) {
+            flushed++;
+        }
+    }
+    
+    // Update header with device count
+    File dataFile = SD.open("/baseline_data.bin", "r+");
+    if (dataFile) {
+        dataFile.seek(6);
+        dataFile.write((uint8_t*)&totalDevicesOnSD, sizeof(totalDevicesOnSD));
+        dataFile.close();
+    }
+    
+    Serial.printf("[BASELINE_SD] Flushed %d devices. Total on SD: %d\n", flushed, totalDevicesOnSD);
+    saveBaselineStatsToSD();
+    
+    return true;
+}
+
+void loadBaselineFromSD() {
+    if (!sdAvailable || !sdBaselineInitialized) {
+        return;
+    }
+    
+    File dataFile = SD.open("/baseline_data.bin", FILE_READ);
+    if (!dataFile) {
+        Serial.println("[BASELINE_SD] No baseline file");
+        return;
+    }
+    
+    uint32_t magic;
+    uint16_t version;
+    uint32_t deviceCount;
+    
+    dataFile.read((uint8_t*)&magic, sizeof(magic));
+    dataFile.read((uint8_t*)&version, sizeof(version));
+    dataFile.read((uint8_t*)&deviceCount, sizeof(deviceCount));
+    
+    if (magic != 0xBA5EBA11) {
+        Serial.println("[BASELINE_SD] Invalid header");
+        dataFile.close();
+        return;
+    }
+    
+    Serial.printf("[BASELINE_SD] Loading %d devices\n", deviceCount);
+    
+    totalDevicesOnSD = deviceCount;
+    baselineDeviceCount = deviceCount;
+    
+    // Load last N devices into RAM cache
+    if (deviceCount > 0) {
+          uint32_t toLoad = min(deviceCount, baselineRamCacheSize);
+        uint32_t skipRecords = (deviceCount > toLoad) ? (deviceCount - toLoad) : 0;
+        
+        dataFile.seek(10 + (skipRecords * sizeof(BaselineDevice)));
+        
+        BaselineDevice rec;
+        uint32_t loaded = 0;
+        
+        while (dataFile.available() >= sizeof(BaselineDevice) && loaded < toLoad) {
+            size_t bytesRead = dataFile.read((uint8_t*)&rec, sizeof(BaselineDevice));
+            
+            if (bytesRead != sizeof(BaselineDevice)) {
+                break;
+            }
+            
+            uint8_t storedChecksum = rec.checksum;
+            uint8_t calcChecksum = calculateDeviceChecksum(rec);
+            
+            if (calcChecksum != storedChecksum) {
+                continue;
+            }
+            
+            baselineCache[macFmt6(rec.mac)] = rec;
+            loaded++;
+        }
+        
+        Serial.printf("[BASELINE_SD] Loaded %d devices into cache\n", loaded);
+    }
+    
+    dataFile.close();
+    loadBaselineStatsFromSD();
+}
+
+void saveBaselineStatsToSD() {
+    if (!sdAvailable) {
+        return;
+    }
+    
+    File statsFile = SD.open("/baseline_stats.json", FILE_WRITE);
+    if (!statsFile) {
+        return;
+    }
+    
+    statsFile.print("{\"totalDevices\":");
+    statsFile.print(baselineDeviceCount);
+    statsFile.print(",\"wifiDevices\":");
+    statsFile.print(baselineStats.wifiDevices);
+    statsFile.print(",\"bleDevices\":");
+    statsFile.print(baselineStats.bleDevices);
+    statsFile.print(",\"established\":");
+    statsFile.print(baselineEstablished ? "true" : "false");
+    statsFile.print(",\"rssiThreshold\":");
+    statsFile.print(baselineRssiThreshold);
+    statsFile.print(",\"lastUpdate\":");
+    statsFile.print(millis());
+    statsFile.println("}");
+    
+    statsFile.close();
+}
+
+void loadBaselineStatsFromSD() {
+    if (!sdAvailable) {
+        return;
+    }
+    
+    File statsFile = SD.open("/baseline_stats.json", FILE_READ);
+    if (!statsFile) {
+        return;
+    }
+    
+    String json = statsFile.readString();
+    statsFile.close();
+    
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, json);
+    
+    if (!error) {
+        baselineDeviceCount = doc["totalDevices"] | 0;
+        baselineStats.wifiDevices = doc["wifiDevices"] | 0;
+        baselineStats.bleDevices = doc["bleDevices"] | 0;
+        baselineEstablished = doc["established"] | false;
+        baselineRssiThreshold = doc["rssiThreshold"] | -60;
+        
+        Serial.printf("[BASELINE_SD] Stats loaded: total=%d\n", baselineDeviceCount);
+    }
+}
+
+uint32_t getBaselineRamCacheSize() {
+    return baselineRamCacheSize;
+}
+
+void setBaselineRamCacheSize(uint32_t size) {
+    if (size >= 200 && size <= 500) {
+        baselineRamCacheSize = size;
+        prefs.putUInt("baselineRamSize", size);
+        Serial.printf("[BASELINE] RAM cache size set to %u\n", size);
+    }
+}
+
+uint32_t getBaselineSdMaxDevices() {
+    return baselineSdMaxDevices;
+}
+
+void setBaselineSdMaxDevices(uint32_t size) {
+    if (size >= 1000 && size <= 100000) {
+        baselineSdMaxDevices = size;
+        prefs.putUInt("baselineSdMax", size);
+        Serial.printf("[BASELINE] SD max devices set to %u\n", size);
+    }
 }
