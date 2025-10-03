@@ -278,7 +278,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <label>Method</label>
             <select name="detection" id="detectionMode">
               <option value="device-scan">Device Discovery Scan</option>
-              <option value="baseline">Baseline Anomaly Detection</option>
+              <option value="baseline" selected>Baseline Anomaly Detection</option>
               <option value="drone-detection">Drone RID Detection (WiFi)</option>
             </select>
             
@@ -329,15 +329,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
                 <div>
-                  <label style="font-size:10px;color:var(--muted);">Absent (s)</label>
+                  <label style="font-size:10px;color:var(--muted);" title="Time a device must be unseen before marked as disappeared from baseline">Absent (s)</label>
                   <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
                 </div>
                 <div>
-                  <label style="font-size:10px;color:var(--muted);">Reappear (s)</label>
+                  <label style="font-size:10px;color:var(--muted);" title="Window after disappearance during which reappearance triggers an anomaly alert">Reappear (s)</label>
                   <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
                 </div>
                 <div>
-                  <label style="font-size:10px;color:var(--muted);">RSSI Δ</label>
+                  <label style="font-size:10px;color:var(--muted);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Δ</label>
                   <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
                 </div>
               </div>
@@ -1067,6 +1067,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         load();
         loadBaselineAnomalyConfig();
         setInterval(tick, 2000);
+        document.getElementById('detectionMode').dispatchEvent(new Event('change'));
       </script>
   </body>
 </html>
