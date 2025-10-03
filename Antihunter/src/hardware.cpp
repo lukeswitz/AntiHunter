@@ -74,7 +74,10 @@ void initializeHardware()
 
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
-
+    deviceAbsenceThreshold = prefs.getUInt("absenceThresh", 120000);
+    reappearanceAlertWindow = prefs.getUInt("reappearWin", 300000);
+    significantRssiChange = prefs.getInt("rssiChange", 20);
+    
     String nodeId = prefs.getString("nodeId", "");
     if (nodeId.length() == 0)
     {

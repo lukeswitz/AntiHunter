@@ -227,7 +227,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <h3>Target Scan</h3>
           <form id="f" method="POST" action="/save">
             <label for="list">Target MAC Addresses & OUIs</label>
-            <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF"" rows="4"></textarea>
+            <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="4"></textarea>
             <div id="targetCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 targets</div>
             <div style="display:flex;gap:8px;margin-bottom:16px;">
               <button class="btn primary" type="submit">Save</button>
@@ -316,10 +316,36 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 </div>
               </div>
               
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="font-size:11px;">RAM Cache</label>
+                  <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
+                </div>
+                <div>
+                  <label style="font-size:11px;">SD Max</label>
+                  <input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
+                </div>
+              </div>
+              
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
+                <div>
+                  <label style="font-size:10px;color:var(--muted);">Absent (s)</label>
+                  <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
+                </div>
+                <div>
+                  <label style="font-size:10px;color:var(--muted);">Reappear (s)</label>
+                  <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
+                </div>
+                <div>
+                  <label style="font-size:10px;color:var(--muted);">RSSI Δ</label>
+                  <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
+                </div>
+              </div>
+              
               <label style="font-size:11px;">Monitor (s)</label>
               <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
               <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
-                  <input type="checkbox" id="foreverBaseline" name="forever" value="1">Forever
+                <input type="checkbox" id="foreverBaseline" name="forever" value="1">Forever
               </label>
               <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:11px;margin-bottom:8px;">
                 <div style="color:#888;">No baseline data</div>
@@ -523,6 +549,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             card.style.display = 'none';
             toggle.style.transform = 'rotate(-90deg)';
           }
+        }
+        
+        function loadBaselineAnomalyConfig() {
+          fetch('/api/baseline/anomaly-config').then(response => response.json()).then(data => {
+            document.getElementById('absenceThreshold').value = data.absenceThreshold;
+            document.getElementById('reappearanceWindow').value = data.reappearanceWindow;
+            document.getElementById('rssiChangeDelta').value = data.rssiChangeDelta;
+          }).catch(error => console.error('Error loading anomaly config:', error));
         }
 
         function updateBaselineStatus() {
@@ -991,12 +1025,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const duration = document.getElementById('baselineDuration').value;
             const ramSize = document.getElementById('baselineRamSize').value;
             const sdMax = document.getElementById('baselineSdMax').value;
+            const absence = document.getElementById('absenceThreshold').value;
+            const reappear = document.getElementById('reappearanceWindow').value;
+            const rssiDelta = document.getElementById('rssiChangeDelta').value;
+            
             fetch('/api/baseline/config', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
               },
-              body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
+              body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}&absenceThreshold=${absence}&reappearanceWindow=${reappear}&rssiChangeDelta=${rssiDelta}`
             }).then(() => {
               return fetch(endpoint, {
                 method: 'POST',
@@ -1027,6 +1065,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
         // Initialize
         load();
+        loadBaselineAnomalyConfig();
         setInterval(tick, 2000);
       </script>
   </body>
@@ -1166,23 +1205,26 @@ void startWebServer()
   });
 
 server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
-             {
-        String json = "{";
-        json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
-        json += "\"baselineDuration\":" + String(baselineDuration / 1000) + ",";
-        json += "\"ramCacheSize\":" + String(getBaselineRamCacheSize()) + ",";
-        json += "\"sdMaxDevices\":" + String(getBaselineSdMaxDevices()) + ",";
-        json += "\"enabled\":" + String(baselineDetectionEnabled ? "true" : "false") + ",";
-        json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
-        json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
-        json += "\"anomalyCount\":" + String(anomalyCount);
-        json += "}";
-        
-        req->send(200, "application/json", json);
-      });
+           {
+      String json = "{";
+      json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
+      json += "\"baselineDuration\":" + String(baselineDuration / 1000) + ",";
+      json += "\"ramCacheSize\":" + String(getBaselineRamCacheSize()) + ",";
+      json += "\"sdMaxDevices\":" + String(getBaselineSdMaxDevices()) + ",";
+      json += "\"absenceThreshold\":" + String(getDeviceAbsenceThreshold() / 1000) + ",";
+      json += "\"reappearanceWindow\":" + String(getReappearanceAlertWindow() / 1000) + ",";
+      json += "\"rssiChangeDelta\":" + String(getSignificantRssiChange()) + ",";
+      json += "\"enabled\":" + String(baselineDetectionEnabled ? "true" : "false") + ",";
+      json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+      json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
+      json += "\"anomalyCount\":" + String(anomalyCount);
+      json += "}";
+      
+      req->send(200, "application/json", json);
+    });
 
-  server->on("/api/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
+ server->on("/api/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
+            {
         if (req->hasParam("rssiThreshold", true)) {
             int8_t threshold = req->getParam("rssiThreshold", true)->value().toInt();
             setBaselineRssiThreshold(threshold);
@@ -1197,6 +1239,18 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         if (req->hasParam("sdMaxDevices", true)) {
             uint32_t sdMax = req->getParam("sdMaxDevices", true)->value().toInt();
             setBaselineSdMaxDevices(sdMax);
+        }
+        if (req->hasParam("absenceThreshold", true)) {
+            uint32_t absence = req->getParam("absenceThreshold", true)->value().toInt() * 1000;
+            setDeviceAbsenceThreshold(absence);
+        }
+        if (req->hasParam("reappearanceWindow", true)) {
+            uint32_t reappear = req->getParam("reappearanceWindow", true)->value().toInt() * 1000;
+            setReappearanceAlertWindow(reappear);
+        }
+        if (req->hasParam("rssiChangeDelta", true)) {
+            int8_t delta = req->getParam("rssiChangeDelta", true)->value().toInt();
+            setSignificantRssiChange(delta);
         }
         req->send(200, "text/plain", "Baseline configuration updated"); 
       });
