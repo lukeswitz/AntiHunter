@@ -72,6 +72,9 @@ void initializeHardware()
     Serial.println("Loading preferences...");
     prefs.begin("antihunter", false);
 
+    baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
+    baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
+
     String nodeId = prefs.getString("nodeId", "");
     if (nodeId.length() == 0)
     {
@@ -114,6 +117,8 @@ void saveConfiguration() {
     config += "  \"vibrationsRequired\":" + String(vibrationsRequired) + ",\n";
     config += "  \"detectionWindow\":" + String(detectionWindow) + ",\n";
     config += "  \"setupDelay\":" + String(setupDelay) + ",\n";
+    config += "  \"baselineRamSize\":" + String(getBaselineRamCacheSize()) + ",\n";
+    config += "  \"baselineSdMax\":" + String(getBaselineSdMaxDevices()) + ",\n";
     config += "  \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
     config += "}";
 
@@ -212,6 +217,14 @@ void loadConfiguration() {
     }
     if (doc.containsKey("detectionWindow")) {
         detectionWindow = doc["detectionWindow"].as<uint32_t>();
+    }
+    if (doc.containsKey("baselineRamSize")) {
+        uint32_t ramSize = doc["baselineRamSize"].as<uint32_t>();
+        setBaselineRamCacheSize(ramSize);
+    }
+    if (doc.containsKey("baselineSdMax")) {
+        uint32_t sdMax = doc["baselineSdMax"].as<uint32_t>();
+        setBaselineSdMaxDevices(sdMax);
     }
 
     Serial.println("Configuration loaded from SD card");
@@ -337,21 +350,10 @@ void initializeSD()
     if (SD.begin(SD_CS_PIN, SPI, 400000)) {
         Serial.println("SD card initialized");
         sdAvailable = true;
+        delay(10);        
         
-        uint8_t cardType = SD.cardType();
-        Serial.print("SD Card Type: ");
-        if (cardType == CARD_MMC) {
-            Serial.println("MMC");
-        } else if (cardType == CARD_SD) {
-            Serial.println("SDSC");
-        } else if (cardType == CARD_SDHC) {
-            Serial.println("SDHC");
-        } else {
-            Serial.println("UNKNOWN");
-        }
+        initializeBaselineSD();
 
-        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-        Serial.printf("SD Card Size: %lluMB\n", cardSize);
         return;
     }
 

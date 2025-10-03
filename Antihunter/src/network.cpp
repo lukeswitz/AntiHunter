@@ -309,18 +309,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <div>
                   <label style="font-size:11px;">Baseline</label>
                   <select id="baselineDuration" name="baselineDuration">
-                    <option value="60">1m</option>
-                    <option value="120">2m</option>
-                    <option value="180">3m</option>
                     <option value="300" selected>5m</option>
                     <option value="600">10m</option>
+                    <option value="900">15m</option>
                   </select>
                 </div>
               </div>
               
               <label style="font-size:11px;">Monitor (s)</label>
               <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
-              
+              <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
+                  <input type="checkbox" id="foreverBaseline" name="forever" value="1">Forever
+              </label>
               <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:11px;margin-bottom:8px;">
                 <div style="color:#888;">No baseline data</div>
                 <div style="margin-top:4px;font-size:10px;color:var(--muted);">
@@ -550,7 +550,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             } else {
               statusHTML = '<div style="color:#888;">No baseline data</div>';
             }
-            const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' hits</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' hits</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+            const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
             statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
             const startDetectionBtn = document.getElementById('startDetectionBtn');
             const detectionMode = document.getElementById('detectionMode').value;
@@ -592,12 +592,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         function saveBaselineConfig() {
           const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
           const duration = document.getElementById('baselineDuration').value;
+          const ramSize = document.getElementById('baselineRamSize').value;
+          const sdMax = document.getElementById('baselineSdMax').value;
           fetch('/api/baseline/config', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
+            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
           }).then(response => response.text()).then(data => {
             toast('Baseline configuration saved', 'success');
             updateBaselineStatus();
@@ -987,12 +989,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (detectionMethod === 'baseline') {
             const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
             const duration = document.getElementById('baselineDuration').value;
+            const ramSize = document.getElementById('baselineRamSize').value;
+            const sdMax = document.getElementById('baselineSdMax').value;
             fetch('/api/baseline/config', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
               },
-              body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}`
+              body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
             }).then(() => {
               return fetch(endpoint, {
                 method: 'POST',
@@ -1161,17 +1165,20 @@ void startWebServer()
       req->send(200, "application/json", json);
   });
 
-  server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
+server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
              {
         String json = "{";
         json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
         json += "\"baselineDuration\":" + String(baselineDuration / 1000) + ",";
+        json += "\"ramCacheSize\":" + String(getBaselineRamCacheSize()) + ",";
+        json += "\"sdMaxDevices\":" + String(getBaselineSdMaxDevices()) + ",";
         json += "\"enabled\":" + String(baselineDetectionEnabled ? "true" : "false") + ",";
         json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
         json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
         json += "\"anomalyCount\":" + String(anomalyCount);
         json += "}";
-        req->send(200, "application/json", json); 
+        
+        req->send(200, "application/json", json);
       });
 
   server->on("/api/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
@@ -1182,6 +1189,14 @@ void startWebServer()
         }
         if (req->hasParam("baselineDuration", true)) {
             baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
+        }
+        if (req->hasParam("ramCacheSize", true)) {
+            uint32_t ramSize = req->getParam("ramCacheSize", true)->value().toInt();
+            setBaselineRamCacheSize(ramSize);
+        }
+        if (req->hasParam("sdMaxDevices", true)) {
+            uint32_t sdMax = req->getParam("sdMaxDevices", true)->value().toInt();
+            setBaselineSdMaxDevices(sdMax);
         }
         req->send(200, "text/plain", "Baseline configuration updated"); 
       });
