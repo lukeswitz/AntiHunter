@@ -70,10 +70,12 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Provides complete 2.4GHz wireless spectrum visibility
 
 **Baseline Anomaly Detection:**
-- Two-phase scanning: establishes normal environment baseline, then monitors for new devices
-- Configurable RSSI threshold for proximity-based alerting
-- Real-time progress tracking with WiFi/BLE device breakdown
-- Use cases: perimeter awareness, detecting approaching devices, identifying new threats
+- Two-phase scanning: establishes baseline, then monitors for anomalies
+- Detects new devices, disappeared/reappeared devices, significant RSSI changes
+- Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices)
+- Persistent storage with automatic tiering, survives reboots
+- Real-time mesh alerts with GPS coordinates and anomaly reasons
+- Use cases: perimeter security, surveillance detection, threat identification
 
 **RID Drone Detection:**
 - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
@@ -224,17 +226,19 @@ _PCBs and kits in production_
 
 ### **Pinout Reference**
 
+- XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564bd0e0add96cd723a730cb65c81e48aa891f0f9c20471cd/68747470733a2f2f66696c65732e736565656473747564696f2e636f6d2f77696b692f536565656453747564696f2d5849414f2d455350333253332f696d672f322e6a7067)
+
 > [!IMPORTANT]  
 > **Hardware Note**: This is an early-stage project. Pin assignments and hardware requirements will evolve as the system matures. Always verify compatibility with your specific board.
 
 | **Function** | **GPIO Pin** | **Description** |
 |--------------|--------------|-----------------|
-| Vibration Sensor | GPIO1 | SW-420 tamper detection (interrupt) |
+| Vibration Sensor | GPIO2 | SW-420 tamper detection (interrupt) |
 | RTC SDA | GPIO6 | DS3231 I2C data line |
 | RTC SCL | GPIO3 | DS3231 I2C clock line |
 | GPS RX | GPIO44 | NMEA data receive |
 | GPS TX | GPIO43 | GPS transmit (unused) |
-| SD CS | GPIO2 | SD card chip select |
+| SD CS | GPIO1 | SD card chip select |
 | SD SCK | GPIO7 | SPI clock |
 | SD MISO | GPIO8 | SPI master-in slave-out |
 | SD MOSI | GPIO9 | SPI master-out slave-in |
@@ -499,6 +503,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `/save` | POST | Save target configuration (param: `list`) |
 | `/stop` | GET | Stop all operations |
 | `/diag` | GET | System diagnostics |
+
 
 ### **Node Configuration**
 | Endpoint | Method | Description |
