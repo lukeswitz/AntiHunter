@@ -2723,9 +2723,11 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     uint32_t now = millis();
     bool isInBaseline = (baselineCache.find(macStr) != baselineCache.end());
     
-    // Initialize history if needed
+    // Initialize devices history
     if (deviceHistory.find(macStr) == deviceHistory.end()) {
-        deviceHistory[macStr] = {rssi, now, 0, isInBaseline, 0};
+        // Check RAM/SD for it
+        bool inFullBaseline = isDeviceInBaseline(mac);
+        deviceHistory[macStr] = {rssi, now, 0, inFullBaseline, 0};
     }
     
     DeviceHistory &history = deviceHistory[macStr];
