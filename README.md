@@ -526,7 +526,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `/drone` | POST | Start drone detection (params: `secs`, `forever`) |
 | `/drone-results` | GET | View drone detection results |
 | `/drone-log` | GET | Access drone event logs (JSON) |
-| `/api/drone/status` | GET | Drone detection status (JSON) |
+| `/drone/status` | GET | Drone detection status (JSON) |
 
 ### **Deauth Detection**
 | Endpoint | Method | Description |
@@ -536,11 +536,11 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ### **Baseline Detection**
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/baseline/status` | GET | Baseline scan status (JSON) |
-| `/api/baseline/stats` | GET | Detailed baseline statistics (JSON) |
-| `/api/baseline/config` | GET | Get baseline configuration (JSON) |
-| `/api/baseline/config` | POST | Update baseline config (params: `rssiThreshold`, `baselineDuration`) |
-| `/api/baseline/reset` | POST | Reset baseline detection |
+| `/baseline/status` | GET | Baseline scan status (JSON) |
+| `/baseline/stats` | GET | Detailed baseline statistics (JSON) |
+| `/baseline/config` | GET | Get baseline configuration (JSON) |
+| `/baseline/config` | POST | Update baseline config (params: `rssiThreshold`, `baselineDuration`) |
+| `/baseline/reset` | POST | Reset baseline detection |
 | `/baseline-results` | GET | View baseline detection results |
 
 ### **GPS & Hardware**
@@ -558,15 +558,15 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ### **Security & Erasure**
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/erase/status` | GET | Check erasure status |
-| `/api/erase/request` | POST | Request secure erase (params: `confirm="WIPE_ALL_DATA"`, `reason`) |
-| `/api/erase/cancel` | POST | Cancel tamper erase sequence |
-| `/api/secure/status` | GET | Tamper detection status |
-| `/api/secure/abort` | POST | Abort tamper sequence |
-| `/api/secure/destruct` | POST | Execute immediate secure wipe (param: `confirm="WIPE_ALL_DATA"`) |
-| `/api/secure/generate-token` | POST | Generate remote erase token (params: `target`, `confirm="GENERATE_ERASE_TOKEN"`) |
-| `/api/config/autoerase` | GET | Get auto-erase configuration (JSON) |
-| `/api/config/autoerase` | POST | Update auto-erase config (params: `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`) |
+| `/erase/status` | GET | Check erasure status |
+| `/erase/request` | POST | Request secure erase (params: `confirm="WIPE_ALL_DATA"`, `reason`) |
+| `/erase/cancel` | POST | Cancel tamper erase sequence |
+| `/secure/status` | GET | Tamper detection status |
+| `/secure/abort` | POST | Abort tamper sequence |
+| `/secure/destruct` | POST | Execute immediate secure wipe (param: `confirm="WIPE_ALL_DATA"`) |
+| `/secure/generate-token` | POST | Generate remote erase token (params: `target`, `confirm="GENERATE_ERASE_TOKEN"`) |
+| `/config/autoerase` | GET | Get auto-erase configuration (JSON) |
+| `/config/autoerase` | POST | Update auto-erase config (params: `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`) |
 
 ## Credits
 
