@@ -604,13 +604,31 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toggle.style.transform = 'rotate(-90deg)';
         }
       }
-      
+           
       function loadBaselineAnomalyConfig() {
         fetch('/baseline/config').then(response => response.json()).then(data => {
-          document.getElementById('absenceThreshold').value = data.absenceThreshold;
-          document.getElementById('reappearanceWindow').value = data.reappearanceWindow;
-          document.getElementById('rssiChangeDelta').value = data.rssiChangeDelta;
-        }).catch(error => console.error('Error loading anomaly config:', error));
+          if (data.rssiThreshold !== undefined) {
+            document.getElementById('baselineRssiThreshold').value = data.rssiThreshold;
+          }
+          if (data.baselineDuration !== undefined) {
+            document.getElementById('baselineDuration').value = data.baselineDuration;
+          }
+          if (data.ramCacheSize !== undefined) {
+            document.getElementById('baselineRamSize').value = data.ramCacheSize;
+          }
+          if (data.sdMaxDevices !== undefined) {
+            document.getElementById('baselineSdMax').value = data.sdMaxDevices;
+          }
+          if (data.absenceThreshold !== undefined) {
+            document.getElementById('absenceThreshold').value = data.absenceThreshold;
+          }
+          if (data.reappearanceWindow !== undefined) {
+            document.getElementById('reappearanceWindow').value = data.reappearanceWindow;
+          }
+          if (data.rssiChangeDelta !== undefined) {
+            document.getElementById('rssiChangeDelta').value = data.rssiChangeDelta;
+          }
+        }).catch(error => console.error('Error loading baseline config:', error));
         
         fetch('/allowlist-export').then(r => r.text()).then(t => {
           document.getElementById('wlist').value = t;

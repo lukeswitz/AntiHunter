@@ -75,7 +75,7 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices)
 - Persistent storage with automatic tiering, survives reboots
 - Real-time mesh alerts with GPS coordinates and anomaly reasons
-- Use cases: perimeter security, surveillance detection, threat identification
+- Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
 
 **RID Drone Detection:**
 - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
