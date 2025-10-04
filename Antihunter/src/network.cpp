@@ -206,7 +206,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .card-body{overflow:hidden;transition:max-height 0.3s ease}
       .card-body.collapsed{max-height:0!important;margin:0;padding:0}
       .section-divider{border-top:1px solid var(--border);margin:16px 0;padding-top:16px}
-      .grid-2 > .card {align-self: start;}
+      .grid-2 > .card {align-self: stretch;}
     </style>
   </head>
   <body>
@@ -387,9 +387,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 </label>
                 <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:11px;margin-bottom:8px;">
                   <div style="color:#888;">No baseline data</div>
-                  <div style="margin-top:4px;font-size:10px;color:var(--muted);">
-                    <span id="baselineDevices">0</span> devices • <span id="baselineAnomalies">0</span> anomalies
-                  </div>
                 </div>
               </div>
               
@@ -646,7 +643,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           } else {
             statusHTML = '<div style="color:#888;">No baseline data</div>';
           }
-          const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+          let statsHTML = '';
+          if (stats.scanning) {
+            statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+          }
           statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
           const startDetectionBtn = document.getElementById('startDetectionBtn');
           const detectionMode = document.getElementById('detectionMode').value;
