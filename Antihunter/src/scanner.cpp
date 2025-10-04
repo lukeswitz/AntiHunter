@@ -73,6 +73,8 @@ QueueHandle_t anomalyQueue = nullptr;
 int8_t baselineRssiThreshold = -60;
 uint32_t baselineRamCacheSize = 400;
 uint32_t baselineSdMaxDevices = 50000;
+static unsigned long lastBaselineAnomalyMeshSend = 0;
+const unsigned long BASELINE_ANOMALY_MESH_INTERVAL = 5000;
 
 // Baseline temporal tracking
 struct DeviceHistory {
@@ -2772,10 +2774,11 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             
             Serial.println(alert);
             logToSD(alert);
-            
-            if (meshEnabled) {
+
+            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+                lastBaselineAnomalyMeshSend = millis();
                 String meshAlert = getNodeId() + ": ANOMALY-NEW: " + String(isBLE ? "BLE" : "WiFi") + 
-                                 " " + macStr + " RSSI:" + String(rssi) + "dBm";
+                                " " + macStr + " RSSI:" + String(rssi) + "dBm";
                 if (Serial1.availableForWrite() >= meshAlert.length()) {
                     Serial1.println(meshAlert);
                 }
@@ -2811,14 +2814,15 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             Serial.println(alert);
             logToSD(alert);
             
-            if (meshEnabled) {
+            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+                lastBaselineAnomalyMeshSend = millis();
                 String meshAlert = getNodeId() + ": ANOMALY-REAPPEAR: " + macStr + 
-                                 " Absent:" + String(absenceDuration / 1000) + "s";
+                                " Absent:" + String(absenceDuration / 1000) + "s";
                 if (Serial1.availableForWrite() >= meshAlert.length()) {
                     Serial1.println(meshAlert);
                 }
             }
-            
+
             history.disappearedAt = 0;  // Reset
         }
         
