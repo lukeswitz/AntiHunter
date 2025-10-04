@@ -120,14 +120,14 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - **Diagnostics**: Web interface shows storage status and usage stats
 
 #### **Vibration/Tamper Detection**
-- **Sensor**: SW-420 vibration sensor connected to GPIO1
+- **Sensor**: SW-420 vibration sensor
 - **Detection**: Interrupt-driven monitoring with 3-second rate limiting
 - **Alerts**: Mesh network notifications with GPS coordinates and timestamps
 - **Format**: `NODE_ABC: VIBRATION: Movement detected at HH:MM:SS GPS:lat,lon`
 - **Status**: Real-time sensor state displayed in diagnostics panel
 
 #### **Real-Time Clock (RTC)**
-- **Module**: DS3231 RTC via I2C (SDA=GPIO6, SCL=GPIO3)
+- **Module**: DS3231 RTC via I2C
 - **Functionality**: Accurate timekeeping during power outages and GPS synchronization
 - **Features**: Automatic time sync from GPS, manual time setting, sync status monitoring
 - **Web Interface**: Current time display and synchronization status
@@ -208,21 +208,11 @@ _PCBs and kits in production_
 - **ESP32-S3 Development Board** (Seeed Studio XIAO ESP32S3 recommended)
   - Minimum 8MB flash memory required for reliable operation
   - Supports WiFi 2.4GHz and Bluetooth Low Energy scanning
-- **Meshtastic Board** (LoRa-based mesh networking)
-  - Extends operational range beyond WiFi/Bluetooth limits
+- **Meshtastic Board** (LoRa-based mesh networking) Heltec v3.2 & T114
 - **GPS Module** (NMEA-compatible)
-  - UART2 connection (RX=GPIO44, TX=GPIO43) at 9600 baud
-  - Provides location data for all detections
 - **SD Card Module** (microSD compatible)
-  - SPI connection for persistent logging
-  - Stores detection history and system diagnostics
-
-### **Environmental Sensors**
 - **SW-420 Vibration Sensor**
-  - GPIO1 connection for tamper/movement detection
-  - Interrupt-driven monitoring with mesh alerts
 - **DS3231 RTC Module**
-  - I2C connection (SDA=GPIO6, SCL=GPIO3)
 
 ### **Pinout Reference**
 
@@ -374,8 +364,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Position Reporting**: GPS coordinates included in all relevant alerts
 
 ### **Hardware Integration**
-- **Connection**: UART1 (RX=GPIO4, TX=GPIO5) at 115200 baud
-- **Protocol**: Standard Meshtastic serial interface
+- **Connection**: `TEXTMSG` at 115200 baud; pins 9 TX and 10 RX
+- **Protocol**: Standard Meshtastic serial, public and encrypted channels
 - **Configuration**: Set the device to the following under Serial Settings
 
 <img width="69%" src="https://github.com/user-attachments/assets/76a74acc-b14b-433a-86ea-b817ccec0343">
