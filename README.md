@@ -114,7 +114,7 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - **Integration**: All detection events include GPS coordinates when available
 
 #### **SD Card Logging**
-- **Interface**: SPI (CS=GPIO2, SCK=GPIO7, MISO=GPIO8, MOSI=GPIO9)
+- **Interface**: SPI
 - **Storage**: Logs to `/antihunter.log` with timestamps, detection types, and metadata
 - **Format**: Structured entries including MAC addresses, RSSI, GPS data, and timestamps
 - **Diagnostics**: Web interface shows storage status and usage stats
