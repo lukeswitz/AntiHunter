@@ -16,6 +16,11 @@ struct Hit {
    bool isBLE;
 };
 
+struct Allowlist {
+    uint8_t bytes[6];
+    uint8_t len;
+};
+
 struct BaselineDevice {
     uint8_t mac[6];
     int8_t avgRssi;
@@ -46,6 +51,13 @@ const uint32_t BASELINE_DEVICE_TIMEOUT = 600000;  // 10 minutes before device re
 const uint32_t BASELINE_SD_FLUSH_INTERVAL = 5000;  // Flush every 5s
 const uint32_t BASELINE_MAX_ANOMALIES = 200;     // Maximum anomaly log entries
 const uint32_t BASELINE_CLEANUP_INTERVAL = 60000; // Cleanup every 60 seconds
+
+// Allowlist
+extern std::vector<Allowlist> allowlist;
+size_t getAllowlistCount();
+String getAllowlistText();
+void saveAllowlist(const String &txt);
+bool isAllowlisted(const uint8_t *mac);
 
 // Baseline detection state
 extern bool baselineDetectionEnabled;

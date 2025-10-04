@@ -137,68 +137,77 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>AntiHunter</title>
-   <style>
-    :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444}
-    *{box-sizing:border-box;margin:0;padding:0}
-    body,html{height:100%;margin:0}
-    body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.5}
-    .header{padding:14px;border-bottom:1px solid #003b24;background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-    h1{font-size:18px;letter-spacing:1px}
-    h3{margin:0 0 10px;color:var(--fg);font-size:15px}
-    .container{max-width:1400px;margin:0 auto;padding:12px}
-    .card{background:var(--card);border:1px solid #003b24;border-radius:10px;padding:14px;box-shadow:0 4px 20px rgba(0,255,127,.05)}
-    label{display:block;margin:6px 0 4px;color:var(--muted);font-size:12px}
-    input[type=number],input[type=text],select,textarea{width:100%;background:#000;border:1px solid #003b24;border-radius:8px;color:var(--fg);padding:9px;font-family:inherit;font-size:13px}
-    textarea{min-height:80px;resize:vertical}
-    .btn{display:inline-block;padding:9px 13px;border-radius:8px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:12px;transition:all .2s}
-    .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
-    .btn.primary{background:#002417;border-color:#0c6}
-    .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
-    .btn.danger{background:#300;border-color:#f44;color:#f66}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .small{opacity:.65;font-size:11px}
-    pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:8px;padding:10px;font-size:11px;line-height:1.4;overflow-x:auto;max-height:400px;overflow-y:auto}
-    hr{border:0;border-top:1px dashed #003b24;margin:12px 0}
-    .banner{font-size:11px;color:#0aff9d;border:1px dashed #004e2f;padding:6px 8px;border-radius:8px;background:#001108;margin-bottom:10px}
-    #toast{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:9999}
-    .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:9px 11px;border-radius:8px;box-shadow:0 6px 24px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s;font-size:12px}
-    .toast.show{opacity:1;transform:none}
-    .toast.success{border-color:#00cc66;background:#002200}
-    .toast.error{border-color:#ff4444;background:#300}
-    .toast.warning{border-color:#ffaa00;background:#332200}
-    .footer{opacity:.7;font-size:11px;padding:8px;text-align:center;margin-top:16px}
-    .logo{width:26px;height:26px}
-    .status-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto;font-size:11px}
-    .status-item{background:#001a10;border:1px solid #003b24;padding:4px 9px;border-radius:6px;font-size:10px;white-space:nowrap}
-    .status-item.active{border-color:#0c6;background:#002417}
-    .tab-buttons{display:flex;gap:6px;margin-bottom:10px}
-    .tab-btn{padding:7px 13px;background:#001b12;border:1px solid #003b24;border-radius:7px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .2s}
-    .tab-btn.active{background:#002417;border-color:#0c6;color:var(--fg)}
-    .tab-content{display:none}
-    .tab-content.active{display:block}
-    .stat-item{background:#001108;border:1px solid #003b24;padding:10px;border-radius:7px}
-    .stat-label{color:var(--muted);font-size:10px;text-transform:uppercase;margin-bottom:4px}
-    .stat-value{color:var(--fg);font-size:16px;font-weight:700}
-
-    /* RESPONSIVE GRID LAYOUTS */
-    @media (min-width:900px){
-      .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-      .grid-node-diag{display:grid;grid-template-columns:minmax(280px,auto) 1fr;gap:14px}
-      .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    }
-    @media (max-width:899px){
-      .grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:14px}
-      .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-      .container{padding:10px}
-      .card{padding:12px}
-      h1{font-size:16px}
-      .status-bar{width:100%;margin-left:0;margin-top:8px}
-    }
-    @media (max-width:600px){
-      .stat-grid{grid-template-columns:1fr}
-      .status-item{font-size:9px;padding:3px 6px}
-    }
-   </style>
+    <style>
+      :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body,html{height:100%;margin:0}
+      body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.5}
+      .header{padding:14px;border-bottom:1px solid #003b24;background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+      h1{font-size:18px;letter-spacing:1px}
+      h3{margin:0 0 10px;color:var(--fg);font-size:15px}
+      .container{max-width:1400px;margin:0 auto;padding:12px}
+      .card{background:var(--card);border:1px solid #003b24;border-radius:10px;padding:14px;box-shadow:0 4px 20px rgba(0,255,127,.05)}
+      label{display:block;margin:6px 0 4px;color:var(--muted);font-size:12px}
+      input[type=number],input[type=text],select,textarea{width:100%;background:#000;border:1px solid #003b24;border-radius:8px;color:var(--fg);padding:9px;font-family:inherit;font-size:13px}
+      textarea{min-height:80px;resize:vertical}
+      .btn{display:inline-block;padding:9px 13px;border-radius:8px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:12px;transition:all .2s}
+      .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
+      .btn.primary{background:#002417;border-color:#0c6}
+      .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
+      .btn.danger{background:#300;border-color:#f44;color:#f66}
+      .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+      .small{opacity:.65;font-size:11px}
+      pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:8px;padding:10px;font-size:11px;line-height:1.4;overflow-x:auto;max-height:400px;overflow-y:auto}
+      hr{border:0;border-top:1px dashed #003b24;margin:12px 0}
+      .banner{font-size:11px;color:#0aff9d;border:1px dashed #004e2f;padding:6px 8px;border-radius:8px;background:#001108;margin-bottom:10px}
+      #toast{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:9999}
+      .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:9px 11px;border-radius:8px;box-shadow:0 6px 24px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s;font-size:12px}
+      .toast.show{opacity:1;transform:none}
+      .toast.success{border-color:#00cc66;background:#002200}
+      .toast.error{border-color:#ff4444;background:#300}
+      .toast.warning{border-color:#ffaa00;background:#332200}
+      .footer{opacity:.7;font-size:11px;padding:8px;text-align:center;margin-top:16px}
+      .logo{width:26px;height:26px}
+      .status-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto;font-size:11px}
+      .status-item{background:#001a10;border:1px solid #003b24;padding:4px 9px;border-radius:6px;font-size:10px;white-space:nowrap}
+      .status-item.active{border-color:#0c6;background:#002417}
+      .tab-buttons{display:flex;gap:6px;margin-bottom:10px}
+      .tab-btn{padding:7px 13px;background:#001b12;border:1px solid #003b24;border-radius:7px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .2s}
+      .tab-btn.active{background:#002417;border-color:#0c6;color:var(--fg)}
+      .tab-content{display:none}
+      .tab-content.active{display:block}
+      .stat-item{background:#001108;border:1px solid #003b24;padding:10px;border-radius:7px}
+      .stat-label{color:var(--muted);font-size:10px;text-transform:uppercase;margin-bottom:4px}
+      .stat-value{color:var(--fg);font-size:16px;font-weight:700}
+      
+      @media (min-width:900px){
+        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+        .grid-2 > .card{align-self:start}
+        .grid-node-diag{display:grid;grid-template-columns:minmax(280px,auto) 1fr;gap:14px}
+        .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+      }
+      @media (max-width:899px){
+        .grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:14px}
+        .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+        .container{padding:10px}
+        .card{padding:12px}
+        h1{font-size:16px}
+        .status-bar{width:100%;margin-left:0;margin-top:8px}
+      }
+      @media (max-width:600px){
+        .stat-grid{grid-template-columns:1fr}
+        .status-item{font-size:9px;padding:3px 6px}
+      }
+      /* Collapsible Cards */
+      .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:12px}
+      .card-header h3{margin:0}
+      .collapse-icon{transition:transform 0.2s;font-size:14px;color:var(--muted)}
+      .collapse-icon.open{transform:rotate(90deg)}
+      .card-body{overflow:hidden;transition:max-height 0.3s ease}
+      .card-body.collapsed{max-height:0!important;margin:0;padding:0}
+      .section-divider{border-top:1px solid var(--border);margin:16px 0;padding-top:16px}
+      .grid-2 > .card {align-self: start;}
+    </style>
   </head>
   <body>
     <div id="toast"></div>
@@ -220,23 +229,46 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     </div>
     <div class="container">
       
-      <!-- Top Grid: Target Scan + Detection -->
+      <!-- Scanning & Targets + Detection Grid -->
       <div class="grid-2" style="margin-bottom:16px;">
-        <!-- Target Scan -->
+        
+        <!-- Scanning & Targets -->
         <div class="card">
-          <h3>Target Scan</h3>
-          <form id="f" method="POST" action="/save">
-            <label for="list">Target MAC Addresses & OUIs</label>
-            <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="4"></textarea>
-            <div id="targetCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 targets</div>
-            <div style="display:flex;gap:8px;margin-bottom:16px;">
-              <button class="btn primary" type="submit">Save</button>
-              <a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
-            </div>
-          </form>
-          
-          <form id="s" method="POST" action="/scan">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div class="card-header" onclick="toggleCollapse('scanCard')">
+            <h3>Scanning & Targets</h3>
+            <span class="collapse-icon open" id="scanCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="scanCardBody">
+            
+            <!-- Target List -->
+            <details open>
+              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;">Target List</summary>
+              <form id="f" method="POST" action="/save">
+                <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="3"></textarea>
+                <div id="targetCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 targets</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn primary" type="submit">Save</button>
+                  <a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
+                </div>
+              </form>
+            </details>
+            
+            <!-- Allowlist -->
+            <details style="margin-top:12px;">
+              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;">Allow List</summary>
+              <form id="af" method="POST" action="/allowlist-save">
+                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
+                <div id="allowlistCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 allowlisted</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn primary" type="submit">Save</button>
+                  <a class="btn alt" href="/allowlist-export" download="allowlist.txt" data-ajax="false">Export</a>
+                </div>
+              </form>
+            </details>
+            
+            <!-- Scan Controls -->
+            <form id="s" method="POST" action="/scan">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                 <div>
                   <label style="font-size:11px;">Mode</label>
                   <select name="mode">
@@ -270,103 +302,111 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
             </form>
           </div>
+        </div>
         
         <!-- Detection & Analysis -->
         <div class="card">
-          <h3>Detection & Analysis</h3>
-          <form id="sniffer" method="POST" action="/sniffer">  
-            <label>Method</label>
-            <select name="detection" id="detectionMode">
-              <option value="device-scan">Device Discovery Scan</option>
-              <option value="baseline" selected>Baseline Anomaly Detection</option>
-              <option value="drone-detection">Drone RID Detection (WiFi)</option>
-            </select>
+          <div class="card-header" onclick="toggleCollapse('detectionCard')">
+            <h3>Detection & Analysis</h3>
+            <span class="collapse-icon open" id="detectionCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detectionCardBody">
             
-            <div id="standardDurationControls" style="margin-top:10px;">
-              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
-                <div>
-                  <label style="font-size:11px;">Duration (s)</label>
-                  <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
+            <form id="sniffer" method="POST" action="/sniffer">  
+              <label>Method</label>
+              <select name="detection" id="detectionMode">
+                <option value="device-scan">Device Discovery Scan</option>
+                <option value="baseline" selected>Baseline Anomaly Detection</option>
+                <option value="drone-detection">Drone RID Detection (WiFi)</option>
+              </select>
+              
+              <div id="standardDurationControls" style="margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+                  <div>
+                    <label style="font-size:11px;">Duration (s)</label>
+                    <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
+                  </div>
+                  <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
+                    <input type="checkbox" id="forever3" name="forever" value="1">Forever
+                  </label>
                 </div>
+              </div>
+              
+              <div id="baselineConfigControls" style="display:none;margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:11px;">RSSI</label>
+                    <select id="baselineRssiThreshold" name="rssiThreshold">
+                      <option value="-40">-40</option>
+                      <option value="-50">-50</option>
+                      <option value="-60" selected>-60</option>
+                      <option value="-70">-70</option>
+                      <option value="-80">-80</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:11px;">Baseline</label>
+                    <select id="baselineDuration" name="baselineDuration">
+                      <option value="300" selected>5m</option>
+                      <option value="600">10m</option>
+                      <option value="900">15m</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:11px;">Cache Count</label>
+                    <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;">SD Detection Max</label>
+                    <input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
+                  </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:10px;color:var(--muted);" title="Time a device must be unseen before marked as disappeared from baseline">Marked Absent (s)</label>
+                    <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
+                  </div>
+                  <div>
+                    <label style="font-size:10px;color:var(--muted);" title="Window after disappearance during which reappearance triggers an anomaly alert">Seen Reappear (s)</label>
+                    <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
+                  </div>
+                  <div>
+                    <label style="font-size:10px;color:var(--muted);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Variation dB</label>
+                    <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
+                  </div>
+                </div>
+                
+                <label style="font-size:11px;">Monitor (s)</label>
+                <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
                 <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
-                  <input type="checkbox" id="forever3" name="forever" value="1">Forever
+                  <input type="checkbox" id="foreverBaseline" name="forever" value="1">Forever
                 </label>
+                <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:11px;margin-bottom:8px;">
+                  <div style="color:#888;">No baseline data</div>
+                  <div style="margin-top:4px;font-size:10px;color:var(--muted);">
+                    <span id="baselineDevices">0</span> devices • <span id="baselineAnomalies">0</span> anomalies
+                  </div>
+                </div>
               </div>
-            </div>
+              
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+                <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
+                <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
+                <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
+                <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
+              </div>
+            </form>
             
-            <div id="baselineConfigControls" style="display:none;margin-top:10px;">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                <div>
-                  <label style="font-size:11px;">RSSI</label>
-                  <select id="baselineRssiThreshold" name="rssiThreshold">
-                    <option value="-40">-40</option>
-                    <option value="-50">-50</option>
-                    <option value="-60" selected>-60</option>
-                    <option value="-70">-70</option>
-                    <option value="-80">-80</option>
-                  </select>
-                </div>
-                <div>
-                  <label style="font-size:11px;">Baseline</label>
-                  <select id="baselineDuration" name="baselineDuration">
-                    <option value="300" selected>5m</option>
-                    <option value="600">10m</option>
-                    <option value="900">15m</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                <div>
-                  <label style="font-size:11px;">Cache Count</label>
-                  <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
-                </div>
-                <div>
-                  <label style="font-size:11px;">SD Detection Max</label>
-                  <input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
-                </div>
-              </div>
-              
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
-                <div>
-                  <label style="font-size:10px;color:var(--muted);" title="Time a device must be unseen before marked as disappeared from baseline">Marked Absent (s)</label>
-                  <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
-                </div>
-                <div>
-                  <label style="font-size:10px;color:var(--muted);" title="Window after disappearance during which reappearance triggers an anomaly alert">Seen Reappear (s)</label>
-                  <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
-                </div>
-                <div>
-                  <label style="font-size:10px;color:var(--muted);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Variation dB</label>
-                  <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
-                </div>
-              </div>
-              
-              <label style="font-size:11px;">Monitor (s)</label>
-              <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
-              <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
-                <input type="checkbox" id="foreverBaseline" name="forever" value="1">Forever
-              </label>
-              <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:11px;margin-bottom:8px;">
-                <div style="color:#888;">No baseline data</div>
-                <div style="margin-top:4px;font-size:10px;color:var(--muted);">
-                  <span id="baselineDevices">0</span> devices • <span id="baselineAnomalies">0</span> anomalies
-                </div>
-              </div>
-            </div>
-            
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
-              <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
-              <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
-              <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
-              <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
-            </div>
-          </form>
+          </div>
         </div>
       </div>
       
       <!-- Full Width Results -->
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card" style="margin-top:16px;margin-bottom:16px;">
         <h3>Scan Results</h3>
         <pre id="r" style="margin:0;">No scan data yet.</pre>
       </div>
@@ -404,7 +444,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
           
           <div id="overview" class="tab-content active">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;">
+            <div class="stat-grid">
               <div class="stat-item">
                 <div class="stat-label">Uptime</div>
                 <div class="stat-value" id="uptime">--:--:--</div>
@@ -494,581 +534,613 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       
       <div class="footer">© AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
     </div>
-      <script>
-        let selectedMode = '0';
-        let baselineUpdateInterval = null;
-        let lastScanningState = false;
-
-        function switchTab(tabName) {
-          document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-          document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-          event.target.classList.add('active');
-          document.getElementById(tabName).classList.add('active');
+    <script>
+      let selectedMode = '0';
+      let baselineUpdateInterval = null;
+      let lastScanningState = false;
+      
+      function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+      }
+      async function ajaxForm(form, okMsg) {
+        const fd = new FormData(form);
+        try {
+          const r = await fetch(form.action, {
+            method: 'POST',
+            body: fd
+          });
+          const t = await r.text();
+          toast(okMsg || t);
+        } catch (e) {
+          toast('Error: ' + e.message);
         }
-        async function ajaxForm(form, okMsg) {
-          const fd = new FormData(form);
-          try {
-            const r = await fetch(form.action, {
-              method: 'POST',
-              body: fd
-            });
-            const t = await r.text();
-            toast(okMsg || t);
-          } catch (e) {
-            toast('Error: ' + e.message);
-          }
+      }
+      async function load() {
+        try {
+          const r = await fetch('/export');
+          const text = await r.text();
+          document.getElementById('list').value = text;
+          const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+          document.getElementById('targetCount').innerText = lines.length + ' targets';
+          const rr = await fetch('/results');
+          document.getElementById('r').innerText = await rr.text();
+          loadNodeId();
+        } catch (e) {}
+      }
+      async function loadNodeId() {
+        try {
+          const r = await fetch('/node-id');
+          const data = await r.json();
+          document.getElementById('nodeId').value = data.nodeId;
+          document.getElementById('footerNodeId').innerText = data.nodeId;
+        } catch (e) {}
+      }
+      
+      function toggleCollapse(cardId) {
+        const body = document.getElementById(cardId + 'Body');
+        const icon = document.getElementById(cardId + 'Icon');
+        if (body.classList.contains('collapsed')) {
+          body.classList.remove('collapsed');
+          body.style.maxHeight = body.scrollHeight + 'px';
+          icon.classList.add('open');
+        } else {
+          body.style.maxHeight = body.scrollHeight + 'px';
+          setTimeout(() => {
+            body.classList.add('collapsed');
+            body.style.maxHeight = '0';
+          }, 10);
+          icon.classList.remove('open');
         }
-        async function load() {
-          try {
-            const r = await fetch('/export');
-            const text = await r.text();
-            document.getElementById('list').value = text;
-            const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-            document.getElementById('targetCount').innerText = lines.length + ' targets';
-            const rr = await fetch('/results');
-            document.getElementById('r').innerText = await rr.text();
-            loadNodeId();
-          } catch (e) {}
+      }
+      
+      function toggleCard(cardId) {
+        const card = document.getElementById(cardId);
+        const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
+        if (card.style.display === 'none') {
+          card.style.display = 'block';
+          toggle.style.transform = 'rotate(0deg)';
+        } else {
+          card.style.display = 'none';
+          toggle.style.transform = 'rotate(-90deg)';
         }
-        async function loadNodeId() {
-          try {
-            const r = await fetch('/node-id');
-            const data = await r.json();
-            document.getElementById('nodeId').value = data.nodeId;
-            document.getElementById('footerNodeId').innerText = data.nodeId;
-          } catch (e) {}
-        }
-
-        function toggleCard(cardId) {
-          const card = document.getElementById(cardId);
-          const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
-          if (card.style.display === 'none') {
-            card.style.display = 'block';
-            toggle.style.transform = 'rotate(0deg)';
-          } else {
-            card.style.display = 'none';
-            toggle.style.transform = 'rotate(-90deg)';
-          }
-        }
+      }
+      
+      function loadBaselineAnomalyConfig() {
+        fetch('/baseline/config').then(response => response.json()).then(data => {
+          document.getElementById('absenceThreshold').value = data.absenceThreshold;
+          document.getElementById('reappearanceWindow').value = data.reappearanceWindow;
+          document.getElementById('rssiChangeDelta').value = data.rssiChangeDelta;
+        }).catch(error => console.error('Error loading anomaly config:', error));
         
-        function loadBaselineAnomalyConfig() {
-          fetch('/api/baseline/anomaly-config').then(response => response.json()).then(data => {
-            document.getElementById('absenceThreshold').value = data.absenceThreshold;
-            document.getElementById('reappearanceWindow').value = data.reappearanceWindow;
-            document.getElementById('rssiChangeDelta').value = data.rssiChangeDelta;
-          }).catch(error => console.error('Error loading anomaly config:', error));
-        }
-
-        function updateBaselineStatus() {
-          fetch('/api/baseline/stats').then(response => response.json()).then(stats => {
-            const statusDiv = document.getElementById('baselineStatus');
-            if (!statusDiv) return;
-            let statusHTML = '';
-            let progressHTML = '';
-            if (stats.scanning && !stats.phase1Complete) {
-              // Phase 1: Establishing baseline
-              const progress = Math.min(100, (stats.elapsedTime / stats.totalDuration) * 100);
-              statusHTML = '<div style="color:#00cc66;font-weight:bold;">⬤ Phase 1: Establishing Baseline...</div>';
-              progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:#001a10;border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,#0aff9d);transition:width 0.5s;"></div>' + '</div>' + '</div>';
-            } else if (stats.scanning && stats.phase1Complete) {
-              // Phase 2: Monitoring - add active status indicator
-              statusHTML = '<div style="color:#0aff9d;font-weight:bold;">⬤ Phase 2: Monitoring for Anomalies</div>';
-              // Add elapsed time indicator for Phase 2
-              const monitorTime = Math.floor(stats.elapsedTime / 1000);
-              const monitorMins = Math.floor(monitorTime / 60);
-              const monitorSecs = monitorTime % 60;
-              progressHTML = '<div style="margin-top:10px;color:#00cc66;font-size:11px;">' + 'Active monitoring: ' + monitorMins + 'm ' + monitorSecs + 's' + '</div>';
-            } else if (stats.established) {
-              // Complete
-              statusHTML = '<div style="color:#00cc66;">✓ Baseline Complete</div>';
-            } else {
-              statusHTML = '<div style="color:#888;">No baseline data</div>';
-            }
-            const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
-            statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
-            const startDetectionBtn = document.getElementById('startDetectionBtn');
-            const detectionMode = document.getElementById('detectionMode').value;
-            
-            if (detectionMode === 'baseline' && stats.scanning) {
-              startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
-              startDetectionBtn.classList.remove('primary');
-              startDetectionBtn.classList.add('danger');
-              startDetectionBtn.type = 'button';
-              startDetectionBtn.onclick = function(e) {
-                e.preventDefault();
-                fetch('/stop').then(r=>r.text()).then(t=>toast(t));
-              };
-            } else {
-              startDetectionBtn.textContent = 'Start';
-              startDetectionBtn.classList.remove('danger');
-              startDetectionBtn.classList.add('primary');
-              startDetectionBtn.type = 'submit';
-              startDetectionBtn.onclick = null;
-            }    
-            // Start/stop polling based on scan state
-            if (stats.scanning && !baselineUpdateInterval) {
-              baselineUpdateInterval = setInterval(updateBaselineStatus, 1000);
-            } else if (!stats.scanning && baselineUpdateInterval) {
-              clearInterval(baselineUpdateInterval);
-              baselineUpdateInterval = null;
-            }
-          }).catch(error => console.error('Status update error:', error));
-        }
-        // Initial load
-        updateBaselineStatus();
-        // Poll every 2 seconds when not actively scanning
-        setInterval(() => {
-          if (!baselineUpdateInterval) {
-            updateBaselineStatus();
+        fetch('/allowlist-export').then(r => r.text()).then(t => {
+          document.getElementById('wlist').value = t;
+          document.getElementById('allowlistCount').textContent = t.split('\n').filter(x => x.trim()).length + ' entries';
+        }).catch(error => console.error('Error loading allowlist:', error));
+      }
+      
+      function updateBaselineStatus() {
+        fetch('/baseline/stats').then(response => response.json()).then(stats => {
+          const statusDiv = document.getElementById('baselineStatus');
+          if (!statusDiv) return;
+          let statusHTML = '';
+          let progressHTML = '';
+          if (stats.scanning && !stats.phase1Complete) {
+            // Phase 1: Establishing baseline
+            const progress = Math.min(100, (stats.elapsedTime / stats.totalDuration) * 100);
+            statusHTML = '<div style="color:#00cc66;font-weight:bold;">⬤ Phase 1: Establishing Baseline...</div>';
+            progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:#001a10;border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,#0aff9d);transition:width 0.5s;"></div>' + '</div>' + '</div>';
+          } else if (stats.scanning && stats.phase1Complete) {
+            // Phase 2: Monitoring - add active status indicator
+            statusHTML = '<div style="color:#0aff9d;font-weight:bold;">⬤ Phase 2: Monitoring for Anomalies</div>';
+            // Add elapsed time indicator for Phase 2
+            const monitorTime = Math.floor(stats.elapsedTime / 1000);
+            const monitorMins = Math.floor(monitorTime / 60);
+            const monitorSecs = monitorTime % 60;
+            progressHTML = '<div style="margin-top:10px;color:#00cc66;font-size:11px;">' + 'Active monitoring: ' + monitorMins + 'm ' + monitorSecs + 's' + '</div>';
+          } else if (stats.established) {
+            // Complete
+            statusHTML = '<div style="color:#00cc66;">✓ Baseline Complete</div>';
+          } else {
+            statusHTML = '<div style="color:#888;">No baseline data</div>';
           }
-        }, 2000);
-
-        function saveBaselineConfig() {
+          const statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+          statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
+          const startDetectionBtn = document.getElementById('startDetectionBtn');
+          const detectionMode = document.getElementById('detectionMode').value;
+          
+          if (detectionMode === 'baseline' && stats.scanning) {
+            startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
+            startDetectionBtn.classList.remove('primary');
+            startDetectionBtn.classList.add('danger');
+            startDetectionBtn.type = 'button';
+            startDetectionBtn.onclick = function(e) {
+              e.preventDefault();
+              fetch('/stop').then(r=>r.text()).then(t=>toast(t));
+            };
+          } else {
+            startDetectionBtn.textContent = 'Start';
+            startDetectionBtn.classList.remove('danger');
+            startDetectionBtn.classList.add('primary');
+            startDetectionBtn.type = 'submit';
+            startDetectionBtn.onclick = null;
+          }    
+          // Start/stop polling based on scan state
+          if (stats.scanning && !baselineUpdateInterval) {
+            baselineUpdateInterval = setInterval(updateBaselineStatus, 1000);
+          } else if (!stats.scanning && baselineUpdateInterval) {
+            clearInterval(baselineUpdateInterval);
+            baselineUpdateInterval = null;
+          }
+        }).catch(error => console.error('Status update error:', error));
+      }
+      // Initial load
+      updateBaselineStatus();
+      // Poll every 2 seconds when not actively scanning
+      setInterval(() => {
+        if (!baselineUpdateInterval) {
+          updateBaselineStatus();
+        }
+      }, 2000);
+      
+      function saveBaselineConfig() {
+        const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
+        const duration = document.getElementById('baselineDuration').value;
+        const ramSize = document.getElementById('baselineRamSize').value;
+        const sdMax = document.getElementById('baselineSdMax').value;
+        fetch('/baseline/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
+        }).then(response => response.text()).then(data => {
+          toast('Baseline configuration saved', 'success');
+          updateBaselineStatus();
+        }).catch(error => {
+          toast('Error saving config: ' + error, 'error');
+        });
+      }
+      
+      function resetBaseline() {
+        if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.')) return;
+        fetch('/baseline/reset', {
+          method: 'POST'
+        }).then(response => response.text()).then(data => {
+          toast(data, 'success');
+          updateBaselineStatus();
+        }).catch(error => {
+          toast('Error resetting baseline: ' + error, 'error');
+        });
+      }
+      
+      function updateStatusIndicators(diagText) {
+        // Scan status
+        if (diagText.includes('Scanning: yes')) {
+          document.getElementById('scanStatus').innerText = 'Active';
+          document.getElementById('scanStatus').classList.add('active');
+        } else {
+          document.getElementById('scanStatus').innerText = 'Idle';
+          document.getElementById('scanStatus').classList.remove('active');
+        }
+        // Mode status
+        const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
+        if (modeMatch) {
+          document.getElementById('modeStatus').innerText = modeMatch[1];
+        }
+        // GPS status
+        if (diagText.includes('GPS: Locked')) {
+          document.getElementById('gpsStatus').classList.add('active');
+          document.getElementById('gpsStatus').innerText = 'GPS Lock';
+        } else {
+          document.getElementById('gpsStatus').classList.remove('active');
+          document.getElementById('gpsStatus').innerText = 'GPS';
+        }
+        // RTC status
+        if (diagText.includes('RTC: Synced')) {
+          document.getElementById('rtcStatus').classList.add('active');
+          document.getElementById('rtcStatus').innerText = 'RTC OK';
+        } else if (diagText.includes('RTC: Not')) {
+          document.getElementById('rtcStatus').classList.remove('active');
+          document.getElementById('rtcStatus').innerText = 'RTC';
+        }
+      }
+      
+      function saveAutoEraseConfig() {
+        const enabled = document.getElementById('autoEraseEnabled').checked;
+        const delay = document.getElementById('autoEraseDelay').value;
+        const cooldown = document.getElementById('autoEraseCooldown').value;
+        const vibrationsRequired = document.getElementById('vibrationsRequired').value;
+        const detectionWindow = document.getElementById('detectionWindow').value;
+        const setupDelay = document.getElementById('setupDelay').value;
+        fetch('/config/autoerase', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
+        }).then(response => response.text()).then(data => {
+          document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
+          updateAutoEraseStatus();
+        });
+      }
+      
+      function updateAutoEraseStatus() {
+        fetch('/config/autoerase').then(response => response.json()).then(data => {
+          if (data.enabled) {
+            if (data.inSetupMode) {
+              document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
+            } else {
+              document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
+            }
+          } else {
+            document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+          }
+        });
+      }
+      
+      function updateEraseProgress(message, percentage) {
+        const progressBar = document.getElementById('eraseProgressBar');
+        const progressText = document.getElementById('eraseProgressText');
+        const progressDetails = document.getElementById('eraseProgressDetails');
+        if (progressBar) {
+          progressBar.style.width = percentage + '%';
+        }
+        if (progressText) {
+          progressText.textContent = message;
+        }
+        if (progressDetails) {
+          progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+          progressDetails.scrollTop = progressDetails.scrollHeight;
+        }
+      }
+      
+      function pollEraseProgress() {
+        const poll = setInterval(() => {
+          fetch('/erase/progress').then(response => response.json()).then(data => {
+            updateEraseProgress(data.message, data.percentage);
+            if (data.status === 'COMPLETE') {
+              clearInterval(poll);
+              finalizeEraseProcess(true);
+            } else if (data.status === 'ERROR') {
+              clearInterval(poll);
+              finalizeEraseProcess(false, data.error);
+            } else if (data.status === 'CANCELLED') {
+              clearInterval(poll);
+              hideEraseProgressModal();
+              toast('Secure erase cancelled', 'info');
+            }
+          }).catch(error => {
+            clearInterval(poll);
+            finalizeEraseProcess(false, 'Communication error');
+          });
+        }, 1000);
+      }
+      
+      function finalizeEraseProcess(success, error = null) {
+        if (success) {
+          updateEraseProgress('Secure erase completed successfully', 100);
+          toast('All data has been securely destroyed', 'success');
+          setTimeout(() => {
+            hideEraseProgressModal();
+            window.location.reload();
+          }, 3000);
+        } else {
+          updateEraseProgress('Secure erase failed: ' + error, 0);
+          toast('Erase operation failed: ' + error, 'error');
+          setTimeout(() => {
+            hideEraseProgressModal();
+          }, 5000);
+        }
+      }
+      
+      function hideEraseProgressModal() {
+        const modal = document.getElementById('eraseProgressModal');
+        if (modal) {
+          document.body.removeChild(modal);
+        }
+      }
+      
+      function toast(msg, type = 'info') {
+        const wrap = document.getElementById('toast');
+        const el = document.createElement('div');
+        el.className = `toast toast-${type}`;
+        const typeLabels = {
+          'success': 'SUCCESS',
+          'error': 'ERROR',
+          'warning': 'WARNING',
+          'info': 'INFO'
+        };
+        el.innerHTML = `<div class="toast-content"><div class="toast-title">[${typeLabels[type] || typeLabels.info}]</div><div class="toast-message">${msg}</div></div>`;
+        wrap.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('show'));
+        const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
+        setTimeout(() => {
+          el.classList.remove('show');
+          setTimeout(() => wrap.removeChild(el), 300);
+        }, duration);
+      }
+      
+      function updateAutoEraseStatus() {
+        fetch('/config/autoerase').then(response => response.json()).then(data => {
+          const statusDiv = document.getElementById('autoEraseStatus');
+          let statusText = '';
+          let statusClass = '';
+          if (!data.enabled) {
+            statusText = 'DISABLED - Manual erase only';
+            statusClass = 'status-disabled';
+          } else if (data.inSetupMode) {
+            const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
+            statusText = `SETUP MODE - Activating in ${remaining}s`;
+            statusClass = 'status-setup';
+          } else if (data.tamperActive) {
+            statusText = 'TAMPER DETECTED - Auto-erase in progress';
+            statusClass = 'status-danger';
+          } else {
+            statusText = 'ACTIVE - Monitoring for tampering';
+            statusClass = 'status-active';
+          }
+          statusDiv.textContent = statusText;
+          statusDiv.className = statusClass;
+        }).catch(error => {
+          document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
+        });
+      }
+      
+      function cancelErase() {
+        fetch('/erase/cancel', {
+          method: 'POST'
+        }).then(response => response.text()).then(data => {
+          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+        });
+      }
+      
+      function pollEraseStatus() {
+        const poll = setInterval(() => {
+          fetch('/erase/status').then(response => response.text()).then(status => {
+            document.getElementById('eraseStatus').innerHTML = '<pre>Status: ' + status + '</pre>';
+            if (status === 'COMPLETED') {
+              clearInterval(poll);
+              // Show persistent success message
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
+              toast('All data has been securely destroyed', 'success');
+              // Clear the form
+              document.getElementById('eraseConfirm').value = '';
+            } else if (status.startsWith('FAILED')) {
+              clearInterval(poll);
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
+              toast('Secure erase failed: ' + status, 'error');
+            }
+          }).catch(error => {
+            clearInterval(poll);
+            toast('Status check failed: ' + error, 'error');
+          });
+        }, 1000); // Check every second for faster feedback
+      }
+      
+      function requestErase() {
+        const confirm = document.getElementById('eraseConfirm').value;
+        if (confirm !== 'WIPE_ALL_DATA') {
+          toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
+          return;
+        }
+        if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
+          return;
+        }
+        toast('Initiating secure erase operation...', 'warning');
+        fetch('/erase/request', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `confirm=${encodeURIComponent(confirm)}`
+        }).then(response => response.text()).then(data => {
+          document.getElementById('eraseStatus').style.display = 'block';
+          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+          toast('Secure erase started', 'info');
+          // Start polling for status
+          pollEraseStatus();
+        }).catch(error => {
+          toast('Network error: ' + error, 'error');
+        });
+      }
+      async function tick() {
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
+        try {
+          const d = await fetch('/diag');
+          const diagText = await d.text();
+          const isScanning = diagText.includes('Scanning: yes');
+          const sections = diagText.split('\n');
+          try {
+            const droneStatus = await fetch('/drone/status');
+            const droneData = await droneStatus.json();
+            if (droneData.enabled) {
+              document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
+              document.getElementById('droneStatus').classList.add('active');
+            } else {
+              document.getElementById('droneStatus').innerText = 'Drone Detection: Idle';
+              document.getElementById('droneStatus').classList.remove('active');
+            }
+          } catch (e) {}
+          let overview = '';
+          let hardware = '';
+          let network = '';
+          sections.forEach(line => {
+            if (line.includes('WiFi Frames')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('wifiFrames').innerText = match[1];
+            }
+            if (line.includes('BLE Frames')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('bleFrames').innerText = match[1];
+            }
+            if (line.includes('Total hits')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('totalHits').innerText = match[1];
+            }
+            if (line.includes('Unique devices')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('uniqueDevices').innerText = match[1];
+            }
+            if (line.includes('ESP32 Temp')) {
+              const match = line.match(/([\d.]+)°C/);
+              if (match) document.getElementById('temperature').innerText = match[1] + '°C';
+            }
+            if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
+              hardware += line + '\n';
+            } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
+              network += line + '\n';
+            } else {
+              overview += line + '\n';
+            }
+          });
+          document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
+          document.getElementById('networkDiag').innerText = network || 'No network data';
+          const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
+          if (uptimeMatch) {
+            document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
+          }
+          updateStatusIndicators(diagText);
+          const stopAllBtn = document.getElementById('stopAllBtn');
+          if (stopAllBtn) {
+            stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
+          }
+          const resultsElement = document.getElementById('r');
+          if (resultsElement && !resultsElement.contains(document.activeElement)) {
+            if (isScanning || (lastScanningState && !isScanning)) {
+              const rr = await fetch('/results');
+              document.getElementById('r').innerText = await rr.text();
+            }
+          }
+          lastScanningState = isScanning;
+        } catch (e) {}
+      }
+      
+      document.getElementById('triangulate').addEventListener('change', e => {
+        document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
+      });
+      document.getElementById('f').addEventListener('submit', e => {
+        e.preventDefault();
+        ajaxForm(e.target, 'Targets saved ✓');
+        setTimeout(load, 500);
+      });
+      document.getElementById('af').addEventListener('submit', e => {
+        e.preventDefault();
+        ajaxForm(e.target, 'Allowlist saved ✓');
+        setTimeout(() => {
+          fetch('/allowlist-export').then(r => r.text()).then(t => {
+            document.getElementById('wlist').value = t;
+            document.getElementById('allowlistCount').textContent = t.split('\n').filter(x => x.trim()).length + ' entries';
+          });
+        }, 500);
+      });
+      document.getElementById('nodeForm').addEventListener('submit', e => {
+        e.preventDefault();
+        ajaxForm(e.target, 'Node ID updated');
+        setTimeout(loadNodeId, 500);
+      });
+      document.getElementById('s').addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        fetch('/scan', {
+          method: 'POST',
+          body: fd
+        }).then(r => r.text()).then(t => toast(t)).catch(err => toast('Error: ' + err.message));
+      });
+      document.getElementById('detectionMode').addEventListener('change', function() {
+        const selectedMethod = this.value;
+        const standardControls = document.getElementById('standardDurationControls');
+        const baselineControls = document.getElementById('baselineConfigControls');
+        const cacheBtn = document.getElementById('cacheBtn');
+        const baselineResultsBtn = document.getElementById('baselineResultsBtn');
+        const resetBaselineBtn = document.getElementById('resetBaselineBtn');
+        
+        // Hide everything first
+        cacheBtn.style.display = 'none';
+        baselineResultsBtn.style.display = 'none';
+        resetBaselineBtn.style.display = 'none';
+        standardControls.style.display = 'none';
+        baselineControls.style.display = 'none';
+        
+        // Show relevant controls
+        if (selectedMethod === 'baseline') {
+          baselineControls.style.display = 'block';
+          baselineResultsBtn.style.display = 'inline-block';
+          resetBaselineBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = true;
+          document.getElementById('baselineMonitorDuration').disabled = false;
+          updateBaselineStatus();
+        } else if (selectedMethod === 'drone-detection') {
+          standardControls.style.display = 'block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+        } else {
+          standardControls.style.display = 'block';
+          cacheBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+        }
+      });
+      document.getElementById('sniffer').addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const detectionMethod = fd.get('detection');
+        let endpoint = '/sniffer';
+        if (detectionMethod === 'drone-detection') {
+          endpoint = '/drone';
+          fd.delete('detection');
+        }
+        if (detectionMethod === 'baseline') {
           const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
           const duration = document.getElementById('baselineDuration').value;
           const ramSize = document.getElementById('baselineRamSize').value;
           const sdMax = document.getElementById('baselineSdMax').value;
-          fetch('/api/baseline/config', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
-          }).then(response => response.text()).then(data => {
-            toast('Baseline configuration saved', 'success');
-            updateBaselineStatus();
-          }).catch(error => {
-            toast('Error saving config: ' + error, 'error');
-          });
-        }
-
-        function resetBaseline() {
-          if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.')) return;
-          fetch('/api/baseline/reset', {
-            method: 'POST'
-          }).then(response => response.text()).then(data => {
-            toast(data, 'success');
-            updateBaselineStatus();
-          }).catch(error => {
-            toast('Error resetting baseline: ' + error, 'error');
-          });
-        }
-
-        function updateStatusIndicators(diagText) {
-          // Scan status
-          if (diagText.includes('Scanning: yes')) {
-            document.getElementById('scanStatus').innerText = 'Active';
-            document.getElementById('scanStatus').classList.add('active');
-          } else {
-            document.getElementById('scanStatus').innerText = 'Idle';
-            document.getElementById('scanStatus').classList.remove('active');
-          }
-          // Mode status
-          const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
-          if (modeMatch) {
-            document.getElementById('modeStatus').innerText = modeMatch[1];
-          }
-          // GPS status
-          if (diagText.includes('GPS: Locked')) {
-            document.getElementById('gpsStatus').classList.add('active');
-            document.getElementById('gpsStatus').innerText = 'GPS Lock';
-          } else {
-            document.getElementById('gpsStatus').classList.remove('active');
-            document.getElementById('gpsStatus').innerText = 'GPS';
-          }
-          // RTC status
-          if (diagText.includes('RTC: Synced')) {
-            document.getElementById('rtcStatus').classList.add('active');
-            document.getElementById('rtcStatus').innerText = 'RTC OK';
-          } else if (diagText.includes('RTC: Not')) {
-            document.getElementById('rtcStatus').classList.remove('active');
-            document.getElementById('rtcStatus').innerText = 'RTC';
-          }
-        }
-
-        function saveAutoEraseConfig() {
-          const enabled = document.getElementById('autoEraseEnabled').checked;
-          const delay = document.getElementById('autoEraseDelay').value;
-          const cooldown = document.getElementById('autoEraseCooldown').value;
-          const vibrationsRequired = document.getElementById('vibrationsRequired').value;
-          const detectionWindow = document.getElementById('detectionWindow').value;
-          const setupDelay = document.getElementById('setupDelay').value;
-          fetch('/api/config/autoerase', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
-          }).then(response => response.text()).then(data => {
-            document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
-            updateAutoEraseStatus();
-          });
-        }
-
-        function updateAutoEraseStatus() {
-          fetch('/api/config/autoerase').then(response => response.json()).then(data => {
-            if (data.enabled) {
-              if (data.inSetupMode) {
-                document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
-              } else {
-                document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
-              }
-            } else {
-              document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
-            }
-          });
-        }
-
-        function updateEraseProgress(message, percentage) {
-          const progressBar = document.getElementById('eraseProgressBar');
-          const progressText = document.getElementById('eraseProgressText');
-          const progressDetails = document.getElementById('eraseProgressDetails');
-          if (progressBar) {
-            progressBar.style.width = percentage + '%';
-          }
-          if (progressText) {
-            progressText.textContent = message;
-          }
-          if (progressDetails) {
-            progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
-            progressDetails.scrollTop = progressDetails.scrollHeight;
-          }
-        }
-
-        function pollEraseProgress() {
-          const poll = setInterval(() => {
-            fetch('/api/erase/progress').then(response => response.json()).then(data => {
-              updateEraseProgress(data.message, data.percentage);
-              if (data.status === 'COMPLETE') {
-                clearInterval(poll);
-                finalizeEraseProcess(true);
-              } else if (data.status === 'ERROR') {
-                clearInterval(poll);
-                finalizeEraseProcess(false, data.error);
-              } else if (data.status === 'CANCELLED') {
-                clearInterval(poll);
-                hideEraseProgressModal();
-                toast('Secure erase cancelled', 'info');
-              }
-            }).catch(error => {
-              clearInterval(poll);
-              finalizeEraseProcess(false, 'Communication error');
-            });
-          }, 1000);
-        }
-
-        function finalizeEraseProcess(success, error = null) {
-          if (success) {
-            updateEraseProgress('Secure erase completed successfully', 100);
-            toast('All data has been securely destroyed', 'success');
-            setTimeout(() => {
-              hideEraseProgressModal();
-              window.location.reload();
-            }, 3000);
-          } else {
-            updateEraseProgress('Secure erase failed: ' + error, 0);
-            toast('Erase operation failed: ' + error, 'error');
-            setTimeout(() => {
-              hideEraseProgressModal();
-            }, 5000);
-          }
-        }
-
-        function hideEraseProgressModal() {
-          const modal = document.getElementById('eraseProgressModal');
-          if (modal) {
-            document.body.removeChild(modal);
-          }
-        }
-
-        function toast(msg, type = 'info') {
-          const wrap = document.getElementById('toast');
-          const el = document.createElement('div');
-          el.className = `toast toast-${type}`;
-          const typeLabels = {
-            'success': 'SUCCESS',
-            'error': 'ERROR',
-            'warning': 'WARNING',
-            'info': 'INFO'
-          };
-          el.innerHTML = `<div class="toast-content"><div class="toast-title">[${typeLabels[type] || typeLabels.info}]</div><div class="toast-message">${msg}</div></div>`;
-          wrap.appendChild(el);
-          requestAnimationFrame(() => el.classList.add('show'));
-          const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
-          setTimeout(() => {
-            el.classList.remove('show');
-            setTimeout(() => wrap.removeChild(el), 300);
-          }, duration);
-        }
-
-        function updateAutoEraseStatus() {
-          fetch('/api/config/autoerase').then(response => response.json()).then(data => {
-            const statusDiv = document.getElementById('autoEraseStatus');
-            let statusText = '';
-            let statusClass = '';
-            if (!data.enabled) {
-              statusText = 'DISABLED - Manual erase only';
-              statusClass = 'status-disabled';
-            } else if (data.inSetupMode) {
-              const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
-              statusText = `SETUP MODE - Activating in ${remaining}s`;
-              statusClass = 'status-setup';
-            } else if (data.tamperActive) {
-              statusText = 'TAMPER DETECTED - Auto-erase in progress';
-              statusClass = 'status-danger';
-            } else {
-              statusText = 'ACTIVE - Monitoring for tampering';
-              statusClass = 'status-active';
-            }
-            statusDiv.textContent = statusText;
-            statusDiv.className = statusClass;
-          }).catch(error => {
-            document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
-          });
-        }
-
-        function cancelErase() {
-          fetch('/api/erase/cancel', {
-            method: 'POST'
-          }).then(response => response.text()).then(data => {
-            document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-          });
-        }
-
-        function pollEraseStatus() {
-          const poll = setInterval(() => {
-            fetch('/api/erase/status').then(response => response.text()).then(status => {
-              document.getElementById('eraseStatus').innerHTML = '<pre>Status: ' + status + '</pre>';
-              if (status === 'COMPLETED') {
-                clearInterval(poll);
-                // Show persistent success message
-                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
-                toast('All data has been securely destroyed', 'success');
-                // Clear the form
-                document.getElementById('eraseConfirm').value = '';
-              } else if (status.startsWith('FAILED')) {
-                clearInterval(poll);
-                document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
-                toast('Secure erase failed: ' + status, 'error');
-              }
-            }).catch(error => {
-              clearInterval(poll);
-              toast('Status check failed: ' + error, 'error');
-            });
-          }, 1000); // Check every second for faster feedback
-        }
-
-        function requestErase() {
-          const confirm = document.getElementById('eraseConfirm').value;
-          if (confirm !== 'WIPE_ALL_DATA') {
-            toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
-            return;
-          }
-          if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
-            return;
-          }
-          toast('Initiating secure erase operation...', 'warning');
-          fetch('/api/erase/request', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: `confirm=${encodeURIComponent(confirm)}`
-          }).then(response => response.text()).then(data => {
-            document.getElementById('eraseStatus').style.display = 'block';
-            document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-            toast('Secure erase started', 'info');
-            // Start polling for status
-            pollEraseStatus();
-          }).catch(error => {
-            toast('Network error: ' + error, 'error');
-          });
-        }
-        async function tick() {
-          if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
-          try {
-            const d = await fetch('/diag');
-            const diagText = await d.text();
-            const isScanning = diagText.includes('Scanning: yes');
-            const sections = diagText.split('\n');
-            try {
-              const droneStatus = await fetch('/api/drone/status');
-              const droneData = await droneStatus.json();
-              if (droneData.enabled) {
-                document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
-                document.getElementById('droneStatus').classList.add('active');
-              } else {
-                document.getElementById('droneStatus').innerText = 'Drone Detection: Idle';
-                document.getElementById('droneStatus').classList.remove('active');
-              }
-            } catch (e) {}
-            let overview = '';
-            let hardware = '';
-            let network = '';
-            sections.forEach(line => {
-              if (line.includes('WiFi Frames')) {
-                const match = line.match(/(\d+)/);
-                if (match) document.getElementById('wifiFrames').innerText = match[1];
-              }
-              if (line.includes('BLE Frames')) {
-                const match = line.match(/(\d+)/);
-                if (match) document.getElementById('bleFrames').innerText = match[1];
-              }
-              if (line.includes('Total hits')) {
-                const match = line.match(/(\d+)/);
-                if (match) document.getElementById('totalHits').innerText = match[1];
-              }
-              if (line.includes('Unique devices')) {
-                const match = line.match(/(\d+)/);
-                if (match) document.getElementById('uniqueDevices').innerText = match[1];
-              }
-              if (line.includes('ESP32 Temp')) {
-                const match = line.match(/([\d.]+)°C/);
-                if (match) document.getElementById('temperature').innerText = match[1] + '°C';
-              }
-              if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
-                hardware += line + '\n';
-              } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
-                network += line + '\n';
-              } else {
-                overview += line + '\n';
-              }
-            });
-            document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
-            document.getElementById('networkDiag').innerText = network || 'No network data';
-            const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
-            if (uptimeMatch) {
-              document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
-            }
-            updateStatusIndicators(diagText);
-            const stopAllBtn = document.getElementById('stopAllBtn');
-            if (stopAllBtn) {
-              stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
-            }
-            const resultsElement = document.getElementById('r');
-            if (resultsElement && !resultsElement.contains(document.activeElement)) {
-              if (isScanning || (lastScanningState && !isScanning)) {
-                const rr = await fetch('/results');
-                document.getElementById('r').innerText = await rr.text();
-              }
-            }
-            lastScanningState = isScanning;
-          } catch (e) {}
-        }
-
-        document.getElementById('triangulate').addEventListener('change', e => {
-          document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
-        });
-        document.getElementById('f').addEventListener('submit', e => {
-          e.preventDefault();
-          ajaxForm(e.target, 'Targets saved ✓');
-          setTimeout(load, 500);
-        });
-        document.getElementById('nodeForm').addEventListener('submit', e => {
-          e.preventDefault();
-          ajaxForm(e.target, 'Node ID updated');
-          setTimeout(loadNodeId, 500);
-        });
-        document.getElementById('s').addEventListener('submit', e => {
-          e.preventDefault();
-          const fd = new FormData(e.target);
-          fetch('/scan', {
-            method: 'POST',
-            body: fd
-          }).then(r => r.text()).then(t => toast(t)).catch(err => toast('Error: ' + err.message));
-        });
-        document.getElementById('detectionMode').addEventListener('change', function() {
-          const selectedMethod = this.value;
-          const standardControls = document.getElementById('standardDurationControls');
-          const baselineControls = document.getElementById('baselineConfigControls');
-          const cacheBtn = document.getElementById('cacheBtn');
-          const baselineResultsBtn = document.getElementById('baselineResultsBtn');
-          const resetBaselineBtn = document.getElementById('resetBaselineBtn');
+          const absence = document.getElementById('absenceThreshold').value;
+          const reappear = document.getElementById('reappearanceWindow').value;
+          const rssiDelta = document.getElementById('rssiChangeDelta').value;
           
-          // Hide everything first
-          cacheBtn.style.display = 'none';
-          baselineResultsBtn.style.display = 'none';
-          resetBaselineBtn.style.display = 'none';
-          standardControls.style.display = 'none';
-          baselineControls.style.display = 'none';
-          
-          // Show relevant controls
-          if (selectedMethod === 'baseline') {
-              baselineControls.style.display = 'block';
-              baselineResultsBtn.style.display = 'inline-block';
-              resetBaselineBtn.style.display = 'inline-block';
-              document.getElementById('detectionDuration').disabled = true;
-              document.getElementById('baselineMonitorDuration').disabled = false;
-              updateBaselineStatus();
-          } else if (selectedMethod === 'drone-detection') {
-              standardControls.style.display = 'block';
-              document.getElementById('detectionDuration').disabled = false;
-              document.getElementById('baselineMonitorDuration').disabled = true;
-          } else {
-              standardControls.style.display = 'block';
-              cacheBtn.style.display = 'inline-block';
-              document.getElementById('detectionDuration').disabled = false;
-              document.getElementById('baselineMonitorDuration').disabled = true;
-          }
-        });
-        document.getElementById('sniffer').addEventListener('submit', e => {
-          e.preventDefault();
-          const fd = new FormData(e.target);
-          const detectionMethod = fd.get('detection');
-          let endpoint = '/sniffer';
-          if (detectionMethod === 'drone-detection') {
-            endpoint = '/drone';
-            fd.delete('detection');
-          }
-          if (detectionMethod === 'baseline') {
-            const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
-            const duration = document.getElementById('baselineDuration').value;
-            const ramSize = document.getElementById('baselineRamSize').value;
-            const sdMax = document.getElementById('baselineSdMax').value;
-            const absence = document.getElementById('absenceThreshold').value;
-            const reappear = document.getElementById('reappearanceWindow').value;
-            const rssiDelta = document.getElementById('rssiChangeDelta').value;
-            
-            fetch('/api/baseline/config', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-              },
-              body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}&absenceThreshold=${absence}&reappearanceWindow=${reappear}&rssiChangeDelta=${rssiDelta}`
-            }).then(() => {
-              return fetch(endpoint, {
-                method: 'POST',
-                body: fd
-              });
-            }).then(r => r.text()).then(t => {
-              toast(t, 'success');
-              updateBaselineStatus();
-            }).catch(err => toast('Error: ' + err, 'error'));
-          } else {
-            fetch(endpoint, {
+          fetch('/baseline/config', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}&absenceThreshold=${absence}&reappearanceWindow=${reappear}&rssiChangeDelta=${rssiDelta}`
+          }).then(() => {
+            return fetch(endpoint, {
               method: 'POST',
               body: fd
-            }).then(r => r.text()).then(t => toast(t, 'success')).catch(err => toast('Error: ' + err, 'error'));
-          }
-        });
-        document.addEventListener('click', e => {
-          const a = e.target.closest('a[href="/stop"]');
-          if (!a) return;
-          e.preventDefault();
-          fetch('/stop').then(r => r.text()).then(t => toast(t));
-        });
-        document.addEventListener('click', e => {
-          const a = e.target.closest('a[href="/mesh-test"]');
-          if (!a) return;
-          e.preventDefault();
-          fetch('/mesh-test').then(r => r.text()).then(t => toast('Mesh test sent'));
-        });
-        // Initialize
-        load();
-        loadBaselineAnomalyConfig();
-        setInterval(tick, 2000);
-        document.getElementById('detectionMode').dispatchEvent(new Event('change'));
-      </script>
+            });
+          }).then(r => r.text()).then(t => {
+            toast(t, 'success');
+            updateBaselineStatus();
+          }).catch(err => toast('Error: ' + err, 'error'));
+        } else {
+          fetch(endpoint, {
+            method: 'POST',
+            body: fd
+          }).then(r => r.text()).then(t => toast(t, 'success')).catch(err => toast('Error: ' + err, 'error'));
+        }
+      });
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href="/stop"]');
+        if (!a) return;
+        e.preventDefault();
+        fetch('/stop').then(r => r.text()).then(t => toast(t));
+      });
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href="/mesh-test"]');
+        if (!a) return;
+        e.preventDefault();
+        fetch('/mesh-test').then(r => r.text()).then(t => toast('Mesh test sent'));
+      });
+      // Initialize
+      load();
+      loadBaselineAnomalyConfig();
+      setInterval(tick, 2000);
+      document.getElementById('detectionMode').dispatchEvent(new Event('change'));
+    </script>
   </body>
 </html>
 )HTML";
@@ -1177,7 +1249,7 @@ void startWebServer()
             xTaskCreatePinnedToCore(listScanTask, "scan", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
         } });
 
-  server->on("/api/baseline/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+  server->on("/baseline/status", HTTP_GET, [](AsyncWebServerRequest *req) {
       String json = "{";
       json += "\"scanning\":" + String(scanning ? "true" : "false") + ",";
       json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
@@ -1187,7 +1259,7 @@ void startWebServer()
       req->send(200, "application/json", json);
   });
 
-  server->on("/api/baseline/stats", HTTP_GET, [](AsyncWebServerRequest *req) {
+  server->on("/baseline/stats", HTTP_GET, [](AsyncWebServerRequest *req) {
       String json = "{";
       json += "\"scanning\":" + String(baselineStats.isScanning ? "true" : "false") + ",";
       json += "\"phase1Complete\":" + String(baselineStats.phase1Complete ? "true" : "false") + ",";
@@ -1205,7 +1277,7 @@ void startWebServer()
       req->send(200, "application/json", json);
   });
 
-server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
+server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
            {
       String json = "{";
       json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
@@ -1224,7 +1296,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       req->send(200, "application/json", json);
     });
 
- server->on("/api/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
+ server->on("/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
             {
         if (req->hasParam("rssiThreshold", true)) {
             int8_t threshold = req->getParam("rssiThreshold", true)->value().toInt();
@@ -1256,7 +1328,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         req->send(200, "text/plain", "Baseline configuration updated"); 
       });
 
-  server->on("/api/baseline/reset", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/baseline/reset", HTTP_POST, [](AsyncWebServerRequest *req)
              {
         resetBaselineDetection();
         req->send(200, "text/plain", "Baseline reset complete"); });
@@ -1366,7 +1438,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/drone-log", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "application/json", getDroneEventLog()); });
 
-  server->on("/api/drone/status", HTTP_GET, [](AsyncWebServerRequest *r)
+  server->on("/drone/status", HTTP_GET, [](AsyncWebServerRequest *r)
              {
         String status = "{";
         status += "\"enabled\":" + String(droneDetectionEnabled ? "true" : "false") + ",";
@@ -1397,7 +1469,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
 
-  server->on("/api/secure/destruct", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/secure/destruct", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     if (!req->hasParam("confirm", true) || req->getParam("confirm", true)->value() != "WIPE_ALL_DATA") {
         req->send(400, "text/plain", "Invalid confirmation");
@@ -1408,7 +1480,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     executeSecureErase("Manual web request");
     req->send(200, "text/plain", "Secure wipe executed"); });
 
-  server->on("/api/secure/generate-token", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/secure/generate-token", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     if (!req->hasParam("target", true) || !req->hasParam("confirm", true)) {
         req->send(400, "text/plain", "Missing target node or confirmation");
@@ -1434,7 +1506,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     
     req->send(200, "text/plain", response); });
 
-  server->on("/api/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
+  server->on("/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
              {
     String response = "{";
     response += "\"enabled\":" + String(autoEraseEnabled ? "true" : "false") + ",";
@@ -1449,7 +1521,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     response += "}";
     req->send(200, "application/json", response); });
 
-  server->on("/api/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     if (!req->hasParam("enabled", true) || !req->hasParam("delay", true) || 
         !req->hasParam("cooldown", true) || !req->hasParam("vibrationsRequired", true) ||
@@ -1492,7 +1564,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     saveConfiguration();
     req->send(200, "text/plain", "Auto-erase config updated"); });
 
-  server->on("/api/erase/status", HTTP_GET, [](AsyncWebServerRequest *req)
+  server->on("/erase/status", HTTP_GET, [](AsyncWebServerRequest *req)
              {
     String status;
     
@@ -1511,7 +1583,7 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     
     req->send(200, "text/plain", status); });
 
-  server->on("/api/erase/request", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/erase/request", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     if (!req->hasParam("confirm", true)) {
         req->send(400, "text/plain", "Missing confirmation");
@@ -1536,19 +1608,19 @@ server->on("/api/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         vTaskDelete(NULL);
     }, "secure_erase", 8192, new String(reason), 1, NULL); });
 
-  server->on("/api/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     cancelTamperErase();
     req->send(200, "text/plain", "Tamper erase cancelled"); });
 
-  server->on("/api/secure/status", HTTP_GET, [](AsyncWebServerRequest *req)
+  server->on("/secure/status", HTTP_GET, [](AsyncWebServerRequest *req)
              {
     String status = tamperEraseActive ? 
         "TAMPER_ACTIVE:" + String((TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart))/1000) + "s" : 
         "INACTIVE";
     req->send(200, "text/plain", status); });
 
-  server->on("/api/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
+  server->on("/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
              {
     cancelTamperErase();
     req->send(200, "text/plain", "Cancelled"); });
@@ -1697,6 +1769,20 @@ else if (detection == "multi-ssid") {
 
   server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", getSnifferCache()); });
+
+  server->on("/allowlist-export", HTTP_GET, [](AsyncWebServerRequest *r)
+           { r->send(200, "text/plain", getAllowlistText()); });
+
+  server->on("/allowlist-save", HTTP_POST, [](AsyncWebServerRequest *req)
+            {
+        if (!req->hasParam("list", true)) {
+            req->send(400, "text/plain", "Missing 'list'");
+            return;
+        }
+        String txt = req->getParam("list", true)->value();
+        saveAllowlist(txt);
+        saveConfiguration();
+        req->send(200, "text/plain", "Allowlist saved"); });
 
   server->begin();
   Serial.println("[WEB] Server started.");

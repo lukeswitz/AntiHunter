@@ -80,13 +80,14 @@ struct DeviceHistory {
     uint32_t lastSeen;
     uint32_t disappearedAt;
     bool wasPresent;
-    uint8_t significantChanges;  // Count of RSSI changes > 20dBm
+    uint8_t significantChanges;
 };
 
 std::map<String, DeviceHistory> deviceHistory;
 uint32_t deviceAbsenceThreshold = 120000;
 uint32_t reappearanceAlertWindow = 300000;
 int8_t significantRssiChange = 20;
+std::vector<Allowlist> allowlist;
 
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
@@ -2156,6 +2157,11 @@ void initializeScanner()
     String txt = prefs.getString("maclist", "");
     saveTargetsList(txt);
     Serial.printf("Loaded %d targets\n", targets.size());
+    
+    Serial.println("Loading allowlist...");
+    String wtxt = prefs.getString("allowlist", "");
+    saveAllowlist(wtxt);
+    Serial.printf("Loaded %d allowlist entries\n", allowlist.size());
 }
 
 // Task Functions
@@ -2205,6 +2211,10 @@ void listScanTask(void *pv) {
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
             String macStr = macFmt6(h.mac);
             uint32_t now = millis();
+
+            if (isAllowlisted(h.mac)) {
+                continue;
+            }
 
             if (deviceLastSeen.find(macStr) != deviceLastSeen.end()) {
                 if (now - deviceLastSeen[macStr] < DEDUPE_WINDOW) continue;
@@ -3054,6 +3064,10 @@ void baselineDetectionTask(void *pv) {
         
         // Process queue
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+            if (isAllowlisted(h.mac)) {
+                continue;
+            }
+
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
         
@@ -3167,7 +3181,10 @@ void baselineDetectionTask(void *pv) {
         }
         
         // Process queue for anomaly detection
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) { 
+        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+            if (isAllowlisted(h.mac)) {
+                continue;
+            }
             checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
 
@@ -3589,4 +3606,103 @@ void setSignificantRssiChange(int8_t dBm) {
         prefs.putInt("rssiChange", dBm);
         Serial.printf("[BASELINE] RSSI change threshold set to %d dBm\n", dBm);
     }
+}
+
+// Allowlist
+
+static bool parseAllowlistEntry(const String &ln, Allowlist &out)
+{
+    String t;
+    for (size_t i = 0; i < ln.length(); ++i)
+    {
+        char c = ln[i];
+        if (isxdigit((int)c))
+            t += (char)toupper(c);
+    }
+    if (t.length() == 12)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            out.bytes[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+        }
+        out.len = 6;
+        return true;
+    }
+    if (t.length() == 6)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            out.bytes[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+        }
+        out.len = 3;
+        return true;
+    }
+    return false;
+}
+
+size_t getAllowlistCount()
+{
+    return allowlist.size();
+}
+
+String getAllowlistText()
+{
+    String out;
+    for (auto &w : allowlist)
+    {
+        if (w.len == 6)
+        {
+            char b[18];
+            snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     w.bytes[0], w.bytes[1], w.bytes[2], w.bytes[3], w.bytes[4], w.bytes[5]);
+            out += b;
+        }
+        else
+        {
+            char b[9];
+            snprintf(b, sizeof(b), "%02X:%02X:%02X", w.bytes[0], w.bytes[1], w.bytes[2]);
+            out += b;
+        }
+        out += "\n";
+    }
+    return out;
+}
+
+void saveAllowlist(const String &txt)
+{
+    prefs.putString("allowlist", txt);
+    allowlist.clear();
+    int start = 0;
+    while (start < txt.length())
+    {
+        int nl = txt.indexOf('\n', start);
+        if (nl < 0) nl = txt.length();
+        String ln = txt.substring(start, nl);
+        ln.trim();
+        if (ln.length() > 0)
+        {
+            Allowlist w;
+            if (parseAllowlistEntry(ln, w))
+            {
+                allowlist.push_back(w);
+            }
+        }
+        start = nl + 1;
+    }
+}
+
+bool isAllowlisted(const uint8_t *mac)
+{
+    for (auto &w : allowlist)
+    {
+        if (w.len == 6)
+        {
+            if (memcmp(w.bytes, mac, 6) == 0) return true;
+        }
+        else if (w.len == 3)
+        {
+            if (memcmp(w.bytes, mac, 3) == 0) return true;
+        }
+    }
+    return false;
 }
