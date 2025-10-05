@@ -3,7 +3,8 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
-<img width="90%" height="90%" src="https://github.com/user-attachments/assets/89a970a4-3f95-4b3d-8788-0d09ff33110d"/>
+<img width="90%" height="90%" alt="image" src="https://github.com/user-attachments/assets/6c3c4d36-50b7-4257-93b1-5738fb274d5d" />
+
 
 ## Table of Contents
 
