@@ -36,8 +36,6 @@ extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
 extern TaskHandle_t blueTeamTaskHandle;
-TaskHandle_t karmaTaskHandle = nullptr;
-TaskHandle_t probeFloodTaskHandle = nullptr;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
@@ -1675,58 +1673,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                               (void*)(intptr_t)(forever ? 0 : secs), 
                               1, &workerTaskHandle, 1);
     }
-  }
-   else if (detection == "beacon-flood") {
-    if (secs < 0) secs = 0; 
-    if (secs > 86400) secs = 86400;
-    
-    stopRequested = false;
-    req->send(200, "text/plain", forever ? "Beacon flood detection starting (forever)" : ("Beacon flood detection starting for " + String(secs) + "s"));
-    
-    if (!blueTeamTaskHandle) {
-      xTaskCreatePinnedToCore(beaconFloodTask, "beaconflood", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-    }
-  } else if (detection == "pwnagotchi") {
-    stopRequested = false;
-    req->send(200, "text/plain", "Pwnagotchi detection starting");
-    if (!blueTeamTaskHandle) {
-        xTaskCreatePinnedToCore(pwnagotchiDetectionTask, "pwn", 12288,
-                              (void*)(intptr_t)(forever ? 0 : secs),
-                              1, &blueTeamTaskHandle, 1);
-    }
-} else if (detection == "pineapple") {
-    pineappleDetectionEnabled = true;
-    stopRequested = false;
-    req->send(200, "text/plain", forever ? "Pineapple detection starting (forever)" : 
-             ("Pineapple detection starting for " + String(secs) + "s"));
-    
-    if (!blueTeamTaskHandle) {
-        xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
-                              (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-    }
-}
-
-else if (detection == "multi-ssid") {
-    multissidDetectionEnabled = true;
-    stopRequested = false;
-    req->send(200, "text/plain", forever ? "Multi-SSID detection starting (forever)" : 
-             ("Multi-SSID detection starting for " + String(secs) + "s"));
-    
-    if (!blueTeamTaskHandle) {
-        xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
-                              (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-    }
-} else if (detection == "ble-spam") {
-    if (secs < 0) secs = 0; 
-    if (secs > 86400) secs = 86400;
-    
-    stopRequested = false;
-    req->send(200, "text/plain", forever ? "BLE spam detection starting (forever)" : ("BLE spam detection starting for " + String(secs) + "s"));
-    
-    if (!blueTeamTaskHandle) {
-        xTaskCreatePinnedToCore(bleScannerTask, "blescan", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-    }
-  
   } else if (detection == "device-scan") {
       currentScanMode = SCAN_BOTH;
       if (secs < 0) secs = 0;
@@ -1737,31 +1683,6 @@ else if (detection == "multi-ssid") {
       
       if (!workerTaskHandle) {
           xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-      }
-   } else if (detection == "karma") {
-      karmaDetectionEnabled = true;
-      stopRequested = false;
-      req->send(200, "text/plain",
-                forever ? "Karma detection starting (forever)" :
-                ("Karma detection starting for " + String(secs) + "s"));
-
-      if (!blueTeamTaskHandle) {
-          xTaskCreatePinnedToCore(karmaDetectionTask, "karma", 12288,
-                                  (void*)(intptr_t)(forever ? 0 : secs),
-                                  1, &blueTeamTaskHandle, 1);
-      }
-
-  } else if (detection == "probe-flood") {
-      probeFloodDetectionEnabled = true;
-      stopRequested = false;
-      req->send(200, "text/plain",
-                forever ? "Probe flood detection starting (forever)" :
-                ("Probe flood detection starting for " + String(secs) + "s"));
-
-      if (!blueTeamTaskHandle) {
-          xTaskCreatePinnedToCore(probeFloodDetectionTask, "probe", 12288,
-                                  (void*)(intptr_t)(forever ? 0 : secs),
-                                  1, &blueTeamTaskHandle, 1);
       }
   } else {
     req->send(400, "text/plain", "Unknown detection mode");

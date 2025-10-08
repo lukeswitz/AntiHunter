@@ -85,14 +85,6 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Extracts UAV ID, pilot location, and flight telemetry data
 - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
 
-**Coming: Threat Detection Capabilities:**
-- Deauth/disassoc attack detection (flood and targeted)
-- WiFi Pineapple and rogue access point identification
-- Pwnagotchi device detection
-- Evil twin and multi-SSID attack detection
-- Beacon flood and probe request flood monitoring
-- EAPOL handshake capture detection
-- Karma attack identification
 
 **Use Cases:**
 - Airport and critical infrastructure drone monitoring
@@ -402,7 +394,6 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - `device-scan`: General WiFi/BLE device discovery (default)
 - `deauth`: Deauthentication attack detection
 - `baseline`: Baseline environment establishment
-- `probe-flood`: Probe request flood detection
 
 ### **Baseline Configuration**
 - `rssiThreshold`: Minimum RSSI for device detection (dBm)
@@ -570,7 +561,7 @@ The project continues to evolve through community contributions. Contributions v
 ```
 AntiHunter (AH) is provided for lawful, authorized use only—such as research, training, and security operations on systems and radio spectrum you own or have explicit written permission to assess. You are solely responsible for compliance with all applicable laws and policies, including privacy/data-protection (e.g., GDPR), radio/telecom regulations (LoRa ISM band limits, duty cycle), and export controls. Do not use AH to track, surveil, or target individuals, or to collect personal data without a valid legal basis and consent where required.
 
-The software is provided “AS IS” without warranty of any kind. Authors and contributors are not liable for misuse, damages, or legal consequences arising from use of this project.
+Authors and contributors are not liable for misuse, damages, or legal consequences arising from use of this project.
 By using AHCC, you accept full responsibility for your actions and agree to indemnify the authors and contributors against any claims related to your use.
 These tools are designed for ethical blue team use, such as securing events, auditing networks, or training exercises. To implement in code, ensure compliance with local laws (e.g., FCC regulations on transmissions) and pair with a directional antenna for enhanced accuracy.
 
