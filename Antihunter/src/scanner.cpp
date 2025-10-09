@@ -450,7 +450,6 @@ void snifferScanTask(void *pv)
                         apCache[bssid] = ssid;
                         uniqueMacs.insert(bssid);
                         totalHits = totalHits + 1;
-                        framesSeen = framesSeen + 1;
 
                         Hit h;
                         memcpy(h.mac, bssidBytes, 6);
@@ -521,7 +520,6 @@ void snifferScanTask(void *pv)
                         bleDeviceCache[macStr] = cleanName;
                         uniqueMacs.insert(macStr);
                         totalHits = totalHits + 1;
-                        bleFramesSeen = bleFramesSeen + 1;
 
                         uint8_t mac[6];
                         if (parseMac6(macStr, mac))
