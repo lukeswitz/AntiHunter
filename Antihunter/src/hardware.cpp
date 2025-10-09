@@ -245,6 +245,15 @@ String getDiagnostics() {
     lastDiagTime = millis();
     
     String s;
+    s += "Scanning: " + String(scanning ? "yes" : "no") + "\n";
+    
+    // Task type tracking for the start/stop button
+    if (workerTaskHandle) {
+        const char* taskName = pcTaskGetName(workerTaskHandle);
+        s += "Task Type: " + String(taskName) + "\n";
+    } else {
+        s += "Task Type: none\n";
+    }
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
