@@ -21,6 +21,7 @@ QueueHandle_t droneQueue = nullptr;
 extern volatile bool stopRequested;
 extern void radioStartSTA();
 extern void radioStopSTA();
+extern volatile bool scanning; 
 
 static unsigned long lastDroneLog = 0;
 const unsigned long DRONE_LOG_INTERVAL = 1000;
@@ -387,6 +388,7 @@ void droneDetectorTask(void *pv) {
     
     initializeDroneDetector();
     droneDetectionEnabled = true;
+    scanning = true;
     stopRequested = false;
     
     radioStartSTA();
@@ -417,6 +419,7 @@ void droneDetectorTask(void *pv) {
     }
     
     droneDetectionEnabled = false;
+    scanning = false;
     radioStopSTA();
     
     {

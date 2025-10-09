@@ -46,7 +46,7 @@ const unsigned long SNIFFER_SCAN_INTERVAL = 10000;
 NimBLEScan *pBLEScan;
 static void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
 
-// Baseline scan intervals
+// Scan intervals
 const uint32_t WIFI_SCAN_INTERVAL = 4000;
 const uint32_t BLE_SCAN_INTERVAL = 2000;
 
@@ -449,7 +449,6 @@ void snifferScanTask(void *pv)
                     {
                         apCache[bssid] = ssid;
                         uniqueMacs.insert(bssid);
-                        totalHits = totalHits + 1;
 
                         Hit h;
                         memcpy(h.mac, bssidBytes, 6);
@@ -460,6 +459,10 @@ void snifferScanTask(void *pv)
                         h.isBLE = false;
 
                         hitsLog.push_back(h);
+
+                        if (matchesMac(bssidBytes)) {
+                            totalHits = totalHits + 1;
+                        }
 
                         String logEntry = "WiFi AP: " + bssid + " SSID: " + ssid +
                                           " RSSI: " + String(rssi) + "dBm CH: " + String(WiFi.channel(i));
@@ -504,7 +507,6 @@ void snifferScanTask(void *pv)
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
                         String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
-
                         String cleanName = "";
                         for (size_t j = 0; j < name.length(); j++)
                         {
@@ -516,11 +518,10 @@ void snifferScanTask(void *pv)
                         }
                         if (cleanName.length() == 0)
                             cleanName = "Unknown";
-
+                        
                         bleDeviceCache[macStr] = cleanName;
                         uniqueMacs.insert(macStr);
-                        totalHits = totalHits + 1;
-
+                        
                         uint8_t mac[6];
                         if (parseMac6(macStr, mac))
                         {
@@ -531,27 +532,27 @@ void snifferScanTask(void *pv)
                             strncpy(h.name, cleanName.c_str(), sizeof(h.name) - 1);
                             h.name[sizeof(h.name) - 1] = '\0';
                             h.isBLE = true;
-
                             hitsLog.push_back(h);
-
+                            
                             String logEntry = "BLE Device: " + macStr + " Name: " + cleanName +
                                             " RSSI: " + String(device->getRSSI()) + "dBm";
 
-                            if (gpsValid)
-                            {
-                                logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
-                            }
+                                if (gpsValid)
+                                {
+                                    logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                                }
 
-                            Serial.println("[SNIFFER] " + logEntry);
-                            logToSD(logEntry);
+                                Serial.println("[SNIFFER] " + logEntry);
+                                logToSD(logEntry);
 
-                            if (matchesMac(mac))
-                            {
-                                sendMeshNotification(h);
+                                if (matchesMac(mac))
+                                {
+                                    sendMeshNotification(h);
+                                    totalHits = totalHits + 1;
+                                }
                             }
                         }
                     }
-                }
 
                 bleScan->clearResults();
                 Serial.printf("[SNIFFER] BLE scan found %d devices\n", scanResults.getCount());
@@ -1086,7 +1087,7 @@ void initializeScanner()
     Serial.printf("Loaded %d allowlist entries\n", allowlist.size());
 }
 
-// Task Functions
+// Scan tasks
 void listScanTask(void *pv) {
     int secs = (int)(intptr_t)pv;
     bool forever = (secs <= 0);
@@ -1118,7 +1119,9 @@ void listScanTask(void *pv) {
 
     uint32_t nextStatus = millis() + 1000;
     std::map<String, uint32_t> deviceLastSeen;
-    const uint32_t DEDUPE_WINDOW = 30000;
+    const uint32_t DEDUPE_WINDOW = 3000;
+    uint32_t lastWiFiScan = 0;
+    uint32_t lastBLEScan = 0;
     Hit h;
 
     while ((forever && !stopRequested) ||
@@ -1130,8 +1133,93 @@ void listScanTask(void *pv) {
             nextStatus += 1000;
         }
 
+        if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
+            (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
+            lastWiFiScan = millis();
+            int networksFound = WiFi.scanNetworks(false, true, false, 120);
+            if (networksFound > 0) {
+                for (int i = 0; i < networksFound; i++) {
+                    String bssid = WiFi.BSSIDstr(i);
+                    bssid.toUpperCase();
+                    String ssid = WiFi.SSID(i);
+                    int32_t rssi = WiFi.RSSI(i);
+                    uint8_t ch = WiFi.channel(i);
+                    uint8_t *bssidBytes = WiFi.BSSID(i);
+
+                    if (ssid.length() == 0) ssid = "[Hidden]";
+
+                    uint32_t now = millis();
+                    if (deviceLastSeen.find(bssid) == deviceLastSeen.end() ||
+                        (now - deviceLastSeen[bssid] >= DEDUPE_WINDOW)) {
+                        deviceLastSeen[bssid] = now;
+                        uniqueMacs.insert(bssid);
+
+                        Hit wh;
+                        memcpy(wh.mac, bssidBytes, 6);
+                        wh.rssi = rssi;
+                        wh.ch = ch;
+                        strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+                        wh.name[sizeof(wh.name) - 1] = '\0';
+                        wh.isBLE = false;
+                        hitsLog.push_back(wh);
+
+                        String origBssid = WiFi.BSSIDstr(i);
+                        uint8_t mac[6];
+                        if (parseMac6(origBssid, mac) && matchesMac(mac)) {
+                            totalHits = totalHits + 1;
+                            if (macQueue) xQueueSend(macQueue, &wh, 0);
+                        }
+                    }
+                }
+                WiFi.scanDelete();
+            }
+            framesSeen += networksFound;
+        }
+
+        if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan &&
+            (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0)) {
+            lastBLEScan = millis();
+            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            for (int i = 0; i < scanResults.getCount(); i++) {
+                const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
+                String macStrOrig = device->getAddress().toString().c_str();
+                String macStr = macStrOrig;
+                macStr.toUpperCase();
+                String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                int8_t rssi = device->getRSSI();
+
+                uint32_t now = millis();
+                if (deviceLastSeen.find(macStr) == deviceLastSeen.end() ||
+                    (now - deviceLastSeen[macStr] >= DEDUPE_WINDOW)) {
+                    deviceLastSeen[macStr] = now;
+                    uniqueMacs.insert(macStr);
+
+                    uint8_t mac[6];
+                    if (parseMac6(macStrOrig, mac)) {
+                        Hit bh;
+                        memcpy(bh.mac, mac, 6);
+                        bh.rssi = rssi;
+                        bh.ch = 0;
+                        strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
+                        bh.name[sizeof(bh.name) - 1] = '\0';
+                        bh.isBLE = true;
+                        hitsLog.push_back(bh);
+
+                        if (matchesMac(mac)) {
+                            totalHits = totalHits + 1;
+                            if (macQueue) xQueueSend(macQueue, &bh, 0);
+                        }
+                    }
+                }
+            }
+            pBLEScan->clearResults();
+            bleFramesSeen += scanResults.getCount();
+        }
+
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
-            String macStr = macFmt6(h.mac);
+            String macStrOrig = macFmt6(h.mac);
+            String macStr = macStrOrig;
+            macStr.toUpperCase();
             uint32_t now = millis();
 
             if (isAllowlisted(h.mac)) {
@@ -1143,11 +1231,14 @@ void listScanTask(void *pv) {
             }
 
             deviceLastSeen[macStr] = now;
-            totalHits = totalHits + 1;
-            hitsLog.push_back(h);
             uniqueMacs.insert(macStr);
+            hitsLog.push_back(h);
 
-            String logEntry = String(h.isBLE ? "BLE" : "WiFi") + " " + macStr +
+            if (matchesMac(h.mac)) {
+                totalHits = totalHits + 1;
+            }
+
+            String logEntry = String(h.isBLE ? "BLE" : "WiFi") + " " + macStrOrig +
                               " RSSI=" + String(h.rssi) + "dBm";
             if (!h.isBLE && h.ch > 0) logEntry += " CH=" + String(h.ch);
             if (strlen(h.name) > 0 && strcmp(h.name, "WiFi") != 0 && strcmp(h.name, "Unknown") != 0) {
@@ -1174,11 +1265,9 @@ void listScanTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    
     scanning = false;
     lastScanEnd = millis();
 
-    // BUILD AND STORE RESULTS
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
@@ -1187,20 +1276,36 @@ void listScanTask(void *pv) {
             " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n" +
             "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
             "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
-            "Total hits: " + std::to_string(totalHits) + "\n" +
-            "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
+            "Total hits: " + std::to_string(totalHits) + "\n";
+        
+        // Dedupe hitsLog: Keep one per MAC with best RSSI
+        std::map<String, Hit> uniqueMap;
+        for (const auto& hit : hitsLog) {
+            String macStrOrig = macFmt6(hit.mac);
+            String macStr = macStrOrig;
+            macStr.toUpperCase();
+            if (uniqueMap.find(macStr) == uniqueMap.end() || hit.rssi > uniqueMap[macStr].rssi) {
+                uniqueMap[macStr] = hit;
+            }
+        }
+        
+        results += "Unique devices: " + std::to_string(uniqueMap.size()) + "\n\n";
 
-        // Sort hits by RSSI (strongest first)
-        std::vector<Hit> sortedHits = hitsLog;
+        // Sort unique by RSSI
+        std::vector<Hit> sortedHits;
+        for (const auto& entry : uniqueMap) {
+            sortedHits.push_back(entry.second);
+        }
         std::sort(sortedHits.begin(), sortedHits.end(),
-                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+                  [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
 
         int show = sortedHits.size();
         if (show > 200) show = 200;
         for (int i = 0; i < show; i++) {
             const auto &e = sortedHits[i];
             results += std::string(e.isBLE ? "BLE " : "WiFi");
-            results += " " + std::string(macFmt6(e.mac).c_str());
+            String macOut = macFmt6(e.mac);
+            results += " " + std::string(macOut.c_str());
             results += " RSSI=" + std::to_string(e.rssi) + "dBm";
             if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
             if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
