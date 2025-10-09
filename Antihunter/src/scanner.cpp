@@ -1108,6 +1108,7 @@ void listScanTask(void *pv) {
     uniqueMacs.clear();
     hitsLog.clear();
     totalHits = 0;
+    std::set<String> seenTargets;
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
@@ -1149,26 +1150,34 @@ void listScanTask(void *pv) {
                     if (ssid.length() == 0) ssid = "[Hidden]";
 
                     uint32_t now = millis();
-                    if (deviceLastSeen.find(bssid) == deviceLastSeen.end() ||
-                        (now - deviceLastSeen[bssid] >= DEDUPE_WINDOW)) {
-                        deviceLastSeen[bssid] = now;
-                        uniqueMacs.insert(bssid);
+                    bool shouldProcess = (deviceLastSeen.find(bssid) == deviceLastSeen.end() ||
+                                          (now - deviceLastSeen[bssid] >= DEDUPE_WINDOW));
 
-                        Hit wh;
-                        memcpy(wh.mac, bssidBytes, 6);
-                        wh.rssi = rssi;
-                        wh.ch = ch;
-                        strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
-                        wh.name[sizeof(wh.name) - 1] = '\0';
-                        wh.isBLE = false;
-                        hitsLog.push_back(wh);
+                    if (!shouldProcess) continue;
 
-                        String origBssid = WiFi.BSSIDstr(i);
-                        uint8_t mac[6];
-                        if (parseMac6(origBssid, mac) && matchesMac(mac)) {
-                            totalHits = totalHits + 1;
-                            if (macQueue) xQueueSend(macQueue, &wh, 0);
+                    String origBssid = WiFi.BSSIDstr(i);
+                    uint8_t mac[6];
+                    bool isMatch = parseMac6(origBssid, mac) && matchesMac(mac);
+
+                    uniqueMacs.insert(bssid);
+
+                    Hit wh;
+                    memcpy(wh.mac, bssidBytes, 6);
+                    wh.rssi = rssi;
+                    wh.ch = ch;
+                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+                    wh.name[sizeof(wh.name) - 1] = '\0';
+                    wh.isBLE = false;
+
+                    if (isMatch) {
+                        if (macQueue) {
+                            if (xQueueSend(macQueue, &wh, pdMS_TO_TICKS(10)) != pdTRUE) {
+                                Serial.printf("[SCAN] Queue full for target %s\n", origBssid.c_str());
+                            }
                         }
+                    } else {
+                        hitsLog.push_back(wh);
+                        deviceLastSeen[bssid] = now;
                     }
                 }
                 WiFi.scanDelete();
@@ -1189,14 +1198,32 @@ void listScanTask(void *pv) {
                 int8_t rssi = device->getRSSI();
 
                 uint32_t now = millis();
-                if (deviceLastSeen.find(macStr) == deviceLastSeen.end() ||
-                    (now - deviceLastSeen[macStr] >= DEDUPE_WINDOW)) {
-                    deviceLastSeen[macStr] = now;
-                    uniqueMacs.insert(macStr);
+                bool shouldProcess = (deviceLastSeen.find(macStr) == deviceLastSeen.end() ||
+                                      (now - deviceLastSeen[macStr] >= DEDUPE_WINDOW));
 
-                    uint8_t mac[6];
+                if (!shouldProcess) continue;
+
+                uint8_t mac[6];
+                bool isMatch = parseMac6(macStrOrig, mac) && matchesMac(mac);
+
+                uniqueMacs.insert(macStr);
+
+                if (isMatch) {
+                    Hit bh;
+                    memcpy(bh.mac, mac, 6);
+                    bh.rssi = rssi;
+                    bh.ch = 0;
+                    strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
+                    bh.name[sizeof(bh.name) - 1] = '\0';
+                    bh.isBLE = true;
+                    if (macQueue) {
+                        if (xQueueSend(macQueue, &bh, pdMS_TO_TICKS(10)) != pdTRUE) {
+                            Serial.printf("[SCAN] Queue full for target %s\n", macStrOrig.c_str());
+                        }
+                    }
+                } else {
+                    Hit bh;
                     if (parseMac6(macStrOrig, mac)) {
-                        Hit bh;
                         memcpy(bh.mac, mac, 6);
                         bh.rssi = rssi;
                         bh.ch = 0;
@@ -1204,11 +1231,7 @@ void listScanTask(void *pv) {
                         bh.name[sizeof(bh.name) - 1] = '\0';
                         bh.isBLE = true;
                         hitsLog.push_back(bh);
-
-                        if (matchesMac(mac)) {
-                            totalHits = totalHits + 1;
-                            if (macQueue) xQueueSend(macQueue, &bh, 0);
-                        }
+                        deviceLastSeen[macStr] = now;
                     }
                 }
             }
@@ -1234,7 +1257,8 @@ void listScanTask(void *pv) {
             uniqueMacs.insert(macStr);
             hitsLog.push_back(h);
 
-            if (matchesMac(h.mac)) {
+            if (seenTargets.find(macStr) == seenTargets.end()) {
+                seenTargets.insert(macStr);
                 totalHits = totalHits + 1;
             }
 
@@ -1276,45 +1300,59 @@ void listScanTask(void *pv) {
             " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n" +
             "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
             "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
-            "Total hits: " + std::to_string(totalHits) + "\n";
-        
-        // Dedupe hitsLog: Keep one per MAC with best RSSI
-        std::map<String, Hit> uniqueMap;
-        for (const auto& hit : hitsLog) {
-            String macStrOrig = macFmt6(hit.mac);
-            String macStr = macStrOrig;
-            macStr.toUpperCase();
-            if (uniqueMap.find(macStr) == uniqueMap.end() || hit.rssi > uniqueMap[macStr].rssi) {
-                uniqueMap[macStr] = hit;
+            "Target hits: " + std::to_string(totalHits) + "\n\n";
+
+        std::map<String, Hit> hitsMap;
+        for (const auto& targetMacStr : seenTargets) {
+            Hit bestHit;
+            int8_t bestRssi = -128; 
+            bool found = false;
+
+            String targetMac = targetMacStr; 
+            for (const auto& hit : hitsLog) {
+                String hitMacStrOrig = macFmt6(hit.mac);
+                String hitMacStr = hitMacStrOrig;
+                hitMacStr.toUpperCase();
+                if (hitMacStr == targetMac && hit.rssi > bestRssi) {
+                    bestHit = hit;
+                    bestRssi = hit.rssi;
+                    found = true;
+                }
+            }
+
+            if (found) {
+                hitsMap[targetMac] = bestHit;
             }
         }
-        
-        results += "Unique devices: " + std::to_string(uniqueMap.size()) + "\n\n";
 
-        // Sort unique by RSSI
-        std::vector<Hit> sortedHits;
-        for (const auto& entry : uniqueMap) {
-            sortedHits.push_back(entry.second);
-        }
-        std::sort(sortedHits.begin(), sortedHits.end(),
-                  [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-
-        int show = sortedHits.size();
-        if (show > 200) show = 200;
-        for (int i = 0; i < show; i++) {
-            const auto &e = sortedHits[i];
-            results += std::string(e.isBLE ? "BLE " : "WiFi");
-            String macOut = macFmt6(e.mac);
-            results += " " + std::string(macOut.c_str());
-            results += " RSSI=" + std::to_string(e.rssi) + "dBm";
-            if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
-            if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
-                results += " Name=" + std::string(e.name);
+        if (hitsMap.empty()) {
+            results += "No targets detected.\n";
+        } else {
+            // Sort hits by RSSI
+            std::vector<Hit> sortedHits;
+            for (const auto& entry : hitsMap) {
+                sortedHits.push_back(entry.second);
             }
-            results += "\n";
-        }
-        if (static_cast<int>(sortedHits.size()) > show) {
-            results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
+            std::sort(sortedHits.begin(), sortedHits.end(),
+                      [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+
+            int show = sortedHits.size();
+            if (show > 200) show = 200;
+            for (int i = 0; i < show; i++) {
+                const auto &e = sortedHits[i];
+                results += std::string(e.isBLE ? "BLE " : "WiFi");
+                String macOut = macFmt6(e.mac);
+                results += " " + std::string(macOut.c_str());
+                results += " RSSI=" + std::to_string(e.rssi) + "dBm";
+                if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
+                if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
+                    results += " Name=" + std::string(e.name);
+                }
+                results += "\n";
+            }
+            if (static_cast<int>(sortedHits.size()) > show) {
+                results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
+            }
         }
 
         antihunter::lastResults = results;
