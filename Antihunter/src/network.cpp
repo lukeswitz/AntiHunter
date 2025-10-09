@@ -354,11 +354,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                   <div>
-                    <label style="font-size:11px;">Cache Count</label>
+                    <label style="font-size:11px;">RAM Device Cache</label>
                     <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
                   </div>
                   <div>
-                    <label style="font-size:11px;">SD Detection Max</label>
+                    <label style="font-size:11px;">SD Device Storage</label>
                     <input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
                   </div>
                 </div>
@@ -445,23 +445,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <div class="stat-value" id="uptime">--:--:--</div>
               </div>
               <div class="stat-item">
-                <div class="stat-label">WiFi</div>
+                <div class="stat-label">WiFi Frames</div>
                 <div class="stat-value" id="wifiFrames">0</div>
               </div>
               <div class="stat-item">
-                <div class="stat-label">BLE</div>
+                <div class="stat-label">BLE Frames</div>
                 <div class="stat-value" id="bleFrames">0</div>
               </div>
               <div class="stat-item">
-                <div class="stat-label">Hits</div>
+                <div class="stat-label">Target Hits</div>
                 <div class="stat-value" id="totalHits">0</div>
               </div>
               <div class="stat-item">
-                <div class="stat-label">Unique</div>
+                <div class="stat-label">Unique Devices</div>
                 <div class="stat-value" id="uniqueDevices">0</div>
               </div>
               <div class="stat-item">
-                <div class="stat-label">Temp</div>
+                <div class="stat-label">CPU Temp</div>
                 <div class="stat-value" id="temperature">--°C</div>
               </div>
             </div>
@@ -992,7 +992,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const match = line.match(/(\d+)/);
               if (match) document.getElementById('bleFrames').innerText = match[1];
             }
-            if (line.includes('Total hits')) {
+            if (line.includes('Devices Found')) {
               const match = line.match(/(\d+)/);
               if (match) document.getElementById('totalHits').innerText = match[1];
             }
@@ -1165,6 +1165,10 @@ void startWebServer()
 {
   if (!server)
     server = new AsyncWebServer(80);
+
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
 
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *r)
              {
