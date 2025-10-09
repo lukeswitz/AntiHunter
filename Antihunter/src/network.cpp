@@ -43,6 +43,7 @@ extern void parseChannelsCSV(const String &csv);
 // Triangulation 
 bool triangulationActive = false;
 std::vector<TriangulationNode> triangulationNodes;
+String calculateTriangulation();
 static uint8_t triangulationTarget[6];
 static uint32_t triangulationStart = 0;
 static uint32_t triangulationDuration = 0;
@@ -55,54 +56,192 @@ float rssiToDistance(int8_t rssi) {
     return pow(10.0, (-59.0 - rssi) / (10.0 * 2.0));
 }
 
+// ------------- Triangulation ------------- 
+void startTriangulation(const String &targetMac, int duration) {
+    uint8_t macBytes[6];
+    if (!parseMac6(targetMac, macBytes)) {
+        Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", targetMac.c_str());
+        return;
+    }
+    
+    // Initialize triangulation state
+    memcpy(triangulationTarget, macBytes, 6);
+    triangulationNodes.clear();
+    triangulationActive = true;
+    triangulationStart = millis();
+    triangulationDuration = duration;
+    
+    // Configure scan mode for triangulation
+    currentScanMode = SCAN_BOTH;
+    stopRequested = false;
+    
+    Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
+    
+    // Broadcast triangulation command to mesh network
+    String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
+    sendMeshCommand(cmd);
+    
+    // Start scanner task if not already running
+    if (!workerTaskHandle) {
+        xTaskCreatePinnedToCore(
+            listScanTask, 
+            "triangulate", 
+            8192,
+            (void *)(intptr_t)duration, 
+            1, 
+            &workerTaskHandle, 
+            1
+        );
+    }
+    
+    Serial.println("[TRIANGULATE] Mesh nodes notified, scanning active");
+}
+
+void stopTriangulation() {
+    if (!triangulationActive) {
+        Serial.println("[TRIANGULATE] Not active, nothing to stop");
+        return;
+    }
+    
+    uint32_t elapsedMs = millis() - triangulationStart;
+    uint32_t elapsedSec = elapsedMs / 1000;
+    
+    Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", 
+                  elapsedSec, triangulationNodes.size());
+    
+    String results = calculateTriangulation();
+    
+    // Log results to SD card if available
+    if (sdAvailable) {
+        String logEntry = getFormattedTimestamp() + " TRIANGULATION_COMPLETE\n";
+        logEntry += results;
+        logEntry += "\n---\n";
+        logToSD(logEntry);
+    }
+    
+    // Send results via mesh
+    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: Nodes=" + 
+                       String(triangulationNodes.size());
+    if (Serial1.availableForWrite() >= resultMsg.length()) {
+        Serial1.println(resultMsg);
+    }
+    
+    // Clear triangulation state
+    triangulationActive = false;
+    triangulationDuration = 0;
+    memset(triangulationTarget, 0, 6);
+    
+    Serial.println("[TRIANGULATE] Stopped and results generated");
+}
+
 String calculateTriangulation() {
-    String results = "Triangulation Results\n";
-    results += "Target: " + macFmt6(triangulationTarget) + "\n";
+    String results = "=== Triangulation Results ===\n";
+    results += "Target MAC: " + macFmt6(triangulationTarget) + "\n";
     results += "Duration: " + String(triangulationDuration) + "s\n";
-    results += "Nodes reporting: " + String(triangulationNodes.size()) + "\n\n";
+    results += "Elapsed: " + String((millis() - triangulationStart) / 1000) + "s\n";
+    results += "Reporting Nodes: " + String(triangulationNodes.size()) + "\n\n";
     
     std::vector<TriangulationNode> gpsNodes;
+    
+    results += "--- Node Reports ---\n";
     for (const auto& node : triangulationNodes) {
-        results += node.nodeId + ": RSSI=" + String(node.rssi) + "dBm Hits=" + String(node.hitCount);
+        results += node.nodeId + ": ";
+        results += "RSSI=" + String(node.rssi) + "dBm ";
+        results += "Hits=" + String(node.hitCount) + " ";
+        
         if (node.hasGPS) {
-            results += " GPS=" + String(node.lat, 6) + "," + String(node.lon, 6);
-            results += " Dist=" + String(rssiToDistance(node.rssi), 1) + "m";
+            results += "GPS=" + String(node.lat, 6) + "," + String(node.lon, 6) + " ";
+            float dist = rssiToDistance(node.rssi);
+            results += "Est.Dist=" + String(dist, 1) + "m";
             gpsNodes.push_back(node);
+        } else {
+            results += "GPS=UNAVAILABLE";
         }
         results += "\n";
     }
+    results += "\n";
     
     if (gpsNodes.size() >= 3) {
-        float x1 = gpsNodes[0].lat, y1 = gpsNodes[0].lon, r1 = rssiToDistance(gpsNodes[0].rssi);
-        float x2 = gpsNodes[1].lat, y2 = gpsNodes[1].lon, r2 = rssiToDistance(gpsNodes[1].rssi);
-        float x3 = gpsNodes[2].lat, y3 = gpsNodes[2].lon, r3 = rssiToDistance(gpsNodes[2].rssi);
+        results += "--- GPS Trilateration ---\n";
+        results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n\n";
         
-        float A = 2 * (x2 - x1);
-        float B = 2 * (y2 - y1);
-        float C = pow(r1, 2) - pow(r2, 2) - pow(x1, 2) + pow(x2, 2) - pow(y1, 2) + pow(y2, 2);
-        float D = 2 * (x3 - x2);
-        float E = 2 * (y3 - y2);
-        float F = pow(r2, 2) - pow(r3, 2) - pow(x2, 2) + pow(x3, 2) - pow(y2, 2) + pow(y3, 2);
+        float lat1 = gpsNodes[0].lat, lon1 = gpsNodes[0].lon, r1 = rssiToDistance(gpsNodes[0].rssi);
+        float lat2 = gpsNodes[1].lat, lon2 = gpsNodes[1].lon, r2 = rssiToDistance(gpsNodes[1].rssi);
+        float lat3 = gpsNodes[2].lat, lon3 = gpsNodes[2].lon, r3 = rssiToDistance(gpsNodes[2].rssi);
+        
+        results += "Node 1: (" + String(lat1, 6) + ", " + String(lon1, 6) + ") r=" + String(r1, 1) + "m\n";
+        results += "Node 2: (" + String(lat2, 6) + ", " + String(lon2, 6) + ") r=" + String(r2, 1) + "m\n";
+        results += "Node 3: (" + String(lat3, 6) + ", " + String(lon3, 6) + ") r=" + String(r3, 1) + "m\n\n";
+        
+        float A = 2.0 * (lat2 - lat1);
+        float B = 2.0 * (lon2 - lon1);
+        float C = pow(r1, 2) - pow(r2, 2) - pow(lat1, 2) + pow(lat2, 2) - pow(lon1, 2) + pow(lon2, 2);
+        
+        float D = 2.0 * (lat3 - lat2);
+        float E = 2.0 * (lon3 - lon2);
+        float F = pow(r2, 2) - pow(r3, 2) - pow(lat2, 2) + pow(lat3, 2) - pow(lon2, 2) + pow(lon3, 2);
         
         float denominator = A * E - B * D;
+        
         if (abs(denominator) > 0.0001) {
             float estLat = (C * E - F * B) / denominator;
             float estLon = (A * F - D * C) / denominator;
             
-            results += "\nEstimated Position:\n";
-            results += "Latitude: " + String(estLat, 6) + "\n";
-            results += "Longitude: " + String(estLon, 6) + "\n";
-            results += "Method: GPS+RSSI Trilateration\n";
+            results += "ESTIMATED POSITION:\n";
+            results += "  Latitude:  " + String(estLat, 6) + "\n";
+            results += "  Longitude: " + String(estLon, 6) + "\n";
+            results += "  Method: GPS+RSSI Trilateration\n";
+            results += "  Confidence: Medium (RSSI-based distance)\n\n";
+            
+            float avgDist = (r1 + r2 + r3) / 3.0;
+            float uncertainty = avgDist * 0.3;
+            results += "  Est. Uncertainty: ±" + String(uncertainty, 1) + "m\n";
+            
+            String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+            results += "  Maps URL: " + mapsUrl + "\n";
+            
         } else {
-            results += "\nTrilateration failed: nodes too close/collinear\n";
+            results += "TRILATERATION FAILED\n";
+            results += "Reason: Nodes collinear or too close\n";
+            results += "Recommendation: Increase node separation (>100m)\n";
         }
-    } else if (triangulationNodes.size() >= 3) {
-        results += "\nRSSI-only fallback (less accurate)\n";
-        results += "Need GPS coordinates for precise positioning\n";
+        
+    } else if (gpsNodes.size() > 0) {
+        results += "--- Insufficient GPS Data ---\n";
+        results += "GPS nodes: " + String(gpsNodes.size()) + "/3 required\n\n";
+        
+        if (gpsNodes.size() == 1) {
+            float dist = rssiToDistance(gpsNodes[0].rssi);
+            results += "Single node estimation:\n";
+            results += "  Node: " + gpsNodes[0].nodeId + "\n";
+            results += "  Position: " + String(gpsNodes[0].lat, 6) + ", " + String(gpsNodes[0].lon, 6) + "\n";
+            results += "  Target within ~" + String(dist, 1) + "m radius\n";
+        } else if (gpsNodes.size() == 2) {
+            results += "Two-node estimation:\n";
+            results += "Target lies along arc between nodes\n";
+        }
     } else {
-        results += "\nInsufficient nodes with GPS (" + String(triangulationNodes.size()) + "/3)\n";
+        results += "--- No GPS Data Available ---\n";
+        results += "RSSI-only analysis:\n";
+        
+        int8_t maxRssi = -127;
+        String closestNode = "UNKNOWN";
+        
+        for (const auto& node : triangulationNodes) {
+            if (node.rssi > maxRssi) {
+                maxRssi = node.rssi;
+                closestNode = node.nodeId;
+            }
+        }
+        
+        results += "Strongest signal: " + closestNode + " (" + String(maxRssi) + "dBm)\n";
+        if (maxRssi > -50) results += "Signal: VERY STRONG (< 5m)\n";
+        else if (maxRssi > -65) results += "Signal: STRONG (5-15m)\n";
+        else if (maxRssi > -75) results += "Signal: MODERATE (15-30m)\n";
+        else results += "Signal: WEAK (> 30m)\n";
     }
     
+    results += "\n=== End Triangulation ===\n";
     return results;
 }
 
@@ -110,6 +249,7 @@ String calculateTriangulationResults() {
     return calculateTriangulation();
 }
 
+// ------------- Network ------------- 
 void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
@@ -1323,20 +1463,7 @@ void startWebServer()
         
         if (req->hasParam("triangulate", true) && req->hasParam("targetMac", true)) {
             String targetMac = req->getParam("targetMac", true)->value();
-            uint8_t tmp[6];
-            if (!parseMac6(targetMac, tmp)) {
-                req->send(400, "text/plain", "Invalid target MAC");
-                return;
-            }
-            
-            triangulationNodes.clear();
-            triangulationActive = true;
-            triangulationStart = millis();
-            triangulationDuration = secs;
-            memcpy(triangulationTarget, tmp, 6);
-            
-            String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(secs);
-            sendMeshCommand(cmd);
+            startTriangulation(targetMac, secs);
         }
         
         String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
@@ -1804,6 +1931,43 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         saveConfiguration();
         req->send(200, "text/plain", "Allowlist saved"); });
 
+  server->on("/triangulate/start", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("mac", true) || !req->hasParam("duration", true)) {
+      req->send(400, "text/plain", "Missing mac or duration parameter");
+      return;
+    }
+    
+    String targetMac = req->getParam("mac", true)->value();
+    int duration = req->getParam("duration", true)->value().toInt();
+    
+    startTriangulation(targetMac, duration);
+    req->send(200, "text/plain", "Triangulation started for " + targetMac);
+  });
+
+  server->on("/triangulate/stop", HTTP_POST, [](AsyncWebServerRequest *req) {
+    stopTriangulation();
+    req->send(200, "text/plain", "Triangulation stopped");
+  });
+
+  server->on("/triangulate/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String json = "{";
+    json += "\"active\":" + String(triangulationActive ? "true" : "false") + ",";
+    json += "\"target\":\"" + macFmt6(triangulationTarget) + "\",";
+    json += "\"duration\":" + String(triangulationDuration) + ",";
+    json += "\"elapsed\":" + String((millis() - triangulationStart) / 1000) + ",";
+    json += "\"nodes\":" + String(triangulationNodes.size());
+    json += "}";
+    req->send(200, "application/json", json);
+  });
+
+  server->on("/triangulate/results", HTTP_GET, [](AsyncWebServerRequest *req) {
+    if (triangulationNodes.size() == 0) {
+      req->send(200, "text/plain", "No triangulation data available");
+      return;
+    }
+    req->send(200, "text/plain", calculateTriangulation());
+  });
+
   server->begin();
   Serial.println("[WEB] Server started.");
 }
@@ -1832,9 +1996,9 @@ void sendMeshNotification(const Hit &hit) {
     
     int msg_len;
     
-    // Include GPS in ALL cases when available
-    String baseMsg = String(nodeId) + ": Target: " + (hit.isBLE ? "BLE" : "WiFi") + 
-                     " " + String(mac_str) + " RSSI:" + String(hit.rssi);
+    String baseMsg = String(nodeId) + ": Target: " + String(mac_str) + 
+                     " RSSI:" + String(hit.rssi) +
+                     " Type:" + (hit.isBLE ? "BLE" : "WiFi");
     
     if (cleanName.length() > 0) {
         baseMsg += " Name:" + cleanName;
@@ -2012,23 +2176,23 @@ void processCommand(const String &command)
     String mac = params.substring(0, colonPos);
     int duration = params.substring(colonPos + 1).toInt();
 
-    if (parseMac6(mac, triangulationTarget))
-    {
-      triangulationNodes.clear();
-      triangulationActive = true;
-      triangulationStart = millis();
-      triangulationDuration = duration;
-
-      currentScanMode = SCAN_BOTH;
-      stopRequested = false;
-      if (!workerTaskHandle)
-      {
-        xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
-                                (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
-      }
-
-      Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", mac.c_str(), duration);
-      Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
+    startTriangulation(mac, duration);
+    Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
+  }
+  else if (command.startsWith("TRIANGULATE_STOP"))
+  {
+    stopTriangulation();
+    Serial1.println(nodeId + ": TRIANGULATE_STOP_ACK");
+  }
+  else if (command.startsWith("TRIANGULATE_RESULTS"))
+  {
+    if (triangulationNodes.size() > 0) {
+      String results = calculateTriangulation();
+      Serial1.println(nodeId + ": TRIANGULATE_RESULTS_START");
+      Serial1.print(results);
+      Serial1.println(nodeId + ": TRIANGULATE_RESULTS_END");
+    } else {
+      Serial1.println(nodeId + ": TRIANGULATE_RESULTS:NO_DATA");
     }
   }
   else if (command.startsWith("ERASE_FORCE:"))
@@ -2084,50 +2248,63 @@ void processMeshMessage(const String &message) {
         String content = cleanMessage.substring(colonPos + 2);
         
         if (content.startsWith("Target:")) {
-            int macStart = content.indexOf(' ', 8) + 1;
+            // "Target: AA:BB:CC:DD:EE:FF RSSI:-45 Type:WiFi GPS=lat,lon"
+            int macStart = content.indexOf(' ', 7) + 1;
             int macEnd = content.indexOf(' ', macStart);
+            
             if (macEnd > macStart) {
                 String macStr = content.substring(macStart, macEnd);
                 uint8_t mac[6];
+                
                 if (parseMac6(macStr, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
+                    // Extract RSSI
                     int rssiIdx = content.indexOf("RSSI:");
+                    int rssi = -127;
                     if (rssiIdx > 0) {
                         int rssiEnd = content.indexOf(' ', rssiIdx + 5);
                         if (rssiEnd < 0) rssiEnd = content.length();
-                        int rssi = content.substring(rssiIdx + 5, rssiEnd).toInt();
-                        
-                        float lat = 0, lon = 0;
-                        bool hasGPS = false;
-                        int gpsIdx = content.indexOf("GPS=");
-                        if (gpsIdx > 0) {
-                            int commaIdx = content.indexOf(',', gpsIdx);
-                            if (commaIdx > 0) {
-                                lat = content.substring(gpsIdx + 4, commaIdx).toFloat();
-                                int gpsEnd = content.indexOf(' ', commaIdx);
-                                if (gpsEnd < 0) gpsEnd = content.length();
-                                lon = content.substring(commaIdx + 1, gpsEnd).toFloat();
-                                hasGPS = true;
+                        rssi = content.substring(rssiIdx + 5, rssiEnd).toInt();
+                    }
+                    
+                    // Extract GPS (optional)
+                    float lat = 0, lon = 0;
+                    bool hasGPS = false;
+                    int gpsIdx = content.indexOf("GPS=");
+                    if (gpsIdx > 0) {
+                        int commaIdx = content.indexOf(',', gpsIdx);
+                        if (commaIdx > 0) {
+                            lat = content.substring(gpsIdx + 4, commaIdx).toFloat();
+                            int gpsEnd = content.indexOf(' ', commaIdx);
+                            if (gpsEnd < 0) gpsEnd = content.length();
+                            lon = content.substring(commaIdx + 1, gpsEnd).toFloat();
+                            hasGPS = true;
+                        }
+                    }
+                    
+                    // Update or add node
+                    bool found = false;
+                    for (auto &node : triangulationNodes) {
+                        if (node.nodeId == sendingNode) {
+                            node.rssi = rssi;
+                            node.hitCount++;
+                            if (hasGPS) {
+                                node.lat = lat;
+                                node.lon = lon;
+                                node.hasGPS = true;
                             }
+                            found = true;
+                            Serial.printf("[TRIANGULATE] Updated node %s: RSSI=%d hits=%d%s\n",
+                                        sendingNode.c_str(), rssi, node.hitCount,
+                                        hasGPS ? " GPS" : "");
+                            break;
                         }
-                        
-                        bool found = false;
-                        for (auto &node : triangulationNodes) {
-                            if (node.nodeId == sendingNode) {
-                                node.rssi = rssi;
-                                node.hitCount++;
-                                if (hasGPS) {
-                                    node.lat = lat;
-                                    node.lon = lon;
-                                    node.hasGPS = true;
-                                }
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (!found) {
-                            TriangulationNode newNode = {sendingNode, lat, lon, (int8_t)rssi, 1, hasGPS};
-                            triangulationNodes.push_back(newNode);
-                        }
+                    }
+                    
+                    if (!found) {
+                        TriangulationNode newNode = {sendingNode, lat, lon, (int8_t)rssi, 1, hasGPS};
+                        triangulationNodes.push_back(newNode);
+                        Serial.printf("[TRIANGULATE] New node %s: RSSI=%d%s\n",
+                                    sendingNode.c_str(), rssi, hasGPS ? " GPS" : "");
                     }
                 }
             }
