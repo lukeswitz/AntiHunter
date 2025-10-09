@@ -258,13 +258,13 @@ String getDiagnostics() {
     s += "Up:" + String(uptimeBuffer) + "\n";
     s += "Scan Mode: " + modeStr + "\n";
     s += String("Scanning: ") + (scanning ? "yes" : "no") + "\n";
-    s += "WiFi Frames seen: " + String((unsigned)framesSeen) + "\n";
-    s += "BLE Frames seen: " + String((unsigned)bleFramesSeen) + "\n";
-    s += "Total hits: " + String(totalHits) + "\n";
+    s += "WiFi Frames: " + String((unsigned)framesSeen) + "\n";
+    s += "BLE Frames: " + String((unsigned)bleFramesSeen) + "\n";
+    s += "Devices Found: " + String(totalHits) + "\n";
     s += "Current channel: " + String(WiFi.channel()) + "\n";
     s += "AP IP: " + WiFi.softAPIP().toString() + "\n";
     s += "Unique devices: " + String((int)uniqueMacs.size()) + "\n";
-    s += "Targets: " + String(getTargetCount()) + "\n";
+    s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Vibration sensor: " + String(lastVibrationTime > 0 ? "Active" : "Standby") + "\n";
     if (lastVibrationTime > 0) {
