@@ -676,14 +676,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               e.preventDefault();
               fetch('/stop').then(r=>r.text()).then(t=>toast(t));
             };
-          } else {
-            startDetectionBtn.textContent = 'Start';
+          } else if (detectionMode === 'baseline' && !stats.scanning) {
+            startDetectionBtn.textContent = 'Start Scan';
             startDetectionBtn.classList.remove('danger');
             startDetectionBtn.classList.add('primary');
             startDetectionBtn.type = 'submit';
             startDetectionBtn.onclick = null;
           }    
-          // Start/stop polling based on scan state
+          // Polling from scan state
           if (stats.scanning && !baselineUpdateInterval) {
             baselineUpdateInterval = setInterval(updateBaselineStatus, 1000);
           } else if (!stats.scanning && baselineUpdateInterval) {
@@ -692,6 +692,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
         }).catch(error => console.error('Status update error:', error));
       }
+
       // Initial load
       updateBaselineStatus();
       // Poll every 2 seconds when not actively scanning
@@ -733,15 +734,81 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       
       function updateStatusIndicators(diagText) {
-        // Scan status
-        if (diagText.includes('Scanning: yes')) {
+        const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
+        const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
+        const isScanning = diagText.includes('Scanning: yes');
+        
+        if (isScanning) {
           document.getElementById('scanStatus').innerText = 'Active';
           document.getElementById('scanStatus').classList.add('active');
-        } else {
+
+          const startScanBtn = document.querySelector('#s button');
+          if (startScanBtn && taskType === 'scan') {
+            startScanBtn.textContent = 'Stop Scanning';
+            startScanBtn.classList.remove('primary');
+            startScanBtn.classList.add('danger');
+            startScanBtn.type = 'button';
+            startScanBtn.onclick = function(e) {
+              e.preventDefault();
+              fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                setTimeout(async () => {
+                  const refreshedDiag = await fetch('/diag').then(r => r.text());
+                  updateStatusIndicators(refreshedDiag);
+                }, 500);
+              });
+            };
+          }
+
+          const detectionMode = document.getElementById('detectionMode')?.value;
+          if (taskType === 'sniffer' || taskType === 'drone') {
+            const startDetectionBtn = document.getElementById('startDetectionBtn');
+            if (startDetectionBtn) {
+              startDetectionBtn.textContent = 'Stop Scanning';
+              startDetectionBtn.classList.remove('primary');
+              startDetectionBtn.classList.add('danger');
+              startDetectionBtn.type = 'button';
+              startDetectionBtn.onclick = function(e) {
+                e.preventDefault();
+                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                  setTimeout(async () => {
+                    const refreshedDiag = await fetch('/diag').then(r => r.text());
+                    updateStatusIndicators(refreshedDiag);
+                  }, 500);
+                });
+              };
+              if (detectionMode === 'device-scan') {
+                document.getElementById('cacheBtn').style.display = 'inline-block';
+              }
+            }
+          }
+        } else { 
           document.getElementById('scanStatus').innerText = 'Idle';
           document.getElementById('scanStatus').classList.remove('active');
+
+          const startScanBtn = document.querySelector('#s button');
+          if (startScanBtn) {
+            startScanBtn.textContent = 'Start Scan';
+            startScanBtn.classList.remove('danger');
+            startScanBtn.classList.add('primary');
+            startScanBtn.type = 'submit';
+            startScanBtn.onclick = null;
+          }
+
+          const detectionMode = document.getElementById('detectionMode')?.value;
+          if (detectionMode !== 'baseline') {
+            const startDetectionBtn = document.getElementById('startDetectionBtn');
+            if (startDetectionBtn) {
+              startDetectionBtn.textContent = 'Start Scan';
+              startDetectionBtn.classList.remove('danger');
+              startDetectionBtn.classList.add('primary');
+              startDetectionBtn.type = 'submit';
+              startDetectionBtn.onclick = null;
+              document.getElementById('cacheBtn').style.display = 'none';
+            }
+          }
         }
-        // Mode status
+
+        // Mode status bar things
         const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
         if (modeMatch) {
           document.getElementById('modeStatus').innerText = modeMatch[1];
@@ -1012,6 +1079,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               overview += line + '\n';
             }
           });
+
           document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
           document.getElementById('networkDiag').innerText = network || 'No network data';
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
@@ -1037,11 +1105,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       document.getElementById('triangulate').addEventListener('change', e => {
         document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
       });
+
       document.getElementById('f').addEventListener('submit', e => {
         e.preventDefault();
         ajaxForm(e.target, 'Targets saved ✓');
         setTimeout(load, 500);
       });
+
       document.getElementById('af').addEventListener('submit', e => {
         e.preventDefault();
         ajaxForm(e.target, 'Allowlist saved ✓');
@@ -1052,11 +1122,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           });
         }, 500);
       });
+
       document.getElementById('nodeForm').addEventListener('submit', e => {
         e.preventDefault();
         ajaxForm(e.target, 'Node ID updated');
         setTimeout(loadNodeId, 500);
       });
+
       document.getElementById('s').addEventListener('submit', e => {
         e.preventDefault();
         const fd = new FormData(e.target);
@@ -1065,6 +1137,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           body: fd
         }).then(r => r.text()).then(t => toast(t)).catch(err => toast('Error: ' + err.message));
       });
+
       document.getElementById('detectionMode').addEventListener('change', function() {
         const selectedMethod = this.value;
         const standardControls = document.getElementById('standardDurationControls');
@@ -1099,6 +1172,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('baselineMonitorDuration').disabled = true;
         }
       });
+
       document.getElementById('sniffer').addEventListener('submit', e => {
         e.preventDefault();
         const fd = new FormData(e.target);
@@ -1139,18 +1213,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }).then(r => r.text()).then(t => toast(t, 'success')).catch(err => toast('Error: ' + err, 'error'));
         }
       });
+
       document.addEventListener('click', e => {
         const a = e.target.closest('a[href="/stop"]');
         if (!a) return;
         e.preventDefault();
         fetch('/stop').then(r => r.text()).then(t => toast(t));
       });
+
       document.addEventListener('click', e => {
         const a = e.target.closest('a[href="/mesh-test"]');
         if (!a) return;
         e.preventDefault();
         fetch('/mesh-test').then(r => r.text()).then(t => toast('Mesh test sent'));
       });
+
       // Initialize
       load();
       loadBaselineAnomalyConfig();
