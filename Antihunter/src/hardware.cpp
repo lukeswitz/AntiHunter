@@ -565,7 +565,7 @@ void IRAM_ATTR vibrationISR() {
 
 void initializeVibrationSensor() {
     try {
-        pinMode(VIBRATION_PIN, INPUT);
+        pinMode(VIBRATION_PIN, INPUT_PULLDOWN);
         attachInterrupt(digitalPinToInterrupt(VIBRATION_PIN), vibrationISR, RISING);
         Serial.println("[VIBRATION] Sensor initialized");
     } catch (...) {
