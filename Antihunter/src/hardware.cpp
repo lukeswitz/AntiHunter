@@ -1,5 +1,6 @@
 #include "hardware.h"
 #include "network.h"
+#include "baseline.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -352,7 +353,7 @@ String getDiagnostics() {
 void initializeSD()
 {
     Serial.println("Initializing SD card...");
-    Serial.printf("[SD] Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
+    Serial.printf("[SD] GPIO Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
 
     SPI.end();
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
@@ -670,9 +671,9 @@ void checkAndSendVibrationAlert() {
 }
 
 // RTC functions
-vvoid initializeRTC() {
+void initializeRTC() {
     Serial.println("Initializing RTC...");
-    Serial.printf("[RTC] Using SDA:%d SCL:%d\n", RTC_SDA_PIN, RTC_SCL_PIN);
+    Serial.printf("[RTC] Using GPIO SDA:%d SCL:%d\n", RTC_SDA_PIN, RTC_SCL_PIN);
 
     if (rtcMutex == nullptr) {
         rtcMutex = xSemaphoreCreateMutex();
@@ -787,7 +788,7 @@ void updateRTCTime() {
     }
 
     if (!rtc.begin()) {
-        Serial.println("[RTC] Communication lost, disabling");
+        Serial.println("[RTC] Communication lost");
         rtcAvailable = false;
         return;
     }
