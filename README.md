@@ -193,9 +193,8 @@ While individual nodes provide standalone capability, the full system power come
 
 ## Hardware Requirements
 
-_PCBs and kits in production_
-
-<img width="500" src="https://github.com/user-attachments/assets/1cdfc65f-3dd3-4290-9ae9-adbfecaf7381">
+_PCBs and kits are in production!_
+![image](https://github.com/user-attachments/assets/f808d692-136b-473a-b835-63ac782fca07)
 
 
 ### **Core Components**
