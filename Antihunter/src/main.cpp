@@ -1,4 +1,5 @@
 #include "main.h"
+#include "triangulation.h"
 #include <SPI.h>
 #include <Arduino.h>
 #include <Preferences.h>
@@ -30,18 +31,29 @@ void uartForwardTask(void *parameter) {
   
   for (;;) {
     while (Serial1.available()) {
+      uint32_t rxMicros = micros();
+      
       char c = Serial1.read();
       Serial.write(c);
       
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
           Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
+          
           String toProcess = meshBuffer;
+          String senderId = "";
           int colonPos = meshBuffer.indexOf(": ");
           if (colonPos > 0) {
+            senderId = meshBuffer.substring(0, colonPos);
             toProcess = meshBuffer.substring(colonPos + 2);
           }
-          processMeshMessage(toProcess);
+          
+          if (toProcess.startsWith("TIME_SYNC_REQ:")) {
+            processMeshTimeSyncWithDelay(senderId, toProcess, rxMicros);
+          } else {
+            processMeshMessage(toProcess);
+          }
+          
           meshBuffer = "";
         }
       } else {
@@ -173,14 +185,15 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     
-    if (millis() - lastSaveSend > 600000) { // Node HB, SD config save - 10min
+    if (millis() - lastSaveSend > 600000) {
       saveConfiguration();
       sendNodeIdUpdate();
       lastSaveSend = millis();
     }
 
-    if (millis() - lastRTCUpdate > 1000) {  // RTC - 1s
+    if (millis() - lastRTCUpdate > 1000) {
         updateRTCTime();
+        disciplineRTCFromGPS();
         lastRTCUpdate = millis();
     }
 

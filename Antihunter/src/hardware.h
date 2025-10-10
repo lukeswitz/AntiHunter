@@ -3,6 +3,7 @@
 #include "network.h"
 #include "main.h"
 #include <RTClib.h>
+#include <TinyGPSPlus.h>
 
 #ifndef COUNTRY
 #define COUNTRY "US"
@@ -43,6 +44,7 @@ extern time_t lastRTCSync;
 extern String rtcTimeString;
 extern SemaphoreHandle_t rtcMutex;
 
+
 void initializeRTC();
 void syncRTCFromGPS();
 void updateRTCTime();
@@ -57,6 +59,7 @@ extern bool gpsValid;
 extern float gpsLat, gpsLon;
 extern String lastGPSData;
 extern HardwareSerial GPS;
+extern TinyGPSPlus gps;
 extern volatile bool vibrationDetected;
 extern unsigned long lastVibrationTime;
 extern unsigned long lastVibrationAlert;
