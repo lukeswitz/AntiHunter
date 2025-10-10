@@ -2,6 +2,7 @@
 #include "scanner.h"
 #include "network.h"
 #include "main.h"
+#include <RTClib.h>
 
 #ifndef COUNTRY
 #define COUNTRY "US"
@@ -35,11 +36,22 @@
 #define MAX_CONFIG_SIZE 4096
 
 // RTC Status
+extern RTC_DS3231 rtc;
 extern bool rtcAvailable;
 extern bool rtcSynced;
 extern time_t lastRTCSync;
 extern String rtcTimeString;
+extern SemaphoreHandle_t rtcMutex;
 
+void initializeRTC();
+void syncRTCFromGPS();
+void updateRTCTime();
+String getRTCTimeString();
+String getFormattedTimestamp();
+time_t getRTCEpoch();
+bool setRTCTime(int year, int month, int day, int hour, int minute, int second);
+
+// Sensors and GPS
 extern bool sdAvailable;
 extern bool gpsValid;
 extern float gpsLat, gpsLon;
@@ -53,10 +65,9 @@ void initializeHardware();
 void initializeVibrationSensor();
 void initializeSD();
 void initializeGPS();
+
 void checkAndSendVibrationAlert();
-void saveConfiguration();
 String getDiagnostics();
-void logToSD(const String &data);
 String getGPSData();
 void updateGPSLocation();
 void sendStartupStatus();
@@ -64,16 +75,9 @@ void sendGPSLockStatus(bool locked);
 void parseChannelsCSV(const String &csv);
 void saveTargetsList(const String &txt);
 void saveConfiguration();
+void saveConfiguration();
 void loadConfiguration();
-
-// RTC Functions
-void initializeRTC();
-void syncRTCFromGPS();
-void updateRTCTime();
-String getRTCTimeString();
-String getFormattedTimestamp();
-time_t getRTCEpoch();
-bool setRTCTime(int year, int month, int day, int hour, int minute, int second);
+void logToSD(const String &data);
 
 // Tamper Detection System
 #define TAMPER_DETECTION_WINDOW 30000  // 30 seconds to cancel
