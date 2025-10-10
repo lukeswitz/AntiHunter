@@ -166,7 +166,7 @@ void loadConfiguration() {
         if (nodeId.length() > 0) {
             prefs.putString("nodeId", nodeId);
             setNodeId(nodeId);
-            Serial.println("Loaded nodeId from SD: " + nodeId);
+            // Serial.println("Loaded nodeId from SD: " + nodeId);
         }
     }
 
@@ -175,7 +175,7 @@ void loadConfiguration() {
         if (scanMode >= 0 && scanMode <= 2) {
             currentScanMode = (ScanMode)scanMode;
             prefs.putInt("scanMode", scanMode);
-            Serial.println("Loaded scanMode from SD: " + String(scanMode));
+            // Serial.println("Loaded scanMode from SD: " + String(scanMode));
         }
     }
 
@@ -184,7 +184,7 @@ void loadConfiguration() {
         if (channels.length() > 0) {
             parseChannelsCSV(channels);
             prefs.putString("channels", channels);
-            Serial.println("Loaded channels from SD: " + channels);
+            // Serial.println("Loaded channels from SD: " + channels);
         }
     }
 
@@ -193,7 +193,7 @@ void loadConfiguration() {
         if (targets.length() > 0) {
             saveTargetsList(targets);
             prefs.putString("maclist", targets);
-            Serial.println("Loaded targets from SD: " + targets);
+            // Serial.println("Loaded targets from SD: " + targets);
             Serial.println("Target count: " + String(getTargetCount()));
         }
     }
