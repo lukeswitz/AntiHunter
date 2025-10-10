@@ -51,9 +51,20 @@ struct NodeSyncStatus {
     uint32_t lastSyncCheck;
 };
 
+struct PreciseTimestamp {
+    time_t rtc_seconds;
+    uint16_t rtc_subseconds;
+    uint32_t micros_offset;
+};
+
+
+
 // Triangulation functions
 void initNodeKalmanFilter(TriangulationNode &node);
 float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement);
+float haversineDistance(float lat1, float lon1, float lat2, float lon2);
+void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east, float &north);
+float calculateGDOP(const std::vector<TriangulationNode> &nodes);
 float calculateSignalQuality(const TriangulationNode &node);
 void updateNodeRSSI(TriangulationNode &node, int8_t newRssi);
 float rssiToDistance(const TriangulationNode &node, bool isWiFi = true);

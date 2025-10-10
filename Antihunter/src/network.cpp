@@ -3,6 +3,7 @@
 #include "scanner.h"
 #include "main.h"
 #include <AsyncTCP.h>
+#include <RTClib.h>
 #include "esp_task_wdt.h"
 
 extern "C"
@@ -2254,24 +2255,52 @@ bool isTriangulationActive() {
 }
 
 float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
-    const float txPowerWiFi = -65.0;
-    const float txPowerBLE = -68.0;
-    float txPower = isWiFi ? txPowerWiFi : txPowerBLE;
+    const float rssi0WiFi = -40.0;
+    const float rssi0BLE = -50.0;
+    float rssi0 = isWiFi ? rssi0WiFi : rssi0BLE;
     
-    float pathLossExponent = 2.0;
+    float pathLossExponent = 2.5;
     if (node.filteredRssi > -50) {
-        pathLossExponent = 1.8;
-    } else if (node.filteredRssi > -70) {
         pathLossExponent = 2.2;
-    } else {
+    } else if (node.filteredRssi > -70) {
         pathLossExponent = 2.7;
+    } else {
+        pathLossExponent = 3.2;
     }
     
-    float distance = pow(10.0, (txPower - node.filteredRssi) / (10.0 * pathLossExponent));
+    float distance = pow(10.0, (rssi0 - node.filteredRssi) / (10.0 * pathLossExponent));
     float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
     distance *= qualityFactor;
     
     return distance;
+}
+
+float calculateGDOP(const std::vector<TriangulationNode> &nodes) {
+    if (nodes.size() < 3) return 999.9;
+    
+    float minAngle = 180.0;
+    for (size_t i = 0; i < nodes.size(); i++) {
+        for (size_t j = i + 1; j < nodes.size(); j++) {
+            float dx1 = nodes[i].lat;
+            float dy1 = nodes[i].lon;
+            float dx2 = nodes[j].lat;
+            float dy2 = nodes[j].lon;
+            
+            float dot = dx1 * dx2 + dy1 * dy2;
+            float mag1 = sqrt(dx1*dx1 + dy1*dy1);
+            float mag2 = sqrt(dx2*dx2 + dy2*dy2);
+            
+            if (mag1 > 0 && mag2 > 0) {
+                float angle = acos(dot / (mag1 * mag2)) * 180.0 / M_PI;
+                if (angle < minAngle) minAngle = angle;
+            }
+        }
+    }
+    
+    if (minAngle < 20.0) return 9.0;
+    if (minAngle < 30.0) return 5.0;
+    if (minAngle < 45.0) return 3.0;
+    return 1.5;
 }
 
 void initNodeKalmanFilter(TriangulationNode &node) {
@@ -2336,8 +2365,20 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
                   return a.signalQuality > b.signalQuality;
               });
     
-    float sumWeightedLat = 0.0;
-    float sumWeightedLon = 0.0;
+    float gdop = calculateGDOP(sortedNodes);
+    if (gdop > 6.0) return false;
+    
+    float refLat = 0.0;
+    float refLon = 0.0;
+    for (const auto &node : sortedNodes) {
+        refLat += node.lat;
+        refLon += node.lon;
+    }
+    refLat /= sortedNodes.size();
+    refLon /= sortedNodes.size();
+    
+    float sumWeightedEast = 0.0;
+    float sumWeightedNorth = 0.0;
     float sumWeights = 0.0;
     
     size_t numNodes = std::min((size_t)5, sortedNodes.size());
@@ -2346,38 +2387,35 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
     for (size_t i = 0; i < numNodes; i++) {
         for (size_t j = i + 1; j < numNodes; j++) {
             for (size_t k = j + 1; k < numNodes; k++) {
-                float lat1 = sortedNodes[i].lat;
-                float lon1 = sortedNodes[i].lon;
+                float e1, n1, e2, n2, e3, n3;
+                geodeticToENU(sortedNodes[i].lat, sortedNodes[i].lon, refLat, refLon, e1, n1);
+                geodeticToENU(sortedNodes[j].lat, sortedNodes[j].lon, refLat, refLon, e2, n2);
+                geodeticToENU(sortedNodes[k].lat, sortedNodes[k].lon, refLat, refLon, e3, n3);
+                
                 float r1 = sortedNodes[i].distanceEstimate;
-                
-                float lat2 = sortedNodes[j].lat;
-                float lon2 = sortedNodes[j].lon;
                 float r2 = sortedNodes[j].distanceEstimate;
-                
-                float lat3 = sortedNodes[k].lat;
-                float lon3 = sortedNodes[k].lon;
                 float r3 = sortedNodes[k].distanceEstimate;
                 
-                float A = 2.0 * (lat2 - lat1);
-                float B = 2.0 * (lon2 - lon1);
-                float C = pow(r1, 2) - pow(r2, 2) - pow(lat1, 2) + pow(lat2, 2) - pow(lon1, 2) + pow(lon2, 2);
+                float A = 2.0 * (e2 - e1);
+                float B = 2.0 * (n2 - n1);
+                float C = pow(r1, 2) - pow(r2, 2) - pow(e1, 2) + pow(e2, 2) - pow(n1, 2) + pow(n2, 2);
                 
-                float D = 2.0 * (lat3 - lat2);
-                float E = 2.0 * (lon3 - lon2);
-                float F = pow(r2, 2) - pow(r3, 2) - pow(lat2, 2) + pow(lat3, 2) - pow(lon2, 2) + pow(lon3, 2);
+                float D = 2.0 * (e3 - e2);
+                float E = 2.0 * (n3 - n2);
+                float F = pow(r2, 2) - pow(r3, 2) - pow(e2, 2) + pow(e3, 2) - pow(n2, 2) + pow(n3, 2);
                 
                 float denominator = A * E - B * D;
                 
-                if (abs(denominator) > 0.0001) {
-                    float tripletLat = (C * E - F * B) / denominator;
-                    float tripletLon = (A * F - D * C) / denominator;
+                if (abs(denominator) > 0.001) {
+                    float tripletEast = (C * E - F * B) / denominator;
+                    float tripletNorth = (A * F - D * C) / denominator;
                     
                     float tripletWeight = sortedNodes[i].signalQuality * 
                                          sortedNodes[j].signalQuality * 
                                          sortedNodes[k].signalQuality;
                     
-                    sumWeightedLat += tripletLat * tripletWeight;
-                    sumWeightedLon += tripletLon * tripletWeight;
+                    sumWeightedEast += tripletEast * tripletWeight;
+                    sumWeightedNorth += tripletNorth * tripletWeight;
                     sumWeights += tripletWeight;
                 }
             }
@@ -2386,8 +2424,14 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
     
     if (sumWeights < 0.001) return false;
     
-    estLat = sumWeightedLat / sumWeights;
-    estLon = sumWeightedLon / sumWeights;
+    float estEast = sumWeightedEast / sumWeights;
+    float estNorth = sumWeightedNorth / sumWeights;
+    
+    float dLat = estNorth / 6371000.0 * 180.0 / M_PI;
+    float dLon = estEast / (6371000.0 * cos(refLat * M_PI / 180.0)) * 180.0 / M_PI;
+    
+    estLat = refLat + dLat;
+    estLon = refLon + dLon;
     
     float avgQuality = 0.0;
     for (size_t i = 0; i < numNodes; i++) {
@@ -2395,7 +2439,7 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
     }
     avgQuality /= numNodes;
     
-    confidence = avgQuality * (1.0 - 0.1 * (numNodes - 3));
+    confidence = avgQuality * (1.0 - 0.1 * (gdop - 1.0)) * (1.0 - 0.05 * (numNodes - 3));
     confidence = constrain(confidence, 0.0, 1.0);
     
     return true;
@@ -2403,17 +2447,26 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
 
 void broadcastTimeSyncRequest() {
     if (!rtcAvailable) return;
+    if (rtcMutex == nullptr) return;
     
-    time_t currentTime = getRTCEpoch();
-    uint32_t currentMillis = millis();
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
+    
+    DateTime now = rtc.now();
+    time_t currentTime = now.unixtime();
+    
+    xSemaphoreGive(rtcMutex);
+    
+    uint32_t currentMicros = micros();
+    uint16_t subsecond = (currentMicros % 1000000) / 10000;
     
     String syncMsg = getNodeId() + ": TIME_SYNC_REQ:" + 
                      String((unsigned long)currentTime) + ":" + 
-                     String(currentMillis);
+                     String(subsecond) + ":" +
+                     String(currentMicros);
     
     if (Serial1.availableForWrite() >= syncMsg.length()) {
         Serial1.println(syncMsg);
-        Serial.printf("[SYNC] Broadcast sync request: %lu ms\n", currentMillis);
+        Serial.printf("[SYNC] Broadcast: %lu.%03u\n", currentTime, subsecond);
     }
 }
 
@@ -2433,18 +2486,19 @@ void updateNodeRSSI(TriangulationNode &node, int8_t newRssi) {
 void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds) {
     if (!rtcAvailable) return;
     
-    time_t localTime = getRTCEpoch();
-    uint32_t localMillis = millis();
+    DateTime now = rtc.now();
+    time_t localTime = now.unixtime();
+    uint32_t localMicros = micros();
     
     int32_t timeOffset = (int32_t)(localTime - timestamp);
-    int32_t millisOffset = (int32_t)(localMillis - milliseconds);
+    int32_t microsOffset = (int32_t)(localMicros - milliseconds);
     
     bool found = false;
     for (auto &sync : nodeSyncStatus) {
         if (sync.nodeId == nodeId) {
             sync.rtcTimestamp = timestamp;
-            sync.millisOffset = abs(millisOffset);
-            sync.synced = (abs(timeOffset) == 0 && sync.millisOffset < 10);
+            sync.millisOffset = abs(microsOffset);
+            sync.synced = (abs(timeOffset) == 0 && sync.millisOffset < 1000);
             sync.lastSyncCheck = millis();
             found = true;
             break;
@@ -2455,29 +2509,34 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
         NodeSyncStatus newSync;
         newSync.nodeId = nodeId;
         newSync.rtcTimestamp = timestamp;
-        newSync.millisOffset = abs(millisOffset);
-        newSync.synced = (abs(timeOffset) == 0 && newSync.millisOffset < 10);
+        newSync.millisOffset = abs(microsOffset);
+        newSync.synced = (abs(timeOffset) == 0 && newSync.millisOffset < 1000);
         newSync.lastSyncCheck = millis();
         nodeSyncStatus.push_back(newSync);
     }
     
-    Serial.printf("[SYNC] Node %s: offset=%dms synced=%d\n", 
-                  nodeId.c_str(), abs(millisOffset), 
-                  (abs(timeOffset) == 0 && abs(millisOffset) < 10));
+    Serial.printf("[SYNC] Node %s: offset=%dus synced=%d\n", 
+                  nodeId.c_str(), abs(microsOffset), 
+                  (abs(timeOffset) == 0 && abs(microsOffset) < 1000));
 }
 
 bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
     if (!triangulationActive) return true;
     
     uint32_t now = millis();
+    int syncedCount = 0;
+    int totalCount = 0;
+    
     for (const auto &sync : nodeSyncStatus) {
         if (now - sync.lastSyncCheck < SYNC_CHECK_INTERVAL) {
-            if (!sync.synced || sync.millisOffset > maxOffsetMs) {
-                return false;
+            totalCount++;
+            if (sync.synced && sync.millisOffset <= maxOffsetMs) {
+                syncedCount++;
             }
         }
     }
-    return true;
+    
+    return (totalCount == 0) || (syncedCount >= (totalCount * 2 / 3));
 }
 
 String getNodeSyncStatus() {
@@ -2565,6 +2624,24 @@ void stopTriangulation() {
     memset(triangulationTarget, 0, 6);
 
     Serial.println("[TRIANGULATE] Stopped and results generated");
+}
+
+float haversineDistance(float lat1, float lon1, float lat2, float lon2) {
+    const float R = 6371000.0;
+    float dLat = (lat2 - lat1) * M_PI / 180.0;
+    float dLon = (lon2 - lon1) * M_PI / 180.0;
+    float a = sin(dLat/2) * sin(dLat/2) +
+              cos(lat1 * M_PI / 180.0) * cos(lat2 * M_PI / 180.0) *
+              sin(dLon/2) * sin(dLon/2);
+    return R * 2.0 * atan2(sqrt(a), sqrt(1-a));
+}
+
+void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east, float &north) {
+    float dLat = (lat - refLat) * M_PI / 180.0;
+    float dLon = (lon - refLon) * M_PI / 180.0;
+    float R = 6371000.0;
+    east = R * dLon * cos(refLat * M_PI / 180.0);
+    north = R * dLat;
 }
 
 String calculateTriangulation() {

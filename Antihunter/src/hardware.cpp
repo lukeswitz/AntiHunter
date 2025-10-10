@@ -9,10 +9,8 @@
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include <Wire.h>
-#include <RTClib.h>
 #include "esp_wifi.h"
 #include "esp_task_wdt.h"
-
 
 extern Preferences prefs;
 extern ScanMode currentScanMode;
@@ -31,6 +29,7 @@ RTC_DS3231 rtc;
 bool rtcAvailable = false;
 bool rtcSynced = false;
 time_t lastRTCSync = 0;
+SemaphoreHandle_t rtcMutex = nullptr;
 String rtcTimeString = "RTC not initialized";
 
 // Vibration Sensor
@@ -675,20 +674,25 @@ void initializeRTC() {
     Serial.println("Initializing RTC...");
     Serial.printf("[RTC] Using SDA:%d SCL:%d\n", RTC_SDA_PIN, RTC_SCL_PIN);
 
-    // Initialize I2C with correct pins and speed once
-    Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 100000); // Start at 100kHz
+    if (rtcMutex == nullptr) {
+        rtcMutex = xSemaphoreCreateMutex();
+        if (rtcMutex == nullptr) {
+            Serial.println("[RTC] Failed to create mutex!");
+            return;
+        }
+    }
+
+    Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 400000);
     delay(100);
     
-    // Try to initialize the RTC
     if (!rtc.begin()) {
         Serial.println("[RTC] DS3231 not found at 0x68!");
         Serial.println("[RTC] Check wiring: SDA->GPIO6, SCL->GPIO3, VCC->3.3V, GND->GND");
         rtcAvailable = false;
         
-        // Clear any potential I2C errors
         Wire.end();
         delay(100);
-        Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 100000);
+        Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 400000);
         return;
     }
     
@@ -696,7 +700,6 @@ void initializeRTC() {
     Serial.println("[RTC] DS3231 initialized successfully!");
     delay(100);
 
-    // Check if RTC lost power
     if (rtc.lostPower()) {
         Serial.println("[RTC] RTC lost power, setting to compile time...");
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
@@ -710,18 +713,18 @@ void initializeRTC() {
     }
     
     rtc.disable32K();
-    Serial.printf("[RTC] Successfully initialized on SDA:%d SCL:%d\n", 
+    Serial.printf("[RTC] Successfully initialized on SDA:%d SCL:%d at 400kHz\n", 
                   RTC_SDA_PIN, RTC_SCL_PIN);
 }
 
 void syncRTCFromGPS() {
     if (!rtcAvailable || !gpsValid) return;
-    
-    // Only sync if we have a good GPS fix with valid date/time
     if (!gps.date.isValid() || !gps.time.isValid()) return;
-    
-    // Sync once per hour max
     if (lastRTCSync > 0 && (millis() - lastRTCSync) < 3600000) return;
+    if (triangulationActive) return;
+    if (rtcMutex == nullptr) return;
+    
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
     
     int year = gps.date.year();
     int month = gps.date.month();
@@ -730,16 +733,26 @@ void syncRTCFromGPS() {
     int minute = gps.time.minute();
     int second = gps.time.second();
     
-    // Validate GPS time
-    if (year < 2020 || year > 2050) return;
-    if (month < 1 || month > 12) return;
-    if (day < 1 || day > 31) return;
-    if (hour > 23 || minute > 59 || second > 59) return;
+    if (year < 2020 || year > 2050) {
+        xSemaphoreGive(rtcMutex);
+        return;
+    }
+    if (month < 1 || month > 12) {
+        xSemaphoreGive(rtcMutex);
+        return;
+    }
+    if (day < 1 || day > 31) {
+        xSemaphoreGive(rtcMutex);
+        return;
+    }
+    if (hour > 23 || minute > 59 || second > 59) {
+        xSemaphoreGive(rtcMutex);
+        return;
+    }
     
     DateTime gpsTime(year, month, day, hour, minute, second);
     DateTime rtcTime = rtc.now();
     
-    // Only sync if difference is more than 2 seconds
     int timeDiff = abs((int)(gpsTime.unixtime() - rtcTime.unixtime()));
     if (timeDiff > 2) {
         rtc.adjust(gpsTime);
@@ -749,18 +762,18 @@ void syncRTCFromGPS() {
         Serial.printf("[RTC] Synced from GPS: %04d-%02d-%02d %02d:%02d:%02d UTC\n",
                       year, month, day, hour, minute, second);
         
-        // Log the sync event
         String syncMsg = "RTC synced from GPS: " + String(year) + "-" + 
                         String(month) + "-" + String(day) + " " +
                         String(hour) + ":" + String(minute) + ":" + String(second);
         logToSD(syncMsg);
         
-        // Send sync status over mesh
         if (Serial1.availableForWrite() >= 100) {
             String meshMsg = getNodeId() + ": RTC_SYNC: " + syncMsg;
             Serial1.println(meshMsg);
         }
     }
+    
+    xSemaphoreGive(rtcMutex);
 }
 
 void updateRTCTime() {
@@ -775,6 +788,9 @@ void updateRTCTime() {
         return;
     }
     
+    if (rtcMutex == nullptr) return;
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
+    
     DateTime now = rtc.now();
     
     char buffer[30];
@@ -784,16 +800,18 @@ void updateRTCTime() {
     
     rtcTimeString = String(buffer);
     
-    // Auto-sync from GPS if available
+    xSemaphoreGive(rtcMutex);
+    
     if (gpsValid && !rtcSynced) {
         syncRTCFromGPS();
     }
     
-    // Periodic re-sync (every hour if GPS available)
     if (gpsValid && rtcSynced && (millis() - lastRTCSync) > 3600000) {
         syncRTCFromGPS();
     }
 }
+
+
 
 String getRTCTimeString() {
     updateRTCTime();
@@ -802,7 +820,6 @@ String getRTCTimeString() {
 
 String getFormattedTimestamp() {
     if (!rtcAvailable) {
-        // Fallback to millis-based timestamp
         uint32_t ts = millis();
         uint8_t hours = (ts / 3600000) % 24;
         uint8_t mins = (ts / 60000) % 60;
@@ -813,28 +830,46 @@ String getFormattedTimestamp() {
         return String(buffer);
     }
     
+    if (rtcMutex == nullptr) return "MUTEX_NULL";
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return "MUTEX_TIMEOUT";
+    
     DateTime now = rtc.now();
     char buffer[30];
     snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
              now.year(), now.month(), now.day(),
              now.hour(), now.minute(), now.second());
     
+    xSemaphoreGive(rtcMutex);
+    
     return String(buffer);
 }
 
+
 time_t getRTCEpoch() {
     if (!rtcAvailable) return 0;
+    if (rtcMutex == nullptr) return 0;
+    
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return 0;
     
     DateTime now = rtc.now();
-    return now.unixtime();
+    time_t epoch = now.unixtime();
+    
+    xSemaphoreGive(rtcMutex);
+    
+    return epoch;
 }
 
 bool setRTCTime(int year, int month, int day, int hour, int minute, int second) {
     if (!rtcAvailable) return false;
+    if (rtcMutex == nullptr) return false;
+    
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
     
     DateTime newTime(year, month, day, hour, minute, second);
     rtc.adjust(newTime);
     rtcSynced = true;
+    
+    xSemaphoreGive(rtcMutex);
     
     Serial.printf("[RTC] Manually set to: %04d-%02d-%02d %02d:%02d:%02d\n",
                   year, month, day, hour, minute, second);
