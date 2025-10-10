@@ -14,7 +14,6 @@ extern "C"
 #include "lwip/sockets.h"
 }
 
-
 // Network and LoRa
 AsyncWebServer *server = nullptr;
 const int MAX_RETRIES = 10;
@@ -43,211 +42,16 @@ extern void parseChannelsCSV(const String &csv);
 // Triangulation 
 bool triangulationActive = false;
 std::vector<TriangulationNode> triangulationNodes;
+std::vector<NodeSyncStatus> nodeSyncStatus;
 String calculateTriangulation();
 static uint8_t triangulationTarget[6];
 static uint32_t triangulationStart = 0;
 static uint32_t triangulationDuration = 0;
+const float KALMAN_PROCESS_NOISE = 0.5;
+const float KALMAN_MEASUREMENT_NOISE = 4.0;
+const uint32_t RSSI_HISTORY_SIZE = 10;
+const uint32_t SYNC_CHECK_INTERVAL = 30000;
 
-bool isTriangulationActive() {
-    return triangulationActive;
-}
-
-float rssiToDistance(int8_t rssi) {
-    return pow(10.0, (-59.0 - rssi) / (10.0 * 2.0));
-}
-
-// ------------- Triangulation ------------- 
-void startTriangulation(const String &targetMac, int duration) {
-    uint8_t macBytes[6];
-    if (!parseMac6(targetMac, macBytes)) {
-        Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", targetMac.c_str());
-        return;
-    }
-    
-    // Initialize triangulation state
-    memcpy(triangulationTarget, macBytes, 6);
-    triangulationNodes.clear();
-    triangulationActive = true;
-    triangulationStart = millis();
-    triangulationDuration = duration;
-    
-    // Configure scan mode for triangulation
-    currentScanMode = SCAN_BOTH;
-    stopRequested = false;
-    
-    Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
-    
-    // Broadcast triangulation command to mesh network
-    String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
-    sendMeshCommand(cmd);
-    
-    // Start scanner task if not already running
-    if (!workerTaskHandle) {
-        xTaskCreatePinnedToCore(
-            listScanTask, 
-            "triangulate", 
-            8192,
-            (void *)(intptr_t)duration, 
-            1, 
-            &workerTaskHandle, 
-            1
-        );
-    }
-    
-    Serial.println("[TRIANGULATE] Mesh nodes notified, scanning active");
-}
-
-void stopTriangulation() {
-    if (!triangulationActive) {
-        Serial.println("[TRIANGULATE] Not active, nothing to stop");
-        return;
-    }
-    
-    uint32_t elapsedMs = millis() - triangulationStart;
-    uint32_t elapsedSec = elapsedMs / 1000;
-    
-    Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", 
-                  elapsedSec, triangulationNodes.size());
-    
-    String results = calculateTriangulation();
-    
-    // Log results to SD card if available
-    if (sdAvailable) {
-        String logEntry = getFormattedTimestamp() + " TRIANGULATION_COMPLETE\n";
-        logEntry += results;
-        logEntry += "\n---\n";
-        logToSD(logEntry);
-    }
-    
-    // Send results via mesh
-    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: Nodes=" + 
-                       String(triangulationNodes.size());
-    if (Serial1.availableForWrite() >= resultMsg.length()) {
-        Serial1.println(resultMsg);
-    }
-    
-    // Clear triangulation state
-    triangulationActive = false;
-    triangulationDuration = 0;
-    memset(triangulationTarget, 0, 6);
-    
-    Serial.println("[TRIANGULATE] Stopped and results generated");
-}
-
-String calculateTriangulation() {
-    String results = "=== Triangulation Results ===\n";
-    results += "Target MAC: " + macFmt6(triangulationTarget) + "\n";
-    results += "Duration: " + String(triangulationDuration) + "s\n";
-    results += "Elapsed: " + String((millis() - triangulationStart) / 1000) + "s\n";
-    results += "Reporting Nodes: " + String(triangulationNodes.size()) + "\n\n";
-    
-    std::vector<TriangulationNode> gpsNodes;
-    
-    results += "--- Node Reports ---\n";
-    for (const auto& node : triangulationNodes) {
-        results += node.nodeId + ": ";
-        results += "RSSI=" + String(node.rssi) + "dBm ";
-        results += "Hits=" + String(node.hitCount) + " ";
-        
-        if (node.hasGPS) {
-            results += "GPS=" + String(node.lat, 6) + "," + String(node.lon, 6) + " ";
-            float dist = rssiToDistance(node.rssi);
-            results += "Est.Dist=" + String(dist, 1) + "m";
-            gpsNodes.push_back(node);
-        } else {
-            results += "GPS=UNAVAILABLE";
-        }
-        results += "\n";
-    }
-    results += "\n";
-    
-    if (gpsNodes.size() >= 3) {
-        results += "--- GPS Trilateration ---\n";
-        results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n\n";
-        
-        float lat1 = gpsNodes[0].lat, lon1 = gpsNodes[0].lon, r1 = rssiToDistance(gpsNodes[0].rssi);
-        float lat2 = gpsNodes[1].lat, lon2 = gpsNodes[1].lon, r2 = rssiToDistance(gpsNodes[1].rssi);
-        float lat3 = gpsNodes[2].lat, lon3 = gpsNodes[2].lon, r3 = rssiToDistance(gpsNodes[2].rssi);
-        
-        results += "Node 1: (" + String(lat1, 6) + ", " + String(lon1, 6) + ") r=" + String(r1, 1) + "m\n";
-        results += "Node 2: (" + String(lat2, 6) + ", " + String(lon2, 6) + ") r=" + String(r2, 1) + "m\n";
-        results += "Node 3: (" + String(lat3, 6) + ", " + String(lon3, 6) + ") r=" + String(r3, 1) + "m\n\n";
-        
-        float A = 2.0 * (lat2 - lat1);
-        float B = 2.0 * (lon2 - lon1);
-        float C = pow(r1, 2) - pow(r2, 2) - pow(lat1, 2) + pow(lat2, 2) - pow(lon1, 2) + pow(lon2, 2);
-        
-        float D = 2.0 * (lat3 - lat2);
-        float E = 2.0 * (lon3 - lon2);
-        float F = pow(r2, 2) - pow(r3, 2) - pow(lat2, 2) + pow(lat3, 2) - pow(lon2, 2) + pow(lon3, 2);
-        
-        float denominator = A * E - B * D;
-        
-        if (abs(denominator) > 0.0001) {
-            float estLat = (C * E - F * B) / denominator;
-            float estLon = (A * F - D * C) / denominator;
-            
-            results += "ESTIMATED POSITION:\n";
-            results += "  Latitude:  " + String(estLat, 6) + "\n";
-            results += "  Longitude: " + String(estLon, 6) + "\n";
-            results += "  Method: GPS+RSSI Trilateration\n";
-            results += "  Confidence: Medium (RSSI-based distance)\n\n";
-            
-            float avgDist = (r1 + r2 + r3) / 3.0;
-            float uncertainty = avgDist * 0.3;
-            results += "  Est. Uncertainty: ±" + String(uncertainty, 1) + "m\n";
-            
-            String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
-            results += "  Maps URL: " + mapsUrl + "\n";
-            
-        } else {
-            results += "TRILATERATION FAILED\n";
-            results += "Reason: Nodes collinear or too close\n";
-            results += "Recommendation: Increase node separation (>100m)\n";
-        }
-        
-    } else if (gpsNodes.size() > 0) {
-        results += "--- Insufficient GPS Data ---\n";
-        results += "GPS nodes: " + String(gpsNodes.size()) + "/3 required\n\n";
-        
-        if (gpsNodes.size() == 1) {
-            float dist = rssiToDistance(gpsNodes[0].rssi);
-            results += "Single node estimation:\n";
-            results += "  Node: " + gpsNodes[0].nodeId + "\n";
-            results += "  Position: " + String(gpsNodes[0].lat, 6) + ", " + String(gpsNodes[0].lon, 6) + "\n";
-            results += "  Target within ~" + String(dist, 1) + "m radius\n";
-        } else if (gpsNodes.size() == 2) {
-            results += "Two-node estimation:\n";
-            results += "Target lies along arc between nodes\n";
-        }
-    } else {
-        results += "--- No GPS Data Available ---\n";
-        results += "RSSI-only analysis:\n";
-        
-        int8_t maxRssi = -127;
-        String closestNode = "UNKNOWN";
-        
-        for (const auto& node : triangulationNodes) {
-            if (node.rssi > maxRssi) {
-                maxRssi = node.rssi;
-                closestNode = node.nodeId;
-            }
-        }
-        
-        results += "Strongest signal: " + closestNode + " (" + String(maxRssi) + "dBm)\n";
-        if (maxRssi > -50) results += "Signal: VERY STRONG (< 5m)\n";
-        else if (maxRssi > -65) results += "Signal: STRONG (5-15m)\n";
-        else if (maxRssi > -75) results += "Signal: MODERATE (15-30m)\n";
-        else results += "Signal: WEAK (> 30m)\n";
-    }
-    
-    results += "\n=== End Triangulation ===\n";
-    return results;
-}
-
-String calculateTriangulationResults() {
-    return calculateTriangulation();
-}
 
 // ------------- Network ------------- 
 void initializeNetwork()
@@ -2248,7 +2052,6 @@ void processMeshMessage(const String &message) {
         String content = cleanMessage.substring(colonPos + 2);
         
         if (content.startsWith("Target:")) {
-            // "Target: AA:BB:CC:DD:EE:FF RSSI:-45 Type:WiFi GPS=lat,lon"
             int macStart = content.indexOf(' ', 7) + 1;
             int macEnd = content.indexOf(' ', macStart);
             
@@ -2257,7 +2060,6 @@ void processMeshMessage(const String &message) {
                 uint8_t mac[6];
                 
                 if (parseMac6(macStr, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
-                    // Extract RSSI
                     int rssiIdx = content.indexOf("RSSI:");
                     int rssi = -127;
                     if (rssiIdx > 0) {
@@ -2266,7 +2068,6 @@ void processMeshMessage(const String &message) {
                         rssi = content.substring(rssiIdx + 5, rssiEnd).toInt();
                     }
                     
-                    // Extract GPS (optional)
                     float lat = 0, lon = 0;
                     bool hasGPS = false;
                     int gpsIdx = content.indexOf("GPS=");
@@ -2281,36 +2082,78 @@ void processMeshMessage(const String &message) {
                         }
                     }
                     
-                    // Update or add node
                     bool found = false;
                     for (auto &node : triangulationNodes) {
                         if (node.nodeId == sendingNode) {
-                            node.rssi = rssi;
+                            updateNodeRSSI(node, rssi);
                             node.hitCount++;
                             if (hasGPS) {
                                 node.lat = lat;
                                 node.lon = lon;
                                 node.hasGPS = true;
                             }
+                            node.distanceEstimate = rssiToDistance(node);
                             found = true;
-                            Serial.printf("[TRIANGULATE] Updated node %s: RSSI=%d hits=%d%s\n",
-                                        sendingNode.c_str(), rssi, node.hitCount,
-                                        hasGPS ? " GPS" : "");
+                            Serial.printf("[TRIANGULATE] Updated %s: RSSI=%d->%.1f dist=%.1fm Q=%.2f\n",
+                                        sendingNode.c_str(), rssi, node.filteredRssi, 
+                                        node.distanceEstimate, node.signalQuality);
                             break;
                         }
                     }
                     
                     if (!found) {
-                        TriangulationNode newNode = {sendingNode, lat, lon, (int8_t)rssi, 1, hasGPS};
+                        TriangulationNode newNode;
+                        newNode.nodeId = sendingNode;
+                        newNode.lat = lat;
+                        newNode.lon = lon;
+                        newNode.rssi = rssi;
+                        newNode.hitCount = 1;
+                        newNode.hasGPS = hasGPS;
+                        newNode.lastUpdate = millis();
+                        initNodeKalmanFilter(newNode);
+                        updateNodeRSSI(newNode, rssi);
+                        newNode.distanceEstimate = rssiToDistance(newNode);
                         triangulationNodes.push_back(newNode);
-                        Serial.printf("[TRIANGULATE] New node %s: RSSI=%d%s\n",
-                                    sendingNode.c_str(), rssi, hasGPS ? " GPS" : "");
+                        Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
+                                    sendingNode.c_str(), rssi, newNode.distanceEstimate);
                     }
                 }
             }
         }
-    }
-    
+        if (content.startsWith("TIME_SYNC_REQ:")) {
+            int firstColon = content.indexOf(':', 14);
+            if (firstColon > 0) {
+                int secondColon = content.indexOf(':', firstColon + 1);
+                if (secondColon > 0) {
+                    time_t theirTime = content.substring(14, firstColon).toInt();
+                    uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
+                    
+                    handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
+                    
+                    time_t myTime = getRTCEpoch();
+                    uint32_t myMillis = millis();
+                    String response = getNodeId() + ": TIME_SYNC_RESP:" + 
+                                    String((unsigned long)myTime) + ":" + 
+                                    String(myMillis);
+                    if (Serial1.availableForWrite() >= response.length()) {
+                        Serial1.println(response);
+                    }
+                }
+            }
+        }
+        if (content.startsWith("TIME_SYNC_RESP:")) {
+            int firstColon = content.indexOf(':', 15);
+            if (firstColon > 0) {
+                int secondColon = content.indexOf(':', firstColon + 1);
+                if (secondColon > 0) {
+                    time_t theirTime = content.substring(15, firstColon).toInt();
+                    uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
+                    handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
+                }
+            }
+        }
+    }    
+
     if (cleanMessage.startsWith("@")) {
         int spaceIndex = cleanMessage.indexOf(' ');
         if (spaceIndex > 0) {
@@ -2403,25 +2246,431 @@ void handleEraseCancel(AsyncWebServerRequest *request) {
 }
 
 
-// void processUSBToMesh() {
-//     static String usbBuffer = "";
-//     while (Serial.available()) {
-//     int ch = Serial.read();  // read a byte (returns -1 if none)
-//     if (ch < 0) break;
-//     char c = (char)ch;
-//     Serial.write((uint8_t)c); // echo the byte back
-//     if (c == '\n' || c == '\r' || c == ':') {
-//         if (usbBuffer.length() > 0) {
-//             // only log/process when we have a complete message
-//             Serial.println(usbBuffer);
-//             processMeshMessage(usbBuffer);
-//             Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
-//             usbBuffer = "";
-//         }
-//     } else {
-//         usbBuffer += c;
-//         if (usbBuffer.length() > 2048) {
-//             usbBuffer = "";
-//         }
-//     }
-// }
+// ------------- Triangulation ------------- 
+
+
+bool isTriangulationActive() {
+    return triangulationActive;
+}
+
+float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
+    const float txPowerWiFi = -65.0;
+    const float txPowerBLE = -68.0;
+    float txPower = isWiFi ? txPowerWiFi : txPowerBLE;
+    
+    float pathLossExponent = 2.0;
+    if (node.filteredRssi > -50) {
+        pathLossExponent = 1.8;
+    } else if (node.filteredRssi > -70) {
+        pathLossExponent = 2.2;
+    } else {
+        pathLossExponent = 2.7;
+    }
+    
+    float distance = pow(10.0, (txPower - node.filteredRssi) / (10.0 * pathLossExponent));
+    float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
+    distance *= qualityFactor;
+    
+    return distance;
+}
+
+void initNodeKalmanFilter(TriangulationNode &node) {
+    node.kalmanFilter.estimate = (float)node.rssi;
+    node.kalmanFilter.errorCovariance = 10.0;
+    node.kalmanFilter.processNoise = KALMAN_PROCESS_NOISE;
+    node.kalmanFilter.measurementNoise = KALMAN_MEASUREMENT_NOISE;
+    node.kalmanFilter.initialized = true;
+    node.filteredRssi = (float)node.rssi;
+}
+
+float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement) {
+    if (!node.kalmanFilter.initialized) {
+        initNodeKalmanFilter(node);
+        return (float)measurement;
+    }
+    
+    float prediction = node.kalmanFilter.estimate;
+    float predictionCovariance = node.kalmanFilter.errorCovariance + node.kalmanFilter.processNoise;
+    float kalmanGain = predictionCovariance / (predictionCovariance + node.kalmanFilter.measurementNoise);
+    float estimate = prediction + kalmanGain * ((float)measurement - prediction);
+    float errorCovariance = (1.0 - kalmanGain) * predictionCovariance;
+    
+    node.kalmanFilter.estimate = estimate;
+    node.kalmanFilter.errorCovariance = errorCovariance;
+    
+    return estimate;
+}
+
+float calculateSignalQuality(const TriangulationNode &node) {
+    if (node.rssiHistory.size() < 3) {
+        return 0.5;
+    }
+    
+    float variance = 0.0;
+    float mean = 0.0;
+    for (int8_t rssi : node.rssiHistory) {
+        mean += rssi;
+    }
+    mean /= node.rssiHistory.size();
+    
+    for (int8_t rssi : node.rssiHistory) {
+        float diff = rssi - mean;
+        variance += diff * diff;
+    }
+    variance /= node.rssiHistory.size();
+    
+    float stability = 1.0 / (1.0 + sqrt(variance));
+    float strength = (node.filteredRssi + 100.0) / 100.0;
+    strength = constrain(strength, 0.0, 1.0);
+    
+    return (stability * 0.6 + strength * 0.4);
+}
+
+bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, 
+                                   float &estLat, float &estLon, float &confidence) {
+    if (nodes.size() < 3) return false;
+    
+    std::vector<TriangulationNode> sortedNodes = nodes;
+    std::sort(sortedNodes.begin(), sortedNodes.end(), 
+              [](const TriangulationNode &a, const TriangulationNode &b) {
+                  return a.signalQuality > b.signalQuality;
+              });
+    
+    float sumWeightedLat = 0.0;
+    float sumWeightedLon = 0.0;
+    float sumWeights = 0.0;
+    
+    size_t numNodes = std::min((size_t)5, sortedNodes.size());
+    if (numNodes < 3) return false;
+    
+    for (size_t i = 0; i < numNodes; i++) {
+        for (size_t j = i + 1; j < numNodes; j++) {
+            for (size_t k = j + 1; k < numNodes; k++) {
+                float lat1 = sortedNodes[i].lat;
+                float lon1 = sortedNodes[i].lon;
+                float r1 = sortedNodes[i].distanceEstimate;
+                
+                float lat2 = sortedNodes[j].lat;
+                float lon2 = sortedNodes[j].lon;
+                float r2 = sortedNodes[j].distanceEstimate;
+                
+                float lat3 = sortedNodes[k].lat;
+                float lon3 = sortedNodes[k].lon;
+                float r3 = sortedNodes[k].distanceEstimate;
+                
+                float A = 2.0 * (lat2 - lat1);
+                float B = 2.0 * (lon2 - lon1);
+                float C = pow(r1, 2) - pow(r2, 2) - pow(lat1, 2) + pow(lat2, 2) - pow(lon1, 2) + pow(lon2, 2);
+                
+                float D = 2.0 * (lat3 - lat2);
+                float E = 2.0 * (lon3 - lon2);
+                float F = pow(r2, 2) - pow(r3, 2) - pow(lat2, 2) + pow(lat3, 2) - pow(lon2, 2) + pow(lon3, 2);
+                
+                float denominator = A * E - B * D;
+                
+                if (abs(denominator) > 0.0001) {
+                    float tripletLat = (C * E - F * B) / denominator;
+                    float tripletLon = (A * F - D * C) / denominator;
+                    
+                    float tripletWeight = sortedNodes[i].signalQuality * 
+                                         sortedNodes[j].signalQuality * 
+                                         sortedNodes[k].signalQuality;
+                    
+                    sumWeightedLat += tripletLat * tripletWeight;
+                    sumWeightedLon += tripletLon * tripletWeight;
+                    sumWeights += tripletWeight;
+                }
+            }
+        }
+    }
+    
+    if (sumWeights < 0.001) return false;
+    
+    estLat = sumWeightedLat / sumWeights;
+    estLon = sumWeightedLon / sumWeights;
+    
+    float avgQuality = 0.0;
+    for (size_t i = 0; i < numNodes; i++) {
+        avgQuality += sortedNodes[i].signalQuality;
+    }
+    avgQuality /= numNodes;
+    
+    confidence = avgQuality * (1.0 - 0.1 * (numNodes - 3));
+    confidence = constrain(confidence, 0.0, 1.0);
+    
+    return true;
+}
+
+void broadcastTimeSyncRequest() {
+    if (!rtcAvailable) return;
+    
+    time_t currentTime = getRTCEpoch();
+    uint32_t currentMillis = millis();
+    
+    String syncMsg = getNodeId() + ": TIME_SYNC_REQ:" + 
+                     String((unsigned long)currentTime) + ":" + 
+                     String(currentMillis);
+    
+    if (Serial1.availableForWrite() >= syncMsg.length()) {
+        Serial1.println(syncMsg);
+        Serial.printf("[SYNC] Broadcast sync request: %lu ms\n", currentMillis);
+    }
+}
+
+void updateNodeRSSI(TriangulationNode &node, int8_t newRssi) {
+    node.rssi = newRssi;
+    node.filteredRssi = kalmanFilterRSSI(node, newRssi);
+    
+    node.rssiHistory.push_back(newRssi);
+    if (node.rssiHistory.size() > RSSI_HISTORY_SIZE) {
+        node.rssiHistory.erase(node.rssiHistory.begin());
+    }
+    
+    node.signalQuality = calculateSignalQuality(node);
+    node.lastUpdate = millis();
+}
+
+void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds) {
+    if (!rtcAvailable) return;
+    
+    time_t localTime = getRTCEpoch();
+    uint32_t localMillis = millis();
+    
+    int32_t timeOffset = (int32_t)(localTime - timestamp);
+    int32_t millisOffset = (int32_t)(localMillis - milliseconds);
+    
+    bool found = false;
+    for (auto &sync : nodeSyncStatus) {
+        if (sync.nodeId == nodeId) {
+            sync.rtcTimestamp = timestamp;
+            sync.millisOffset = abs(millisOffset);
+            sync.synced = (abs(timeOffset) == 0 && sync.millisOffset < 10);
+            sync.lastSyncCheck = millis();
+            found = true;
+            break;
+        }
+    }
+    
+    if (!found) {
+        NodeSyncStatus newSync;
+        newSync.nodeId = nodeId;
+        newSync.rtcTimestamp = timestamp;
+        newSync.millisOffset = abs(millisOffset);
+        newSync.synced = (abs(timeOffset) == 0 && newSync.millisOffset < 10);
+        newSync.lastSyncCheck = millis();
+        nodeSyncStatus.push_back(newSync);
+    }
+    
+    Serial.printf("[SYNC] Node %s: offset=%dms synced=%d\n", 
+                  nodeId.c_str(), abs(millisOffset), 
+                  (abs(timeOffset) == 0 && abs(millisOffset) < 10));
+}
+
+bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
+    if (!triangulationActive) return true;
+    
+    uint32_t now = millis();
+    for (const auto &sync : nodeSyncStatus) {
+        if (now - sync.lastSyncCheck < SYNC_CHECK_INTERVAL) {
+            if (!sync.synced || sync.millisOffset > maxOffsetMs) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+String getNodeSyncStatus() {
+    String status = "=== Node Synchronization Status ===\n";
+    status += "Nodes tracked: " + String(nodeSyncStatus.size()) + "\n\n";
+    
+    for (const auto &sync : nodeSyncStatus) {
+        status += sync.nodeId + ": ";
+        status += sync.synced ? "SYNCED" : "OUT_OF_SYNC";
+        status += " offset=" + String(sync.millisOffset) + "ms";
+        status += " age=" + String((millis() - sync.lastSyncCheck) / 1000) + "s\n";
+    }
+    
+    return status;
+}
+
+void startTriangulation(const String &targetMac, int duration) {
+    uint8_t macBytes[6];
+    if (!parseMac6(targetMac, macBytes)) {
+        Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", targetMac.c_str());
+        return;
+    }
+    
+    memcpy(triangulationTarget, macBytes, 6);
+    triangulationNodes.clear();
+    nodeSyncStatus.clear();
+    triangulationActive = true;
+    triangulationStart = millis();
+    triangulationDuration = duration;
+    
+    currentScanMode = SCAN_BOTH;
+    stopRequested = false;
+    
+    Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
+    
+    broadcastTimeSyncRequest();
+    
+    String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
+    sendMeshCommand(cmd);
+    
+    if (!workerTaskHandle) {
+        xTaskCreatePinnedToCore(
+            listScanTask, 
+            "triangulate", 
+            8192,
+            (void *)(intptr_t)duration, 
+            1, 
+            &workerTaskHandle, 
+            1
+        );
+    }
+    
+    Serial.println("[TRIANGULATE] Mesh sync check initiated, scanning active");
+}
+
+void stopTriangulation() {
+    if (!triangulationActive) {
+        Serial.println("[TRIANGULATE] Not active, nothing to stop");
+        return;
+    }
+    
+    uint32_t elapsedMs = millis() - triangulationStart;
+    uint32_t elapsedSec = elapsedMs / 1000;
+    
+    Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", 
+                  elapsedSec, triangulationNodes.size());
+    
+    String results = calculateTriangulation();
+    
+    if (sdAvailable) {
+        String logEntry = getFormattedTimestamp() + " TRIANGULATION_COMPLETE\n";
+        logEntry += results;
+        logEntry += "\n---\n";
+        logToSD(logEntry);
+    }
+
+    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: Nodes=" + 
+                       String(triangulationNodes.size());
+    if (Serial1.availableForWrite() >= resultMsg.length()) {
+        Serial1.println(resultMsg);
+    }
+
+    triangulationActive = false;
+    triangulationDuration = 0;
+    memset(triangulationTarget, 0, 6);
+
+    Serial.println("[TRIANGULATE] Stopped and results generated");
+}
+
+String calculateTriangulation() {
+    String results = "=== Triangulation Results ===\n";
+    results += "Target MAC: " + macFmt6(triangulationTarget) + "\n";
+    results += "Duration: " + String(triangulationDuration) + "s\n";
+    results += "Elapsed: " + String((millis() - triangulationStart) / 1000) + "s\n";
+    results += "Reporting Nodes: " + String(triangulationNodes.size()) + "\n";
+    
+    bool syncVerified = verifyNodeSynchronization(10);
+    results += "Clock Sync: " + String(syncVerified ? "VERIFIED (<10ms)" : "WARNING (>10ms)") + "\n\n";
+    
+    std::vector<TriangulationNode> gpsNodes;
+    
+    results += "--- Node Reports ---\n";
+    for (const auto& node : triangulationNodes) {
+        results += node.nodeId + ": ";
+        results += "Raw=" + String(node.rssi) + "dBm ";
+        results += "Filtered=" + String(node.filteredRssi, 1) + "dBm ";
+        results += "Hits=" + String(node.hitCount) + " ";
+        results += "Q=" + String(node.signalQuality, 2) + " ";
+        
+        if (node.hasGPS) {
+            results += "GPS=" + String(node.lat, 6) + "," + String(node.lon, 6) + " ";
+            results += "Dist=" + String(node.distanceEstimate, 1) + "m";
+            gpsNodes.push_back(node);
+        } else {
+            results += "GPS=UNAVAILABLE";
+        }
+        results += "\n";
+    }
+    results += "\n";
+    
+    if (gpsNodes.size() >= 3) {
+        results += "--- Weighted GPS Trilateration ---\n";
+        results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n";
+        results += "Algorithm: Kalman-filtered RSSI + weighted least squares\n\n";
+        
+        float estLat, estLon, confidence;
+        if (performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
+            results += "ESTIMATED POSITION:\n";
+            results += "  Latitude:  " + String(estLat, 6) + "\n";
+            results += "  Longitude: " + String(estLon, 6) + "\n";
+            results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
+            results += "  Method: Weighted trilateration + Kalman filtering\n";
+            
+            float avgDist = 0.0;
+            for (const auto &node : gpsNodes) {
+                avgDist += node.distanceEstimate;
+            }
+            avgDist /= gpsNodes.size();
+            
+            float uncertainty = avgDist * (0.15 + (1.0 - confidence) * 0.35);
+            results += "  Est.Uncertainty: ±" + String(uncertainty, 1) + "m\n";
+            results += "  Sync Status: " + String(syncVerified ? "Verified" : "Degraded") + "\n\n";
+            
+            String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+            results += "  Maps URL: " + mapsUrl + "\n";
+        } else {
+            results += "TRILATERATION FAILED\n";
+            results += "Reason: Insufficient signal quality or geometric dilution\n";
+        }
+        
+    } else if (gpsNodes.size() > 0) {
+        results += "--- Insufficient GPS Data ---\n";
+        results += "GPS nodes: " + String(gpsNodes.size()) + "/3 required\n\n";
+        
+        if (gpsNodes.size() == 1) {
+            results += "Single node estimation:\n";
+            results += "  Node: " + gpsNodes[0].nodeId + "\n";
+            results += "  Position: " + String(gpsNodes[0].lat, 6) + ", " + String(gpsNodes[0].lon, 6) + "\n";
+            results += "  Target within ~" + String(gpsNodes[0].distanceEstimate, 1) + "m radius\n";
+            results += "  Signal quality: " + String(gpsNodes[0].signalQuality * 100.0, 0) + "%\n";
+        } else if (gpsNodes.size() == 2) {
+            results += "Two-node estimation:\n";
+            results += "Target lies along arc between nodes\n";
+            results += "Distance estimates: " + 
+                      String(gpsNodes[0].distanceEstimate, 1) + "m, " + 
+                      String(gpsNodes[1].distanceEstimate, 1) + "m\n";
+        }
+    } else {
+        results += "--- No GPS Data Available ---\n";
+        results += "RSSI-only analysis:\n";
+        
+        float maxQuality = 0.0;
+        String bestNode = "UNKNOWN";
+        float bestDistance = 0.0;
+        
+        for (const auto& node : triangulationNodes) {
+            if (node.signalQuality > maxQuality) {
+                maxQuality = node.signalQuality;
+                bestNode = node.nodeId;
+                bestDistance = node.distanceEstimate;
+            }
+        }
+        
+        results += "Highest quality signal: " + bestNode + "\n";
+        results += "  Filtered RSSI: " + String(triangulationNodes[0].filteredRssi, 1) + "dBm\n";
+        results += "  Signal quality: " + String(maxQuality * 100.0, 0) + "%\n";
+        results += "  Estimated distance: " + String(bestDistance, 1) + "m\n";
+    }
+    
+    results += "\n=== End Triangulation ===\n";
+    return results;
+}
+
+String calculateTriangulationResults() {
+    return calculateTriangulation();
+}
