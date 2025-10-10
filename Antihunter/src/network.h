@@ -20,15 +20,49 @@ extern bool meshEnabled;
 #define AP_CHANNEL 6
 #endif
 
+struct KalmanFilterState {
+    float estimate;
+    float errorCovariance;
+    float processNoise;
+    float measurementNoise;
+    bool initialized;
+};
+
 struct TriangulationNode {
     String nodeId;
-    float lat, lon;
+    float lat;
+    float lon;
     int8_t rssi;
     uint32_t hitCount;
     bool hasGPS;
+    uint32_t lastUpdate;
+    std::vector<int8_t> rssiHistory;
+    KalmanFilterState kalmanFilter;
+    float filteredRssi;
+    float distanceEstimate;
+    float signalQuality;
+};
+
+struct NodeSyncStatus {
+    String nodeId;
+    time_t rtcTimestamp;
+    uint32_t millisOffset;
+    bool synced;
+    uint32_t lastSyncCheck;
 };
 
 // Triangulation functions
+void initNodeKalmanFilter(TriangulationNode &node);
+float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement);
+float calculateSignalQuality(const TriangulationNode &node);
+void updateNodeRSSI(TriangulationNode &node, int8_t newRssi);
+float rssiToDistance(const TriangulationNode &node, bool isWiFi = true);
+bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence);
+void broadcastTimeSyncRequest();
+void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds);
+bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);
+String getNodeSyncStatus();
+extern std::vector<NodeSyncStatus> nodeSyncStatus;
 String calculateTriangulationResults();
 void stopTriangulation();
 void startTriangulation(const String &targetMac, int duration);
