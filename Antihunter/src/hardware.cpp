@@ -670,7 +670,7 @@ void checkAndSendVibrationAlert() {
 }
 
 // RTC functions
-void initializeRTC() {
+vvoid initializeRTC() {
     Serial.println("Initializing RTC...");
     Serial.printf("[RTC] Using SDA:%d SCL:%d\n", RTC_SDA_PIN, RTC_SCL_PIN);
 
@@ -686,18 +686,24 @@ void initializeRTC() {
     delay(100);
     
     if (!rtc.begin()) {
-        Serial.println("[RTC] DS3231 not found at 0x68!");
-        Serial.println("[RTC] Check wiring: SDA->GPIO6, SCL->GPIO3, VCC->3.3V, GND->GND");
-        rtcAvailable = false;
-        
+        Serial.println("[RTC] Failed at 400kHz, retrying at 100kHz...");
         Wire.end();
         delay(100);
-        Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 400000);
-        return;
+        Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN, 100000);
+        delay(100);
+        
+        if (!rtc.begin()) {
+            Serial.println("[RTC] DS3231 not found at 0x68!");
+            Serial.println("[RTC] Check wiring: SDA->GPIO6, SCL->GPIO3, VCC->3.3V, GND->GND");
+            rtcAvailable = false;
+            return;
+        }
+        Serial.println("[RTC] Initialized at 100kHz");
+    } else {
+        Serial.println("[RTC] Initialized at 400kHz");
     }
     
     rtcAvailable = true;
-    Serial.println("[RTC] DS3231 initialized successfully!");
     delay(100);
 
     if (rtc.lostPower()) {
@@ -713,8 +719,6 @@ void initializeRTC() {
     }
     
     rtc.disable32K();
-    Serial.printf("[RTC] Successfully initialized on SDA:%d SCL:%d at 400kHz\n", 
-                  RTC_SDA_PIN, RTC_SCL_PIN);
 }
 
 void syncRTCFromGPS() {
