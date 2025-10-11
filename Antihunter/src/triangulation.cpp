@@ -378,7 +378,13 @@ void startTriangulation(const String &targetMac, int duration) {
         stopTriangulation();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-    
+
+    // Clear old results
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
+
     memcpy(triangulationTarget, macBytes, 6);
     triangulationNodes.clear();
     nodeSyncStatus.clear();
@@ -522,7 +528,7 @@ String calculateTriangulation() {
     // NODES RESPONDING BUT NO GPS
     if (gpsNodeCount == 0) {
         results += "--- TRIANGULATION IMPOSSIBLE ---\n\n";
-        results += String(triangulationNodes.size()) + " node(s) reporting, but NONE have GPS\n\n";
+        results += String(triangulationNodes.size()) + " node(s) reporting, but none have GPS\n\n";
         results += "Cannot triangulate without position data.\n";
         results += "Triangulation requires GPS coordinates from nodes.\n\n";
         
