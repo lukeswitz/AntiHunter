@@ -2011,16 +2011,41 @@ void processCommand(const String &command)
     String status = lastVibrationTime > 0 ? ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") : "No vibrations detected";
     Serial1.println(nodeId + ": VIBRATION_STATUS: " + status);
   }
-  else if (command.startsWith("TRIANGULATE_START:"))
-  {
+  else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);
     int colonPos = params.indexOf(':');
     String mac = params.substring(0, colonPos);
     int duration = params.substring(colonPos + 1).toInt();
 
-    startTriangulation(mac, duration);
+    uint8_t macBytes[6];
+    if (!parseMac6(mac, macBytes)) {
+        Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", mac.c_str());
+        Serial1.println(nodeId + ": TRIANGULATE_ACK:INVALID_MAC");
+        return;
+    }
+    
+    // Stop existing task if any
+    if (workerTaskHandle) {
+        stopRequested = true;
+        vTaskDelay(pdMS_TO_TICKS(500));
+        workerTaskHandle = nullptr;
+    }
+    
+    memcpy(triangulationTarget, macBytes, 6);
+    triangulationActive = true;
+    triangulationStart = millis();
+    triangulationDuration = duration;
+    currentScanMode = SCAN_BOTH;
+    stopRequested = false;
+    
+    if (!workerTaskHandle) {
+        xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
+                               (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
+    }
+    
+    Serial.printf("[TRIANGULATE] Child node started for %s (%ds)\n", mac.c_str(), duration);
     Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
-  }
+}
   else if (command.startsWith("TRIANGULATE_STOP"))
   {
     stopTriangulation();
