@@ -1070,6 +1070,13 @@ void initializeScanner()
 void listScanTask(void *pv) {
     int secs = (int)(intptr_t)pv;
     bool forever = (secs <= 0);
+
+    // Clear old results
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
+
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
