@@ -510,7 +510,7 @@ String calculateTriangulation() {
     
     // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
-    results += "Clock Sync: " + String(syncVerified ? "VERIFIED (<10ms)" : "WARNING (>10ms)") + "\n\n";
+    results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n\n";
     
     // Count GPS-equipped nodes
     int gpsNodeCount = 0;
@@ -669,9 +669,7 @@ void disciplineRTCFromGPS() {
             clockDiscipline.driftRate = (float)offset / (elapsed / 1000.0);
             clockDiscipline.disciplineCount++;
             
-            Serial.printf("[DISCIPLINE] Drift rate: %.6f s/s (%.2f ppm)\n", 
-                         clockDiscipline.driftRate, 
-                         clockDiscipline.driftRate * 1e6);
+            // Serial.printf("[DISCIPLINE] Drift rate: %.6f s/s (%.2f ppm)\n", clockDiscipline.driftRate, clockDiscipline.driftRate * 1e6);
             
             if (clockDiscipline.disciplineCount >= 3) {
                 clockDiscipline.converged = true;
