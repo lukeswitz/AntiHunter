@@ -1060,6 +1060,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       
       document.getElementById('triangulate').addEventListener('change', e => {
         document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
+        const secsInput = document.querySelector('input[name="secs"]');
+        if (e.target.checked) {
+          if (parseInt(secsInput.value) < 60) {
+            secsInput.value = 60;
+            toast('Triangulation requires minimum 60 seconds');
+          }
+          secsInput.setAttribute('min', '60');
+        } else {
+          secsInput.setAttribute('min', '0');
+        }
       });
 
       document.getElementById('f').addEventListener('submit', e => {
@@ -1760,16 +1770,27 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         req->send(200, "text/plain", "Allowlist saved"); });
 
   server->on("/triangulate/start", HTTP_POST, [](AsyncWebServerRequest *req) {
-    if (!req->hasParam("mac", true) || !req->hasParam("duration", true)) {
-      req->send(400, "text/plain", "Missing mac or duration parameter");
-      return;
-    }
-    
-    String targetMac = req->getParam("mac", true)->value();
-    int duration = req->getParam("duration", true)->value().toInt();
-    
-    startTriangulation(targetMac, duration);
-    req->send(200, "text/plain", "Triangulation started for " + targetMac);
+      if (!req->hasParam("mac", true) || !req->hasParam("duration", true)) {
+        req->send(400, "text/plain", "Missing mac or duration parameter");
+        return;
+      }
+      
+      String targetMac = req->getParam("mac", true)->value();
+      int duration = req->getParam("duration", true)->value().toInt();
+      
+      if (duration < 60) {
+        req->send(400, "text/plain", "Error: Triangulation requires minimum 60 seconds duration");
+        return;
+      }
+      
+      uint8_t macBytes[6];
+      if (!parseMac6(targetMac, macBytes)) {
+        req->send(400, "text/plain", "Error: Invalid MAC address format");
+        return;
+      }
+      
+      startTriangulation(targetMac, duration);
+      req->send(200, "text/plain", "Triangulation started for " + targetMac + " (" + String(duration) + "s)");
   });
 
   server->on("/triangulate/stop", HTTP_POST, [](AsyncWebServerRequest *req) {
