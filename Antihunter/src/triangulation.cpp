@@ -431,6 +431,11 @@ void stopTriangulation() {
                   elapsedSec, triangulationNodes.size());
     
     String results = calculateTriangulation();
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = results.c_str();
+    }
     
     if (sdAvailable) {
         String logEntry = getFormattedTimestamp() + " TRIANGULATION_COMPLETE\n";
@@ -450,8 +455,6 @@ void stopTriangulation() {
     memset(triangulationTarget, 0, 6);
 
     Serial.println("[TRIANGULATE] Stopped and results generated");
-
-    vTaskDelay(pdMS_TO_TICKS(100));
 }
 
 float haversineDistance(float lat1, float lon1, float lat2, float lon2) {
