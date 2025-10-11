@@ -22,8 +22,8 @@ AsyncWebServer *server = nullptr;
 const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
-const unsigned long MESH_SEND_INTERVAL = 3500;
-const int MAX_MESH_SIZE = 230;
+const unsigned long MESH_SEND_INTERVAL = 5000;
+const int MAX_MESH_SIZE = 240;
 static String nodeId = "";
 
 // Scanner vars
@@ -1216,17 +1216,16 @@ void startWebServer()
   server->on("/export", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", getTargetsList()); });
 
-  server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
+  server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
       
-      // Add triangulation results if active
-      if (triangulationActive || triangulationNodes.size() > 0) {
+      if (triangulationActive) {
           results += "\n\n" + calculateTriangulation();
       }
       
-      r->send(200, "text/plain", results); });
+      r->send(200, "text/plain", results);
+  });
 
   server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req)
              {

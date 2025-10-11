@@ -1366,7 +1366,16 @@ void listScanTask(void *pv) {
             }
         }
 
-        antihunter::lastResults = results;
+        bool hasTriangulation = (antihunter::lastResults.find("=== Triangulation Results ===") != std::string::npos);
+            
+        if (hasTriangulation) {
+            antihunter::lastResults = results + "\n\n" + antihunter::lastResults;
+        } else if (triangulationNodes.size() > 0) {
+            antihunter::lastResults = antihunter::lastResults + "\n\n=== List Scan Results ===\n" + results;
+        } else {
+            antihunter::lastResults = results;
+        }
+        
         Serial.printf("[DEBUG] Results stored: %d chars\n", results.length());
     }
     
