@@ -9,10 +9,10 @@
 #define COUNTRY "US"
 #endif
 #ifndef MESH_RX_PIN
-#define MESH_RX_PIN 4    // TO MESH PIN 9
+#define MESH_RX_PIN 4    // TO MESH PIN 9/19 T114/V3
 #endif
 #ifndef MESH_TX_PIN
-#define MESH_TX_PIN 5    // TO MESH PIN 10
+#define MESH_TX_PIN 5    // TO MESH PIN 10/20 T114/V3
 #endif
 #ifndef VIBRATION_PIN
 #define VIBRATION_PIN 2  // TO SW-420 D0
