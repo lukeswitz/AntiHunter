@@ -446,6 +446,20 @@ void stopTriangulation() {
 
     String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: Nodes=" + 
                        String(triangulationNodes.size());
+    
+    float estLat = 0.0, estLon = 0.0, confidence = 0.0;
+    std::vector<TriangulationNode> gpsNodes;
+    for (const auto& node : triangulationNodes) {
+        if (node.hasGPS) {
+            gpsNodes.push_back(node);
+        }
+    }
+    
+    if (gpsNodes.size() >= 3 && performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
+        String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+        resultMsg += " " + mapsUrl;
+    }
+    
     if (Serial1.availableForWrite() >= resultMsg.length()) {
         Serial1.println(resultMsg);
     }
@@ -454,7 +468,7 @@ void stopTriangulation() {
     triangulationDuration = 0;
     memset(triangulationTarget, 0, 6);
 
-    Serial.println("[TRIANGULATE] Stopped and results generated");
+    Serial.println("[TRIANGULATE] Done and results generated");
 }
 
 float haversineDistance(float lat1, float lon1, float lat2, float lon2) {
@@ -511,10 +525,6 @@ String calculateTriangulation() {
         results += String(triangulationNodes.size()) + " node(s) reporting, but NONE have GPS\n\n";
         results += "Cannot triangulate without position data.\n";
         results += "Triangulation requires GPS coordinates from nodes.\n\n";
-        results += "Enable GPS on mesh nodes:\n";
-        results += "  • Check GPS module connection\n";
-        results += "  • Wait for satellite lock (LED indicator)\n";
-        results += "  • Check '/gps' endpoint on each node\n";
         
         results += "\n=== End Triangulation ===\n";
         return results;

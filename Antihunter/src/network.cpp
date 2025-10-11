@@ -1985,15 +1985,14 @@ void processCommand(const String &command)
     char status_msg[MAX_MESH_SIZE];
 
     snprintf(status_msg, sizeof(status_msg),
-             "%s: STATUS: Mode:%s Scan:%s Hits:%d Targets:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
-             nodeId.c_str(),
-             modeStr.c_str(),
-             scanning ? "YES" : "NO",
-             totalHits,
-             (int)getTargetCount(),
-             (int)uniqueMacs.size(),
-             esp_temp, esp_temp_f,
-             (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+            "%s: STATUS: Mode:%s Scan:%s Hits:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
+            nodeId.c_str(),
+            modeStr.c_str(),
+            scanning ? "ACTIVE" : "IDLE",
+            totalHits,
+            uniqueMacs.size(),
+            esp_temp, esp_temp_f,
+            uptime_hours, uptime_mins % 60, uptime_secs % 60);
 
     Serial1.println(status_msg);
     if (gpsValid)
@@ -2107,11 +2106,38 @@ void processMeshMessage(const String &message) {
     
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
     
-    // Triangulation data collection
     int colonPos = cleanMessage.indexOf(':');
     if (triangulationActive && colonPos > 0) {
         String sendingNode = cleanMessage.substring(0, colonPos);
         String content = cleanMessage.substring(colonPos + 2);
+        
+        if (content.startsWith("TRIANGULATE_ACK:")) {
+            bool nodeExists = false;
+            for (auto &node : triangulationNodes) {
+                if (node.nodeId == sendingNode) {
+                    nodeExists = true;
+                    break;
+                }
+            }
+            
+            if (!nodeExists) {
+                TriangulationNode newNode;
+                newNode.nodeId = sendingNode;
+                newNode.rssi = -127;
+                newNode.filteredRssi = -127;
+                newNode.hasGPS = false;
+                newNode.lat = 0.0;
+                newNode.lon = 0.0;
+                newNode.hitCount = 0;
+                newNode.lastUpdate = millis();
+                newNode.distanceEstimate = 0.0;
+                newNode.signalQuality = 0.0;
+                newNode.kalmanFilter.initialized = false;
+                triangulationNodes.push_back(newNode);
+                
+                Serial.printf("[TRIANGULATE] Node registered: %s\n", sendingNode.c_str());
+            }
+        }
         
         if (content.startsWith("Target:")) {
             int macStart = content.indexOf(' ', 7) + 1;
@@ -2195,6 +2221,7 @@ void processMeshMessage(const String &message) {
                 }
             }
         }
+        
         if (content.startsWith("TIME_SYNC_REQ:")) {
             int firstColon = content.indexOf(':', 14);
             if (firstColon > 0) {
@@ -2216,6 +2243,7 @@ void processMeshMessage(const String &message) {
                 }
             }
         }
+        
         if (content.startsWith("TIME_SYNC_RESP:")) {
             int firstColon = content.indexOf(':', 15);
             if (firstColon > 0) {
@@ -2241,7 +2269,6 @@ void processMeshMessage(const String &message) {
         processCommand(cleanMessage);
     }
 }
-
 
 void processUSBToMesh() {
     static String usbBuffer = "";
