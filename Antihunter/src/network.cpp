@@ -694,49 +694,50 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               });
             };
           }
-          
+
           if (taskType === 'triangulate') {
-            const triangulateBtn = document.querySelector('#s button');
-            if (triangulateBtn) {
-              triangulateBtn.textContent = 'Stop Scan';
-              triangulateBtn.classList.remove('primary');
-              triangulateBtn.classList.add('danger');
-              triangulateBtn.type = 'button';
-              triangulateBtn.onclick = function(e) {
-                e.preventDefault();
-                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                  setTimeout(async () => {
-                    const refreshedDiag = await fetch('/diag').then(r => r.text());
-                    updateStatusIndicators(refreshedDiag);
-                  }, 500);
-                });
-              };
-            }
-          }
-          
-          const detectionMode = document.getElementById('detectionMode')?.value;
-          if (taskType === 'sniffer' || taskType === 'drone') {
-            const startDetectionBtn = document.getElementById('startDetectionBtn');
-            if (startDetectionBtn) {
-              startDetectionBtn.textContent = 'Stop Scanning';
-              startDetectionBtn.classList.remove('primary');
-              startDetectionBtn.classList.add('danger');
-              startDetectionBtn.type = 'button';
-              startDetectionBtn.onclick = function(e) {
-                e.preventDefault();
-                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                  setTimeout(async () => {
-                    const refreshedDiag = await fetch('/diag').then(r => r.text());
-                    updateStatusIndicators(refreshedDiag);
-                  }, 500);
-                });
-              };
-              if (detectionMode === 'device-scan') {
-                document.getElementById('cacheBtn').style.display = 'inline-block';
+              const triangulateBtn = document.querySelector('#s button');
+              if (triangulateBtn) {
+                triangulateBtn.textContent = 'Stop Scan';
+                triangulateBtn.classList.remove('primary');
+                triangulateBtn.classList.add('danger');
+                triangulateBtn.style.background = '#001b12';
+                triangulateBtn.type = 'button';
+                triangulateBtn.onclick = function(e) {
+                  e.preventDefault();
+                  fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                    setTimeout(async () => {
+                      const refreshedDiag = await fetch('/diag').then(r => r.text());
+                      updateStatusIndicators(refreshedDiag);
+                    }, 500);
+                  });
+                };
               }
             }
-          }
-        } else { 
+          
+            const detectionMode = document.getElementById('detectionMode')?.value;
+            if (taskType === 'sniffer' || taskType === 'drone') {
+              const startDetectionBtn = document.getElementById('startDetectionBtn');
+              if (startDetectionBtn) {
+                startDetectionBtn.textContent = 'Stop Scanning';
+                startDetectionBtn.classList.remove('primary');
+                startDetectionBtn.classList.add('danger');
+                startDetectionBtn.type = 'button';
+                startDetectionBtn.onclick = function(e) {
+                  e.preventDefault();
+                  fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                    setTimeout(async () => {
+                      const refreshedDiag = await fetch('/diag').then(r => r.text());
+                      updateStatusIndicators(refreshedDiag);
+                    }, 500);
+                  });
+                };
+                if (detectionMode === 'device-scan') {
+                  document.getElementById('cacheBtn').style.display = 'inline-block';
+                }
+              }
+            }
+          } else { 
           document.getElementById('scanStatus').innerText = 'Idle';
           document.getElementById('scanStatus').classList.remove('active');
 
@@ -747,6 +748,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             startScanBtn.classList.add('primary');
             startScanBtn.type = 'submit';
             startScanBtn.onclick = null;
+            startScanBtn.style.background = ''; 
           }
 
           const detectionMode = document.getElementById('detectionMode')?.value;
@@ -1093,10 +1095,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               body: fd
           }).then(r => r.text()).then(t => {
               toast(t);
-              if (submitBtn) {
-                  submitBtn.textContent = 'Stop Scan';
-                  submitBtn.style.background = 'var(--danger)';
-              }
           }).catch(err => toast('Error: ' + err.message));
       });
 
@@ -1282,17 +1280,21 @@ void startWebServer()
       stopRequested = false;
       delay(100); 
       
+      // Ditch out here if triangulating
       if (req->hasParam("triangulate", true) && req->hasParam("targetMac", true)) {
           String targetMac = req->getParam("targetMac", true)->value();
           startTriangulation(targetMac, secs);
-      } else {
-          if (!workerTaskHandle) {
-              xTaskCreatePinnedToCore(listScanTask, "scan", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-          }
+          String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+          req->send(200, "text/plain", "Triangulation starting for " + String(secs) + "s - " + modeStr);
+          return;
       }
       
       String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
       req->send(200, "text/plain", forever ? ("Scan starting (forever) - " + modeStr) : ("Scan starting for " + String(secs) + "s - " + modeStr));
+      
+      if (!workerTaskHandle) {
+          xTaskCreatePinnedToCore(listScanTask, "scan", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      }
   });
 
   server->on("/baseline/status", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -1795,6 +1797,19 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     req->send(200, "text/plain", calculateTriangulation());
   });
 
+  server->on("/triangulate/calibrate", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (!req->hasParam("mac", true) || !req->hasParam("distance", true)) {
+          req->send(400, "text/plain", "Missing mac or distance parameter");
+          return;
+      }
+      
+      String targetMac = req->getParam("mac", true)->value();
+      float distance = req->getParam("distance", true)->value().toFloat();
+      
+      calibratePathLoss(targetMac, distance);
+      req->send(200, "text/plain", "Path loss calibration started for " + targetMac + " at " + String(distance) + "m");
+  });
+
   server->begin();
   Serial.println("[WEB] Server started.");
 }
@@ -2081,6 +2096,19 @@ void processMeshMessage(const String &message) {
             if (macEnd > macStart) {
                 String macStr = content.substring(macStart, macEnd);
                 uint8_t mac[6];
+                
+                bool targetSet = false;
+                for (int i = 0; i < 6; i++) {
+                    if (triangulationTarget[i] != 0) {
+                        targetSet = true;
+                        break;
+                    }
+                }
+                
+                if (!targetSet) {
+                    Serial.println("[TRIANGULATE] WARNING: Target not set, ignoring report");
+                    return;
+                }
                 
                 if (parseMac6(macStr, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
                     int rssiIdx = content.indexOf("RSSI:");

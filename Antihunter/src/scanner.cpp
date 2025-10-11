@@ -1078,11 +1078,20 @@ void listScanTask(void *pv) {
                   modeStr.c_str());
 
     stopRequested = false;
+    
     if (macQueue) {
         vQueueDelete(macQueue);
         macQueue = nullptr;
+        vTaskDelay(pdMS_TO_TICKS(50)); // Let deletion complete
     }
+    
     macQueue = xQueueCreate(512, sizeof(Hit));
+    if (!macQueue) {
+        Serial.println("[SCAN] ERROR: Failed to create macQueue");
+        workerTaskHandle = nullptr;
+        vTaskDelete(nullptr);
+        return;
+    }
 
     uniqueMacs.clear();
     hitsLog.clear();
@@ -1095,7 +1104,11 @@ void listScanTask(void *pv) {
     lastScanSecs = secs;
     lastScanForever = forever;
 
+    vTaskDelay(pdMS_TO_TICKS(200));
+    
     radioStartSTA();
+    
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     uint32_t nextStatus = millis() + 1000;
     std::map<String, uint32_t> deviceLastSeen;
@@ -1282,6 +1295,11 @@ void listScanTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
+    if (triangulationActive) {
+        Serial.println("[SCAN] Triangulation active at scan end, stopping triangulation");
+        stopTriangulation();
+    }
+
     scanning = false;
     lastScanEnd = millis();
 
@@ -1355,6 +1373,7 @@ void listScanTask(void *pv) {
     radioStopSTA();
     delay(500);
     
+    vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1363,14 +1382,13 @@ void cleanupMaps() {
     const size_t MAX_MAP_SIZE = 100;
     const size_t MAX_TIMING_SIZE = 50;
     const size_t MAX_LOG_SIZE = 500;
-    const uint32_t EVICTION_AGE_MS = 30000;  // Remove entries older than 30s
+    const uint32_t EVICTION_AGE_MS = 30000;
     uint32_t now = millis();
 
-    // Clean deauth maps (sources, targets, timings)
     if (deauthSourceCounts.size() > MAX_MAP_SIZE) {
         std::vector<String> toRemove;
         for (const auto& entry : deauthSourceCounts) {
-            if (entry.second < 2) {  // Low activity
+            if (entry.second < 2) {
                 toRemove.push_back(entry.first);
             }
         }

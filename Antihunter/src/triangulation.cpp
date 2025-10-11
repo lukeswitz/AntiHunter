@@ -2,11 +2,15 @@
 #include "scanner.h"
 #include "hardware.h"
 #include <math.h>
+#include <NimBLEDevice.h>
+#include <NimBLEScan.h>
+#include <NimBLEAdvertisedDevice.h>
 
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern volatile bool stopRequested;
 extern ScanMode currentScanMode;
+static TaskHandle_t calibrationTaskHandle = nullptr;
 
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false};
 PathLossCalibration pathLoss = {-40.0, -50.0, 2.5, 2.5, false};
@@ -362,15 +366,33 @@ void startTriangulation(const String &targetMac, int duration) {
         return;
     }
     
+    if (workerTaskHandle) {
+        Serial.println("[TRIANGULATE] Stopping existing scan task...");
+        stopRequested = true;
+        vTaskDelay(pdMS_TO_TICKS(500));
+        workerTaskHandle = nullptr;
+    }
+    
+    if (triangulationActive) {
+        Serial.println("[TRIANGULATE] Already active, stopping first...");
+        stopTriangulation();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
     memcpy(triangulationTarget, macBytes, 6);
     triangulationNodes.clear();
     nodeSyncStatus.clear();
-    triangulationActive = true;
+    
+    triangulationNodes.reserve(10);
+    nodeSyncStatus.reserve(10);
+    
     triangulationStart = millis();
     triangulationDuration = duration;
     
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
+    
+    triangulationActive = true;
     
     Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
     
@@ -379,15 +401,16 @@ void startTriangulation(const String &targetMac, int duration) {
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
     sendMeshCommand(cmd);
     
-    // Create scanning task to detect and report the target
+    vTaskDelay(pdMS_TO_TICKS(100));
+    
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(
-            listScanTask,
-            "triangulate",
+            listScanTask, 
+            "triangulate", 
             8192,
-            (void *)(intptr_t)duration,
-            1,
-            &workerTaskHandle,
+            (void *)(intptr_t)duration, 
+            1, 
+            &workerTaskHandle, 
             1
         );
     }
@@ -427,6 +450,8 @@ void stopTriangulation() {
     memset(triangulationTarget, 0, 6);
 
     Serial.println("[TRIANGULATE] Stopped and results generated");
+
+    vTaskDelay(pdMS_TO_TICKS(100));
 }
 
 float haversineDistance(float lat1, float lon1, float lat2, float lon2) {
@@ -448,104 +473,130 @@ void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east
 }
 
 String calculateTriangulation() {
-  
-    String results = "=== Triangulation Results ===\n";
+    if (!triangulationActive) {
+        return "Triangulation not active\n";
+    }
+    
+    uint32_t elapsed = (millis() - triangulationStart) / 1000;
+    
+    String results = "\n=== Triangulation Results ===\n";
     results += "Target MAC: " + macFmt6(triangulationTarget) + "\n";
     results += "Duration: " + String(triangulationDuration) + "s\n";
-    results += "Elapsed: " + String((millis() - triangulationStart) / 1000) + "s\n";
+    results += "Elapsed: " + String(elapsed) + "s\n";
     results += "Reporting Nodes: " + String(triangulationNodes.size()) + "\n";
     
+    // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
     results += "Clock Sync: " + String(syncVerified ? "VERIFIED (<10ms)" : "WARNING (>10ms)") + "\n\n";
     
+    // Count GPS-equipped nodes
+    int gpsNodeCount = 0;
+    for (const auto& node : triangulationNodes) {
+        if (node.hasGPS) gpsNodeCount++;
+    }
+    
+    // NO NODES RESPONDING :(
+    if (triangulationNodes.size() == 0) {
+        results += "--- No Mesh Nodes Responding ---\n\n";  
+        results += "\n=== End Triangulation ===\n";
+        return results;
+    }
+    
+    // NODES RESPONDING BUT NO GPS
+    if (gpsNodeCount == 0) {
+        results += "--- TRIANGULATION IMPOSSIBLE ---\n\n";
+        results += String(triangulationNodes.size()) + " node(s) reporting, but NONE have GPS\n\n";
+        results += "Cannot triangulate without position data.\n";
+        results += "Triangulation requires GPS coordinates from nodes.\n\n";
+        results += "Enable GPS on mesh nodes:\n";
+        results += "  • Check GPS module connection\n";
+        results += "  • Wait for satellite lock (LED indicator)\n";
+        results += "  • Check '/gps' endpoint on each node\n";
+        
+        results += "\n=== End Triangulation ===\n";
+        return results;
+    }
+    
+    // INSUFFICIENT GPS NODES
+    if (gpsNodeCount < 3) {
+        results += "--- Insufficient GPS Nodes ---\n\n";
+        results += "GPS nodes: " + String(gpsNodeCount) + "/3 required\n";
+        results += "Total nodes: " + String(triangulationNodes.size()) + "\n\n";
+        
+        results += "Cannot triangulate with < 3 GPS positions.\n";
+        results += "Need " + String(3 - gpsNodeCount) + " more GPS-equipped node(s).\n\n";
+        
+        results += "Current GPS nodes:\n";
+        for (const auto& node : triangulationNodes) {
+            if (node.hasGPS) {
+                results += "  • " + node.nodeId + " @ ";
+                results += String(node.lat, 6) + "," + String(node.lon, 6) + "\n";
+            }
+        }
+        
+        results += "\nNon-GPS nodes:\n";
+        for (const auto& node : triangulationNodes) {
+            if (!node.hasGPS) {
+                results += "  • " + node.nodeId + " (enable GPS)\n";
+            }
+        }
+        
+        results += "\n=== End Triangulation ===\n";
+        return results;
+    }
+    
+    // WE HAVE 3+ GPS NODES - DO THINGS!
     std::vector<TriangulationNode> gpsNodes;
     
     results += "--- Node Reports ---\n";
     for (const auto& node : triangulationNodes) {
         results += node.nodeId + ": ";
-        results += "Raw=" + String(node.rssi) + "dBm ";
         results += "Filtered=" + String(node.filteredRssi, 1) + "dBm ";
         results += "Hits=" + String(node.hitCount) + " ";
-        results += "Q=" + String(node.signalQuality, 2) + " ";
+        results += "Q=" + String(node.signalQuality * 100.0, 0) + "% ";
         
         if (node.hasGPS) {
             results += "GPS=" + String(node.lat, 6) + "," + String(node.lon, 6) + " ";
             results += "Dist=" + String(node.distanceEstimate, 1) + "m";
             gpsNodes.push_back(node);
         } else {
-            results += "GPS=UNAVAILABLE";
+            results += "GPS=NO";
         }
         results += "\n";
     }
     results += "\n";
     
-    if (gpsNodes.size() >= 3) {
-        results += "--- Weighted GPS Trilateration ---\n";
-        results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n";
-        results += "Algorithm: Kalman-filtered RSSI + weighted least squares\n\n";
+    results += "--- Weighted GPS Trilateration ---\n";
+    results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n\n";
+    
+    float estLat, estLon, confidence;
+    if (performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
+        results += "ESTIMATED POSITION:\n";
+        results += "  Latitude:  " + String(estLat, 6) + "\n";
+        results += "  Longitude: " + String(estLon, 6) + "\n";
+        results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
         
-        float estLat, estLon, confidence;
-        if (performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
-            results += "ESTIMATED POSITION:\n";
-            results += "  Latitude:  " + String(estLat, 6) + "\n";
-            results += "  Longitude: " + String(estLon, 6) + "\n";
-            results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
-            results += "  Method: Weighted trilateration + Kalman filtering\n";
-            
-            float avgDist = 0.0;
-            for (const auto &node : gpsNodes) {
-                avgDist += node.distanceEstimate;
-            }
-            avgDist /= gpsNodes.size();
-            
-            float uncertainty = avgDist * (0.15 + (1.0 - confidence) * 0.35);
-            results += "  Est.Uncertainty: ±" + String(uncertainty, 1) + "m\n";
-            results += "  Sync Status: " + String(syncVerified ? "Verified" : "Degraded") + "\n\n";
-            
-            String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
-            results += "  Maps URL: " + mapsUrl + "\n";
-        } else {
-            results += "TRILATERATION FAILED\n";
-            results += "Reason: Insufficient signal quality or geometric dilution\n";
+        float avgDist = 0.0;
+        for (const auto &node : gpsNodes) {
+            avgDist += node.distanceEstimate;
         }
+        avgDist /= gpsNodes.size();
         
-    } else if (gpsNodes.size() > 0) {
-        results += "--- Insufficient GPS Data ---\n";
-        results += "GPS nodes: " + String(gpsNodes.size()) + "/3 required\n\n";
+        float uncertainty = avgDist * (0.15 + (1.0 - confidence) * 0.35);
+        results += "  Uncertainty: ±" + String(uncertainty, 1) + "m\n";
+        results += "  Sync: " + String(syncVerified ? "Verified" : "Degraded") + "\n";
+        results += "  GDOP: " + String(calculateGDOP(gpsNodes), 1) + "\n\n";
         
-        if (gpsNodes.size() == 1) {
-            results += "Single node estimation:\n";
-            results += "  Node: " + gpsNodes[0].nodeId + "\n";
-            results += "  Position: " + String(gpsNodes[0].lat, 6) + ", " + String(gpsNodes[0].lon, 6) + "\n";
-            results += "  Target within ~" + String(gpsNodes[0].distanceEstimate, 1) + "m radius\n";
-            results += "  Signal quality: " + String(gpsNodes[0].signalQuality * 100.0, 0) + "%\n";
-        } else if (gpsNodes.size() == 2) {
-            results += "Two-node estimation:\n";
-            results += "Target lies along arc between nodes\n";
-            results += "Distance estimates: " + 
-                      String(gpsNodes[0].distanceEstimate, 1) + "m, " + 
-                      String(gpsNodes[1].distanceEstimate, 1) + "m\n";
-        }
+        String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+        results += "  Maps: " + mapsUrl + "\n";
     } else {
-        results += "--- No GPS Data Available ---\n";
-        results += "RSSI-only analysis:\n";
-        
-        float maxQuality = 0.0;
-        String bestNode = "UNKNOWN";
-        float bestDistance = 0.0;
-        
-        for (const auto& node : triangulationNodes) {
-            if (node.signalQuality > maxQuality) {
-                maxQuality = node.signalQuality;
-                bestNode = node.nodeId;
-                bestDistance = node.distanceEstimate;
-            }
-        }
-        
-        results += "Highest quality signal: " + bestNode + "\n";
-        results += "  Filtered RSSI: " + String(triangulationNodes[0].filteredRssi, 1) + "dBm\n";
-        results += "  Signal quality: " + String(maxQuality * 100.0, 0) + "%\n";
-        results += "  Estimated distance: " + String(bestDistance, 1) + "m\n";
+        results += "TRILATERATION FAILED\n";
+        results += "Reason: Poor geometry or signal quality\n";
+        results += "GDOP: " + String(calculateGDOP(gpsNodes), 1) + " (>3.0 = poor)\n\n";
+        results += "Suggestions:\n";
+        results += "  • Reposition nodes (120° separation ideal)\n";
+        results += "  • Improve signal quality\n";
+        results += "  • Add more GPS nodes\n";
     }
     
     results += "\n=== End Triangulation ===\n";
@@ -628,37 +679,204 @@ int64_t getCorrectedMicroseconds() {
     return (int64_t)currentMicros;
 }
 
-void calibratePathLoss(const String &targetMac, float knownDistance) {
-    Serial.printf("[CALIB] Place target at %.1fm distance. Collecting samples...\n", knownDistance);
+void calibrationTask(void *parameter) {
+    struct CalibParams {
+        uint8_t macBytes[6];
+        float distance;
+    };
+    
+    CalibParams* params = (CalibParams*)parameter;
+    uint8_t macBytes[6];
+    memcpy(macBytes, params->macBytes, 6);
+    float knownDistance = params->distance;
+    delete params;
+    
+    Serial.printf("[CALIB] Starting calibration task for target at %.1fm\n", knownDistance);
+    Serial.println("[CALIB] Collecting WiFi and BLE samples for 30 seconds...");
     
     std::vector<int8_t> wifiSamples;
     std::vector<int8_t> bleSamples;
     
-    uint32_t startTime = millis();
-    while (millis() - startTime < 30000) {
-        delay(100);
+    // Initialize BLE if not already done
+    NimBLEScan* pScan = NimBLEDevice::getScan();
+    if (!pScan) {
+        NimBLEDevice::init("");
+        pScan = NimBLEDevice::getScan();
+        pScan->setActiveScan(true);
+        pScan->setInterval(100);
+        pScan->setWindow(99);
     }
     
-    if (wifiSamples.size() > 10) {
+    uint32_t startTime = millis();
+    uint32_t lastWiFiScan = 0;
+    uint32_t lastBLEScan = 0;
+    
+    while (millis() - startTime < 30000) {
+        uint32_t elapsed = (millis() - startTime) / 1000;
+        
+        // WiFi scan every 3 seconds to avoid blocking
+        if (millis() - lastWiFiScan >= 3000) {
+            int n = WiFi.scanNetworks(false, false, false, 120);
+            for (int i = 0; i < n; i++) {
+                uint8_t *bssid = WiFi.BSSID(i);
+                if (memcmp(bssid, macBytes, 6) == 0) {
+                    int8_t rssi = WiFi.RSSI(i);
+                    wifiSamples.push_back(rssi);
+                    Serial.printf("[CALIB] [%02ds] WiFi #%d: %d dBm\n", 
+                                 elapsed, wifiSamples.size(), rssi);
+                }
+            }
+            WiFi.scanDelete();
+            lastWiFiScan = millis();
+            vTaskDelay(pdMS_TO_TICKS(100)); // Yield to other tasks
+        }
+        
+        // BLE scan every 3 seconds
+        if (millis() - lastBLEScan >= 3000) {
+            pScan->start(1, false);
+            NimBLEScanResults results = pScan->getResults();
+            
+            for (int i = 0; i < results.getCount(); i++) {
+                const NimBLEAdvertisedDevice* device = results.getDevice(i);
+                String deviceMacStr = device->getAddress().toString().c_str();
+                
+                uint8_t deviceMac[6];
+                if (parseMac6(deviceMacStr, deviceMac) && 
+                    memcmp(deviceMac, macBytes, 6) == 0) {
+                    int8_t rssi = device->getRSSI();
+                    bleSamples.push_back(rssi);
+                    Serial.printf("[CALIB] [%02ds] BLE #%d: %d dBm\n", 
+                                 elapsed, bleSamples.size(), rssi);
+                }
+            }
+            
+            pScan->clearResults();
+            lastBLEScan = millis();
+            vTaskDelay(pdMS_TO_TICKS(100)); // get out of the way of other tasks
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    
+    Serial.println("\n[CALIB] ========== CALIBRATION RESULTS ==========");
+    
+    // WiFi calibration
+    if (wifiSamples.size() >= 10) {
         float meanRssi = 0;
-        for (int8_t rssi : wifiSamples) meanRssi += rssi;
+        for (int8_t rssi : wifiSamples) {
+            meanRssi += rssi;
+        }
         meanRssi /= wifiSamples.size();
         
-        pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance);
-        pathLoss.calibrated = true;
+        float variance = 0;
+        for (int8_t rssi : wifiSamples) {
+            float diff = rssi - meanRssi;
+            variance += diff * diff;
+        }
+        variance /= wifiSamples.size();
+        float stdDev = sqrt(variance);
         
-        Serial.printf("[CALIB] WiFi calibrated: RSSI0=%.1f dBm\n", pathLoss.rssi0_wifi);
+        pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance);
+        
+        Serial.println("[CALIB] WiFi Calibration: SUCCESS");
+        Serial.printf("  Distance: %.1f m\n", knownDistance);
+        Serial.printf("  Samples: %d\n", wifiSamples.size());
+        Serial.printf("  Mean RSSI: %.1f dBm\n", meanRssi);
+        Serial.printf("  Std Dev: %.1f dB\n", stdDev);
+        Serial.printf("  Path loss exponent (n): %.2f\n", pathLoss.n_wifi);
+        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLoss.rssi0_wifi);
+    } else {
+        Serial.printf("[CALIB] WiFi Calibration: FAILED\n");
+        Serial.printf("  Insufficient samples: %d (need ≥10)\n", wifiSamples.size());
     }
     
-    if (bleSamples.size() > 10) {
+    // BLE calibration
+    if (bleSamples.size() >= 10) {
         float meanRssi = 0;
-        for (int8_t rssi : bleSamples) meanRssi += rssi;
+        for (int8_t rssi : bleSamples) {
+            meanRssi += rssi;
+        }
         meanRssi /= bleSamples.size();
+        
+        float variance = 0;
+        for (int8_t rssi : bleSamples) {
+            float diff = rssi - meanRssi;
+            variance += diff * diff;
+        }
+        variance /= bleSamples.size();
+        float stdDev = sqrt(variance);
         
         pathLoss.rssi0_ble = meanRssi + 10.0 * pathLoss.n_ble * log10(knownDistance);
         
-        Serial.printf("[CALIB] BLE calibrated: RSSI0=%.1f dBm\n", pathLoss.rssi0_ble);
+        Serial.println("[CALIB] BLE Calibration: SUCCESS");
+        Serial.printf("  Distance: %.1f m\n", knownDistance);
+        Serial.printf("  Samples: %d\n", bleSamples.size());
+        Serial.printf("  Mean RSSI: %.1f dBm\n", meanRssi);
+        Serial.printf("  Std Dev: %.1f dB\n", stdDev);
+        Serial.printf("  Path loss exponent (n): %.2f\n", pathLoss.n_ble);
+        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLoss.rssi0_ble);
+    } else {
+        Serial.printf("[CALIB] BLE Calibration: FAILED\n");
+        Serial.printf("  Insufficient samples: %d (need ≥10)\n", bleSamples.size());
     }
+    
+    if (wifiSamples.size() >= 10 || bleSamples.size() >= 10) {
+        pathLoss.calibrated = true;
+        Serial.println("\n[CALIB] Status: CALIBRATED");
+    } else {
+        Serial.println("\n[CALIB] Status: FAILED");
+    }
+    
+    Serial.println("[CALIB] ==========================================\n");
+    
+    // Clean up
+    calibrationTaskHandle = nullptr;
+    vTaskDelete(nullptr);
+}
+
+void calibratePathLoss(const String &targetMac, float knownDistance) {
+    uint8_t macBytes[6];
+    if (!parseMac6(targetMac, macBytes)) {
+        Serial.printf("[CALIB] Invalid MAC format: %s\n", targetMac.c_str());
+        return;
+    }
+    
+    if (calibrationTaskHandle) {
+        Serial.println("[CALIB] Calibration already in progress");
+        return;
+    }
+    
+    if (triangulationActive) {
+        Serial.println("[CALIB] ERROR: Cannot calibrate during triangulation");
+        return;
+    }
+    
+    if (workerTaskHandle) {
+        Serial.println("[CALIB] WARNING: Scan task active, may interfere");
+    }
+    
+    // Allocate parameters on heap
+    struct CalibParams {
+        uint8_t macBytes[6];
+        float distance;
+    };
+    
+    CalibParams* params = new CalibParams();
+    memcpy(params->macBytes, macBytes, 6);
+    params->distance = knownDistance;
+    
+    // Create calibration task on core 1
+    xTaskCreatePinnedToCore(
+        calibrationTask,
+        "calibrate",
+        8192,
+        (void*)params,
+        1,
+        &calibrationTaskHandle,
+        1
+    );
+    
+    Serial.println("[CALIB] Calibration task started");
 }
 
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros) {
