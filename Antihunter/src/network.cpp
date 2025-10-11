@@ -2132,163 +2132,150 @@ void processMeshMessage(const String &message) {
         String sendingNode = cleanMessage.substring(0, colonPos);
         String content = cleanMessage.substring(colonPos + 2);
         
-        if (content.startsWith("TRIANGULATE_ACK:")) {
-            bool nodeExists = false;
-            for (auto &node : triangulationNodes) {
-                if (node.nodeId == sendingNode) {
-                    nodeExists = true;
-                    break;
-                }
-            }
-            
-            if (!nodeExists) {
-                TriangulationNode newNode;
-                newNode.nodeId = sendingNode;
-                newNode.rssi = -127;
-                newNode.filteredRssi = -127;
-                newNode.hasGPS = false;
-                newNode.lat = 0.0;
-                newNode.lon = 0.0;
-                newNode.hitCount = 0;
-                newNode.lastUpdate = millis();
-                newNode.distanceEstimate = 0.0;
-                newNode.signalQuality = 0.0;
-                newNode.kalmanFilter.initialized = false;
-                triangulationNodes.push_back(newNode);
-                
-                Serial.printf("[TRIANGULATE] Node registered: %s\n", sendingNode.c_str());
-            }
-        }
-        
         if (content.startsWith("Target:")) {
-            int macStart = content.indexOf(' ', 7) + 1;
-            int macEnd = content.indexOf(' ', macStart);
-            
-            if (macEnd > macStart) {
-                String macStr = content.substring(macStart, macEnd);
-                uint8_t mac[6];
-                
-                bool targetSet = false;
-                for (int i = 0; i < 6; i++) {
-                    if (triangulationTarget[i] != 0) {
-                        targetSet = true;
-                        break;
-                    }
-                }
-                
-                if (!targetSet) {
-                    Serial.println("[TRIANGULATE] WARNING: Target not set, ignoring report");
-                    return;
-                }
-                
-                if (parseMac6(macStr, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
-                    int rssiIdx = content.indexOf("RSSI:");
-                    int rssi = -127;
-                    if (rssiIdx > 0) {
-                        int rssiEnd = content.indexOf(' ', rssiIdx + 5);
-                        if (rssiEnd < 0) rssiEnd = content.length();
-                        rssi = content.substring(rssiIdx + 5, rssiEnd).toInt();
-                    }
-                    
-                    float lat = 0, lon = 0;
-                    bool hasGPS = false;
-                    int gpsIdx = content.indexOf("GPS=");
-                    if (gpsIdx > 0) {
-                        int commaIdx = content.indexOf(',', gpsIdx);
-                        if (commaIdx > 0) {
-                            lat = content.substring(gpsIdx + 4, commaIdx).toFloat();
-                            int gpsEnd = content.indexOf(' ', commaIdx);
-                            if (gpsEnd < 0) gpsEnd = content.length();
-                            lon = content.substring(commaIdx + 1, gpsEnd).toFloat();
-                            hasGPS = true;
-                        }
-                    }
-                    
-                    bool found = false;
-                    for (auto &node : triangulationNodes) {
-                        if (node.nodeId == sendingNode) {
-                            updateNodeRSSI(node, rssi);
-                            node.hitCount++;
-                            if (hasGPS) {
-                                node.lat = lat;
-                                node.lon = lon;
-                                node.hasGPS = true;
-                            }
-                            node.distanceEstimate = rssiToDistance(node);
-                            found = true;
-                            Serial.printf("[TRIANGULATE] Updated %s: RSSI=%d->%.1f dist=%.1fm Q=%.2f\n",
-                                        sendingNode.c_str(), rssi, node.filteredRssi, 
-                                        node.distanceEstimate, node.signalQuality);
-                            break;
-                        }
-                    }
-                    
-                    if (!found) {
-                        TriangulationNode newNode;
-                        newNode.nodeId = sendingNode;
-                        newNode.lat = lat;
-                        newNode.lon = lon;
-                        newNode.rssi = rssi;
-                        newNode.hitCount = 1;
-                        newNode.hasGPS = hasGPS;
-                        newNode.lastUpdate = millis();
-                        initNodeKalmanFilter(newNode);
-                        updateNodeRSSI(newNode, rssi);
-                        newNode.distanceEstimate = rssiToDistance(newNode);
-                        triangulationNodes.push_back(newNode);
-                        Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
-                                    sendingNode.c_str(), rssi, newNode.distanceEstimate);
-                    }
-                }
-            }
-        }
-        
-        if (content.startsWith("TIME_SYNC_REQ:")) {
-            int firstColon = content.indexOf(':', 14);
-            if (firstColon > 0) {
-                int secondColon = content.indexOf(':', firstColon + 1);
-                if (secondColon > 0) {
-                    time_t theirTime = content.substring(14, firstColon).toInt();
-                    uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
-                    
-                    handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
-                    
-                    time_t myTime = getRTCEpoch();
-                    uint32_t myMillis = millis();
-                    String response = getNodeId() + ": TIME_SYNC_RESP:" + 
-                                    String((unsigned long)myTime) + ":" + 
-                                    String(myMillis);
-                    if (Serial1.availableForWrite() >= response.length()) {
-                        Serial1.println(response);
-                    }
-                }
-            }
-        }
-        
-        if (content.startsWith("TIME_SYNC_RESP:")) {
-            int firstColon = content.indexOf(':', 15);
-            if (firstColon > 0) {
-                int secondColon = content.indexOf(':', firstColon + 1);
-                if (secondColon > 0) {
-                    time_t theirTime = content.substring(15, firstColon).toInt();
-                    uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
-                    handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
-                }
-            }
-        }
-    }    
+          int macStart = content.indexOf(' ', 7) + 1;
+          int macEnd = content.indexOf(' ', macStart);
+          
+          if (macEnd > macStart) {
+              String macStr = content.substring(macStart, macEnd);
+              uint8_t mac[6];
+              bool targetSet = false;
 
-    if (cleanMessage.startsWith("@")) {
-        int spaceIndex = cleanMessage.indexOf(' ');
-        if (spaceIndex > 0) {
-            String targetId = cleanMessage.substring(1, spaceIndex);
-            if (targetId != nodeId && targetId != "ALL") return;
-            String command = cleanMessage.substring(spaceIndex + 1);
-            processCommand(command);
-        }
-    } else {
-        processCommand(cleanMessage);
-    }
+              for (int i = 0; i < 6; i++) {
+                  if (triangulationTarget[i] != 0) {
+                      targetSet = true;
+                      break;
+                  }
+              }
+
+              if (!targetSet) {
+                  Serial.println("[TRIANGULATE] WARNING: Target not set, ignoring report");
+                  return;
+              }
+              
+              if (parseMac6(macStr, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
+                  int rssiIdx = content.indexOf("RSSI:");
+                  int rssi = -127;
+                  if (rssiIdx > 0) {
+                      int rssiEnd = content.indexOf(' ', rssiIdx + 5);
+                      if (rssiEnd < 0) rssiEnd = content.length();
+                      rssi = content.substring(rssiIdx + 5, rssiEnd).toInt();
+                  }
+
+                  float lat = 0, lon = 0;
+                  bool hasGPS = false;
+                  int gpsIdx = content.indexOf("GPS=");
+                  if (gpsIdx > 0) {
+                      int commaIdx = content.indexOf(',', gpsIdx);
+                      if (commaIdx > 0) {
+                          lat = content.substring(gpsIdx + 4, commaIdx).toFloat();
+                          int gpsEnd = content.indexOf(' ', commaIdx);
+                          if (gpsEnd < 0) gpsEnd = content.length();
+                          lon = content.substring(commaIdx + 1, gpsEnd).toFloat();
+                          hasGPS = true;
+                      }
+                  }
+                  
+                  // Find existing node
+                  bool found = false;
+                  for (auto &node : triangulationNodes) {
+                      if (node.nodeId == sendingNode) {
+                          updateNodeRSSI(node, rssi);
+                          node.hitCount++;
+                          if (hasGPS) {
+                              node.lat = lat;
+                              node.lon = lon;
+                              node.hasGPS = true;
+                          }
+                          node.distanceEstimate = rssiToDistance(node);
+                          found = true;
+                          Serial.printf("[TRIANGULATE] Updated %s: RSSI=%d->%.1f dist=%.1fm Q=%.2f\n",
+                                      sendingNode.c_str(), rssi, node.filteredRssi, 
+                                      node.distanceEstimate, node.signalQuality);
+                          break;
+                      }
+                  }
+                  
+                  // Create node
+                  if (!found) {
+                      TriangulationNode newNode;
+                      newNode.nodeId = sendingNode;
+                      newNode.lat = lat;
+                      newNode.lon = lon;
+                      newNode.rssi = rssi;
+                      newNode.hitCount = 0;
+                      newNode.hasGPS = hasGPS;
+                      newNode.lastUpdate = millis();
+                      newNode.filteredRssi = (float)rssi;
+                      newNode.distanceEstimate = 0.0;
+                      newNode.signalQuality = 0.5;
+                      newNode.rssiHistory.clear();
+                      newNode.rssiRawWindow.clear();
+                      
+                      initNodeKalmanFilter(newNode);
+                      updateNodeRSSI(newNode, rssi);
+                      newNode.distanceEstimate = rssiToDistance(newNode);
+                      
+                      triangulationNodes.push_back(newNode);
+                      Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm GPS=%s\n",
+                                  sendingNode.c_str(), rssi, newNode.distanceEstimate,
+                                  hasGPS ? "YES" : "NO");
+                  }
+              }
+          }
+      }
+
+      if (content.startsWith("TRIANGULATE_ACK:")) {
+          Serial.printf("[TRIANGULATE] Node %s acknowledged triangulation command\n", 
+                        sendingNode.c_str());
+      }
+      
+      if (content.startsWith("TIME_SYNC_REQ:")) {
+          int firstColon = content.indexOf(':', 14);
+          if (firstColon > 0) {
+              int secondColon = content.indexOf(':', firstColon + 1);
+              if (secondColon > 0) {
+                  time_t theirTime = content.substring(14, firstColon).toInt();
+                  uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
+                  
+                  handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
+                  
+                  time_t myTime = getRTCEpoch();
+                  uint32_t myMillis = millis();
+                  String response = getNodeId() + ": TIME_SYNC_RESP:" + 
+                                  String((unsigned long)myTime) + ":" + 
+                                  String(myMillis);
+                  if (Serial1.availableForWrite() >= response.length()) {
+                      Serial1.println(response);
+                  }
+              }
+          }
+      }
+      
+      if (content.startsWith("TIME_SYNC_RESP:")) {
+          int firstColon = content.indexOf(':', 15);
+          if (firstColon > 0) {
+              int secondColon = content.indexOf(':', firstColon + 1);
+              if (secondColon > 0) {
+                  time_t theirTime = content.substring(15, firstColon).toInt();
+                  uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
+                  handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
+              }
+          }
+      }
+  }    
+
+  if (cleanMessage.startsWith("@")) {
+      int spaceIndex = cleanMessage.indexOf(' ');
+      if (spaceIndex > 0) {
+          String targetId = cleanMessage.substring(1, spaceIndex);
+          if (targetId != nodeId && targetId != "ALL") return;
+          String command = cleanMessage.substring(spaceIndex + 1);
+          processCommand(command);
+      }
+  } else {
+      processCommand(cleanMessage);
+  }
 }
 
 void processUSBToMesh() {

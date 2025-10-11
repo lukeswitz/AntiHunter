@@ -1288,6 +1288,56 @@ void listScanTask(void *pv) {
             Serial.printf("[HIT] %s\n", logEntry.c_str());
             logToSD(logEntry);
             sendMeshNotification(h);
+
+            if (triangulationActive) {
+                if (memcmp(h.mac, triangulationTarget, 6) == 0) {
+                    String myNodeId = getNodeId();
+                    
+                    // Check if we in the node list
+                    bool found = false;
+                    for (auto &node : triangulationNodes) {
+                        if (node.nodeId == myNodeId) {
+                            updateNodeRSSI(node, h.rssi);
+                            node.hitCount++;
+                            if (gpsValid) {
+                                node.lat = gpsLat;
+                                node.lon = gpsLon;
+                                node.hasGPS = true;
+                            }
+                            node.distanceEstimate = rssiToDistance(node);
+                            found = true;
+                            Serial.printf("[TRIANGULATE] Updated self: RSSI=%d dist=%.1fm\n",
+                                        h.rssi, node.distanceEstimate);
+                            break;
+                        }
+                    }
+                    
+                    // If not found, add ourselves as a node
+                    if (!found) {
+                        TriangulationNode selfNode;
+                        selfNode.nodeId = myNodeId;
+                        selfNode.lat = gpsLat;
+                        selfNode.lon = gpsLon;
+                        selfNode.rssi = h.rssi;
+                        selfNode.hitCount = 1;
+                        selfNode.hasGPS = gpsValid;
+                        selfNode.lastUpdate = millis();
+                        selfNode.filteredRssi = (float)h.rssi;
+                        selfNode.distanceEstimate = 0.0;
+                        selfNode.signalQuality = 0.5;
+                        selfNode.rssiHistory.clear();
+                        selfNode.rssiRawWindow.clear();
+                        
+                        initNodeKalmanFilter(selfNode);
+                        updateNodeRSSI(selfNode, h.rssi);
+                        selfNode.distanceEstimate = rssiToDistance(selfNode);
+                        
+                        triangulationNodes.push_back(selfNode);
+                        Serial.printf("[TRIANGULATE] Added self: RSSI=%d dist=%.1fm\n",
+                                    h.rssi, selfNode.distanceEstimate);
+                    }
+                }
+            }
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
