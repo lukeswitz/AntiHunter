@@ -2032,7 +2032,7 @@ void processCommand(const String &command)
   }
   else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);
-    int colonPos = params.indexOf(':');
+    int colonPos = params.lastIndexOf(':');
     String mac = params.substring(0, colonPos);
     int duration = params.substring(colonPos + 1).toInt();
 
