@@ -470,6 +470,36 @@ void stopTriangulation() {
         Serial1.println(resultMsg);
     }
 
+    // Send this data for child nodes
+    String myNodeId = getNodeId();
+    int selfHits = 0;
+    int8_t selfBestRSSI = -128;
+    bool selfDetected = false;
+    
+    for (const auto& node : triangulationNodes) {
+        if (node.nodeId == myNodeId) {
+            selfHits = node.hitCount;
+            selfBestRSSI = node.rssi;
+            selfDetected = true;
+            break;
+        }
+    }
+    
+    if (selfDetected && selfHits > 0) {
+        String dataMsg = myNodeId + ": TARGET_DATA: " + macFmt6(triangulationTarget) + 
+                        " Hits=" + String(selfHits) + 
+                        " RSSI:" + String(selfBestRSSI);
+        
+        if (gpsValid) {
+            dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+        }
+        
+        if (Serial1.availableForWrite() >= dataMsg.length()) {
+            Serial1.println(dataMsg);
+            Serial.printf("[TRIANGULATE] Sent self-detection data: %s\n", dataMsg.c_str());
+        }
+    }
+
     triangulationActive = false;
     triangulationDuration = 0;
     memset(triangulationTarget, 0, 6);
