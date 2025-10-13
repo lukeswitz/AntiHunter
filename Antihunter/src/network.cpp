@@ -469,6 +469,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let selectedMode = '0';
       let baselineUpdateInterval = null;
       let lastScanningState = false;
+      let triangulationPollInterval = null;
       
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -696,22 +697,42 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
 
           if (taskType === 'triangulate') {
+              // Start dedicated triangulation polling if not already active
+              if (!triangulationPollInterval) {
+                triangulationPollInterval = setInterval(pollTriangulationStatus, 2000);
+                // Immediate poll
+                pollTriangulationStatus();
+              }
+              
               const triangulateBtn = document.querySelector('#s button');
               if (triangulateBtn) {
-                triangulateBtn.textContent = 'Stop Scan';
+                triangulateBtn.textContent = 'Stop Triangulation';
                 triangulateBtn.classList.remove('primary');
                 triangulateBtn.classList.add('danger');
                 triangulateBtn.style.background = '#001b12';
                 triangulateBtn.type = 'button';
                 triangulateBtn.onclick = function(e) {
                   e.preventDefault();
-                  fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                  fetch('/stop').then(r => r.text()).then(t => {
+                    toast(t);
+                    // Clear triangulation polling on manual stop
+                    if (triangulationPollInterval) {
+                      clearInterval(triangulationPollInterval);
+                      triangulationPollInterval = null;
+                    }
+                  }).then(() => {
                     setTimeout(async () => {
                       const refreshedDiag = await fetch('/diag').then(r => r.text());
                       updateStatusIndicators(refreshedDiag);
                     }, 500);
                   });
                 };
+              }
+            } else {
+              // Not in triangulation mode, clear it out
+              if (triangulationPollInterval) {
+                clearInterval(triangulationPollInterval);
+                triangulationPollInterval = null;
               }
             }
           
@@ -1056,6 +1077,40 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           lastScanningState = isScanning;
         } catch (e) {}
+      }
+
+      async function pollTriangulationStatus() {
+        try {
+          const statusResponse = await fetch('/triangulate/status');
+          const statusData = await statusResponse.json();
+          
+          if (statusData.active) {
+            // Fetch and update results while triangulation is active
+            const resultsResponse = await fetch('/results');
+            const resultsText = await resultsResponse.text();
+            
+            const resultsElement = document.getElementById('r');
+            if (resultsElement && !resultsElement.contains(document.activeElement)) {
+              resultsElement.innerText = resultsText;
+            }
+            
+            // Update status indicators if triangulation card exists
+            const triangStatus = document.getElementById('triangulationStatus');
+            if (triangStatus) {
+              triangStatus.textContent = `Active: ${statusData.nodes} nodes | ${statusData.elapsed}/${statusData.duration}s`;
+            }
+          } else if (triangulationPollInterval) {
+            // Triangulation ended, clear interval and do final fetch
+            clearInterval(triangulationPollInterval);
+            triangulationPollInterval = null;
+            
+            const finalResults = await fetch('/results');
+            const finalText = await finalResults.text();
+            document.getElementById('r').innerText = finalText;
+          }
+        } catch (error) {
+          console.error('[TRIANGULATION] Status poll error:', error);
+        }
       }
       
       document.getElementById('triangulate').addEventListener('change', e => {
@@ -2327,16 +2382,23 @@ void processMeshMessage(const String &message) {
         }
     }    
 
-    if (cleanMessage.startsWith("@")) {
-        int spaceIndex = cleanMessage.indexOf(' ');
+    // Strip node ID for triangulation
+    String commandMessage = cleanMessage;
+    int nodeIdEnd = commandMessage.indexOf(": ");
+    if (nodeIdEnd > 0 && nodeIdEnd < 25) {
+        commandMessage = commandMessage.substring(nodeIdEnd + 2);
+    }
+
+    if (commandMessage.startsWith("@")) {
+        int spaceIndex = commandMessage.indexOf(' ');
         if (spaceIndex > 0) {
-            String targetId = cleanMessage.substring(1, spaceIndex);
+            String targetId = commandMessage.substring(1, spaceIndex);
             if (targetId != nodeId && targetId != "ALL") return;
-            String command = cleanMessage.substring(spaceIndex + 1);
+            String command = commandMessage.substring(spaceIndex + 1);
             processCommand(command);
         }
     } else {
-        processCommand(cleanMessage);
+        processCommand(commandMessage);
     }
 }
 
