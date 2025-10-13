@@ -403,6 +403,7 @@ void startTriangulation(const String &targetMac, int duration) {
     Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
     
     broadcastTimeSyncRequest();
+    delay(3000);
     
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
     sendMeshCommand(cmd);
@@ -469,6 +470,8 @@ void stopTriangulation() {
     if (Serial1.availableForWrite() >= resultMsg.length()) {
         Serial1.println(resultMsg);
     }
+
+    delay(3000);
 
     // Send this data for child nodes
     String myNodeId = getNodeId();
