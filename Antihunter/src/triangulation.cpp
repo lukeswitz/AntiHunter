@@ -5,13 +5,17 @@
 #include <NimBLEDevice.h>
 #include <NimBLEScan.h>
 #include <NimBLEAdvertisedDevice.h>
+#include <TinyGPSPlus.h>
 
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern volatile bool stopRequested;
 extern ScanMode currentScanMode;
-static TaskHandle_t calibrationTaskHandle = nullptr;
+extern TinyGPSPlus gps;
+extern float gpsLat, gpsLon;
+extern bool gpsValid;
 
+static TaskHandle_t calibrationTaskHandle = nullptr;
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false};
 PathLossCalibration pathLoss = {-40.0, -50.0, 2.5, 2.5, false};
 std::map<String, uint32_t> nodePropagationDelays;
@@ -22,7 +26,6 @@ uint8_t triangulationTarget[6];
 uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
 bool triangulationActive = false;
-
 
 // Helpers
 bool isTriangulationActive() {
@@ -40,33 +43,50 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     return distance;
 }
 
-float calculateGDOP(const std::vector<TriangulationNode> &nodes) {
-    if (nodes.size() < 3) return 999.9;
+float getAverageHDOP(const std::vector<TriangulationNode> &nodes) {
+    if (nodes.size() == 0) return 99.9;
     
-    float minAngle = 180.0;
-    for (size_t i = 0; i < nodes.size(); i++) {
-        for (size_t j = i + 1; j < nodes.size(); j++) {
-            float dx1 = nodes[i].lat;
-            float dy1 = nodes[i].lon;
-            float dx2 = nodes[j].lat;
-            float dy2 = nodes[j].lon;
-            
-            float dot = dx1 * dx2 + dy1 * dy2;
-            float mag1 = sqrt(dx1*dx1 + dy1*dy1);
-            float mag2 = sqrt(dx2*dx2 + dy2*dy2);
-            
-            if (mag1 > 0 && mag2 > 0) {
-                float angle = acos(dot / (mag1 * mag2)) * 180.0 / M_PI;
-                if (angle < minAngle) minAngle = angle;
-            }
+    float totalHDOP = 0.0;
+    int validCount = 0;
+    
+    for (const auto& node : nodes) {
+        if (node.hasGPS && node.hdop > 0.0 && node.hdop < 50.0) {
+            totalHDOP += node.hdop;
+            validCount++;
         }
     }
     
-    if (minAngle < 20.0) return 9.0;
-    if (minAngle < 30.0) return 5.0;
-    if (minAngle < 45.0) return 3.0;
-    return 1.5;
+    if (validCount == 0) return 99.9;
+    return totalHDOP / validCount;
 }
+
+// float calculateGDOP(const std::vector<TriangulationNode> &nodes) {
+//     if (nodes.size() < 3) return 999.9;
+    
+//     float minAngle = 180.0;
+//     for (size_t i = 0; i < nodes.size(); i++) {
+//         for (size_t j = i + 1; j < nodes.size(); j++) {
+//             float dx1 = nodes[i].lat;
+//             float dy1 = nodes[i].lon;
+//             float dx2 = nodes[j].lat;
+//             float dy2 = nodes[j].lon;
+            
+//             float dot = dx1 * dx2 + dy1 * dy2;
+//             float mag1 = sqrt(dx1*dx1 + dy1*dy1);
+//             float mag2 = sqrt(dx2*dx2 + dy2*dy2);
+            
+//             if (mag1 > 0 && mag2 > 0) {
+//                 float angle = acos(dot / (mag1 * mag2)) * 180.0 / M_PI;
+//                 if (angle < minAngle) minAngle = angle;
+//             }
+//         }
+//     }
+    
+//     if (minAngle < 20.0) return 9.0;
+//     if (minAngle < 30.0) return 5.0;
+//     if (minAngle < 45.0) return 3.0;
+//     return 1.5;
+// }
 
 void initNodeKalmanFilter(TriangulationNode &node) {
     node.kalmanFilter.estimate = (float)node.rssi;
@@ -147,8 +167,11 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
                   return a.signalQuality > b.signalQuality;
               });
     
-    float gdop = calculateGDOP(sortedNodes);
-    if (gdop > 6.0) return false;
+    // float gdop = calculateGDOP(sortedNodes);
+    // if (gdop > 6.0) return false;
+    
+    float avgHDOP = getAverageHDOP(sortedNodes);
+    if (avgHDOP > 15.0) return false;
     
     float refLat = 0.0;
     float refLon = 0.0;
@@ -221,7 +244,7 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
     }
     avgQuality /= numNodes;
     
-    confidence = avgQuality * (1.0 - 0.1 * (gdop - 1.0)) * (1.0 - 0.05 * (numNodes - 3));
+    confidence = avgQuality * (1.0 - 0.1 * (avgHDOP - 1.0)) * (1.0 - 0.05 * (numNodes - 3));
     confidence = constrain(confidence, 0.0, 1.0);
     
     return true;
@@ -379,7 +402,6 @@ void startTriangulation(const String &targetMac, int duration) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    // Clear old results
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults.clear();
@@ -411,18 +433,11 @@ void startTriangulation(const String &targetMac, int duration) {
     vTaskDelay(pdMS_TO_TICKS(100));
     
     if (!workerTaskHandle) {
-        xTaskCreatePinnedToCore(
-            listScanTask, 
-            "triangulate", 
-            8192,
-            (void *)(intptr_t)duration, 
-            1, 
-            &workerTaskHandle, 
-            1
-        );
+        xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
+                               (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
     }
     
-    Serial.println("[TRIANGULATE] Mesh sync check initiated, scanning active");
+    Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
 }
 
 void stopTriangulation() {
@@ -436,7 +451,37 @@ void stopTriangulation() {
     
     Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", 
                   elapsedSec, triangulationNodes.size());
+
+    Serial.println("[TRIANGULATE] Waiting up to 15s for all node reports...");
+    uint32_t waitStart = millis();
+    uint32_t stableStart = 0;
+    uint32_t lastCount = triangulationNodes.size();
+    const uint32_t MIN_WAIT = 5000;
+    const uint32_t STABLE_TIME = 3000;  // Wait extra if changing
+
+    while ((millis() - waitStart) < 15000) {
+        uint32_t currentSize = triangulationNodes.size();
+        if (currentSize != lastCount) {
+            Serial.printf("[TRIANGULATE] Nodes collected: %u\n", currentSize);
+            lastCount = currentSize;
+            stableStart = millis();  // Reset timer on change
+        }
+        
+        // Exit early if its stable
+        if ((millis() - stableStart) >= STABLE_TIME && (millis() - waitStart) >= MIN_WAIT) {
+            Serial.printf("[TRIANGULATE] Reports stable after %lus. Total nodes: %u\n", 
+                        (millis() - waitStart)/1000, currentSize);
+            break;
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    if ((millis() - waitStart) >= 15000) {
+        Serial.printf("[TRIANGULATE] Wait complete (15s max). Total nodes: %u\n", triangulationNodes.size());
+    }
     
+    // Calc the results
     String results = calculateTriangulation();
 
     {
@@ -467,13 +512,8 @@ void stopTriangulation() {
         resultMsg += " " + mapsUrl;
     }
     
-    if (Serial1.availableForWrite() >= resultMsg.length()) {
-        Serial1.println(resultMsg);
-    }
+    vTaskDelay(pdMS_TO_TICKS(3000));
 
-    delay(3000);
-
-    // Send this data for child nodes
     String myNodeId = getNodeId();
     int selfHits = 0;
     int8_t selfBestRSSI = -128;
@@ -494,13 +534,20 @@ void stopTriangulation() {
                         " RSSI:" + String(selfBestRSSI);
         
         if (gpsValid) {
+            float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
             dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            dataMsg += " HDOP=" + String(hdop, 1);
         }
         
         if (Serial1.availableForWrite() >= dataMsg.length()) {
             Serial1.println(dataMsg);
             Serial.printf("[TRIANGULATE] Sent self-detection data: %s\n", dataMsg.c_str());
         }
+    }
+
+    // TRIANGULATE_COMPLETE
+    if (Serial1.availableForWrite() >= resultMsg.length()) {
+        Serial1.println(resultMsg);
     }
 
     triangulationActive = false;
@@ -510,7 +557,7 @@ void stopTriangulation() {
     Serial.println("[TRIANGULATE] Done and results generated");
 }
 
-float haversineDistance(float lat1, float lon1, float lat2, float lon2) {
+float haversineDistance(float lat1, float lon1, float lat2, float lon2) { //TODO make it more accurate 
     const float R = 6371000.0;
     float dLat = (lat2 - lat1) * M_PI / 180.0;
     float dLon = (lon2 - lon1) * M_PI / 180.0;
@@ -605,11 +652,16 @@ String calculateTriangulation() {
         results += node.nodeId + ": ";
         results += "Filtered=" + String(node.filteredRssi, 1) + "dBm ";
         results += "Hits=" + String(node.hitCount) + " ";
-        results += "Q=" + String(node.signalQuality * 100.0, 0) + "% ";
+        results += "Signal=" + String(node.signalQuality * 100.0, 1) + "% ";
         
         if (node.hasGPS) {
             results += "GPS=" + String(node.lat, 6) + "," + String(node.lon, 6) + " ";
             results += "Dist=" + String(node.distanceEstimate, 1) + "m";
+
+            if (node.hdop > 0.0 && node.hdop < 50.0) {
+                results += " HDOP=" + String(node.hdop, 1);
+            }
+
             gpsNodes.push_back(node);
         } else {
             results += "GPS=NO";
@@ -619,7 +671,19 @@ String calculateTriangulation() {
     results += "\n";
     
     results += "--- Weighted GPS Trilateration ---\n";
-    results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n\n";
+    results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n";
+    
+    float avgHDOP = getAverageHDOP(gpsNodes);
+    results += "Average HDOP: " + String(avgHDOP, 1);
+    if (avgHDOP < 2.0) {
+        results += " (EXCELLENT)\n\n";
+    } else if (avgHDOP < 5.0) {
+        results += " (GOOD)\n\n";
+    } else if (avgHDOP < 10.0) {
+        results += " (MODERATE)\n\n";
+    } else {
+        results += " (POOR)\n\n";
+    }
     
     float estLat, estLon, confidence;
     if (performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
@@ -627,6 +691,7 @@ String calculateTriangulation() {
         results += "  Latitude:  " + String(estLat, 6) + "\n";
         results += "  Longitude: " + String(estLon, 6) + "\n";
         results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
+        results += "  Method: Weighted trilateration + Kalman filtering\n";
         
         float avgDist = 0.0;
         for (const auto &node : gpsNodes) {
@@ -635,25 +700,31 @@ String calculateTriangulation() {
         avgDist /= gpsNodes.size();
         
         float uncertainty = avgDist * (0.15 + (1.0 - confidence) * 0.35);
-        results += "  Uncertainty: ±" + String(uncertainty, 1) + "m\n";
-        results += "  Sync: " + String(syncVerified ? "Verified" : "Degraded") + "\n";
-        results += "  GDOP: " + String(calculateGDOP(gpsNodes), 1) + "\n\n";
+        results += "  Est.Uncertainty: ±" + String(uncertainty, 1) + "m\n";
+        results += "  Sync Status: " + String(syncVerified ? "Verified" : "Degraded") + "\n";
+        
+        results += "  GPS Quality: " + String(avgHDOP < 2.0 ? "Excellent" :
+                                            (avgHDOP < 5.0 ? "Good" : 
+                                            (avgHDOP < 10.0 ? "Moderate" : "Poor"))) + "\n\n";
         
         String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
         results += "  Maps: " + mapsUrl + "\n";
     } else {
         results += "TRILATERATION FAILED\n";
         results += "Reason: Poor geometry or signal quality\n";
-        results += "GDOP: " + String(calculateGDOP(gpsNodes), 1) + " (>3.0 = poor)\n\n";
+        results += "Average HDOP: " + String(avgHDOP, 1) + " (>10.0 = poor)\n\n";
+        
         results += "Suggestions:\n";
         results += "  • Reposition nodes (120° separation ideal)\n";
-        results += "  • Improve signal quality\n";
+        results += "  • Improve signal quality with more runtime\n";
         results += "  • Add more GPS nodes\n";
     }
-    
+
     results += "\n=== End Triangulation ===\n";
     return results;
+
 }
+
 
 void disciplineRTCFromGPS() {
     if (!rtcAvailable || !gpsValid) return;
