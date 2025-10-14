@@ -29,6 +29,7 @@ struct TriangulationNode {
     float filteredRssi;
     float distanceEstimate;
     float signalQuality;
+    float hdop;
 };
 
 struct NodeSyncStatus {
@@ -70,7 +71,8 @@ void initNodeKalmanFilter(TriangulationNode &node);
 float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement);
 float haversineDistance(float lat1, float lon1, float lat2, float lon2);
 void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east, float &north);
-float calculateGDOP(const std::vector<TriangulationNode> &nodes);
+float calculateGDOP(const std::vector<TriangulationNode> &nodes); // TODO decide if we need 3D
+float getAverageHDOP(const std::vector<TriangulationNode> &nodes);
 float calculateSignalQuality(const TriangulationNode &node);
 void updateNodeRSSI(TriangulationNode &node, int8_t newRssi);
 float rssiToDistance(const TriangulationNode &node, bool isWiFi = true);
