@@ -1318,6 +1318,7 @@ void listScanTask(void *pv) {
                         selfNode.nodeId = myNodeId;
                         selfNode.lat = gpsLat;
                         selfNode.lon = gpsLon;
+                        selfNode.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
                         selfNode.rssi = h.rssi;
                         selfNode.hitCount = 1;
                         selfNode.hasGPS = gpsValid;
