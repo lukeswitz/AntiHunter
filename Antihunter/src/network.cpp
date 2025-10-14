@@ -2142,26 +2142,32 @@ void processMeshMessage(const String &message) {
                 uint8_t mac[6];
                 
                 if (parseMac6(reportedMac, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
-                    int hitsIdx = payload.indexOf("Hits=");
-                    int rssiIdx = payload.indexOf("RSSI:");
-                    int gpsIdx = payload.indexOf("GPS=");
-                    
-                    if (hitsIdx > 0 && rssiIdx > 0) {
-                        int hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
-                        int rssiEnd = (gpsIdx > 0) ? gpsIdx - 1 : payload.length();
-                        int8_t rssi = payload.substring(rssiIdx + 5, rssiEnd).toInt();
-                        
-                        float lat = 0.0, lon = 0.0;
-                        bool hasGPS = false;
-                        
-                        if (gpsIdx > 0) {
-                            int commaIdx = payload.indexOf(',', gpsIdx);
-                            if (commaIdx > 0) {
-                                lat = payload.substring(gpsIdx + 4, commaIdx).toFloat();
-                                lon = payload.substring(commaIdx + 1).toFloat();
-                                hasGPS = true;
-                            }
-                        }
+                  int hitsIdx = payload.indexOf("Hits=");
+                  int rssiIdx = payload.indexOf("RSSI:");
+                  int gpsIdx = payload.indexOf("GPS=");
+                  int hdopIdx = payload.indexOf("HDOP=");
+
+                  if (hitsIdx > 0 && rssiIdx > 0) {
+                      int hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
+                      int rssiEnd = (gpsIdx > 0) ? gpsIdx - 1 : payload.length();
+                      int8_t rssi = payload.substring(rssiIdx + 5, rssiEnd).toInt();
+                      
+                      float lat = 0.0, lon = 0.0, hdop = 99.9;
+                      bool hasGPS = false;
+                      
+                      if (gpsIdx > 0) {
+                          int commaIdx = payload.indexOf(',', gpsIdx);
+                          if (commaIdx > 0) {
+                              lat = payload.substring(gpsIdx + 4, commaIdx).toFloat();
+                              int spaceAfterLon = payload.indexOf(' ', commaIdx);
+                              lon = payload.substring(commaIdx + 1, spaceAfterLon > 0 ? spaceAfterLon : payload.length()).toFloat();
+                              hasGPS = true;
+                              
+                              if (hdopIdx > 0) {
+                                  hdop = payload.substring(hdopIdx + 5).toFloat();
+                              }
+                          }
+                      }
                         
                         bool found = false;
                         for (auto &node : triangulationNodes) {
@@ -2172,6 +2178,7 @@ void processMeshMessage(const String &message) {
                                     node.lat = lat;
                                     node.lon = lon;
                                     node.hasGPS = true;
+                                    node.hdop = hdop; 
                                 }
                                 node.distanceEstimate = rssiToDistance(node);
                                 found = true;
@@ -2189,6 +2196,7 @@ void processMeshMessage(const String &message) {
                             newNode.rssi = rssi;
                             newNode.hitCount = hits;
                             newNode.hasGPS = hasGPS;
+                            newNode.hdop = hdop;
                             newNode.lastUpdate = millis();
                             initNodeKalmanFilter(newNode);
                             updateNodeRSSI(newNode, rssi);
@@ -2236,14 +2244,30 @@ void processMeshMessage(const String &message) {
 
                     float lat = 0, lon = 0;
                     bool hasGPS = false;
+                    float hdop = 99.9;
                     int gpsIdx = content.indexOf("GPS=");
                     if (gpsIdx > 0) {
                         int commaIdx = content.indexOf(',', gpsIdx);
                         if (commaIdx > 0) {
                             lat = content.substring(gpsIdx + 4, commaIdx).toFloat();
-                            int gpsEnd = content.indexOf(' ', commaIdx);
-                            if (gpsEnd < 0) gpsEnd = content.length();
-                            lon = content.substring(commaIdx + 1, gpsEnd).toFloat();
+                            
+                            int hdopIdx = content.indexOf("HDOP=", commaIdx);
+                            int lonEnd;
+                            if (hdopIdx > 0) {
+                                lonEnd = hdopIdx - 1;
+                            } else {
+                                lonEnd = content.indexOf(' ', commaIdx);
+                                if (lonEnd < 0) lonEnd = content.length();
+                            }
+                            
+                            lon = content.substring(commaIdx + 1, lonEnd).toFloat();
+                            
+                            if (hdopIdx > 0) {
+                                int hdopEnd = content.indexOf(' ', hdopIdx);
+                                if (hdopEnd < 0) hdopEnd = content.length();
+                                hdop = content.substring(hdopIdx + 5, hdopEnd).toFloat();
+                            }
+                            
                             hasGPS = true;
                         }
                     }
@@ -2256,6 +2280,7 @@ void processMeshMessage(const String &message) {
                             if (hasGPS) {
                                 node.lat = lat;
                                 node.lon = lon;
+                                node.hdop = hdop;
                                 node.hasGPS = true;
                             }
                             node.distanceEstimate = rssiToDistance(node);
@@ -2272,6 +2297,7 @@ void processMeshMessage(const String &message) {
                         newNode.nodeId = sendingNode;
                         newNode.lat = lat;
                         newNode.lon = lon;
+                        newNode.hdop = hdop;
                         newNode.rssi = rssi;
                         newNode.hitCount = 1;
                         newNode.hasGPS = hasGPS;
