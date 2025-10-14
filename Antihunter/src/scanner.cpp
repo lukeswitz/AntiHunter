@@ -1089,7 +1089,7 @@ void listScanTask(void *pv) {
     if (macQueue) {
         vQueueDelete(macQueue);
         macQueue = nullptr;
-        vTaskDelay(pdMS_TO_TICKS(50)); // Let deletion complete
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
     
     macQueue = xQueueCreate(512, sizeof(Hit));
@@ -1123,6 +1123,11 @@ void listScanTask(void *pv) {
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
     Hit h;
+
+    
+    static unsigned long lastTriSendTime = 0;
+    static size_t sentTriInWindow = 0;
+    static int childHitCount = 0; 
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
@@ -1291,6 +1296,8 @@ void listScanTask(void *pv) {
 
             if (triangulationActive) {
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
+                    childHitCount++;
+                    
                     String myNodeId = getNodeId();
                     
                     // Check if we in the node list
@@ -1302,6 +1309,7 @@ void listScanTask(void *pv) {
                             if (gpsValid) {
                                 node.lat = gpsLat;
                                 node.lon = gpsLon;
+                                node.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
                                 node.hasGPS = true;
                             }
                             node.distanceEstimate = rssiToDistance(node);
@@ -1337,6 +1345,42 @@ void listScanTask(void *pv) {
                         Serial.printf("[TRIANGULATE] Added self: RSSI=%d dist=%.1fm\n",
                                     h.rssi, selfNode.distanceEstimate);
                     }
+                    
+                    unsigned long nowTime = millis();
+                    if (nowTime - lastTriSendTime >= 3000UL) {
+                        sentTriInWindow = 0;
+                        lastTriSendTime = nowTime;
+                    }
+                    
+                    String macStr = macFmt6(triangulationTarget);
+                    String baseMsg = myNodeId + ": Target: " + macStr + 
+                                    " RSSI:" + String(h.rssi) + " Hits=" + String(childHitCount);
+                    String dataMsg = baseMsg;
+                    size_t msgLen = baseMsg.length();
+                    
+                    if (gpsValid) {
+                        float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
+                        String gpsHdop = " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6) + 
+                                        " HDOP=" + String(hdop, 1);
+                        size_t withGpsLen = msgLen + gpsHdop.length();
+                        if (withGpsLen <= 199) {  // Room for \n
+                            dataMsg += gpsHdop;
+                            msgLen += gpsHdop.length();
+                        } else {
+                            Serial.printf("[TRIANGULATE CHILD] GPS/HDOP omitted (len %zu >199)\n", withGpsLen);
+                        }
+                    }
+                    
+                    size_t respLen = msgLen + 1;  // +1 for \n
+                    if (sentTriInWindow + respLen <= 200 && Serial1.availableForWrite() >= respLen) {
+                        Serial1.println(dataMsg);
+                        sentTriInWindow += respLen;
+                        Serial.printf("[TRIANGULATE CHILD] Sent to master (%zu chars): RSSI=%d Hits=%d GPS=%s\n", 
+                                      msgLen, h.rssi, childHitCount, gpsValid ? "YES" : "NO");
+                    } else {
+                        Serial.printf("[MESH CHILD] Skipped TARGET_DATA: rate limit (%zu/%zu)\n", 
+                                      sentTriInWindow, 200);
+                    }
                 }
             }
         }
@@ -1350,7 +1394,7 @@ void listScanTask(void *pv) {
             }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(150));
     }
 
     if (triangulationActive) {
