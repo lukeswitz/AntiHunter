@@ -26,12 +26,19 @@ struct Allowlist {
     uint8_t len;
 };
 
-// Allowlist
-extern std::vector<Allowlist> allowlist;
-size_t getAllowlistCount();
-String getAllowlistText();
-void saveAllowlist(const String &txt);
-bool isAllowlisted(const uint8_t *mac);
+struct TriangulationAccumulator {
+    uint8_t targetMac[6];
+    int hitCount;
+    int8_t maxRssi;
+    int8_t minRssi;
+    float rssiSum;
+    float lat;
+    float lon;
+    float hdop;
+    bool hasGPS;
+    uint32_t lastSendTime;
+    uint32_t windowStartTime;
+};
 
 struct DeauthHit {
    uint8_t srcMac[6];
@@ -46,6 +53,12 @@ struct DeauthHit {
    uint16_t companyId;
 };
 
+// Allowlist
+extern std::vector<Allowlist> allowlist;
+size_t getAllowlistCount();
+String getAllowlistText();
+void saveAllowlist(const String &txt);
+bool isAllowlisted(const uint8_t *mac);
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
