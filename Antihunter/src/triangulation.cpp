@@ -26,6 +26,7 @@ uint8_t triangulationTarget[6];
 uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
 bool triangulationActive = false;
+bool triangulationInitiator = false;
 
 // Helpers
 bool isTriangulationActive() {
@@ -421,8 +422,9 @@ void startTriangulation(const String &targetMac, int duration) {
     stopRequested = false;
     
     triangulationActive = true;
+    triangulationInitiator = true;
     
-    Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
+    Serial.printf("[TRIANGULATE] Started for %s (%ds) as INITIATOR\n", targetMac.c_str(), duration);
     
     broadcastTimeSyncRequest();
     delay(3000);
@@ -446,6 +448,14 @@ void stopTriangulation() {
         return;
     }
     
+    // Initiator stop on the child nodes
+    if (triangulationInitiator) {
+        String stopCmd = "@ALL TRIANGULATE_STOP";
+        sendMeshCommand(stopCmd);
+        Serial.println("[TRIANGULATE] Stop broadcast sent to all child nodes");
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+    
     uint32_t elapsedMs = millis() - triangulationStart;
     uint32_t elapsedSec = elapsedMs / 1000;
     
@@ -454,20 +464,19 @@ void stopTriangulation() {
 
     Serial.println("[TRIANGULATE] Waiting up to 15s for all node reports...");
     uint32_t waitStart = millis();
-    uint32_t stableStart = 0;
+    uint32_t stableStart = millis();
     uint32_t lastCount = triangulationNodes.size();
     const uint32_t MIN_WAIT = 5000;
-    const uint32_t STABLE_TIME = 3000;  // Wait extra if changing
+    const uint32_t STABLE_TIME = 3000;
 
     while ((millis() - waitStart) < 15000) {
         uint32_t currentSize = triangulationNodes.size();
         if (currentSize != lastCount) {
             Serial.printf("[TRIANGULATE] Nodes collected: %u\n", currentSize);
             lastCount = currentSize;
-            stableStart = millis();  // Reset timer on change
+            stableStart = millis();
         }
         
-        // Exit early if its stable
         if ((millis() - stableStart) >= STABLE_TIME && (millis() - waitStart) >= MIN_WAIT) {
             Serial.printf("[TRIANGULATE] Reports stable after %lus. Total nodes: %u\n", 
                         (millis() - waitStart)/1000, currentSize);
@@ -481,7 +490,6 @@ void stopTriangulation() {
         Serial.printf("[TRIANGULATE] Wait complete (15s max). Total nodes: %u\n", triangulationNodes.size());
     }
     
-    // Calc the results
     String results = calculateTriangulation();
 
     {
@@ -545,12 +553,12 @@ void stopTriangulation() {
         }
     }
 
-    // TRIANGULATE_COMPLETE
     if (Serial1.availableForWrite() >= resultMsg.length()) {
         Serial1.println(resultMsg);
     }
 
     triangulationActive = false;
+    triangulationInitiator = false;  // Reset role
     triangulationDuration = 0;
     memset(triangulationTarget, 0, 6);
 

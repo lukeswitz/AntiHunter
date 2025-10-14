@@ -2051,7 +2051,6 @@ void processCommand(const String &command)
         return;
     }
     
-    // Stop existing task if any
     if (workerTaskHandle) {
         stopRequested = true;
         vTaskDelay(pdMS_TO_TICKS(500));
@@ -2060,6 +2059,7 @@ void processCommand(const String &command)
     
     memcpy(triangulationTarget, macBytes, 6);
     triangulationActive = true;
+    triangulationInitiator = false;
     triangulationStart = millis();
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
@@ -2067,14 +2067,15 @@ void processCommand(const String &command)
     
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
-                               (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
+                              (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
     }
     
     Serial.printf("[TRIANGULATE] Child node started for %s (%ds)\n", mac.c_str(), duration);
     Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
-}
+  }
   else if (command.startsWith("TRIANGULATE_STOP"))
   {
+    stopRequested = true;
     stopTriangulation();
     Serial1.println(nodeId + ": TRIANGULATE_STOP_ACK");
   }

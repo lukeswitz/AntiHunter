@@ -83,7 +83,7 @@ std::map<String, std::vector<uint32_t>> deauthTimings;
 
 // Triangulation
 static TriangulationAccumulator triAccum = {0};
-static const uint32_t TRI_SEND_INTERVAL = 3000;
+static const uint32_t TRI_SEND_INTERVAL = 1500;
 
 // External declarations
 extern Preferences prefs;
@@ -1450,10 +1450,21 @@ void listScanTask(void *pv) {
         if (myNodeId.length() == 0) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
-        sendTriAccumulatedData(myNodeId);
         
-        Serial.println("[SCAN] Triangulation active at scan end, stopping triangulation");
-        stopTriangulation();
+        // Force send final accumulated data right now
+        if (triAccum.hitCount > 0) {
+            triAccum.lastSendTime = 0;
+            sendTriAccumulatedData(myNodeId);
+            Serial.println("[SCAN] Sent final triangulation data on scan end");
+        }
+        
+        // Tell the kids
+        if (triangulationInitiator) {
+            Serial.println("[SCAN] Initiator scan complete, stopping triangulation");
+            stopTriangulation();
+        } else {
+            Serial.println("[SCAN] Child scan complete, waiting for master STOP command");
+        }
     }
 
     scanning = false;
