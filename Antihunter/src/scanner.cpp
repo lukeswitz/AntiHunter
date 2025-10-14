@@ -81,6 +81,10 @@ std::map<String, uint32_t> deauthSourceCounts;
 std::map<String, uint32_t> deauthTargetCounts;
 std::map<String, std::vector<uint32_t>> deauthTimings;
 
+// Triangulation
+static TriangulationAccumulator triAccum = {0};
+static const uint32_t TRI_SEND_INTERVAL = 3000;
+
 // External declarations
 extern Preferences prefs;
 extern volatile bool stopRequested;
@@ -1066,6 +1070,52 @@ void initializeScanner()
     Serial.printf("Loaded %d allowlist entries\n", allowlist.size());
 }
 
+static void resetTriAccumulator(const uint8_t* mac) {
+    memcpy(triAccum.targetMac, mac, 6);
+    triAccum.hitCount = 0;
+    triAccum.maxRssi = -128;
+    triAccum.minRssi = 0;
+    triAccum.rssiSum = 0.0f;
+    triAccum.lat = 0.0f;
+    triAccum.lon = 0.0f;
+    triAccum.hdop = 99.9f;
+    triAccum.hasGPS = false;
+    triAccum.lastSendTime = millis();
+}
+
+static void sendTriAccumulatedData(const String& nodeId) {
+    if (triAccum.hitCount == 0) return;
+    
+    uint32_t now = millis();
+    if (now - triAccum.lastSendTime < TRI_SEND_INTERVAL) return;
+    
+    int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
+    
+    String macStr = macFmt6(triAccum.targetMac);
+    String msg = nodeId + ": TARGET_DATA: " + macStr + 
+                 " Hits=" + String(triAccum.hitCount) +
+                 " RSSI:" + String(avgRssi);
+    
+    if (triAccum.hasGPS) {
+        msg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+               " HDOP=" + String(triAccum.hdop, 1);
+    }
+    
+    size_t msgLen = msg.length() + 1;
+    
+    if (msgLen <= 230 && Serial1.availableForWrite() >= msgLen) {
+        Serial1.println(msg);
+        Serial.printf("[TRIANGULATE CHILD] Sent summary: %d hits, avgRSSI=%d, GPS=%s\n",
+                     triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO");
+        
+        triAccum.hitCount = 0;
+        triAccum.rssiSum = 0.0f;
+        triAccum.maxRssi = -128;
+        triAccum.minRssi = 0;
+        triAccum.lastSendTime = now;
+    }
+}
+
 // Scan tasks
 void listScanTask(void *pv) {
     int secs = (int)(intptr_t)pv;
@@ -1295,94 +1345,92 @@ void listScanTask(void *pv) {
             sendMeshNotification(h);
 
             if (triangulationActive) {
+                String myNodeId = getNodeId();
+                if (myNodeId.length() == 0) {
+                    myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+                }
+                
+                static bool triAccumInitialized = false;
+                if (!triAccumInitialized) {
+                    resetTriAccumulator(triangulationTarget);
+                    triAccumInitialized = true;
+                }
+                
+                if (memcmp(triAccum.targetMac, triangulationTarget, 6) != 0) {
+                    sendTriAccumulatedData(myNodeId);
+                    resetTriAccumulator(triangulationTarget);
+                }
+                
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
-                    childHitCount++;
-                    
-                    String myNodeId = getNodeId();
-                    
-                    // Check if we in the node list
-                    bool found = false;
-                    for (auto &node : triangulationNodes) {
-                        if (node.nodeId == myNodeId) {
-                            updateNodeRSSI(node, h.rssi);
-                            node.hitCount++;
-                            if (gpsValid) {
-                                node.lat = gpsLat;
-                                node.lon = gpsLon;
-                                node.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-                                node.hasGPS = true;
-                            }
-                            node.distanceEstimate = rssiToDistance(node);
-                            found = true;
-                            Serial.printf("[TRIANGULATE] Updated self: RSSI=%d dist=%.1fm\n",
-                                        h.rssi, node.distanceEstimate);
-                            break;
-                        }
-                    }
-                    
-                    // If not found, add ourselves as a node
-                    if (!found) {
-                        TriangulationNode selfNode;
-                        selfNode.nodeId = myNodeId;
-                        selfNode.lat = gpsLat;
-                        selfNode.lon = gpsLon;
-                        selfNode.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-                        selfNode.rssi = h.rssi;
-                        selfNode.hitCount = 1;
-                        selfNode.hasGPS = gpsValid;
-                        selfNode.lastUpdate = millis();
-                        selfNode.filteredRssi = (float)h.rssi;
-                        selfNode.distanceEstimate = 0.0;
-                        selfNode.signalQuality = 0.5;
-                        selfNode.rssiHistory.clear();
-                        selfNode.rssiRawWindow.clear();
-                        
-                        initNodeKalmanFilter(selfNode);
-                        updateNodeRSSI(selfNode, h.rssi);
-                        selfNode.distanceEstimate = rssiToDistance(selfNode);
-                        
-                        triangulationNodes.push_back(selfNode);
-                        Serial.printf("[TRIANGULATE] Added self: RSSI=%d dist=%.1fm\n",
-                                    h.rssi, selfNode.distanceEstimate);
-                    }
-                    
-                    unsigned long nowTime = millis();
-                    if (nowTime - lastTriSendTime >= 3000UL) {
-                        sentTriInWindow = 0;
-                        lastTriSendTime = nowTime;
-                    }
-                    
-                    String macStr = macFmt6(triangulationTarget);
-                    String baseMsg = myNodeId + ": Target: " + macStr + 
-                                    " RSSI:" + String(h.rssi) + " Hits=" + String(childHitCount);
-                    String dataMsg = baseMsg;
-                    size_t msgLen = baseMsg.length();
+                    triAccum.hitCount++;
+                    triAccum.rssiSum += (float)h.rssi;
+                    if (h.rssi > triAccum.maxRssi) triAccum.maxRssi = h.rssi;
+                    if (h.rssi < triAccum.minRssi || triAccum.minRssi == 0) triAccum.minRssi = h.rssi;
                     
                     if (gpsValid) {
-                        float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
-                        String gpsHdop = " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6) + 
-                                        " HDOP=" + String(hdop, 1);
-                        size_t withGpsLen = msgLen + gpsHdop.length();
-                        if (withGpsLen <= 199) {  // Room for \n
-                            dataMsg += gpsHdop;
-                            msgLen += gpsHdop.length();
-                        } else {
-                            Serial.printf("[TRIANGULATE CHILD] GPS/HDOP omitted (len %zu >199)\n", withGpsLen);
-                        }
+                        triAccum.lat = gpsLat;
+                        triAccum.lon = gpsLon;
+                        triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
+                        triAccum.hasGPS = true;
                     }
                     
-                    size_t respLen = msgLen + 1;  // +1 for \n
-                    if (sentTriInWindow + respLen <= 200 && Serial1.availableForWrite() >= respLen) {
-                        Serial1.println(dataMsg);
-                        sentTriInWindow += respLen;
-                        Serial.printf("[TRIANGULATE CHILD] Sent to master (%zu chars): RSSI=%d Hits=%d GPS=%s\n", 
-                                      msgLen, h.rssi, childHitCount, gpsValid ? "YES" : "NO");
-                    } else {
-                        Serial.printf("[MESH CHILD] Skipped TARGET_DATA: rate limit (%zu/%zu)\n", 
-                                      sentTriInWindow, 200);
+                    bool isMaster = (myNodeId.indexOf("MASTER") >= 0);
+                    if (isMaster || triangulationNodes.size() == 0) {
+                        bool foundSelf = false;
+                        for (auto &node : triangulationNodes) {
+                            if (node.nodeId == myNodeId) {
+                                updateNodeRSSI(node, h.rssi);
+                                node.hitCount++;
+                                if (gpsValid) {
+                                    node.lat = gpsLat;
+                                    node.lon = gpsLon;
+                                    node.hasGPS = true;
+                                    node.hdop = triAccum.hdop;
+                                }
+                                node.distanceEstimate = rssiToDistance(node);
+                                foundSelf = true;
+                                Serial.printf("[TRIANGULATE] Updated self: RSSI=%d dist=%.1fm\n",
+                                            h.rssi, node.distanceEstimate);
+                                break;
+                            }
+                        }
+                        
+                        if (!foundSelf) {
+                            TriangulationNode selfNode;
+                            selfNode.nodeId = myNodeId;
+                            selfNode.lat = gpsLat;
+                            selfNode.lon = gpsLon;
+                            selfNode.hdop = triAccum.hdop;
+                            selfNode.rssi = h.rssi;
+                            selfNode.hitCount = 1;
+                            selfNode.hasGPS = gpsValid;
+                            selfNode.lastUpdate = millis();
+                            selfNode.filteredRssi = (float)h.rssi;
+                            selfNode.distanceEstimate = 0.0;
+                            selfNode.signalQuality = 0.5;
+                            selfNode.rssiHistory.clear();
+                            selfNode.rssiRawWindow.clear();
+                            
+                            initNodeKalmanFilter(selfNode);
+                            updateNodeRSSI(selfNode, h.rssi);
+                            selfNode.distanceEstimate = rssiToDistance(selfNode);
+                            
+                            triangulationNodes.push_back(selfNode);
+                            Serial.printf("[TRIANGULATE] Added self: RSSI=%d dist=%.1fm\n",
+                                        h.rssi, selfNode.distanceEstimate);
+                        }
                     }
                 }
             }
+        }
+
+        // Send accumulated triangulation data once per scan cycle
+        if (triangulationActive) {
+            String myNodeId = getNodeId();
+            if (myNodeId.length() == 0) {
+                myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+            }
+            sendTriAccumulatedData(myNodeId);
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
@@ -1398,6 +1446,12 @@ void listScanTask(void *pv) {
     }
 
     if (triangulationActive) {
+        String myNodeId = getNodeId();
+        if (myNodeId.length() == 0) {
+            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+        }
+        sendTriAccumulatedData(myNodeId);
+        
         Serial.println("[SCAN] Triangulation active at scan end, stopping triangulation");
         stopTriangulation();
     }

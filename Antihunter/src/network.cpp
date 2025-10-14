@@ -1840,10 +1840,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
-    // Use 1s interval during triangulation, T114 needs 3s minimum TODO
-    unsigned long effectiveInterval = triangulationActive ? 1000 : MESH_SEND_INTERVAL;
+    if (triangulationActive) return; // handled in the accumulator, bail
     
-    if (!meshEnabled || millis() - lastMeshSend < effectiveInterval) return;
+    if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
     lastMeshSend = millis();
     
     char mac_str[18];
@@ -2143,22 +2142,33 @@ void processMeshMessage(const String &message) {
         
         // TARGET_DATA from child nodes
         if (content.startsWith("TARGET_DATA:")) {
-            String payload = content.substring(13);
-            
-            int macEnd = payload.indexOf(' ');
-            if (macEnd > 0) {
-                String reportedMac = payload.substring(0, macEnd);
-                uint8_t mac[6];
-                
-                if (parseMac6(reportedMac, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
+          String payload = content.substring(13);
+          
+          int macEnd = payload.indexOf(' ');
+          if (macEnd > 0) {
+              String reportedMac = payload.substring(0, macEnd);
+              uint8_t mac[6];
+              
+              if (parseMac6(reportedMac, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
                   int hitsIdx = payload.indexOf("Hits=");
                   int rssiIdx = payload.indexOf("RSSI:");
                   int gpsIdx = payload.indexOf("GPS=");
                   int hdopIdx = payload.indexOf("HDOP=");
-
+                  
                   if (hitsIdx > 0 && rssiIdx > 0) {
                       int hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
-                      int rssiEnd = (gpsIdx > 0) ? gpsIdx - 1 : payload.length();
+                      
+                      // Find RSSI value endpoint
+                      int rssiEnd = payload.length();
+                      int spaceAfterRssi = payload.indexOf(' ', rssiIdx + 5);
+                      if (spaceAfterRssi > 0) rssiEnd = spaceAfterRssi;
+                      
+                      // Check if "Range:" exists after RSSI
+                      int rangeIdx = payload.indexOf("Range:", rssiIdx);
+                      if (rangeIdx > 0 && rangeIdx < rssiEnd) {
+                          rssiEnd = rangeIdx - 1;
+                      }
+                      
                       int8_t rssi = payload.substring(rssiIdx + 5, rssiEnd).toInt();
                       
                       float lat = 0.0, lon = 0.0, hdop = 99.9;
@@ -2177,51 +2187,51 @@ void processMeshMessage(const String &message) {
                               }
                           }
                       }
-                        
-                        bool found = false;
-                        for (auto &node : triangulationNodes) {
-                            if (node.nodeId == sendingNode) {
-                                updateNodeRSSI(node, rssi);
-                                node.hitCount = hits;
-                                if (hasGPS) {
-                                    node.lat = lat;
-                                    node.lon = lon;
-                                    node.hasGPS = true;
-                                    node.hdop = hdop; 
-                                }
-                                node.distanceEstimate = rssiToDistance(node);
-                                found = true;
-                                Serial.printf("[TRIANGULATE] Child %s data: hits=%d RSSI=%ddBm GPS=%s\n",
-                                            sendingNode.c_str(), hits, rssi, hasGPS ? "YES" : "NO");
-                                break;
-                            }
-                        }
-                        
-                        if (!found) {
-                            TriangulationNode newNode;
-                            newNode.nodeId = sendingNode;
-                            newNode.lat = lat;
-                            newNode.lon = lon;
-                            newNode.rssi = rssi;
-                            newNode.hitCount = hits;
-                            newNode.hasGPS = hasGPS;
-                            newNode.hdop = hdop;
-                            newNode.lastUpdate = millis();
-                            initNodeKalmanFilter(newNode);
-                            updateNodeRSSI(newNode, rssi);
-                            newNode.distanceEstimate = rssiToDistance(newNode);
-                            triangulationNodes.push_back(newNode);
-                            Serial.printf("[TRIANGULATE] Added child %s: hits=%d RSSI=%ddBm\n",
-                                        sendingNode.c_str(), hits, rssi);
-                        }
-                    }
-                }
-            }
-            return;
-        }
-        
-        // Incoming Target message
-        if (content.startsWith("Target:")) {
+                      
+                      bool found = false;
+                      for (auto &node : triangulationNodes) {
+                          if (node.nodeId == sendingNode) {
+                              updateNodeRSSI(node, rssi);
+                              node.hitCount = hits;  // Use accumulated hit count
+                              if (hasGPS) {
+                                  node.lat = lat;
+                                  node.lon = lon;
+                                  node.hasGPS = true;
+                                  node.hdop = hdop;
+                              }
+                              node.distanceEstimate = rssiToDistance(node);
+                              found = true;
+                              Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm GPS=%s\n",
+                                          sendingNode.c_str(), hits, rssi, hasGPS ? "YES" : "NO");
+                              break;
+                          }
+                      }
+                      
+                      if (!found) {
+                          TriangulationNode newNode;
+                          newNode.nodeId = sendingNode;
+                          newNode.lat = lat;
+                          newNode.lon = lon;
+                          newNode.rssi = rssi;
+                          newNode.hitCount = hits;
+                          newNode.hasGPS = hasGPS;
+                          newNode.hdop = hdop;
+                          newNode.lastUpdate = millis();
+                          initNodeKalmanFilter(newNode);
+                          updateNodeRSSI(newNode, rssi);
+                          newNode.distanceEstimate = rssiToDistance(newNode);
+                          triangulationNodes.push_back(newNode);
+                          Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm\n",
+                                      sendingNode.c_str(), hits, rssi);
+                      }
+                  }
+              }
+          }
+          return;  // Message processed
+      }
+
+      // Legacy "Target:" support
+      if (content.startsWith("Target:")) {
             int macStart = content.indexOf(' ', 7) + 1;
             int macEnd = content.indexOf(' ', macStart);
             
