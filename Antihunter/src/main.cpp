@@ -193,6 +193,7 @@ void loop() {
 
     if (millis() - lastRTCUpdate > 1000) {
         updateRTCTime();
+        updateGPSLocation();
         disciplineRTCFromGPS();
         lastRTCUpdate = millis();
     }
@@ -201,9 +202,8 @@ void loop() {
         checkTamperTimeout();
     }
 
-    updateGPSLocation();
     processUSBToMesh();
     checkAndSendVibrationAlert();
 
-  delay(120);
+  delay(100);
 }
