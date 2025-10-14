@@ -49,6 +49,10 @@ void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
   Serial.println("Initializing mesh UART...");
+  
+  Serial.println("Waiting for T114 stability...");
+  delay(15000);
+
   initializeMesh();
 
   Serial.println("Starting AP...");
@@ -1836,7 +1840,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
-    if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
+    // Use 1s interval during triangulation, T114 needs 3s minimum TODO
+    unsigned long effectiveInterval = triangulationActive ? 1000 : MESH_SEND_INTERVAL;
+    
+    if (!meshEnabled || millis() - lastMeshSend < effectiveInterval) return;
     lastMeshSend = millis();
     
     char mac_str[18];
@@ -1899,6 +1906,8 @@ void initializeMesh() {
         Serial1.read();
     }
     
+    delay(500);
+
     Serial.println("[MESH] UART initialized");
     Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
 }
@@ -2271,7 +2280,7 @@ void processMeshMessage(const String &message) {
                             hasGPS = true;
                         }
                     }
-                    
+
                     bool found = false;
                     for (auto &node : triangulationNodes) {
                         if (node.nodeId == sendingNode) {
@@ -2291,7 +2300,7 @@ void processMeshMessage(const String &message) {
                             break;
                         }
                     }
-                    
+
                     if (!found) {
                         TriangulationNode newNode;
                         newNode.nodeId = sendingNode;
