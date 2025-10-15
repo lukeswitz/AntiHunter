@@ -83,8 +83,20 @@ cat <<'BANNER'
 ▛▌▌▌▐▖▌▌▌▙▌▌▌▐▖▙▖▌ 
 BANNER
 
-# Check for esptool.py system-wide or clone if missing
-if command -v esptool.py &>/dev/null; then
+# Ensure Python command is set
+PYTHON_CMD=python3
+if ! command -v python3 &> /dev/null; then
+    PYTHON_CMD=python
+    if ! command -v python &> /dev/null; then
+        echo "ERROR: Python (python3 or python) not found. Please install Python."
+        exit 1
+    fi
+fi
+
+# Check for esptool system-wide or clone if missing
+if command -v esptool &>/dev/null; then
+    ESPTOOL_CMD="esptool"
+elif command -v esptool.py &>/dev/null; then
     ESPTOOL_CMD="esptool.py"
 else
     if [ ! -f "$ESPTOOL_DIR/esptool.py" ]; then
@@ -186,26 +198,23 @@ while true; do
 done
 
 echo ""
-echo "Flashing $firmware_choice firmware to the device..."
-PYTHON_CMD=python3
-if ! command -v python3 &> /dev/null; then
-    PYTHON_CMD=python
-    if ! command -v python &> /dev/null; then
-        echo "ERROR: Python (python3 or python) not found. Please install Python."
-        exit 1
-    fi
-fi
-
+echo "Erasing flash memory..."
 $ESPTOOL_CMD \
     --chip auto \
     --port "$ESP32_PORT" \
     --baud "$UPLOAD_SPEED" \
-    --before default_reset \
-    --after hard_reset \
-    write_flash -z \
-    --flash_mode dio \
-    --flash_freq 80m \
-    --flash_size detect \
+    erase-flash
+
+echo ""
+echo "Flashing $firmware_choice firmware to the device..."
+$ESPTOOL_CMD \
+    --chip auto \
+    --port "$ESP32_PORT" \
+    --baud "$UPLOAD_SPEED" \
+    --before default-reset \
+    --after hard-reset \
+    write-flash -z \
+    --flash-size detect \
     0x10000 "$FIRMWARE_FILE"
 
 echo ""
