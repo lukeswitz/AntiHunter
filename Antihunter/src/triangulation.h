@@ -62,7 +62,43 @@ struct PathLossCalibration {
     bool calibrated;
 };
 
+struct PathLossSample {
+    float rssi;
+    float distance;  // from GPS
+    bool isWiFi;
+    uint32_t timestamp;
+};
+
+struct AdaptivePathLoss {
+    // Current estimates
+    float rssi0_wifi;
+    float rssi0_ble;
+    float n_wifi;
+    float n_ble;
+    
+    // Sample buffers for adaptation
+    std::vector<PathLossSample> wifiSamples;
+    std::vector<PathLossSample> bleSamples;
+    
+    // Estimation confidence
+    bool wifi_calibrated;
+    bool ble_calibrated;
+    uint32_t lastUpdate;
+    
+    // Default/fallback values
+    const float DEFAULT_RSSI0_WIFI = -30.0;
+    const float DEFAULT_RSSI0_BLE = -40.0;
+    const float DEFAULT_N_WIFI = 3.0;
+    const float DEFAULT_N_BLE = 2.5;
+    
+    const size_t MIN_SAMPLES = 5;
+    const size_t MAX_SAMPLES = 50;
+};
+
+extern AdaptivePathLoss adaptivePathLoss;
+
 extern std::vector<TriangulationNode> triangulationNodes;
+
 const float KALMAN_MEASUREMENT_NOISE = 4.0;
 const uint32_t RSSI_HISTORY_SIZE = 10;
 const uint32_t SYNC_CHECK_INTERVAL = 30000;
@@ -89,6 +125,8 @@ bool isTriangulationActive();
 void disciplineRTCFromGPS();
 int64_t getCorrectedMicroseconds();
 void calibratePathLoss(const String &targetMac, float knownDistance);
+void estimatePathLossParameters(bool isWiFi);
+void addPathLossSample(float rssi, float distance, bool isWiFi);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 
 extern ClockDiscipline clockDiscipline;
