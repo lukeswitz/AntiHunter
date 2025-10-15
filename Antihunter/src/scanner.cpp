@@ -1413,12 +1413,30 @@ void listScanTask(void *pv) {
             Serial.println("[SCAN CHILD] Sent final triangulation data on scan end");
         }
         
-        // Tell the kids
+        // Initiator: stop triangulation immediately
         if (triangulationInitiator) {
             Serial.println("[SCAN INITIATOR] Scan complete, stopping triangulation");
             stopTriangulation();
         } else {
+            // Tell the kids
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
+            uint32_t waitStart = millis();
+            const uint32_t STOP_WAIT_TIMEOUT = 5000;
+            
+            while (!stopRequested && (millis() - waitStart < STOP_WAIT_TIMEOUT)) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            
+            if (stopRequested) {
+                Serial.println("[SCAN CHILD] Received STOP command, cleaning up");
+            } else {
+                Serial.println("[SCAN CHILD] STOP timeout, forcing cleanup");
+                stopRequested = true;
+            }
+            
+            // Clean up triangulation state for child
+            triangulationActive = false;
+            memset(triangulationTarget, 0, 6);
         }
     }
 

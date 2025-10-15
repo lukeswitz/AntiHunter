@@ -2130,8 +2130,12 @@ void processCommand(const String &command)
   }
   else if (command.startsWith("TRIANGULATE_STOP"))
   {
+    Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
-    stopTriangulation();
+    if (triangulationActive && !triangulationInitiator) {
+        // For child nodes, call stop directly
+        stopTriangulation();
+    }
     sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
