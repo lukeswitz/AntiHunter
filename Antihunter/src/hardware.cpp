@@ -420,12 +420,7 @@ void sendStartupStatus() {
     startupMsg += " Status:ONLINE";
     
     Serial.printf("[STARTUP] %s\n", startupMsg.c_str());
-    
-    if (Serial1.availableForWrite() >= startupMsg.length()) {
-        Serial1.println(startupMsg);
-        Serial1.flush();
-    }
-    
+    sendToSerial1(startupMsg, false);
     logToSD(startupMsg);
 }
 
@@ -440,11 +435,7 @@ void sendGPSLockStatus(bool locked) {
     
     Serial.printf("[GPS] %s\n", gpsMsg.c_str());
     
-    if (Serial1.availableForWrite() >= gpsMsg.length()) {
-        Serial1.println(gpsMsg);
-        Serial1.flush();
-    }
-    
+    sendToSerial1(gpsMsg, true);
     logToSD("GPS Status: " + gpsMsg);
 }
 
@@ -594,9 +585,7 @@ void checkAndSendVibrationAlert() {
                 Serial.println("[SETUP] Setup period complete - auto-erase now ACTIVE");
                 
                 String setupMsg = getNodeId() + ": SETUP_COMPLETE: Auto-erase activated";
-                if (Serial1.availableForWrite() >= setupMsg.length()) {
-                    Serial1.println(setupMsg);
-                }
+                sendToSerial1(setupMsg, false);
             } else {
                 uint32_t remaining = (setupDelay - elapsed) / 1000;
                 Serial.printf("[SETUP] Setup mode - auto-erase activates in %us\n", remaining);
@@ -606,10 +595,7 @@ void checkAndSendVibrationAlert() {
                 if (gpsValid) {
                     vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
                 }
-                
-                if (Serial1.availableForWrite() >= vibrationMsg.length()) {
-                    Serial1.println(vibrationMsg);
-                }
+                sendToSerial1(vibrationMsg, true);
                 return;
             }
         }
@@ -656,12 +642,7 @@ void checkAndSendVibrationAlert() {
             }
             
             Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg.c_str());
-            
-            if (Serial1.availableForWrite() >= vibrationMsg.length()) {
-                Serial1.println(vibrationMsg);
-                Serial1.flush();
-            }
-            
+            sendToSerial1(vibrationMsg, true);
             logVibrationEvent(sensorValue);
             
         } else {
@@ -772,10 +753,8 @@ void syncRTCFromGPS() {
                         String(hour) + ":" + String(minute) + ":" + String(second);
         logToSD(syncMsg);
         
-        if (Serial1.availableForWrite() >= 100) {
-            String meshMsg = getNodeId() + ": RTC_SYNC: " + syncMsg;
-            Serial1.println(meshMsg);
-        }
+        String meshMsg = getNodeId() + ": RTC_SYNC: " + syncMsg;
+        sendToSerial1(meshMsg, false);
     }
     
     xSemaphoreGive(rtcMutex);
@@ -923,9 +902,7 @@ bool initiateTamperErase() {
         alertMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
     
-    if (Serial1.availableForWrite() >= alertMsg.length()) {
-        Serial1.println(alertMsg);
-    }
+    sendToSerial1(alertMsg, false);
     
     logEraseAttempt("Tamper detection triggered", true);
     return true;
@@ -935,9 +912,7 @@ void cancelTamperErase() {
     if (tamperEraseActive) {
         Serial.println("[TAMPER] Auto-erase cancelled");
         String cancelMsg = getNodeId() + ": TAMPER_CANCELLED";
-        if (Serial1.availableForWrite() >= cancelMsg.length()) {
-            Serial1.println(cancelMsg);
-        }
+        sendToSerial1(cancelMsg, false);
     }
     
     tamperEraseActive = false;
@@ -975,19 +950,14 @@ bool executeSecureErase(const String &reason) {
         finalAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
     
-    if (Serial1.availableForWrite() >= finalAlert.length()) {
-        Serial1.println(finalAlert);
-        Serial1.flush();
-    }
+    sendToSerial1(finalAlert, true);
     
     bool success = performSecureWipe();
     
     if (success) {
         eraseStatus = "COMPLETED";
         String confirmMsg = getNodeId() + ": ERASE_COMPLETE";
-        if (Serial1.availableForWrite() >= confirmMsg.length()) {
-            Serial1.println(confirmMsg);
-        }
+        sendToSerial1(confirmMsg, true);
     } else {
         eraseStatus = "FAILED";
     }

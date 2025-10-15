@@ -308,9 +308,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
             
             if (meshEnabled) {
                 String meshAlert = getNodeId() + ": " + alert;
-                if (Serial1.availableForWrite() >= (int)meshAlert.length()) {
-                    Serial1.println(meshAlert);
-                }
+                sendToSerial1(String(meshAlert), false);
             }
         }
     }
@@ -684,9 +682,7 @@ void blueTeamTask(void *pv) {
                     if (gpsValid) {
                         meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
                     }
-                    if (Serial1.availableForWrite() >= (int)meshAlert.length()) {
-                        Serial1.println(meshAlert);
-                    }
+                    sendToSerial1(meshAlert, false);
                 }
             }
         
@@ -1104,7 +1100,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
     size_t msgLen = msg.length() + 1;
     
     if (msgLen <= 230 && Serial1.availableForWrite() >= msgLen) {
-        Serial1.println(msg);
+        sendToSerial1(msg, false);
         Serial.printf("[TRIANGULATE CHILD] Sent summary: %d hits, avgRSSI=%d, GPS=%s\n",
                      triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO");
         

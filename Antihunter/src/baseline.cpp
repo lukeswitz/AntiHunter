@@ -236,9 +236,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 lastBaselineAnomalyMeshSend = millis();
                 String meshAlert = getNodeId() + ": ANOMALY-NEW: " + String(isBLE ? "BLE" : "WiFi") + 
                                 " " + macStr + " RSSI:" + String(rssi) + "dBm";
-                if (Serial1.availableForWrite() >= meshAlert.length()) {
-                    Serial1.println(meshAlert);
-                }
+                sendToSerial1(String(meshAlert), false);
             }
             
             history.wasPresent = true;
@@ -275,9 +273,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 lastBaselineAnomalyMeshSend = millis();
                 String meshAlert = getNodeId() + ": ANOMALY-REAPPEAR: " + macStr + 
                                 " Absent:" + String(absenceDuration / 1000) + "s";
-                if (Serial1.availableForWrite() >= meshAlert.length()) {
-                    Serial1.println(meshAlert);
-                }
+                sendToSerial1(String(meshAlert), false);
             }
 
             history.disappearedAt = 0;  // Reset

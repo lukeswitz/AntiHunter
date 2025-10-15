@@ -279,9 +279,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             if (drone.latitude != 0) {
                 meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
             }
-            if (Serial1.availableForWrite() >= meshMsg.length()) {
-                Serial1.println(meshMsg);
-            }
+            sendToSerial1(String(meshMsg), false);
             
             Serial.println("[DRONE] " + jsonStr);
         }

@@ -137,9 +137,7 @@ void sendNodeIdUpdate() {
     }
     Serial.println(nodeMsg);
     // send mesh
-    if (Serial1.availableForWrite() >= nodeMsg.length()) {
-        Serial1.println(nodeMsg);
-    }
+    sendToSerial1(nodeMsg, true);
 }
 
 void setup() {
