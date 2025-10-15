@@ -82,7 +82,7 @@ std::map<String, uint32_t> deauthTargetCounts;
 std::map<String, std::vector<uint32_t>> deauthTimings;
 
 // Triangulation
-static TriangulationAccumulator triAccum = {0};
+TriangulationAccumulator triAccum = {0};
 static const uint32_t TRI_SEND_INTERVAL = 1500;
 
 // External declarations
@@ -94,7 +94,6 @@ extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern bool isZeroOrBroadcast(const uint8_t *mac);
-
 
 // Helper functions 
 inline uint16_t u16(const uint8_t *p)
@@ -1080,6 +1079,13 @@ static void resetTriAccumulator(const uint8_t* mac) {
 }
 
 static void sendTriAccumulatedData(const String& nodeId) {
+
+    // Only grab node reports, dont make one from initiator
+    if (triangulationInitiator) {
+        Serial.println("[TRIANGULATE INITIATOR] Skipping TARGET_DATA send - parent node collects only");
+        return;
+    }
+
     if (triAccum.hitCount == 0) return;
     
     uint32_t now = millis();
@@ -1369,59 +1375,12 @@ void listScanTask(void *pv) {
                         triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
                         triAccum.hasGPS = true;
                     }
-                    
-                    bool isMaster = (myNodeId.indexOf("MASTER") >= 0);
-                    if (isMaster || triangulationNodes.size() == 0) {
-                        bool foundSelf = false;
-                        for (auto &node : triangulationNodes) {
-                            if (node.nodeId == myNodeId) {
-                                updateNodeRSSI(node, h.rssi);
-                                node.hitCount++;
-                                if (gpsValid) {
-                                    node.lat = gpsLat;
-                                    node.lon = gpsLon;
-                                    node.hasGPS = true;
-                                    node.hdop = triAccum.hdop;
-                                }
-                                node.distanceEstimate = rssiToDistance(node);
-                                foundSelf = true;
-                                Serial.printf("[TRIANGULATE] Updated self: RSSI=%d dist=%.1fm\n",
-                                            h.rssi, node.distanceEstimate);
-                                break;
-                            }
-                        }
-                        
-                        if (!foundSelf) {
-                            TriangulationNode selfNode;
-                            selfNode.nodeId = myNodeId;
-                            selfNode.lat = gpsLat;
-                            selfNode.lon = gpsLon;
-                            selfNode.hdop = triAccum.hdop;
-                            selfNode.rssi = h.rssi;
-                            selfNode.hitCount = 1;
-                            selfNode.hasGPS = gpsValid;
-                            selfNode.lastUpdate = millis();
-                            selfNode.filteredRssi = (float)h.rssi;
-                            selfNode.distanceEstimate = 0.0;
-                            selfNode.signalQuality = 0.5;
-                            selfNode.rssiHistory.clear();
-                            selfNode.rssiRawWindow.clear();
-                            
-                            initNodeKalmanFilter(selfNode);
-                            updateNodeRSSI(selfNode, h.rssi);
-                            selfNode.distanceEstimate = rssiToDistance(selfNode);
-                            
-                            triangulationNodes.push_back(selfNode);
-                            Serial.printf("[TRIANGULATE] Added self: RSSI=%d dist=%.1fm\n",
-                                        h.rssi, selfNode.distanceEstimate);
-                        }
-                    }
                 }
             }
         }
 
-        // Send accumulated triangulation data once per scan cycle
-        if (triangulationActive) {
+        // Send accumulated triangulation data once per scan cycle, node data only not self
+        if (triangulationActive && !triangulationInitiator) {
             String myNodeId = getNodeId();
             if (myNodeId.length() == 0) {
                 myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
@@ -1447,19 +1406,19 @@ void listScanTask(void *pv) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
         
-        // Force send final accumulated data right now
-        if (triAccum.hitCount > 0) {
+        // Force send child node final accumulated data
+        if (!triangulationInitiator && triAccum.hitCount > 0) {
             triAccum.lastSendTime = 0;
             sendTriAccumulatedData(myNodeId);
-            Serial.println("[SCAN] Sent final triangulation data on scan end");
+            Serial.println("[SCAN CHILD] Sent final triangulation data on scan end");
         }
         
         // Tell the kids
         if (triangulationInitiator) {
-            Serial.println("[SCAN] Initiator scan complete, stopping triangulation");
+            Serial.println("[SCAN INITIATOR] Scan complete, stopping triangulation");
             stopTriangulation();
         } else {
-            Serial.println("[SCAN] Child scan complete, waiting for master STOP command");
+            Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
         }
     }
 
