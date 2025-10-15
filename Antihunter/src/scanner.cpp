@@ -341,7 +341,14 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             }
         }
 
-        if (matchesMac(mac)) {
+        bool isMatch = false;
+        if (triangulationActive) {
+            isMatch = (memcmp(mac, triangulationTarget, 6) == 0);
+        } else {
+            isMatch = matchesMac(mac);
+        }
+        
+        if (isMatch) {
             Hit h;
             memcpy(h.mac, mac, 6);
             h.rssi = advertisedDevice->getRSSI();
@@ -854,8 +861,16 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-
-    if (c1 && matchesMac(cand1))
+    // Check c1 candidate against target
+    bool c1Match = false;
+    if (c1) {
+        if (triangulationActive) {
+            c1Match = (memcmp(cand1, triangulationTarget, 6) == 0);
+        } else {
+            c1Match = matchesMac(cand1);
+        }
+    }
+    if (c1Match)
     {
         Hit h;
         memcpy(h.mac, cand1, 6);
@@ -873,7 +888,17 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 portYIELD_FROM_ISR();
         }
     }
-    if (c2 && matchesMac(cand2))
+    
+    // Check c2 candidate against target
+    bool c2Match = false;
+    if (c2) {
+        if (triangulationActive) {
+            c2Match = (memcmp(cand2, triangulationTarget, 6) == 0);
+        } else {
+            c2Match = matchesMac(cand2);
+        }
+    }
+    if (c2Match)
     {
         Hit h;
         memcpy(h.mac, cand2, 6);
@@ -891,7 +916,6 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 portYIELD_FROM_ISR();
         }
     }
-
 }
 
 // ---------- Radio common ----------
