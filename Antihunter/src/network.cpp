@@ -2391,38 +2391,55 @@ void processMeshMessage(const String &message) {
             Serial.printf("[TRIANGULATE] Node %s acknowledged triangulation command\n", 
                           sendingNode.c_str());
         }
-        
+
         if (content.startsWith("TIME_SYNC_REQ:")) {
-            int firstColon = content.indexOf(':', 14);
-            if (firstColon > 0) {
-                int secondColon = content.indexOf(':', firstColon + 1);
-                if (secondColon > 0) {
-                    time_t theirTime = content.substring(14, firstColon).toInt();
-                    uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
-                    
-                    handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
-                    
-                    time_t myTime = getRTCEpoch();
-                    uint32_t myMillis = millis();
-                    String response = getNodeId() + ": TIME_SYNC_RESP:" + 
-                                    String((unsigned long)myTime) + ":" + 
-                                    String(myMillis);
-                    sendToSerial1(response, false);
-                }
-            }
-        }
+          int firstColon = content.indexOf(':', 14);
+          if (firstColon > 0) {
+              int secondColon = content.indexOf(':', firstColon + 1);
+              if (secondColon > 0) {
+                  int thirdColon = content.indexOf(':', secondColon + 1);
+                  if (thirdColon > 0) {
+                      time_t theirTime = strtoul(content.substring(14, firstColon).c_str(), nullptr, 10);
+                      uint16_t theirSubsec = content.substring(firstColon + 1, secondColon).toInt();
+                      uint32_t theirMicros = strtoul(content.substring(secondColon + 1, thirdColon).c_str(), nullptr, 10);
+                      
+                      handleTimeSyncResponse(sendingNode, theirTime, theirMicros);
+                      
+                      time_t myTime = getRTCEpoch();
+                      int64_t myMicros = getCorrectedMicroseconds();
+                      uint16_t mySubsec = (myMicros % 1000000) / 10000;
+                      
+                      String response = getNodeId() + ": TIME_SYNC_RESP:" + 
+                                      String((unsigned long)myTime) + ":" + 
+                                      String(mySubsec) + ":" +
+                                      String((unsigned long)(myMicros & 0xFFFFFFFF)) + ":" +
+                                      String(0);
+                      sendToSerial1(response, false);
+                  }
+              }
+          }
+      }
         
-        if (content.startsWith("TIME_SYNC_RESP:")) {
-            int firstColon = content.indexOf(':', 15);
-            if (firstColon > 0) {
-                int secondColon = content.indexOf(':', firstColon + 1);
-                if (secondColon > 0) {
-                    time_t theirTime = content.substring(15, firstColon).toInt();
-                    uint32_t theirMillis = content.substring(firstColon + 1, secondColon).toInt();
-                    handleTimeSyncResponse(sendingNode, theirTime, theirMillis);
+      if (content.startsWith("TIME_SYNC_RESP:")) {
+        int firstColon = content.indexOf(':', 15);
+        if (firstColon > 0) {
+            int secondColon = content.indexOf(':', firstColon + 1);
+            if (secondColon > 0) {
+                int thirdColon = content.indexOf(':', secondColon + 1);
+                if (thirdColon > 0) {
+                    int fourthColon = content.indexOf(':', thirdColon + 1);
+                    if (fourthColon > 0) {
+                        time_t theirTime = strtoul(content.substring(15, firstColon).c_str(), nullptr, 10);
+                        uint16_t theirSubsec = content.substring(firstColon + 1, secondColon).toInt();
+                        uint32_t theirMicros = strtoul(content.substring(secondColon + 1, thirdColon).c_str(), nullptr, 10);
+                        uint32_t propDelay = strtoul(content.substring(thirdColon + 1, fourthColon).c_str(), nullptr, 10);
+                        
+                        handleTimeSyncResponse(sendingNode, theirTime, theirMicros);
+                    }
                 }
             }
         }
+      }
     }    
 
     if (cleanMessage.startsWith("@")) {
