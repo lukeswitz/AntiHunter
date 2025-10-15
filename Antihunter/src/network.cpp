@@ -124,8 +124,8 @@ void initializeNetwork()
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
   Serial.println("Initializing mesh UART...");
   
-  Serial.println("Waiting for T114 stability...");
-  delay(15000);
+  // Serial.println("Waiting for T114 stability...");
+  // delay(15000);
 
   initializeMesh();
 
@@ -2146,7 +2146,6 @@ void processCommand(const String &command)
     Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
     if (triangulationActive && !triangulationInitiator) {
-        // For child nodes, call stop directly
         stopTriangulation();
     }
     sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
@@ -2225,104 +2224,108 @@ void processMeshMessage(const String &message) {
         
         // TARGET_DATA from child nodes
         if (content.startsWith("TARGET_DATA:")) {
-          String payload = content.substring(13);
-          
-          int macEnd = payload.indexOf(' ');
-          if (macEnd > 0) {
-              String reportedMac = payload.substring(0, macEnd);
-              uint8_t mac[6];
-              
-              if (parseMac6(reportedMac, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
-                  int hitsIdx = payload.indexOf("Hits=");
-                  int rssiIdx = payload.indexOf("RSSI:");
-                  int gpsIdx = payload.indexOf("GPS=");
-                  int hdopIdx = payload.indexOf("HDOP=");
-                  
-                  if (hitsIdx > 0 && rssiIdx > 0) {
-                      int hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
-                      
-                      // Find RSSI value endpoint
-                      int rssiEnd = payload.length();
-                      int spaceAfterRssi = payload.indexOf(' ', rssiIdx + 5);
-                      if (spaceAfterRssi > 0) rssiEnd = spaceAfterRssi;
-                      
-                      // Check if "Range:" exists after RSSI
-                      int rangeIdx = payload.indexOf("Range:", rssiIdx);
-                      if (rangeIdx > 0 && rangeIdx < rssiEnd) {
-                          rssiEnd = rangeIdx - 1;
-                      }
-                      
-                      int8_t rssi = payload.substring(rssiIdx + 5, rssiEnd).toInt();
-                      
-                      float lat = 0.0, lon = 0.0, hdop = 99.9;
-                      bool hasGPS = false;
-                      
-                      if (gpsIdx > 0) {
-                          int commaIdx = payload.indexOf(',', gpsIdx);
-                          if (commaIdx > 0) {
-                              lat = payload.substring(gpsIdx + 4, commaIdx).toFloat();
-                              int spaceAfterLon = payload.indexOf(' ', commaIdx);
-                              lon = payload.substring(commaIdx + 1, spaceAfterLon > 0 ? spaceAfterLon : payload.length()).toFloat();
-                              hasGPS = true;
-                              
-                              if (hdopIdx > 0) {
-                                  hdop = payload.substring(hdopIdx + 5).toFloat();
-                              }
-                          }
-                      }
-                      
-                      bool found = false;
-                      for (auto &node : triangulationNodes) {
-                          if (node.nodeId == sendingNode) {
-                              updateNodeRSSI(node, rssi);
-                              node.hitCount = hits;  // Use accumulated hit count
-                              if (hasGPS) {
-                                  node.lat = lat;
-                                  node.lon = lon;
-                                  node.hasGPS = true;
-                                  node.hdop = hdop;
-                              }
-                              node.distanceEstimate = rssiToDistance(node, !node.isBLE);
-                              found = true;
-                              Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm GPS=%s\n",
-                                          sendingNode.c_str(), hits, rssi, hasGPS ? "YES" : "NO");
-                              break;
-                          }
-                      }
-                      
-                      if (!found) {
-                      bool isBLE = false;
-                      int typeIdx = payload.indexOf("Type:");
-                      if (typeIdx > 0) {
-                          String typeStr = payload.substring(typeIdx + 5, payload.indexOf(' ', typeIdx + 5));
-                          if (typeStr.length() == 0) typeStr = payload.substring(typeIdx + 5);
-                          isBLE = (typeStr == "BLE");
-                      }
-                      
-                      TriangulationNode newNode;
-                      newNode.nodeId = sendingNode;
-                      newNode.lat = lat;
-                      newNode.lon = lon;
-                      newNode.rssi = rssi;
-                      newNode.hitCount = hits;
-                      newNode.hasGPS = hasGPS;
-                      newNode.hdop = hdop;
-                      newNode.isBLE = isBLE;
-                      newNode.lastUpdate = millis();
-                      initNodeKalmanFilter(newNode);
-                      updateNodeRSSI(newNode, rssi);
-                      newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
-                      triangulationNodes.push_back(newNode);
-                      Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm\n",
-                                    sendingNode.c_str(), hits, rssi);
-                  }
-                  }
-              }
-          }
-          return;  // Message processed
-      }
+            String payload = content.substring(13);
+            
+            int macEnd = payload.indexOf(' ');
+            if (macEnd > 0) {
+                String reportedMac = payload.substring(0, macEnd);
+                uint8_t mac[6];
+                
+                if (parseMac6(reportedMac, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
+                    int hitsIdx = payload.indexOf("Hits=");
+                    int rssiIdx = payload.indexOf("RSSI:");
+                    int gpsIdx = payload.indexOf("GPS=");
+                    int hdopIdx = payload.indexOf("HDOP=");
+                    
+                    if (hitsIdx > 0 && rssiIdx > 0) {
+                        int hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
+                        
+                        int rssiEnd = payload.length();
+                        int spaceAfterRssi = payload.indexOf(' ', rssiIdx + 5);
+                        if (spaceAfterRssi > 0) rssiEnd = spaceAfterRssi;
+                        
+                        int rangeIdx = payload.indexOf("Range:", rssiIdx);
+                        if (rangeIdx > 0 && rangeIdx < rssiEnd) {
+                            rssiEnd = rangeIdx - 1;
+                        }
+                        
+                        int8_t rssi = payload.substring(rssiIdx + 5, rssiEnd).toInt();
+                        
+                        // Grab device type right from payload
+                        bool isBLE = false;
+                        int typeIdx = payload.indexOf("Type:");
+                        if (typeIdx > 0) {
+                            int typeEnd = payload.indexOf(' ', typeIdx + 5);
+                            if (typeEnd < 0) typeEnd = payload.length();
+                            String typeStr = payload.substring(typeIdx + 5, typeEnd);
+                            typeStr.trim();
+                            isBLE = (typeStr == "BLE");
+                        }
+                        
+                        float lat = 0.0, lon = 0.0, hdop = 99.9;
+                        bool hasGPS = false;
+                        
+                        if (gpsIdx > 0) {
+                            int commaIdx = payload.indexOf(',', gpsIdx);
+                            if (commaIdx > 0) {
+                                lat = payload.substring(gpsIdx + 4, commaIdx).toFloat();
+                                int spaceAfterLon = payload.indexOf(' ', commaIdx);
+                                lon = payload.substring(commaIdx + 1, spaceAfterLon > 0 ? spaceAfterLon : payload.length()).toFloat();
+                                hasGPS = true;
+                                
+                                if (hdopIdx > 0) {
+                                    hdop = payload.substring(hdopIdx + 5).toFloat();
+                                }
+                            }
+                        }
+                        
+                        bool found = false;
+                        for (auto &node : triangulationNodes) {
+                            if (node.nodeId == sendingNode) {
+                                updateNodeRSSI(node, rssi);
+                                node.hitCount = hits;
+                                node.isBLE = isBLE;
+                                if (hasGPS) {
+                                    node.lat = lat;
+                                    node.lon = lon;
+                                    node.hasGPS = true;
+                                    node.hdop = hdop;
+                                }
+                                node.distanceEstimate = rssiToDistance(node, !node.isBLE);
+                                found = true;
+                                Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm Type=%s GPS=%s\n",
+                                            sendingNode.c_str(), hits, rssi,
+                                            node.isBLE ? "BLE" : "WiFi",
+                                            hasGPS ? "YES" : "NO");
+                                break;
+                            }
+                        }
+                        
+                        if (!found) {
+                            TriangulationNode newNode;
+                            newNode.nodeId = sendingNode;
+                            newNode.lat = lat;
+                            newNode.lon = lon;
+                            newNode.rssi = rssi;
+                            newNode.hitCount = hits;
+                            newNode.hasGPS = hasGPS;
+                            newNode.hdop = hdop;
+                            newNode.isBLE = isBLE;
+                            newNode.lastUpdate = millis();
+                            initNodeKalmanFilter(newNode);
+                            updateNodeRSSI(newNode, rssi);
+                            newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
+                            triangulationNodes.push_back(newNode);
+                            Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
+                                        sendingNode.c_str(), hits, rssi,
+                                        newNode.isBLE ? "BLE" : "WiFi");
+                        }
+                    }
+                }
+            }
+            return;  // Message processed
+        }
 
-      // Legacy "Target:" support
       if (content.startsWith("Target:")) {
             int macStart = content.indexOf(' ', 7) + 1;
             int macEnd = content.indexOf(' ', macStart);
@@ -2383,21 +2386,32 @@ void processMeshMessage(const String &message) {
                         }
                     }
 
+                    bool isBLE = false;
+                    int typeIdx = content.indexOf("Type:");
+                    if (typeIdx > 0) {
+                        int typeEnd = content.indexOf(' ', typeIdx + 5);
+                        if (typeEnd < 0) typeEnd = content.length();
+                        String typeStr = content.substring(typeIdx + 5, typeEnd);
+                        typeStr.trim();
+                        isBLE = (typeStr == "BLE");
+                    }
+
                     bool found = false;
                     for (auto &node : triangulationNodes) {
                         if (node.nodeId == sendingNode) {
                             updateNodeRSSI(node, rssi);
                             node.hitCount++;
+                            node.isBLE = isBLE;
                             if (hasGPS) {
                                 node.lat = lat;
                                 node.lon = lon;
-                                node.hdop = hdop;
                                 node.hasGPS = true;
                             }
                             node.distanceEstimate = rssiToDistance(node, !node.isBLE);
                             found = true;
-                            Serial.printf("[TRIANGULATE] Updated %s: RSSI=%d->%.1f dist=%.1fm Q=%.2f\n",
-                                        sendingNode.c_str(), rssi, node.filteredRssi, 
+                            Serial.printf("[TRIANGULATE] Updated %s: RSSI=%d->%.1f Type=%s dist=%.1fm Q=%.2f\n",
+                                        sendingNode.c_str(), rssi, node.filteredRssi,
+                                        node.isBLE ? "BLE" : "WiFi",
                                         node.distanceEstimate, node.signalQuality);
                             break;
                         }

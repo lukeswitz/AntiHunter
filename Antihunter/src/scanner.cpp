@@ -1075,6 +1075,7 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.lon = 0.0f;
     triAccum.hdop = 99.9f;
     triAccum.hasGPS = false;
+    triAccum.isBLE = false;
     triAccum.lastSendTime = millis();
 }
 
@@ -1113,7 +1114,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
     
     size_t msgLen = msg.length() + 1;
 
-    if (msgLen <= 230 && Serial1.availableForWrite() >= msgLen) {
+    if (msgLen <= 240 && Serial1.availableForWrite() >= msgLen) {
         bool sent = sendToSerial1(msg, true);
         
         if (sent) {
@@ -1381,6 +1382,7 @@ void listScanTask(void *pv) {
                     triAccum.rssiSum += (float)h.rssi;
                     if (h.rssi > triAccum.maxRssi) triAccum.maxRssi = h.rssi;
                     if (h.rssi < triAccum.minRssi || triAccum.minRssi == 0) triAccum.minRssi = h.rssi;
+                    triAccum.isBLE = h.isBLE;
                     
                     if (gpsValid) {
                         triAccum.lat = gpsLat;
@@ -1388,11 +1390,63 @@ void listScanTask(void *pv) {
                         triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
                         triAccum.hasGPS = true;
                     }
+                    
+                    if (triangulationInitiator) {
+                        String myNodeId = getNodeId();
+                        if (myNodeId.length() == 0) {
+                            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+                        }
+                        
+                        int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
+                        
+                        bool selfNodeFound = false;
+                        for (auto &node : triangulationNodes) {
+                            if (node.nodeId == myNodeId) {
+                                updateNodeRSSI(node, avgRssi);
+                                node.hitCount = triAccum.hitCount;
+                                node.isBLE = triAccum.isBLE;
+                                if (triAccum.hasGPS) {
+                                    node.lat = triAccum.lat;
+                                    node.lon = triAccum.lon;
+                                    node.hdop = triAccum.hdop;
+                                    node.hasGPS = true;
+                                }
+                                node.distanceEstimate = rssiToDistance(node, !node.isBLE);
+                                node.lastUpdate = millis();
+                                selfNodeFound = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!selfNodeFound) {
+                            TriangulationNode selfNode;
+                            selfNode.nodeId = myNodeId;
+                            selfNode.lat = triAccum.hasGPS ? triAccum.lat : 0.0;
+                            selfNode.lon = triAccum.hasGPS ? triAccum.lon : 0.0;
+                            selfNode.hdop = triAccum.hasGPS ? triAccum.hdop : 99.9;
+                            selfNode.rssi = avgRssi;
+                            selfNode.hitCount = triAccum.hitCount;
+                            selfNode.hasGPS = triAccum.hasGPS;
+                            selfNode.isBLE = triAccum.isBLE;
+                            selfNode.lastUpdate = millis();
+                            
+                            initNodeKalmanFilter(selfNode);
+                            updateNodeRSSI(selfNode, avgRssi);
+                            selfNode.distanceEstimate = rssiToDistance(selfNode, !selfNode.isBLE);
+                            
+                            triangulationNodes.push_back(selfNode);
+                            
+                            Serial.printf("[TRIANGULATE SELF] Added: hits=%d avgRSSI=%d Type=%s dist=%.1fm GPS=%s\n",
+                                        triAccum.hitCount, avgRssi,
+                                        selfNode.isBLE ? "BLE" : "WiFi",
+                                        selfNode.distanceEstimate,
+                                        triAccum.hasGPS ? "YES" : "NO");
+                        }
+                    }
                 }
             }
         }
 
-        // Send accumulated triangulation data once per scan cycle, node data only not self
         if (triangulationActive && !triangulationInitiator) {
             String myNodeId = getNodeId();
             if (myNodeId.length() == 0) {
@@ -1423,7 +1477,7 @@ void listScanTask(void *pv) {
         if (!triangulationInitiator && triAccum.hitCount > 0) {
             triAccum.lastSendTime = 0;
             sendTriAccumulatedData(myNodeId);
-            Serial.println("[SCAN CHILD] Sent final triangulation data on scan end");
+            Serial.println("[SCAN CHILD] Done. Sent final triangulation data");
             vTaskDelay(pdMS_TO_TICKS(500));
         }
         
