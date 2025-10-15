@@ -30,6 +30,7 @@ struct TriangulationNode {
     float distanceEstimate;
     float signalQuality;
     float hdop;
+    bool isBLE;
 };
 
 struct NodeSyncStatus {
