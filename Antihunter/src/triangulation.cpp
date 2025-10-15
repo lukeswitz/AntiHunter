@@ -43,8 +43,8 @@ bool isTriangulationActive() {
 }
 
 float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
-    float rssi0 = isWiFi ? pathLoss.rssi0_wifi : pathLoss.rssi0_ble;
-    float n = isWiFi ? pathLoss.n_wifi : pathLoss.n_ble;
+    float rssi0 = isWiFi ? adaptivePathLoss.rssi0_wifi : adaptivePathLoss.rssi0_ble;
+    float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
     
     // Log-distance path loss model: d = 10^((RSSI0 - RSSI)/(10*n))
     float distance = pow(10.0, (rssi0 - node.filteredRssi) / (10.0 * n));
@@ -55,7 +55,6 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     
     return distance;
 }
-
 
 float getAverageHDOP(const std::vector<TriangulationNode> &nodes) {
     if (nodes.size() == 0) return 99.9;
@@ -307,6 +306,13 @@ void updateNodeRSSI(TriangulationNode &node, int8_t newRssi) {
     node.rssiHistory.push_back(newRssi);
     if (node.rssiHistory.size() > RSSI_HISTORY_SIZE) {
         node.rssiHistory.erase(node.rssiHistory.begin());
+    }
+
+    if (node.hasGPS && triangulationNodes.size() >= 2) {
+        float estimatedDist = node.distanceEstimate;
+        if (estimatedDist > 0.1 && estimatedDist < 200.0) {
+            addPathLossSample(node.filteredRssi, estimatedDist, !node.isBLE);
+        }
     }
     
     node.signalQuality = calculateSignalQuality(node);
@@ -748,6 +754,19 @@ String calculateTriangulation() {
     }
     results += "\n";
 
+    // Collect samples for path loss
+    for (const auto& node : gpsNodes) {
+        for (size_t j = 0; j < gpsNodes.size(); j++) {
+            if (j != (&node - &gpsNodes[0])) {
+                float gpsDistance = haversineDistance(
+                    node.lat, node.lon,
+                    gpsNodes[j].lat, gpsNodes[j].lon
+                );
+                addPathLossSample(node.filteredRssi, gpsDistance, !node.isBLE);
+            }
+        }
+    }
+
     // GPS RSSI validation
     if (gpsNodes.size() >= 2) {
         results += "--- GPS-RSSI Distance Validation ---\n";
@@ -769,7 +788,6 @@ String calculateTriangulation() {
                 results += "GPS=" + String(gpsDistance, 1) + "m ";
                 results += "RSSI=" + String(rssiDist1, 1) + "m/" + String(rssiDist2, 1) + "m";
                 
-                // Simple validation: if nodes are far apart, RSSI distances should reflect that
                 float minExpected = gpsDistance * 0.5;
                 float maxExpected = gpsDistance * 2.0;
                 float sumRssi = rssiDist1 + rssiDist2;
@@ -1228,4 +1246,122 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
                     String(propagationDelay);
 
     sendToSerial1(response, false);
+}
+
+
+AdaptivePathLoss adaptivePathLoss = {
+    -30.0,  // rssi0_wifi initial
+    -40.0,  // rssi0_ble initial
+    3.0,    // n_wifi initial
+    2.5,    // n_ble initial
+    {},     // wifiSamples
+    {},     // bleSamples
+    false,  // wifi_calibrated
+    false,  // ble_calibrated
+    0       // lastUpdate
+};
+
+// Least squares estimation of path loss parameters
+void estimatePathLossParameters(bool isWiFi) {
+    auto& samples = isWiFi ? adaptivePathLoss.wifiSamples : adaptivePathLoss.bleSamples;
+    
+    if (samples.size() < adaptivePathLoss.MIN_SAMPLES) {
+        Serial.printf("[PATH_LOSS] Insufficient samples for %s: %d/%d\n",
+                     isWiFi ? "WiFi" : "BLE", samples.size(), adaptivePathLoss.MIN_SAMPLES);
+        return;
+    }
+    
+    // Linear regression on (log10(distance), RSSI)
+    // Model: RSSI = A - 10*n*log10(d)
+    // Where A = RSSI0, slope = -10*n
+    
+    float sum_x = 0, sum_y = 0, sum_xx = 0, sum_xy = 0;
+    size_t n_samples = samples.size();
+    
+    for (const auto& sample : samples) {
+        if (sample.distance > 0.1) {  // Minimum 10cm to avoid log(0)
+            float x = log10(sample.distance);
+            float y = sample.rssi;
+            sum_x += x;
+            sum_y += y;
+            sum_xx += x * x;
+            sum_xy += x * y;
+        }
+    }
+    
+    // Least squares solution
+    float denominator = n_samples * sum_xx - sum_x * sum_x;
+    if (abs(denominator) < 0.0001) {
+        Serial.printf("[PATH_LOSS] Singular matrix for %s, using defaults\n",
+                     isWiFi ? "WiFi" : "BLE");
+        return;
+    }
+    
+    float slope = (n_samples * sum_xy - sum_x * sum_y) / denominator;
+    float intercept = (sum_y - slope * sum_x) / n_samples;
+    
+    // Extract parameters
+    float n_estimate = -slope / 10.0;
+    float rssi0_estimate = intercept;
+    
+    // Sanity check: n should be 1.5-6.0, RSSI0 should be -60 to -20 dBm
+    if (n_estimate < 1.5 || n_estimate > 6.0) {
+        Serial.printf("[PATH_LOSS] Invalid n=%f for %s, clamping\n", 
+                     n_estimate, isWiFi ? "WiFi" : "BLE");
+        n_estimate = constrain(n_estimate, 1.5, 6.0);
+    }
+    
+    if (rssi0_estimate < -60.0 || rssi0_estimate > -20.0) {
+        Serial.printf("[PATH_LOSS] Invalid RSSI0=%f for %s, clamping\n",
+                     rssi0_estimate, isWiFi ? "WiFi" : "BLE");
+        rssi0_estimate = constrain(rssi0_estimate, -60.0, -20.0);
+    }
+    
+    // Update estimates with exponential moving average for stability
+    const float alpha = 0.3;  // Learning rate
+    if (isWiFi) {
+        if (adaptivePathLoss.wifi_calibrated) {
+            adaptivePathLoss.n_wifi = alpha * n_estimate + (1 - alpha) * adaptivePathLoss.n_wifi;
+            adaptivePathLoss.rssi0_wifi = alpha * rssi0_estimate + (1 - alpha) * adaptivePathLoss.rssi0_wifi;
+        } else {
+            adaptivePathLoss.n_wifi = n_estimate;
+            adaptivePathLoss.rssi0_wifi = rssi0_estimate;
+            adaptivePathLoss.wifi_calibrated = true;
+        }
+        Serial.printf("[PATH_LOSS] WiFi updated: RSSI0=%.1f n=%.2f (samples=%d)\n",
+                     adaptivePathLoss.rssi0_wifi, adaptivePathLoss.n_wifi, n_samples);
+    } else {
+        if (adaptivePathLoss.ble_calibrated) {
+            adaptivePathLoss.n_ble = alpha * n_estimate + (1 - alpha) * adaptivePathLoss.n_ble;
+            adaptivePathLoss.rssi0_ble = alpha * rssi0_estimate + (1 - alpha) * adaptivePathLoss.rssi0_ble;
+        } else {
+            adaptivePathLoss.n_ble = n_estimate;
+            adaptivePathLoss.rssi0_ble = rssi0_estimate;
+            adaptivePathLoss.ble_calibrated = true;
+        }
+        Serial.printf("[PATH_LOSS] BLE updated: RSSI0=%.1f n=%.2f (samples=%d)\n",
+                     adaptivePathLoss.rssi0_ble, adaptivePathLoss.n_ble, n_samples);
+    }
+    
+    adaptivePathLoss.lastUpdate = millis();
+}
+
+// Add sample when we have both RSSI and GPS-derived distance
+void addPathLossSample(float rssi, float distance, bool isWiFi) {
+    if (distance < 0.1 || distance > 200.0) return;  // Sanity check
+    
+    PathLossSample sample = {rssi, distance, isWiFi, millis()};
+    auto& samples = isWiFi ? adaptivePathLoss.wifiSamples : adaptivePathLoss.bleSamples;
+    
+    samples.push_back(sample);
+    
+    // Keep only recent samples
+    if (samples.size() > adaptivePathLoss.MAX_SAMPLES) {
+        samples.erase(samples.begin());
+    }
+    
+    // Trigger re-estimation every 10 samples or every 30 seconds
+    if (samples.size() % 10 == 0 || millis() - adaptivePathLoss.lastUpdate > 30000) {
+        estimatePathLossParameters(isWiFi);
+    }
 }
