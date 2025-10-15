@@ -36,6 +36,7 @@ struct TriangulationAccumulator {
     float lon;
     float hdop;
     bool hasGPS;
+    bool isBLE;
     uint32_t lastSendTime;
     uint32_t windowStartTime;
 };

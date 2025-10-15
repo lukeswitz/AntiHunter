@@ -30,10 +30,10 @@ bool triangulationActive = false;
 bool triangulationInitiator = false;
 
 PathLossCalibration pathLoss = {
-    -25.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 5dBi antenna = 25dBm EIRP
-    -54.0,  // rssi0_ble: BLE @ 1m with 4dBm tx + 5dBi antenna = 9dBm EIRP
-    3.0,    // n_wifi: indoor environment, WiFi propagation
-    3.2,    // n_ble: indoor environment, BLE has slightly worse penetration than WiFi
+    -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
+    -40.0,  // rssi0_ble: BLE @ 1m with ~0dBm tx + 0dBi antenna (no external antenna)
+    3.0,    // n_wifi: indoor environment
+    2.5,    // n_ble: indoor/close-range
     false
 };
 
@@ -475,34 +475,49 @@ void stopTriangulation() {
     
     Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, triangulationNodes.size());
 
-    //  Add parent's own accumulated data if initiator
+    // Add parent's own accumulated data
     if (triangulationInitiator && triAccum.hitCount > 0) {
         String myNodeId = getNodeId();
         if (myNodeId.length() == 0) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
         
-        int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
+        // Check if self node exists
+        bool selfNodeExists = false;
+        for (const auto &node : triangulationNodes) {
+            if (node.nodeId == myNodeId) {
+                selfNodeExists = true;
+                Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", node.hitCount);
+                break;
+            }
+        }
         
-        TriangulationNode selfNode;
-        selfNode.nodeId = myNodeId;
-        selfNode.lat = triAccum.lat;
-        selfNode.lon = triAccum.lon;
-        selfNode.hdop = triAccum.hdop;
-        selfNode.rssi = avgRssi;
-        selfNode.hitCount = triAccum.hitCount;
-        selfNode.hasGPS = triAccum.hasGPS;
-        selfNode.lastUpdate = millis();
-        
-        initNodeKalmanFilter(selfNode);
-        updateNodeRSSI(selfNode, avgRssi);
-        selfNode.distanceEstimate = rssiToDistance(selfNode);
-        
-        triangulationNodes.push_back(selfNode);
-        
-        Serial.printf("[TRIANGULATE INITIATOR] Added self: hits=%d avgRSSI=%d GPS=%s dist=%.1fm\n",
-                     triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO",
-                     selfNode.distanceEstimate);
+        if (!selfNodeExists) {
+            int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
+            
+            TriangulationNode selfNode;
+            selfNode.nodeId = myNodeId;
+            selfNode.lat = triAccum.lat;
+            selfNode.lon = triAccum.lon;
+            selfNode.hdop = triAccum.hdop;
+            selfNode.rssi = avgRssi;
+            selfNode.hitCount = triAccum.hitCount;
+            selfNode.hasGPS = triAccum.hasGPS;
+            selfNode.isBLE = triAccum.isBLE;
+            selfNode.lastUpdate = millis();
+            
+            initNodeKalmanFilter(selfNode);
+            updateNodeRSSI(selfNode, avgRssi);
+            selfNode.distanceEstimate = rssiToDistance(selfNode, !selfNode.isBLE);
+            
+            triangulationNodes.push_back(selfNode);
+            
+            Serial.printf("[TRIANGULATE INITIATOR] Added self: hits=%d avgRSSI=%d Type=%s GPS=%s dist=%.1fm\n",
+                        triAccum.hitCount, avgRssi,
+                        selfNode.isBLE ? "BLE" : "WiFi",
+                        triAccum.hasGPS ? "YES" : "NO",
+                        selfNode.distanceEstimate);
+        }
     }
 
     Serial.println("[TRIANGULATE] Waiting up to 40s for all node reports...");
