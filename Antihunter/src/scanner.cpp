@@ -83,7 +83,7 @@ std::map<String, std::vector<uint32_t>> deauthTimings;
 
 // Triangulation
 TriangulationAccumulator triAccum = {0};
-static const uint32_t TRI_SEND_INTERVAL = 1500;
+static const uint32_t TRI_SEND_INTERVAL = 3000;
 
 // External declarations
 extern Preferences prefs;

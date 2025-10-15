@@ -76,7 +76,7 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 static SerialRateLimiter rateLimiter;
 
 bool sendToSerial1(const String &message, bool canDelay) {
-    size_t msgLen = message.length() + 2; // +2 for \r\n
+    size_t msgLen = message.length() + 2;
     
     if (!rateLimiter.canSend(msgLen)) {
         if (canDelay) {
@@ -95,14 +95,25 @@ bool sendToSerial1(const String &message, bool canDelay) {
         }
     }
     
-    if (Serial1.availableForWrite() >= msgLen) {
-        Serial1.println(message);
-        Serial1.flush();
-        rateLimiter.consume(msgLen);
-        return true;
+    // Wait for Serial1 buffer space if needed
+    int retries = 0;
+    while (Serial1.availableForWrite() < msgLen && retries < 20) {
+        if (!canDelay) {
+            return false;  // Can't wait, drop
+        }
+        delay(400);  // Wait for T114
+        retries++;
     }
     
-    return false;
+    if (Serial1.availableForWrite() < msgLen) {
+        Serial.println("[MESH] Serial1 buffer full, dropping message");
+        return false;
+    }
+    
+    Serial1.println(message);
+    Serial1.flush();
+    rateLimiter.consume(msgLen);
+    return true;
 }
 
 // ------------- Network ------------- 
@@ -1900,7 +1911,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
-    if (triangulationActive) return;
+    
+    if (triangulationActive && triangulationInitiator) return;
     
     if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
     lastMeshSend = millis();
@@ -2166,9 +2178,13 @@ void processCommand(const String &command)
 }
 
 void sendMeshCommand(const String &command) {
-    if (meshEnabled) {
-        Serial.printf("[MESH] Sending command: %s\n", command.c_str());
-        sendToSerial1(command, true);
+    if (!meshEnabled) return;
+    
+    bool sent = sendToSerial1(command, true);
+    if (sent) {
+        Serial.printf("[MESH] Command sent: %s\n", command.c_str());
+    } else {
+        Serial.printf("[MESH] Command failed: %s\n", command.c_str());
     }
 }
 
@@ -2191,10 +2207,17 @@ void processMeshMessage(const String &message) {
         if (c >= 32 && c <= 126) cleanMessage += c;
     }
     if (cleanMessage.length() == 0) return;
+
+    int colonPos = cleanMessage.indexOf(':');
+    if (colonPos > 0) {
+        String sendingNode = cleanMessage.substring(0, colonPos);
+        if (sendingNode == getNodeId()) {
+            return;
+        }
+    }
     
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
-    
-    int colonPos = cleanMessage.indexOf(':');
+
     if (triangulationActive && colonPos > 0) {
         String sendingNode = cleanMessage.substring(0, colonPos);
         String content = cleanMessage.substring(colonPos + 2);
