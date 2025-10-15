@@ -8,6 +8,7 @@ FIRMWARE_OPTIONS=(
 )
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
+ERASE_FLASH=false
 
 # PlatformIO Config Values
 MONITOR_SPEED=115200
@@ -22,6 +23,7 @@ Flash firmware to ESP32 devices.
 
 Options:
   -f, --file FILE    Path to custom .bin file to flash
+  -e, --erase        Erase flash before flashing (default: no)
   -h, --help         Display this help message and exit
   -l, --list         List available firmware options and exit
 
@@ -54,6 +56,10 @@ while [[ $# -gt 0 ]]; do
         -f|--file)
             CUSTOM_BIN="$2"
             shift
+            shift
+            ;;
+        -e|--erase)
+            ERASE_FLASH=true
             shift
             ;;
         -h|--help)
@@ -187,12 +193,10 @@ else
                 PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
                 
                 if [ ! -f "$BOOTLOADER_FILE" ]; then
-                    echo "Warning: bootloader.bin not found in $CUSTOM_DIR"
                     BOOTLOADER_FILE=""
                 fi
                 
                 if [ ! -f "$PARTITIONS_FILE" ]; then
-                    echo "Warning: partitions.bin not found in $CUSTOM_DIR"
                     PARTITIONS_FILE=""
                 fi
             fi
@@ -236,8 +240,56 @@ while true; do
     fi
 done
 
+# Interactive erase flash prompt if not set via command line
+if [ "$ERASE_FLASH" = false ]; then
+    echo ""
+    read -p "Erase flash before flashing? (y/N): " erase_response
+    if [[ "$erase_response" =~ ^[Yy]$ ]]; then
+        ERASE_FLASH=true
+    fi
+fi
+
+# Erase flash if requested
+if [ "$ERASE_FLASH" = true ]; then
+    echo ""
+    echo "==================================================="
+    echo "Erasing flash memory..."
+    echo "==================================================="
+    $ESPTOOL_CMD \
+        --chip auto \
+        --port "$ESP32_PORT" \
+        --baud "$UPLOAD_SPEED" \
+        erase_flash
+    echo "Flash erase complete."
+    echo ""
+    
+    # After erase, prompt for bootloader/partitions if not already found
+    if [ -z "$BOOTLOADER_FILE" ] || [ ! -f "$BOOTLOADER_FILE" ]; then
+        echo "Bootloader required after flash erase."
+        read -p "Enter path to bootloader.bin: " bootloader_path
+        if [ -f "$bootloader_path" ]; then
+            BOOTLOADER_FILE="$bootloader_path"
+        else
+            echo "ERROR: Bootloader file not found. Cannot proceed after erase."
+            exit 1
+        fi
+    fi
+    
+    if [ -z "$PARTITIONS_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
+        echo "Partition table required after flash erase."
+        read -p "Enter path to partitions.bin: " partitions_path
+        if [ -f "$partitions_path" ]; then
+            PARTITIONS_FILE="$partitions_path"
+        else
+            echo "ERROR: Partition file not found. Cannot proceed after erase."
+            exit 1
+        fi
+    fi
+fi
+
 echo ""
-if [ -n "$BOOTLOADER_FILE" ] && [ -n "$PARTITIONS_FILE" ]; then
+# Only flash bootloader+partitions if erase was performed
+if [ "$ERASE_FLASH" = true ] && [ -n "$BOOTLOADER_FILE" ] && [ -n "$PARTITIONS_FILE" ]; then
     echo "Flashing complete firmware (bootloader + partitions + app)..."
     $ESPTOOL_CMD \
         --chip auto \
@@ -252,7 +304,6 @@ if [ -n "$BOOTLOADER_FILE" ] && [ -n "$PARTITIONS_FILE" ]; then
         0x10000 "$FIRMWARE_FILE"
 else
     echo "Flashing application firmware only to 0x10000..."
-    echo "WARNING: Bootloader and/or partition table not found - flashing app only."
     $ESPTOOL_CMD \
         --chip auto \
         --port "$ESP32_PORT" \

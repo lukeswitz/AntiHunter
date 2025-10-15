@@ -429,21 +429,28 @@ void startTriangulation(const String &targetMac, int duration) {
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
     triangulationActive = true;
-    triangulationInitiator = true;  // Master node flag
+    triangulationInitiator = true;
     
-    Serial.printf("[TRIANGULATE] Started for %s (%ds) as INITIATOR\n", targetMac.c_str(), duration);
+    Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
     
+    // Space out transmissions to avoid LoRa radio conflicts
     broadcastTimeSyncRequest();
-    delay(3000);
+    vTaskDelay(pdMS_TO_TICKS(2000));  // Wait for radio to finish
     
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
-    sendMeshCommand(cmd);  // This will now use sendToSerial1 with rate limiting
-    
-    vTaskDelay(pdMS_TO_TICKS(100));
+    sendMeshCommand(cmd);
+    vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for radio to finish
     
     if (!workerTaskHandle) {
-        xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
-                               (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
+        xTaskCreatePinnedToCore(
+            listScanTask, 
+            "triangulate", 
+            8192,
+            (void *)(intptr_t)duration, 
+            1, 
+            &workerTaskHandle, 
+            1
+        );
     }
     
     Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
