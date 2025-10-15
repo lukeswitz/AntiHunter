@@ -1078,18 +1078,26 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.lastSendTime = millis();
 }
 
-static void sendTriAccumulatedData(const String& nodeId) {
+uint32_t hashString(const String& str) {
+    uint32_t hash = 0;
+    for (size_t i = 0; i < str.length(); i++) {
+        hash = hash * 31 + str.charAt(i);
+    }
+    return hash;
+}
 
-    // Only grab node reports, dont make one from initiator
+static void sendTriAccumulatedData(const String& nodeId) {
     if (triangulationInitiator) {
-        Serial.println("[TRIANGULATE INITIATOR] Skipping TARGET_DATA send - parent node collects only");
+        Serial.println("[TRIANGULATE INITIATOR] Skipping TARGET_DATA TX");
         return;
     }
 
     if (triAccum.hitCount == 0) return;
     
     uint32_t now = millis();
-    if (now - triAccum.lastSendTime < TRI_SEND_INTERVAL) return;
+    uint32_t jitter = hashString(nodeId) % 2000;
+    
+    if (now - triAccum.lastSendTime < TRI_SEND_INTERVAL + jitter) return;
     
     int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
     
@@ -1104,17 +1112,22 @@ static void sendTriAccumulatedData(const String& nodeId) {
     }
     
     size_t msgLen = msg.length() + 1;
-    
+
     if (msgLen <= 230 && Serial1.availableForWrite() >= msgLen) {
-        sendToSerial1(msg, false);
-        Serial.printf("[TRIANGULATE CHILD] Sent summary: %d hits, avgRSSI=%d, GPS=%s\n",
-                     triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO");
+        bool sent = sendToSerial1(msg, true);
         
-        triAccum.hitCount = 0;
-        triAccum.rssiSum = 0.0f;
-        triAccum.maxRssi = -128;
-        triAccum.minRssi = 0;
-        triAccum.lastSendTime = now;
+        if (sent) {
+            Serial.printf("[TRIANGULATE CHILD] Sent summary: %d hits, avgRSSI=%d, GPS=%s\n",
+                        triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO");
+            
+            triAccum.hitCount = 0;
+            triAccum.rssiSum = 0.0f;
+            triAccum.maxRssi = -128;
+            triAccum.minRssi = 0;
+            triAccum.lastSendTime = now;
+        } else {
+            Serial.println("[TRIANGULATE CHILD] Send failed, retaining data for retry");
+        }
     }
 }
 
@@ -1411,6 +1424,7 @@ void listScanTask(void *pv) {
             triAccum.lastSendTime = 0;
             sendTriAccumulatedData(myNodeId);
             Serial.println("[SCAN CHILD] Sent final triangulation data on scan end");
+            vTaskDelay(pdMS_TO_TICKS(500));
         }
         
         // Initiator: stop triangulation immediately
@@ -1437,9 +1451,12 @@ void listScanTask(void *pv) {
             // Clean up triangulation state for child
             triangulationActive = false;
             memset(triangulationTarget, 0, 6);
+            triAccum.hitCount = 0;  // Clear accumulated data
+            triAccum.rssiSum = 0.0f;
+            triAccum.lastSendTime = 0;
         }
     }
-
+    
     scanning = false;
     lastScanEnd = millis();
 

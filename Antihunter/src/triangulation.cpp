@@ -505,14 +505,14 @@ void stopTriangulation() {
                      selfNode.distanceEstimate);
     }
 
-    Serial.println("[TRIANGULATE] Waiting up to 15s for all node reports...");
+    Serial.println("[TRIANGULATE] Waiting up to 40s for all node reports...");
     uint32_t waitStart = millis();
     uint32_t stableStart = millis();
     uint32_t lastCount = triangulationNodes.size();
     const uint32_t MIN_WAIT = 5000;
     const uint32_t STABLE_TIME = 3000;
 
-    while ((millis() - waitStart) < 15000) {
+    while ((millis() - waitStart) < 40000) {
         uint32_t currentSize = triangulationNodes.size();
         if (currentSize != lastCount) {
             Serial.printf("[TRIANGULATE] Nodes collected: %u\n", currentSize);
@@ -529,7 +529,7 @@ void stopTriangulation() {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    if ((millis() - waitStart) >= 15000) {
+    if ((millis() - waitStart) >= 40000) {
         Serial.printf("[TRIANGULATE] Wait complete (15s max). Total nodes: %u\n", triangulationNodes.size());
     }
     
@@ -563,7 +563,10 @@ void stopTriangulation() {
         resultMsg += " " + mapsUrl;
     }
     
-    vTaskDelay(pdMS_TO_TICKS(3000));
+    uint32_t delayStart = millis();
+    while (millis() - delayStart < 3000) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 
     String myNodeId = getNodeId();
     int selfHits = 0;
@@ -602,7 +605,18 @@ void stopTriangulation() {
     triangulationDuration = 0;
     memset(triangulationTarget, 0, 6);
 
-    Serial.println("[TRIANGULATE] Done and results generated");
+    // Clear accumulated data
+    triAccum.hitCount = 0;
+    triAccum.rssiSum = 0.0f;
+    triAccum.lastSendTime = 0;
+    
+    // Flush rate limiter to clear any queued state
+    rateLimiter.flush();
+    
+    // Clear Serial1 TX buffer
+    Serial1.flush();
+
+    Serial.println("[TRIANGULATE] Stopped, results generated, buffers cleared");
 }
 
 float haversineDistance(float lat1, float lon1, float lat2, float lon2) { //TODO make it more accurate 

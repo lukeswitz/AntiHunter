@@ -21,11 +21,13 @@ public:
     void consume(size_t messageLength);
     void refillTokens();
     uint32_t waitTime(size_t messageLength);
+    void flush();
 };
 
 bool sendToSerial1(const String &message, bool canDelay = true);
-
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
+
+extern SerialRateLimiter rateLimiter;
 extern AsyncWebServer *server;
 extern bool meshEnabled;
 
