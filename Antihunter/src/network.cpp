@@ -49,7 +49,12 @@ void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
   Serial.println("Initializing mesh UART...");
+  
+  Serial.println("Waiting for T114 stability...");
+  delay(15000);
+
   initializeMesh();
+
   Serial.println("Starting AP...");
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
