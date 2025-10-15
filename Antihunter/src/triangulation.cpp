@@ -460,7 +460,7 @@ void stopTriangulation() {
         String stopCmd = "@ALL TRIANGULATE_STOP";
         sendMeshCommand(stopCmd);
         Serial.println("[TRIANGULATE] Stop broadcast sent to all child nodes");
-        vTaskDelay(pdMS_TO_TICKS(300));
+        vTaskDelay(pdMS_TO_TICKS(700));
     }
     
     uint32_t elapsedMs = millis() - triangulationStart;
