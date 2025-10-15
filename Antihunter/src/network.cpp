@@ -43,7 +43,7 @@ extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
 // T114 handling
-
+SerialRateLimiter rateLimiter;
 SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
 
 bool SerialRateLimiter::canSend(size_t messageLength) {
@@ -65,6 +65,12 @@ void SerialRateLimiter::refillTokens() {
     }
 }
 
+void SerialRateLimiter::flush() {
+    tokens = MAX_TOKENS;
+    lastRefill = millis();
+    Serial.println("[MESH] Rate limiter flushed");
+}
+
 uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
     refillTokens();
     if (tokens >= messageLength) return 0;
@@ -73,46 +79,41 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
     return (needed * REFILL_INTERVAL) / TOKENS_PER_REFILL;
 }
 
-static SerialRateLimiter rateLimiter;
-
 bool sendToSerial1(const String &message, bool canDelay) {
+    // Priority messages bypass rate limiting
+    bool isPriority = message.indexOf("TRIANGULATE_STOP") >= 0 || 
+                      message.indexOf("STOP_ACK") >= 0;
+    
     size_t msgLen = message.length() + 2;
     
-    if (!rateLimiter.canSend(msgLen)) {
+    if (!isPriority && !rateLimiter.canSend(msgLen)) {
         if (canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
-            if (wait > 0 && wait < 5000) {
+            if (wait > 0 && wait < 5000) { 
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
                 delay(wait);
                 rateLimiter.refillTokens();
             } else {
-                Serial.printf("[MESH] Rate limit: message too large or wait too long\n");
-                return false;
+                Serial.printf("[MESH] Rate limit: dropping message (wait=%ums too long)\n", wait);
+                return false; 
             }
         } else {
-            Serial.printf("[MESH] Rate limit: dropping message\n");
+            Serial.printf("[MESH] Rate limit: cannot send without delay\n");
             return false;
         }
     }
     
-    // Wait for Serial1 buffer space if needed
-    int retries = 0;
-    while (Serial1.availableForWrite() < msgLen && retries < 20) {
-        if (!canDelay) {
-            return false;  // Can't wait, drop
-        }
-        delay(400);  // Wait for T114
-        retries++;
-    }
-    
     if (Serial1.availableForWrite() < msgLen) {
-        Serial.println("[MESH] Serial1 buffer full, dropping message");
+        Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
         return false;
     }
     
     Serial1.println(message);
-    Serial1.flush();
-    rateLimiter.consume(msgLen);
+    
+    if (!isPriority) {
+        rateLimiter.consume(msgLen);
+    }
+    
     return true;
 }
 
@@ -1912,7 +1913,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
     
-    if (triangulationActive && triangulationInitiator) return;
+    if (triangulationActive) return;
     
     if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
     lastMeshSend = millis();
