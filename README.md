@@ -49,8 +49,11 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
   - Wireless survey and network auditing
   - Rogue access point and suspicious beacon identification
 
-#### 2. Triangulation/Trilateration  (Distributed Tracking)**
+#### 2. Triangulation/Trilateration  (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
+
+> [!NOTE]
+> EXPERIMENTAL: T114 small buffer and slow speed causes issues. Fix in progress
 
 **Key Features:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
