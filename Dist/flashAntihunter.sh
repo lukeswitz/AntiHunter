@@ -4,7 +4,7 @@ set -e
 # Variables
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
-    "AntiHunter - v5:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_v5.bin"
+    "AntiHunter - v6:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_v6.bin"
 )
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
@@ -145,8 +145,32 @@ else
                 done
                 
                 echo ""
-                echo "Downloading fresh $firmware_choice firmware..."
+                echo "Downloading $firmware_choice firmware..."
                 curl -fLo "$FIRMWARE_FILE" "$FIRMWARE_URL" || { echo "Error downloading firmware. Please check the URL and your connection."; exit 1; }
+                
+                # Download bootloader and partitions from same directory
+                FIRMWARE_DIR=$(dirname "$FIRMWARE_URL")
+                BOOTLOADER_URL="$FIRMWARE_DIR/bootloader.bin"
+                PARTITIONS_URL="$FIRMWARE_DIR/partitions.bin"
+                BOOTLOADER_FILE="bootloader.bin"
+                PARTITIONS_FILE="partitions.bin"
+                
+                echo "Downloading bootloader..."
+                if curl -fLo "$BOOTLOADER_FILE" "$BOOTLOADER_URL" 2>/dev/null; then
+                    echo "Bootloader downloaded successfully."
+                else
+                    echo "Warning: Could not download bootloader.bin from $BOOTLOADER_URL"
+                    BOOTLOADER_FILE=""
+                fi
+                
+                echo "Downloading partitions..."
+                if curl -fLo "$PARTITIONS_FILE" "$PARTITIONS_URL" 2>/dev/null; then
+                    echo "Partitions downloaded successfully."
+                else
+                    echo "Warning: Could not download partitions.bin from $PARTITIONS_URL"
+                    PARTITIONS_FILE=""
+                fi
+                
             else
                 # Custom file selection
                 read -p "Enter path to custom .bin file: " custom_file
@@ -156,6 +180,21 @@ else
                 fi
                 FIRMWARE_FILE="$custom_file"
                 firmware_choice="Custom firmware: $(basename "$custom_file")"
+                
+                # Look for bootloader and partitions in same directory
+                CUSTOM_DIR=$(dirname "$custom_file")
+                BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
+                PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
+                
+                if [ ! -f "$BOOTLOADER_FILE" ]; then
+                    echo "Warning: bootloader.bin not found in $CUSTOM_DIR"
+                    BOOTLOADER_FILE=""
+                fi
+                
+                if [ ! -f "$PARTITIONS_FILE" ]; then
+                    echo "Warning: partitions.bin not found in $CUSTOM_DIR"
+                    PARTITIONS_FILE=""
+                fi
             fi
             break
         else
@@ -198,24 +237,32 @@ while true; do
 done
 
 echo ""
-echo "Erasing flash memory..."
-$ESPTOOL_CMD \
-    --chip auto \
-    --port "$ESP32_PORT" \
-    --baud "$UPLOAD_SPEED" \
-    erase-flash
-
-echo ""
-echo "Flashing $firmware_choice firmware to the device..."
-$ESPTOOL_CMD \
-    --chip auto \
-    --port "$ESP32_PORT" \
-    --baud "$UPLOAD_SPEED" \
-    --before default-reset \
-    --after hard-reset \
-    write-flash -z \
-    --flash-size detect \
-    0x10000 "$FIRMWARE_FILE"
+if [ -n "$BOOTLOADER_FILE" ] && [ -n "$PARTITIONS_FILE" ]; then
+    echo "Flashing complete firmware (bootloader + partitions + app)..."
+    $ESPTOOL_CMD \
+        --chip auto \
+        --port "$ESP32_PORT" \
+        --baud "$UPLOAD_SPEED" \
+        --before default-reset \
+        --after hard-reset \
+        write-flash -z \
+        --flash-size detect \
+        0x0 "$BOOTLOADER_FILE" \
+        0x8000 "$PARTITIONS_FILE" \
+        0x10000 "$FIRMWARE_FILE"
+else
+    echo "Flashing application firmware only to 0x10000..."
+    echo "WARNING: Bootloader and/or partition table not found - flashing app only."
+    $ESPTOOL_CMD \
+        --chip auto \
+        --port "$ESP32_PORT" \
+        --baud "$UPLOAD_SPEED" \
+        --before default-reset \
+        --after hard-reset \
+        write-flash -z \
+        --flash-size detect \
+        0x10000 "$FIRMWARE_FILE"
+fi
 
 echo ""
 echo "==================================================="
@@ -225,6 +272,8 @@ echo "==================================================="
 # Delete downloads
 if [ -z "$CUSTOM_BIN" ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
     rm -f "$FIRMWARE_FILE"
+    [ -n "$BOOTLOADER_FILE" ] && rm -f "bootloader.bin"
+    [ -n "$PARTITIONS_FILE" ] && rm -f "partitions.bin"
 fi
 
 echo "Done."
