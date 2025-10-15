@@ -270,10 +270,8 @@ void broadcastTimeSyncRequest() {
                      String(subsecond) + ":" +
                      String((unsigned long)(correctedMicros & 0xFFFFFFFF));
     
-    if (Serial1.availableForWrite() >= syncMsg.length()) {
-        Serial1.println(syncMsg);
-        Serial.printf("[SYNC] Broadcast: %lu.%03u (drift-corrected)\n", currentTime, subsecond);
-    }
+    sendToSerial1(syncMsg, false);
+    Serial.printf("[SYNC] Broadcast: %lu.%03u (drift-corrected)\n", currentTime, subsecond);
 }
 
 void updateNodeRSSI(TriangulationNode &node, int8_t newRssi) {
@@ -402,27 +400,23 @@ void startTriangulation(const String &targetMac, int duration) {
         stopTriangulation();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-
+    
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults.clear();
     }
-
+    
     memcpy(triangulationTarget, macBytes, 6);
     triangulationNodes.clear();
     nodeSyncStatus.clear();
-    
     triangulationNodes.reserve(10);
     nodeSyncStatus.reserve(10);
-    
     triangulationStart = millis();
     triangulationDuration = duration;
-    
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
-    
     triangulationActive = true;
-    triangulationInitiator = true;
+    triangulationInitiator = true;  // Master node flag
     
     Serial.printf("[TRIANGULATE] Started for %s (%ds) as INITIATOR\n", targetMac.c_str(), duration);
     
@@ -430,7 +424,7 @@ void startTriangulation(const String &targetMac, int duration) {
     delay(3000);
     
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
-    sendMeshCommand(cmd);
+    sendMeshCommand(cmd);  // This will now use sendToSerial1 with rate limiting
     
     vTaskDelay(pdMS_TO_TICKS(100));
     
@@ -547,15 +541,12 @@ void stopTriangulation() {
             dataMsg += " HDOP=" + String(hdop, 1);
         }
         
-        if (Serial1.availableForWrite() >= dataMsg.length()) {
-            Serial1.println(dataMsg);
-            Serial.printf("[TRIANGULATE] Sent self-detection data: %s\n", dataMsg.c_str());
-        }
+        sendToSerial1(dataMsg, false);
+        Serial.printf("[TRIANGULATE] Sent self-detection data: %s\n", dataMsg.c_str());
+    
     }
 
-    if (Serial1.availableForWrite() >= resultMsg.length()) {
-        Serial1.println(resultMsg);
-    }
+    sendToSerial1(resultMsg, false);
 
     triangulationActive = false;
     triangulationInitiator = false;  // Reset role
@@ -1041,12 +1032,10 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
                   senderId.c_str(), propagationDelay, (int)(myTime - senderTime));
     
     String response = getNodeId() + ": TIME_SYNC_RESP:" +
-                     String((unsigned long)myTime) + ":" +
-                     String(mySubsec) + ":" +
-                     String((unsigned long)(myMicros & 0xFFFFFFFF)) + ":" +
-                     String(propagationDelay);
-    
-    if (Serial1.availableForWrite() >= response.length()) {
-        Serial1.println(response);
-    }
+                    String((unsigned long)myTime) + ":" +
+                    String(mySubsec) + ":" +
+                    String((unsigned long)(myMicros & 0xFFFFFFFF)) + ":" +
+                    String(propagationDelay);
+
+    sendToSerial1(response, false);
 }

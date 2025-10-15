@@ -42,6 +42,68 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 
+// T114 handling
+
+SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
+
+bool SerialRateLimiter::canSend(size_t messageLength) {
+    refillTokens();
+    return tokens >= messageLength;
+}
+
+void SerialRateLimiter::consume(size_t messageLength) {
+    if (tokens >= messageLength) {
+        tokens -= messageLength;
+    }
+}
+
+void SerialRateLimiter::refillTokens() {
+    unsigned long now = millis();
+    if (now - lastRefill >= REFILL_INTERVAL) {
+        tokens = min(tokens + TOKENS_PER_REFILL, MAX_TOKENS);
+        lastRefill = now;
+    }
+}
+
+uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
+    refillTokens();
+    if (tokens >= messageLength) return 0;
+    
+    uint32_t needed = messageLength - tokens;
+    return (needed * REFILL_INTERVAL) / TOKENS_PER_REFILL;
+}
+
+static SerialRateLimiter rateLimiter;
+
+bool sendToSerial1(const String &message, bool canDelay) {
+    size_t msgLen = message.length() + 2; // +2 for \r\n
+    
+    if (!rateLimiter.canSend(msgLen)) {
+        if (canDelay) {
+            uint32_t wait = rateLimiter.waitTime(msgLen);
+            if (wait > 0 && wait < 5000) {
+                Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
+                delay(wait);
+                rateLimiter.refillTokens();
+            } else {
+                Serial.printf("[MESH] Rate limit: message too large or wait too long\n");
+                return false;
+            }
+        } else {
+            Serial.printf("[MESH] Rate limit: dropping message\n");
+            return false;
+        }
+    }
+    
+    if (Serial1.availableForWrite() >= msgLen) {
+        Serial1.println(message);
+        Serial1.flush();
+        rateLimiter.consume(msgLen);
+        return true;
+    }
+    
+    return false;
+}
 
 // ------------- Network ------------- 
 
@@ -1527,7 +1589,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
              {
         char test_msg[] = "Antihunter: Test mesh notification";
         Serial.printf("[MESH] Test: %s\n", test_msg);
-        Serial1.println(test_msg);
+        sendToSerial1(test_msg);
         r->send(200, "text/plain", "Test message sent to mesh"); });
 
   server->on("/diag", HTTP_GET, [](AsyncWebServerRequest *r)
@@ -1622,9 +1684,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         Serial.printf("[SETUP] Setup mode started - auto-erase activates in %us\n", setupDelay/1000);
         
         String setupMsg = getNodeId() + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
-        if (Serial1.availableForWrite() >= setupMsg.length()) {
-            Serial1.println(setupMsg);
-        }
+        sendToSerial1(setupMsg, false);
     }
     
     saveConfiguration();
@@ -1840,7 +1900,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
-    if (triangulationActive) return; // handled in the accumulator, bail
+    if (triangulationActive) return;
     
     if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
     lastMeshSend = millis();
@@ -1862,8 +1922,6 @@ void sendMeshNotification(const Hit &hit) {
     char mesh_msg[MAX_MESH_SIZE];
     memset(mesh_msg, 0, sizeof(mesh_msg));
     
-    int msg_len;
-    
     String baseMsg = String(nodeId) + ": Target: " + String(mac_str) + 
                      " RSSI:" + String(hit.rssi) +
                      " Type:" + (hit.isBLE ? "BLE" : "WiFi");
@@ -1876,17 +1934,13 @@ void sendMeshNotification(const Hit &hit) {
         baseMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
     
-    msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1, "%s", baseMsg.c_str());
+    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1, "%s", baseMsg.c_str());
     
     if (msg_len > 0 && msg_len < MAX_MESH_SIZE) {
         mesh_msg[msg_len] = '\0';
-        
         delay(10);
-        if (Serial1.availableForWrite() >= msg_len + 2) {
-            Serial.printf("[MESH] %s\n", mesh_msg);
-            Serial1.println(mesh_msg);
-            Serial1.flush();
-        }
+        Serial.printf("[MESH] %s\n", mesh_msg);
+        sendToSerial1(String(mesh_msg), false);
     }
 }
 
@@ -1913,20 +1967,19 @@ void initializeMesh() {
 
 void processCommand(const String &command)
 {
-
   if (command.startsWith("CONFIG_CHANNELS:"))
   {
     String channels = command.substring(16);
     parseChannelsCSV(channels);
     Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
-    Serial1.println(nodeId + ": CONFIG_ACK:CHANNELS:" + channels);
+    sendToSerial1(nodeId + ": CONFIG_ACK:CHANNELS:" + channels, true);
   }
   else if (command.startsWith("CONFIG_TARGETS:"))
   {
     String targets = command.substring(15);
     saveTargetsList(targets);
     Serial.printf("[MESH] Updated targets list\n");
-    Serial1.println(nodeId + ": CONFIG_ACK:TARGETS:OK");
+    sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
   }
   else if (command.startsWith("SCAN_START:"))
   {
@@ -1954,7 +2007,7 @@ void processCommand(const String &command)
                                   (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
         }
         Serial.printf("[MESH] Started scan via mesh command\n");
-        Serial1.println(nodeId + ": SCAN_ACK:STARTED");
+        sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
     }
   }
@@ -1978,7 +2031,7 @@ void processCommand(const String &command)
                               (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
     }
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
-    Serial1.println(nodeId + ": BASELINE_ACK:STARTED");
+    sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
   }
   else if (command.startsWith("BASELINE_STATUS"))
   {
@@ -1991,13 +2044,13 @@ void processCommand(const String &command)
              baselineDeviceCount,
              anomalyCount,
              baselineStats.phase1Complete ? "COMPLETE" : "ACTIVE");
-    Serial1.println(status_msg);
+    sendToSerial1(String(status_msg), true);
   }
   else if (command.startsWith("STOP"))
   {
     stopRequested = true;
     Serial.println("[MESH] Stop command received via mesh");
-    Serial1.println(nodeId + ": STOP_ACK:OK");
+    sendToSerial1(nodeId + ": STOP_ACK:OK", true);
   }
   else if (command.startsWith("STATUS"))
   {
@@ -2023,34 +2076,36 @@ void processCommand(const String &command)
             esp_temp, esp_temp_f,
             uptime_hours, uptime_mins % 60, uptime_secs % 60);
 
-    Serial1.println(status_msg);
+    sendToSerial1(String(status_msg), true);
+    
     if (gpsValid)
     {
       char gps_status[MAX_MESH_SIZE];
       snprintf(gps_status, sizeof(gps_status),
                "%s: GPS: %.6f,%.6f",
                nodeId.c_str(), gpsLat, gpsLon);
-      Serial1.println(gps_status);
+      sendToSerial1(String(gps_status), true);
     }
   }
   else if (command.startsWith("VIBRATION_STATUS"))
   {
     String status = lastVibrationTime > 0 ? ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") : "No vibrations detected";
-    Serial1.println(nodeId + ": VIBRATION_STATUS: " + status);
+    sendToSerial1(nodeId + ": VIBRATION_STATUS: " + status, true);
   }
   else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);
     int colonPos = params.lastIndexOf(':');
     String mac = params.substring(0, colonPos);
     int duration = params.substring(colonPos + 1).toInt();
-
+    
     uint8_t macBytes[6];
     if (!parseMac6(mac, macBytes)) {
         Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", mac.c_str());
-        Serial1.println(nodeId + ": TRIANGULATE_ACK:INVALID_MAC");
+        sendToSerial1(nodeId + ": TRIANGULATE_ACK:INVALID_MAC", true);
         return;
     }
     
+    // Stop existing task if any
     if (workerTaskHandle) {
         stopRequested = true;
         vTaskDelay(pdMS_TO_TICKS(500));
@@ -2067,27 +2122,27 @@ void processCommand(const String &command)
     
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
-                              (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
+                               (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
     }
     
     Serial.printf("[TRIANGULATE] Child node started for %s (%ds)\n", mac.c_str(), duration);
-    Serial1.println(nodeId + ": TRIANGULATE_ACK:" + mac);
+    sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + mac, true);
   }
   else if (command.startsWith("TRIANGULATE_STOP"))
   {
     stopRequested = true;
     stopTriangulation();
-    Serial1.println(nodeId + ": TRIANGULATE_STOP_ACK");
+    sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
   {
     if (triangulationNodes.size() > 0) {
       String results = calculateTriangulation();
-      Serial1.println(nodeId + ": TRIANGULATE_RESULTS_START");
-      Serial1.print(results);
-      Serial1.println(nodeId + ": TRIANGULATE_RESULTS_END");
+      sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_START", true);
+      sendToSerial1(results, true);
+      sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_END", true);
     } else {
-      Serial1.println(nodeId + ": TRIANGULATE_RESULTS:NO_DATA");
+      sendToSerial1(nodeId + ": TRIANGULATE_RESULTS:NO_DATA", true);
     }
   }
   else if (command.startsWith("ERASE_FORCE:"))
@@ -2096,21 +2151,20 @@ void processCommand(const String &command)
     if (validateEraseToken(token))
     {
       executeSecureErase("Force command");
-      Serial1.println(nodeId + ": ERASE_ACK:COMPLETE");
+      sendToSerial1(nodeId + ": ERASE_ACK:COMPLETE", true);
     }
   }
   else if (command == "ERASE_CANCEL")
   {
     cancelTamperErase();
-    Serial1.println(nodeId + ": ERASE_ACK:CANCELLED");
+    sendToSerial1(nodeId + ": ERASE_ACK:CANCELLED", true);
   }
 }
 
-void sendMeshCommand(const String &command)
-  {
-    if (meshEnabled && Serial1.availableForWrite() >= command.length()) {
+void sendMeshCommand(const String &command) {
+    if (meshEnabled) {
         Serial.printf("[MESH] Sending command: %s\n", command.c_str());
-        Serial1.println(command);
+        sendToSerial1(command, true);
     }
 }
 
@@ -2353,9 +2407,7 @@ void processMeshMessage(const String &message) {
                     String response = getNodeId() + ": TIME_SYNC_RESP:" + 
                                     String((unsigned long)myTime) + ":" + 
                                     String(myMillis);
-                    if (Serial1.availableForWrite() >= response.length()) {
-                        Serial1.println(response);
-                    }
+                    sendToSerial1(response, false);
                 }
             }
         }
