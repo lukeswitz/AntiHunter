@@ -80,10 +80,9 @@ extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern bool triangulationActive;
-
+extern TriangulationAccumulator triAccum;
 extern bool droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
-
 extern QueueHandle_t macQueue;
 
 static int blueTeamDuration = 300;

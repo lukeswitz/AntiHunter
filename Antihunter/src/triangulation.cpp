@@ -14,7 +14,9 @@ extern ScanMode currentScanMode;
 extern TinyGPSPlus gps;
 extern float gpsLat, gpsLon;
 extern bool gpsValid;
+extern TriangulationAccumulator triAccum;
 
+// Triang 
 static TaskHandle_t calibrationTaskHandle = nullptr;
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false};
 PathLossCalibration pathLoss = {-40.0, -50.0, 2.5, 2.5, false};
@@ -453,8 +455,37 @@ void stopTriangulation() {
     uint32_t elapsedMs = millis() - triangulationStart;
     uint32_t elapsedSec = elapsedMs / 1000;
     
-    Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", 
-                  elapsedSec, triangulationNodes.size());
+    Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, triangulationNodes.size());
+
+    //  Add parent's own accumulated data if initiator
+    if (triangulationInitiator && triAccum.hitCount > 0) {
+        String myNodeId = getNodeId();
+        if (myNodeId.length() == 0) {
+            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+        }
+        
+        int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
+        
+        TriangulationNode selfNode;
+        selfNode.nodeId = myNodeId;
+        selfNode.lat = triAccum.lat;
+        selfNode.lon = triAccum.lon;
+        selfNode.hdop = triAccum.hdop;
+        selfNode.rssi = avgRssi;
+        selfNode.hitCount = triAccum.hitCount;
+        selfNode.hasGPS = triAccum.hasGPS;
+        selfNode.lastUpdate = millis();
+        
+        initNodeKalmanFilter(selfNode);
+        updateNodeRSSI(selfNode, avgRssi);
+        selfNode.distanceEstimate = rssiToDistance(selfNode);
+        
+        triangulationNodes.push_back(selfNode);
+        
+        Serial.printf("[TRIANGULATE INITIATOR] Added self: hits=%d avgRSSI=%d GPS=%s dist=%.1fm\n",
+                     triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO",
+                     selfNode.distanceEstimate);
+    }
 
     Serial.println("[TRIANGULATE] Waiting up to 15s for all node reports...");
     uint32_t waitStart = millis();
