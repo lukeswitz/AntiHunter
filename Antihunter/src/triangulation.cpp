@@ -19,7 +19,6 @@ extern TriangulationAccumulator triAccum;
 // Triang 
 static TaskHandle_t calibrationTaskHandle = nullptr;
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false};
-PathLossCalibration pathLoss = {-40.0, -50.0, 2.5, 2.5, false};
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
 std::vector<TriangulationNode> triangulationNodes;
@@ -30,6 +29,14 @@ uint32_t triangulationDuration = 0;
 bool triangulationActive = false;
 bool triangulationInitiator = false;
 
+PathLossCalibration pathLoss = {
+    -25.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 5dBi antenna = 25dBm EIRP
+    -54.0,  // rssi0_ble: BLE @ 1m with 4dBm tx + 5dBi antenna = 9dBm EIRP
+    3.0,    // n_wifi: indoor environment, WiFi propagation
+    3.2,    // n_ble: indoor environment, BLE has slightly worse penetration than WiFi
+    false
+};
+
 // Helpers
 bool isTriangulationActive() {
     return triangulationActive;
@@ -39,12 +46,16 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     float rssi0 = isWiFi ? pathLoss.rssi0_wifi : pathLoss.rssi0_ble;
     float n = isWiFi ? pathLoss.n_wifi : pathLoss.n_ble;
     
+    // Log-distance path loss model: d = 10^((RSSI0 - RSSI)/(10*n))
     float distance = pow(10.0, (rssi0 - node.filteredRssi) / (10.0 * n));
+    
+    // Apply signal quality degradation
     float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
     distance *= qualityFactor;
     
     return distance;
 }
+
 
 float getAverageHDOP(const std::vector<TriangulationNode> &nodes) {
     if (nodes.size() == 0) return 99.9;
@@ -683,7 +694,8 @@ String calculateTriangulation() {
         results += "Filtered=" + String(node.filteredRssi, 1) + "dBm ";
         results += "Hits=" + String(node.hitCount) + " ";
         results += "Signal=" + String(node.signalQuality * 100.0, 1) + "% ";
-        
+        results += "Type=" + String(node.isBLE ? "BLE" : "WiFi") + " "; 
+
         if (node.hasGPS) {
             results += "GPS=" + String(node.lat, 6) + "," + String(node.lon, 6) + " ";
             results += "Dist=" + String(node.distanceEstimate, 1) + "m";
@@ -699,6 +711,60 @@ String calculateTriangulation() {
         results += "\n";
     }
     results += "\n";
+
+    // GPS RSSI validation
+    if (gpsNodes.size() >= 2) {
+        results += "--- GPS-RSSI Distance Validation ---\n";
+        
+        float totalError = 0.0;
+        int validationCount = 0;
+        
+        for (size_t i = 0; i < gpsNodes.size(); i++) {
+            for (size_t j = i + 1; j < gpsNodes.size(); j++) {
+                float gpsDistance = haversineDistance(
+                    gpsNodes[i].lat, gpsNodes[i].lon,
+                    gpsNodes[j].lat, gpsNodes[j].lon
+                );
+                
+                float rssiDist1 = gpsNodes[i].distanceEstimate;
+                float rssiDist2 = gpsNodes[j].distanceEstimate;
+                
+                results += gpsNodes[i].nodeId + " <-> " + gpsNodes[j].nodeId + ": ";
+                results += "GPS=" + String(gpsDistance, 1) + "m ";
+                results += "RSSI=" + String(rssiDist1, 1) + "m/" + String(rssiDist2, 1) + "m";
+                
+                // Simple validation: if nodes are far apart, RSSI distances should reflect that
+                float minExpected = gpsDistance * 0.5;
+                float maxExpected = gpsDistance * 2.0;
+                float sumRssi = rssiDist1 + rssiDist2;
+                
+                if (sumRssi >= minExpected && sumRssi <= maxExpected) {
+                    results += " ✓\n";
+                    validationCount++;
+                } else {
+                    float error = abs(sumRssi - gpsDistance) / gpsDistance * 100.0;
+                    totalError += error;
+                    results += " ✗ (error: " + String(error, 0) + "%)\n";
+                    validationCount++;
+                }
+            }
+        }
+        
+        if (validationCount > 0) {
+            float avgError = totalError / validationCount;
+            results += "Avg error: " + String(avgError, 1) + "% ";
+            
+            if (avgError < 25.0) {
+                results += "(GOOD)\n";
+            } else if (avgError < 50.0) {
+                results += "(FAIR - consider calibration)\n";
+            } else {
+                results += "(POOR - calibration needed)\n";
+                results += "Run: POST /triangulate/calibrate?mac=<target>&distance=<meters>\n";
+            }
+        }
+        results += "\n";
+    }
     
     results += "--- Weighted GPS Trilateration ---\n";
     results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n";
@@ -723,16 +789,76 @@ String calculateTriangulation() {
         results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
         results += "  Method: Weighted trilateration + Kalman filtering\n";
         
-        float avgDist = 0.0;
-        for (const auto &node : gpsNodes) {
-            avgDist += node.distanceEstimate;
+        if (gpsNodes.size() >= 1) {
+            results += "\n  Position validation:\n";
+            for (const auto& node : gpsNodes) {
+                float gpsDistToNode = haversineDistance(estLat, estLon, node.lat, node.lon);
+                float rssiDist = node.distanceEstimate;
+                float error = abs(gpsDistToNode - rssiDist);
+                float errorPercent = (error / rssiDist) * 100.0;
+                results += "    " + node.nodeId + ": GPS=" + String(gpsDistToNode, 1) +
+                        "m RSSI=" + String(rssiDist, 1) + "m ";
+                if (errorPercent < 25.0) {
+                    results += "✓\n";
+                } else {
+                    results += "✗ (" + String(errorPercent, 0) + "% error)\n";
+                }
+            }
         }
-        avgDist /= gpsNodes.size();
         
-        float uncertainty = avgDist * (0.15 + (1.0 - confidence) * 0.35);
-        results += "  Est.Uncertainty: ±" + String(uncertainty, 1) + "m\n";
+        const float UERE = 4.0;
+        float gpsPositionError = avgHDOP * UERE;
+        
+        float totalRssiError = 0.0;
+        float avgDistance = 0.0;
+        float worstSignalQuality = 1.0;
+        
+        for (const auto &node : gpsNodes) {
+            avgDistance += node.distanceEstimate;
+            if (node.signalQuality < worstSignalQuality) {
+                worstSignalQuality = node.signalQuality;
+            }
+            float nodeRssiError = node.distanceEstimate * (0.25 + (1.0 - node.signalQuality) * 0.30);
+            if (node.isBLE) nodeRssiError *= 1.2;
+            totalRssiError += nodeRssiError * nodeRssiError;
+        }
+        avgDistance /= gpsNodes.size();
+        float rssiDistanceError = sqrt(totalRssiError / gpsNodes.size());
+        
+        float geometricError = 0.0;
+        if (gpsNodes.size() == 3) {
+            float x1 = gpsNodes[0].lat, y1 = gpsNodes[0].lon;
+            float x2 = gpsNodes[1].lat, y2 = gpsNodes[1].lon;
+            float x3 = gpsNodes[2].lat, y3 = gpsNodes[2].lon;
+            float area = abs((x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2)) / 2.0);
+            float areaMeters = area * 111000.0 * 111000.0;
+            
+            if (areaMeters < 100.0) geometricError = avgDistance * 0.5;
+            else if (areaMeters < 500.0) geometricError = avgDistance * 0.25;
+            else if (areaMeters < 1000.0) geometricError = avgDistance * 0.15;
+            else geometricError = avgDistance * 0.05;
+        } else {
+            geometricError = avgDistance * 0.10 / sqrt(gpsNodes.size() - 2);
+        }
+        
+        float syncError = syncVerified ? 0.0 : (avgDistance * 0.10);
+        float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
+        
+        float uncertainty = sqrt(
+            gpsPositionError * gpsPositionError +
+            rssiDistanceError * rssiDistanceError +
+            geometricError * geometricError +
+            syncError * syncError +
+            calibError * calibError
+        );
+        
+        float cep = uncertainty * 0.59;
+        
+        results += "  Uncertainty (CEP68): ±" + String(cep, 1) + "m\n";
+        results += "  Uncertainty (95%): ±" + String(uncertainty, 1) + "m\n";
+        results += "  Error budget: GPS=" + String(gpsPositionError, 1) + "m RSSI=" + 
+                String(rssiDistanceError, 1) + "m Geom=" + String(geometricError, 1) + "m\n";
         results += "  Sync Status: " + String(syncVerified ? "Verified" : "Degraded") + "\n";
-        
         results += "  GPS Quality: " + String(avgHDOP < 2.0 ? "Excellent" :
                                             (avgHDOP < 5.0 ? "Good" : 
                                             (avgHDOP < 10.0 ? "Moderate" : "Poor"))) + "\n\n";
@@ -743,10 +869,9 @@ String calculateTriangulation() {
         results += "TRILATERATION FAILED\n";
         results += "Reason: Poor geometry or signal quality\n";
         results += "Average HDOP: " + String(avgHDOP, 1) + " (>10.0 = poor)\n\n";
-        
         results += "Suggestions:\n";
         results += "  • Reposition nodes (120° separation ideal)\n";
-        results += "  • Improve signal quality with more runtime\n";
+        results += "  • Improve with more runtime\n";
         results += "  • Add more GPS nodes\n";
     }
 
@@ -927,6 +1052,7 @@ void calibrationTask(void *parameter) {
         variance /= wifiSamples.size();
         float stdDev = sqrt(variance);
         
+        // CORRECTED FORMULA
         pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance);
         
         Serial.println("[CALIB] WiFi Calibration: SUCCESS");
@@ -936,9 +1062,6 @@ void calibrationTask(void *parameter) {
         Serial.printf("  Std Dev: %.1f dB\n", stdDev);
         Serial.printf("  Path loss exponent (n): %.2f\n", pathLoss.n_wifi);
         Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLoss.rssi0_wifi);
-    } else {
-        Serial.printf("[CALIB] WiFi Calibration: FAILED\n");
-        Serial.printf("  Insufficient samples: %d (need ≥10)\n", wifiSamples.size());
     }
     
     // BLE calibration
@@ -956,9 +1079,9 @@ void calibrationTask(void *parameter) {
         }
         variance /= bleSamples.size();
         float stdDev = sqrt(variance);
-        
+
         pathLoss.rssi0_ble = meanRssi + 10.0 * pathLoss.n_ble * log10(knownDistance);
-        
+
         Serial.println("[CALIB] BLE Calibration: SUCCESS");
         Serial.printf("  Distance: %.1f m\n", knownDistance);
         Serial.printf("  Samples: %d\n", bleSamples.size());

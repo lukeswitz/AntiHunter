@@ -2254,7 +2254,7 @@ void processMeshMessage(const String &message) {
                                   node.hasGPS = true;
                                   node.hdop = hdop;
                               }
-                              node.distanceEstimate = rssiToDistance(node);
+                              node.distanceEstimate = rssiToDistance(node, !node.isBLE);
                               found = true;
                               Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm GPS=%s\n",
                                           sendingNode.c_str(), hits, rssi, hasGPS ? "YES" : "NO");
@@ -2263,22 +2263,31 @@ void processMeshMessage(const String &message) {
                       }
                       
                       if (!found) {
-                          TriangulationNode newNode;
-                          newNode.nodeId = sendingNode;
-                          newNode.lat = lat;
-                          newNode.lon = lon;
-                          newNode.rssi = rssi;
-                          newNode.hitCount = hits;
-                          newNode.hasGPS = hasGPS;
-                          newNode.hdop = hdop;
-                          newNode.lastUpdate = millis();
-                          initNodeKalmanFilter(newNode);
-                          updateNodeRSSI(newNode, rssi);
-                          newNode.distanceEstimate = rssiToDistance(newNode);
-                          triangulationNodes.push_back(newNode);
-                          Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm\n",
-                                      sendingNode.c_str(), hits, rssi);
+                      bool isBLE = false;
+                      int typeIdx = payload.indexOf("Type:");
+                      if (typeIdx > 0) {
+                          String typeStr = payload.substring(typeIdx + 5, payload.indexOf(' ', typeIdx + 5));
+                          if (typeStr.length() == 0) typeStr = payload.substring(typeIdx + 5);
+                          isBLE = (typeStr == "BLE");
                       }
+                      
+                      TriangulationNode newNode;
+                      newNode.nodeId = sendingNode;
+                      newNode.lat = lat;
+                      newNode.lon = lon;
+                      newNode.rssi = rssi;
+                      newNode.hitCount = hits;
+                      newNode.hasGPS = hasGPS;
+                      newNode.hdop = hdop;
+                      newNode.isBLE = isBLE;
+                      newNode.lastUpdate = millis();
+                      initNodeKalmanFilter(newNode);
+                      updateNodeRSSI(newNode, rssi);
+                      newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
+                      triangulationNodes.push_back(newNode);
+                      Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm\n",
+                                    sendingNode.c_str(), hits, rssi);
+                  }
                   }
               }
           }
@@ -2357,7 +2366,7 @@ void processMeshMessage(const String &message) {
                                 node.hdop = hdop;
                                 node.hasGPS = true;
                             }
-                            node.distanceEstimate = rssiToDistance(node);
+                            node.distanceEstimate = rssiToDistance(node, !node.isBLE);
                             found = true;
                             Serial.printf("[TRIANGULATE] Updated %s: RSSI=%d->%.1f dist=%.1fm Q=%.2f\n",
                                         sendingNode.c_str(), rssi, node.filteredRssi, 
@@ -2367,22 +2376,31 @@ void processMeshMessage(const String &message) {
                     }
 
                     if (!found) {
-                        TriangulationNode newNode;
-                        newNode.nodeId = sendingNode;
-                        newNode.lat = lat;
-                        newNode.lon = lon;
-                        newNode.hdop = hdop;
-                        newNode.rssi = rssi;
-                        newNode.hitCount = 1;
-                        newNode.hasGPS = hasGPS;
-                        newNode.lastUpdate = millis();
-                        initNodeKalmanFilter(newNode);
-                        updateNodeRSSI(newNode, rssi);
-                        newNode.distanceEstimate = rssiToDistance(newNode);
-                        triangulationNodes.push_back(newNode);
-                        Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
+                      bool isBLE = false;
+                      int typeIdx = content.indexOf("Type:");
+                      if (typeIdx > 0) {
+                          String typeStr = content.substring(typeIdx + 5, content.indexOf(' ', typeIdx + 5));
+                          if (typeStr.length() == 0) typeStr = content.substring(typeIdx + 5);
+                          isBLE = (typeStr == "BLE");
+                      }
+                      
+                      TriangulationNode newNode;
+                      newNode.nodeId = sendingNode;
+                      newNode.lat = lat;
+                      newNode.lon = lon;
+                      newNode.hdop = hdop;
+                      newNode.rssi = rssi;
+                      newNode.hitCount = 1;
+                      newNode.hasGPS = hasGPS;
+                      newNode.isBLE = isBLE;
+                      newNode.lastUpdate = millis();
+                      initNodeKalmanFilter(newNode);
+                      updateNodeRSSI(newNode, rssi);
+                      newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
+                      triangulationNodes.push_back(newNode);
+                      Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
                                     sendingNode.c_str(), rssi, newNode.distanceEstimate);
-                    }
+                  }
                 }
             }
         }
