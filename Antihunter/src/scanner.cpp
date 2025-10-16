@@ -1130,6 +1130,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
     String msg = nodeId + ": TARGET_DATA: " + macStr + 
                  " Hits=" + String(triAccum.hitCount) +
                  " RSSI:" + String(avgRssi);
+                 " Type:" + String(triAccum.isBLE ? "BLE" : "WiFi");
     
     if (triAccum.hasGPS) {
         msg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
@@ -1400,13 +1401,17 @@ void listScanTask(void *pv) {
                     sendTriAccumulatedData(myNodeId);
                     resetTriAccumulator(triangulationTarget);
                 }
-                
+
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
                     triAccum.hitCount++;
                     triAccum.rssiSum += (float)h.rssi;
                     if (h.rssi > triAccum.maxRssi) triAccum.maxRssi = h.rssi;
                     if (h.rssi < triAccum.minRssi || triAccum.minRssi == 0) triAccum.minRssi = h.rssi;
-                    triAccum.isBLE = h.isBLE;
+                    
+                    // Set device type only on first detection (TODO: track both protocols)
+                    if (triAccum.hitCount == 1) {
+                        triAccum.isBLE = h.isBLE;
+                    }
                     
                     if (gpsValid) {
                         triAccum.lat = gpsLat;
