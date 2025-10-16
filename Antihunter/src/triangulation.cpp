@@ -311,13 +311,6 @@ void updateNodeRSSI(TriangulationNode &node, int8_t newRssi) {
     if (node.rssiHistory.size() > RSSI_HISTORY_SIZE) {
         node.rssiHistory.erase(node.rssiHistory.begin());
     }
-
-    if (node.hasGPS && triangulationNodes.size() >= 2) {
-        float estimatedDist = node.distanceEstimate;
-        if (estimatedDist > 0.1 && estimatedDist < 200.0) {
-            addPathLossSample(node.filteredRssi, estimatedDist, !node.isBLE);
-        }
-    }
     
     node.signalQuality = calculateSignalQuality(node);
     node.lastUpdate = millis();
@@ -773,19 +766,6 @@ String calculateTriangulation() {
     }
     results += "\n";
 
-    // Collect samples for path loss
-    for (const auto& node : gpsNodes) {
-        for (size_t j = 0; j < gpsNodes.size(); j++) {
-            if (j != (&node - &gpsNodes[0])) {
-                float gpsDistance = haversineDistance(
-                    node.lat, node.lon,
-                    gpsNodes[j].lat, gpsNodes[j].lon
-                );
-                addPathLossSample(node.filteredRssi, gpsDistance, !node.isBLE);
-            }
-        }
-    }
-
     // GPS RSSI validation
     if (gpsNodes.size() >= 2) {
         results += "--- GPS-RSSI Distance Validation ---\n";
@@ -856,6 +836,14 @@ String calculateTriangulation() {
     
     float estLat, estLon, confidence;
     if (performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
+         // Calibrate path loss using estimated target position
+        for (const auto& node : gpsNodes) {
+            float distToTarget = haversineDistance(node.lat, node.lon, estLat, estLon);
+            if (distToTarget > 0.5 && distToTarget < 50.0) {
+                addPathLossSample(node.filteredRssi, distToTarget, !node.isBLE);
+            }
+        }
+
         results += "ESTIMATED POSITION:\n";
         results += "  Latitude:  " + String(estLat, 6) + "\n";
         results += "  Longitude: " + String(estLon, 6) + "\n";
