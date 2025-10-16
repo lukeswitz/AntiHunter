@@ -1255,9 +1255,9 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
 
 AdaptivePathLoss adaptivePathLoss = {
     -30.0,  // rssi0_wifi initial
-    -40.0,  // rssi0_ble initial
+    -65.0,  // rssi0_ble initial
     3.0,    // n_wifi initial
-    2.5,    // n_ble initial
+    3.5,    // n_ble initial
     {},     // wifiSamples
     {},     // bleSamples
     false,  // wifi_calibrated

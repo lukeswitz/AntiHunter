@@ -87,9 +87,9 @@ struct AdaptivePathLoss {
     
     // Default/fallback values
     const float DEFAULT_RSSI0_WIFI = -30.0;
-    const float DEFAULT_RSSI0_BLE = -40.0;
+    const float DEFAULT_RSSI0_BLE = -65.0;
     const float DEFAULT_N_WIFI = 3.0;
-    const float DEFAULT_N_BLE = 2.5;
+    const float DEFAULT_N_BLE = 3.5;
     
     const size_t MIN_SAMPLES = 5;
     const size_t MAX_SAMPLES = 50;
