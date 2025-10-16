@@ -96,7 +96,8 @@ struct AdaptivePathLoss {
 };
 
 extern AdaptivePathLoss adaptivePathLoss;
-
+extern bool canonicalTypeSet;
+extern bool canonicalIsBLE;
 extern std::vector<TriangulationNode> triangulationNodes;
 
 const float KALMAN_MEASUREMENT_NOISE = 4.0;

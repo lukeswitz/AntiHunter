@@ -28,6 +28,8 @@ uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
 bool triangulationActive = false;
 bool triangulationInitiator = false;
+bool canonicalTypeSet = false;
+bool canonicalIsBLE = false;
 
 PathLossCalibration pathLoss = {
     -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
@@ -436,6 +438,8 @@ void startTriangulation(const String &targetMac, int duration) {
     stopRequested = false;
     triangulationActive = true;
     triangulationInitiator = true;
+    canonicalTypeSet = false;
+    canonicalIsBLE = false;
     
     Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
     
