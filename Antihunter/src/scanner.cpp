@@ -1129,7 +1129,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
     String macStr = macFmt6(triAccum.targetMac);
     String msg = nodeId + ": TARGET_DATA: " + macStr + 
                  " Hits=" + String(triAccum.hitCount) +
-                 " RSSI:" + String(avgRssi);
+                 " RSSI:" + String(avgRssi) +
                  " Type:" + String(triAccum.isBLE ? "BLE" : "WiFi");
     
     if (triAccum.hasGPS) {
@@ -1146,10 +1146,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
             Serial.printf("[TRIANGULATE CHILD] Sent summary: %d hits, avgRSSI=%d, GPS=%s\n",
                         triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO");
             
-            triAccum.hitCount = 0;
-            triAccum.rssiSum = 0.0f;
-            triAccum.maxRssi = -128;
-            triAccum.minRssi = 0;
+            // Update timestamp 
             triAccum.lastSendTime = now;
         } else {
             Serial.println("[TRIANGULATE CHILD] Send failed, retaining data for retry");
