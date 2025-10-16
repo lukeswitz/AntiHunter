@@ -2261,16 +2261,6 @@ void processMeshMessage(const String &message) {
                             typeStr.trim();
                             isBLE = (typeStr == "BLE");
                         }
-
-                        extern bool canonicalTypeSet;
-                        extern bool canonicalIsBLE;
-
-                        if (!canonicalTypeSet && triangulationNodes.size() == 0) {
-                            canonicalIsBLE = isBLE;
-                            canonicalTypeSet = true;
-                            Serial.printf("[TRIANGULATE] Canonical type: %s\n", canonicalIsBLE ? "BLE" : "WiFi");
-                        }
-                        isBLE = canonicalIsBLE; 
                         
                         float lat = 0.0, lon = 0.0, hdop = 99.9;
                         bool hasGPS = false;

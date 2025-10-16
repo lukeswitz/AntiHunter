@@ -1091,18 +1091,23 @@ void initializeScanner()
 
 static void resetTriAccumulator(const uint8_t* mac) {
     memcpy(triAccum.targetMac, mac, 6);
-    triAccum.hitCount = 0;
-    triAccum.maxRssi = -128;
-    triAccum.minRssi = 0;
-    triAccum.rssiSum = 0.0f;
+    
+    triAccum.wifiHitCount = 0;
+    triAccum.wifiMaxRssi = -128;
+    triAccum.wifiMinRssi = 0;
+    triAccum.wifiRssiSum = 0.0f;
+    
+    triAccum.bleHitCount = 0;
+    triAccum.bleMaxRssi = -128;
+    triAccum.bleMinRssi = 0;
+    triAccum.bleRssiSum = 0.0f;
+    
     triAccum.lat = 0.0f;
     triAccum.lon = 0.0f;
     triAccum.hdop = 99.9f;
     triAccum.hasGPS = false;
-    triAccum.isBLE = false;
     triAccum.lastSendTime = millis();
 }
-
 uint32_t hashString(const String& str) {
     uint32_t hash = 0;
     for (size_t i = 0; i < str.length(); i++) {
@@ -1117,42 +1122,56 @@ static void sendTriAccumulatedData(const String& nodeId) {
         return;
     }
 
-    if (triAccum.hitCount == 0) return;
+    if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
     
     uint32_t now = millis();
     uint32_t jitter = hashString(nodeId) % 2000;
     
     if (now - triAccum.lastSendTime < TRI_SEND_INTERVAL + jitter) return;
     
-    int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
-    
     String macStr = macFmt6(triAccum.targetMac);
-    String msg = nodeId + ": TARGET_DATA: " + macStr + 
-                 " Hits=" + String(triAccum.hitCount) +
-                 " RSSI:" + String(avgRssi) +
-                 " Type:" + String(triAccum.isBLE ? "BLE" : "WiFi");
     
-    if (triAccum.hasGPS) {
-        msg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
-               " HDOP=" + String(triAccum.hdop, 1);
-    }
-    
-    size_t msgLen = msg.length() + 1;
-
-    if (msgLen <= 240 && Serial1.availableForWrite() >= msgLen) {
-        bool sent = sendToSerial1(msg, true);
+    // Send WiFi data if available
+    if (triAccum.wifiHitCount > 0) {
+        int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
         
-        if (sent) {
-            Serial.printf("[TRIANGULATE CHILD] Sent summary: %d hits, avgRSSI=%d, GPS=%s\n",
-                        triAccum.hitCount, avgRssi, triAccum.hasGPS ? "YES" : "NO");
-            
-            // Update timestamp 
-            triAccum.lastSendTime = now;
-        } else {
-            Serial.println("[TRIANGULATE CHILD] Send failed, retaining data for retry");
+        String wifiMsg = nodeId + ": TARGET_DATA: " + macStr + 
+                         " Hits=" + String(triAccum.wifiHitCount) +
+                         " RSSI:" + String(wifiAvgRssi) +
+                         " Type:WiFi";
+        
+        if (triAccum.hasGPS) {
+            wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                       " HDOP=" + String(triAccum.hdop, 1);
         }
+        
+        sendToSerial1(wifiMsg, true);
+        Serial.printf("[TRIANGULATE] Sent WiFi: %d hits, avgRSSI=%d\n",
+                     triAccum.wifiHitCount, wifiAvgRssi);
     }
+    
+    // Send BLE data if available
+    if (triAccum.bleHitCount > 0) {
+        int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+        
+        String bleMsg = nodeId + ": TARGET_DATA: " + macStr + 
+                        " Hits=" + String(triAccum.bleHitCount) +
+                        " RSSI:" + String(bleAvgRssi) +
+                        " Type:BLE";
+        
+        if (triAccum.hasGPS) {
+            bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                      " HDOP=" + String(triAccum.hdop, 1);
+        }
+        
+        sendToSerial1(bleMsg, true);
+        Serial.printf("[TRIANGULATE] Sent BLE: %d hits, avgRSSI=%d\n",
+                     triAccum.bleHitCount, bleAvgRssi);
+    }
+    
+    triAccum.lastSendTime = millis();
 }
+
 
 // Scan tasks
 void listScanTask(void *pv) {
@@ -1400,14 +1419,17 @@ void listScanTask(void *pv) {
                 }
 
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
-                    triAccum.hitCount++;
-                    triAccum.rssiSum += (float)h.rssi;
-                    if (h.rssi > triAccum.maxRssi) triAccum.maxRssi = h.rssi;
-                    if (h.rssi < triAccum.minRssi || triAccum.minRssi == 0) triAccum.minRssi = h.rssi;
-                    
-                    // Set device type only on first detection (TODO: track both protocols)
-                    if (triAccum.hitCount == 1) {
-                        triAccum.isBLE = h.isBLE;
+                    // Track WiFi and BLE separately
+                    if (h.isBLE) {
+                        triAccum.bleHitCount++;
+                        triAccum.bleRssiSum += (float)h.rssi;
+                        if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
+                        if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
+                    } else {
+                        triAccum.wifiHitCount++;
+                        triAccum.wifiRssiSum += (float)h.rssi;
+                        if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
+                        if (h.rssi < triAccum.wifiMinRssi || triAccum.wifiMinRssi == 0) triAccum.wifiMinRssi = h.rssi;
                     }
                     
                     if (gpsValid) {
@@ -1423,14 +1445,29 @@ void listScanTask(void *pv) {
                             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
                         }
                         
-                        int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
+                        // Calculate average for whichever protocol has data
+                        int8_t avgRssi;
+                        int totalHits;
+                        bool isBLE;
+                        
+                        if (triAccum.wifiHitCount > 0) {
+                            avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+                            totalHits = triAccum.wifiHitCount;
+                            isBLE = false;
+                        } else if (triAccum.bleHitCount > 0) {
+                            avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+                            totalHits = triAccum.bleHitCount;
+                            isBLE = true;
+                        } else {
+                            continue; // No data, skip
+                        }
                         
                         bool selfNodeFound = false;
                         for (auto &node : triangulationNodes) {
                             if (node.nodeId == myNodeId) {
                                 updateNodeRSSI(node, avgRssi);
-                                node.hitCount = triAccum.hitCount;
-                                node.isBLE = triAccum.isBLE;
+                                node.hitCount = totalHits;
+                                node.isBLE = isBLE;
                                 if (triAccum.hasGPS) {
                                     node.lat = triAccum.lat;
                                     node.lon = triAccum.lon;
@@ -1451,9 +1488,9 @@ void listScanTask(void *pv) {
                             selfNode.lon = triAccum.hasGPS ? triAccum.lon : 0.0;
                             selfNode.hdop = triAccum.hasGPS ? triAccum.hdop : 99.9;
                             selfNode.rssi = avgRssi;
-                            selfNode.hitCount = triAccum.hitCount;
+                            selfNode.hitCount = totalHits;
                             selfNode.hasGPS = triAccum.hasGPS;
-                            selfNode.isBLE = triAccum.isBLE;
+                            selfNode.isBLE = isBLE;
                             selfNode.lastUpdate = millis();
                             
                             initNodeKalmanFilter(selfNode);
@@ -1463,7 +1500,7 @@ void listScanTask(void *pv) {
                             triangulationNodes.push_back(selfNode);
                             
                             Serial.printf("[TRIANGULATE SELF] Added: hits=%d avgRSSI=%d Type=%s dist=%.1fm GPS=%s\n",
-                                        triAccum.hitCount, avgRssi,
+                                        totalHits, avgRssi,
                                         selfNode.isBLE ? "BLE" : "WiFi",
                                         selfNode.distanceEstimate,
                                         triAccum.hasGPS ? "YES" : "NO");
@@ -1500,7 +1537,7 @@ void listScanTask(void *pv) {
         }
         
         // Force send child node final accumulated data
-        if (!triangulationInitiator && triAccum.hitCount > 0) {
+        if (triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
             triAccum.lastSendTime = 0;
             sendTriAccumulatedData(myNodeId);
             Serial.println("[SCAN CHILD] Done. Sent final triangulation data");
@@ -1531,8 +1568,10 @@ void listScanTask(void *pv) {
             // Clean up triangulation state for child
             triangulationActive = false;
             memset(triangulationTarget, 0, 6);
-            triAccum.hitCount = 0;  // Clear accumulated data
-            triAccum.rssiSum = 0.0f;
+            triAccum.wifiHitCount = 0;
+            triAccum.wifiRssiSum = 0.0f;
+            triAccum.bleHitCount = 0;
+            triAccum.bleRssiSum = 0.0f;
             triAccum.lastSendTime = 0;
         }
     }

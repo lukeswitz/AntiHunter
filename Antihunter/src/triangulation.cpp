@@ -28,8 +28,6 @@ uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
 bool triangulationActive = false;
 bool triangulationInitiator = false;
-bool canonicalTypeSet = false;
-bool canonicalIsBLE = false;
 
 PathLossCalibration pathLoss = {
     -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
@@ -54,6 +52,10 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     // Apply signal quality degradation
     float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
     distance *= qualityFactor;
+    
+    // Bounds checking
+    if (distance < 0.1) distance = 0.1;       // Minimum 10cm
+    if (distance > 200.0) distance = 200.0;   // BLE max ~50m, WiFi max ~200m indoors
     
     return distance;
 }
@@ -438,8 +440,6 @@ void startTriangulation(const String &targetMac, int duration) {
     stopRequested = false;
     triangulationActive = true;
     triangulationInitiator = true;
-    canonicalTypeSet = false;
-    canonicalIsBLE = false;
     
     Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
     
@@ -486,7 +486,7 @@ void stopTriangulation() {
     Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, triangulationNodes.size());
 
     // Add parent's own accumulated data
-    if (triangulationInitiator && triAccum.hitCount > 0) {
+    if (triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
         String myNodeId = getNodeId();
         if (myNodeId.length() == 0) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
@@ -503,7 +503,20 @@ void stopTriangulation() {
         }
         
         if (!selfNodeExists) {
-            int8_t avgRssi = (int8_t)(triAccum.rssiSum / triAccum.hitCount);
+            // Use WiFi data if available, otherwise BLE
+            int8_t avgRssi;
+            int totalHits;
+            bool isBLE;
+            
+            if (triAccum.wifiHitCount > 0) {
+                avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+                totalHits = triAccum.wifiHitCount;
+                isBLE = false;
+            } else {
+                avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+                totalHits = triAccum.bleHitCount;
+                isBLE = true;
+            }
             
             TriangulationNode selfNode;
             selfNode.nodeId = myNodeId;
@@ -511,9 +524,9 @@ void stopTriangulation() {
             selfNode.lon = triAccum.lon;
             selfNode.hdop = triAccum.hdop;
             selfNode.rssi = avgRssi;
-            selfNode.hitCount = triAccum.hitCount;
+            selfNode.hitCount = totalHits;
             selfNode.hasGPS = triAccum.hasGPS;
-            selfNode.isBLE = triAccum.isBLE;
+            selfNode.isBLE = isBLE;
             selfNode.lastUpdate = millis();
             
             initNodeKalmanFilter(selfNode);
@@ -523,7 +536,7 @@ void stopTriangulation() {
             triangulationNodes.push_back(selfNode);
             
             Serial.printf("[TRIANGULATE INITIATOR] Added self: hits=%d avgRSSI=%d Type=%s GPS=%s dist=%.1fm\n",
-                        triAccum.hitCount, avgRssi,
+                        totalHits, avgRssi,
                         selfNode.isBLE ? "BLE" : "WiFi",
                         triAccum.hasGPS ? "YES" : "NO",
                         selfNode.distanceEstimate);
@@ -631,8 +644,10 @@ void stopTriangulation() {
     memset(triangulationTarget, 0, 6);
 
     // Clear accumulated data
-    triAccum.hitCount = 0;
-    triAccum.rssiSum = 0.0f;
+    triAccum.wifiHitCount = 0;
+    triAccum.wifiRssiSum = 0.0f;
+    triAccum.bleHitCount = 0;
+    triAccum.bleRssiSum = 0.0f;
     triAccum.lastSendTime = 0;
     
     // Flush rate limiter to clear any queued state
@@ -1255,9 +1270,9 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
 
 AdaptivePathLoss adaptivePathLoss = {
     -30.0,  // rssi0_wifi initial
-    -65.0,  // rssi0_ble initial
+    -40.0,  // rssi0_ble initial
     3.0,    // n_wifi initial
-    3.5,    // n_ble initial
+    2.5,    // n_ble initial
     {},     // wifiSamples
     {},     // bleSamples
     false,  // wifi_calibrated
