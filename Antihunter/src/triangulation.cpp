@@ -754,8 +754,10 @@ String calculateTriangulation() {
             results += "GPS=" + String(node.lat, 6) + "," + String(node.lon, 6) + " ";
             results += "Dist=" + String(node.distanceEstimate, 1) + "m";
 
-            if (node.hdop > 0.0 && node.hdop < 50.0) {
+            if (node.hdop > 0.0 && node.hdop < 20.0) {
                 results += " HDOP=" + String(node.hdop, 1);
+            } else {
+                results += "GPS rejected: " + node.nodeId + "  (HDOP=" + String(node.hdop, 1) + " too high)\n";
             }
 
             gpsNodes.push_back(node);
