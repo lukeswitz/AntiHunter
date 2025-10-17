@@ -53,7 +53,7 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
 
 > [!NOTE]
-> EXPERIMENTAL: T114 small buffer and slow speed causes issues. Fix in progress
+> EXPERIMENTAL: T114 small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
 **Key Features:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
@@ -203,11 +203,10 @@ _PCBs and kits are in production!_
 
 ### **Core Components**
 - **ESP32-S3 Development Board** (Seeed Studio XIAO ESP32S3 recommended)
-  - Minimum 8MB flash memory required for reliable operation
-  - Supports WiFi 2.4GHz and Bluetooth Low Energy scanning
-- **Meshtastic Board** (LoRa-based mesh networking) Heltec v3.2 & T114
+  - Minimum 8MB flash memory required for reliable operation)
+- **Meshtastic Board** (LoRa-based mesh networking) Heltec v3.2 (recommended) or T114
 - **GPS Module** (NMEA-compatible)
-- **SD Card Module** (microSD compatible)
+- **SD Card Module** 
 - **SW-420 Vibration Sensor**
 - **DS3231 RTC Module**
 
@@ -262,17 +261,14 @@ For developers and advanced users:
 #### **Prerequisites**
 - **PlatformIO**
 - **Git** for repository management
-- **ESP32-S3 development board** (8MB flash minimum)
 - **USB cable** for programming and debugging
-- **Optional**: Hardware components for full functionality
-- - **Optional: Visual Studio Code** with PlatformIO IDE extension
+- **Optional: Visual Studio Code** with PlatformIO IDE extension
 
 #### **Repository Setup**
 ```bash
 # Clone the AntiHunter repository
 git clone https://github.com/lukeswitz/AntiHunter.git
 cd AntiHunter
-
 ```
 
 #### **Firmware Flashing**
@@ -285,8 +281,8 @@ pip install -U platformio
 pio --version
 
 # From inside AntiHunter folder containing platformio.ini:
-pio run -e AntiHunter -t upload
-pio device monitor -e AntiHunter
+pio run -t upload
+pio device monitor
 ```
 
 ### Option 2 - Using VS Code:
@@ -568,7 +564,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 AntiHunter is the result of collaborative development by security researchers, embedded systems engineers, and open-source contributors.
 
-The project continues to evolve through community contributions. Contributions via pull requests, issue reports, and documentation improvements are welcome.
+**Team Antihunter**: Conceived by the visionary @TheRealSirHaXalot, a hardware development and design engineer who brings this endeavor to life. We collaborate on innovative concepts, transforming them into tangible reality.
+
+Get [involved](https://github.com/lukeswitz/AntiHunter/discussions). The project continues to evolve through community contributions. Contributions via pull requests, issue reports, and documentation improvements are welcome. 
 
 ## Legal Disclaimer
 
