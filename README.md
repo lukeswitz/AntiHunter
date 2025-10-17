@@ -250,7 +250,7 @@ chmod +x flashAntihunter.sh
 
 **Process:**
 1. Connect your ESP32-S3 board via USB
-2. Run the flasher script
+2. Run the flasher script, follow prompts
 3. The device will reboot with AntiHunter firmware
 4. Connect to the `Antihunter` WiFi AP (password: `ouispy123`)
 5. Access the web interface at `http://192.168.4.1`
@@ -260,30 +260,40 @@ chmod +x flashAntihunter.sh
 For developers and advanced users:
 
 #### **Prerequisites**
-- **Visual Studio Code** with PlatformIO IDE extension
+- **PlatformIO**
 - **Git** for repository management
 - **ESP32-S3 development board** (8MB flash minimum)
 - **USB cable** for programming and debugging
 - **Optional**: Hardware components for full functionality
+- - **Optional: Visual Studio Code** with PlatformIO IDE extension
 
 #### **Repository Setup**
 ```bash
 # Clone the AntiHunter repository
-git clone https://github.com/lukeswitz/AntiHunter.git AntiHunter_Project
-cd AntiHunter_Project
+git clone https://github.com/lukeswitz/AntiHunter.git
+cd AntiHunter
 
-# Open in VS Code (with PlatformIO extension)
-code .
 ```
-
-PlatformIO will automatically detect the `platformio.ini` configuration file and set up the development environment.
 
 #### **Firmware Flashing**
 
-1. **Connect Hardware**: Plug your ESP32-S3 board into USB
-2. **Select Environment**: In VS Code's PlatformIO toolbar, select the `AntiHunter` environment
-3. **Build & Upload**: Click the "Upload" button (→) in the PlatformIO status bar
-4. **Monitor Output**: Use the Serial Monitor to verify successful boot
+### Option 1 - PIO command line:
+
+```bash
+# Ensure PlatformIO Core is installed
+pip install -U platformio
+pio --version
+
+# From inside AntiHunter folder containing platformio.ini:
+pio run -e AntiHunter -t upload
+pio device monitor -e AntiHunter
+```
+
+### Option 2 - Using VS Code:
+
+1. **Select Environment**: In VS Code's PlatformIO toolbar, select the `AntiHunter` environment
+2. **Build & Upload**: Click the "Upload" button (→) in the PlatformIO status bar
+3. **Monitor Output**: Use the Serial Monitor to verify successful boot
 
 ---
 
