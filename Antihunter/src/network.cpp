@@ -410,7 +410,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
                 <button type="button" class="btn" id="randResultsBtn" style="display:none;" onclick="fetchRandomizationResults()">View Randomization Results</button>
-                <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showRandomizationTracks()">Show Device Tracks</button>
+                <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showDeviceIdentities()">Show Device IDs</button>
               </div>
             </form>
           </div>
@@ -769,10 +769,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               e.preventDefault();
               fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
                 setTimeout(async () => {
-                  const refreshedDiag = await fetch('/diag').then(r => r.text());
-                  updateStatusIndicators(refreshedDiag);
-                }, 500);
-              });
+                            const refreshedDiag = await fetch('/diag').then(r => r.text());
+                            updateStatusIndicators(refreshedDiag);
+                        }, 500);
+                    });
             };
           }
 
@@ -787,9 +787,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 e.preventDefault();
                 fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
                   setTimeout(async () => {
-                    const refreshedDiag = await fetch('/diag').then(r => r.text());
-                    updateStatusIndicators(refreshedDiag);
-                  }, 500);
+                            const refreshedDiag = await fetch('/diag').then(r => r.text());
+                            updateStatusIndicators(refreshedDiag);
+                        }, 500);
                 });
               };
             }
@@ -825,10 +825,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('scanStatus').innerText = 'Idle';
           document.getElementById('scanStatus').classList.remove('active');
 
-          const startScanBtn = document.querySelector('#s button');
-          if (startScanBtn) {
-            startScanBtn.textContent = 'Start Scan';
-            startScanBtn.classList.remove('danger');
+            const startScanBtn = document.querySelector('#s button');
+            if (startScanBtn) {
+                startScanBtn.textContent = 'Start Scan';
+                startScanBtn.classList.remove('danger');
             startScanBtn.classList.add('primary');
             startScanBtn.type = 'submit';
             startScanBtn.onclick = null;
@@ -858,8 +858,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('gpsStatus').classList.add('active');
           document.getElementById('gpsStatus').innerText = 'GPS Lock';
         } else {
-          document.getElementById('gpsStatus').classList.remove('active');
-          document.getElementById('gpsStatus').innerText = 'GPS';
+            document.getElementById('gpsStatus').classList.remove('active');
+            document.getElementById('gpsStatus').innerText = 'GPS';
         }
         
         if (diagText.includes('RTC: Synced')) {
@@ -869,7 +869,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('rtcStatus').classList.remove('active');
           document.getElementById('rtcStatus').innerText = 'RTC';
         }
-      }
+    }
       
       function saveAutoEraseConfig() {
         const enabled = document.getElementById('autoEraseEnabled').checked;
@@ -971,12 +971,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .then(r => r.text())
           .then(data => {
             const modal = document.createElement('div');
+            modal.id = 'randResultsModal';
             modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
             modal.innerHTML = `
               <div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:90%;max-height:90%;overflow:auto;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                   <h3 style="margin:0;">Randomization Detection Results</h3>
-                  <button onclick="this.closest('div').parentElement.remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>
+                  <button onclick="document.getElementById('randResultsModal').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>
                 </div>
                 <pre style="background:#0a0a0a;padding:16px;border-radius:4px;overflow:auto;max-height:70vh;white-space:pre-wrap;">${data}</pre>
               </div>
@@ -986,58 +987,59 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .catch(err => toast('Error fetching results: ' + err, 'error'));
       }
 
-      function showRandomizationTracks() {
-        fetch('/randomization/tracks')
-          .then(r => r.json())
-          .then(tracks => {
-            if (tracks.length === 0) {
-              toast('No device tracks available', 'info');
-              return;
-            }
-            
-            const modal = document.createElement('div');
-            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
-            
-            let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
-            content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-            content += '<h3 style="margin:0;">Device Tracks (' + tracks.length + ')</h3>';
-            content += '<button onclick="this.closest(\'div\').parentElement.remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
-            content += '</div>';
-            content += '<div style="display:grid;gap:12px;">';
-            
-            tracks.forEach(track => {
-              content += '<div style="background:#0a0a0a;padding:16px;border-radius:4px;border-left:3px solid #4CAF50;">';
-              content += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
-              content += '<strong style="font-size:16px;color:#4CAF50;">' + track.trackId + '</strong>';
-              content += '<div style="display:flex;gap:16px;font-size:14px;">';
-              content += '<span>Sessions: <strong>' + track.sessions + '</strong></span>';
-              content += '<span>Confidence: <strong>' + (track.confidence * 100).toFixed(0) + '%</strong></span>';
-              content += '</div>';
-              content += '</div>';
+      function showDeviceIdentities() {
+          fetch('/randomization/identities')
+            .then(r => r.json())
+            .then(identities => {
+              if (identities.length === 0) {
+                toast('No device fingerprints available', 'info');
+                return;
+              }
               
-              content += '<details style="margin-top:12px;"><summary style="cursor:pointer;color:#4CAF50;user-select:none;padding:4px 0;">';
-              content += '📱 MACs (' + track.macs.length + ') - Click to expand</summary>';
-              content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
+              const modal = document.createElement('div');
+              modal.id = 'randTracksModal';
+              modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
               
-              track.macs.forEach((mac, idx) => {
-                const isRand = (parseInt(mac.substring(0, 2), 16) & 0x02) !== 0;
-                const badge = isRand ? 
-                  '<span style="background:#FF5722;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">RANDOMIZED</span>' : 
-                  '<span style="background:#2196F3;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">STABLE</span>';
-                content += '<div style="padding:4px 0;font-family:monospace;font-size:13px;">';
-                content += mac + badge;
+              let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
+              content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+              content += '<h3 style="margin:0;">Device Fingerprints (' + identities.length + ')</h3>';
+              content += '<button onclick="document.getElementById(\'randTracksModal\').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
+              content += '</div>';
+              content += '<div style="display:grid;gap:12px;">';
+              
+              identities.forEach(track => {
+                content += '<div style="background:#0a0a0a;padding:16px;border-radius:4px;border-left:3px solid #4CAF50;">';
+                content += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
+                content += '<strong style="font-size:16px;color:#4CAF50;">' + track.identityId + '</strong>';
+                content += '<div style="display:flex;gap:16px;font-size:14px;">';
+                content += '<span>Sessions: <strong>' + track.sessions + '</strong></span>';
+                content += '<span>Confidence: <strong>' + (track.confidence * 100).toFixed(0) + '%</strong></span>';
+                content += '</div>';
+                content += '</div>';
+                
+                content += '<details style="margin-top:12px;"><summary style="cursor:pointer;color:#4CAF50;user-select:none;padding:4px 0;">';
+                content += 'MACs (' + track.macs.length + ') - Click to expand</summary>';
+                content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
+                
+                track.macs.forEach((mac, idx) => {
+                  const isRand = (parseInt(mac.substring(0, 2), 16) & 0x02) !== 0;
+                  const badge = isRand ? 
+                    '<span style="background:#FF5722;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">RANDOMIZED</span>' : 
+                    '<span style="background:#2196F3;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">STABLE</span>';
+                  content += '<div style="padding:4px 0;font-family:monospace;font-size:13px;">';
+                  content += mac + badge;
+                  content += '</div>';
+                });
+                
+                content += '</div></details>';
                 content += '</div>';
               });
               
-              content += '</div></details>';
-              content += '</div>';
-            });
-            
-            content += '</div></div>';
+              content += '</div></div>';
             modal.innerHTML = content;
             document.body.appendChild(modal);
           })
-          .catch(err => toast('Error fetching tracks: ' + err, 'error'));
+          .catch(err => toast('Error fetching fingerprints: ' + err, 'error'));
       }
 
       function resetRandomizationDetection() {
@@ -1852,139 +1854,139 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     cancelTamperErase();
     req->send(200, "text/plain", "Cancelled"); });
 
-  server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-  String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
-  int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
-  bool forever = req->hasParam("forever", true);
-  
-  if (detection == "deauth") {
-    if (secs < 0) secs = 0; 
-    if (secs > 86400) secs = 86400;
+  server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
+    String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
+    int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
+    bool forever = req->hasParam("forever", true);
     
-    stopRequested = false;
-    req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
-    
-    if (!blueTeamTaskHandle) {
-      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-    }
-    
-  } else if (detection == "baseline") {
-    currentScanMode = SCAN_BOTH;
-    if (secs < 0) secs = 0;
-    if (secs > 86400) secs = 86400;
-    
-    stopRequested = false;
-    req->send(200, "text/plain", 
-              forever ? "Baseline detection starting (forever)" : 
-              ("Baseline detection starting for " + String(secs) + "s"));
-    
-    if (!workerTaskHandle) {
-        xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288, 
-                              (void*)(intptr_t)(forever ? 0 : secs), 
-                              1, &workerTaskHandle, 1);
-    }
-  } else if (detection == "randomization-detection") {
-      currentScanMode = SCAN_WIFI;
+    if (detection == "deauth") {
+      if (secs < 0) secs = 0; 
+      if (secs > 86400) secs = 86400;
+      
+      stopRequested = false;
+      req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
+      
+      if (!blueTeamTaskHandle) {
+        xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+      }
+      
+    } else if (detection == "baseline") {
+      currentScanMode = SCAN_BOTH;
       if (secs < 0) secs = 0;
       if (secs > 86400) secs = 86400;
       
       stopRequested = false;
       req->send(200, "text/plain", 
-                forever ? "Randomization detection starting (forever)" : 
-                ("Randomization detection starting for " + String(secs) + "s"));
+                forever ? "Baseline detection starting (forever)" : 
+                ("Baseline detection starting for " + String(secs) + "s"));
       
       if (!workerTaskHandle) {
-          xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
-                                (void*)(intptr_t)(forever ? 0 : secs),
+          xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288, 
+                                (void*)(intptr_t)(forever ? 0 : secs), 
                                 1, &workerTaskHandle, 1);
       }
-  } else if (detection == "device-scan") {
-      currentScanMode = SCAN_BOTH;
-      if (secs < 0) secs = 0;
-      if (secs > 86400) secs = 86400;
-      
-      if (detection == "deauth") {
-          if (secs < 0) secs = 0;
-          if (secs > 86400) secs = 86400;
-          
-          stopRequested = false;
-          req->send(200, "text/plain", 
-                    forever ? "Deauth detection starting (forever)" : 
-                    ("Deauth detection starting for " + String(secs) + "s"));
-          
-          if (!blueTeamTaskHandle) {
-              xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, 
-                                    (void*)(intptr_t)(forever ? 0 : secs), 
-                                    1, &blueTeamTaskHandle, 1);
-          }
-          
-      } else if (detection == "baseline") {
-          currentScanMode = SCAN_BOTH;
-          if (secs < 0) secs = 0;
-          if (secs > 86400) secs = 86400;
-          
-          stopRequested = false;
-          req->send(200, "text/plain",
-                    forever ? "Baseline detection starting (forever)" :
-                    ("Baseline detection starting for " + String(secs) + "s"));
-          
-          if (!workerTaskHandle) {
-              xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
-                                    (void*)(intptr_t)(forever ? 0 : secs),
-                                    1, &workerTaskHandle, 1);
-          }
-          
-      } else if (detection == "randomization-detection") {
-          currentScanMode = SCAN_WIFI;
-          if (secs < 0) secs = 0;
-          if (secs > 86400) secs = 86400;
-          
-          stopRequested = false;
-          req->send(200, "text/plain",
-                    forever ? "Randomization detection starting (forever)" :
-                    ("Randomization detection starting for " + String(secs) + "s"));
-          
-          if (!workerTaskHandle) {
-              xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
-                                    (void*)(intptr_t)(forever ? 0 : secs),
-                                    1, &workerTaskHandle, 1);
-          }
-          
-      } else if (detection == "device-scan") {
-          currentScanMode = SCAN_BOTH;
-          if (secs < 0) secs = 0;
-          if (secs > 86400) secs = 86400;
-          
-          stopRequested = false;
-          req->send(200, "text/plain", 
-                    forever ? "Device scan starting (forever)" : 
-                    ("Device scan starting for " + String(secs) + "s"));
-          
-          if (!workerTaskHandle) {
-              xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
-                                    (void*)(intptr_t)(forever ? 0 : secs), 
-                                    1, &workerTaskHandle, 1);
-          }
-          
-      } else if (detection == "drone-detection") {
-          currentScanMode = SCAN_WIFI;
-          if (secs < 0) secs = 0;
-          if (secs > 86400) secs = 86400;
-          
-          stopRequested = false;
-          req->send(200, "text/plain",
-                    forever ? "Drone detection starting (forever)" :
-                    ("Drone detection starting for " + String(secs) + "s"));
-          
-          if (!workerTaskHandle) {
-              xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
-                                    (void*)(intptr_t)(forever ? 0 : secs),
-                                    1, &workerTaskHandle, 1);
-          }
-          
-      } else {
-          req->send(400, "text/plain", "Unknown detection mode");
+    } else if (detection == "randomization-detection") {
+        currentScanMode = SCAN_WIFI;
+        if (secs < 0) secs = 0;
+        if (secs > 86400) secs = 86400;
+        
+        stopRequested = false;
+        req->send(200, "text/plain", 
+                  forever ? "Randomization detection starting (forever)" : 
+                  ("Randomization detection starting for " + String(secs) + "s"));
+        
+        if (!workerTaskHandle) {
+            xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
+                                  (void*)(intptr_t)(forever ? 0 : secs),
+                                  1, &workerTaskHandle, 1);
+        }
+    } else if (detection == "device-scan") {
+        currentScanMode = SCAN_BOTH;
+        if (secs < 0) secs = 0;
+        if (secs > 86400) secs = 86400;
+        
+        if (detection == "deauth") {
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+            
+            stopRequested = false;
+            req->send(200, "text/plain", 
+                      forever ? "Deauth detection starting (forever)" : 
+                      ("Deauth detection starting for " + String(secs) + "s"));
+            
+            if (!blueTeamTaskHandle) {
+                xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, 
+                                      (void*)(intptr_t)(forever ? 0 : secs), 
+                                      1, &blueTeamTaskHandle, 1);
+            }
+            
+        } else if (detection == "baseline") {
+            currentScanMode = SCAN_BOTH;
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+            
+            stopRequested = false;
+            req->send(200, "text/plain",
+                      forever ? "Baseline detection starting (forever)" :
+                      ("Baseline detection starting for " + String(secs) + "s"));
+            
+            if (!workerTaskHandle) {
+                xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
+                                      (void*)(intptr_t)(forever ? 0 : secs),
+                                      1, &workerTaskHandle, 1);
+            }
+            
+        } else if (detection == "randomization-detection") {
+            currentScanMode = SCAN_WIFI;
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+            
+            stopRequested = false;
+            req->send(200, "text/plain",
+                      forever ? "Randomization detection starting (forever)" :
+                      ("Randomization detection starting for " + String(secs) + "s"));
+            
+            if (!workerTaskHandle) {
+                xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
+                                      (void*)(intptr_t)(forever ? 0 : secs),
+                                      1, &workerTaskHandle, 1);
+            }
+            
+        } else if (detection == "device-scan") {
+            currentScanMode = SCAN_BOTH;
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+            
+            stopRequested = false;
+            req->send(200, "text/plain", 
+                      forever ? "Device scan starting (forever)" : 
+                      ("Device scan starting for " + String(secs) + "s"));
+            
+            if (!workerTaskHandle) {
+                xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
+                                      (void*)(intptr_t)(forever ? 0 : secs), 
+                                      1, &workerTaskHandle, 1);
+            }
+            
+        } else if (detection == "drone-detection") {
+            currentScanMode = SCAN_WIFI;
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+            
+            stopRequested = false;
+            req->send(200, "text/plain",
+                      forever ? "Drone detection starting (forever)" :
+                      ("Drone detection starting for " + String(secs) + "s"));
+            
+            if (!workerTaskHandle) {
+                xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
+                                      (void*)(intptr_t)(forever ? 0 : secs),
+                                      1, &workerTaskHandle, 1);
+            }
+            
+        } else {
+            req->send(400, "text/plain", "Unknown detection mode");
+        }
       }
   });
 
@@ -2048,17 +2050,17 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       r->send(200, "text/plain", "Randomization detection reset");
   });
 
-  server->on("/randomization/tracks", HTTP_GET, [](AsyncWebServerRequest *r) {
+  server->on("/randomization/identities", HTTP_GET, [](AsyncWebServerRequest *r) {
       String json = "[";
       bool first = true;
       
-      for (const auto& entry : deviceTracks) {
+      for (const auto& entry : deviceIdentities) {
           if (!first) json += ",";
           first = false;
           
-          const DeviceTrack& track = entry.second;
+          const DeviceIdentity& track = entry.second;
           json += "{";
-          json += "\"trackId\":\"" + String(track.trackId) + "\",";
+          json += "\"identityId\":\"" + String(track.identityId) + "\",";
           json += "\"sessions\":" + String(track.sessionCount) + ",";
           json += "\"confidence\":" + String(track.confidence, 2) + ",";
           json += "\"macs\":[";
