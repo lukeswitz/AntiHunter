@@ -251,71 +251,40 @@ static int freqFromRSSI(int8_t rssi)
 // Deauth type
 String getDeauthReasonText(uint16_t reasonCode) {
     switch (reasonCode) {
-        case 1: return "Unspecified";
-        case 2: return "Auth expired";
-        case 3: return "Leaving network";
-        case 4: return "Inactivity";
-        case 5: return "AP overloaded";
-        case 6: return "Unauthorized frame";
-        case 7: return "Unassociated frame";
-        case 8: return "Station leaving";
-        case 15: return "Handshake timeout";
-        case 23: return "802.1X auth failed";
-        default: return "Code " + String(reasonCode);
+        case 1: return "Unspecified reason";
+        case 2: return "Previous authentication no longer valid";
+        case 6: return "Class 2 frame from non-authenticated station";
+        case 7: return "Class 3 frame from non-associated station";
+        default: return "Reason code " + String(reasonCode);
     }
 }
 
+
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
-    
-    if (!ppkt || ppkt->rx_ctrl.sig_len < 26) return; // Minimum frame size
+    if (!ppkt || ppkt->rx_ctrl.sig_len < 26) return;
     
     const uint8_t *payload = ppkt->payload;
     
-    // Frame Control Field (2 bytes)
-    // Byte 0: bits 0-1: protocol version (00)
-    //         bits 2-3: type (00 = management)
-    //         bits 4-7: subtype
-    // Byte 1: ToDS, FromDS, More Frag, Retry, Pwr Mgmt, More Data, Protected, Order
+    uint8_t version = (payload[0] & 0x03);
+    uint8_t type = (payload[0] >> 2) & 0x03;
+    uint8_t subtype = (payload[0] >> 4) & 0x0F;
     
-    uint16_t frameControl = payload[0] | (payload[1] << 8);
-    
-    // Extract type and subtype
-    uint8_t version = (payload[0] & 0x03);        // Bits 0-1
-    uint8_t type = (payload[0] >> 2) & 0x03;      // Bits 2-3
-    uint8_t subtype = (payload[0] >> 4) & 0x0F;   // Bits 4-7
-    
-    // Check for management frame (type = 0)
     if (type != 0 || version != 0) return;
     
-    // Subtype 0xA = Disassociation (subtype 10 decimal, 0x0A hex)
-    // Subtype 0xC = Deauthentication (subtype 12 decimal, 0x0C hex)
-    bool isDisassoc = (subtype == 0x0A);  // Disassociation
-    bool isDeauth = (subtype == 0x0C);     // Deauthentication
+    bool isDisassoc = (subtype == 0x0A);
+    bool isDeauth = (subtype == 0x0C);
     
     if (!isDisassoc && !isDeauth) return;
     
-    // Extract MAC addresses
-    // Management frame format:
-    // 0-1: Frame Control
-    // 2-3: Duration
-    // 4-9: Address 1 (Destination)
-    // 10-15: Address 2 (Source)
-    // 16-21: Address 3 (BSSID)
-    // 22-23: Sequence Control
-    // 24-25: Reason Code (for deauth/disassoc)
-    
     DeauthHit hit;
-    memcpy(hit.destMac, payload + 4, 6);   // DA (destination)
-    memcpy(hit.srcMac, payload + 10, 6);   // SA (source/transmitter)
-    memcpy(hit.bssid, payload + 16, 6);    // BSSID
+    memcpy(hit.destMac, payload + 4, 6);
+    memcpy(hit.srcMac, payload + 10, 6);
+    memcpy(hit.bssid, payload + 16, 6);
     
-    // Extract reason code (little endian)
-    if (ppkt->rx_ctrl.sig_len >= 26) {
-        hit.reasonCode = payload[24] | (payload[25] << 8);
-    } else {
-        hit.reasonCode = 0;
-    }
+    hit.reasonCode = (ppkt->rx_ctrl.sig_len >= 26) 
+                     ? (payload[24] | (payload[25] << 8)) 
+                     : 0;
     
     hit.rssi = ppkt->rx_ctrl.rssi;
     hit.channel = ppkt->rx_ctrl.channel;
@@ -323,97 +292,90 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     hit.isDisassoc = isDisassoc;
     hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
     
-    // Determine if this is a likely attack
     bool isAttack = false;
     
-    // Broadcast deauth/disassoc = always suspicious
     if (hit.isBroadcast) {
         isAttack = true;
-    } else {
-        // Track targeted attacks
-        static std::map<String, uint32_t> targetedClients;
-        static std::map<String, uint32_t> lastDeauthTime;
-        
-        String destMacStr = macFmt6(hit.destMac);
-        targetedClients[destMacStr]++;
-        
-        if (lastDeauthTime.count(destMacStr) > 0) {
-            uint32_t timeSince = millis() - lastDeauthTime[destMacStr];
-            // Multiple deauths to same client within 10s = attack
-            if (timeSince < 10000 && targetedClients[destMacStr] >= 2) {
-                isAttack = true;
-            }
-        }
-        lastDeauthTime[destMacStr] = millis();
-        
-        // Clean up old entries
-        if (targetedClients.size() > 100) {
-            auto oldest = targetedClients.begin();
-            targetedClients.erase(oldest);
-        }
-        if (lastDeauthTime.size() > 100) {
-            auto oldest = lastDeauthTime.begin();
-            lastDeauthTime.erase(oldest);
-        }
     }
     
-    // Common reason codes that indicate attacks:
-    // 1 = Unspecified reason
-    // 2 = Previous authentication no longer valid
-    // 3 = Deauthenticated because sending STA is leaving
-    // 4 = Disassociated due to inactivity
-    // 6 = Class 2 frame received from nonauthenticated STA
-    // 7 = Class 3 frame received from nonassociated STA
-    // 8 = Disassociated because sending STA is leaving
+    static std::map<String, std::vector<uint32_t>> targetHistory;
+    static uint32_t lastCleanupTime = 0;
     
-    // Reason codes 1, 2, 6, 7 are commonly used in attacks
+    String destMacStr = macFmt6(hit.destMac);
+    uint32_t now = millis();
+    
+    targetHistory[destMacStr].push_back(now);
+    
+    auto& times = targetHistory[destMacStr];
+    times.erase(
+        std::remove_if(times.begin(), times.end(),
+            [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }),
+        times.end()
+    );
+    
+    if (times.size() >= DEAUTH_TARGETED_THRESHOLD) {
+        isAttack = true;
+    }
+    
     if (hit.reasonCode == 1 || hit.reasonCode == 2 || 
         hit.reasonCode == 6 || hit.reasonCode == 7) {
         isAttack = true;
     }
     
-    if (isAttack || hit.isBroadcast) {
-        // Add to log
-        deauthLog.push_back(hit);
-        
-        // Limit log size
-        if (deauthLog.size() > MAX_LOG_SIZE) {
-            deauthLog.erase(deauthLog.begin());
-        }
-        
-        // Update counters
-        if (hit.isDisassoc) {
-            uint32_t temp = disassocCount;
-            disassocCount = temp + 1;
-        } else {
-            uint32_t temp = deauthCount;
-            deauthCount = temp + 1;
-        }
-        
-        // Log alert
-        String alert = "[DEAUTH] " + String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
-        if (hit.isBroadcast) {
-            alert += " [BROADCAST]";
-        } else {
-            alert += " [TARGETED]";
-        }
-        alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
-        alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
-        alert += " Reason:" + String(hit.reasonCode);
-
-        Serial.println("[ALERT] " + alert);
-        logToSD(alert);
-
-        if (meshEnabled) {
-            String meshAlert = getNodeId() + ": ATTACK: " + alert;
-            if (gpsValid) {
-                meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+    if ((now - lastCleanupTime) > DEAUTH_CLEANUP_INTERVAL) {
+        for (auto it = targetHistory.begin(); it != targetHistory.end(); ) {
+            auto& vec = it->second;
+            vec.erase(
+                std::remove_if(vec.begin(), vec.end(),
+                    [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }),
+                vec.end()
+            );
+            
+            if (vec.empty()) {
+                it = targetHistory.erase(it);
+            } else {
+                ++it;
             }
-            sendToSerial1(meshAlert, false);
         }
+        
+        if (targetHistory.size() > DEAUTH_HISTORY_MAX_SIZE) {
+            size_t toRemove = targetHistory.size() - DEAUTH_HISTORY_MAX_SIZE;
+            auto it = targetHistory.begin();
+            for (size_t i = 0; i < toRemove && it != targetHistory.end(); ++i) {
+                it = targetHistory.erase(it);
+            }
+        }
+        
+        lastCleanupTime = now;
+    }
+    
+    if (isAttack) {
+        if (hit.isDisassoc) {
+            disassocCount = disassocCount + 1;
+        } else {
+            deauthCount = deauthCount + 1;
+        }
+        
+        if (deauthLog.size() < MAX_LOG_SIZE) {
+            deauthLog.push_back(hit);
+        }
+        
+        String alert = "[DEAUTH] ";
+        alert += hit.isDisassoc ? "DISASSOC " : "DEAUTH ";
+        alert += macFmt6(hit.srcMac) + " -> " + destMacStr;
+        alert += " RSSI:" + String(hit.rssi) + " CH:" + String(hit.channel);
+        alert += " | " + getDeauthReasonText(hit.reasonCode);
+        
+        if (hit.isBroadcast) {
+            alert += " [BROADCAST ATTACK]";
+        } else {
+            alert += " [TARGETED x" + String(times.size()) + "]";
+        }
+        
+        Serial.println(alert);
+        logToSD(alert);
     }
 }
-
 
 // Main NimBLE callback
 class MyBLEScanCallbacks : public NimBLEScanCallbacks {
@@ -743,6 +705,7 @@ void blueTeamTask(void *pv) {
     deauthSourceCounts.clear();
     deauthTargetCounts.clear();
     deauthTimings.clear();
+    scanning = true;
 
     if (deauthQueue) {
         vQueueDelete(deauthQueue);
@@ -818,7 +781,7 @@ void blueTeamTask(void *pv) {
     }
 
     deauthDetectionEnabled = false;
-    
+    scanning = false;
     radioStopSTA();
     scanning = false;
     lastScanEnd = millis();
