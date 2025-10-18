@@ -78,6 +78,12 @@ const uint32_t MAX_TIMING_SIZE = 100;              // Max RAM timing entries per
 // Blue team scans
 static int blueTeamDuration = 300;
 static bool blueTeamForever = false;
+
+const uint32_t DEAUTH_TARGETED_WINDOW = 10000;     
+const uint32_t DEAUTH_TARGETED_THRESHOLD = 3;      
+const uint32_t DEAUTH_CLEANUP_INTERVAL = 60000;    
+const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;    
+
 extern std::map<String, uint32_t> deauthSourceCounts;
 extern std::map<String, uint32_t> deauthTargetCounts;
 extern std::map<String, std::vector<uint32_t>> deauthTimings;

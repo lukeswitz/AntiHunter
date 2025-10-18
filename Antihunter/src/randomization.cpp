@@ -537,7 +537,6 @@ void resetRandomizationDetection() {
 void randomizationDetectionTask(void *pv) {
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
-    
     Serial.printf("[RAND] Starting randomization detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
     
@@ -546,20 +545,47 @@ void randomizationDetectionTask(void *pv) {
     
     randomizationDetectionEnabled = true;
     scanning = true;
-    activeSessions.clear();
-    deviceIdentities.clear();
+    
+    // Clean only stale data, preserve valid fingerprints
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        uint32_t now = millis();
+        
+        std::vector<String> staleSessions;
+        for (auto& entry : activeSessions) {
+            if (now - entry.second.lastSeen > 300000) {  // 5 minutes
+                staleSessions.push_back(entry.first);
+            }
+        }
+        for (const auto& key : staleSessions) {
+            activeSessions.erase(key);
+        }
+        
+        std::vector<String> staleIdentities;
+        for (auto& entry : deviceIdentities) {
+            if (now - entry.second.lastSeen > 600000) {  // 10 minutes
+                staleIdentities.push_back(entry.first);
+            }
+        }
+        for (const auto& key : staleIdentities) {
+            deviceIdentities.erase(key);
+        }
+        
+        Serial.printf("[RAND] Cleaned %d stale sessions, %d stale identities. Retained: %d sessions, %d identities\n",
+                     staleSessions.size(), staleIdentities.size(), 
+                     activeSessions.size(), deviceIdentities.size());
+    }
     
     radioStartSTA();
     vTaskDelay(pdMS_TO_TICKS(200));
     
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
-    uint32_t nextLink = startTime + 8000;  // Link LESS frequently
+    uint32_t nextLink = startTime + 8000;
     
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
         
-        // === PHASE 1: Ingest probes (fast, minimal lock) ===
         {
             std::lock_guard<std::mutex> lock(randMutex);
             
@@ -617,11 +643,10 @@ void randomizationDetectionTask(void *pv) {
                     }
                 }
             }
-        }  // Lock released
+        }
         
-        vTaskDelay(pdMS_TO_TICKS(10));  // Yield frequently
+        vTaskDelay(pdMS_TO_TICKS(10));
         
-        // === PHASE 2: Link sessions (expensive, happens less often) ===
         if ((int32_t)(millis() - nextLink) >= 0) {
             {
                 std::lock_guard<std::mutex> lock(randMutex);
@@ -630,7 +655,6 @@ void randomizationDetectionTask(void *pv) {
                 std::vector<String> toLink;
                 std::vector<String> toRemove;
                 
-                // Identify stale sessions to link
                 for (auto& entry : activeSessions) {
                     uint32_t age = now - entry.second.lastSeen;
                     if (age > SESSION_END_TIMEOUT) {
@@ -641,7 +665,6 @@ void randomizationDetectionTask(void *pv) {
                     }
                 }
                 
-                // Link them (expensive operation, but not frequently)
                 for (const String& key : toLink) {
                     linkSessionToTrackBehavioral(activeSessions[key]);
                 }
@@ -661,13 +684,12 @@ void randomizationDetectionTask(void *pv) {
                 for (const String& key : toRemove) {
                     deviceIdentities.erase(key);
                 }
-            }  // Lock released
+            }
             
             nextLink += 8000;
             vTaskDelay(pdMS_TO_TICKS(50));  // Big yield after expensive operation
         }
         
-        // === PHASE 3: Status (minimal) ===
         if ((int32_t)(millis() - nextStatus) >= 0) {
             {
                 std::lock_guard<std::mutex> lock(randMutex);
