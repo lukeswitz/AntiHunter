@@ -107,6 +107,7 @@ void snifferScanTask(void *pv);
 void listScanTask(void *pv);
 void baselineDetectionTask(void *pv);
 void blueTeamTask(void *pv);
+String getDeauthReasonText(uint16_t reasonCode);
 
 String getTargetsList();
 String getDiagnostics();

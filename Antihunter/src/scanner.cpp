@@ -248,67 +248,168 @@ static int freqFromRSSI(int8_t rssi)
     return f;
 }
 
+// Deauth type
+String getDeauthReasonText(uint16_t reasonCode) {
+    switch (reasonCode) {
+        case 1: return "Unspecified";
+        case 2: return "Auth expired";
+        case 3: return "Leaving network";
+        case 4: return "Inactivity";
+        case 5: return "AP overloaded";
+        case 6: return "Unauthorized frame";
+        case 7: return "Unassociated frame";
+        case 8: return "Station leaving";
+        case 15: return "Handshake timeout";
+        case 23: return "802.1X auth failed";
+        default: return "Code " + String(reasonCode);
+    }
+}
+
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
     
+    if (!ppkt || ppkt->rx_ctrl.sig_len < 26) return; // Minimum frame size
+    
     const uint8_t *payload = ppkt->payload;
     
-    // Check for deauth (0xA0) or disassoc (0xC0) frames
-    if (payload[0] == 0xA0 || payload[0] == 0xC0) {
-        DeauthHit hit;
-        memcpy(hit.srcMac, payload + 10, 6);
-        memcpy(hit.destMac, payload + 4, 6);
-        memcpy(hit.bssid, payload + 16, 6);
-        hit.reasonCode = (payload[24] | (payload[25] << 8));
-        hit.rssi = ppkt->rx_ctrl.rssi;
-        hit.channel = ppkt->rx_ctrl.channel;
-        hit.timestamp = millis();
-        hit.isDisassoc = (payload[0] == 0xA0);
-        hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
+    // Frame Control Field (2 bytes)
+    // Byte 0: bits 0-1: protocol version (00)
+    //         bits 2-3: type (00 = management)
+    //         bits 4-7: subtype
+    // Byte 1: ToDS, FromDS, More Frag, Retry, Pwr Mgmt, More Data, Protected, Order
+    
+    uint16_t frameControl = payload[0] | (payload[1] << 8);
+    
+    // Extract type and subtype
+    uint8_t version = (payload[0] & 0x03);        // Bits 0-1
+    uint8_t type = (payload[0] >> 2) & 0x03;      // Bits 2-3
+    uint8_t subtype = (payload[0] >> 4) & 0x0F;   // Bits 4-7
+    
+    // Check for management frame (type = 0)
+    if (type != 0 || version != 0) return;
+    
+    // Subtype 0xA = Disassociation (subtype 10 decimal, 0x0A hex)
+    // Subtype 0xC = Deauthentication (subtype 12 decimal, 0x0C hex)
+    bool isDisassoc = (subtype == 0x0A);  // Disassociation
+    bool isDeauth = (subtype == 0x0C);     // Deauthentication
+    
+    if (!isDisassoc && !isDeauth) return;
+    
+    // Extract MAC addresses
+    // Management frame format:
+    // 0-1: Frame Control
+    // 2-3: Duration
+    // 4-9: Address 1 (Destination)
+    // 10-15: Address 2 (Source)
+    // 16-21: Address 3 (BSSID)
+    // 22-23: Sequence Control
+    // 24-25: Reason Code (for deauth/disassoc)
+    
+    DeauthHit hit;
+    memcpy(hit.destMac, payload + 4, 6);   // DA (destination)
+    memcpy(hit.srcMac, payload + 10, 6);   // SA (source/transmitter)
+    memcpy(hit.bssid, payload + 16, 6);    // BSSID
+    
+    // Extract reason code (little endian)
+    if (ppkt->rx_ctrl.sig_len >= 26) {
+        hit.reasonCode = payload[24] | (payload[25] << 8);
+    } else {
+        hit.reasonCode = 0;
+    }
+    
+    hit.rssi = ppkt->rx_ctrl.rssi;
+    hit.channel = ppkt->rx_ctrl.channel;
+    hit.timestamp = millis();
+    hit.isDisassoc = isDisassoc;
+    hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
+    
+    // Determine if this is a likely attack
+    bool isAttack = false;
+    
+    // Broadcast deauth/disassoc = always suspicious
+    if (hit.isBroadcast) {
+        isAttack = true;
+    } else {
+        // Track targeted attacks
+        static std::map<String, uint32_t> targetedClients;
+        static std::map<String, uint32_t> lastDeauthTime;
         
-        bool isAttack = false;
+        String destMacStr = macFmt6(hit.destMac);
+        targetedClients[destMacStr]++;
         
-        // Broadcast deauth = always suspicious
-        if (hit.isBroadcast) {
-            isAttack = true;
-        } else {
-            // Track targeted attacks
-            static std::map<String, uint32_t> targetedClients;
-            static std::map<String, uint32_t> lastDeauthTime;
-            
-            String destMacStr = macFmt6(hit.destMac);
-            targetedClients[destMacStr]++;
-            
-            if (lastDeauthTime.count(destMacStr) > 0) {
-                uint32_t timeSince = millis() - lastDeauthTime[destMacStr];
-                if (timeSince < 10000 && targetedClients[destMacStr] >= 2) {
-                    isAttack = true;
-                }
+        if (lastDeauthTime.count(destMacStr) > 0) {
+            uint32_t timeSince = millis() - lastDeauthTime[destMacStr];
+            // Multiple deauths to same client within 10s = attack
+            if (timeSince < 10000 && targetedClients[destMacStr] >= 2) {
+                isAttack = true;
             }
-            lastDeauthTime[destMacStr] = millis();
+        }
+        lastDeauthTime[destMacStr] = millis();
+        
+        // Clean up old entries
+        if (targetedClients.size() > 100) {
+            auto oldest = targetedClients.begin();
+            targetedClients.erase(oldest);
+        }
+        if (lastDeauthTime.size() > 100) {
+            auto oldest = lastDeauthTime.begin();
+            lastDeauthTime.erase(oldest);
+        }
+    }
+    
+    // Common reason codes that indicate attacks:
+    // 1 = Unspecified reason
+    // 2 = Previous authentication no longer valid
+    // 3 = Deauthenticated because sending STA is leaving
+    // 4 = Disassociated due to inactivity
+    // 6 = Class 2 frame received from nonauthenticated STA
+    // 7 = Class 3 frame received from nonassociated STA
+    // 8 = Disassociated because sending STA is leaving
+    
+    // Reason codes 1, 2, 6, 7 are commonly used in attacks
+    if (hit.reasonCode == 1 || hit.reasonCode == 2 || 
+        hit.reasonCode == 6 || hit.reasonCode == 7) {
+        isAttack = true;
+    }
+    
+    if (isAttack || hit.isBroadcast) {
+        // Add to log
+        deauthLog.push_back(hit);
+        
+        // Limit log size
+        if (deauthLog.size() > MAX_LOG_SIZE) {
+            deauthLog.erase(deauthLog.begin());
         }
         
-        if (isAttack || hit.isBroadcast) {
-            deauthLog.push_back(hit);
-            
-            if (hit.isDisassoc) {
-                uint32_t temp = disassocCount;
-                disassocCount = temp + 1;
-            } else {
-                uint32_t temp = deauthCount;
-                deauthCount = temp + 1;
+        // Update counters
+        if (hit.isDisassoc) {
+            uint32_t temp = disassocCount;
+            disassocCount = temp + 1;
+        } else {
+            uint32_t temp = deauthCount;
+            deauthCount = temp + 1;
+        }
+        
+        // Log alert
+        String alert = "[DEAUTH] " + String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
+        if (hit.isBroadcast) {
+            alert += " [BROADCAST]";
+        } else {
+            alert += " [TARGETED]";
+        }
+        alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
+        alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
+        alert += " Reason:" + String(hit.reasonCode);
+
+        Serial.println("[ALERT] " + alert);
+        logToSD(alert);
+
+        if (meshEnabled) {
+            String meshAlert = getNodeId() + ": ATTACK: " + alert;
+            if (gpsValid) {
+                meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
             }
-            
-            String alert = "[DEAUTH] " + String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + 
-                          " " + macFmt6(hit.srcMac) + "->" + macFmt6(hit.destMac) + 
-                          " Reason:" + String(hit.reasonCode);
-            Serial.println(alert);
-            logToSD(alert);
-            
-            if (meshEnabled) {
-                String meshAlert = getNodeId() + ": " + alert;
-                sendToSerial1(String(meshAlert), false);
-            }
+            sendToSerial1(meshAlert, false);
         }
     }
 }
@@ -725,33 +826,50 @@ void blueTeamTask(void *pv) {
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         
-        std::string results = "Deauth Detection Results\n";
+        std::string results = "Deauth Attack Detection Results\n";
         results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
-        results += "Deauth frames: " + std::to_string(deauthCount) + "\n";
-        results += "Disassoc frames: " + std::to_string(disassocCount) + "\n";
-        results += "Total attacks: " + std::to_string(deauthLog.size()) + "\n\n";
-
-        int show = min((int)deauthLog.size(), 100);
-        for (int i = 0; i < show; i++) {
-            const auto &h = deauthLog[i];
-            results += std::string(h.isDisassoc ? "DISASSOC" : "DEAUTH");
+        results += "Deauth frames detected: " + std::to_string(deauthCount) + "\n";
+        results += "Disassoc frames detected: " + std::to_string(disassocCount) + "\n";
+        results += "Total attacks logged: " + std::to_string(deauthLog.size()) + "\n\n";
+        
+        if (deauthLog.empty()) {
+            results += "No attacks detected during scan.\n";
+        } else {
+            results += "Attack Details:\n";
+            results += "===============\n\n";
             
-            if (h.isBroadcast) {
-                results += " [BROADCAST]";
-            } else if (deauthTargetCounts[macFmt6(h.destMac)] >= 3) {
-                results += " [TARGETED]";
+            int show = min((int)deauthLog.size(), 100);
+            for (int i = 0; i < show; i++) {
+                const auto &h = deauthLog[i];
+                
+                results += std::string(h.isDisassoc ? "DISASSOCIATION" : "DEAUTHENTICATION");
+                
+                if (h.isBroadcast) {
+                    results += " [BROADCAST ATTACK]";
+                } else {
+                    results += " [TARGETED]";
+                }
+                results += "\n";
+                
+                results += "  From: " + std::string(macFmt6(h.srcMac).c_str()) + "\n";
+                results += "  To: " + std::string(macFmt6(h.destMac).c_str()) + "\n";
+                results += "  Network: " + std::string(macFmt6(h.bssid).c_str()) + "\n";
+                results += "  Signal: " + std::to_string(h.rssi) + " dBm\n";
+                results += "  Channel: " + std::to_string(h.channel) + "\n";
+                results += "  Reason: " + std::string(getDeauthReasonText(h.reasonCode).c_str()) + "\n";
+                
+                uint32_t age = (millis() - h.timestamp) / 1000;
+                if (age < 60) {
+                    results += "  Time: " + std::to_string(age) + " seconds ago\n";
+                } else {
+                    results += "  Time: " + std::to_string(age / 60) + " minutes ago\n";
+                }
+                results += "\n";
             }
-            
-            results += " ";
-            results += std::string(macFmt6(h.srcMac).c_str()) + " -> " + std::string(macFmt6(h.destMac).c_str());
-            results += " BSSID:" + std::string(macFmt6(h.bssid).c_str());
-            results += " RSSI:" + std::to_string(h.rssi) + "dBm";
-            results += " CH:" + std::to_string(h.channel);
-            results += " Reason:" + std::to_string(h.reasonCode) + "\n";
-        }
 
-        if ((int)deauthLog.size() > show) {
-            results += "... (" + std::to_string((int)deauthLog.size() - show) + " more)\n";
+            if ((int)deauthLog.size() > show) {
+                results += "... (" + std::to_string((int)deauthLog.size() - show) + " more attacks not shown)\n";
+            }
         }
         
         antihunter::lastResults = results;

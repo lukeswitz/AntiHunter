@@ -330,6 +330,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="device-scan">Device Discovery Scan</option>
                 <option value="baseline" selected>Baseline Anomaly Detection</option>
                 <option value="randomization-detection">MAC Randomization Detection</option>
+                <option value="deauth">Deauth/Disassoc Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
               </select>
               
@@ -1903,33 +1904,137 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       if (secs < 0) secs = 0;
       if (secs > 86400) secs = 86400;
       
-      stopRequested = false;
-      req->send(200, "text/plain", forever ? "Device scan starting (forever)" : ("Device scan starting for " + String(secs) + "s"));
-      
-      if (!workerTaskHandle) {
-          xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      if (detection == "deauth") {
+          if (secs < 0) secs = 0;
+          if (secs > 86400) secs = 86400;
+          
+          stopRequested = false;
+          req->send(200, "text/plain", 
+                    forever ? "Deauth detection starting (forever)" : 
+                    ("Deauth detection starting for " + String(secs) + "s"));
+          
+          if (!blueTeamTaskHandle) {
+              xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, 
+                                    (void*)(intptr_t)(forever ? 0 : secs), 
+                                    1, &blueTeamTaskHandle, 1);
+          }
+          
+      } else if (detection == "baseline") {
+          currentScanMode = SCAN_BOTH;
+          if (secs < 0) secs = 0;
+          if (secs > 86400) secs = 86400;
+          
+          stopRequested = false;
+          req->send(200, "text/plain",
+                    forever ? "Baseline detection starting (forever)" :
+                    ("Baseline detection starting for " + String(secs) + "s"));
+          
+          if (!workerTaskHandle) {
+              xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
+                                    (void*)(intptr_t)(forever ? 0 : secs),
+                                    1, &workerTaskHandle, 1);
+          }
+          
+      } else if (detection == "randomization-detection") {
+          currentScanMode = SCAN_WIFI;
+          if (secs < 0) secs = 0;
+          if (secs > 86400) secs = 86400;
+          
+          stopRequested = false;
+          req->send(200, "text/plain",
+                    forever ? "Randomization detection starting (forever)" :
+                    ("Randomization detection starting for " + String(secs) + "s"));
+          
+          if (!workerTaskHandle) {
+              xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
+                                    (void*)(intptr_t)(forever ? 0 : secs),
+                                    1, &workerTaskHandle, 1);
+          }
+          
+      } else if (detection == "device-scan") {
+          currentScanMode = SCAN_BOTH;
+          if (secs < 0) secs = 0;
+          if (secs > 86400) secs = 86400;
+          
+          stopRequested = false;
+          req->send(200, "text/plain", 
+                    forever ? "Device scan starting (forever)" : 
+                    ("Device scan starting for " + String(secs) + "s"));
+          
+          if (!workerTaskHandle) {
+              xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
+                                    (void*)(intptr_t)(forever ? 0 : secs), 
+                                    1, &workerTaskHandle, 1);
+          }
+          
+      } else if (detection == "drone-detection") {
+          currentScanMode = SCAN_WIFI;
+          if (secs < 0) secs = 0;
+          if (secs > 86400) secs = 86400;
+          
+          stopRequested = false;
+          req->send(200, "text/plain",
+                    forever ? "Drone detection starting (forever)" :
+                    ("Drone detection starting for " + String(secs) + "s"));
+          
+          if (!workerTaskHandle) {
+              xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
+                                    (void*)(intptr_t)(forever ? 0 : secs),
+                                    1, &workerTaskHandle, 1);
+          }
+          
+      } else {
+          req->send(400, "text/plain", "Unknown detection mode");
       }
-  } else {
-    req->send(400, "text/plain", "Unknown detection mode");
-  } });
+  });
 
-  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
-  String results = "Deauth Detection Results\n";
-  results += "Deauth frames: " + String(deauthCount) + "\n";
-  results += "Disassoc frames: " + String(disassocCount) + "\n\n";
-  
-  int show = min((int)deauthLog.size(), 100);
-  for (int i = 0; i < show; i++) {
-    const auto &hit = deauthLog[i];
-    results += String(hit.isDisassoc ? "DISASSOC" : "DEAUTH") + " ";
-    results += macFmt6(hit.srcMac) + " -> " + macFmt6(hit.destMac);
-    results += " BSSID:" + macFmt6(hit.bssid);
-    results += " RSSI:" + String(hit.rssi) + "dBm";
-    results += " CH:" + String(hit.channel);
-    results += " Reason:" + String(hit.reasonCode) + "\n";
-  }  
-  r->send(200, "text/plain", results); });
+  server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String results = "Deauth Attack Detection Results\n\n";
+      results += "Deauth frames: " + String(deauthCount) + "\n";
+      results += "Disassoc frames: " + String(disassocCount) + "\n";
+      results += "Total attacks: " + String(deauthLog.size()) + "\n\n";
+      
+      if (deauthLog.empty()) {
+          results += "No attacks detected.\n";
+      } else {
+          results += "Attack Details:\n";
+          results += "===============\n\n";
+          
+          int show = min((int)deauthLog.size(), 100);
+          for (int i = 0; i < show; i++) {
+              const auto &hit = deauthLog[i];
+              
+              results += String(hit.isDisassoc ? "DISASSOCIATION" : "DEAUTHENTICATION");
+              
+              if (hit.isBroadcast) {
+                  results += " [BROADCAST ATTACK]\n";
+              } else {
+                  results += " [TARGETED]\n";
+              }
+              
+              results += "  From: " + macFmt6(hit.srcMac) + "\n";
+              results += "  To: " + macFmt6(hit.destMac) + "\n";
+              results += "  Network: " + macFmt6(hit.bssid) + "\n";
+              results += "  Signal: " + String(hit.rssi) + " dBm\n";
+              results += "  Channel: " + String(hit.channel) + "\n";
+              results += "  Reason: " + getDeauthReasonText(hit.reasonCode) + "\n";
+              
+              uint32_t age = (millis() - hit.timestamp) / 1000;
+              if (age < 60) {
+                  results += "  Time: " + String(age) + " seconds ago\n";
+              } else {
+                  results += "  Time: " + String(age / 60) + " minutes ago\n";
+              }
+              results += "\n";
+          }
+          
+          if ((int)deauthLog.size() > show) {
+              results += "... (" + String(deauthLog.size() - show) + " more)\n";
+          }
+      }
+      
+      r->send(200, "text/plain", results);
+  });
 
   server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", getSnifferCache()); });
