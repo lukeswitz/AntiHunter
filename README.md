@@ -42,6 +42,7 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 **Key Features:**
 - **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
 - **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
+- **Global Allowlist**: User configurable, applies to all scans. 
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
 - **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
 - **Use Cases**:
@@ -50,7 +51,7 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
   - Rogue access point and suspicious beacon identification
 
 #### 2. Triangulation/Trilateration  (Distributed)
-Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded to the command center for advanced trilateration processing.
+Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for advanced trilateration processing.
 
 > [!NOTE]
 > EXPERIMENTAL: T114 small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
@@ -89,7 +90,6 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Detects French drone ID format (OUI 0x6a5c35)
 - Extracts UAV ID, pilot location, and flight telemetry data
 - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
-
 
 **Use Cases:**
 - Airport and critical infrastructure drone monitoring
