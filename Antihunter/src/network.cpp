@@ -776,54 +776,51 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
 
           if (taskType === 'triangulate') {
-              const triangulateBtn = document.querySelector('#s button');
-              if (triangulateBtn) {
-                triangulateBtn.textContent = 'Stop Scan';
-                triangulateBtn.classList.remove('primary');
-                triangulateBtn.classList.add('danger');
-                triangulateBtn.style.background = '#001b12';
-                triangulateBtn.type = 'button';
-                triangulateBtn.onclick = function(e) {
-                  e.preventDefault();
-                  fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                    setTimeout(async () => {
-                      const refreshedDiag = await fetch('/diag').then(r => r.text());
-                      updateStatusIndicators(refreshedDiag);
-                    }, 500);
-                  });
-                };
-              }
+            const triangulateBtn = document.querySelector('#s button');
+            if (triangulateBtn) {
+              triangulateBtn.textContent = 'Stop Scan';
+              triangulateBtn.classList.remove('primary');
+              triangulateBtn.classList.add('danger');
+              triangulateBtn.type = 'button';
+              triangulateBtn.onclick = function(e) {
+                e.preventDefault();
+                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                  setTimeout(async () => {
+                    const refreshedDiag = await fetch('/diag').then(r => r.text());
+                    updateStatusIndicators(refreshedDiag);
+                  }, 500);
+                });
+              };
             }
+          }
           
-            const detectionMode = document.getElementById('detectionMode')?.value;
-            if (taskType === 'sniffer' || taskType === 'drone') {
+          if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect') {
+            const startDetectionBtn = document.getElementById('startDetectionBtn');
+            if (startDetectionBtn) {
+              startDetectionBtn.textContent = 'Stop Scanning';
+              startDetectionBtn.classList.remove('primary');
+              startDetectionBtn.classList.add('danger');
+              startDetectionBtn.type = 'button';
+              startDetectionBtn.onclick = function(e) {
+                e.preventDefault();
+                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                  setTimeout(async () => {
+                    const refreshedDiag = await fetch('/diag').then(r => r.text());
+                    updateStatusIndicators(refreshedDiag);
+                  }, 500);
+                });
+              };
+              
               const detectionMode = document.getElementById('detectionMode')?.value;
-            if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect') {
-              const startDetectionBtn = document.getElementById('startDetectionBtn');
-              if (startDetectionBtn) {
-                startDetectionBtn.textContent = 'Stop Scanning';
-                startDetectionBtn.classList.remove('primary');
-                startDetectionBtn.classList.add('danger');
-                startDetectionBtn.type = 'button';
-                startDetectionBtn.onclick = function(e) {
-                  e.preventDefault();
-                  fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                    setTimeout(async () => {
-                      const refreshedDiag = await fetch('/diag').then(r => r.text());
-                      updateStatusIndicators(refreshedDiag);
-                    }, 500);
-                  });
-                };
-                
-                if (detectionMode === 'device-scan') {
-                  document.getElementById('cacheBtn').style.display = 'inline-block';
-                } else if (detectionMode === 'randomization-detection') {
-                  document.getElementById('randResultsBtn').style.display = 'inline-block';
-                  document.getElementById('randTracksBtn').style.display = 'inline-block';
-                }
+              if (detectionMode === 'device-scan') {
+                document.getElementById('cacheBtn').style.display = 'inline-block';
+              } else if (detectionMode === 'randomization-detection') {
+                document.getElementById('randResultsBtn').style.display = 'inline-block';
+                document.getElementById('randTracksBtn').style.display = 'inline-block';
               }
             }
-          } else { 
+          }
+        } else {
           document.getElementById('scanStatus').innerText = 'Idle';
           document.getElementById('scanStatus').classList.remove('active');
 
@@ -834,7 +831,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             startScanBtn.classList.add('primary');
             startScanBtn.type = 'submit';
             startScanBtn.onclick = null;
-            startScanBtn.style.background = ''; 
+            startScanBtn.style.background = '';
           }
 
           const detectionMode = document.getElementById('detectionMode')?.value;
@@ -1287,14 +1284,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         
-        // Hide everything first
         cacheBtn.style.display = 'none';
         baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
         standardControls.style.display = 'none';
         baselineControls.style.display = 'none';
         
-        // Show relevant controls
         if (selectedMethod === 'baseline') {
           baselineControls.style.display = 'block';
           baselineResultsBtn.style.display = 'inline-block';
