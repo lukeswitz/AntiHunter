@@ -6,7 +6,7 @@
 #include <map>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
-
+#include "randomization.h"
 
 struct Hit {
    uint8_t mac[6];
@@ -64,19 +64,20 @@ struct DeauthHit {
    uint16_t companyId;
 };
 
+extern TaskHandle_t workerTaskHandle;
+
 // Allowlist
 extern std::vector<Allowlist> allowlist;
-size_t getAllowlistCount();
-String getAllowlistText();
-void saveAllowlist(const String &txt);
-bool isAllowlisted(const uint8_t *mac);
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
-const uint32_t MAX_LOG_SIZE = 1000;                // Max log entries
-const uint32_t MAX_MAP_SIZE = 500;                 // Max map entries
-const uint32_t MAX_TIMING_SIZE = 100;              // Max timing entries per device
+const uint32_t MAX_LOG_SIZE = 1000;                // Max RAM log entries
+const uint32_t MAX_MAP_SIZE = 500;                 // Max map entries in RAM
+const uint32_t MAX_TIMING_SIZE = 100;              // Max RAM timing entries per device
 
+// Blue team scans
+static int blueTeamDuration = 300;
+static bool blueTeamForever = false;
 extern std::map<String, uint32_t> deauthSourceCounts;
 extern std::map<String, uint32_t> deauthTargetCounts;
 extern std::map<String, std::vector<uint32_t>> deauthTimings;
@@ -85,20 +86,21 @@ extern volatile uint32_t deauthCount;
 extern volatile uint32_t disassocCount;
 extern bool deauthDetectionEnabled;
 extern QueueHandle_t deauthQueue;
-extern TaskHandle_t workerTaskHandle;
+
+// Baseline scan
 extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern bool triangulationActive;
+
+// Triangulation
 extern TriangulationAccumulator triAccum;
 extern bool droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 extern QueueHandle_t macQueue;
 
-static int blueTeamDuration = 300;
-static bool blueTeamForever = false;
-
+// Functions
 void initializeScanner();
 void saveTargetsList(const String &txt);
 void snifferScanTask(void *pv);
@@ -110,5 +112,10 @@ String getTargetsList();
 String getDiagnostics();
 size_t getTargetCount();
 String getSnifferCache();
+
+size_t getAllowlistCount();
+String getAllowlistText();
+void saveAllowlist(const String &txt);
+bool isAllowlisted(const uint8_t *mac);
 
 void cleanupMaps();

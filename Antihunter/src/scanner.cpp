@@ -769,10 +769,27 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
+    // Drones
     if (droneDetectionEnabled) {
         processDronePacket(ppkt->payload, ppkt->rx_ctrl.sig_len, ppkt->rx_ctrl.rssi);
     }
 
+    // Randomizing MACs
+    if (randomizationDetectionEnabled && ppkt->rx_ctrl.sig_len >= 24) {
+        const uint8_t *payload = ppkt->payload;
+        uint16_t fc = (uint16_t)payload[0] | ((uint16_t)payload[1] << 8);
+        uint8_t ftype = (fc >> 2) & 0x3;
+        uint8_t stype = (fc >> 4) & 0xF;
+        
+        // Probe request: type=0 (management), subtype=4
+        if (ftype == 0 && stype == 4) {
+            const uint8_t *sa = payload + 10; // Source address
+            processProbeRequest(sa, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel,
+                              payload, ppkt->rx_ctrl.sig_len);
+        }
+    }
+
+    // Deauths
     detectDeauthFrame(ppkt);
     framesSeen = framesSeen + 1;
     if (!ppkt || ppkt->rx_ctrl.sig_len < 24)

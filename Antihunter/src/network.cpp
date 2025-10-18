@@ -329,6 +329,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <select name="detection" id="detectionMode">
                 <option value="device-scan">Device Discovery Scan</option>
                 <option value="baseline" selected>Baseline Anomaly Detection</option>
+                <option value="randomization-detection">MAC Randomization Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
               </select>
               
@@ -407,9 +408,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
+                <button type="button" class="btn" id="randResultsBtn" style="display:none;" onclick="fetchRandomizationResults()">View Randomization Results</button>
+                <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showRandomizationTracks()">Show Device Tracks</button>
               </div>
             </form>
-            
           </div>
         </div>
       </div>
@@ -795,6 +797,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           
             const detectionMode = document.getElementById('detectionMode')?.value;
             if (taskType === 'sniffer' || taskType === 'drone') {
+              const detectionMode = document.getElementById('detectionMode')?.value;
+            if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect') {
               const startDetectionBtn = document.getElementById('startDetectionBtn');
               if (startDetectionBtn) {
                 startDetectionBtn.textContent = 'Stop Scanning';
@@ -810,8 +814,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     }, 500);
                   });
                 };
+                
                 if (detectionMode === 'device-scan') {
                   document.getElementById('cacheBtn').style.display = 'inline-block';
+                } else if (detectionMode === 'randomization-detection') {
+                  document.getElementById('randResultsBtn').style.display = 'inline-block';
+                  document.getElementById('randTracksBtn').style.display = 'inline-block';
                 }
               }
             }
@@ -960,6 +968,91 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
       
+      function fetchRandomizationResults() {
+        fetch('/randomization-results')
+          .then(r => r.text())
+          .then(data => {
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+            modal.innerHTML = `
+              <div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:90%;max-height:90%;overflow:auto;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                  <h3 style="margin:0;">Randomization Detection Results</h3>
+                  <button onclick="this.closest('div').parentElement.remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>
+                </div>
+                <pre style="background:#0a0a0a;padding:16px;border-radius:4px;overflow:auto;max-height:70vh;white-space:pre-wrap;">${data}</pre>
+              </div>
+            `;
+            document.body.appendChild(modal);
+          })
+          .catch(err => toast('Error fetching results: ' + err, 'error'));
+      }
+
+      function showRandomizationTracks() {
+        fetch('/randomization/tracks')
+          .then(r => r.json())
+          .then(tracks => {
+            if (tracks.length === 0) {
+              toast('No device tracks available', 'info');
+              return;
+            }
+            
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
+            
+            let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
+            content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+            content += '<h3 style="margin:0;">Device Tracks (' + tracks.length + ')</h3>';
+            content += '<button onclick="this.closest(\'div\').parentElement.remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
+            content += '</div>';
+            content += '<div style="display:grid;gap:12px;">';
+            
+            tracks.forEach(track => {
+              content += '<div style="background:#0a0a0a;padding:16px;border-radius:4px;border-left:3px solid #4CAF50;">';
+              content += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
+              content += '<strong style="font-size:16px;color:#4CAF50;">' + track.trackId + '</strong>';
+              content += '<div style="display:flex;gap:16px;font-size:14px;">';
+              content += '<span>Sessions: <strong>' + track.sessions + '</strong></span>';
+              content += '<span>Confidence: <strong>' + (track.confidence * 100).toFixed(0) + '%</strong></span>';
+              content += '</div>';
+              content += '</div>';
+              
+              content += '<details style="margin-top:12px;"><summary style="cursor:pointer;color:#4CAF50;user-select:none;padding:4px 0;">';
+              content += '📱 MACs (' + track.macs.length + ') - Click to expand</summary>';
+              content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
+              
+              track.macs.forEach((mac, idx) => {
+                const isRand = (parseInt(mac.substring(0, 2), 16) & 0x02) !== 0;
+                const badge = isRand ? 
+                  '<span style="background:#FF5722;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">RANDOMIZED</span>' : 
+                  '<span style="background:#2196F3;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">STABLE</span>';
+                content += '<div style="padding:4px 0;font-family:monospace;font-size:13px;">';
+                content += mac + badge;
+                content += '</div>';
+              });
+              
+              content += '</div></details>';
+              content += '</div>';
+            });
+            
+            content += '</div></div>';
+            modal.innerHTML = content;
+            document.body.appendChild(modal);
+          })
+          .catch(err => toast('Error fetching tracks: ' + err, 'error'));
+      }
+
+      function resetRandomizationDetection() {
+        if (!confirm('Reset all randomization detection data?')) return;
+        
+        fetch('/randomization/reset', { method: 'POST' })
+          .then(r => r.text())
+          .then(data => {
+            toast(data, 'success');
+          })
+          .catch(err => toast('Error: ' + err, 'error'));
+      }
+
       function toast(msg, type = 'info') {
         const wrap = document.getElementById('toast');
         const el = document.createElement('div');
@@ -1795,6 +1888,21 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                               (void*)(intptr_t)(forever ? 0 : secs), 
                               1, &workerTaskHandle, 1);
     }
+  } else if (detection == "randomization-detection") {
+      currentScanMode = SCAN_WIFI;
+      if (secs < 0) secs = 0;
+      if (secs > 86400) secs = 86400;
+      
+      stopRequested = false;
+      req->send(200, "text/plain", 
+                forever ? "Randomization detection starting (forever)" : 
+                ("Randomization detection starting for " + String(secs) + "s"));
+      
+      if (!workerTaskHandle) {
+          xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
+                                (void*)(intptr_t)(forever ? 0 : secs),
+                                1, &workerTaskHandle, 1);
+      }
   } else if (detection == "device-scan") {
       currentScanMode = SCAN_BOTH;
       if (secs < 0) secs = 0;
@@ -1830,6 +1938,46 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", getSnifferCache()); });
+
+  server->on("/randomization-results", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "text/plain", getRandomizationResults());
+  });
+
+  server->on("/randomization/reset", HTTP_POST, [](AsyncWebServerRequest *r) {
+      resetRandomizationDetection();
+      r->send(200, "text/plain", "Randomization detection reset");
+  });
+
+  server->on("/randomization/tracks", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String json = "[";
+      bool first = true;
+      
+      for (const auto& entry : deviceTracks) {
+          if (!first) json += ",";
+          first = false;
+          
+          const DeviceTrack& track = entry.second;
+          json += "{";
+          json += "\"trackId\":\"" + String(track.trackId) + "\",";
+          json += "\"sessions\":" + String(track.sessionCount) + ",";
+          json += "\"confidence\":" + String(track.confidence, 2) + ",";
+          json += "\"macs\":[";
+          
+          for (size_t i = 0; i < track.macs.size() && i < 50; i++) {
+              if (i > 0) json += ",";
+              
+              const uint8_t* mac = track.macs[i].bytes.data();
+              char macStr[18];
+              snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+              json += "\"" + String(macStr) + "\"";
+          }
+          json += "]}";
+      }
+      json += "]";
+      
+      r->send(200, "application/json", json);
+  });
 
   server->on("/allowlist-export", HTTP_GET, [](AsyncWebServerRequest *r)
            { r->send(200, "text/plain", getAllowlistText()); });
