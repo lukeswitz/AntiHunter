@@ -981,7 +981,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               
               let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
               content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-              content += '<h3 style="margin:0;">Device Fingerprints (' + identities.length + ')</h3>';
+              content += '<h3 style="margin:0;">GhostTrace Fingerprints (' + identities.length + ')</h3>';
               content += '<button onclick="document.getElementById(\'randTracksModal\').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
               content += '</div>';
               content += '<div style="display:grid;gap:12px;">';
@@ -2048,6 +2048,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       String json = "[";
       bool first = true;
       
+      std::lock_guard<std::mutex> lock(randMutex);
+      
       for (const auto& entry : deviceIdentities) {
           if (!first) json += ",";
           first = false;
@@ -2055,11 +2057,11 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
           const DeviceIdentity& track = entry.second;
           json += "{";
           json += "\"identityId\":\"" + String(track.identityId) + "\",";
-          json += "\"sessions\":" + String(track.sessionCount) + ",";
+          json += "\"sessions\":" + String(track.observedSessions) + ",";
           json += "\"confidence\":" + String(track.confidence, 2) + ",";
           json += "\"macs\":[";
           
-          for (size_t i = 0; i < track.macs.size() && i < 50; i++) {
+          for (size_t i = 0; i < track.macs.size(); i++) {
               if (i > 0) json += ",";
               
               const uint8_t* mac = track.macs[i].bytes.data();

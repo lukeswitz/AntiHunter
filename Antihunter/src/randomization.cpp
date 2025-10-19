@@ -74,6 +74,52 @@ String generateTrackId() {
     return String(id);
 }
 
+void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t fingerprint[6]) {
+    memset(fingerprint, 0, 6 * sizeof(uint16_t));
+    if (!device) return;
+    
+    uint8_t tempBuf[64] = {0};
+    uint16_t bufPos = 0;
+    
+    if (device->haveManufacturerData() && bufPos < 48) {
+        std::string mfgData = device->getManufacturerData();
+        uint16_t copyLen = min((size_t)16, mfgData.length());
+        memcpy(tempBuf + bufPos, mfgData.data(), copyLen);
+        bufPos += copyLen;
+    }
+    
+    if (device->haveServiceUUID() && bufPos < 48) {
+        NimBLEUUID uuid = device->getServiceUUID();
+        const uint8_t* uuidData = uuid.getValue();
+        uint8_t uuidLen = uuid.bitSize() / 8;
+        uint16_t copyLen = min((uint8_t)16, uuidLen);
+        memcpy(tempBuf + bufPos, uuidData, copyLen);
+        bufPos += copyLen;
+    }
+    
+    if (device->haveServiceData() && bufPos < 48) {
+        NimBLEUUID uuid = device->getServiceDataUUID();
+        const uint8_t* uuidData = uuid.getValue();
+        uint8_t uuidLen = uuid.bitSize() / 8;
+        uint16_t copyLen = min((uint8_t)8, uuidLen);
+        memcpy(tempBuf + bufPos, uuidData, copyLen);
+        bufPos += copyLen;
+    }
+    
+    if (bufPos > 0) {
+        uint16_t seg1Len = min((uint16_t)16, bufPos);
+        uint16_t seg2Len = bufPos > 16 ? min((uint16_t)16, (uint16_t)(bufPos - 16)) : 0;
+        uint16_t seg3Len = bufPos > 32 ? min((uint16_t)16, (uint16_t)(bufPos - 32)) : 0;
+        
+        fingerprint[0] = seg1Len > 0 ? computeCRC16(tempBuf, seg1Len) : 0;
+        fingerprint[1] = seg2Len > 0 ? computeCRC16(tempBuf + 16, seg2Len) : 0;
+        fingerprint[2] = seg3Len > 0 ? computeCRC16(tempBuf + 32, seg3Len) : 0;
+        fingerprint[3] = bufPos;
+        fingerprint[4] = (fingerprint[0] ^ fingerprint[1]);
+        fingerprint[5] = (fingerprint[0] + fingerprint[1] + fingerprint[2]) & 0xFFFF;
+    }
+}
+
 void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fingerprint[6]) {
     memset(fingerprint, 0, 6 * sizeof(uint16_t));
     
@@ -226,7 +272,7 @@ void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
     if (higher_prio_woken) portYIELD_FROM_ISR();
 }
 
-// Process queued probes in task context (NOT in ISR)
+// Process queued probes
 static void processQueuedProbes() {
     ProbeRequestEvent event;
     
@@ -239,7 +285,7 @@ static void processQueuedProbes() {
         bool isSession = activeSessions.find(macStr) != activeSessions.end();
         
         if (!isSession && activeSessions.size() >= MAX_ACTIVE_SESSIONS) {
-            continue;  // Skip if at capacity
+            continue;
         }
         
         if (!isSession) {
@@ -255,6 +301,19 @@ static void processQueuedProbes() {
             session.channelMask = (1 << event.channel);
             session.rssiReadings.push_back(event.rssi);
             session.probeTimestamps[0] = now;
+
+            // Initialize linking status
+            session.linkedToIdentity = false;
+            memset(session.linkedIdentityId, 0, sizeof(session.linkedIdentityId));
+            
+            // Extract sequence number
+            if (event.payloadLen >= 24) {
+                session.lastSeqNum = extractSequenceNumber(event.payload, event.payloadLen);
+                session.seqNumValid = true;
+            } else {
+                session.lastSeqNum = 0;
+                session.seqNumValid = false;
+            }
             
             if (event.payloadLen > 24) {
                 const uint8_t *ieStart = event.payload + 24;
@@ -273,6 +332,12 @@ static void processQueuedProbes() {
                 session.probeTimestamps[session.probeCount] = now;
             }
             
+            // Update sequence number
+            if (event.payloadLen >= 24) {
+                session.lastSeqNum = extractSequenceNumber(event.payload, event.payloadLen);
+                session.seqNumValid = true;
+            }
+            
             session.lastSeen = now;
             session.rssiSum += event.rssi;
             session.rssiMin = min(session.rssiMin, event.rssi);
@@ -283,6 +348,10 @@ static void processQueuedProbes() {
             if (session.rssiReadings.size() < 20) {
                 session.rssiReadings.push_back(event.rssi);
             }
+            
+            if (session.probeCount >= 8 && (now - session.startTime) >= 5000 && !session.linkedToIdentity) {
+                linkSessionToTrackBehavioral(session);
+            }
         }
     }
 }
@@ -291,97 +360,58 @@ void linkSessionToTrackBehavioral(const ProbeSession& session) {
     String macStr = macFmt6(session.mac);
     uint32_t now = millis();
     
-    bool allZero = true;
-    for (int i = 0; i < 6; i++) {
-        if (session.fingerprint[i] != 0) {
-            allZero = false;
-            break;
+    // Check if session is already linked
+    if (session.linkedToIdentity) {
+        return;  // Already processed, don't re-link
+    }
+    
+    // Require sufficient observations
+    if (session.probeCount < 8) return;
+    
+    // Calculate session average RSSI
+    int16_t sessionRssiSum = 0;
+    for (size_t i = 0; i < session.rssiReadings.size(); i++) {
+        sessionRssiSum += session.rssiReadings[i];
+    }
+    int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
+                            sessionRssiSum / (int)session.rssiReadings.size() : 
+                            session.rssiSum / max(1, (int)session.probeCount);
+    
+    // Calculate timing consistency
+    float sessionIntervalConsistency = 0.0f;
+    if (session.probeCount >= 3) {
+        uint32_t intervals[49];
+        uint8_t intervalCount = 0;
+        for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount); i++) {
+            if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
+                intervals[intervalCount++] = session.probeTimestamps[i] - session.probeTimestamps[i-1];
+            }
+        }
+        if (intervalCount >= 2) {
+            sessionIntervalConsistency = calculateIntervalConsistency(intervals, intervalCount);
         }
     }
-    if (allZero) return;
     
-    BehavioralSignature sessionSig;
-    memset(&sessionSig, 0, sizeof(sessionSig));
+    // Calculate RSSI consistency
+    float sessionRssiConsistency = calculateRssiConsistency(
+        session.rssiReadings.data(), 
+        min((uint8_t)20, (uint8_t)session.rssiReadings.size())
+    );
     
-    if (session.probeCount > 2) {
-        for (uint8_t i = 1; i < session.probeCount && i < 20; i++) {
-            sessionSig.probeIntervals[i-1] = 
-                session.probeTimestamps[i] - session.probeTimestamps[i-1];
-        }
-        sessionSig.intervalCount = min((uint8_t)19, (uint8_t)(session.probeCount - 1));
-        sessionSig.intervalConsistency = 
-            calculateIntervalConsistency(sessionSig.probeIntervals, sessionSig.intervalCount);
-    }
-    
-    uint8_t rssiCount = min((uint8_t)20, (uint8_t)session.rssiReadings.size());
-    for (uint8_t i = 0; i < rssiCount; i++) {
-        sessionSig.rssiHistory[i] = session.rssiReadings[i];
-    }
-    sessionSig.rssiHistoryCount = rssiCount;
-    sessionSig.rssiConsistency = calculateRssiConsistency(
-        sessionSig.rssiHistory, sessionSig.rssiHistoryCount);
-    
-    sessionSig.channelBitmap = session.channelMask;
-    memcpy(sessionSig.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
-    sessionSig.observationCount = 1;
-    sessionSig.lastObserved = now;
+    bool isBLE = (session.primaryChannel == 0);
     
     String bestIdentityKey;
     float bestScore = 0.0f;
+    int8_t bestRssiDelta = 127;
     
+    // Evaluate against all existing identities
     for (auto& identityEntry : deviceIdentities) {
         DeviceIdentity& identity = identityEntry.second;
         
+        // Skip stale identities
         if (now - identity.lastSeen > TRACK_STALE_TIME) continue;
         
-        float behaviorScore = 0.0f;
-        
-        if (sessionSig.intervalCount > 0 && identity.signature.intervalCount > 0) {
-            float intervalDiff = fabs(sessionSig.intervalConsistency - 
-                                     identity.signature.intervalConsistency);
-            float intervalMatch = max(0.0f, 1.0f - (intervalDiff / 0.3f));
-            behaviorScore += intervalMatch * 0.3f;
-        }
-        
-        if (sessionSig.rssiHistoryCount > 0 && identity.signature.rssiHistoryCount > 0) {
-            float rssiDiff = fabs(sessionSig.rssiConsistency - 
-                                 identity.signature.rssiConsistency);
-            float rssiMatch = max(0.0f, 1.0f - (rssiDiff / 0.4f));
-            behaviorScore += rssiMatch * 0.4f;
-        }
-        
-        uint32_t sessionChannels = countChannels(sessionSig.channelBitmap);
-        uint32_t identityChannels = countChannels(identity.signature.channelBitmap);
-        
-        if (sessionChannels > 0 && identityChannels > 0) {
-            float channelDiff = fabs((float)sessionChannels - (float)identityChannels);
-            float channelMatch = max(0.0f, 1.0f - (channelDiff / 5.0f));
-            behaviorScore += channelMatch * 0.3f;
-        }
-        
-        float fingerprintMatch = 0.0f;
-        uint8_t matches = 0;
-        if (matchFingerprints(sessionSig.ieFingerprint, 
-                            identity.signature.ieFingerprint, matches)) {
-            fingerprintMatch = (float)matches / 4.0f;
-        }
-        
-        float totalScore = (behaviorScore * 0.7f) + (fingerprintMatch * 0.3f);
-        
-        if (totalScore > 0.65f && 
-            behaviorScore > 0.5f && 
-            identity.observedSessions >= 1) {
-            
-            if (totalScore > bestScore) {
-                bestScore = totalScore;
-                bestIdentityKey = identityEntry.first;
-            }
-        }
-    }
-    
-    if (bestScore > 0.65f && !bestIdentityKey.isEmpty()) {
-        DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
-        
+        // Check MAC is already linked 
         bool alreadyLinked = false;
         for (const auto& existingMac : identity.macs) {
             if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
@@ -389,25 +419,136 @@ void linkSessionToTrackBehavioral(const ProbeSession& session) {
                 break;
             }
         }
+        if (alreadyLinked) continue;
         
-        if (!alreadyLinked && identity.macs.size() < 50) {
-            identity.macs.push_back(MacAddress(session.mac));
-            identity.confidence = bestScore;
-            identity.observedSessions++;
+        // Calculate identity metrics
+        int16_t identityRssiSum = 0;
+        for (uint8_t i = 0; i < identity.signature.rssiHistoryCount; i++) {
+            identityRssiSum += identity.signature.rssiHistory[i];
+        }
+        int8_t identityAvgRssi = identity.signature.rssiHistoryCount > 0 ? 
+                                 identityRssiSum / (int)identity.signature.rssiHistoryCount : 
+                                 sessionAvgRssi;
+        
+        int8_t rssiDelta = abs(sessionAvgRssi - identityAvgRssi);
+        uint32_t timeDelta = (now > identity.lastSeen) ? 
+                             (now - identity.lastSeen) : (identity.lastSeen - now);
+        
+        // MULTI-FACTOR SCORING
+        float score = 0.0f;
+        
+        // Factor 1: RSSI Proximity (weight: 0.20) - REDUCED WEIGHT
+        float rssiScore = 0.0f;
+        if (rssiDelta <= 10) {  // STRICTER: Only within 10dB
+            rssiScore = 1.0f - (rssiDelta / 20.0f);
+        }
+        rssiScore *= 0.20f;
+        
+        // Factor 2: Fingerprint Matching (weight: 0.40) - PRIMARY INDICATOR
+        float fingerprintScore = 0.0f;
+        uint8_t fpMatches = 0;
+        if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
+            fingerprintScore = (float)fpMatches / 4.0f;
+        }
+        fingerprintScore *= 0.40f;
+        
+        // Factor 3: Timing Pattern Similarity (weight: 0.20)
+        float timingScore = 0.0f;
+        if (sessionIntervalConsistency > 0.3f && identity.signature.intervalConsistency > 0.3f) {
+            float timingDelta = abs(sessionIntervalConsistency - identity.signature.intervalConsistency);
+            timingScore = max(0.0f, 1.0f - (timingDelta * 2.0f));
+        }
+        timingScore *= 0.20f;
+        
+        // Factor 4: RSSI Stability Similarity (weight: 0.10)
+        float rssiStabilityScore = 0.0f;
+        if (sessionRssiConsistency > 0.3f && identity.signature.rssiConsistency > 0.3f) {
+            float stabilityDelta = abs(sessionRssiConsistency - identity.signature.rssiConsistency);
+            rssiStabilityScore = max(0.0f, 1.0f - stabilityDelta);
+        }
+        rssiStabilityScore *= 0.10f;
+        
+        // Factor 5: Sequence Number Continuity (weight: 0.10)
+        float seqNumScore = 0.0f;
+        if (!isBLE && session.seqNumValid && identity.sequenceValid) {
+            uint16_t seqDelta = (session.lastSeqNum > identity.lastSequenceNum) ?
+                               (session.lastSeqNum - identity.lastSequenceNum) :
+                               (4096 + session.lastSeqNum - identity.lastSequenceNum);
+            
+            if (seqDelta > 0 && seqDelta < 200) {
+                seqNumScore = 1.0f - min(1.0f, seqDelta / 200.0f);
+            }
+        }
+        seqNumScore *= 0.10f;
+        
+        // COMBINED SCORE
+        score = rssiScore + fingerprintScore + timingScore + rssiStabilityScore + seqNumScore;
+        
+        // Temporal penalty
+        if (timeDelta > 30000) {
+            score *= max(0.3f, 1.0f - (timeDelta / 120000.0f));
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestIdentityKey = identityEntry.first;
+            bestRssiDelta = rssiDelta;
+        }
+    }
+    
+    // Much stricter threshold
+    float linkThreshold = 0.50f;  // Requires strong multi-factor match
+    
+    if (bestScore >= linkThreshold && !bestIdentityKey.isEmpty()) {
+        DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
+        
+        if (identity.macs.size() >= 50) return;
+        
+        // Link the MAC
+        identity.macs.push_back(MacAddress(session.mac));
+        identity.confidence = min(1.0f, identity.confidence * 0.7f + bestScore * 0.3f);
+        identity.observedSessions++;
+        
+        // Update signatures
+        if (session.rssiReadings.size() > 0 && identity.signature.rssiHistoryCount < 20) {
+            for (size_t i = 0; i < session.rssiReadings.size() && 
+                 identity.signature.rssiHistoryCount < 20; i++) {
+                identity.signature.rssiHistory[identity.signature.rssiHistoryCount++] = 
+                    session.rssiReadings[i];
+            }
         }
         
+        if (sessionIntervalConsistency > 0.0f) {
+            identity.signature.intervalConsistency = 
+                (identity.signature.intervalConsistency * 0.7f) + (sessionIntervalConsistency * 0.3f);
+        }
+        
+        if (sessionRssiConsistency > 0.0f) {
+            identity.signature.rssiConsistency = 
+                (identity.signature.rssiConsistency * 0.7f) + (sessionRssiConsistency * 0.3f);
+        }
+        
+        if (!isBLE && session.seqNumValid) {
+            identity.lastSequenceNum = session.lastSeqNum;
+            identity.sequenceValid = true;
+        }
+        
+        identity.signature.channelBitmap |= session.channelMask;
         identity.lastSeen = now;
         
-        Serial.printf("[RAND] Linked %s to identity %s (behavior:%.2f fp:%.2f)\n",
-                     macStr.c_str(), identity.identityId, bestScore * 0.7f, 
-                     bestScore * 0.3f);
+        // Mark session as linked in the activeSessions map
+        ProbeSession& activeSession = activeSessions[macStr];
+        activeSession.linkedToIdentity = true;
+        strncpy(activeSession.linkedIdentityId, identity.identityId, sizeof(activeSession.linkedIdentityId) - 1);
         
-    } else if (sessionSig.intervalConsistency > 0.5f || 
-               sessionSig.rssiConsistency > 0.6f) {
+        Serial.printf("[RAND] Linked %s → %s (sc:%.2f ΔR:%ddB n:%d)\n",
+                     macStr.c_str(), identity.identityId, bestScore,
+                     bestRssiDelta, identity.macs.size());
         
+    } else {
+        // CREATE NEW IDENTITY
         if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
-            cleanupStaleTracks();
-            if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) return;
+            return;
         }
         
         DeviceIdentity newIdentity;
@@ -416,25 +557,49 @@ void linkSessionToTrackBehavioral(const ProbeSession& session) {
         newIdentity.identityId[sizeof(newIdentity.identityId) - 1] = '\0';
         
         newIdentity.macs.push_back(MacAddress(session.mac));
-        newIdentity.signature = sessionSig;
+        
+        // Initialize signature
+        newIdentity.signature.rssiHistoryCount = 0;
+        for (size_t i = 0; i < session.rssiReadings.size() && newIdentity.signature.rssiHistoryCount < 20; i++) {
+            newIdentity.signature.rssiHistory[newIdentity.signature.rssiHistoryCount++] = 
+                session.rssiReadings[i];
+        }
+        
+        memcpy(newIdentity.signature.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
+        newIdentity.signature.intervalConsistency = sessionIntervalConsistency;
+        newIdentity.signature.rssiConsistency = sessionRssiConsistency;
+        newIdentity.signature.channelBitmap = session.channelMask;
+        
         newIdentity.firstSeen = session.startTime;
         newIdentity.lastSeen = now;
-        newIdentity.confidence = max(sessionSig.intervalConsistency, 
-                                 sessionSig.rssiConsistency);
-        newIdentity.sessionCount = 1;
+        newIdentity.confidence = 1.0f;
         newIdentity.observedSessions = 1;
+        
+        if (!isBLE && session.seqNumValid) {
+            newIdentity.lastSequenceNum = session.lastSeqNum;
+            newIdentity.sequenceValid = true;
+        } else {
+            newIdentity.lastSequenceNum = 0;
+            newIdentity.sequenceValid = false;
+        }
         
         deviceIdentities[identityId] = newIdentity;
         
-        Serial.printf("[RAND] New identity %s (behavior:%.2f intervals:%.2f rssi:%.2f)\n",
-                     identityId.c_str(), newIdentity.confidence,
-                     sessionSig.intervalConsistency,
-                     sessionSig.rssiConsistency);
-    } else {
-        Serial.printf("[RAND] Skipping %s - random behavior (intervals:%.2f rssi:%.2f)\n",
-                     macStr.c_str(), sessionSig.intervalConsistency, 
-                     sessionSig.rssiConsistency);
+        // Mark session as linked
+        ProbeSession& activeSession = activeSessions[macStr];
+        activeSession.linkedToIdentity = true;
+        strncpy(activeSession.linkedIdentityId, newIdentity.identityId, sizeof(activeSession.linkedIdentityId) - 1);
+        
+        Serial.printf("[RAND] New %s (n:%d rssi:%ddBm ic:%.2f)\n",
+                     identityId.c_str(), session.probeCount, sessionAvgRssi, sessionIntervalConsistency);
     }
+}
+
+// Extract sequence number from 802.11 frame
+uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length) {
+    if (length < 24) return 0;
+    uint16_t seqCtrl = (payload[23] << 8) | payload[22];
+    return (seqCtrl >> 4) & 0x0FFF;
 }
 
 void cleanupStaleSessions() {
@@ -501,7 +666,7 @@ String getRandomizationResults() {
     
     std::sort(sortedIdentities.begin(), sortedIdentities.end(),
               [](const auto& a, const auto& b) {
-                  return a.second.observedSessions > b.second.observedSessions;
+                  return a.second.macs.size() > b.second.macs.size();
               });
     
     for (const auto& entry : sortedIdentities) {
@@ -512,8 +677,7 @@ String getRandomizationResults() {
         results += "  Confidence: " + String(identity.confidence, 2) + "\n";
         results += "  MACs: " + String(identity.macs.size()) + "\n";
         
-        int macCount = min((int)identity.macs.size(), 5);
-        for (int i = 0; i < macCount; i++) {
+        for (size_t i = 0; i < identity.macs.size(); i++) {
             const uint8_t* mac = identity.macs[i].bytes.data();
             results += "    ";
             for (int j = 0; j < 6; j++) {
@@ -523,10 +687,6 @@ String getRandomizationResults() {
                 if (j < 5) results += ":";
             }
             results += "\n";
-        }
-        
-        if ((int)identity.macs.size() > 5) {
-            results += "    ... (" + String(identity.macs.size() - 5) + " more)\n";
         }
         
         uint32_t age = (millis() - identity.lastSeen) / 1000;
@@ -650,6 +810,14 @@ void randomizationDetectionTask(void *pv) {
                     session.rssiReadings.push_back(event.rssi);
                     session.probeTimestamps[0] = now;
                     
+                    if (event.payloadLen >= 24) {
+                        session.lastSeqNum = extractSequenceNumber(event.payload, event.payloadLen);
+                        session.seqNumValid = true;
+                    } else {
+                        session.lastSeqNum = 0;
+                        session.seqNumValid = false;
+                    }
+                    
                     if (event.payloadLen > 24) {
                         extractIEFingerprint(event.payload + 24, event.payloadLen - 24, session.fingerprint);
                     } else {
@@ -660,9 +828,16 @@ void randomizationDetectionTask(void *pv) {
                     
                 } else {
                     ProbeSession& session = activeSessions[macStr];
+                    
                     if (session.probeCount < 50) {
                         session.probeTimestamps[session.probeCount] = now;
                     }
+                    
+                    if (event.payloadLen >= 24) {
+                        session.lastSeqNum = extractSequenceNumber(event.payload, event.payloadLen);
+                        session.seqNumValid = true;
+                    }
+                    
                     session.lastSeen = now;
                     session.rssiSum += event.rssi;
                     session.rssiMin = min(session.rssiMin, event.rssi);
@@ -672,6 +847,10 @@ void randomizationDetectionTask(void *pv) {
                     
                     if (session.rssiReadings.size() < 20) {
                         session.rssiReadings.push_back(event.rssi);
+                    }
+                    
+                    if (session.probeCount >= 10 && (now - session.startTime) >= 8000 && !session.linkedToIdentity) {
+                        linkSessionToTrackBehavioral(session);
                     }
                 }
             }
@@ -720,17 +899,27 @@ void randomizationDetectionTask(void *pv) {
                         session.channelMask = 0;
                         session.rssiReadings.push_back(rssi);
                         session.probeTimestamps[0] = now;
-                        memset(session.fingerprint, 0, sizeof(session.fingerprint));
+
+                        // Initialize linking status
+                        session.linkedToIdentity = false;
+                        memset(session.linkedIdentityId, 0, sizeof(session.linkedIdentityId));
+                        
+                        session.lastSeqNum = 0;
+                        session.seqNumValid = false;
+                        
+                        extractBLEFingerprint(device, session.fingerprint);
                         
                         activeSessions[macStr] = session;
                         Serial.printf("[RAND] New BLE randomized device: %s RSSI=%d\n", 
                                     macStr.c_str(), rssi);
-                        
+                                    
                     } else {
                         ProbeSession& session = activeSessions[macStr];
+                        
                         if (session.probeCount < 50) {
                             session.probeTimestamps[session.probeCount] = now;
                         }
+                        
                         session.lastSeen = now;
                         session.rssiSum += rssi;
                         session.rssiMin = min(session.rssiMin, rssi);
@@ -739,6 +928,10 @@ void randomizationDetectionTask(void *pv) {
                         
                         if (session.rssiReadings.size() < 20) {
                             session.rssiReadings.push_back(rssi);
+                        }
+
+                        if (session.probeCount >= 5 && (now - session.startTime) >= 3000) {
+                            linkSessionToTrackBehavioral(session);
                         }
                     }
                 }
