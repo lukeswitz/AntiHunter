@@ -327,11 +327,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <form id="sniffer" method="POST" action="/sniffer">  
               <label>Method</label>
               <select name="detection" id="detectionMode">
-                <option value="device-scan">ShadowSweep Device Discovery</option>
-                <option value="baseline" selected>HorizonWatch Baseline Anomaly Sniffer</option>
+                <option value="device-scan">Device Discovery Scan</option>
+                <option value="baseline" selected>Baseline Anomaly Sniffer</option>
                 <option value="randomization-detection">GhostTrace MAC Randomization Detection</option>
-                <option value="deauth">IronWatch Deauth/Disassoc Detection</option>
-                <option value="drone-detection">SkyTrace Drone RID Detection (WiFi)</option>
+                <option value="deauth">Deauth/Disassoc Sniffer</option>
+                <option value="drone-detection">Drone RID Detection (WiFi)</option>
               </select>
 
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
