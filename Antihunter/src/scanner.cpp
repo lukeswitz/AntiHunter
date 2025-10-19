@@ -1140,7 +1140,7 @@ static void radioStopWiFi()
     esp_wifi_deinit();
 }
 
-static void radioStopBLE()
+void radioStopBLE()
 {
     if (pBLEScan)
     {
@@ -1150,7 +1150,7 @@ static void radioStopBLE()
     }
 }
 
-static void radioStartBLE()
+void radioStartBLE()
 {
     BLEDevice::init("");
     pBLEScan = BLEDevice::getScan();
