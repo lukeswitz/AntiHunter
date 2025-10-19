@@ -136,3 +136,4 @@ extern uint8_t triangulationTarget[6];
 extern uint32_t triangulationStart;
 extern uint32_t triangulationDuration;
 extern bool triangulationInitiator;
+extern char triangulationTargetIdentity[10];

@@ -327,11 +327,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <form id="sniffer" method="POST" action="/sniffer">  
               <label>Method</label>
               <select name="detection" id="detectionMode">
-                <option value="device-scan">Device Discovery Scan</option>
-                <option value="baseline" selected>Baseline Anomaly Detection</option>
-                <option value="randomization-detection">MAC Randomization Detection</option>
-                <option value="deauth">Deauth/Disassoc Attack Detection</option>
-                <option value="drone-detection">Drone RID Detection (WiFi)</option>
+                <option value="device-scan">ShadowSweep Device Discovery</option>
+                <option value="baseline" selected>HorizonWatch Baseline Anomaly Sniffer</option>
+                <option value="randomization-detection">GhostTrace MAC Randomization Detection</option>
+                <option value="deauth">IronWatch Deauth/Disassoc Detection</option>
+                <option value="drone-detection">SkyTrace Drone RID Detection (WiFi)</option>
               </select>
               
               <div id="standardDurationControls" style="margin-top:10px;">
@@ -988,7 +988,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 content += '</div>';
                 
                 content += '<details style="margin-top:12px;"><summary style="cursor:pointer;color:#4CAF50;user-select:none;padding:4px 0;">';
-                content += 'MACs (' + track.macs.length + ') - Click to expand</summary>';
+                content += 'Device MACs (' + track.macs.length + ')</summary>';
                 content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
                 
                 track.macs.forEach((mac, idx) => {
@@ -2341,24 +2341,35 @@ void processCommand(const String &command)
   else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);
     int colonPos = params.lastIndexOf(':');
-    String mac = params.substring(0, colonPos);
+    String target = params.substring(0, colonPos);
     int duration = params.substring(colonPos + 1).toInt();
     
+    bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];
-    if (!parseMac6(mac, macBytes)) {
-        Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", mac.c_str());
-        sendToSerial1(nodeId + ": TRIANGULATE_ACK:INVALID_MAC", true);
-        return;
+    
+    if (!isIdentityId) {
+        if (!parseMac6(target, macBytes)) {
+            Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", target.c_str());
+            sendToSerial1(nodeId + ": TRIANGULATE_ACK:INVALID_FORMAT", true);
+            return;
+        }
     }
     
-    // Stop existing task if any
     if (workerTaskHandle) {
         stopRequested = true;
         vTaskDelay(pdMS_TO_TICKS(500));
         workerTaskHandle = nullptr;
     }
     
-    memcpy(triangulationTarget, macBytes, 6);
+    if (isIdentityId) {
+        strncpy(triangulationTargetIdentity, target.c_str(), sizeof(triangulationTargetIdentity) - 1);
+        triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
+        memset(triangulationTarget, 0, 6);
+    } else {
+        memcpy(triangulationTarget, macBytes, 6);
+        memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
+    }
+    
     triangulationActive = true;
     triangulationInitiator = false;
     triangulationStart = millis();
@@ -2371,8 +2382,8 @@ void processCommand(const String &command)
                                (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
     }
     
-    Serial.printf("[TRIANGULATE] Child node started for %s (%ds)\n", mac.c_str(), duration);
-    sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + mac, true);
+    Serial.printf("[TRIANGULATE] Child node started for %s (%ds)\n", target.c_str(), duration);
+    sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + target, true);
   }
   else if (command.startsWith("TRIANGULATE_STOP"))
   {

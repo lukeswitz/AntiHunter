@@ -28,6 +28,7 @@ uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
 bool triangulationActive = false;
 bool triangulationInitiator = false;
+char triangulationTargetIdentity[10] = {0};
 
 PathLossCalibration pathLoss = {
     -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
@@ -399,9 +400,33 @@ String getNodeSyncStatus() {
 
 void startTriangulation(const String &targetMac, int duration) {
     uint8_t macBytes[6];
-    if (!parseMac6(targetMac, macBytes)) {
-        Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", targetMac.c_str());
-        return;
+    bool isIdentityId = false;
+    
+    if (targetMac.startsWith("T-") && targetMac.length() >= 6 && targetMac.length() <= 9) {
+        bool validId = true;
+        for (size_t i = 2; i < targetMac.length(); i++) {
+            if (!isdigit(targetMac[i])) {
+                validId = false;
+                break;
+            }
+        }
+        
+        if (validId) {
+            isIdentityId = true;
+            strncpy(triangulationTargetIdentity, targetMac.c_str(), sizeof(triangulationTargetIdentity) - 1);
+            triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
+            memset(triangulationTarget, 0, 6);  // Clear MAC bytes when using identity
+            Serial.printf("[TRIANGULATE] Target is identity ID: %s\n", triangulationTargetIdentity);
+        }
+    }
+    
+    if (!isIdentityId) {
+        if (!parseMac6(targetMac, macBytes)) {
+            Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", targetMac.c_str());
+            return;
+        }
+        memcpy(triangulationTarget, macBytes, 6);
+        memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
     
     if (workerTaskHandle) {
@@ -422,7 +447,6 @@ void startTriangulation(const String &targetMac, int duration) {
         antihunter::lastResults.clear();
     }
     
-    memcpy(triangulationTarget, macBytes, 6);
     triangulationNodes.clear();
     nodeSyncStatus.clear();
     triangulationNodes.reserve(10);
@@ -436,13 +460,12 @@ void startTriangulation(const String &targetMac, int duration) {
     
     Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
     
-    // Space out transmissions to avoid LoRa radio conflicts
     broadcastTimeSyncRequest();
-    vTaskDelay(pdMS_TO_TICKS(2000));  // Wait for radio to finish
+    vTaskDelay(pdMS_TO_TICKS(2000));
     
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
     sendMeshCommand(cmd);
-    vTaskDelay(pdMS_TO_TICKS(1000));  // Wait for radio to finish
+    vTaskDelay(pdMS_TO_TICKS(1000));
     
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(

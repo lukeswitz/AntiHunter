@@ -7,10 +7,17 @@
 #include <cmath>
 #include <mutex>
 
+#include <NimBLEAddress.h>
+#include <NimBLEDevice.h>
+#include <NimBLEAdvertisedDevice.h>
+#include <NimBLEScan.h>
+
 extern "C" {
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
 }
+
+extern NimBLEScan *pBLEScan;
 
 // Global state
 bool randomizationDetectionEnabled = false;
@@ -18,7 +25,6 @@ std::map<String, ProbeSession> activeSessions;
 std::map<String, DeviceIdentity> deviceIdentities;
 uint32_t identityIdCounter = 0;
 QueueHandle_t probeRequestQueue = nullptr;
-
 extern volatile bool stopRequested;
 extern ScanMode currentScanMode;
 extern TaskHandle_t workerTaskHandle;
@@ -27,9 +33,10 @@ extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void radioStartSTA();
 extern void radioStopSTA();
 extern volatile bool scanning;
+extern NimBLEScan *pBLEScan;
 
 // Mutex for thread-safe access (NOT used in ISR)
-static std::mutex randMutex;
+std::mutex randMutex;
 
 // MAC type validation
 bool isRandomizedMAC(const uint8_t *mac) {
@@ -546,14 +553,15 @@ void randomizationDetectionTask(void *pv) {
     randomizationDetectionEnabled = true;
     scanning = true;
     
-    // Clean only stale data, preserve valid fingerprints
+    currentScanMode = SCAN_BOTH;
+    
     {
         std::lock_guard<std::mutex> lock(randMutex);
         uint32_t now = millis();
         
         std::vector<String> staleSessions;
         for (auto& entry : activeSessions) {
-            if (now - entry.second.lastSeen > 300000) {  // 5 minutes
+            if (now - entry.second.lastSeen > 300000) {
                 staleSessions.push_back(entry.first);
             }
         }
@@ -563,7 +571,7 @@ void randomizationDetectionTask(void *pv) {
         
         std::vector<String> staleIdentities;
         for (auto& entry : deviceIdentities) {
-            if (now - entry.second.lastSeen > 600000) {  // 10 minutes
+            if (now - entry.second.lastSeen > 600000) {
                 staleIdentities.push_back(entry.first);
             }
         }
@@ -583,10 +591,13 @@ void randomizationDetectionTask(void *pv) {
     uint32_t nextStatus = startTime + 5000;
     uint32_t nextLink = startTime + 8000;
     uint32_t nextCacheUpdate = startTime + 1000;
+    uint32_t lastBLEScan = 0;
+    const uint32_t BLE_SCAN_INTERVAL = 3000;
     
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
         
+        // Process WiFi probe requests from ISR
         {
             std::lock_guard<std::mutex> lock(randMutex);
             
@@ -646,6 +657,76 @@ void randomizationDetectionTask(void *pv) {
             }
         }
         
+        if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+            lastBLEScan = millis();
+            
+            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            
+            if (scanResults.getCount() > 0) {
+                std::lock_guard<std::mutex> lock(randMutex);
+                
+                for (int i = 0; i < scanResults.getCount(); i++) {
+                    const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
+                    
+                    const uint8_t* macBytes = device->getAddress().getVal();
+                    uint8_t mac[6];
+                    memcpy(mac, macBytes, 6);
+                    
+                    // Check if randomized
+                    if (!isRandomizedMAC(mac)) {
+                        continue;
+                    }
+                    
+                    String macStr = macFmt6(mac);
+                    uint32_t now = millis();
+                    int8_t rssi = device->getRSSI();
+                    
+                    bool isSession = activeSessions.find(macStr) != activeSessions.end();
+                    
+                    if (!isSession && activeSessions.size() >= MAX_ACTIVE_SESSIONS) {
+                        continue;
+                    }
+                    
+                    if (!isSession) {
+                        ProbeSession session;
+                        memcpy(session.mac, mac, 6);
+                        session.startTime = now;
+                        session.lastSeen = now;
+                        session.rssiSum = rssi;
+                        session.rssiMin = rssi;
+                        session.rssiMax = rssi;
+                        session.probeCount = 1;
+                        session.primaryChannel = 0;
+                        session.channelMask = 0;
+                        session.rssiReadings.push_back(rssi);
+                        session.probeTimestamps[0] = now;
+                        memset(session.fingerprint, 0, sizeof(session.fingerprint));
+                        
+                        activeSessions[macStr] = session;
+                        Serial.printf("[RAND] New BLE randomized device: %s RSSI=%d\n", 
+                                    macStr.c_str(), rssi);
+                        
+                    } else {
+                        ProbeSession& session = activeSessions[macStr];
+                        if (session.probeCount < 50) {
+                            session.probeTimestamps[session.probeCount] = now;
+                        }
+                        session.lastSeen = now;
+                        session.rssiSum += rssi;
+                        session.rssiMin = min(session.rssiMin, rssi);
+                        session.rssiMax = max(session.rssiMax, rssi);
+                        session.probeCount++;
+                        
+                        if (session.rssiReadings.size() < 20) {
+                            session.rssiReadings.push_back(rssi);
+                        }
+                    }
+                }
+            }
+            
+            pBLEScan->clearResults();
+        }
+        
         vTaskDelay(pdMS_TO_TICKS(10));
 
         // Send results to cache display
@@ -676,15 +757,13 @@ void randomizationDetectionTask(void *pv) {
                     linkSessionToTrackBehavioral(activeSessions[key]);
                 }
                 
-                // Remove old ones
                 for (const String& key : toRemove) {
                     activeSessions.erase(key);
                 }
-                
             }
             
             nextLink += 8000;
-            vTaskDelay(pdMS_TO_TICKS(50));  // Big yield after expensive operation
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {

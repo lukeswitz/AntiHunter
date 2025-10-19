@@ -6,6 +6,7 @@
 #include <NimBLEAdvertisedDevice.h>
 #include <NimBLEScan.h>
 #include <algorithm>
+#include "randomization.h"
 #include <string>
 #include <mutex>
 #include "scanner.h"
@@ -112,6 +113,26 @@ inline int clampi(int v, int lo, int hi)
 
 static bool parseMacLike(const String &ln, Target &out)
 {
+    if (ln.startsWith("T-") && ln.length() >= 6 && ln.length() <= 9) {
+        // T-#### format
+        bool validId = true;
+        for (size_t i = 2; i < ln.length(); i++) {
+            if (!isdigit(ln[i])) {
+                validId = false;
+                break;
+            }
+        }
+        
+        if (validId) {
+            memset(&out, 0, sizeof(out));
+            strncpy(out.identityId, ln.c_str(), sizeof(out.identityId) - 1);
+            out.identityId[sizeof(out.identityId) - 1] = '\0';
+            out.len = 0;  // 0 indicates identity ID, not MAC
+            return true;
+        }
+    }
+    
+    // MAC
     String t;
     for (size_t i = 0; i < ln.length(); ++i)
     {
@@ -145,12 +166,43 @@ size_t getTargetCount()
     return targets.size();
 }
 
+bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
+{
+    if (!identityId || strlen(identityId) == 0 || !mac) {
+        return false;
+    }
+
+    extern std::map<String, DeviceIdentity> deviceIdentities;
+    extern std::mutex randMutex;
+    
+    std::lock_guard<std::mutex> lock(randMutex);
+
+    String idStr(identityId);
+    auto it = deviceIdentities.find(idStr);
+    if (it == deviceIdentities.end()) {
+        return false;
+    }
+    
+    const DeviceIdentity& identity = it->second;
+    
+    for (const auto& macAddr : identity.macs) {
+        if (memcmp(macAddr.bytes.data(), mac, 6) == 0) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 String getTargetsList()
 {
     String out;
     for (auto &t : targets)
     {
-        if (t.len == 6)
+        if (t.len == 0 && strlen(t.identityId) > 0) {
+            out += String(t.identityId);
+        }
+        else if (t.len == 6)
         {
             char b[18];
             snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -196,7 +248,12 @@ static inline bool matchesMac(const uint8_t *mac)
 {
     for (auto &t : targets)
     {
-        if (t.len == 6)
+        if (t.len == 0 && strlen(t.identityId) > 0) {
+            if (matchesIdentityMac(t.identityId, mac)) {
+                return true;
+            }
+        }
+        else if (t.len == 6)
         {
             bool eq = true;
             for (int i = 0; i < 6; i++)
@@ -210,7 +267,7 @@ static inline bool matchesMac(const uint8_t *mac)
             if (eq)
                 return true;
         }
-        else
+        else if (t.len == 3)
         {
             if (mac[0] == t.bytes[0] && mac[1] == t.bytes[1] && mac[2] == t.bytes[2])
             {
@@ -220,6 +277,7 @@ static inline bool matchesMac(const uint8_t *mac)
     }
     return false;
 }
+
 
 static void hopTimerCb(void *)
 {
@@ -1368,11 +1426,14 @@ void listScanTask(void *pv) {
                     uint8_t mac[6];
                     bool isMatch;
                     if (triangulationActive) {
-                        // Only match the specific triangulation target
-                        isMatch = parseMac6(origBssid, mac) && 
-                                (memcmp(mac, triangulationTarget, 6) == 0);
+                        if (strlen(triangulationTargetIdentity) > 0) {
+                            isMatch = parseMac6(origBssid, mac) && 
+                                    matchesIdentityMac(triangulationTargetIdentity, mac);
+                        } else {
+                            isMatch = parseMac6(origBssid, mac) && 
+                                    (memcmp(mac, triangulationTarget, 6) == 0);
+                        }
                     } else {
-                        // Normal mode: match against target list
                         isMatch = parseMac6(origBssid, mac) && matchesMac(mac);
                     }
 
@@ -1423,8 +1484,13 @@ void listScanTask(void *pv) {
                 uint8_t mac[6];
                 bool isMatch;
                 if (triangulationActive) {
-                    isMatch = parseMac6(macStrOrig, mac) && 
-                            (memcmp(mac, triangulationTarget, 6) == 0);
+                    if (strlen(triangulationTargetIdentity) > 0) {
+                        isMatch = parseMac6(macStrOrig, mac) && 
+                                matchesIdentityMac(triangulationTargetIdentity, mac);
+                    } else {
+                        isMatch = parseMac6(macStrOrig, mac) && 
+                                (memcmp(mac, triangulationTarget, 6) == 0);
+                    }
                 } else {
                     isMatch = parseMac6(macStrOrig, mac) && matchesMac(mac);
                 }

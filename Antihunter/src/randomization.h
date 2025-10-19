@@ -5,6 +5,7 @@
 #include <array>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include <mutex>
 
 struct MacAddress {
     std::array<uint8_t, 6> bytes;
@@ -93,6 +94,7 @@ extern bool randomizationDetectionEnabled;
 extern std::map<String, ProbeSession> activeSessions;
 extern std::map<String, DeviceIdentity> deviceIdentities;
 extern uint32_t identityIdCounter;
+extern std::mutex randMutex;
 
 // Core detection functions
 void randomizationDetectionTask(void *pv);
@@ -120,3 +122,5 @@ String generateTrackId();
 String getRandomizationResults();
 bool isRandomizedMAC(const uint8_t *mac);
 bool isGlobalMAC(const uint8_t *mac);
+
+extern std::mutex randMutex;
