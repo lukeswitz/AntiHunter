@@ -333,6 +333,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="deauth">IronWatch Deauth/Disassoc Detection</option>
                 <option value="drone-detection">SkyTrace Drone RID Detection (WiFi)</option>
               </select>
+
+              <div id="randomizationModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="randomizationMode" name="randomizationMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
+              </div>
               
               <div id="standardDurationControls" style="margin-top:10px;">
                 <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
@@ -1254,18 +1263,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const selectedMethod = this.value;
         const standardControls = document.getElementById('standardDurationControls');
         const baselineControls = document.getElementById('baselineConfigControls');
+        const randomizationModeControls = document.getElementById('randomizationModeControls');
         const cacheBtn = document.getElementById('cacheBtn');
         const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const randTracksBtn = document.getElementById('randTracksBtn');
         
-        // Hide all buttons first
+        // Hide all controls first
         cacheBtn.style.display = 'none';
         baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
         randTracksBtn.style.display = 'none';
         standardControls.style.display = 'none';
         baselineControls.style.display = 'none';
+        randomizationModeControls.style.display = 'none';
         
         if (selectedMethod === 'baseline') {
             baselineControls.style.display = 'block';
@@ -1277,6 +1288,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
         } else if (selectedMethod === 'randomization-detection') {
             standardControls.style.display = 'block';
+            randomizationModeControls.style.display = 'block';
             randTracksBtn.style.display = 'inline-block';
             document.getElementById('detectionDuration').disabled = false;
             document.getElementById('baselineMonitorDuration').disabled = true;
@@ -1300,6 +1312,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const fd = new FormData(e.target);
         const detectionMethod = fd.get('detection');
         let endpoint = '/sniffer';
+
+        if (detectionMethod === 'randomization-detection') {
+            const randMode = document.getElementById('randomizationMode').value;
+            fd.append('randomizationMode', randMode);
+        }   
         if (detectionMethod === 'drone-detection') {
           endpoint = '/drone';
           fd.delete('detection');
@@ -1869,14 +1886,26 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                                 1, &workerTaskHandle, 1);
       }
     } else if (detection == "randomization-detection") {
-        currentScanMode = SCAN_WIFI;
+        int scanMode = SCAN_BOTH;
+        if (req->hasParam("randomizationMode", true)) {
+            int mode = req->getParam("randomizationMode", true)->value().toInt();
+            if (mode >= 0 && mode <= 2) {
+                scanMode = mode;  // 0=WiFi, 1=BLE, 2=Both
+            }
+        }
+        
+        currentScanMode = (ScanMode)scanMode;
         if (secs < 0) secs = 0;
         if (secs > 86400) secs = 86400;
         
         stopRequested = false;
+        
+        String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" : 
+                        (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+        
         req->send(200, "text/plain", 
-                  forever ? "Randomization detection starting (forever)" : 
-                  ("Randomization detection starting for " + String(secs) + "s"));
+                  forever ? ("Randomization detection starting (forever) - " + modeStr) : 
+                  ("Randomization detection starting for " + String(secs) + "s - " + modeStr));
         
         if (!workerTaskHandle) {
             xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
@@ -1918,23 +1947,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                                       (void*)(intptr_t)(forever ? 0 : secs),
                                       1, &workerTaskHandle, 1);
             }
-            
-        } else if (detection == "randomization-detection") {
-            currentScanMode = SCAN_WIFI;
-            if (secs < 0) secs = 0;
-            if (secs > 86400) secs = 86400;
-            
-            stopRequested = false;
-            req->send(200, "text/plain",
-                      forever ? "Randomization detection starting (forever)" :
-                      ("Randomization detection starting for " + String(secs) + "s"));
-            
-            if (!workerTaskHandle) {
-                xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
-                                      (void*)(intptr_t)(forever ? 0 : secs),
-                                      1, &workerTaskHandle, 1);
-            }
-            
         } else if (detection == "device-scan") {
             currentScanMode = SCAN_BOTH;
             if (secs < 0) secs = 0;
@@ -1950,7 +1962,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                                       (void*)(intptr_t)(forever ? 0 : secs), 
                                       1, &workerTaskHandle, 1);
             }
-            
         } else if (detection == "drone-detection") {
             currentScanMode = SCAN_WIFI;
             if (secs < 0) secs = 0;

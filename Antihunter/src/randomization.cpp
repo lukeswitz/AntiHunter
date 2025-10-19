@@ -25,6 +25,8 @@ std::map<String, ProbeSession> activeSessions;
 std::map<String, DeviceIdentity> deviceIdentities;
 uint32_t identityIdCounter = 0;
 QueueHandle_t probeRequestQueue = nullptr;
+
+// External refs
 extern volatile bool stopRequested;
 extern ScanMode currentScanMode;
 extern TaskHandle_t workerTaskHandle;
@@ -34,6 +36,8 @@ extern void radioStartSTA();
 extern void radioStopSTA();
 extern volatile bool scanning;
 extern NimBLEScan *pBLEScan;
+extern void radioStartBLE();
+extern void radioStopBLE();
 
 // Mutex for thread-safe access (NOT used in ISR)
 std::mutex randMutex;
@@ -544,16 +548,19 @@ void resetRandomizationDetection() {
 void randomizationDetectionTask(void *pv) {
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
-    Serial.printf("[RAND] Starting randomization detection %s\n",
-                  forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
+    
+    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
+                     (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+    
+    Serial.printf("[RAND] Starting randomization detection %s - Mode: %s\n",
+                  forever ? "(forever)" : ("for " + String(duration) + "s").c_str(),
+                  modeStr.c_str());
     
     if (probeRequestQueue) vQueueDelete(probeRequestQueue);
     probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
     
     randomizationDetectionEnabled = true;
     scanning = true;
-    
-    currentScanMode = SCAN_BOTH;
     
     {
         std::lock_guard<std::mutex> lock(randMutex);
@@ -584,8 +591,22 @@ void randomizationDetectionTask(void *pv) {
                      activeSessions.size(), deviceIdentities.size());
     }
     
-    radioStartSTA();
-    vTaskDelay(pdMS_TO_TICKS(200));
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        radioStartSTA();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    if (currentScanMode == SCAN_BLE) {
+        WiFi.mode(WIFI_AP);
+        delay(100);
+        radioStartBLE();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    if (currentScanMode == SCAN_BOTH) {
+        radioStartBLE();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
     
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
@@ -597,8 +618,7 @@ void randomizationDetectionTask(void *pv) {
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
         
-        // Process WiFi probe requests from ISR
-        {
+        if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
             std::lock_guard<std::mutex> lock(randMutex);
             
             ProbeRequestEvent event;
@@ -657,7 +677,8 @@ void randomizationDetectionTask(void *pv) {
             }
         }
         
-        if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+        if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && 
+            pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
             
             NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
@@ -672,7 +693,6 @@ void randomizationDetectionTask(void *pv) {
                     uint8_t mac[6];
                     memcpy(mac, macBytes, 6);
                     
-                    // Check if randomized
                     if (!isRandomizedMAC(mac)) {
                         continue;
                     }
@@ -729,7 +749,6 @@ void randomizationDetectionTask(void *pv) {
         
         vTaskDelay(pdMS_TO_TICKS(10));
 
-        // Send results to cache display
         if ((int32_t)(millis() - nextCacheUpdate) >= 0) {
             antihunter::lastResults = getRandomizationResults().c_str();
             nextCacheUpdate += 1000;
@@ -791,6 +810,15 @@ void randomizationDetectionTask(void *pv) {
     Serial.printf("[RAND] Results cached: %d bytes\n", finalResults.length());
     Serial.printf("[RAND] Complete. Identities:%d\n", deviceIdentities.size());
 
+    
+	if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
+	    radioStopBLE();
+	}
+	
+	if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+	    radioStopSTA();
+	}
+    
     radioStopSTA();
     delay(100);
 
