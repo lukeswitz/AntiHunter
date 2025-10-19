@@ -19,6 +19,7 @@ struct Hit {
 struct Target {
     uint8_t bytes[6];
     uint8_t len;
+    char identityId[10];
 };
 
 struct Allowlist {
@@ -108,6 +109,7 @@ extern QueueHandle_t macQueue;
 
 // Functions
 void initializeScanner();
+bool matchesIdentityMac(const char* identityId, const uint8_t* mac);
 void saveTargetsList(const String &txt);
 void snifferScanTask(void *pv);
 void listScanTask(void *pv);
