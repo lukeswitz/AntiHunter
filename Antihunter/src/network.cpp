@@ -409,7 +409,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
-                <button type="button" class="btn" id="randResultsBtn" style="display:none;" onclick="fetchRandomizationResults()">View Randomization Results</button>
                 <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showDeviceIdentities()">Show Device IDs</button>
               </div>
             </form>
@@ -751,125 +750,117 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       
       function updateStatusIndicators(diagText) {
-        const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
-        const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
-        const isScanning = diagText.includes('Scanning: yes');
-        
-        if (isScanning) {
-          document.getElementById('scanStatus').innerText = 'Active';
-          document.getElementById('scanStatus').classList.add('active');
+          const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
+          const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
+          const isScanning = diagText.includes('Scanning: yes');
           
-          const startScanBtn = document.querySelector('#s button');
-          if (startScanBtn && taskType === 'scan') {
-            startScanBtn.textContent = 'Stop Scanning';
-            startScanBtn.classList.remove('primary');
-            startScanBtn.classList.add('danger');
-            startScanBtn.type = 'button';
-            startScanBtn.onclick = function(e) {
-              e.preventDefault();
-              fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                setTimeout(async () => {
-                            const refreshedDiag = await fetch('/diag').then(r => r.text());
-                            updateStatusIndicators(refreshedDiag);
-                        }, 500);
-                    });
-            };
-          }
-
-          if (taskType === 'triangulate') {
-            const triangulateBtn = document.querySelector('#s button');
-            if (triangulateBtn) {
-              triangulateBtn.textContent = 'Stop Scan';
-              triangulateBtn.classList.remove('primary');
-              triangulateBtn.classList.add('danger');
-              triangulateBtn.type = 'button';
-              triangulateBtn.onclick = function(e) {
-                e.preventDefault();
-                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                  setTimeout(async () => {
-                            const refreshedDiag = await fetch('/diag').then(r => r.text());
-                            updateStatusIndicators(refreshedDiag);
-                        }, 500);
-                });
-              };
-            }
-          }
-          
-          if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect') {
-            const startDetectionBtn = document.getElementById('startDetectionBtn');
-            if (startDetectionBtn) {
-              startDetectionBtn.textContent = 'Stop Scanning';
-              startDetectionBtn.classList.remove('primary');
-              startDetectionBtn.classList.add('danger');
-              startDetectionBtn.type = 'button';
-              startDetectionBtn.onclick = function(e) {
-                e.preventDefault();
-                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                  setTimeout(async () => {
-                    const refreshedDiag = await fetch('/diag').then(r => r.text());
-                    updateStatusIndicators(refreshedDiag);
-                  }, 500);
-                });
-              };
+          if (isScanning) {
+              document.getElementById('scanStatus').innerText = 'Active';
+              document.getElementById('scanStatus').classList.add('active');
               
-              const detectionMode = document.getElementById('detectionMode')?.value;
-              if (detectionMode === 'device-scan') {
-                document.getElementById('cacheBtn').style.display = 'inline-block';
-              } else if (detectionMode === 'randomization-detection') {
-                document.getElementById('randResultsBtn').style.display = 'inline-block';
-                document.getElementById('randTracksBtn').style.display = 'inline-block';
+              const startScanBtn = document.querySelector('#s button');
+              if (startScanBtn && taskType === 'scan') {
+                  startScanBtn.textContent = 'Stop Scanning';
+                  startScanBtn.classList.remove('primary');
+                  startScanBtn.classList.add('danger');
+                  startScanBtn.type = 'button';
+                  startScanBtn.onclick = function(e) {
+                      e.preventDefault();
+                      fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                          setTimeout(async () => {
+                              const refreshedDiag = await fetch('/diag').then(r => r.text());
+                              updateStatusIndicators(refreshedDiag);
+                          }, 500);
+                      });
+                  };
               }
-            }
-          }
-        } else {
-          document.getElementById('scanStatus').innerText = 'Idle';
-          document.getElementById('scanStatus').classList.remove('active');
 
-            const startScanBtn = document.querySelector('#s button');
-            if (startScanBtn) {
-                startScanBtn.textContent = 'Start Scan';
-                startScanBtn.classList.remove('danger');
-            startScanBtn.classList.add('primary');
-            startScanBtn.type = 'submit';
-            startScanBtn.onclick = null;
-            startScanBtn.style.background = '';
+              if (taskType === 'triangulate') {
+                  const triangulateBtn = document.querySelector('#s button');
+                  if (triangulateBtn) {
+                      triangulateBtn.textContent = 'Stop Scan';
+                      triangulateBtn.classList.remove('primary');
+                      triangulateBtn.classList.add('danger');
+                      triangulateBtn.type = 'button';
+                      triangulateBtn.onclick = function(e) {
+                          e.preventDefault();
+                          fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                              setTimeout(async () => {
+                                  const refreshedDiag = await fetch('/diag').then(r => r.text());
+                                  updateStatusIndicators(refreshedDiag);
+                              }, 500);
+                          });
+                      };
+                  }
+              }
+
+              if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam' || taskType === 'baseline') {
+                  const startDetectionBtn = document.getElementById('startDetectionBtn');
+                  if (startDetectionBtn) {
+                      startDetectionBtn.textContent = 'Stop Scanning';
+                      startDetectionBtn.classList.remove('primary');
+                      startDetectionBtn.classList.add('danger');
+                      startDetectionBtn.type = 'button';
+                      startDetectionBtn.onclick = function(e) {
+                          e.preventDefault();
+                          fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                              setTimeout(async () => {
+                                  const refreshedDiag = await fetch('/diag').then(r => r.text());
+                                  updateStatusIndicators(refreshedDiag);
+                              }, 500);
+                          });
+                      };
+                      
+                      const detectionMode = document.getElementById('detectionMode')?.value;
+                      document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
+                      document.getElementById('randTracksBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+                  }
+              }
+          } else {
+              document.getElementById('scanStatus').innerText = 'Idle';
+              document.getElementById('scanStatus').classList.remove('active');
+
+              const startScanBtn = document.querySelector('#s button');
+              if (startScanBtn) {
+                  startScanBtn.textContent = 'Start Scan';
+                  startScanBtn.classList.remove('danger');
+                  startScanBtn.classList.add('primary');
+                  startScanBtn.type = 'submit';
+                  startScanBtn.onclick = null;
+                  startScanBtn.style.background = '';
+              }
+
+              const startDetectionBtn = document.getElementById('startDetectionBtn');
+              if (startDetectionBtn) {
+                  startDetectionBtn.textContent = 'Start Scan';
+                  startDetectionBtn.classList.remove('danger');
+                  startDetectionBtn.classList.add('primary');
+                  startDetectionBtn.type = 'submit';
+                  startDetectionBtn.onclick = null;
+              }
           }
 
-          const detectionMode = document.getElementById('detectionMode')?.value;
-          if (detectionMode !== 'baseline') {
-            const startDetectionBtn = document.getElementById('startDetectionBtn');
-            if (startDetectionBtn) {
-              startDetectionBtn.textContent = 'Start Scan';
-              startDetectionBtn.classList.remove('danger');
-              startDetectionBtn.classList.add('primary');
-              startDetectionBtn.type = 'submit';
-              startDetectionBtn.onclick = null;
-              document.getElementById('cacheBtn').style.display = 'none';
-            }
+          const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
+          if (modeMatch) {
+              document.getElementById('modeStatus').innerText = modeMatch[1];
           }
-        }
-
-        const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
-        if (modeMatch) {
-          document.getElementById('modeStatus').innerText = modeMatch[1];
-        }
-        
-        if (diagText.includes('GPS: Locked')) {
-          document.getElementById('gpsStatus').classList.add('active');
-          document.getElementById('gpsStatus').innerText = 'GPS Lock';
-        } else {
-            document.getElementById('gpsStatus').classList.remove('active');
-            document.getElementById('gpsStatus').innerText = 'GPS';
-        }
-        
-        if (diagText.includes('RTC: Synced')) {
-          document.getElementById('rtcStatus').classList.add('active');
-          document.getElementById('rtcStatus').innerText = 'RTC OK';
-        } else if (diagText.includes('RTC: Not')) {
-          document.getElementById('rtcStatus').classList.remove('active');
-          document.getElementById('rtcStatus').innerText = 'RTC';
-        }
-    }
+          
+          if (diagText.includes('GPS: Locked')) {
+              document.getElementById('gpsStatus').classList.add('active');
+              document.getElementById('gpsStatus').innerText = 'GPS Lock';
+          } else {
+              document.getElementById('gpsStatus').classList.remove('active');
+              document.getElementById('gpsStatus').innerText = 'GPS';
+          }
+          
+          if (diagText.includes('RTC: Synced')) {
+              document.getElementById('rtcStatus').classList.add('active');
+              document.getElementById('rtcStatus').innerText = 'RTC OK';
+          } else if (diagText.includes('RTC: Not')) {
+              document.getElementById('rtcStatus').classList.remove('active');
+              document.getElementById('rtcStatus').innerText = 'RTC';
+          }
+      }
       
       function saveAutoEraseConfig() {
         const enabled = document.getElementById('autoEraseEnabled').checked;
@@ -964,27 +955,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (modal) {
           document.body.removeChild(modal);
         }
-      }
-      
-      function fetchRandomizationResults() {
-        fetch('/randomization-results')
-          .then(r => r.text())
-          .then(data => {
-            const modal = document.createElement('div');
-            modal.id = 'randResultsModal';
-            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-            modal.innerHTML = `
-              <div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:90%;max-height:90%;overflow:auto;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                  <h3 style="margin:0;">Randomization Detection Results</h3>
-                  <button onclick="document.getElementById('randResultsModal').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>
-                </div>
-                <pre style="background:#0a0a0a;padding:16px;border-radius:4px;overflow:auto;max-height:70vh;white-space:pre-wrap;">${data}</pre>
-              </div>
-            `;
-            document.body.appendChild(modal);
-          })
-          .catch(err => toast('Error fetching results: ' + err, 'error'));
       }
 
       function showDeviceIdentities() {
@@ -1156,6 +1126,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast('Network error: ' + error, 'error');
         });
       }
+
       async function tick() {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
         try {
@@ -1286,31 +1257,43 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const cacheBtn = document.getElementById('cacheBtn');
         const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
+        const randTracksBtn = document.getElementById('randTracksBtn');
         
+        // Hide all buttons first
         cacheBtn.style.display = 'none';
         baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
+        randTracksBtn.style.display = 'none';
         standardControls.style.display = 'none';
         baselineControls.style.display = 'none';
         
         if (selectedMethod === 'baseline') {
-          baselineControls.style.display = 'block';
-          baselineResultsBtn.style.display = 'inline-block';
-          resetBaselineBtn.style.display = 'inline-block';
-          document.getElementById('detectionDuration').disabled = true;
-          document.getElementById('baselineMonitorDuration').disabled = false;
-          updateBaselineStatus();
-        } else if (selectedMethod === 'drone-detection') {
-          standardControls.style.display = 'block';
-          document.getElementById('detectionDuration').disabled = false;
-          document.getElementById('baselineMonitorDuration').disabled = true;
+            baselineControls.style.display = 'block';
+            baselineResultsBtn.style.display = 'inline-block';
+            resetBaselineBtn.style.display = 'inline-block';
+            document.getElementById('detectionDuration').disabled = true;
+            document.getElementById('baselineMonitorDuration').disabled = false;
+            updateBaselineStatus();
+            
+        } else if (selectedMethod === 'randomization-detection') {
+            standardControls.style.display = 'block';
+            randTracksBtn.style.display = 'inline-block';
+            document.getElementById('detectionDuration').disabled = false;
+            document.getElementById('baselineMonitorDuration').disabled = true;
+            
+        } else if (selectedMethod === 'device-scan') {
+            standardControls.style.display = 'block';
+            cacheBtn.style.display = 'inline-block';
+            document.getElementById('detectionDuration').disabled = false;
+            document.getElementById('baselineMonitorDuration').disabled = true;
+            
         } else {
-          standardControls.style.display = 'block';
-          cacheBtn.style.display = 'inline-block';
-          document.getElementById('detectionDuration').disabled = false;
-          document.getElementById('baselineMonitorDuration').disabled = true;
+            // deauth, drone-detection, etc
+            standardControls.style.display = 'block';
+            document.getElementById('detectionDuration').disabled = false;
+            document.getElementById('baselineMonitorDuration').disabled = true;
         }
-      });
+    });
 
       document.getElementById('sniffer').addEventListener('submit', e => {
         e.preventDefault();

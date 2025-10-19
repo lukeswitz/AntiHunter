@@ -582,6 +582,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
     uint32_t nextLink = startTime + 8000;
+    uint32_t nextCacheUpdate = startTime + 1000;
     
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
@@ -646,6 +647,12 @@ void randomizationDetectionTask(void *pv) {
         }
         
         vTaskDelay(pdMS_TO_TICKS(10));
+
+        // Send results to cache display
+        if ((int32_t)(millis() - nextCacheUpdate) >= 0) {
+            antihunter::lastResults = getRandomizationResults().c_str();
+            nextCacheUpdate += 1000;
+        }
         
         if ((int32_t)(millis() - nextLink) >= 0) {
             {
@@ -674,16 +681,6 @@ void randomizationDetectionTask(void *pv) {
                     activeSessions.erase(key);
                 }
                 
-                // Cleanup stale tracks
-                toRemove.clear();
-                for (auto& entry : deviceIdentities) {
-                    if (now - entry.second.lastSeen > TRACK_STALE_TIME) {
-                        toRemove.push_back(entry.first);
-                    }
-                }
-                for (const String& key : toRemove) {
-                    deviceIdentities.erase(key);
-                }
             }
             
             nextLink += 8000;
@@ -704,16 +701,25 @@ void randomizationDetectionTask(void *pv) {
     
     randomizationDetectionEnabled = false;
     scanning = false;
+
+    String finalResults = getRandomizationResults();
+
+    {
+        std::lock_guard<std::mutex> resultsLock(antihunter::lastResultsMutex);
+        antihunter::lastResults = finalResults.c_str();
+    }
+
+    Serial.printf("[RAND] Results cached: %d bytes\n", finalResults.length());
+    Serial.printf("[RAND] Complete. Identities:%d\n", deviceIdentities.size());
+
     radioStopSTA();
     delay(100);
-    
+
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
     }
-    
-    Serial.printf("[RAND] Complete. Identities:%d\n", deviceIdentities.size());
-    
+
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

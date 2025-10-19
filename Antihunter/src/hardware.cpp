@@ -49,6 +49,7 @@ extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
+extern TaskHandle_t blueTeamTaskHandle;
 
 // Tamper Detection Erase
 uint32_t setupDelay = 120000;  // 2 minutes default
@@ -250,6 +251,9 @@ String getDiagnostics() {
     // Task type tracking for the start/stop button
     if (workerTaskHandle) {
         const char* taskName = pcTaskGetName(workerTaskHandle);
+        s += "Task Type: " + String(taskName) + "\n";
+    } else if (blueTeamTaskHandle) {
+        const char* taskName = pcTaskGetName(blueTeamTaskHandle);
         s += "Task Type: " + String(taskName) + "\n";
     } else {
         s += "Task Type: none\n";
