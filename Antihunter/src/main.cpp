@@ -131,13 +131,25 @@ void parseChannelsCSV(const String &csv) {
 
 void sendNodeIdUpdate() {
     String nodeMsg = "[NODE_HB] " + getNodeId();
-    // Add GPS coordinates if available
     if (gpsValid) {
         nodeMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
     Serial.println(nodeMsg);
-    // send mesh
     sendToSerial1(nodeMsg, true);
+}
+
+void randomizeMacAddress() {
+    uint8_t newMACAddress[6];
+    newMACAddress[0] = (random(0, 256) & 0xFE);
+    for (int i = 1; i < 6; i++) {
+        newMACAddress[i] = random(0, 256);
+    }
+    
+    esp_wifi_set_mac(WIFI_IF_AP, newMACAddress);
+    
+    Serial.printf("[MAC] Randomized MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                  newMACAddress[0], newMACAddress[1], newMACAddress[2],
+                  newMACAddress[3], newMACAddress[4], newMACAddress[5]);
 }
 
 void setup() {
@@ -147,15 +159,17 @@ void setup() {
     Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
 
+    randomizeMacAddress();
+
     delay(400);
-    initializeHardware();  // Sets up preferences and node ID
+    initializeHardware();
     delay(10);
     initializeDroneDetector();
     delay(20);
     initializeSD();
     delay(500);
     loadConfiguration();
-    initializeNetwork();   // starts AP and mesh UART
+    initializeNetwork();
     delay(500);
     initializeGPS();
     delay(1000);
@@ -176,6 +190,7 @@ void setup() {
     Serial.println("=== Boot Complete ===");
     Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
     Serial.printf("Mesh @ 115200 on pins %d,%d\n", MESH_RX_PIN, MESH_TX_PIN);
+    Serial.printf("AP MAC: %s\n", WiFi.softAPmacAddress().c_str());
     
     delay(2000);
 }
