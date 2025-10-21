@@ -12,7 +12,7 @@ ERASE_FLASH=false
 
 # PlatformIO Config Values
 MONITOR_SPEED=115200
-UPLOAD_SPEED=115200
+UPLOAD_SPEED=230400
 ESP32_PORT=""
 
 # Function to display help
