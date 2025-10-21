@@ -356,245 +356,6 @@ static void processQueuedProbes() {
     }
 }
 
-void linkSessionToTrackBehavioral(const ProbeSession& session) {
-    String macStr = macFmt6(session.mac);
-    uint32_t now = millis();
-    
-    // Check if session is already linked
-    if (session.linkedToIdentity) {
-        return;  // Already processed, don't re-link
-    }
-    
-    // Require sufficient observations
-    if (session.probeCount < 8) return;
-    
-    // Calculate session average RSSI
-    int16_t sessionRssiSum = 0;
-    for (size_t i = 0; i < session.rssiReadings.size(); i++) {
-        sessionRssiSum += session.rssiReadings[i];
-    }
-    int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
-                            sessionRssiSum / (int)session.rssiReadings.size() : 
-                            session.rssiSum / max(1, (int)session.probeCount);
-    
-    // Calculate timing consistency
-    float sessionIntervalConsistency = 0.0f;
-    if (session.probeCount >= 3) {
-        uint32_t intervals[49];
-        uint8_t intervalCount = 0;
-        for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount); i++) {
-            if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
-                intervals[intervalCount++] = session.probeTimestamps[i] - session.probeTimestamps[i-1];
-            }
-        }
-        if (intervalCount >= 2) {
-            sessionIntervalConsistency = calculateIntervalConsistency(intervals, intervalCount);
-        }
-    }
-    
-    // Calculate RSSI consistency
-    float sessionRssiConsistency = calculateRssiConsistency(
-        session.rssiReadings.data(), 
-        min((uint8_t)20, (uint8_t)session.rssiReadings.size())
-    );
-    
-    bool isBLE = (session.primaryChannel == 0);
-    
-    String bestIdentityKey;
-    float bestScore = 0.0f;
-    int8_t bestRssiDelta = 127;
-    
-    // Evaluate against all existing identities
-    for (auto& identityEntry : deviceIdentities) {
-        DeviceIdentity& identity = identityEntry.second;
-        
-        // Skip stale identities
-        if (now - identity.lastSeen > TRACK_STALE_TIME) continue;
-        
-        // Check MAC is already linked 
-        bool alreadyLinked = false;
-        for (const auto& existingMac : identity.macs) {
-            if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
-                alreadyLinked = true;
-                break;
-            }
-        }
-        if (alreadyLinked) continue;
-        
-        // Calculate identity metrics
-        int16_t identityRssiSum = 0;
-        for (uint8_t i = 0; i < identity.signature.rssiHistoryCount; i++) {
-            identityRssiSum += identity.signature.rssiHistory[i];
-        }
-        int8_t identityAvgRssi = identity.signature.rssiHistoryCount > 0 ? 
-                                 identityRssiSum / (int)identity.signature.rssiHistoryCount : 
-                                 sessionAvgRssi;
-        
-        int8_t rssiDelta = abs(sessionAvgRssi - identityAvgRssi);
-        uint32_t timeDelta = (now > identity.lastSeen) ? 
-                             (now - identity.lastSeen) : (identity.lastSeen - now);
-        
-        // MULTI-FACTOR SCORING
-        float score = 0.0f;
-        
-        // Factor 1: RSSI Proximity (weight: 0.20) - REDUCED WEIGHT
-        float rssiScore = 0.0f;
-        if (rssiDelta <= 10) {  // STRICTER: Only within 10dB
-            rssiScore = 1.0f - (rssiDelta / 20.0f);
-        }
-        rssiScore *= 0.20f;
-        
-        // Factor 2: Fingerprint Matching (weight: 0.40) - PRIMARY INDICATOR
-        float fingerprintScore = 0.0f;
-        uint8_t fpMatches = 0;
-        if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
-            fingerprintScore = (float)fpMatches / 4.0f;
-        }
-        fingerprintScore *= 0.40f;
-        
-        // Factor 3: Timing Pattern Similarity (weight: 0.20)
-        float timingScore = 0.0f;
-        if (sessionIntervalConsistency > 0.3f && identity.signature.intervalConsistency > 0.3f) {
-            float timingDelta = abs(sessionIntervalConsistency - identity.signature.intervalConsistency);
-            timingScore = max(0.0f, 1.0f - (timingDelta * 2.0f));
-        }
-        timingScore *= 0.20f;
-        
-        // Factor 4: RSSI Stability Similarity (weight: 0.10)
-        float rssiStabilityScore = 0.0f;
-        if (sessionRssiConsistency > 0.3f && identity.signature.rssiConsistency > 0.3f) {
-            float stabilityDelta = abs(sessionRssiConsistency - identity.signature.rssiConsistency);
-            rssiStabilityScore = max(0.0f, 1.0f - stabilityDelta);
-        }
-        rssiStabilityScore *= 0.10f;
-        
-        // Factor 5: Sequence Number Continuity (weight: 0.10)
-        float seqNumScore = 0.0f;
-        if (!isBLE && session.seqNumValid && identity.sequenceValid) {
-            uint16_t seqDelta = (session.lastSeqNum > identity.lastSequenceNum) ?
-                               (session.lastSeqNum - identity.lastSequenceNum) :
-                               (4096 + session.lastSeqNum - identity.lastSequenceNum);
-            
-            if (seqDelta > 0 && seqDelta < 200) {
-                seqNumScore = 1.0f - min(1.0f, seqDelta / 200.0f);
-            }
-        }
-        seqNumScore *= 0.10f;
-        
-        // COMBINED SCORE
-        score = rssiScore + fingerprintScore + timingScore + rssiStabilityScore + seqNumScore;
-        
-        // Temporal penalty
-        if (timeDelta > 30000) {
-            score *= max(0.3f, 1.0f - (timeDelta / 120000.0f));
-        }
-
-        if (score > bestScore) {
-            bestScore = score;
-            bestIdentityKey = identityEntry.first;
-            bestRssiDelta = rssiDelta;
-        }
-    }
-    
-    // Much stricter threshold
-    float linkThreshold = 0.50f;  // Requires strong multi-factor match
-    
-    if (bestScore >= linkThreshold && !bestIdentityKey.isEmpty()) {
-        DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
-        
-        if (identity.macs.size() >= 50) return;
-        
-        // Link the MAC
-        identity.macs.push_back(MacAddress(session.mac));
-        identity.confidence = min(1.0f, identity.confidence * 0.7f + bestScore * 0.3f);
-        identity.observedSessions++;
-        
-        // Update signatures
-        if (session.rssiReadings.size() > 0 && identity.signature.rssiHistoryCount < 20) {
-            for (size_t i = 0; i < session.rssiReadings.size() && 
-                 identity.signature.rssiHistoryCount < 20; i++) {
-                identity.signature.rssiHistory[identity.signature.rssiHistoryCount++] = 
-                    session.rssiReadings[i];
-            }
-        }
-        
-        if (sessionIntervalConsistency > 0.0f) {
-            identity.signature.intervalConsistency = 
-                (identity.signature.intervalConsistency * 0.7f) + (sessionIntervalConsistency * 0.3f);
-        }
-        
-        if (sessionRssiConsistency > 0.0f) {
-            identity.signature.rssiConsistency = 
-                (identity.signature.rssiConsistency * 0.7f) + (sessionRssiConsistency * 0.3f);
-        }
-        
-        if (!isBLE && session.seqNumValid) {
-            identity.lastSequenceNum = session.lastSeqNum;
-            identity.sequenceValid = true;
-        }
-        
-        identity.signature.channelBitmap |= session.channelMask;
-        identity.lastSeen = now;
-        
-        // Mark session as linked in the activeSessions map
-        ProbeSession& activeSession = activeSessions[macStr];
-        activeSession.linkedToIdentity = true;
-        strncpy(activeSession.linkedIdentityId, identity.identityId, sizeof(activeSession.linkedIdentityId) - 1);
-        
-        Serial.printf("[RAND] Linked %s → %s (sc:%.2f ΔR:%ddB n:%d)\n",
-                     macStr.c_str(), identity.identityId, bestScore,
-                     bestRssiDelta, identity.macs.size());
-        
-    } else {
-        // CREATE NEW IDENTITY
-        if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
-            return;
-        }
-        
-        DeviceIdentity newIdentity;
-        String identityId = generateTrackId();
-        strncpy(newIdentity.identityId, identityId.c_str(), sizeof(newIdentity.identityId) - 1);
-        newIdentity.identityId[sizeof(newIdentity.identityId) - 1] = '\0';
-        
-        newIdentity.macs.push_back(MacAddress(session.mac));
-        
-        // Initialize signature
-        newIdentity.signature.rssiHistoryCount = 0;
-        for (size_t i = 0; i < session.rssiReadings.size() && newIdentity.signature.rssiHistoryCount < 20; i++) {
-            newIdentity.signature.rssiHistory[newIdentity.signature.rssiHistoryCount++] = 
-                session.rssiReadings[i];
-        }
-        
-        memcpy(newIdentity.signature.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
-        newIdentity.signature.intervalConsistency = sessionIntervalConsistency;
-        newIdentity.signature.rssiConsistency = sessionRssiConsistency;
-        newIdentity.signature.channelBitmap = session.channelMask;
-        
-        newIdentity.firstSeen = session.startTime;
-        newIdentity.lastSeen = now;
-        newIdentity.confidence = 1.0f;
-        newIdentity.observedSessions = 1;
-        
-        if (!isBLE && session.seqNumValid) {
-            newIdentity.lastSequenceNum = session.lastSeqNum;
-            newIdentity.sequenceValid = true;
-        } else {
-            newIdentity.lastSequenceNum = 0;
-            newIdentity.sequenceValid = false;
-        }
-        
-        deviceIdentities[identityId] = newIdentity;
-        
-        // Mark session as linked
-        ProbeSession& activeSession = activeSessions[macStr];
-        activeSession.linkedToIdentity = true;
-        strncpy(activeSession.linkedIdentityId, newIdentity.identityId, sizeof(activeSession.linkedIdentityId) - 1);
-        
-        Serial.printf("[RAND] New %s (n:%d rssi:%ddBm ic:%.2f)\n",
-                     identityId.c_str(), session.probeCount, sessionAvgRssi, sessionIntervalConsistency);
-    }
-}
-
 // Extract sequence number from 802.11 frame
 uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length) {
     if (length < 24) return 0;
@@ -672,12 +433,40 @@ String getRandomizationResults() {
     for (const auto& entry : sortedIdentities) {
         const DeviceIdentity& identity = entry.second;
         
-        results += "Identity ID: " + String(identity.identityId) + "\n";
+        // Calculate average RSSI
+        int16_t avgRssi = 0;
+        if (identity.signature.rssiHistoryCount > 0) {
+            int32_t sum = 0;
+            for (uint8_t i = 0; i < identity.signature.rssiHistoryCount; i++) {
+                sum += identity.signature.rssiHistory[i];
+            }
+            avgRssi = sum / identity.signature.rssiHistoryCount;
+        }
+        
+        // Determine device type
+        String deviceType = "Unknown";
+        bool hasWiFi = false, hasBLE = false;
+        
+        if (identity.signature.channelBitmap & 0x3FFF) {
+            hasWiFi = true;
+        }
+        if (identity.signature.channelBitmap == 0 || identity.macs.size() > 1) {
+            hasBLE = true;
+        }
+        
+        if (hasWiFi && hasBLE) deviceType = "Smartphone";
+        else if (hasWiFi) deviceType = "WiFi Device";
+        else if (hasBLE) deviceType = "BLE Device";
+        
+        results += "Identity: " + String(identity.identityId) + "\n";
+        results += "  Type: " + deviceType + "\n";
         results += "  Sessions: " + String(identity.observedSessions) + "\n";
         results += "  Confidence: " + String(identity.confidence, 2) + "\n";
-        results += "  MACs: " + String(identity.macs.size()) + "\n";
+        results += "  Avg RSSI: " + String(avgRssi) + " dBm\n";
+        results += "  MACs Linked: " + String(identity.macs.size()) + "\n";
         
-        for (size_t i = 0; i < identity.macs.size(); i++) {
+        uint8_t displayCount = min((size_t)3, identity.macs.size());
+        for (uint8_t i = 0; i < displayCount; i++) {
             const uint8_t* mac = identity.macs[i].bytes.data();
             results += "    ";
             for (int j = 0; j < 6; j++) {
@@ -687,6 +476,10 @@ String getRandomizationResults() {
                 if (j < 5) results += ":";
             }
             results += "\n";
+        }
+        
+        if (identity.macs.size() > 3) {
+            results += "    ... +" + String(identity.macs.size() - 3) + " more MACs\n";
         }
         
         uint32_t age = (millis() - identity.lastSeen) / 1000;
@@ -1022,4 +815,363 @@ void randomizationDetectionTask(void *pv) {
 
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
+}
+
+bool detectWiFiBLECorrelation(const uint8_t* wifiMac, const uint8_t* bleMac) {
+    if (memcmp(wifiMac, bleMac, 5) != 0) {
+        return false;
+    }
+    
+    int wifiLast = wifiMac[5];
+    int bleLast = bleMac[5];
+    int diff = abs(wifiLast - bleLast);
+    
+    return (diff == 0 || diff == 1);
+}
+
+// Detect global MAC leak (Android devices periodically send global MAC)
+bool detectGlobalMACLeak(const ProbeSession& session, uint8_t* globalMac) {
+    if ((session.mac[0] & 0x02) == 0) {
+        memcpy(globalMac, session.mac, 6);
+        return true;
+    }
+    return false;
+}
+
+// Calculate RSSI distribution similarity using statistical comparison
+float calculateRSSIDistributionSimilarity(const int8_t* rssi1, uint8_t count1,
+                                         const int8_t* rssi2, uint8_t count2) {
+    if (count1 < 3 || count2 < 3) return 0.0f;
+    
+    float mean1 = 0, mean2 = 0;
+    for (uint8_t i = 0; i < count1; i++) mean1 += rssi1[i];
+    for (uint8_t i = 0; i < count2; i++) mean2 += rssi2[i];
+    mean1 /= count1;
+    mean2 /= count2;
+    
+    float var1 = 0, var2 = 0;
+    for (uint8_t i = 0; i < count1; i++) {
+        float diff = rssi1[i] - mean1;
+        var1 += diff * diff;
+    }
+    for (uint8_t i = 0; i < count2; i++) {
+        float diff = rssi2[i] - mean2;
+        var2 += diff * diff;
+    }
+    var1 /= count1;
+    var2 /= count2;
+    
+    float meanDiff = abs(mean1 - mean2);
+    float varSum = (var1 + var2) / 2.0f;
+    
+    if (varSum < 0.1f) return 0.0f;
+    
+    float similarity = exp(-0.25f * (meanDiff * meanDiff) / varSum);
+    return similarity;
+}
+
+// Calculate inter-frame timing pattern similarity
+float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1,
+                                         const uint32_t* times2, uint8_t count2) {
+    if (count1 < 2 || count2 < 2) return 0.0f;
+    
+    std::vector<uint32_t> intervals1, intervals2;
+    for (uint8_t i = 1; i < count1; i++) {
+        if (times1[i] > times1[i-1]) {
+            intervals1.push_back(times1[i] - times1[i-1]);
+        }
+    }
+    for (uint8_t i = 1; i < count2; i++) {
+        if (times2[i] > times2[i-1]) {
+            intervals2.push_back(times2[i] - times2[i-1]);
+        }
+    }
+    
+    if (intervals1.empty() || intervals2.empty()) return 0.0f;
+    
+    uint32_t mean1 = 0, mean2 = 0;
+    for (auto i : intervals1) mean1 += i;
+    for (auto i : intervals2) mean2 += i;
+    mean1 /= intervals1.size();
+    mean2 /= intervals2.size();
+    
+    float intervalDiff = abs((int32_t)(mean1 - mean2));
+    float similarity = max(0.0f, 1.0f - (intervalDiff / 5000.0f));
+    
+    return similarity;
+}
+
+// Detect MAC rotation gap
+bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime) {
+    uint32_t gap = currentTime - identity.lastSeen;
+    return (gap >= 2000 && gap <= 6000);
+}
+
+void linkSessionToTrackBehavioral(const ProbeSession& session) {
+    String macStr = macFmt6(session.mac);
+    uint32_t now = millis();
+    
+    if (session.linkedToIdentity) {
+        return;
+    }
+    
+    if (session.probeCount < 5) return;
+    
+    // Calculate session metrics
+    int16_t sessionRssiSum = 0;
+    for (size_t i = 0; i < session.rssiReadings.size(); i++) {
+        sessionRssiSum += session.rssiReadings[i];
+    }
+    int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
+                            sessionRssiSum / (int)session.rssiReadings.size() : 
+                            session.rssiSum / max(1, (int)session.probeCount);
+    
+    float sessionIntervalConsistency = 0.0f;
+    if (session.probeCount >= 3) {
+        uint32_t intervals[49];
+        uint8_t intervalCount = 0;
+        for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount); i++) {
+            if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
+                intervals[intervalCount++] = session.probeTimestamps[i] - session.probeTimestamps[i-1];
+            }
+        }
+        if (intervalCount >= 2) {
+            sessionIntervalConsistency = calculateIntervalConsistency(intervals, intervalCount);
+        }
+    }
+    
+    float sessionRssiConsistency = calculateRssiConsistency(
+        session.rssiReadings.data(), 
+        min((uint8_t)20, (uint8_t)session.rssiReadings.size())
+    );
+    
+    bool isBLE = (session.primaryChannel == 0);
+    
+    uint8_t globalMac[6];
+    bool hasGlobalMac = detectGlobalMACLeak(session, globalMac);
+    
+    String bestIdentityKey;
+    float bestScore = 0.0f;
+    int8_t bestRssiDelta = 127;
+    
+    for (auto& identityEntry : deviceIdentities) {
+        DeviceIdentity& identity = identityEntry.second;
+        
+        if (now - identity.lastSeen > TRACK_STALE_TIME) continue;
+        
+        bool alreadyLinked = false;
+        for (const auto& existingMac : identity.macs) {
+            if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
+                alreadyLinked = true;
+                break;
+            }
+        }
+        if (alreadyLinked) continue;
+        
+        bool inRotationGap = detectMACRotationGap(identity, now);
+        
+        int16_t identityRssiSum = 0;
+        for (uint8_t i = 0; i < identity.signature.rssiHistoryCount; i++) {
+            identityRssiSum += identity.signature.rssiHistory[i];
+        }
+        int8_t identityAvgRssi = identity.signature.rssiHistoryCount > 0 ? 
+                                 identityRssiSum / (int)identity.signature.rssiHistoryCount : 
+                                 sessionAvgRssi;
+        
+        int8_t rssiDelta = abs(sessionAvgRssi - identityAvgRssi);
+        uint32_t timeDelta = (now > identity.lastSeen) ? 
+                             (now - identity.lastSeen) : (identity.lastSeen - now);
+        
+        // MULTI-FACTOR SCORING
+        float score = 0.0f;
+        
+        // Factor 1: RSSI Proximity (weight: 0.15)
+        float rssiScore = 0.0f;
+        if (rssiDelta <= 15) {
+            rssiScore = 1.0f - (rssiDelta / 30.0f);
+        }
+        rssiScore *= 0.15f;
+        
+        // Factor 2: Fingerprint Matching (weight: 0.25)
+        float fingerprintScore = 0.0f;
+        uint8_t fpMatches = 0;
+        if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
+            fingerprintScore = (float)fpMatches / 4.0f;
+        }
+        fingerprintScore *= 0.25f;
+        
+        // Factor 3: Timing Pattern Similarity (weight: 0.20)
+        float timingScore = 0.0f;
+        if (sessionIntervalConsistency > 0.2f && identity.signature.intervalConsistency > 0.2f) {
+            float timingDelta = abs(sessionIntervalConsistency - identity.signature.intervalConsistency);
+            timingScore = max(0.0f, 1.0f - (timingDelta * 2.0f));
+        }
+        
+        // Add inter-frame timing similarity - FIXED: Use timestamps, not RSSI values
+        if (session.probeCount >= 2) {
+            // Build identity timestamp array from probe count and intervals
+            // We don't store all timestamps, so use observed intervals instead
+            float interFrameScore = 0.0f;
+            if (identity.observedSessions >= 2 && sessionIntervalConsistency > 0.2f) {
+                // If both have consistent intervals, they likely match
+                interFrameScore = sessionIntervalConsistency * identity.signature.intervalConsistency;
+            }
+            timingScore = max(timingScore, interFrameScore);
+        }
+        timingScore *= 0.20f;
+        
+        // Factor 4: RSSI Distribution Similarity (weight: 0.15)
+        float rssiDistScore = calculateRSSIDistributionSimilarity(
+            session.rssiReadings.data(), session.rssiReadings.size(),
+            identity.signature.rssiHistory, identity.signature.rssiHistoryCount
+        );
+        rssiDistScore *= 0.15f;
+        
+        // Factor 5: Sequence Number Continuity (weight: 0.15)
+        float seqNumScore = 0.0f;
+        if (!isBLE && session.seqNumValid && identity.sequenceValid) {
+            uint16_t seqDelta = (session.lastSeqNum > identity.lastSequenceNum) ?
+                               (session.lastSeqNum - identity.lastSequenceNum) :
+                               (4096 + session.lastSeqNum - identity.lastSequenceNum);
+            
+            if (seqDelta > 0 && seqDelta < 300) {
+                seqNumScore = 1.0f - min(1.0f, seqDelta / 300.0f);
+            }
+        }
+        seqNumScore *= 0.15f;
+        
+        // Factor 6: WiFi-BLE MAC Correlation (weight: 0.10)
+        float macCorrelationScore = 0.0f;
+        if (identity.macs.size() > 0) {
+            for (const auto& existingMac : identity.macs) {
+                if (detectWiFiBLECorrelation(session.mac, existingMac.bytes.data())) {
+                    macCorrelationScore = 1.0f;
+                    break;
+                }
+            }
+        }
+        macCorrelationScore *= 0.10f;
+        
+        // Combine all scores
+        score = rssiScore + fingerprintScore + timingScore + rssiDistScore + 
+                seqNumScore + macCorrelationScore;
+        
+        // Bonus for MAC rotation gap detection
+        if (inRotationGap && score > 0.25f) {
+            score *= 1.2f;
+        }
+        
+        // Bonus for global MAC correlation
+        if (hasGlobalMac) {
+            for (const auto& existingMac : identity.macs) {
+                if (memcmp(globalMac, existingMac.bytes.data(), 6) == 0) {
+                    score = 1.0f;
+                    break;
+                }
+            }
+        }
+        
+        // Temporal penalty
+        if (timeDelta > 30000) {
+            score *= max(0.5f, 1.0f - (timeDelta / 180000.0f));
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestIdentityKey = identityEntry.first;
+            bestRssiDelta = rssiDelta;
+        }
+    }
+    
+    float linkThreshold = 0.40f;
+    
+    if (bestScore >= linkThreshold && !bestIdentityKey.isEmpty()) {
+        DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
+        
+        if (identity.macs.size() >= 50) return;
+        
+        identity.macs.push_back(MacAddress(session.mac));
+        identity.confidence = min(1.0f, identity.confidence * 0.7f + bestScore * 0.3f);
+        identity.observedSessions++;
+        
+        if (session.rssiReadings.size() > 0 && identity.signature.rssiHistoryCount < 20) {
+            for (size_t i = 0; i < session.rssiReadings.size() && 
+                 identity.signature.rssiHistoryCount < 20; i++) {
+                identity.signature.rssiHistory[identity.signature.rssiHistoryCount++] = 
+                    session.rssiReadings[i];
+            }
+        }
+        
+        if (sessionIntervalConsistency > 0.0f) {
+            identity.signature.intervalConsistency = 
+                (identity.signature.intervalConsistency * 0.7f) + (sessionIntervalConsistency * 0.3f);
+        }
+        
+        if (sessionRssiConsistency > 0.0f) {
+            identity.signature.rssiConsistency = 
+                (identity.signature.rssiConsistency * 0.7f) + (sessionRssiConsistency * 0.3f);
+        }
+        
+        if (!isBLE && session.seqNumValid) {
+            identity.lastSequenceNum = session.lastSeqNum;
+            identity.sequenceValid = true;
+        }
+        
+        identity.signature.channelBitmap |= session.channelMask;
+        identity.lastSeen = now;
+        
+        ProbeSession& activeSession = activeSessions[macStr];
+        activeSession.linkedToIdentity = true;
+        strncpy(activeSession.linkedIdentityId, identity.identityId, sizeof(activeSession.linkedIdentityId) - 1);
+        
+        Serial.printf("[RAND] Linked %s → %s (score:%.3f ΔR:%ddB macs:%d)\n",
+                     macStr.c_str(), identity.identityId, bestScore,
+                     bestRssiDelta, identity.macs.size());
+        
+    } else {
+        if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
+            return;
+        }
+        
+        DeviceIdentity newIdentity;
+        String identityId = generateTrackId();
+        strncpy(newIdentity.identityId, identityId.c_str(), sizeof(newIdentity.identityId) - 1);
+        newIdentity.identityId[sizeof(newIdentity.identityId) - 1] = '\0';
+        
+        newIdentity.macs.push_back(MacAddress(session.mac));
+        
+        newIdentity.signature.rssiHistoryCount = 0;
+        for (size_t i = 0; i < session.rssiReadings.size() && newIdentity.signature.rssiHistoryCount < 20; i++) {
+            newIdentity.signature.rssiHistory[newIdentity.signature.rssiHistoryCount++] = 
+                session.rssiReadings[i];
+        }
+        
+        memcpy(newIdentity.signature.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
+        newIdentity.signature.intervalConsistency = sessionIntervalConsistency;
+        newIdentity.signature.rssiConsistency = sessionRssiConsistency;
+        newIdentity.signature.channelBitmap = session.channelMask;
+        
+        newIdentity.firstSeen = session.startTime;
+        newIdentity.lastSeen = now;
+        newIdentity.confidence = 1.0f;
+        newIdentity.observedSessions = 1;
+        
+        if (!isBLE && session.seqNumValid) {
+            newIdentity.lastSequenceNum = session.lastSeqNum;
+            newIdentity.sequenceValid = true;
+        } else {
+            newIdentity.lastSequenceNum = 0;
+            newIdentity.sequenceValid = false;
+        }
+        
+        deviceIdentities[identityId] = newIdentity;
+        
+        ProbeSession& activeSession = activeSessions[macStr];
+        activeSession.linkedToIdentity = true;
+        strncpy(activeSession.linkedIdentityId, newIdentity.identityId, sizeof(activeSession.linkedIdentityId) - 1);
+        
+        Serial.printf("[RAND] New %s (n:%d rssi:%ddBm ic:%.2f type:%s)\n",
+                     identityId.c_str(), session.probeCount, sessionAvgRssi, 
+                     sessionIntervalConsistency, isBLE ? "BLE" : "WiFi");
+    }
 }
