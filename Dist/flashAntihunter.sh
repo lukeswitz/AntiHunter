@@ -320,11 +320,59 @@ echo "==================================================="
 echo "Firmware flashing complete!"
 echo "==================================================="
 
-# Delete downloads
-if [ -z "$CUSTOM_BIN" ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
-    rm -f "$FIRMWARE_FILE"
-    [ -n "$BOOTLOADER_FILE" ] && rm -f "bootloader.bin"
-    [ -n "$PARTITIONS_FILE" ] && rm -f "partitions.bin"
+# Set RTC time via serial
+echo ""
+echo "Setting RTC time..."
+sleep 3
+
+# Try to get NTP time first
+echo "Fetching time from NTP..."
+NTP_EPOCH=$($PYTHON_CMD -c "
+import socket, struct
+try:
+  c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  c.settimeout(3)
+  c.sendto(b'\x1b' + 47 * b'\x00', ('pool.ntp.org', 123))
+  d, _ = c.recvfrom(1024)
+  t = struct.unpack('!12I', d)[10] - 2208988800
+  print(t)
+except:
+  print(0)
+" 2>/dev/null)
+
+if [ "$NTP_EPOCH" -gt 0 ] 2>/dev/null; then
+  EPOCH=$NTP_EPOCH
+  echo "✓ NTP time: $(date -u -d @$EPOCH '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null || date -r $EPOCH -u '+%Y-%m-%d %H:%M:%S UTC')"
+else
+  EPOCH=$(date +%s)
+  echo "✗ NTP failed, using system time: $(date -u -d @$EPOCH '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null || date -r $EPOCH -u '+%Y-%m-%d %H:%M:%S UTC')"
 fi
 
+# Send via serial
+$PYTHON_CMD -c "
+import serial
+import time
+try:
+  ser = serial.Serial('$ESP32_PORT', 115200, timeout=2)
+  time.sleep(1)
+  ser.write(b'SETTIME:$EPOCH\n')
+  ser.flush()
+  time.sleep(0.5)
+  if ser.in_waiting:
+    print('[RTC]', ser.readline().decode().strip())
+  else:
+    print('[RTC] Time command sent')
+  ser.close()
+except Exception as e:
+  print('[RTC] Failed:', e)
+" 2>/dev/null
+
+# Delete downloads
+if [ -z "$CUSTOM_BIN" ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
+  rm -f "$FIRMWARE_FILE"
+  [ -n "$BOOTLOADER_FILE" ] && rm -f "bootloader.bin"
+  [ -n "$PARTITIONS_FILE" ] && rm -f "partitions.bin"
+fi
+
+echo ""
 echo "Done."

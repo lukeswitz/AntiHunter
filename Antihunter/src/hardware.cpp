@@ -664,6 +664,7 @@ void initializeRTC() {
         rtcMutex = xSemaphoreCreateMutex();
         if (rtcMutex == nullptr) {
             Serial.println("[RTC] Failed to create mutex!");
+            rtcAvailable = false;
             return;
         }
     }
@@ -680,7 +681,7 @@ void initializeRTC() {
         
         if (!rtc.begin()) {
             Serial.println("[RTC] DS3231 not found at 0x68!");
-            Serial.println("[RTC] Check wiring: SDA->GPIO6, SCL->GPIO3, VCC->3.3V, GND->GND");
+            Serial.println("[RTC] Check wiring: SDA->GPIO3, SCL->GPIO6, VCC->3.3V, GND->GND");
             rtcAvailable = false;
             return;
         }
@@ -690,16 +691,23 @@ void initializeRTC() {
     }
     
     rtcAvailable = true;
+    rtcSynced = false;
+    lastRTCSync = 0;
     delay(100);
 
-    if (rtc.lostPower()) {
-        Serial.println("[RTC] RTC lost power, setting to compile time...");
+    DateTime now = rtc.now();
+    bool powerLost = rtc.lostPower();
+    bool yearInvalid = (now.year() < 2025 || now.year() > 2035);
+    
+    if (powerLost || yearInvalid) {
+        Serial.println("[RTC] Time invalid, setting to compile time");
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-        rtcSynced = false;
+        DateTime updated = rtc.now();
+        Serial.printf("[RTC] Set to: %04d-%02d-%02d %02d:%02d:%02d\n", 
+                      updated.year(), updated.month(), updated.day(),
+                      updated.hour(), updated.minute(), updated.second());
     } else {
-        DateTime now = rtc.now();
-        rtcSynced = true;
-        Serial.printf("[RTC] Current time: %04d-%02d-%02d %02d:%02d:%02d\n", 
+        Serial.printf("[RTC] Current: %04d-%02d-%02d %02d:%02d:%02d\n", 
                       now.year(), now.month(), now.day(),
                       now.hour(), now.minute(), now.second());
     }
@@ -707,10 +715,30 @@ void initializeRTC() {
     rtc.disable32K();
 }
 
+bool setRTCTimeFromEpoch(time_t epoch) {
+    if (!rtcAvailable || rtcMutex == nullptr) return false;
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
+    
+    DateTime newTime(epoch);
+    rtc.adjust(newTime);
+    rtcSynced = false;
+    lastRTCSync = 0;
+    
+    xSemaphoreGive(rtcMutex);
+    
+    Serial.printf("[TIME] Set: %04d-%02d-%02d %02d:%02d:%02d UTC\n",
+                  newTime.year(), newTime.month(), newTime.day(),
+                  newTime.hour(), newTime.minute(), newTime.second());
+    return true;
+}
+
 void syncRTCFromGPS() {
-    if (!rtcAvailable || !gpsValid) return;
+    if (!rtcAvailable) return;
+    if (!gpsValid) return;
     if (!gps.date.isValid() || !gps.time.isValid()) return;
-    if (lastRTCSync > 0 && (millis() - lastRTCSync) < 3600000) return;
+    
+    if (rtcSynced && lastRTCSync > 0 && (millis() - lastRTCSync) < 3600000) return;
+    
     if (triangulationActive) return;
     if (rtcMutex == nullptr) return;
     
@@ -744,20 +772,19 @@ void syncRTCFromGPS() {
     DateTime rtcTime = rtc.now();
     
     int timeDiff = abs((int)(gpsTime.unixtime() - rtcTime.unixtime()));
-    if (timeDiff > 2) {
+    
+    if (timeDiff > 2 || !rtcSynced) {
         rtc.adjust(gpsTime);
         rtcSynced = true;
         lastRTCSync = millis();
         
-        Serial.printf("[RTC] Synced from GPS: %04d-%02d-%02d %02d:%02d:%02d UTC\n",
-                      year, month, day, hour, minute, second);
+        Serial.printf("[RTC] GPS sync: %04d-%02d-%02d %02d:%02d:%02d UTC (offset: %ds)\n",
+                      year, month, day, hour, minute, second, timeDiff);
         
-        String syncMsg = "RTC synced from GPS: " + String(year) + "-" + 
-                        String(month) + "-" + String(day) + " " +
-                        String(hour) + ":" + String(minute) + ":" + String(second);
+        String syncMsg = "RTC synced from GPS";
         logToSD(syncMsg);
         
-        String meshMsg = getNodeId() + ": RTC_SYNC: " + syncMsg;
+        String meshMsg = getNodeId() + ": RTC_SYNC: GPS";
         sendToSerial1(meshMsg, false);
     }
     
@@ -794,11 +821,10 @@ void updateRTCTime() {
         syncRTCFromGPS();
     }
     
-    if (gpsValid && rtcSynced && (millis() - lastRTCSync) > 3600000) {
+    if (gpsValid && rtcSynced && lastRTCSync > 0 && (millis() - lastRTCSync) > 3600000) {
         syncRTCFromGPS();
     }
 }
-
 
 
 String getRTCTimeString() {
