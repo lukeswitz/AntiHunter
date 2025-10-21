@@ -52,6 +52,7 @@ String getRTCTimeString();
 String getFormattedTimestamp();
 time_t getRTCEpoch();
 bool setRTCTime(int year, int month, int day, int hour, int minute, int second);
+bool setRTCTimeFromEpoch(time_t epoch);
 
 // Sensors and GPS
 extern bool sdAvailable;

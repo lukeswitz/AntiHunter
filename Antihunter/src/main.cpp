@@ -197,6 +197,18 @@ void setup() {
 
 void loop() {
     static unsigned long lastSaveSend = 0;
+
+     // Handle serial time setting
+    if (Serial.available()) {
+        String cmd = Serial.readStringUntil('\n');
+        cmd.trim();
+        if (cmd.startsWith("SETTIME:")) {
+            time_t epoch = cmd.substring(8).toInt();
+            if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
+                Serial.println("OK: RTC set");
+            }
+        }
+    }
     
     if (millis() - lastSaveSend > 600000) {
       saveConfiguration();
