@@ -41,6 +41,7 @@ extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
+extern void randomizeMacAddress();
 
 // T114 handling
 SerialRateLimiter rateLimiter;
@@ -123,14 +124,15 @@ void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
   Serial.println("Initializing mesh UART...");
-  
-  // Serial.println("Waiting for T114 stability...");
-  // delay(15000);
-
   initializeMesh();
 
   Serial.println("Starting AP...");
   WiFi.mode(WIFI_AP);
+  delay(100);
+  
+  randomizeMacAddress();
+  delay(50);
+  
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
   delay(500);
@@ -139,7 +141,6 @@ void initializeNetwork()
   Serial.println("Starting web server...");
   startWebServer();
 }
-
 // ------------- AP HTML -------------
 
 static const char INDEX_HTML[] PROGMEM = R"HTML(
@@ -1597,6 +1598,26 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       
       req->send(200, "text/plain", "Scan stopped");
   });
+
+  server->on("/api/time", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("epoch", true)) {
+        req->send(400, "text/plain", "Missing epoch");
+        return;
+    }
+    
+    time_t epoch = req->getParam("epoch", true)->value().toInt();
+    
+    if (epoch < 1609459200 || epoch > 2147483647) {
+        req->send(400, "text/plain", "Invalid epoch");
+        return;
+    }
+    
+    if (setRTCTimeFromEpoch(epoch)) {
+        req->send(200, "text/plain", "OK");
+    } else {
+        req->send(500, "text/plain", "Failed");
+    }
+});
 
   server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
              {

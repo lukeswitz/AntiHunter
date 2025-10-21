@@ -140,16 +140,16 @@ void sendNodeIdUpdate() {
 
 void randomizeMacAddress() {
     uint8_t newMACAddress[6];
-    newMACAddress[0] = (random(0, 256) & 0xFE);
+    newMACAddress[0] = (random(0, 256) & 0xFE) | 0x02;
     for (int i = 1; i < 6; i++) {
         newMACAddress[i] = random(0, 256);
     }
     
-    esp_wifi_set_mac(WIFI_IF_AP, newMACAddress);
+    esp_err_t err = esp_wifi_set_mac(WIFI_IF_AP, newMACAddress);
     
-    Serial.printf("[MAC] Randomized MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+    Serial.printf("[MAC] Randomized MAC: %02x:%02x:%02x:%02x:%02x:%02x (status: %d)\n",
                   newMACAddress[0], newMACAddress[1], newMACAddress[2],
-                  newMACAddress[3], newMACAddress[4], newMACAddress[5]);
+                  newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
 }
 
 void setup() {
@@ -158,8 +158,6 @@ void setup() {
     delay(300);
     Serial.println("\n=== Antihunter v5 Boot ===");
     Serial.println("WiFi+BLE dual-mode scanner");
-
-    randomizeMacAddress();
 
     delay(400);
     initializeHardware();
