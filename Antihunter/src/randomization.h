@@ -120,6 +120,14 @@ float calculateRssiConsistency(const int8_t readings[], uint8_t count);
 uint32_t countChannels(uint32_t bitmap);
 void linkSessionToTrackBehavioral(const ProbeSession& session);
 
+bool detectWiFiBLECorrelation(const uint8_t* wifiMac, const uint8_t* bleMac);
+bool detectGlobalMACLeak(const ProbeSession& session, uint8_t* globalMac);
+float calculateRSSIDistributionSimilarity(const int8_t* rssi1, uint8_t count1,
+                                         const int8_t* rssi2, uint8_t count2);
+float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1,
+                                         const uint32_t* times2, uint8_t count2);
+bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime);
+
 void cleanupStaleSessions();
 void cleanupStaleTracks();
 

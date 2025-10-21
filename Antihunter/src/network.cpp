@@ -968,54 +968,54 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function showDeviceIdentities() {
-          fetch('/randomization/identities')
-            .then(r => r.json())
-            .then(identities => {
-              if (identities.length === 0) {
-                toast('No device fingerprints available', 'info');
-                return;
-              }
-              
-              const modal = document.createElement('div');
-              modal.id = 'randTracksModal';
-              modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
-              
-              let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
-              content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-              content += '<h3 style="margin:0;">GhostTrace Fingerprints (' + identities.length + ')</h3>';
-              content += '<button onclick="document.getElementById(\'randTracksModal\').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
+        fetch('/randomization/identities')
+          .then(r => r.json())
+          .then(identities => {
+            const modal = document.createElement('div');
+            modal.id = 'randTracksModal';
+            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
+            
+            let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
+            content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+            content += '<h3 style="margin:0;">GhostTrace Fingerprints (' + identities.length + ')</h3>';
+            content += '<button onclick="document.getElementById(\'randTracksModal\').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
+            content += '</div>';
+            content += '<div style="display:grid;gap:12px;">';
+            
+            identities.forEach(track => {
+              content += '<div style="background:#0a0a0a;padding:16px;border-radius:4px;border-left:3px solid #4CAF50;">';
+              content += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
+              content += '<strong style="font-size:16px;color:#4CAF50;">' + track.identityId + '</strong>';
+              content += '<div style="display:flex;gap:16px;font-size:14px;flex-wrap:wrap;">';
+              content += '<span>Sessions: <strong>' + track.sessions + '</strong></span>';
+              content += '<span>Confidence: <strong>' + (track.confidence * 100).toFixed(0) + '%</strong></span>';
               content += '</div>';
-              content += '<div style="display:grid;gap:12px;">';
+              content += '</div>';
               
-              identities.forEach(track => {
-                content += '<div style="background:#0a0a0a;padding:16px;border-radius:4px;border-left:3px solid #4CAF50;">';
-                content += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
-                content += '<strong style="font-size:16px;color:#4CAF50;">' + track.identityId + '</strong>';
-                content += '<div style="display:flex;gap:16px;font-size:14px;">';
-                content += '<span>Sessions: <strong>' + track.sessions + '</strong></span>';
-                content += '<span>Confidence: <strong>' + (track.confidence * 100).toFixed(0) + '%</strong></span>';
-                content += '</div>';
-                content += '</div>';
-                
-                content += '<details style="margin-top:12px;"><summary style="cursor:pointer;color:#4CAF50;user-select:none;padding:4px 0;">';
-                content += 'Device MACs (' + track.macs.length + ')</summary>';
-                content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
-                
-                track.macs.forEach((mac, idx) => {
-                  const isRand = (parseInt(mac.substring(0, 2), 16) & 0x02) !== 0;
-                  const badge = isRand ? 
-                    '<span style="background:#FF5722;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">RANDOMIZED</span>' : 
-                    '<span style="background:#2196F3;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">STABLE</span>';
-                  content += '<div style="padding:4px 0;font-family:monospace;font-size:13px;">';
-                  content += mac + badge;
-                  content += '</div>';
-                });
-                
-                content += '</div></details>';
+              content += '<div style="display:flex;gap:16px;font-size:13px;color:#888;margin-bottom:8px;">';
+              content += '<span>Type: <strong style="color:#4CAF50;">' + track.deviceType + '</strong></span>';
+              content += '<span>Avg RSSI: <strong style="color:#4CAF50;">' + track.avgRssi + ' dBm</strong></span>';
+              content += '</div>';
+              
+              content += '<details style="margin-top:12px;"><summary style="cursor:pointer;color:#4CAF50;user-select:none;padding:4px 0;">';
+              content += 'Device MACs (' + track.macs.length + ')</summary>';
+              content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
+              
+              track.macs.forEach((mac, idx) => {
+                const isRand = (parseInt(mac.substring(0, 2), 16) & 0x02) !== 0;
+                const badge = isRand ? 
+                  '<span style="background:#FF5722;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">RANDOMIZED</span>' : 
+                  '<span style="background:#2196F3;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">STABLE</span>';
+                content += '<div style="padding:4px 0;font-family:monospace;font-size:13px;">';
+                content += mac + badge;
                 content += '</div>';
               });
               
-              content += '</div></div>';
+              content += '</div></details>';
+              content += '</div>';
+            });
+            
+            content += '</div></div>';
             modal.innerHTML = content;
             document.body.appendChild(modal);
           })
@@ -2076,10 +2076,36 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
           first = false;
           
           const DeviceIdentity& track = entry.second;
+          
+          int16_t avgRssi = 0;
+          if (track.signature.rssiHistoryCount > 0) {
+              int32_t sum = 0;
+              for (uint8_t i = 0; i < track.signature.rssiHistoryCount; i++) {
+                  sum += track.signature.rssiHistory[i];
+              }
+              avgRssi = sum / track.signature.rssiHistoryCount;
+          }
+          
+          String deviceType = "Unknown";
+          bool hasWiFi = false, hasBLE = false;
+          
+          if (track.signature.channelBitmap & 0x3FFF) {
+              hasWiFi = true;
+          }
+          if (track.signature.channelBitmap == 0 || track.macs.size() > 1) {
+              hasBLE = true;
+          }
+          
+          if (hasWiFi && hasBLE) deviceType = "Smartphone";
+          else if (hasWiFi) deviceType = "WiFi Device";
+          else if (hasBLE) deviceType = "BLE Device";
+          
           json += "{";
           json += "\"identityId\":\"" + String(track.identityId) + "\",";
           json += "\"sessions\":" + String(track.observedSessions) + ",";
           json += "\"confidence\":" + String(track.confidence, 2) + ",";
+          json += "\"avgRssi\":" + String(avgRssi) + ",";
+          json += "\"deviceType\":\"" + deviceType + "\",";
           json += "\"macs\":[";
           
           for (size_t i = 0; i < track.macs.size(); i++) {
