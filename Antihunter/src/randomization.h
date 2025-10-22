@@ -108,16 +108,18 @@ struct DeviceIdentity {
     uint8_t knownGlobalMac[6];
 };
 
-const uint32_t SESSION_START_THRESHOLD = 5000;
-const uint32_t SESSION_END_TIMEOUT = 15000;
-const uint32_t SESSION_CLEANUP_AGE = 60000;
-const uint32_t TRACK_STALE_TIME = 180000;
+const uint32_t SESSION_START_THRESHOLD = 3000;
+const uint32_t SESSION_END_TIMEOUT = 20000;
+const uint32_t SESSION_CLEANUP_AGE = 90000;
+const uint32_t TRACK_STALE_TIME = 120000;
 const uint32_t MAX_ACTIVE_SESSIONS = 50;
 const uint32_t MAX_DEVICE_TRACKS = 30;
 const uint32_t FINGERPRINT_MATCH_THRESHOLD = 2;
-const float CONFIDENCE_THRESHOLD = 0.40f;
-const uint32_t MAC_ROTATION_GAP_MIN = 1000;
-const uint32_t MAC_ROTATION_GAP_MAX = 15000;
+const uint32_t MAC_ROTATION_GAP_MIN = 100;
+const uint32_t MAC_ROTATION_GAP_MAX = 120000;
+const float CONFIDENCE_THRESHOLD_NEW_SESSION = 0.18f;
+const float CONFIDENCE_THRESHOLD_ESTABLISHED = 0.35f;
+const uint8_t MAC_PREFIX_SIMILARITY_BYTES = 4;
 
 extern bool randomizationDetectionEnabled;
 extern std::map<String, ProbeSession> activeSessions;
