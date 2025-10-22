@@ -323,8 +323,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <h3>Detection & Analysis</h3>
             <span class="collapse-icon open" id="detectionCardIcon">▶</span>
           </div>
-          <div class="card-body" id="detectionCardBody">
-            
+          
             <form id="sniffer" method="POST" action="/sniffer">  
               <label>Method</label>
               <select name="detection" id="detectionMode">
@@ -343,7 +342,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="1">BLE Only</option>
                 </select>
               </div>
-              
               <div id="standardDurationControls" style="margin-top:10px;">
                 <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
                   <div>
@@ -420,6 +418,41 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
                 <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showDeviceIdentities()">Show Device IDs</button>
+              </div>
+              <div class="section-divider"></div>
+              <div class="card-body" id="detectionCardBody">
+                <label>RF Scan Settings</label>
+                <select id="rfPreset" onchange="updateRFPresetUI()">
+                  <option value="0">Relaxed (Stealthy)</option>
+                  <option value="1">Balanced (Default)</option>
+                  <option value="2">Aggressive (Fast)</option>
+                  <option value="3">Custom</option>
+                </select>
+                
+                <div id="customRFSettings" style="display:none;margin-top:10px;">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                    <div>
+                      <label style="font-size:10px;color:var(--muted);">WiFi Channel Time (ms)</label>
+                      <input type="number" id="wifiChannelTime" min="50" max="300" value="120" style="padding:4px;font-size:11px;">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;color:var(--muted);">WiFi Scan Interval (ms)</label>
+                      <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div>
+                      <label style="font-size:10px;color:var(--muted);">BLE Scan Duration (ms)</label>
+                      <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;color:var(--muted);">BLE Scan Interval (ms)</label>
+                      <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
+                    </div>
+                    
+                  </div>
+                </div>
+                <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
               </div>
             </form>
           </div>
@@ -589,6 +622,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const rr = await fetch('/results');
           document.getElementById('r').innerText = await rr.text();
           loadNodeId();
+          loadRFConfig();
         } catch (e) {}
       }
       async function loadNodeId() {
@@ -614,6 +648,47 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             body.style.maxHeight = '0';
           }, 10);
           icon.classList.remove('open');
+        }
+      }
+
+      async function loadRFConfig() {
+        try {
+          const r = await fetch('/rf-config');
+          const cfg = await r.json();
+          document.getElementById('rfPreset').value = cfg.preset;
+          document.getElementById('wifiChannelTime').value = cfg.wifiChannelTime;
+          document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
+          document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
+          document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
+          updateRFPresetUI();
+        } catch(e) {}
+      }
+
+      function updateRFPresetUI() {
+        const preset = document.getElementById('rfPreset').value;
+        const customDiv = document.getElementById('customRFSettings');
+        customDiv.style.display = (preset === '3') ? 'block' : 'none';
+      }
+
+      async function saveRFConfig() {
+        const preset = document.getElementById('rfPreset').value;
+        const fd = new FormData();
+        
+        if (preset === '3') {
+          fd.append('wifiChannelTime', document.getElementById('wifiChannelTime').value);
+          fd.append('wifiScanInterval', document.getElementById('wifiScanInterval').value);
+          fd.append('bleScanInterval', document.getElementById('bleScanInterval').value);
+          fd.append('bleScanDuration', document.getElementById('bleScanDuration').value);
+        } else {
+          fd.append('preset', preset);
+        }
+        
+        try {
+          const r = await fetch('/rf-config', {method: 'POST', body: fd});
+          const msg = await r.text();
+          toast(msg);
+        } catch(e) {
+          toast('Error: ' + e.message);
         }
       }
       
@@ -2197,6 +2272,38 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       
       calibratePathLoss(targetMac, distance);
       req->send(200, "text/plain", "Path loss calibration started for " + targetMac + " at " + String(distance) + "m");
+  });
+
+  server->on("/rf-config", HTTP_GET, [](AsyncWebServerRequest *req) {
+      RFScanConfig cfg = getRFConfig();
+      String json = "{";
+      json += "\"preset\":" + String(cfg.preset) + ",";
+      json += "\"wifiChannelTime\":" + String(cfg.wifiChannelTime) + ",";
+      json += "\"wifiScanInterval\":" + String(cfg.wifiScanInterval) + ",";
+      json += "\"bleScanInterval\":" + String(cfg.bleScanInterval) + ",";
+      json += "\"bleScanDuration\":" + String(cfg.bleScanDuration);
+      json += "}";
+      req->send(200, "application/json", json);
+  });
+
+  server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (req->hasParam("preset", true)) {
+          uint8_t preset = req->getParam("preset", true)->value().toInt();
+          setRFPreset(preset);
+          saveConfiguration();
+          req->send(200, "text/plain", "RF preset updated");
+      } else if (req->hasParam("wifiChannelTime", true) && req->hasParam("wifiScanInterval", true) &&
+                req->hasParam("bleScanInterval", true) && req->hasParam("bleScanDuration", true)) {
+          uint32_t wct = req->getParam("wifiChannelTime", true)->value().toInt();
+          uint32_t wsi = req->getParam("wifiScanInterval", true)->value().toInt();
+          uint32_t bsi = req->getParam("bleScanInterval", true)->value().toInt();
+          uint32_t bsd = req->getParam("bleScanDuration", true)->value().toInt();
+          setCustomRFConfig(wct, wsi, bsi, bsd);
+          saveConfiguration();
+          req->send(200, "text/plain", "Custom RF config updated");
+      } else {
+          req->send(400, "text/plain", "Missing parameters");
+      }
   });
 
   server->begin();

@@ -72,6 +72,7 @@ void initializeHardware()
 {
     Serial.println("Loading preferences...");
     prefs.begin("antihunter", false);
+    loadRFConfigFromPrefs();
 
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
@@ -112,18 +113,23 @@ void saveConfiguration() {
     }
 
     String config = "{\n";
-    config += "  \"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
-    config += "  \"scanMode\":" + String(currentScanMode) + ",\n";
-    config += "  \"channels\":\"" + channelsCSV + "\",\n";
-    config += "  \"autoEraseEnabled\":" + String(autoEraseEnabled ? "true" : "false") + ",\n";
-    config += "  \"autoEraseDelay\":" + String(autoEraseDelay) + ",\n";
-    config += "  \"autoEraseCooldown\":" + String(autoEraseCooldown) + ",\n";
-    config += "  \"vibrationsRequired\":" + String(vibrationsRequired) + ",\n";
-    config += "  \"detectionWindow\":" + String(detectionWindow) + ",\n";
-    config += "  \"setupDelay\":" + String(setupDelay) + ",\n";
-    config += "  \"baselineRamSize\":" + String(getBaselineRamCacheSize()) + ",\n";
-    config += "  \"baselineSdMax\":" + String(getBaselineSdMaxDevices()) + ",\n";
-    config += "  \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
+    config += " \"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
+    config += " \"scanMode\":" + String(currentScanMode) + ",\n";
+    config += " \"channels\":\"" + channelsCSV + "\",\n";
+    config += " \"autoEraseEnabled\":" + String(autoEraseEnabled ? "true" : "false") + ",\n";
+    config += " \"autoEraseDelay\":" + String(autoEraseDelay) + ",\n";
+    config += " \"autoEraseCooldown\":" + String(autoEraseCooldown) + ",\n";
+    config += " \"vibrationsRequired\":" + String(vibrationsRequired) + ",\n";
+    config += " \"detectionWindow\":" + String(detectionWindow) + ",\n";
+    config += " \"setupDelay\":" + String(setupDelay) + ",\n";
+    config += " \"baselineRamSize\":" + String(getBaselineRamCacheSize()) + ",\n";
+    config += " \"baselineSdMax\":" + String(getBaselineSdMaxDevices()) + ",\n";
+    config += " \"rfPreset\":" + String(rfConfig.preset) + ",\n";
+    config += " \"wifiChannelTime\":" + String(rfConfig.wifiChannelTime) + ",\n";
+    config += " \"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",\n";
+    config += " \"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",\n";
+    config += " \"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",\n";
+    config += " \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
     config += "}";
 
     configFile.print(config);
@@ -177,6 +183,20 @@ void loadConfiguration() {
             currentScanMode = (ScanMode)scanMode;
             prefs.putInt("scanMode", scanMode);
             // Serial.println("Loaded scanMode from SD: " + String(scanMode));
+        }
+    }
+
+    if (doc.containsKey("rfPreset")) {
+        uint8_t preset = doc["rfPreset"].as<uint8_t>();
+        if (preset < 3) {
+            setRFPreset(preset);
+        } else if (doc.containsKey("wifiChannelTime") && doc.containsKey("wifiScanInterval") && 
+                doc.containsKey("bleScanInterval") && doc.containsKey("bleScanDuration")) {
+            uint32_t wct = doc["wifiChannelTime"].as<uint32_t>();
+            uint32_t wsi = doc["wifiScanInterval"].as<uint32_t>();
+            uint32_t bsi = doc["bleScanInterval"].as<uint32_t>();
+            uint32_t bsd = doc["bleScanDuration"].as<uint32_t>();
+            setCustomRFConfig(wct, wsi, bsi, bsd);
         }
     }
 
