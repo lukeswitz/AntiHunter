@@ -401,7 +401,10 @@ void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
                         const uint8_t *payload, uint16_t length) {
     if (!randomizationDetectionEnabled || !probeRequestQueue) return;
     
-    if (!isRandomizedMAC(mac)) {
+    bool isRand = isRandomizedMAC(mac);
+    bool isGlobal = isGlobalMAC(mac);
+    
+    if (!isRand && !isGlobal) {
         return;
     }
     
@@ -439,6 +442,16 @@ bool detectSequenceNumberAnomaly(const ProbeSession& session, const DeviceIdenti
                              (4096 + session.lastSeqNum - identity.lastSequenceNum);
     
     return (expectedDelta > 300 || expectedDelta == 0);
+}
+
+uint8_t calculateMACPrefixSimilarity(const uint8_t* mac1, const uint8_t* mac2) {
+    uint8_t matches = 0;
+    for (uint8_t i = 0; i < 4; i++) {
+        if (mac1[i] == mac2[i]) {
+            matches++;
+        }
+    }
+    return matches;
 }
 
 void linkSessionToTrackBehavioral(ProbeSession& session) {
@@ -525,26 +538,33 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         float score = 0.0f;
         
         float rssiScore = 0.0f;
-        if (rssiDelta <= 15) {
-            rssiScore = 1.0f - (rssiDelta / 30.0f);
+        if (rssiDelta <= 25) {
+            rssiScore = 1.0f - (rssiDelta / 50.0f);
         }
         rssiScore *= 0.12f;
+        
+        float macPrefixScore = 0.0f;
+        uint8_t prefixMatches = calculateMACPrefixSimilarity(session.mac, identity.macs[0].bytes.data());
+        if (prefixMatches >= 3) {
+            macPrefixScore = (float)prefixMatches / 4.0f;
+        }
+        macPrefixScore *= 0.35f;
         
         float fingerprintScore = 0.0f;
         uint8_t fpMatches = 0;
         if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
             fingerprintScore = (float)fpMatches / 4.0f;
         }
-        fingerprintScore *= 0.20f;
+        fingerprintScore *= 0.15f;
         
         float ieOrderScore = 0.0f;
         if (matchIEOrder(session.ieOrder, identity.signature.ieOrder)) {
             ieOrderScore = 1.0f;
         }
-        ieOrderScore *= 0.18f;
+        ieOrderScore *= 0.12f;
         
         float timingScore = 0.0f;
-        if (sessionIntervalConsistency > 0.2f && identity.signature.intervalConsistency > 0.2f) {
+        if (sessionIntervalConsistency > 0.1f && identity.signature.intervalConsistency > 0.1f) {
             float timingDelta = abs(sessionIntervalConsistency - identity.signature.intervalConsistency);
             timingScore = max(0.0f, 1.0f - (timingDelta * 2.0f));
         }
@@ -556,13 +576,13 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             );
             timingScore = max(timingScore, interFrameScore);
         }
-        timingScore *= 0.15f;
+        timingScore *= 0.08f;
         
         float rssiDistScore = calculateRSSIDistributionSimilarity(
             session.rssiReadings.data(), session.rssiReadings.size(),
             identity.signature.rssiHistory, identity.signature.rssiHistoryCount
         );
-        rssiDistScore *= 0.12f;
+        rssiDistScore *= 0.08f;
         
         float seqNumScore = 0.0f;
         if (!isBLE && session.seqNumValid && identity.sequenceValid) {
@@ -574,15 +594,15 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 seqNumScore = 1.0f - (seqDelta / 100.0f);
             }
         }
-        seqNumScore *= 0.08f;
+        seqNumScore *= 0.05f;
         
         float rotationGapScore = 0.0f;
         if (inRotationGap) {
             rotationGapScore = 1.0f;
         } else if (timeDelta < MAC_ROTATION_GAP_MIN) {
-            rotationGapScore = 0.3f;
+            rotationGapScore = 0.5f;
         }
-        rotationGapScore *= 0.10f;
+        rotationGapScore *= 0.03f;
         
         float globalMacScore = 0.0f;
         if (hasGlobalMac && identity.hasKnownGlobalMac) {
@@ -590,14 +610,14 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 globalMacScore = 1.0f;
             }
         }
-        globalMacScore *= 0.05f;
+        globalMacScore *= 0.02f;
         
-        score = rssiScore + fingerprintScore + ieOrderScore + timingScore + 
+        score = rssiScore + macPrefixScore + fingerprintScore + ieOrderScore + timingScore + 
                 rssiDistScore + seqNumScore + rotationGapScore + globalMacScore;
         
         if (score > 0.1f) {
-            Serial.printf("[RAND]   vs %s: %.3f (r:%.2f fp:%.2f ie:%.2f t:%.2f rd:%.2f s:%.2f g:%.2f rg:%.2f) dR:%d dt:%u\n",
-                         identity.identityId, score, rssiScore, fingerprintScore, ieOrderScore,
+            Serial.printf("[RAND]   vs %s: %.3f (r:%.2f mp:%.2f fp:%.2f ie:%.2f t:%.2f rd:%.2f s:%.2f g:%.2f rg:%.2f) dR:%d dt:%u\n",
+                         identity.identityId, score, rssiScore, macPrefixScore, fingerprintScore, ieOrderScore,
                          timingScore, rssiDistScore, seqNumScore, globalMacScore, rotationGapScore,
                          rssiDelta, timeDelta);
         }
@@ -609,7 +629,10 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         }
     }
     
-    if (bestScore >= CONFIDENCE_THRESHOLD && !bestIdentityKey.isEmpty()) {
+    float confidenceThreshold = (deviceIdentities.empty() || session.probeCount < 8) ? 
+                                CONFIDENCE_THRESHOLD_NEW_SESSION : CONFIDENCE_THRESHOLD_ESTABLISHED;
+    
+    if (bestScore >= confidenceThreshold && !bestIdentityKey.isEmpty()) {
         DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
         
         if (identity.macs.size() >= 50) return;
@@ -675,8 +698,11 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         String identityId = generateTrackId();
         strncpy(newIdentity.identityId, identityId.c_str(), sizeof(newIdentity.identityId) - 1);
         newIdentity.identityId[sizeof(newIdentity.identityId) - 1] = '\0';
-        
+
         newIdentity.macs.push_back(MacAddress(session.mac));
+
+        memcpy(newIdentity.knownGlobalMac, session.mac, 6);
+        newIdentity.hasKnownGlobalMac = true;
         
         newIdentity.signature.rssiHistoryCount = 0;
         for (size_t i = 0; i < session.rssiReadings.size() && newIdentity.signature.rssiHistoryCount < 20; i++) {
@@ -695,38 +721,35 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         
         memcpy(newIdentity.signature.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
         newIdentity.signature.ieOrder = session.ieOrder;
+        
         newIdentity.signature.intervalConsistency = sessionIntervalConsistency;
         newIdentity.signature.rssiConsistency = sessionRssiConsistency;
         newIdentity.signature.channelBitmap = session.channelMask;
         
-        newIdentity.firstSeen = session.startTime;
-        newIdentity.lastSeen = now;
-        newIdentity.confidence = 1.0f;
-        newIdentity.observedSessions = 1;
-        
         if (!isBLE && session.seqNumValid) {
             newIdentity.lastSequenceNum = session.lastSeqNum;
             newIdentity.sequenceValid = true;
-        } else {
-            newIdentity.lastSequenceNum = 0;
-            newIdentity.sequenceValid = false;
         }
         
         if (hasGlobalMac) {
             memcpy(newIdentity.knownGlobalMac, globalMac, 6);
             newIdentity.hasKnownGlobalMac = true;
-        } else {
-            newIdentity.hasKnownGlobalMac = false;
         }
         
-        deviceIdentities[identityId] = newIdentity;
+        newIdentity.firstSeen = now;
+        newIdentity.lastSeen = now;
+        newIdentity.confidence = 0.5f;
+        newIdentity.sessionCount = 1;
+        newIdentity.observedSessions = 1;
+        
+        deviceIdentities[macStr] = newIdentity;
         
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, newIdentity.identityId, sizeof(session.linkedIdentityId) - 1);
         
         Serial.printf("[RAND] New %s from %s (n:%d rssi:%d ic:%.2f type:%s)\n",
-                     identityId.c_str(), macStr.c_str(), session.probeCount, sessionAvgRssi, 
-                     sessionIntervalConsistency, isBLE ? "BLE" : "WiFi");
+                     newIdentity.identityId, macStr.c_str(), session.probeCount, 
+                     sessionAvgRssi, sessionIntervalConsistency, isBLE ? "BLE" : "WiFi");
     }
 }
 
@@ -818,12 +841,18 @@ void randomizationDetectionTask(void *pv) {
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
     
-    if (!probeRequestQueue) {
-        probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
+    if (probeRequestQueue) {
+        vQueueDelete(probeRequestQueue);
+        probeRequestQueue = nullptr;
     }
     
-    randomizationDetectionEnabled = true;
-    scanning = true;
+    probeRequestQueue = xQueueCreate(512, sizeof(ProbeRequestEvent));
+    if (!probeRequestQueue) {
+        Serial.println("[RAND] FATAL: Failed to create queue");
+        workerTaskHandle = nullptr;
+        vTaskDelete(nullptr);
+        return;
+    }
     
     {
         std::lock_guard<std::mutex> lock(randMutex);
@@ -857,6 +886,9 @@ void randomizationDetectionTask(void *pv) {
                      activeSessions.size(), deviceIdentities.size());
     }
     
+    randomizationDetectionEnabled = true;
+    scanning = true;
+    
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -877,6 +909,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
     uint32_t nextCleanup = startTime + 30000;
+    uint32_t nextResultsUpdate = startTime + 2000;
     uint32_t lastBLEScan = 0;
     const uint32_t BLE_SCAN_INTERVAL = 3000;
     
@@ -910,8 +943,8 @@ void randomizationDetectionTask(void *pv) {
                     session.rssiMin = event.rssi;
                     session.rssiMax = event.rssi;
                     session.probeCount = 1;
-                    session.primaryChannel = event.channel;
-                    session.channelMask = (1 << event.channel);
+                    session.primaryChannel = 0;
+                    session.channelMask = 0;
                     session.rssiReadings.push_back(event.rssi);
                     session.probeTimestamps[0] = now;
                     session.linkedToIdentity = false;
@@ -936,6 +969,7 @@ void randomizationDetectionTask(void *pv) {
                     }
                     
                     activeSessions[macStr] = session;
+                    Serial.printf("[RAND] WiFi session %s rssi:%d\n", macStr.c_str(), event.rssi);
                     
                 } else {
                     ProbeSession& session = activeSessions[macStr];
@@ -970,14 +1004,11 @@ void randomizationDetectionTask(void *pv) {
                     session.rssiMin = min(session.rssiMin, event.rssi);
                     session.rssiMax = max(session.rssiMax, event.rssi);
                     session.probeCount++;
-                    session.channelMask |= (1 << event.channel);
-                    
+
                     if (session.rssiReadings.size() < 20) {
                         session.rssiReadings.push_back(event.rssi);
                     }
 
-                    // Serial.printf("[RAND] WiFi update %s rssi:%d ch:%d count:%d\n", macStr.c_str(), event.rssi, event.channel, session.probeCount);
-                    
                     if (session.probeCount >= 8 && (now - session.startTime) >= 5000 && !session.linkedToIdentity) {
                         linkSessionToTrackBehavioral(session);
                     }
@@ -1058,8 +1089,6 @@ void randomizationDetectionTask(void *pv) {
                         if (session.rssiReadings.size() < 20) {
                             session.rssiReadings.push_back(rssi);
                         }
-                        
-                        // Serial.printf("[RAND] BLE update %s rssi:%d count:%d\n", macStr.c_str(), rssi, session.probeCount);
 
                         if (session.probeCount >= 10 && (now - session.startTime) >= 8000 && !session.linkedToIdentity) {
                             linkSessionToTrackBehavioral(session);
@@ -1071,21 +1100,25 @@ void randomizationDetectionTask(void *pv) {
             }
         }
         
-        if ((int32_t)(millis() - nextCleanup) >= 0) {
-            std::lock_guard<std::mutex> lock(randMutex);
-            cleanupStaleSessions();
-            cleanupStaleTracks();
-            nextCleanup += 30000;
-        }
-        
         if ((int32_t)(millis() - nextStatus) >= 0) {
             std::lock_guard<std::mutex> lock(randMutex);
-            Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%u\n",
+            Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu\n",
                          activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap());
             nextStatus += 5000;
         }
         
-        vTaskDelay(pdMS_TO_TICKS(50));
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = getRandomizationResults().c_str();
+            nextResultsUpdate += 2000;
+        }
+        
+        if ((int32_t)(millis() - nextCleanup) >= 0) {
+            cleanupStaleSessions();
+            nextCleanup += 30000;
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     
     randomizationDetectionEnabled = false;
@@ -1094,19 +1127,22 @@ void randomizationDetectionTask(void *pv) {
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
         radioStopBLE();
     }
-    
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStopSTA();
     }
-    
-    radioStopSTA();
     delay(100);
-
+    
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = getRandomizationResults().c_str();
+    }
+    
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
     }
-
+    
+    Serial.println("[RAND] Detection complete, results stored");
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

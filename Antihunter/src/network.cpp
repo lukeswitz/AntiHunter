@@ -977,7 +977,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
             content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-            content += '<h3 style="margin:0;">GhostTrace Fingerprints (' + identities.length + ')</h3>';
+            content += '<h3 style="margin:0;">Ghost Traces: (' + identities.length + ')</h3>';
             content += '<button onclick="document.getElementById(\'randTracksModal\').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
             content += '</div>';
             content += '<div style="display:grid;gap:12px;">';

@@ -747,6 +747,92 @@ String getSnifferCache()
     return result;
 }
 
+std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount, 
+                                uint32_t disassocCount, const std::vector<DeauthHit>& deauthLog) {
+    std::map<String, DeauthStats> statsMap;
+    
+    for (const auto& h : deauthLog) {
+        String dstMac = macFmt6(h.destMac);
+        if (dstMac == "FF:FF:FF:FF:FF:FF") dstMac = "[BROADCAST]";
+        
+        if (statsMap.find(dstMac) == statsMap.end()) {
+            DeauthStats stats;
+            stats.srcMac = dstMac;
+            stats.count = 0;
+            stats.broadcastCount = 0;
+            stats.targetedCount = 0;
+            stats.lastRssi = -128;
+            stats.channel = h.channel;
+            statsMap[dstMac] = stats;
+        }
+        
+        statsMap[dstMac].count++;
+        if (h.isBroadcast) {
+            statsMap[dstMac].broadcastCount++;
+        } else {
+            statsMap[dstMac].targetedCount++;
+        }
+        statsMap[dstMac].lastRssi = h.rssi;
+    }
+    
+    std::string results = "Deauth Attack Detection Results\n";
+    results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
+    results += "Deauth frames: " + std::to_string(deauthCount) + "\n";
+    results += "Disassoc frames: " + std::to_string(disassocCount) + "\n";
+    results += "Total attacks: " + std::to_string(deauthLog.size()) + "\n";
+    results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n\n";
+    
+    if (statsMap.empty()) {
+        results += "No attacks detected.\n";
+    } else {
+        results += "Attack Targets:\n";
+        results += "===============\n\n";
+        
+        std::vector<std::pair<String, DeauthStats>> sorted(statsMap.begin(), statsMap.end());
+        std::sort(sorted.begin(), sorted.end(),
+            [](const auto& a, const auto& b) { return a.second.count > b.second.count; });
+        
+        for (size_t i = 0; i < sorted.size() && i < 100; i++) {
+            const auto& entry = sorted[i];
+            const auto& stats = entry.second;
+            
+            results += std::string(entry.first.c_str());
+            results += " Total=" + std::to_string(stats.count);
+            results += " Broadcast=" + std::to_string(stats.broadcastCount);
+            results += " Targeted=" + std::to_string(stats.targetedCount);
+            results += " LastRSSI=" + std::to_string(stats.lastRssi) + "dBm CH=" + std::to_string(stats.channel) + "\n";
+            
+            int sourcesShown = 0;
+            std::map<String, int> sourceCounts;
+            for (const auto& h : deauthLog) {
+                String dst = macFmt6(h.destMac);
+                if (dst == "FF:FF:FF:FF:FF:FF") dst = "[BROADCAST]";
+                if (dst == entry.first) {
+                    String src = macFmt6(h.srcMac);
+                    sourceCounts[src]++;
+                }
+            }
+            
+            for (const auto& source : sourceCounts) {
+                if (sourcesShown++ >= 5) {
+                    if (sourceCounts.size() > 5) {
+                        results += "    ... (" + std::to_string(sourceCounts.size() - 5) + " more attackers)\n";
+                    }
+                    break;
+                }
+                results += "    ← " + std::string(source.first.c_str()) + " (" + std::to_string(source.second) + "x)\n";
+            }
+            results += "\n";
+        }
+        
+        if (sorted.size() > 100) {
+            results += "... (" + std::to_string(sorted.size() - 100) + " more targets)\n";
+        }
+    }
+    
+    return results;
+}
+
 void blueTeamTask(void *pv) {
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
@@ -771,9 +857,15 @@ void blueTeamTask(void *pv) {
     
     deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
     
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
+    
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
+    uint32_t lastResultsUpdate = millis() + 2000;
     DeauthHit hit;
 
     radioStartSTA();
@@ -783,41 +875,49 @@ void blueTeamTask(void *pv) {
     while ((forever && !stopRequested) || 
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
         
-            int processed = 0;
+        int processed = 0;
         
-            while (processed++ < BATCH_LIMIT && xQueueReceive(deauthQueue, &hit, 0) == pdTRUE) {
-                
-
-                if (deauthLog.size() < 1000) {
-                    deauthLog.push_back(hit);
-                }
-                
-                String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
-                if (hit.isBroadcast) {
-                    alert += " [BROADCAST]";  // Deauth flood
-                } else {
-                    alert += " [TARGETED]";   // Targeted attack
-                }
-                alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
-                alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
-                alert += " Reason:" + String(hit.reasonCode);
-
-                Serial.println("[ALERT] " + alert);
-                logToSD(alert);
-
-                if (meshEnabled) {
-                    String meshAlert = getNodeId() + ": ATTACK: " + alert;
-                    if (gpsValid) {
-                        meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-                    }
-                    sendToSerial1(meshAlert, false);
-                }
+        while (processed++ < BATCH_LIMIT && xQueueReceive(deauthQueue, &hit, 0) == pdTRUE) {
+            if (deauthLog.size() < 2000) {
+                deauthLog.push_back(hit);
             }
+            
+            String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
+            if (hit.isBroadcast) {
+                alert += " [BROADCAST]";
+            } else {
+                alert += " [TARGETED]";
+            }
+            alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
+            alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
+
+            Serial.println("[ALERT] " + alert);
+            logToSD(alert);
+
+            if (meshEnabled) {
+                String meshAlert = getNodeId() + ": ATTACK: " + alert;
+                if (gpsValid) {
+                    meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                }
+                sendToSerial1(meshAlert, false);
+            }
+        }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n", 
                          deauthCount, disassocCount, (unsigned)deauthLog.size());
             nextStatus += 5000;
+        }
+        
+        if ((int32_t)(millis() - lastResultsUpdate) >= 0) {
+            std::string results = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
+            
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = results;
+            }
+            
+            lastResultsUpdate = millis() + 2000;
         }
         
         if (millis() - lastCleanup > 60000) {
@@ -835,65 +935,17 @@ void blueTeamTask(void *pv) {
             }
             lastCleanup = millis();
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     deauthDetectionEnabled = false;
     scanning = false;
     radioStopSTA();
-    scanning = false;
     lastScanEnd = millis();
 
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        
-        std::string results = "Deauth Attack Detection Results\n";
-        results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
-        results += "Deauth frames detected: " + std::to_string(deauthCount) + "\n";
-        results += "Disassoc frames detected: " + std::to_string(disassocCount) + "\n";
-        results += "Total attacks logged: " + std::to_string(deauthLog.size()) + "\n\n";
-        
-        if (deauthLog.empty()) {
-            results += "No attacks detected during scan.\n";
-        } else {
-            results += "Attack Details:\n";
-            results += "===============\n\n";
-            
-            int show = min((int)deauthLog.size(), 100);
-            for (int i = 0; i < show; i++) {
-                const auto &h = deauthLog[i];
-                
-                results += std::string(h.isDisassoc ? "DISASSOCIATION" : "DEAUTHENTICATION");
-                
-                if (h.isBroadcast) {
-                    results += " [BROADCAST ATTACK]";
-                } else {
-                    results += " [TARGETED]";
-                }
-                results += "\n";
-                
-                results += "  From: " + std::string(macFmt6(h.srcMac).c_str()) + "\n";
-                results += "  To: " + std::string(macFmt6(h.destMac).c_str()) + "\n";
-                results += "  Network: " + std::string(macFmt6(h.bssid).c_str()) + "\n";
-                results += "  Signal: " + std::to_string(h.rssi) + " dBm\n";
-                results += "  Channel: " + std::to_string(h.channel) + "\n";
-                results += "  Reason: " + std::string(getDeauthReasonText(h.reasonCode).c_str()) + "\n";
-                
-                uint32_t age = (millis() - h.timestamp) / 1000;
-                if (age < 60) {
-                    results += "  Time: " + std::to_string(age) + " seconds ago\n";
-                } else {
-                    results += "  Time: " + std::to_string(age / 60) + " minutes ago\n";
-                }
-                results += "\n";
-            }
-
-            if ((int)deauthLog.size() > show) {
-                results += "... (" + std::to_string((int)deauthLog.size() - show) + " more attacks not shown)\n";
-            }
-        }
-        
-        antihunter::lastResults = results;
+        antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
     }
 
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -901,34 +953,56 @@ void blueTeamTask(void *pv) {
     vTaskDelete(nullptr);
 }
 
+static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length) {
+    if (length < 24) return 0;
+    
+    const uint8_t *ie = payload + 24;
+    uint16_t ieLen = length - 24;
+    uint16_t offset = 0;
+    
+    while (offset + 2 <= ieLen) {
+        uint8_t tag = ie[offset];
+        uint8_t len = ie[offset + 1];
+        
+        if (offset + 2 + len > ieLen) break;
+        
+        if (tag == 3 && len == 1) {
+            return ie[offset + 2];
+        }
+        
+        offset += 2 + len;
+    }
+    
+    return 0;
+}
+
 static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
-
     if (!buf) return;
     
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
-    // Drones
     if (droneDetectionEnabled) {
         processDronePacket(ppkt->payload, ppkt->rx_ctrl.sig_len, ppkt->rx_ctrl.rssi);
     }
 
-    // Randomizing MACs
     if (randomizationDetectionEnabled && ppkt->rx_ctrl.sig_len >= 24) {
         const uint8_t *payload = ppkt->payload;
         uint16_t fc = (uint16_t)payload[0] | ((uint16_t)payload[1] << 8);
         uint8_t ftype = (fc >> 2) & 0x3;
         uint8_t stype = (fc >> 4) & 0xF;
         
-        // Probe request: type=0 (management), subtype=4 and beacon=8
         if (ftype == 0 && (stype == 4 || stype == 8)) {
-            const uint8_t *sa = payload + 10; // Source address
-            processProbeRequest(sa, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel,
+            const uint8_t *sa = payload + 10;
+            uint8_t actualChannel = extractChannelFromIE(payload, ppkt->rx_ctrl.sig_len);
+            if (actualChannel == 0) {
+                actualChannel = ppkt->rx_ctrl.channel;
+            }
+            processProbeRequest(sa, ppkt->rx_ctrl.rssi, actualChannel,
                               payload, ppkt->rx_ctrl.sig_len);
         }
     }
 
-    // Deauths
     detectDeauthFrame(ppkt);
     framesSeen = framesSeen + 1;
     if (!ppkt || ppkt->rx_ctrl.sig_len < 24)
@@ -1017,7 +1091,6 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-    // Check c1 candidate against target
     bool c1Match = false;
     if (c1) {
         if (triangulationActive) {
@@ -1045,7 +1118,6 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         }
     }
     
-    // Check c2 candidate against target
     bool c2Match = false;
     if (c2) {
         if (triangulationActive) {

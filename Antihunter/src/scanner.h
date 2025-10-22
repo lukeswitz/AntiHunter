@@ -16,6 +16,15 @@ struct Hit {
    bool isBLE;
 };
 
+struct DeauthStats {
+    String srcMac;
+    uint32_t count;
+    uint32_t broadcastCount;
+    uint32_t targetedCount;
+    int8_t lastRssi;
+    uint8_t channel;
+};
+
 struct Target {
     uint8_t bytes[6];
     uint8_t len;
