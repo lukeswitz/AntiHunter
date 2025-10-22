@@ -1022,7 +1022,23 @@ void blueTeamTask(void *pv) {
 
     deauthDetectionEnabled = false;
     scanning = false;
+
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    if (deauthQueue) {
+        DeauthHit dummy;
+        while (xQueueReceive(deauthQueue, &dummy, 0) == pdTRUE) {
+        }
+        vQueueDelete(deauthQueue);
+        deauthQueue = nullptr;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+
     radioStopSTA();
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+
     lastScanEnd = millis();
 
     {
@@ -1030,7 +1046,8 @@ void blueTeamTask(void *pv) {
         antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
     }
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    Serial.println("[BLUE] Deauth detection stopped cleanly");
+
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
