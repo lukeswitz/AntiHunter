@@ -460,7 +460,7 @@ void baselineDetectionTask(void *pv) {
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
             //scanNetworks(bool async, bool show_hidden, bool passive, uint32_t max_ms_per_chan, uint8_t channel)
-            int networksFound = WiFi.scanNetworks(false,true,false,110);
+            int networksFound = WiFi.scanNetworks(false,true,false,rfConfig.wifiChannelTime);
             
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
@@ -580,7 +580,7 @@ void baselineDetectionTask(void *pv) {
         // WiFi scanning
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, 120);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
 
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {

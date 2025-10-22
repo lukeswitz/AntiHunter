@@ -29,6 +29,7 @@ void radioStartSTA();
 void radioStopSTA();
 
 // Scanner state variables
+extern Preferences prefs;
 static std::vector<Target> targets;
 QueueHandle_t macQueue = nullptr;
 std::set<String> uniqueMacs;
@@ -65,6 +66,87 @@ uint32_t reappearanceAlertWindow = 300000;
 int8_t significantRssiChange = 20;
 
 std::vector<Allowlist> allowlist;
+
+// Scan config
+RFScanConfig rfConfig = {
+    .wifiChannelTime = 120,
+    .wifiScanInterval = 4000,
+    .bleScanInterval = 2000,
+    .bleScanDuration = 2000,
+    .preset = 1
+};
+
+void setRFPreset(uint8_t preset) {
+    switch(preset) {
+        case 0:
+            rfConfig.wifiChannelTime = 200;
+            rfConfig.wifiScanInterval = 8000;
+            rfConfig.bleScanInterval = 4000;
+            rfConfig.bleScanDuration = 3000;
+            break;
+        case 1:
+            rfConfig.wifiChannelTime = 120;
+            rfConfig.wifiScanInterval = 4000;
+            rfConfig.bleScanInterval = 2000;
+            rfConfig.bleScanDuration = 2000;
+            break;
+        case 2:
+            rfConfig.wifiChannelTime = 60;
+            rfConfig.wifiScanInterval = 2000;
+            rfConfig.bleScanInterval = 1000;
+            rfConfig.bleScanDuration = 1500;
+            break;
+        default:
+            preset = 1;
+            setRFPreset(1);
+            return;
+    }
+    rfConfig.preset = preset;
+    WIFI_SCAN_INTERVAL = rfConfig.wifiScanInterval;
+    BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
+    prefs.putUInt("rfPreset", preset);
+    Serial.printf("[RF] Preset %d: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms\n",
+                 preset, rfConfig.wifiChannelTime, rfConfig.wifiScanInterval, 
+                 rfConfig.bleScanInterval, rfConfig.bleScanDuration);
+}
+
+void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration) {
+    rfConfig.wifiChannelTime = constrain(wifiChanTime, 50, 300);
+    rfConfig.wifiScanInterval = constrain(wifiInterval, 1000, 10000);
+    rfConfig.bleScanInterval = constrain(bleInterval, 1000, 10000);
+    rfConfig.bleScanDuration = constrain(bleDuration, 1000, 5000);
+    rfConfig.preset = 3;
+    
+    WIFI_SCAN_INTERVAL = rfConfig.wifiScanInterval;
+    BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
+    
+    prefs.putUInt("wifiChanTime", rfConfig.wifiChannelTime);
+    prefs.putUInt("wifiInterval", rfConfig.wifiScanInterval);
+    prefs.putUInt("bleInterval", rfConfig.bleScanInterval);
+    prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
+    prefs.putUInt("rfPreset", 3);
+    
+    Serial.printf("[RF] Custom config: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms\n",
+                 rfConfig.wifiChannelTime, rfConfig.wifiScanInterval, 
+                 rfConfig.bleScanInterval, rfConfig.bleScanDuration);
+}
+
+RFScanConfig getRFConfig() {
+    return rfConfig;
+}
+
+void loadRFConfigFromPrefs() {
+    uint8_t preset = prefs.getUInt("rfPreset", 1);
+    if (preset < 3) {
+        setRFPreset(preset);
+    } else {
+        uint32_t wct = prefs.getUInt("wifiChanTime", 120);
+        uint32_t wsi = prefs.getUInt("wifiInterval", 4000);
+        uint32_t bsi = prefs.getUInt("bleInterval", 2000);
+        uint32_t bsd = prefs.getUInt("bleDuration", 2000);
+        setCustomRFConfig(wct, wsi, bsi, bsd);
+    }
+}
 
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
@@ -535,7 +617,7 @@ void snifferScanTask(void *pv)
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
-            networksFound = WiFi.scanNetworks(false, true, false, 120);
+            networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
 
             if (networksFound > 0)
             {
@@ -1195,7 +1277,7 @@ static void radioStartWiFi()
         .name = "hop"
     };
     esp_timer_create(&targs, &hopTimer);
-    esp_timer_start_periodic(hopTimer, 300000); // 300ms
+    esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
 }
 
 static void radioStopWiFi()
@@ -1228,8 +1310,10 @@ void radioStartBLE()
     pBLEScan = BLEDevice::getScan();
     pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
     pBLEScan->setActiveScan(true);
-    pBLEScan->setInterval(160);    
-    pBLEScan->setWindow(80); 
+    pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
+    pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
+    pBLEScan->setDuplicateFilter(false);
+    pBLEScan->start(0, false);
 }
 
 void radioStopSTA() {
@@ -1267,7 +1351,7 @@ void radioStartSTA() {
     delay(100);
     
     // Configure STA for scanning while keeping AP alive
-    wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
+    wifi_country_t ctry = {.schan = 1, .nchan = 12, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
@@ -1452,6 +1536,18 @@ void listScanTask(void *pv) {
     
     vTaskDelay(pdMS_TO_TICKS(100));
 
+    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
+        if (!pBLEScan) {
+            BLEDevice::init("");
+            pBLEScan = BLEDevice::getScan();
+        }
+        pBLEScan->setActiveScan(true);
+        pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
+        pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
+        pBLEScan->setDuplicateFilter(false);
+        pBLEScan->start(0, false);
+    }
+
     uint32_t nextStatus = millis() + 1000;
     std::map<String, uint32_t> deviceLastSeen;
     const uint32_t DEDUPE_WINDOW = 3000;
@@ -1476,7 +1572,7 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, 120);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
                     String bssid = WiFi.BSSIDstr(i);
@@ -1536,7 +1632,7 @@ void listScanTask(void *pv) {
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan &&
-            (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0)) {
+            (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
             lastBLEScan = millis();
             NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
             for (int i = 0; i < scanResults.getCount(); i++) {
@@ -1893,7 +1989,11 @@ void listScanTask(void *pv) {
     
     radioStopSTA();
     delay(500);
-    
+
+    if (pBLEScan && pBLEScan->isScanning()) {
+        pBLEScan->stop();
+    }
+
     vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);

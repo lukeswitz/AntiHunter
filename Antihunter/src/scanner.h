@@ -74,6 +74,21 @@ struct DeauthHit {
    uint16_t companyId;
 };
 
+struct RFScanConfig {
+    uint32_t wifiChannelTime;
+    uint32_t wifiScanInterval;
+    uint32_t bleScanInterval;
+    uint32_t bleScanDuration;
+    uint8_t preset;
+};
+
+// Granular settings
+extern RFScanConfig rfConfig;
+void setRFPreset(uint8_t preset);
+void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration);
+RFScanConfig getRFConfig();
+void loadRFConfigFromPrefs();
+
 extern TaskHandle_t workerTaskHandle;
 
 // Allowlist
