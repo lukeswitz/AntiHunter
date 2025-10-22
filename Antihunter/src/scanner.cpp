@@ -920,8 +920,8 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         uint8_t ftype = (fc >> 2) & 0x3;
         uint8_t stype = (fc >> 4) & 0xF;
         
-        // Probe request: type=0 (management), subtype=4
-        if (ftype == 0 && stype == 4) {
+        // Probe request: type=0 (management), subtype=4 and beacon=8
+        if (ftype == 0 && (stype == 4 || stype == 8)) {
             const uint8_t *sa = payload + 10; // Source address
             processProbeRequest(sa, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel,
                               payload, ppkt->rx_ctrl.sig_len);

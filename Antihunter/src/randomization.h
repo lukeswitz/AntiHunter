@@ -28,7 +28,12 @@ struct ProbeRequestEvent {
 
 extern QueueHandle_t probeRequestQueue;
 
-// Behavioral signature for device tracking
+struct IEOrderSignature {
+    uint8_t ieTypes[16];
+    uint8_t ieCount;
+    uint16_t orderHash;
+};
+
 struct BehavioralSignature {
     uint32_t probeIntervals[20];
     uint8_t intervalCount;
@@ -38,6 +43,7 @@ struct BehavioralSignature {
     
     uint32_t channelBitmap;
     uint16_t ieFingerprint[6];
+    IEOrderSignature ieOrder;
     
     float intervalConsistency;
     float rssiConsistency;
@@ -45,6 +51,10 @@ struct BehavioralSignature {
     uint32_t observationCount;
     uint32_t lastObserved;
     float trackConfidence;
+    
+    uint8_t burstCount;
+    uint32_t burstDuration;
+    float burstIntervalMean;
 };
 
 struct ProbeSession {
@@ -63,9 +73,12 @@ struct ProbeSession {
     uint8_t primaryChannel;
     uint32_t channelMask;
     uint16_t fingerprint[6];
+    IEOrderSignature ieOrder;
     
     uint16_t lastSeqNum;
     bool seqNumValid;
+    uint16_t seqNumGaps;
+    uint16_t seqNumWraps;
     
     float avgProbeInterval;
     float intervalStdDev;
@@ -73,6 +86,9 @@ struct ProbeSession {
     
     bool linkedToIdentity;
     char linkedIdentityId[10];
+    
+    bool hasGlobalMacLeak;
+    uint8_t globalMacLeaked[6];
 };
 
 struct DeviceIdentity {
@@ -87,16 +103,21 @@ struct DeviceIdentity {
     
     uint16_t lastSequenceNum;
     bool sequenceValid;
+    
+    bool hasKnownGlobalMac;
+    uint8_t knownGlobalMac[6];
 };
 
-const uint32_t SESSION_START_THRESHOLD = 5000;   
-const uint32_t SESSION_END_TIMEOUT = 15000;      
-const uint32_t SESSION_CLEANUP_AGE = 60000;      
-const uint32_t TRACK_STALE_TIME = 180000;        
-const uint32_t MAX_ACTIVE_SESSIONS = 50;         
-const uint32_t MAX_DEVICE_TRACKS = 30;           
-const uint32_t FINGERPRINT_MATCH_THRESHOLD = 2;  
-const float CONFIDENCE_THRESHOLD = 0.50f;
+const uint32_t SESSION_START_THRESHOLD = 5000;
+const uint32_t SESSION_END_TIMEOUT = 15000;
+const uint32_t SESSION_CLEANUP_AGE = 60000;
+const uint32_t TRACK_STALE_TIME = 180000;
+const uint32_t MAX_ACTIVE_SESSIONS = 50;
+const uint32_t MAX_DEVICE_TRACKS = 30;
+const uint32_t FINGERPRINT_MATCH_THRESHOLD = 2;
+const float CONFIDENCE_THRESHOLD = 0.40f;
+const uint32_t MAC_ROTATION_GAP_MIN = 1000;
+const uint32_t MAC_ROTATION_GAP_MAX = 15000;
 
 extern bool randomizationDetectionEnabled;
 extern std::map<String, ProbeSession> activeSessions;
@@ -110,15 +131,17 @@ void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
 void resetRandomizationDetection();
 
 void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fingerprint[6]);
+void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSignature& sig);
 void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t fingerprint[6]);
 bool matchFingerprints(const uint16_t fp1[6], const uint16_t fp2[6], uint8_t& matches);
+bool matchIEOrder(const IEOrderSignature& sig1, const IEOrderSignature& sig2);
 uint16_t computeCRC16(const uint8_t *data, uint16_t length);
 uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length);
 
 float calculateIntervalConsistency(const uint32_t intervals[], uint8_t count);
 float calculateRssiConsistency(const int8_t readings[], uint8_t count);
 uint32_t countChannels(uint32_t bitmap);
-void linkSessionToTrackBehavioral(const ProbeSession& session);
+void linkSessionToTrackBehavioral(ProbeSession& session);
 
 bool detectWiFiBLECorrelation(const uint8_t* wifiMac, const uint8_t* bleMac);
 bool detectGlobalMACLeak(const ProbeSession& session, uint8_t* globalMac);
@@ -127,6 +150,7 @@ float calculateRSSIDistributionSimilarity(const int8_t* rssi1, uint8_t count1,
 float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1,
                                          const uint32_t* times2, uint8_t count2);
 bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime);
+bool detectSequenceNumberAnomaly(const ProbeSession& session, const DeviceIdentity& identity);
 
 void cleanupStaleSessions();
 void cleanupStaleTracks();
