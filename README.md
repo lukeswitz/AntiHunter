@@ -53,8 +53,8 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 #### 2. Triangulation/Trilateration  (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for advanced trilateration processing.
 
-> [!NOTE]
-> EXPERIMENTAL: T114 small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
+
+**`EXPERIMENTAL T114 SUPPORT:`** small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
 **Key Features:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
@@ -91,15 +91,29 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Extracts UAV ID, pilot location, and flight telemetry data
 - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
 
-**Use Cases:**
-- Airport and critical infrastructure drone monitoring
-- Counter-UAS operations and airspace security
-- Perimeter security and intrusion detection
-- WiFi penetration testing and security auditing
-- Event security and crowd monitoring
-- Red team detection and defensive operations
-- Wireless threat hunting and forensics
+### **MAC Randomization Detection (Experimental)**
 
+**`EXPERIMENTAL FEATURE` - In Active Development**
+
+- Traces device identities across randomized MAC addresses using behavioral signatures
+- IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation
+- Assigns unique identity IDs (format: `T-XXXX`) with persistent SD storage
+- Supports up to 30 simultaneous device identities with up to 50 linked MACs each
+- Dual signature support (full and minimal IE patterns)
+- Confidence-based linking with threshold adaptation
+- Detects global MAC leaks and WiFi-BLE device correlation
+
+
+**Use Cases:**
+
+- Perimeter security and intrusion detection
+- WiFi penetration testing, security auditing, and MAC randomization analysis
+- Device fingerprinting and persistent identification across randomization
+- Counter-UAV operations and airspace awareness
+- Infrastructure drone monitoring
+- Event security and monitoring
+- Red team detection and defensive operations
+- Wireless threat hunting, forensics, and privacy assessments
 ---
 
 ### Sensor Integration
@@ -299,8 +313,6 @@ pio device monitor
 
 After flashing, AntiHunter creates a WiFi access point for configuration and monitoring.
 
-<img width="1077" height="1211" alt="s" src="https://github.com/user-attachments/assets/d8a4522a-9158-446a-8211-8e8a8d21f158" />
-
 ### **Connection**
 1. **Join Network**: Connect to `Antihunter` WiFi AP
    - **Password**: `ouispy123`
@@ -429,9 +441,13 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` | Starts scanning (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
+| `BASELINE_START` | `duration[:FOREVER]` | Initiates baseline environment establishment (max 86400 secs) | `@ALL BASELINE_START:300` |
+| `BASELINE_STATUS` | None | Reports baseline detection status (scanning, established, device count, anomalies) | `@ALL BASELINE_STATUS` |
 | `STOP` | None | Stops all operations | `@ALL STOP` |
 | `VIBRATION_STATUS` | None | Checks tamper sensor status | `@NODE_22 VIBRATION_STATUS` |
-| `TRIANGULATE_START` | `MAC:duration` | Initiates triangulation for target MAC | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
+| `TRIANGULATE_START` | `MAC/Identity:duration` | Initiates triangulation for target MAC or Identity ID (format: T-xxxxx) | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
+| `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
+| `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results for all nodes | `@NODE_22 TRIANGULATE_RESULTS` |
 | `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
 
@@ -447,120 +463,186 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **RTC Sync** | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
 | **Node Heartbeat** | `[NODE_HB] NODE_ID GPS:lat,lon` | `[NODE_ABC] NODE_ABC GPS=40.7128,-74.0060` |
 | **Setup Mode** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
-| **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:MAC` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` |
-| **Erase ACK** | `NODE_ID: ERASE_ACK:STATUS` | `NODE_ABC: ERASE_ACK:COMPLETE` |
+| **Config ACK** | `NODE_ID: CONFIG_ACK:TYPE:VALUE` | `NODE_ABC: CONFIG_ACK:CHANNELS:1,6,11` |
+| **Scan ACK** | `NODE_ID: SCAN_ACK:STARTED` | `NODE_ABC: SCAN_ACK:STARTED` |
+| **Baseline ACK** | `NODE_ID: BASELINE_ACK:STARTED` | `NODE_ABC: BASELINE_ACK:STARTED` |
+| **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices=42 Anomalies=3 Phase1:ACTIVE` |
+| **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-sensor001` |
+| **Triangulation Results** | `NODE_ID: TRIANGULATE_RESULTS_START` ... results ... `NODE_ID: TRIANGULATE_RESULTS_END` | Multi-line result output |
+| **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
+| **Erase ACK** | `NODE_ID: ERASE_ACK:STATUS` | `NODE_ABC: ERASE_ACK:COMPLETE` or `NODE_ABC: ERASE_ACK:CANCELLED` |
 
 ---
 
 ### **Command Workflow Example**
 
 #### Basic Operations
-```
-@ALL STATUS
-@NODE_22 STATUS
-@ALL STOP
-@NODE_22 CONFIG_CHANNELS:1,6,11
-@ALL CONFIG_CHANNELS:1..14
-@NODE_22 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33:44:55:66
-```
+    @ALL STATUS
+    @NODE_22 STATUS
+    @ALL STOP
+    @NODE_22 CONFIG_CHANNELS:1,6,11
+    @ALL CONFIG_CHANNELS:1..14
+    @NODE_22 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33:44:55:66
+
+#### Baseline Detection
+    @ALL BASELINE_START:300
+    @NODE_22 BASELINE_START:600:FOREVER
+    @ALL BASELINE_STATUS
 
 #### Scanning
-```
-@ALL SCAN_START:0:60:1,6,11
-@NODE_22 SCAN_START:2:300:1..14:FOREVER
-@ALL SCAN_START:1:120:1,6,11
-```
+    @ALL SCAN_START:0:60:1,6,11
+    @NODE_22 SCAN_START:2:300:1..14:FOREVER
+    @ALL SCAN_START:1:120:1,6,11
 
 #### Triangulation
-```
-@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300
-@NODE_22 TRIANGULATE_START:12:34:56:78:9A:BC:600
-```
+    @ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300
+    @NODE_22 TRIANGULATE_START:T-sensor001:600
+    @ALL TRIANGULATE_STOP
+    @NODE_22 TRIANGULATE_RESULTS
 
 #### Security
-```
-@NODE_22 VIBRATION_STATUS
-@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234
-@ALL ERASE_CANCEL
-```
+    @NODE_22 VIBRATION_STATUS
+    @NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234
+    @ALL ERASE_CANCEL
 
 ---
 
 ## **API Endpoints**
 
 ### **Core Functionality**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Main web interface |
-| `/export` | GET | Export target MAC list |
-| `/results` | GET | Latest scan/triangulation results |
-| `/save` | POST | Save target configuration (param: `list`) |
-| `/stop` | GET | Stop all operations |
-| `/diag` | GET | System diagnostics |
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/` | GET | Main web interface | None |
+| `/export` | GET | Export target MAC list | None |
+| `/results` | GET | Latest scan/triangulation results | None |
+| `/save` | POST | Save target configuration | `list` (text) |
+| `/stop` | GET | Stop all operations | None |
+| `/diag` | GET | System diagnostics | None |
+| `/sniffer-cache` | GET | View cached device detections | None |
 
+---
 
 ### **Node Configuration**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/node-id` | GET | Get current node ID (JSON) |
-| `/node-id` | POST | Set node ID (param: `id`, 1-16 chars) |
-| `/config` | GET | Get system configuration (JSON) |
-| `/config` | POST | Update configuration (params: `channels`, `targets`) |
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/node-id` | GET | Get current node ID | None |
+| `/node-id` | POST | Set node ID | `id` (1-16 chars) |
+| `/config` | GET | Get system configuration | None |
+| `/config` | POST | Update configuration | `channels` (CSV), `targets` (pipe-delimited) |
+| `/api/time` | POST | Set RTC time from epoch | `epoch` (Unix timestamp, 1609459200-2147483647) |
+
+---
 
 ### **Scanning Operations**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/scan` | POST | Start scan (params: `mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`) |
-| `/sniffer` | POST | Start detection mode (params: `detection`, `secs`, `forever`) |
-| `/sniffer-cache` | GET | View cached device detections |
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/scan` | POST | Start WiFi/BLE scan | `mode` (0=WiFi, 1=BLE, 2=Both), `secs` (0-86400), `forever`, `ch` (CSV/range), `triangulate`, `targetMac` |
+| `/sniffer` | POST | Start detection mode | `detection` (device-scan, deauth, baseline, randomization-detection), `secs` (0-86400), `forever`, `randomizationMode` (for randomization-detection) |
 
-### **Drone Detection**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/drone` | POST | Start drone detection (params: `secs`, `forever`) |
-| `/drone-results` | GET | View drone detection results |
-| `/drone-log` | GET | Access drone event logs (JSON) |
-| `/drone/status` | GET | Drone detection status (JSON) |
-
-### **Deauth Detection**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/deauth-results` | GET | View deauthentication attack logs |
+---
 
 ### **Baseline Detection**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/baseline/status` | GET | Baseline scan status (JSON) |
-| `/baseline/stats` | GET | Detailed baseline statistics (JSON) |
-| `/baseline/config` | GET | Get baseline configuration (JSON) |
-| `/baseline/config` | POST | Update baseline config (params: `rssiThreshold`, `baselineDuration`) |
-| `/baseline/reset` | POST | Reset baseline detection |
-| `/baseline-results` | GET | View baseline detection results |
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/baseline/status` | GET | Baseline scan status (JSON) | None |
+| `/baseline/stats` | GET | Detailed baseline statistics (JSON) | None |
+| `/baseline/config` | GET | Get baseline configuration (JSON) | None |
+| `/baseline/config` | POST | Update baseline configuration | `rssiThreshold` (dBm), `baselineDuration` (secs), `ramCacheSize`, `sdMaxDevices`, `absenceThreshold` (secs), `reappearanceWindow` (secs), `rssiChangeDelta` (dBm) |
+| `/baseline/reset` | POST | Reset baseline detection | None |
+| `/baseline-results` | GET | View baseline detection results | None |
 
-### **GPS & Hardware**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/gps` | GET | Current GPS status and location |
-| `/sd-status` | GET | SD card status and health |
+---
 
-### **Mesh Networking**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/mesh` | POST | Enable/disable mesh (param: `enabled`) |
-| `/mesh-test` | GET | Test mesh connectivity |
+### **Drone Detection**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/drone` | POST | Start drone detection | `secs` (0-86400), `forever` |
+| `/drone-results` | GET | View drone detection results | None |
+| `/drone-log` | GET | Access drone event logs (JSON) | None |
+| `/drone/status` | GET | Drone detection status (JSON) | None |
+
+---
+
+### **Deauthentication Detection**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/deauth-results` | GET | View deauthentication attack logs | None |
+
+---
+
+### **Randomization Detection**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/randomization-results` | GET | View randomization detection results | None |
+| `/randomization/reset` | POST | Reset randomization detection | None |
+| `/randomization/clear-old` | POST | Clear old device identities | `age` (seconds, optional) |
+| `/randomization/identities` | GET | Get tracked device identities (JSON) | None |
+
+---
+
+### **Triangulation**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/triangulate/start` | POST | Start triangulation for target MAC | `mac` (AA:BB:CC:DD:EE:FF), `duration` (≥60 secs) |
+| `/triangulate/stop` | POST | Stop triangulation | None |
+| `/triangulate/status` | GET | Get triangulation status (JSON) | None |
+| `/triangulate/results` | GET | Get triangulation results | None |
+| `/triangulate/calibrate` | POST | Calibrate path loss for target | `mac` (AA:BB:CC:DD:EE:FF), `distance` (meters) |
+
+---
+
+### **Allowlist Management**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/allowlist-export` | GET | Export allowlist | None |
+| `/allowlist-save` | POST | Save allowlist | `list` (text) |
+
+---
 
 ### **Security & Erasure**
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/erase/status` | GET | Check erasure status |
-| `/erase/request` | POST | Request secure erase (params: `confirm="WIPE_ALL_DATA"`, `reason`) |
-| `/erase/cancel` | POST | Cancel tamper erase sequence |
-| `/secure/status` | GET | Tamper detection status |
-| `/secure/abort` | POST | Abort tamper sequence |
-| `/secure/destruct` | POST | Execute immediate secure wipe (param: `confirm="WIPE_ALL_DATA"`) |
-| `/secure/generate-token` | POST | Generate remote erase token (params: `target`, `confirm="GENERATE_ERASE_TOKEN"`) |
-| `/config/autoerase` | GET | Get auto-erase configuration (JSON) |
-| `/config/autoerase` | POST | Update auto-erase config (params: `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay`) |
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/erase/status` | GET | Check erasure status | None |
+| `/erase/request` | POST | Request secure erase | `confirm` (WIPE_ALL_DATA), `reason` (optional) |
+| `/erase/cancel` | POST | Cancel tamper erase sequence | None |
+| `/secure/status` | GET | Tamper detection status | None |
+| `/secure/abort` | POST | Abort tamper sequence | None |
+| `/secure/destruct` | POST | Execute immediate secure wipe | `confirm` (WIPE_ALL_DATA) |
+| `/secure/generate-token` | POST | Generate remote erase token | `target` (node ID), `confirm` (GENERATE_ERASE_TOKEN) |
+| `/config/autoerase` | GET | Get auto-erase configuration (JSON) | None |
+| `/config/autoerase` | POST | Update auto-erase configuration | `enabled` (true/false), `delay` (10000-300000ms), `cooldown` (60000-3600000ms), `vibrationsRequired` (2-10), `detectionWindow` (5000-120000ms), `setupDelay` (30000-600000ms) |
+
+---
+
+### **Mesh Networking**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/mesh` | POST | Enable/disable mesh networking | `enabled` (true/false) |
+| `/mesh-test` | GET | Test mesh connectivity | None |
+
+---
+
+### **GPS & Hardware**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/gps` | GET | Current GPS status and location | None |
+| `/sd-status` | GET | SD card status and health | None |
+
+---
+
+### **RF Configuration**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/rf-config` | GET | Get RF scan configuration (JSON) | None |
+| `/rf-config` | POST | Update RF configuration | `preset` (uint8_t) OR `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration` |
+
+---
+
+### **WiFi Configuration**
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/wifi-config` | GET | Get WiFi AP settings (JSON) | None |
+| `/wifi-config` | POST | Update WiFi AP settings | `ssid` (1-32 chars, required), `pass` (8-63 chars or empty, optional) |
 
 ## Credits
 
