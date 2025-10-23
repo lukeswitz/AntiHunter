@@ -1091,6 +1091,7 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         uint8_t ftype = (fc >> 2) & 0x3;
         uint8_t stype = (fc >> 4) & 0xF;
         
+        // Probe requests
         if (ftype == 0 && (stype == 4 || stype == 8)) {
             const uint8_t *sa = payload + 10;
             uint8_t actualChannel = extractChannelFromIE(payload, ppkt->rx_ctrl.sig_len);
@@ -1099,6 +1100,36 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             }
             processProbeRequest(sa, ppkt->rx_ctrl.rssi, actualChannel,
                               payload, ppkt->rx_ctrl.sig_len);
+        }
+        
+        // Authentication frames (subtype 11 = 0xB)
+        else if (ftype == 0 && stype == 11) {
+            const uint8_t *srcMac = payload + 10;
+            if (isGlobalMAC(srcMac)) {
+                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi, 
+                                                     ppkt->rx_ctrl.channel,
+                                                     payload, ppkt->rx_ctrl.sig_len);
+            }
+        }
+        
+        // Association Request frames (subtype 0)
+        else if (ftype == 0 && stype == 0) {
+            const uint8_t *srcMac = payload + 10;
+            if (isGlobalMAC(srcMac)) {
+                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
+                                                     ppkt->rx_ctrl.channel, 
+                                                     payload, ppkt->rx_ctrl.sig_len);
+            }
+        }
+        
+        // Reassociation Request frames (subtype 2)
+        else if (ftype == 0 && stype == 2) {
+            const uint8_t *srcMac = payload + 10;
+            if (isGlobalMAC(srcMac)) {
+                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
+                                                     ppkt->rx_ctrl.channel,
+                                                     payload, ppkt->rx_ctrl.sig_len);
+            }
         }
     }
 

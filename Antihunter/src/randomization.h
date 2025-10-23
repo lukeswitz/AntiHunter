@@ -43,7 +43,15 @@ struct BehavioralSignature {
     
     uint32_t channelBitmap;
     uint16_t ieFingerprint[6];
+    uint16_t ieFingerprintMinimal[6];
     IEOrderSignature ieOrder;
+    IEOrderSignature ieOrderMinimal;
+    
+    bool hasFullSignature;
+    bool hasMinimalSignature;
+    
+    uint8_t channelSequence[32];
+    uint8_t channelSeqLength;
     
     float intervalConsistency;
     float rssiConsistency;
@@ -131,7 +139,8 @@ void randomizationDetectionTask(void *pv);
 void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel, 
                         const uint8_t *payload, uint16_t length);
 void resetRandomizationDetection();
-
+void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi, 
+                                           uint8_t channel, const uint8_t* frame, uint16_t frameLen);
 void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fingerprint[6]);
 void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSignature& sig);
 void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t fingerprint[6]);
@@ -139,6 +148,11 @@ bool matchFingerprints(const uint16_t fp1[6], const uint16_t fp2[6], uint8_t& ma
 bool matchIEOrder(const IEOrderSignature& sig1, const IEOrderSignature& sig2);
 uint16_t computeCRC16(const uint8_t *data, uint16_t length);
 uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length);
+bool isMinimalSignature(const uint16_t fingerprint[6]);
+void extractChannelSequence(const ProbeSession& session, uint8_t* channelSeq, uint8_t& seqLen);
+float calculateChannelSequenceSimilarity(const uint8_t* seq1, uint8_t len1, const uint8_t* seq2, uint8_t len2);
+float calculateSignatureSetSimilarity(const ProbeSession& session, const DeviceIdentity& identity);
+void updateDeviceSignatureSet(DeviceIdentity& identity, const ProbeSession& session);
 
 float calculateIntervalConsistency(const uint32_t intervals[], uint8_t count);
 float calculateRssiConsistency(const int8_t readings[], uint8_t count);
@@ -156,6 +170,9 @@ bool detectSequenceNumberAnomaly(const ProbeSession& session, const DeviceIdenti
 
 void cleanupStaleSessions();
 void cleanupStaleTracks();
+
+void saveDeviceIdentities();
+void loadDeviceIdentities();
 
 String generateTrackId();
 String getRandomizationResults();

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <mutex>
 
+#include <SD.h>
 #include <NimBLEAddress.h>
 #include <NimBLEDevice.h>
 #include <NimBLEAdvertisedDevice.h>
@@ -188,6 +189,19 @@ float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1
     return (cvScore * 0.6f) + (meanScore * 0.4f);
 }
 
+float calculateSignatureSetSimilarity(const ProbeSession& session, const DeviceIdentity& identity) {
+    uint8_t fpMatches = 0;
+    float fpScore = 0.0f;
+    
+    if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
+        fpScore = (float)fpMatches / 6.0f;
+    }
+    
+    float ieOrderScore = matchIEOrder(session.ieOrder, identity.signature.ieOrder) ? 1.0f : 0.0f;
+    
+    return (fpScore * 0.6f) + (ieOrderScore * 0.4f);
+}
+
 void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSignature& sig) {
     memset(&sig, 0, sizeof(sig));
     
@@ -206,6 +220,40 @@ void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSi
     
     sig.ieCount = idx;
     sig.orderHash = computeCRC16(sig.ieTypes, sig.ieCount);
+}
+
+void updateDeviceSignatureSet(DeviceIdentity& identity, const ProbeSession& session) {
+    bool signatureExists = false;
+    
+    uint8_t fpMatches = 0;
+    if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
+        if (fpMatches >= 4) {
+            signatureExists = true;
+        }
+    }
+    
+    if (!signatureExists) {
+        if (session.rssiReadings.size() > 0) {
+            uint8_t addCount = min((size_t)(20 - identity.signature.rssiHistoryCount), 
+                                   session.rssiReadings.size());
+            for (size_t i = 0; i < addCount; i++) {
+                identity.signature.rssiHistory[identity.signature.rssiHistoryCount++] = 
+                    session.rssiReadings[i];
+            }
+        }
+        
+        for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount) && 
+             identity.signature.intervalCount < 20; i++) {
+            if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
+                identity.signature.probeIntervals[identity.signature.intervalCount++] = 
+                    session.probeTimestamps[i] - session.probeTimestamps[i-1];
+            }
+        }
+    }
+    
+    identity.signature.channelBitmap |= session.channelMask;
+    identity.signature.observationCount++;
+    identity.signature.lastObserved = millis();
 }
 
 bool matchIEOrder(const IEOrderSignature& sig1, const IEOrderSignature& sig2) {
@@ -244,10 +292,11 @@ void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fin
         const uint8_t *ieBody = &ieData[pos + 2];
         
         switch (id) {
-            case 1:
-                if (len <= 16) {
-                    memcpy(ratesBuf, ieBody, len);
-                    ratesLen = len;
+            case 1:   // Supported Rates
+            case 50:  // Extended Supported Rates - merge em
+                if (ratesLen + len <= 16) {
+                    memcpy(ratesBuf + ratesLen, ieBody, len);
+                    ratesLen += len;
                 }
                 break;
             case 45:
@@ -270,8 +319,9 @@ void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fin
                 break;
             case 221:
                 if (vendorLen + len < 64) {
-                    memcpy(vendorBuf + vendorLen, ieBody, min((int)len, 8));
-                    vendorLen += min((int)len, 8);
+                    size_t copyLen = min((int)len, 8);
+                    memcpy(vendorBuf + vendorLen, ieBody, copyLen);
+                    vendorLen += copyLen;
                 }
                 break;
         }
@@ -286,6 +336,7 @@ void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fin
     fingerprint[4] = vendorLen > 0 ? computeCRC16(vendorBuf, vendorLen) : 0;
     fingerprint[5] = (fingerprint[0] ^ fingerprint[1]) + (fingerprint[2] ^ fingerprint[3]);
 }
+
 
 void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t fingerprint[6]) {
     memset(fingerprint, 0, 6 * sizeof(uint16_t));
@@ -385,16 +436,66 @@ uint32_t countChannels(uint32_t bitmap) {
     return count;
 }
 
+bool isMinimalSignature(const uint16_t fingerprint[6]) {
+    uint8_t nonZero = 0;
+    for(int i = 0; i < 4; i++) {
+        if(fingerprint[i] != 0) nonZero++;
+    }
+    return nonZero <= 1;
+}
+
 bool matchFingerprints(const uint16_t fp1[6], const uint16_t fp2[6], uint8_t& matches) {
     matches = 0;
     
-    for (int i = 0; i < 4; i++) {
+    bool fp1Minimal = isMinimalSignature(fp1);
+    bool fp2Minimal = isMinimalSignature(fp2);
+    
+    for (int i = 0; i < 5; i++) {
         if (fp1[i] != 0 && fp2[i] != 0 && fp1[i] == fp2[i]) {
             matches++;
         }
     }
     
+    if(fp1Minimal || fp2Minimal) {
+        return matches >= 1;
+    }
+    
     return matches >= FINGERPRINT_MATCH_THRESHOLD;
+}
+
+void extractChannelSequence(const ProbeSession& session, uint8_t* channelSeq, uint8_t& seqLen) {
+    seqLen = 0;
+    for(uint8_t i = 0; i < session.probeCount && seqLen < 32; i++) {
+        uint8_t ch = (session.channelMask >> i) & 0x1 ? i : 0;
+        if(ch > 0) {
+            channelSeq[seqLen++] = ch;
+        }
+    }
+}
+
+float calculateChannelSequenceSimilarity(const uint8_t* seq1, uint8_t len1, 
+                                        const uint8_t* seq2, uint8_t len2) {
+    if(len1 == 0 || len2 == 0) return 0.0f;
+    
+    uint8_t maxLen = max(len1, len2);
+    uint8_t minLen = min(len1, len2);
+    
+    if(maxLen == 0) return 0.0f;
+    
+    float dotProduct = 0.0f;
+    float mag1 = 0.0f;
+    float mag2 = 0.0f;
+    
+    for(uint8_t i = 0; i < maxLen; i++) {
+        float v1 = (i < len1) ? (float)seq1[i] : 0.0f;
+        float v2 = (i < len2) ? (float)seq2[i] : 0.0f;
+        dotProduct += v1 * v2;
+        mag1 += v1 * v1;
+        mag2 += v2 * v2;
+    }
+    
+    float magnitude = sqrt(mag1) * sqrt(mag2);
+    return (magnitude > 0.0f) ? (dotProduct / magnitude) : 0.0f;
 }
 
 void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
@@ -454,6 +555,70 @@ uint8_t calculateMACPrefixSimilarity(const uint8_t* mac1, const uint8_t* mac2) {
     return matches;
 }
 
+void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi, 
+                                           uint8_t channel, const uint8_t* frame, uint16_t frameLen) {
+    std::lock_guard<std::mutex> lock(randMutex);
+    
+    uint32_t now = millis();
+    uint16_t seqNum = extractSequenceNumber(frame, frameLen);
+    
+    String bestSessionKey;
+    float bestScore = 0.0f;
+    
+    for (auto& sessionEntry : activeSessions) {
+        ProbeSession& session = sessionEntry.second;
+        
+        if (!isRandomizedMAC(session.mac)) continue;
+        if (session.linkedToIdentity) continue;
+        if ((now - session.lastSeen) > 30000) continue;
+        if (session.probeCount < 2) continue;
+        
+        float score = 0.0f;
+        
+        if (session.seqNumValid && seqNum > 0) {
+            uint16_t seqDelta = (seqNum >= session.lastSeqNum) ?
+                               (seqNum - session.lastSeqNum) :
+                               ((4096 + seqNum - session.lastSeqNum) & 0x0FFF);
+            
+            if (seqDelta < 100) {
+                score += 0.60f * (1.0f - (seqDelta / 100.0f));
+            }
+        }
+        
+        int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
+                               session.rssiSum / (int)session.rssiReadings.size() : 
+                               session.rssiSum / max(1, (int)session.probeCount);
+        int8_t rssiDelta = abs(rssi - sessionAvgRssi);
+        if (rssiDelta < 20) {
+            score += 0.25f * (1.0f - (rssiDelta / 40.0f));
+        }
+        
+        uint32_t timeDelta = now - session.lastSeen;
+        if (timeDelta < 15000) {
+            score += 0.15f * (1.0f - (timeDelta / 15000.0f));
+        }
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestSessionKey = sessionEntry.first;
+        }
+    }
+    
+    if (bestScore > 0.40f && !bestSessionKey.isEmpty()) {
+        ProbeSession& session = activeSessions[bestSessionKey];
+        
+        session.hasGlobalMacLeak = true;
+        memcpy(session.globalMacLeaked, globalMac, 6);
+        
+        Serial.printf("[RAND] AUTH LEAK: %s->%s sc:%.2f sq:%d->%d\n",
+                     macFmt6(session.mac).c_str(), macFmt6(globalMac).c_str(),
+                     bestScore, session.lastSeqNum, seqNum);
+        
+        if (session.probeCount < 8) session.probeCount = 8;
+        linkSessionToTrackBehavioral(session);
+    }
+}
+
 void linkSessionToTrackBehavioral(ProbeSession& session) {
     String macStr = macFmt6(session.mac);
     uint32_t now = millis();
@@ -463,6 +628,12 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     }
     
     if (session.probeCount < 5) return;
+    
+    bool sessionIsMinimal = isMinimalSignature(session.fingerprint);
+    
+    uint8_t sessionChannelSeq[32];
+    uint8_t sessionChannelSeqLen = 0;
+    extractChannelSequence(session, sessionChannelSeq, sessionChannelSeqLen);
     
     int16_t sessionRssiSum = 0;
     for (size_t i = 0; i < session.rssiReadings.size(); i++) {
@@ -499,9 +670,15 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         hasGlobalMac = detectGlobalMACLeak(session, globalMac);
     }
     
-    Serial.printf("[RAND] Link eval %s: n:%d rssi:%d ic:%.2f rc:%.2f type:%s\n",
+    if (!hasGlobalMac && session.hasGlobalMacLeak) {
+        hasGlobalMac = true;
+        memcpy(globalMac, session.globalMacLeaked, 6);
+    }
+    
+    Serial.printf("[RAND] Link eval %s: n:%d rssi:%d ic:%.2f rc:%.2f type:%s sig:%s\n",
                  macStr.c_str(), session.probeCount, sessionAvgRssi,
-                 sessionIntervalConsistency, sessionRssiConsistency, isBLE ? "BLE" : "WiFi");
+                 sessionIntervalConsistency, sessionRssiConsistency, isBLE ? "BLE" : "WiFi",
+                 sessionIsMinimal ? "MIN" : "FULL");
     
     String bestIdentityKey;
     float bestScore = 0.0f;
@@ -541,27 +718,63 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         if (rssiDelta <= 25) {
             rssiScore = 1.0f - (rssiDelta / 50.0f);
         }
-        rssiScore *= 0.12f;
+        rssiScore *= 0.10f;
         
         float macPrefixScore = 0.0f;
         uint8_t prefixMatches = calculateMACPrefixSimilarity(session.mac, identity.macs[0].bytes.data());
         if (prefixMatches >= 3) {
             macPrefixScore = (float)prefixMatches / 4.0f;
         }
-        macPrefixScore *= 0.35f;
+        macPrefixScore *= 0.30f;
         
         float fingerprintScore = 0.0f;
         uint8_t fpMatches = 0;
-        if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
-            fingerprintScore = (float)fpMatches / 4.0f;
+        bool fpMatch = false;
+        
+        if(sessionIsMinimal && identity.signature.hasMinimalSignature) {
+            fpMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprintMinimal, fpMatches);
+        } else if(!sessionIsMinimal && identity.signature.hasFullSignature) {
+            fpMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches);
+        } else if(identity.signature.hasFullSignature && identity.signature.hasMinimalSignature) {
+            uint8_t fullMatches = 0, minMatches = 0;
+            bool fullMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fullMatches);
+            bool minMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprintMinimal, minMatches);
+            fpMatch = fullMatch || minMatch;
+            fpMatches = max(fullMatches, minMatches);
+        } else {
+            fpMatch = matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches);
         }
-        fingerprintScore *= 0.15f;
+        
+        if (fpMatch) {
+            fingerprintScore = (float)fpMatches / 5.0f;
+        }
+        fingerprintScore *= 0.12f;
         
         float ieOrderScore = 0.0f;
-        if (matchIEOrder(session.ieOrder, identity.signature.ieOrder)) {
-            ieOrderScore = 1.0f;
+        if(sessionIsMinimal && identity.signature.hasMinimalSignature) {
+            if(matchIEOrder(session.ieOrder, identity.signature.ieOrderMinimal)) {
+                ieOrderScore = 1.0f;
+            }
+        } else if(!sessionIsMinimal && identity.signature.hasFullSignature) {
+            if(matchIEOrder(session.ieOrder, identity.signature.ieOrder)) {
+                ieOrderScore = 1.0f;
+            }
+        } else {
+            if(matchIEOrder(session.ieOrder, identity.signature.ieOrder) ||
+               matchIEOrder(session.ieOrder, identity.signature.ieOrderMinimal)) {
+                ieOrderScore = 1.0f;
+            }
         }
-        ieOrderScore *= 0.12f;
+        ieOrderScore *= 0.10f;
+        
+        float channelSeqScore = 0.0f;
+        if(sessionChannelSeqLen > 0 && identity.signature.channelSeqLength > 0) {
+            channelSeqScore = calculateChannelSequenceSimilarity(
+                sessionChannelSeq, sessionChannelSeqLen,
+                identity.signature.channelSequence, identity.signature.channelSeqLength
+            );
+        }
+        channelSeqScore *= 0.10f;
         
         float timingScore = 0.0f;
         if (sessionIntervalConsistency > 0.1f && identity.signature.intervalConsistency > 0.1f) {
@@ -610,16 +823,17 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 globalMacScore = 1.0f;
             }
         }
-        globalMacScore *= 0.02f;
+        globalMacScore *= 0.04f;
         
-        score = rssiScore + macPrefixScore + fingerprintScore + ieOrderScore + timingScore + 
-                rssiDistScore + seqNumScore + rotationGapScore + globalMacScore;
+        score = rssiScore + macPrefixScore + fingerprintScore + ieOrderScore + channelSeqScore +
+                timingScore + rssiDistScore + seqNumScore + rotationGapScore + globalMacScore;
         
         if (score > 0.1f) {
-            Serial.printf("[RAND]   vs %s: %.3f (r:%.2f mp:%.2f fp:%.2f ie:%.2f t:%.2f rd:%.2f s:%.2f g:%.2f rg:%.2f) dR:%d dt:%u\n",
-                         identity.identityId, score, rssiScore, macPrefixScore, fingerprintScore, ieOrderScore,
-                         timingScore, rssiDistScore, seqNumScore, globalMacScore, rotationGapScore,
-                         rssiDelta, timeDelta);
+            Serial.printf("[RAND]   vs %s: %.3f (r:%.2f mp:%.2f fp:%.2f[%d] ie:%.2f ch:%.2f t:%.2f rd:%.2f s:%.2f g:%.2f rg:%.2f) sig:%s/%s\n",
+                         identity.identityId, score, rssiScore, macPrefixScore, fingerprintScore, fpMatches, ieOrderScore,
+                         channelSeqScore, timingScore, rssiDistScore, seqNumScore, globalMacScore, rotationGapScore,
+                         identity.signature.hasFullSignature ? "F" : "-",
+                         identity.signature.hasMinimalSignature ? "M" : "-");
         }
         
         if (score > bestScore) {
@@ -636,6 +850,23 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
         
         if (identity.macs.size() >= 50) return;
+        
+        // Store signature type
+        if(sessionIsMinimal && !identity.signature.hasMinimalSignature) {
+            memcpy(identity.signature.ieFingerprintMinimal, session.fingerprint, sizeof(session.fingerprint));
+            identity.signature.ieOrderMinimal = session.ieOrder;
+            identity.signature.hasMinimalSignature = true;
+        } else if(!sessionIsMinimal && !identity.signature.hasFullSignature) {
+            memcpy(identity.signature.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
+            identity.signature.ieOrder = session.ieOrder;
+            identity.signature.hasFullSignature = true;
+        }
+        
+        // Store channel sequence
+        if(sessionChannelSeqLen > 0 && identity.signature.channelSeqLength == 0) {
+            memcpy(identity.signature.channelSequence, sessionChannelSeq, sessionChannelSeqLen);
+            identity.signature.channelSeqLength = sessionChannelSeqLen;
+        }
         
         identity.macs.push_back(MacAddress(session.mac));
         identity.confidence = min(1.0f, identity.confidence * 0.7f + bestScore * 0.3f);
@@ -685,9 +916,10 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, identity.identityId, sizeof(session.linkedIdentityId) - 1);
         
-        Serial.printf("[RAND] Linked %s -> %s (score:%.3f dR:%d macs:%d conf:%.2f)\n",
+        Serial.printf("[RAND] Linked %s -> %s (score:%.3f dR:%d macs:%d conf:%.2f sig:%s)\n",
                      macStr.c_str(), identity.identityId, bestScore,
-                     bestRssiDelta, identity.macs.size(), identity.confidence);
+                     bestRssiDelta, identity.macs.size(), identity.confidence,
+                     sessionIsMinimal ? "MIN" : "FULL");
         
     } else {
         if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
@@ -701,8 +933,24 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
 
         newIdentity.macs.push_back(MacAddress(session.mac));
 
-        memcpy(newIdentity.knownGlobalMac, session.mac, 6);
-        newIdentity.hasKnownGlobalMac = true;
+        // Store signature type
+        if(sessionIsMinimal) {
+            memcpy(newIdentity.signature.ieFingerprintMinimal, session.fingerprint, sizeof(session.fingerprint));
+            newIdentity.signature.ieOrderMinimal = session.ieOrder;
+            newIdentity.signature.hasMinimalSignature = true;
+            newIdentity.signature.hasFullSignature = false;
+        } else {
+            memcpy(newIdentity.signature.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
+            newIdentity.signature.ieOrder = session.ieOrder;
+            newIdentity.signature.hasFullSignature = true;
+            newIdentity.signature.hasMinimalSignature = false;
+        }
+        
+        // Store channel sequence
+        if(sessionChannelSeqLen > 0) {
+            memcpy(newIdentity.signature.channelSequence, sessionChannelSeq, sessionChannelSeqLen);
+            newIdentity.signature.channelSeqLength = sessionChannelSeqLen;
+        }
         
         newIdentity.signature.rssiHistoryCount = 0;
         for (size_t i = 0; i < session.rssiReadings.size() && newIdentity.signature.rssiHistoryCount < 20; i++) {
@@ -718,9 +966,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                     session.probeTimestamps[i] - session.probeTimestamps[i-1];
             }
         }
-        
-        memcpy(newIdentity.signature.ieFingerprint, session.fingerprint, sizeof(session.fingerprint));
-        newIdentity.signature.ieOrder = session.ieOrder;
         
         newIdentity.signature.intervalConsistency = sessionIntervalConsistency;
         newIdentity.signature.rssiConsistency = sessionRssiConsistency;
@@ -747,9 +992,10 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, newIdentity.identityId, sizeof(session.linkedIdentityId) - 1);
         
-        Serial.printf("[RAND] New %s from %s (n:%d rssi:%d ic:%.2f type:%s)\n",
+        Serial.printf("[RAND] New %s from %s (n:%d rssi:%d ic:%.2f type:%s sig:%s)\n",
                      newIdentity.identityId, macStr.c_str(), session.probeCount, 
-                     sessionAvgRssi, sessionIntervalConsistency, isBLE ? "BLE" : "WiFi");
+                     sessionAvgRssi, sessionIntervalConsistency, isBLE ? "BLE" : "WiFi",
+                     sessionIsMinimal ? "MIN" : "FULL");
     }
 }
 
@@ -810,12 +1056,33 @@ String getRandomizationResults() {
         results += "  MACs linked: " + String(identity.macs.size()) + "\n";
         results += "  Confidence: " + String(identity.confidence, 2) + "\n";
         results += "  Sessions: " + String(identity.observedSessions) + "\n";
+        results += "  Signatures: ";
+        if (identity.signature.hasFullSignature) results += "Full ";
+        if (identity.signature.hasMinimalSignature) results += "Minimal ";
+        if (!identity.signature.hasFullSignature && !identity.signature.hasMinimalSignature) results += "None ";
+        results += "\n";
         results += "  Interval consistency: " + String(identity.signature.intervalConsistency, 2) + "\n";
         results += "  RSSI consistency: " + String(identity.signature.rssiConsistency, 2) + "\n";
         results += "  Channels: " + String(countChannels(identity.signature.channelBitmap)) + "\n";
         
-        if (identity.hasKnownGlobalMac) {
-            results += "  Global MAC: " + macFmt6(identity.knownGlobalMac) + "\n";
+        if (identity.signature.channelSeqLength > 0) {
+            results += "  Channel sequence: ";
+            for (uint8_t i = 0; i < min((uint8_t)8, identity.signature.channelSeqLength); i++) {
+                results += String(identity.signature.channelSequence[i]);
+                if (i < min((uint8_t)8, identity.signature.channelSeqLength) - 1) results += ",";
+            }
+            if (identity.signature.channelSeqLength > 8) {
+                results += "...";
+            }
+            results += "\n";
+        }
+        
+        if (identity.sequenceValid) {
+            results += "  Sequence tracking: Active (last:" + String(identity.lastSequenceNum) + ")\n";
+        }
+        
+        if (identity.macs.size() > 0) {
+            results += "  Anchor MAC: " + macFmt6(identity.macs[0].bytes.data()) + "\n";
         }
         
         uint32_t age = (millis() - identity.lastSeen) / 1000;
@@ -853,6 +1120,8 @@ void randomizationDetectionTask(void *pv) {
         vTaskDelete(nullptr);
         return;
     }
+
+    loadDeviceIdentities();
     
     {
         std::lock_guard<std::mutex> lock(randMutex);
@@ -1121,6 +1390,7 @@ void randomizationDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
+    // Cleanup
     randomizationDetectionEnabled = false;
     scanning = false;
     
@@ -1141,8 +1411,105 @@ void randomizationDetectionTask(void *pv) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
     }
+
+    if ((int32_t)(millis() - nextCleanup) >= 0) {
+        cleanupStaleSessions();
+        saveDeviceIdentities();
+        nextCleanup += 30000;
+    }
     
     Serial.println("[RAND] Detection complete, results stored");
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
+}
+
+// Storage
+void saveDeviceIdentities() {
+    if (!sdAvailable) return;
+    
+    std::lock_guard<std::mutex> lock(randMutex);
+    
+    File file = SD.open("/rand_identities.dat", FILE_WRITE);
+    if (!file) {
+        Serial.println("[RAND] Failed to open identities file for writing");
+        return;
+    }
+    
+    uint32_t count = deviceIdentities.size();
+    file.write((uint8_t*)&count, sizeof(count));
+    
+    for (const auto& entry : deviceIdentities) {
+        const DeviceIdentity& id = entry.second;
+        
+        file.write((uint8_t*)&id.identityId, sizeof(id.identityId));
+        
+        uint32_t macCount = id.macs.size();
+        file.write((uint8_t*)&macCount, sizeof(macCount));
+        for (const auto& mac : id.macs) {
+            file.write(mac.bytes.data(), 6);
+        }
+        
+        file.write((uint8_t*)&id.signature, sizeof(BehavioralSignature));
+        file.write((uint8_t*)&id.firstSeen, sizeof(id.firstSeen));
+        file.write((uint8_t*)&id.lastSeen, sizeof(id.lastSeen));
+        file.write((uint8_t*)&id.confidence, sizeof(id.confidence));
+        file.write((uint8_t*)&id.sessionCount, sizeof(id.sessionCount));
+        file.write((uint8_t*)&id.observedSessions, sizeof(id.observedSessions));
+        file.write((uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum));
+        file.write((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
+        file.write((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
+        file.write((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
+    }
+    
+    file.close();
+    Serial.printf("[RAND] Saved %d identities to SD\n", count);
+}
+
+void loadDeviceIdentities() {
+    if (!sdAvailable) return;
+    
+    if (!SD.exists("/rand_identities.dat")) return;
+    
+    std::lock_guard<std::mutex> lock(randMutex);
+    
+    File file = SD.open("/rand_identities.dat", FILE_READ);
+    if (!file) {
+        Serial.println("[RAND] Failed to open identities file for reading");
+        return;
+    }
+    
+    uint32_t count = 0;
+    file.read((uint8_t*)&count, sizeof(count));
+    
+    for (uint32_t i = 0; i < count && i < MAX_DEVICE_TRACKS; i++) {
+        DeviceIdentity id;
+        
+        file.read((uint8_t*)&id.identityId, sizeof(id.identityId));
+        
+        uint32_t macCount = 0;
+        file.read((uint8_t*)&macCount, sizeof(macCount));
+        for (uint32_t j = 0; j < macCount && j < 50; j++) {
+            uint8_t macBytes[6];
+            file.read(macBytes, 6);
+            id.macs.push_back(MacAddress(macBytes));
+        }
+        
+        file.read((uint8_t*)&id.signature, sizeof(BehavioralSignature));
+        file.read((uint8_t*)&id.firstSeen, sizeof(id.firstSeen));
+        file.read((uint8_t*)&id.lastSeen, sizeof(id.lastSeen));
+        file.read((uint8_t*)&id.confidence, sizeof(id.confidence));
+        file.read((uint8_t*)&id.sessionCount, sizeof(id.sessionCount));
+        file.read((uint8_t*)&id.observedSessions, sizeof(id.observedSessions));
+        file.read((uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum));
+        file.read((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
+        file.read((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
+        file.read((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
+        
+        String key = macFmt6(id.macs[0].bytes.data());
+        deviceIdentities[key] = id;
+        identityIdCounter = max(identityIdCounter, (uint32_t)strtol(id.identityId + 2, NULL, 16));
+    }
+    
+    file.close();
+    Serial.printf("[RAND] Loaded %d identities from SD\n", deviceIdentities.size());
 }
