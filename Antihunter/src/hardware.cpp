@@ -129,14 +129,16 @@ void saveConfiguration() {
     config += " \"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",\n";
     config += " \"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",\n";
     config += " \"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",\n";
-    config += " \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
+    config += " \"targets\":\"" + prefs.getString("maclist", "") + "\",\n";
+    config += " \"apSsid\":\"" + prefs.getString("apSsid", AP_SSID) + "\",\n";
+    config += " \"apPass\":\"" + prefs.getString("apPass", AP_PASS) + "\"\n";
     config += "}";
-
     configFile.print(config);
     configFile.close();
     Serial.println("Configuration saved to SD card");
     // Serial.println("Saved JSON: " + config); // Debug
 }
+
 void loadConfiguration() {
     if (!sdAvailable) {
         Serial.println("SD card not available, cannot load configuration from SD");
@@ -216,6 +218,19 @@ void loadConfiguration() {
             prefs.putString("maclist", targets);
             // Serial.println("Loaded targets from SD: " + targets);
             Serial.println("Target count: " + String(getTargetCount()));
+        }
+    }
+    if (doc.containsKey("apSsid") && doc["apSsid"].is<String>()) {
+        String apSsid = doc["apSsid"].as<String>();
+        if (apSsid.length() > 0) {
+            prefs.putString("apSsid", apSsid);
+        }
+    }
+    
+    if (doc.containsKey("apPass") && doc["apPass"].is<String>()) {
+        String apPass = doc["apPass"].as<String>();
+        if (apPass.length() >= 8) {
+            prefs.putString("apPass", apPass);
         }
     }
     if (doc.containsKey("autoEraseEnabled")) {
