@@ -30,7 +30,7 @@
 
 **AntiHunter** is a low-cost, open-source distributed perimeter defense system for wireless network security and operational awareness. It enables comprehensive monitoring and protection of wireless environments, transforming spectrum activity into actionable security intelligence for defensive operations.
 
-Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalable sensor network for real-time threat detection, device tracking, and perimeter security. The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide robust wireless security capabilities.
+Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalable sensor network for real-time threat detection, device mapping, and perimeter security. The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide a digital and physical "tripwire". 
 
 ## Core Capabilities
 
@@ -46,13 +46,12 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
 - **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
 - **Use Cases**:
-  - Passive monitoring of authorized devices in secure environments
+  - Passive device activity reporting for secure environments
   - Wireless survey and network auditing
-  - Rogue access point and suspicious beacon identification
+  - Active RF environmental awareness and attack detection
 
 #### 2. Triangulation/Trilateration  (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for advanced trilateration processing.
-
 
 **`EXPERIMENTAL T114 SUPPORT:`** small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
@@ -91,7 +90,7 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Extracts UAV ID, pilot location, and flight telemetry data
 - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
 
-### **MAC Randomization Detection (Experimental)**
+**MAC Randomization Detection**
 
 **`EXPERIMENTAL FEATURE` - In Active Development**
 
