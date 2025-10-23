@@ -468,9 +468,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
       </div>
       
-      <div class="card">
-        <h3>Scan Results</h3>
-        <div id="r" style="margin:0;">No scan data yet.</div>
+      <div class="card" style="margin-top:16px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">Scan Results</h3>
+          <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 12px;font-size:11px;">Clear</button>
+        </div>
+        <pre id="r" style="margin:0;">No scan data yet.</pre>
       </div>
     </div>
     
@@ -858,6 +861,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast('Error resetting baseline: ' + error, 'error');
         });
       }
+
+      function clearResults() {
+        if (!confirm('Clear scan results? This will only clear the display, not the actual data.')) return;
+        document.getElementById('r').innerText = 'Results cleared.';
+        toast('Results display cleared', 'info');
+      }
       
       function updateStatusIndicators(diagText) {
           const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
@@ -1098,10 +1107,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               content += '<span>Avg RSSI: <strong style="color:#4CAF50;">' + track.avgRssi + ' dBm</strong></span>';
               content += '</div>';
               
-              content += '<details style="margin-top:12px;"><summary style="cursor:pointer;color:#4CAF50;user-select:none;padding:4px 0;">';
+              content += '<details style="margin-top:14px;" onclick="this.querySelector(\'span\').style.transform = this.open ? \'rotate(90deg)\' : \'rotate(0deg)\'">';
+              content += '<summary style="cursor:pointer;color:#0aff9d;user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
+              content += '<span style="display:inline-block;transition:transform 0.2s;font-size:11px;">▶</span>';
               content += 'Device MACs (' + track.macs.length + ')</summary>';
               content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
-              
+              content += '</summary>';
+              content += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;max-height:300px;overflow-y:auto;">';
+
               track.macs.forEach((mac, idx) => {
                 const isRand = (parseInt(mac.substring(0, 2), 16) & 0x02) !== 0;
                 const badge = isRand ? 
@@ -2661,17 +2674,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
               avgRssi = sum / track.signature.rssiHistoryCount;
           }
           
-          String deviceType = "Unknown";
-          bool hasWiFi = false, hasBLE = false;
-          if (track.signature.channelBitmap & 0x3FFF) {
-              hasWiFi = true;
-          }
-          if (track.signature.channelBitmap == 0 || track.macs.size() > 1) {
-              hasBLE = true;
-          }
-          if (hasWiFi && hasBLE) deviceType = "Smartphone"; // from research papers, the global MAC will leak after <10min on android
-          else if (hasWiFi) deviceType = "WiFi Device";
-          else if (hasBLE) deviceType = "BLE Device";
+          String deviceType = track.isBLE ? "BLE Device" : "WiFi Device";
           
           json += "{";
           json += "\"identityId\":\"" + String(track.identityId) + "\",";
