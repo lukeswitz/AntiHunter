@@ -7,6 +7,7 @@
 #include <AsyncTCP.h>
 #include <RTClib.h>
 #include "esp_task_wdt.h"
+#include <esp_timer.h>
 
 extern "C"
 {
@@ -122,6 +123,10 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
 // ------------- Network ------------- 
 
+void restart_callback(void* arg) {
+  ESP.restart();
+}
+
 void initializeNetwork()
 { 
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
@@ -144,7 +149,7 @@ void initializeNetwork()
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP(customApSsid.c_str(), customApPass.c_str(), AP_CHANNEL, 0);
   delay(500);
-  WiFi.setHostname("Antihunter");
+  WiFi.setHostname("antihunter");
   delay(100);
   Serial.println("Starting web server...");
   startWebServer();
@@ -477,16 +482,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
 
         <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
-          
-          <h4 style="margin:0 0 8px;font-size:13px;">WiFi Access Point</h4>
-          <label style="font-size:11px;">SSID</label>
-          <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
-          
-          <label style="font-size:11px;">Password</label>
-          <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
-          
-          <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
-      </div>
+        
+        <div class="card-header" onclick="toggleCollapse('wifiApCard')" style="cursor:pointer;padding:0;margin-bottom:12px;border:none;background:none;box-shadow:none;">
+            <h4 style="margin:0;font-size:13px;">WiFi Access Point</h4>
+            <span class="collapse-icon" id="wifiApCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="wifiApCardBody" style="max-height:0;">
+            <label style="font-size:11px;">SSID</label>
+            <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
+            
+            <label style="font-size:11px;">Password</label>
+            <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
+            
+            <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
+          </div>
+        </div>
       
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -2926,7 +2936,14 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       
       saveConfiguration();
       
-      req->send(200, "text/plain", "WiFi settings saved. Restart device to apply changes.");
+      req->send(200, "text/plain", "WiFi settings saved. Restarting in 3s...");
+      esp_timer_handle_t timer;
+      esp_timer_create_args_t timer_args = {
+        .callback = restart_callback,
+        .arg = NULL,
+      };
+      esp_timer_create(&timer_args, &timer);
+      esp_timer_start_once(timer, 3000000);
   });
 
   server->begin();
