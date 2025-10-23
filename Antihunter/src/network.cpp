@@ -468,7 +468,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
       </div>
       
-      <div class="card" style="margin-top:16px;margin-bottom:16px;">
+      <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h3 style="margin:0;">Scan Results</h3>
           <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 12px;font-size:11px;">Clear</button>
@@ -1175,6 +1175,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         
         trackBlocks.forEach(block => {
           const trackMatch = block.match(/Track ID: (T-\d+)/);
+          const typeMatch = block.match(/Type: (WiFi Device|BLE Device)/);
           const macsMatch = block.match(/MACs linked: (\d+)/);
           const confMatch = block.match(/Confidence: ([\d.]+)/);
           const sessionsMatch = block.match(/Sessions: (\d+)/);
@@ -1193,7 +1194,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const sessions = sessionsMatch ? sessionsMatch[1] : '0';
           
           html += '<div style="background:#000;padding:18px;border-radius:8px;border:1px solid #003b24;margin-bottom:12px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
-          
+
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
           html += '<strong style="font-size:17px;color:#00ff7f;letter-spacing:0.5px;">' + trackId + '</strong>';
           html += '<div style="display:flex;gap:18px;font-size:13px;color:#00ff7f99;">';
@@ -1203,7 +1204,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div>';
           
           html += '<div style="display:flex;gap:18px;font-size:12px;color:#00ff7f66;margin-bottom:10px;flex-wrap:wrap;">';
-          html += '<span>Type: <strong style="color:#00ff7f99;">BLE Device</strong></span>';
+          const deviceType = typeMatch ? typeMatch[1] : 'Unknown';
+          html += '<span>Type: <strong style="color:#00ff7f99;">' + deviceType + '</strong></span>';
           if (channelsMatch && parseInt(channelsMatch[1]) > 0) {
             html += '<span>Channels: <strong style="color:#00ff7f99;">' + channelsMatch[1] + '</strong></span>';
           }
@@ -1239,9 +1241,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (mac.includes('(+')) return;
               const firstByte = parseInt(mac.substring(0, 2), 16);
               const isRand = (firstByte & 0x02) !== 0;
-              const badge = isRand ? 
-                '<span style="background:#FF5722;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">RANDOMIZED</span>' : 
-                '<span style="background:#2196F3;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">STABLE</span>';
+              const isGlobalLeak = !isRand && globalMacMatch && (globalMacMatch[1] === mac);
+              let badge;
+              if (isRand) {
+                badge = '<span style="background:#FF5722;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">RANDOMIZED</span>';
+              } else if (isGlobalLeak) {
+                badge = '<span style="background:#FF9800;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">GLOBAL LEAK</span>';
+              } else {
+                badge = '<span style="background:#2196F3;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">STABLE</span>';
+              }
               html += '<div style="padding:6px 0;font-family:monospace;font-size:13px;color:#00ff7f;border-bottom:1px solid #003b24;display:flex;justify-content:space-between;align-items:center;">';
               html += '<span>' + mac + '</span>' + badge;
               html += '</div>';
