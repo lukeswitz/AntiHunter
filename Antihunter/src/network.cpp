@@ -327,14 +327,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <h3>Detection & Analysis</h3>
             <span class="collapse-icon open" id="detectionCardIcon">▶</span>
           </div>
-          
-            <form id="sniffer" method="POST" action="/sniffer">  
+          <div class="card-body" id="detectionCardBody"> <!-- Add this wrapper -->
+            <form id="sniffer" method="POST" action="/sniffer">
               <label>Method</label>
               <select name="detection" id="detectionMode">
                 <option value="device-scan">Device Discovery Scan</option>
                 <option value="baseline" selected>Baseline Anomaly Sniffer</option>
-                <option value="randomization-detection">GhostTrace MAC Randomization Detection</option>
-                <option value="deauth">Deauth/Disassoc Sniffer</option>
+                <option value="randomization-detection">MAC Randomization Tracer</option>
+                <option value="deauth">Deauth/Disassoc Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
               </select>
 
@@ -431,7 +431,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <div class="grid-node-diag" style="margin-bottom:16px;">
       <div class="card" style="min-width:280px;">
         <h3>RF Scan Settings</h3>
-        <div class="card" id="detectionCardBody">
+        <div class="" id="detectionCardBody">
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy)</option>
             <option value="1">Balanced (Default)</option>
@@ -547,24 +547,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       
       <!-- Secure Data Destruction -->
       <div class="card">
-        <h3>Secure Data Destruction</h3>
-        <div class="banner">WARNING: Permanent data wipe</div>
-        
-        <form id="eraseForm" style="margin-top:12px;">
-          <label>Confirmation Code</label>
-          <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA">
+        <div class="card-header" onclick="toggleCollapse('secureDataCard')">
+          <h3>Secure Data Destruction</h3>
+          <span class="collapse-icon" id="secureDataCardIcon">▶</span>
+        </div>
+        <div class="card-body collapsed" id="secureDataCardBody">
+          <div class="banner">WARNING: Permanent data wipe</div>
           
-          <div style="display:flex;gap:8px;margin-top:10px;">
-            <button class="btn danger" type="button" onclick="requestErase()">WIPE</button>
-            <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
-          </div>
-        </form>
-        
-        <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:12px;"></div>
-        
-        <details style="margin-top:16px;">
-          <summary style="cursor:pointer;font-weight:bold;color:var(--accent);">Auto-Erase Configuration</summary>
-          <div style="margin-top:12px;">
+          <form id="eraseForm" style="margin-top:12px;">
+            <label>Confirmation Code</label>
+            <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA">
+            
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn danger" type="button" onclick="requestErase()">WIPE</button>
+              <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
+            </div>
+          </form>
+          
+          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:12px;"></div>
+          
+          <!-- Auto-Erase Configuration -->
+          <div style="margin-top:16px;">
             <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
               <input type="checkbox" id="autoEraseEnabled">
               <span>Enable auto-erase on tampering</span>
