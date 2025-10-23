@@ -421,7 +421,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
-                <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showDeviceIdentities()">Show Device IDs</button>
+                <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showDeviceIdentities()">View IDs</button>
+                <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
               </div>              
             </form>
           </div>
@@ -746,7 +747,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('allowlistCount').textContent = t.split('\n').filter(x => x.trim()).length + ' entries';
         }).catch(error => console.error('Error loading allowlist:', error));
       }
-      
+
+      function clearOldIdentities() {
+        if (!confirm('Remove identities not seen in the last hour?')) return;
+        
+        fetch('/randomization/clear-old', { method: 'POST', body: 'age=3600' })
+          .then(r => r.text())
+          .then(data => {
+            toast(data, 'success');
+            load();
+          })
+          .catch(err => toast('Error: ' + err, 'error'));
+      }
+
       function updateBaselineStatus() {
         fetch('/baseline/stats').then(response => response.json()).then(stats => {
           const statusDiv = document.getElementById('baselineStatus');
@@ -911,6 +924,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       const detectionMode = document.getElementById('detectionMode')?.value;
                       document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
                       document.getElementById('randTracksBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+                      document.getElementById('clearOldBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
                   }
               }
           } else {
@@ -1201,10 +1215,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const macsList = macsListMatch[1].split(',').map(m => m.trim()).filter(m => m && m !== '');
             const moreMatch = macsListMatch[1].match(/\(\+(\d+) more\)/);
             
-            html += '<details style="margin-top:14px;">';
+            html += '<details style="margin-top:14px;" onclick="this.querySelector(\'span\').style.transform = this.open ? \'rotate(90deg)\' : \'rotate(0deg)\'">';
             html += '<summary style="cursor:pointer;color:#0aff9d;user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
-            html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
-            html += 'Device MACs (' + macCount + ')';
+            html += '<span style="display:inline-block;transition:transform 0.2s;font-size:11px;">▶</span>';
+            html += '<strong>Device MACs (' + macCount + ')</strong>';
             html += '</summary>';
             html += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;max-height:300px;overflow-y:auto;">';
             
@@ -1215,13 +1229,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const badge = isRand ? 
                 '<span style="background:#FF5722;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">RANDOMIZED</span>' : 
                 '<span style="background:#2196F3;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">STABLE</span>';
-              html += '<div style="padding:6px 0;font-family:monospace;font-size:13px;color:#00ff7f;border-bottom:1px solid #003b24;">';
-              html += mac + badge;
+              html += '<div style="padding:6px 0;font-family:monospace;font-size:13px;color:#00ff7f;border-bottom:1px solid #003b24;display:flex;justify-content:space-between;align-items:center;">';
+              html += '<span>' + mac + '</span>' + badge;
               html += '</div>';
             });
             
             if (moreMatch) {
-              html += '<div style="padding:8px;text-align:center;color:#00ff7f99;font-size:11px;">+ ' + moreMatch[1] + ' more addresses</div>';
+              html += '<div style="padding:8px;text-align:center;color:#00ff7f99;font-size:11px;font-style:italic;">+ ' + moreMatch[1] + ' more addresses not shown</div>';
             }
             
             html += '</div></details>';
@@ -1801,12 +1815,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const randTracksBtn = document.getElementById('randTracksBtn');
+        const clearOldBtn = document.getElementById('clearOldBtn');
         
         // Hide all controls first
         cacheBtn.style.display = 'none';
         baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
         randTracksBtn.style.display = 'none';
+        clearOldBtn.style.display = 'none';
         standardControls.style.display = 'none';
         baselineControls.style.display = 'none';
         randomizationModeControls.style.display = 'none';
@@ -1823,6 +1839,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             standardControls.style.display = 'block';
             randomizationModeControls.style.display = 'block';
             randTracksBtn.style.display = 'inline-block';
+            clearOldBtn.style.display = 'inline-block';
             document.getElementById('detectionDuration').disabled = false;
             document.getElementById('baselineMonitorDuration').disabled = true;
             
@@ -2597,11 +2614,37 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       r->send(200, "text/plain", "Randomization detection reset");
   });
 
+  server->on("/randomization/clear-old", HTTP_POST, [](AsyncWebServerRequest *req) {
+      std::lock_guard<std::mutex> lock(randMutex);
+      
+      uint32_t now = millis();
+      uint32_t ageThreshold = 3600000; // 1 hour
+      
+      if (req->hasParam("age", true)) {
+          ageThreshold = req->getParam("age", true)->value().toInt() * 1000;
+      }
+      
+      std::vector<String> toRemove;
+      for (auto& entry : deviceIdentities) {
+          if ((now - entry.second.lastSeen) > ageThreshold) {
+              toRemove.push_back(entry.first);
+          }
+      }
+      
+      for (const auto& key : toRemove) {
+          deviceIdentities.erase(key);
+      }
+      
+      saveDeviceIdentities();
+      
+      req->send(200, "text/plain", "Removed " + String(toRemove.size()) + " old identities");
+  });
+
   server->on("/randomization/identities", HTTP_GET, [](AsyncWebServerRequest *r) {
+      std::lock_guard<std::mutex> lock(randMutex);
+      
       String json = "[";
       bool first = true;
-      
-      std::lock_guard<std::mutex> lock(randMutex);
       
       for (const auto& entry : deviceIdentities) {
           if (!first) json += ",";
@@ -2620,15 +2663,13 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
           
           String deviceType = "Unknown";
           bool hasWiFi = false, hasBLE = false;
-          
           if (track.signature.channelBitmap & 0x3FFF) {
               hasWiFi = true;
           }
           if (track.signature.channelBitmap == 0 || track.macs.size() > 1) {
               hasBLE = true;
           }
-          
-          if (hasWiFi && hasBLE) deviceType = "Smartphone";
+          if (hasWiFi && hasBLE) deviceType = "Smartphone"; // from research papers, the global MAC will leak after <10min on android
           else if (hasWiFi) deviceType = "WiFi Device";
           else if (hasBLE) deviceType = "BLE Device";
           
@@ -2638,21 +2679,31 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
           json += "\"confidence\":" + String(track.confidence, 2) + ",";
           json += "\"avgRssi\":" + String(avgRssi) + ",";
           json += "\"deviceType\":\"" + deviceType + "\",";
-          json += "\"macs\":[";
+          json += "\"sequenceTracking\":" + String(track.sequenceValid ? "true" : "false") + ",";
+          json += "\"hasFullSig\":" + String(track.signature.hasFullSignature ? "true" : "false") + ",";
+          json += "\"hasMinimalSig\":" + String(track.signature.hasMinimalSignature ? "true" : "false") + ",";
+          json += "\"channelSeqLen\":" + String(track.signature.channelSeqLength) + ",";
+          json += "\"intervalConsistency\":" + String(track.signature.intervalConsistency, 2) + ",";
+          json += "\"rssiConsistency\":" + String(track.signature.rssiConsistency, 2) + ",";
+          json += "\"observations\":" + String(track.signature.observationCount) + ",";
           
+          if (track.hasKnownGlobalMac) {
+              json += "\"globalMac\":\"" + macFmt6(track.knownGlobalMac) + "\",";
+          }
+          
+          json += "\"macs\":[";
           for (size_t i = 0; i < track.macs.size(); i++) {
               if (i > 0) json += ",";
-              
               const uint8_t* mac = track.macs[i].bytes.data();
               char macStr[18];
               snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
               json += "\"" + String(macStr) + "\"";
           }
           json += "]}";
       }
-      json += "]";
       
+      json += "]";
       r->send(200, "application/json", json);
   });
 
