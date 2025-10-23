@@ -151,80 +151,84 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>AntiHunter</title>
     <style>
-      :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444}
+      :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444;--border:#003b24}
       *{box-sizing:border-box;margin:0;padding:0}
       body,html{height:100%;margin:0}
-      body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.5}
-      .header{padding:14px;border-bottom:1px solid #003b24;background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-      h1{font-size:18px;letter-spacing:1px}
-      h3{margin:0 0 10px;color:var(--fg);font-size:15px}
-      .container{max-width:1400px;margin:0 auto;padding:12px}
-      .card{background:var(--card);border:1px solid #003b24;border-radius:10px;padding:14px;box-shadow:0 4px 20px rgba(0,255,127,.05)}
-      label{display:block;margin:6px 0 4px;color:var(--muted);font-size:12px}
-      input[type=number],input[type=text],select,textarea{width:100%;background:#000;border:1px solid #003b24;border-radius:8px;color:var(--fg);padding:9px;font-family:inherit;font-size:13px}
-      textarea{min-height:80px;resize:vertical}
-      .btn{display:inline-block;padding:9px 13px;border-radius:8px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:12px;transition:all .2s}
+      body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.4}
+      .header{padding:10px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+      h1{font-size:16px;letter-spacing:0.5px}
+      h3{margin:0 0 8px;color:var(--fg);font-size:14px}
+      .container{max-width:1400px;margin:0 auto;padding:10px}
+      .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom: 16px;box-shadow:0 4px 20px rgba(0,255,127,.05)}
+      label{display:block;margin:5px 0 3px;color:var(--muted);font-size:11px}
+      input[type=number],input[type=text],select,textarea{width:100%;background:#000;border:1px solid var(--border);border-radius:6px;color:var(--fg);padding:7px;font-family:inherit;font-size:12px}
+      input[type=number]{-moz-appearance:textfield}
+      input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+      textarea{min-height:70px;resize:vertical}
+      .btn{display:inline-block;padding:7px 11px;border-radius:6px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:11px;transition:all .2s;white-space:nowrap}
       .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
       .btn.primary{background:#002417;border-color:#0c6}
       .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
       .btn.danger{background:#300;border-color:#f44;color:#f66}
-      .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-      .small{opacity:.65;font-size:11px}
-      pre{white-space:pre-wrap;background:#000;border:1px dashed #003b24;border-radius:8px;padding:10px;font-size:11px;line-height:1.4;overflow-x:auto;max-height:400px;overflow-y:auto}
-      hr{border:0;border-top:1px dashed #003b24;margin:12px 0}
-      .banner{font-size:11px;color:#0aff9d;border:1px dashed #004e2f;padding:6px 8px;border-radius:8px;background:#001108;margin-bottom:10px}
-      #toast{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:9999}
-      .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:9px 11px;border-radius:8px;box-shadow:0 6px 24px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s;font-size:12px}
+      .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+      .small{opacity:.65;font-size:10px}
+      pre{white-space:pre-wrap;background:#000;border:1px dashed var(--border);border-radius:6px;padding:8px;font-size:10px;line-height:1.3;overflow-x:auto;max-height:350px;overflow-y:auto}
+      hr{border:0;border-top:1px dashed var(--border);margin:10px 0}
+      .banner{font-size:10px;color:#0aff9d;border:1px dashed #004e2f;padding:5px 7px;border-radius:6px;background:#001108;margin-bottom:8px}
+      #toast{position:fixed;right:12px;bottom:12px;display:flex;flex-direction:column;gap:5px;z-index:9999}
+      .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:8px 10px;border-radius:6px;box-shadow:0 6px 24px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s;font-size:11px}
       .toast.show{opacity:1;transform:none}
       .toast.success{border-color:#00cc66;background:#002200}
       .toast.error{border-color:#ff4444;background:#300}
       .toast.warning{border-color:#ffaa00;background:#332200}
-      .footer{opacity:.7;font-size:11px;padding:8px;text-align:center;margin-top:16px}
-      .logo{width:26px;height:26px}
-      .status-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto;font-size:11px}
-      .status-item{background:#001a10;border:1px solid #003b24;padding:4px 9px;border-radius:6px;font-size:10px;white-space:nowrap}
+      .footer{opacity:.7;font-size:10px;padding:6px;text-align:center;margin-top:12px}
+      .logo{width:24px;height:24px}
+      .status-bar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-left:auto;font-size:10px}
+      .status-item{background:#001a10;border:1px solid var(--border);padding:3px 7px;border-radius:5px;font-size:9px;white-space:nowrap}
       .status-item.active{border-color:#0c6;background:#002417}
-      .tab-buttons{display:flex;gap:6px;margin-bottom:10px}
-      .tab-btn{padding:7px 13px;background:#001b12;border:1px solid #003b24;border-radius:7px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .2s}
+      .tab-buttons{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap}
+      .tab-btn{padding:6px 11px;background:#001b12;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted);font-size:11px;transition:all .2s}
       .tab-btn.active{background:#002417;border-color:#0c6;color:var(--fg)}
       .tab-content{display:none}
       .tab-content.active{display:block}
-      .stat-item{background:#001108;border:1px solid #003b24;padding:10px;border-radius:7px}
-      .stat-label{color:var(--muted);font-size:10px;text-transform:uppercase;margin-bottom:4px}
-      .stat-value{color:var(--fg);font-size:16px;font-weight:700}
-      
-      @media (min-width:900px){
-        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-        .grid-2 > .card{align-self:start}
-        .grid-node-diag{display:grid;grid-template-columns:minmax(280px,auto) 1fr;gap:14px}
-        .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-      }
-      @media (max-width:899px){
-        .grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:14px}
-        .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-        .container{padding:10px}
-        .card{padding:12px}
-        h1{font-size:16px}
-        .status-bar{width:100%;margin-left:0;margin-top:8px}
-      }
-      @media (max-width:600px){
-        .stat-grid{grid-template-columns:1fr}
-        .status-item{font-size:9px;padding:3px 6px}
-      }
-      /* Collapsible Cards */
-      .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:12px}
+      .stat-item{background:#001108;border:1px solid var(--border);padding:8px;border-radius:6px}
+      .stat-label{color:var(--muted);font-size:9px;text-transform:uppercase;margin-bottom:3px}
+      .stat-value{color:var(--fg);font-size:15px;font-weight:700}
+      details > summary{list-style:none;cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:7px;font-size:11px}
+      details > summary::-webkit-details-marker{display:none}
+      details[open] > summary > span:first-child{transform:rotate(90deg)}
+      .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:10px}
       .card-header h3{margin:0}
-      .collapse-icon{transition:transform 0.2s;font-size:14px;color:var(--muted)}
+      .collapse-icon{transition:transform 0.2s;font-size:13px;color:var(--muted)}
       .collapse-icon.open{transform:rotate(90deg)}
       .card-body{overflow:hidden;transition:max-height 0.3s ease}
       .card-body.collapsed{max-height:0!important;margin:0;padding:0}
-      .section-divider{border-top:1px solid var(--border);margin:16px 0;padding-top:16px}
-      .grid-2 > .card {align-self: stretch;}
+      .section-divider{border-top:1px solid var(--border);margin:12px 0;padding-top:12px}
+      
+      
+      @media (min-width:900px){
+        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .grid-2 > .card{align-self:stretch}
+        .grid-node-diag{display:grid;grid-template-columns:minmax(280px,auto) 1fr;gap:10px}
+        .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+      }
+      @media (max-width:899px){
+        .grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:10px}
+        .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+        .container{padding:8px}
+        .card{padding:10px}
+        h1{font-size:15px}
+        .status-bar{width:100%;margin-left:0;margin-top:6px}
+      }
+      @media (max-width:600px){
+        .stat-grid{grid-template-columns:1fr}
+        .status-item{font-size:8px;padding:2px 5px}
+        input[type=number],input[type=text],select{font-size:11px;padding:6px}
+      }
     </style>
   </head>
   <body>
     <div id="toast"></div>
-    <!-- STATUS BAR - Stop All only shows when scanning -->
     <div class="header">
       <svg class="logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <rect x="6" y="6" width="52" height="52" rx="8" fill="#00180F" stroke="#00ff7f" stroke-width="2"/>
@@ -418,52 +422,57 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
                 <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showDeviceIdentities()">Show Device IDs</button>
-              </div>
-              <div class="section-divider"></div>
-              <div class="card-body" id="detectionCardBody">
-                <label>RF Scan Settings</label>
-                <select id="rfPreset" onchange="updateRFPresetUI()">
-                  <option value="0">Relaxed (Stealthy)</option>
-                  <option value="1">Balanced (Default)</option>
-                  <option value="2">Aggressive (Fast)</option>
-                  <option value="3">Custom</option>
-                </select>
-                
-                <div id="customRFSettings" style="display:none;margin-top:10px;">
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                    <div>
-                      <label style="font-size:10px;color:var(--muted);">WiFi Channel Time (ms)</label>
-                      <input type="number" id="wifiChannelTime" min="50" max="300" value="120" style="padding:4px;font-size:11px;">
-                    </div>
-                    <div>
-                      <label style="font-size:10px;color:var(--muted);">WiFi Scan Interval (ms)</label>
-                      <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
-                    </div>
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                    <div>
-                      <label style="font-size:10px;color:var(--muted);">BLE Scan Duration (ms)</label>
-                      <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
-                    </div>
-                    <div>
-                      <label style="font-size:10px;color:var(--muted);">BLE Scan Interval (ms)</label>
-                      <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
-                    </div>
-                    
-                  </div>
-                </div>
-                <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
-              </div>
+              </div>              
             </form>
           </div>
         </div>
       </div>
       
-      <!-- Full Width Results -->
-      <div class="card" style="margin-top:16px;margin-bottom:16px;">
-        <h3>Scan Results</h3>
-        <pre id="r" style="margin:0;">No scan data yet.</pre>
+    <div class="grid-node-diag" style="margin-bottom:16px;">
+      <div class="card" style="min-width:280px;">
+        <h3>RF Scan Settings</h3>
+        <div class="card" id="detectionCardBody">
+          <select id="rfPreset" onchange="updateRFPresetUI()">
+            <option value="0">Relaxed (Stealthy)</option>
+            <option value="1">Balanced (Default)</option>
+            <option value="2">Aggressive (Fast)</option>
+            <option value="3">Custom</option>
+          </select>
+          
+          <div id="customRFSettings" style="display:none;margin-top:10px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:10px;color:var(--muted);">WiFi Channel Time (ms)</label>
+                <input type="number" id="wifiChannelTime" min="110" max="300" value="120" style="padding:4px;font-size:11px;">
+              </div>
+              <div>
+                <label style="font-size:10px;color:var(--muted);">WiFi Scan Interval (ms)</label>
+                <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:10px;color:var(--muted);">BLE Scan Duration (ms)</label>
+                <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
+              </div>
+              <div>
+                <label style="font-size:10px;color:var(--muted);">BLE Scan Interval (ms)</label>
+                <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
+              </div>
+              
+            </div>
+          </div>
+          
+        </div>
+        <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
       </div>
+      
+      <div class="card">
+        <h3>Scan Results</h3>
+        <div id="r" style="margin:0;">No scan data yet.</div>
+      </div>
+    </div>
+    
       
       <!-- Bottom Grid: Node + Diagnostics -->
       <div class="grid-node-diag" style="margin-bottom:16px;">
@@ -586,8 +595,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </details>
       </div>
       
-      <div class="footer">© AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
-    </div>
+      <div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
     <script>
       let selectedMode = '0';
       let baselineUpdateInterval = null;
@@ -620,7 +628,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
           document.getElementById('targetCount').innerText = lines.length + ' targets';
           const rr = await fetch('/results');
-          document.getElementById('r').innerText = await rr.text();
+          const resultsText = await rr.text();
+          document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
           loadNodeId();
           loadRFConfig();
         } catch (e) {}
@@ -1097,6 +1106,440 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .catch(err => toast('Error fetching fingerprints: ' + err, 'error'));
       }
 
+      function parseAndStyleResults(text) {
+        if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
+          return '<div style="color:#00ff7f99;padding:20px;text-align:center;">No scan data yet.</div>';
+        }
+        
+        let html = '';
+        
+        if (text.includes('MAC Randomization Detection Results')) {
+          html = parseRandomizationResults(text);
+        } else if (text.includes('Baseline not yet established') || text.includes('BASELINE ESTABLISHED')) {
+          html = parseBaselineResults(text);
+        } else if (text.includes('Deauth Detection Results') || text.includes('Deauth Attack Detection Results')) {
+          html = parseDeauthResults(text);
+        } else if (text.includes('Drone Detection Results')) {
+          html = parseDroneResults(text);
+        } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
+          html = parseDeviceScanResults(text);
+        } else {
+          html = '<pre style="margin:0;background:#000;border:1px solid #003b24;border-radius:8px;padding:12px;color:#00ff7f;font-size:11px;overflow-x:auto;">' + text + '</pre>';
+        }
+        
+        return html;
+      }
+
+      function parseRandomizationResults(text) {
+        const headerMatch = text.match(/Active Sessions: (\d+)/);
+        const identitiesMatch = text.match(/Device Identities: (\d+)/);
+        
+        let html = '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:8px;font-weight:bold;">MAC Randomization Detection Results</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;">';
+        if (headerMatch) html += '<span>Active Sessions: <strong style="color:#00ff7f;">' + headerMatch[1] + '</strong></span>';
+        if (identitiesMatch) html += '<span>Device Identities: <strong style="color:#00ff7f;">' + identitiesMatch[1] + '</strong></span>';
+        html += '</div></div>';
+        
+        const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
+        
+        trackBlocks.forEach(block => {
+          const trackMatch = block.match(/Track ID: (T-\d+)/);
+          const macsMatch = block.match(/MACs linked: (\d+)/);
+          const confMatch = block.match(/Confidence: ([\d.]+)/);
+          const sessionsMatch = block.match(/Sessions: (\d+)/);
+          const intervalMatch = block.match(/Interval consistency: ([\d.]+)/);
+          const rssiMatch = block.match(/RSSI consistency: ([\d.]+)/);
+          const channelsMatch = block.match(/Channels: (\d+)/);
+          const globalMacMatch = block.match(/Global MAC: ([A-F0-9:]+)/);
+          const lastSeenMatch = block.match(/Last seen: (\d+)s ago/);
+          const macsListMatch = block.match(/MACs: (.+)/);
+          
+          if (!trackMatch) return;
+          
+          const trackId = trackMatch[1];
+          const macCount = macsMatch ? macsMatch[1] : '0';
+          const confidence = confMatch ? (parseFloat(confMatch[1]) * 100).toFixed(0) : '0';
+          const sessions = sessionsMatch ? sessionsMatch[1] : '0';
+          
+          html += '<div style="background:#000;padding:18px;border-radius:8px;border:1px solid #003b24;margin-bottom:12px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
+          
+          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
+          html += '<strong style="font-size:17px;color:#00ff7f;letter-spacing:0.5px;">' + trackId + '</strong>';
+          html += '<div style="display:flex;gap:18px;font-size:13px;color:#00ff7f99;">';
+          html += '<span>Sessions: <strong style="color:#00ff7f;">' + sessions + '</strong></span>';
+          html += '<span>Confidence: <strong style="color:#00ff7f;">' + confidence + '%</strong></span>';
+          html += '</div>';
+          html += '</div>';
+          
+          html += '<div style="display:flex;gap:18px;font-size:12px;color:#00ff7f66;margin-bottom:10px;flex-wrap:wrap;">';
+          html += '<span>Type: <strong style="color:#00ff7f99;">BLE Device</strong></span>';
+          if (channelsMatch && parseInt(channelsMatch[1]) > 0) {
+            html += '<span>Channels: <strong style="color:#00ff7f99;">' + channelsMatch[1] + '</strong></span>';
+          }
+          if (intervalMatch) {
+            html += '<span>Interval: <strong style="color:#00ff7f99;">' + intervalMatch[1] + '</strong></span>';
+          }
+          if (rssiMatch) {
+            html += '<span>RSSI: <strong style="color:#00ff7f99;">' + rssiMatch[1] + '</strong></span>';
+          }
+          if (lastSeenMatch) {
+            html += '<span>Last: <strong style="color:#00ff7f99;">' + lastSeenMatch[1] + 's ago</strong></span>';
+          }
+          html += '</div>';
+          
+          if (globalMacMatch) {
+            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;font-family:monospace;font-size:12px;color:#0aff9d;">';
+            html += 'Global MAC: <strong>' + globalMacMatch[1] + '</strong>';
+            html += '</div>';
+          }
+          
+          if (macsListMatch) {
+            const macsList = macsListMatch[1].split(',').map(m => m.trim()).filter(m => m && m !== '');
+            const moreMatch = macsListMatch[1].match(/\(\+(\d+) more\)/);
+            
+            html += '<details style="margin-top:14px;">';
+            html += '<summary style="cursor:pointer;color:#0aff9d;user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
+            html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
+            html += 'Device MACs (' + macCount + ')';
+            html += '</summary>';
+            html += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;max-height:300px;overflow-y:auto;">';
+            
+            macsList.forEach(mac => {
+              if (mac.includes('(+')) return;
+              const firstByte = parseInt(mac.substring(0, 2), 16);
+              const isRand = (firstByte & 0x02) !== 0;
+              const badge = isRand ? 
+                '<span style="background:#FF5722;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">RANDOMIZED</span>' : 
+                '<span style="background:#2196F3;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">STABLE</span>';
+              html += '<div style="padding:6px 0;font-family:monospace;font-size:13px;color:#00ff7f;border-bottom:1px solid #003b24;">';
+              html += mac + badge;
+              html += '</div>';
+            });
+            
+            if (moreMatch) {
+              html += '<div style="padding:8px;text-align:center;color:#00ff7f99;font-size:11px;">+ ' + moreMatch[1] + ' more addresses</div>';
+            }
+            
+            html += '</div></details>';
+          }
+          
+          html += '</div>';
+        });
+        
+        return html;
+      }
+
+      function parseBaselineResults(text) {
+        let html = '';
+        
+        const totalMatch = text.match(/Total devices in baseline: (\d+)/);
+        const wifiMatch = text.match(/WiFi devices: (\d+)/);
+        const bleMatch = text.match(/BLE devices: (\d+)/);
+        const rssiThreshMatch = text.match(/RSSI threshold: ([-\d]+) dBm/);
+        const anomalyCountMatch = text.match(/Total anomalies: (\d+)/);
+        
+        if (text.includes('Baseline not yet established')) {
+          html += '<div style="padding:16px;background:#001108;border:1px solid #004e2f;border-radius:8px;text-align:center;color:#00ff7f99;">';
+          html += '<div style="font-size:14px;margin-bottom:8px;">Baseline Not Yet Established</div>';
+          const devicesMatch = text.match(/Devices detected so far: (\d+)/);
+          if (devicesMatch) {
+            html += '<div style="font-size:12px;">Devices detected: <strong style="color:#00ff7f;">' + devicesMatch[1] + '</strong></div>';
+          }
+          html += '</div>';
+          return html;
+        }
+        
+        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:10px;font-weight:bold;">Baseline Established</div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;color:#00ff7f99;">';
+        if (totalMatch) html += '<span>Total: <strong style="color:#00ff7f;">' + totalMatch[1] + '</strong></span>';
+        if (wifiMatch) html += '<span>WiFi: <strong style="color:#00ff7f;">' + wifiMatch[1] + '</strong></span>';
+        if (bleMatch) html += '<span>BLE: <strong style="color:#00ff7f;">' + bleMatch[1] + '</strong></span>';
+        if (rssiThreshMatch) html += '<span>Threshold: <strong style="color:#00ff7f;">' + rssiThreshMatch[1] + ' dBm</strong></span>';
+        html += '</div></div>';
+        
+        if (anomalyCountMatch) {
+          html += '<div style="margin-bottom:12px;padding:12px;background:#300;border:1px solid #ff4444;border-radius:8px;">';
+          html += '<div style="font-size:14px;color:#ff4444;font-weight:bold;">⚠ Anomalies Detected: ' + anomalyCountMatch[1] + '</div>';
+          html += '</div>';
+          
+          const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];
+          if (anomalySection) {
+            const anomalyLines = anomalySection.split('\n').filter(l => l.trim() && !l.includes('Total anomalies'));
+            anomalyLines.forEach(line => {
+              const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?\s*(?:"([^"]+)")?\s+-\s+(.+)$/);
+              if (match) {
+                const [_, type, mac, rssi, channel, name, reason] = match;
+                
+                html += '<div style="background:#000;padding:14px;border-radius:8px;border:1px solid #ff4444;margin-bottom:10px;">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
+                html += '<div style="font-family:monospace;font-size:15px;color:#ff4444;">' + mac + '</div>';
+                html += '<span style="background:#ff4444;color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
+                html += '</div>';
+                html += '<div style="display:flex;gap:16px;font-size:12px;color:#00ff7f66;margin-bottom:8px;flex-wrap:wrap;">';
+                html += '<span>RSSI: <strong style="color:#00ff7f99;">' + rssi + ' dBm</strong></span>';
+                if (channel) html += '<span>Channel: <strong style="color:#00ff7f99;">' + channel + '</strong></span>';
+                if (name) html += '<span>Name: <strong style="color:#00ff7f99;">' + name + '</strong></span>';
+                html += '</div>';
+                html += '<div style="padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;color:#ff6666;font-size:12px;">';
+                html += reason;
+                html += '</div>';
+                html += '</div>';
+              }
+            });
+          }
+        }
+        
+        const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1]?.split('===')[0];
+        if (baselineSection) {
+          html += '<details style="margin-top:14px;">';
+          html += '<summary style="cursor:pointer;color:#0aff9d;user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
+          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
+          html += 'Baseline Devices (Cached in RAM)';
+          html += '</summary>';
+          html += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;max-height:400px;overflow-y:auto;">';
+          
+          const deviceLines = baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/));
+          deviceLines.forEach(line => {
+            const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:([-\d]+)dBm\s+Max:([-\d]+)dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
+            if (match) {
+              const [_, type, mac, avg, min, max, hits, channel, name] = match;
+              html += '<div style="padding:8px;border-bottom:1px solid #003b24;font-size:12px;color:#00ff7f;">';
+              html += '<div style="font-family:monospace;margin-bottom:4px;">' + mac + ' <span style="background:#003b24;padding:2px 6px;border-radius:3px;font-size:10px;margin-left:8px;">' + type + '</span></div>';
+              html += '<div style="color:#00ff7f66;font-size:11px;">Avg: ' + avg + 'dBm | Min: ' + min + 'dBm | Max: ' + max + 'dBm | Hits: ' + hits;
+              if (channel) html += ' | CH: ' + channel;
+              if (name) html += ' | "' + name + '"';
+              html += '</div>';
+              html += '</div>';
+            }
+          });
+          
+          html += '</div></details>';
+        }
+        
+        return html;
+      }
+
+      function parseDeauthResults(text) {
+        let html = '';
+        
+        const durationMatch = text.match(/Duration: (.+)/);
+        const deauthMatch = text.match(/Deauth frames: (\d+)/);
+        const disassocMatch = text.match(/Disassoc frames: (\d+)/);
+        const totalMatch = text.match(/Total attacks: (\d+)/);
+        const targetsMatch = text.match(/Targets attacked: (\d+)/);
+        
+        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:10px;font-weight:bold;">⚠ Deauth Attack Detection Results</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;flex-wrap:wrap;">';
+        if (durationMatch) html += '<span>Duration: <strong style="color:#00ff7f;">' + durationMatch[1] + '</strong></span>';
+        if (deauthMatch) html += '<span>Deauth: <strong style="color:#ff4444;">' + deauthMatch[1] + '</strong></span>';
+        if (disassocMatch) html += '<span>Disassoc: <strong style="color:#ff4444;">' + disassocMatch[1] + '</strong></span>';
+        if (totalMatch) html += '<span>Total: <strong style="color:#ff4444;">' + totalMatch[1] + '</strong></span>';
+        if (targetsMatch) html += '<span>Targets: <strong style="color:#00ff7f;">' + targetsMatch[1] + '</strong></span>';
+        html += '</div></div>';
+        
+        if (text.includes('No attacks detected')) {
+          html += '<div style="padding:20px;text-align:center;color:#00ff7f66;font-size:13px;">No attacks detected</div>';
+          return html;
+        }
+        
+        const lines = text.split('\n');
+        let currentTarget = null;
+        let currentTargetHtml = '';
+        let inSourcesList = false;
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          
+          const targetMatch = line.match(/^([A-F0-9:]+|\[BROADCAST\])\s+Total=(\d+)\s+Broadcast=(\d+)\s+Targeted=(\d+)\s+LastRSSI=([-\d]+)dBm\s+CH=(\d+)/);
+          if (targetMatch) {
+            if (currentTarget) {
+              html += currentTargetHtml + '</div>';
+            }
+            
+            const [_, target, total, broadcast, targeted, rssi, channel] = targetMatch;
+            const isBroadcast = target === '[BROADCAST]';
+            
+            currentTargetHtml = '<div style="background:#000;padding:16px;border-radius:8px;border:1px solid #ff4444;margin-bottom:12px;">';
+            currentTargetHtml += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
+            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:#ff4444;">' + target + '</div>';
+            if (isBroadcast) {
+              currentTargetHtml += '<span style="background:#ff6666;color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
+            }
+            currentTargetHtml += '</div>';
+            
+            currentTargetHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px;font-size:12px;">';
+            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Total Attacks</div>';
+            currentTargetHtml += '<div style="color:#ff4444;font-size:16px;font-weight:bold;">' + total + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Broadcast</div>';
+            currentTargetHtml += '<div style="color:#ff6666;font-size:16px;font-weight:bold;">' + broadcast + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Targeted</div>';
+            currentTargetHtml += '<div style="color:#ff8844;font-size:16px;font-weight:bold;">' + targeted + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Signal / Channel</div>';
+            currentTargetHtml += '<div style="color:#00ff7f99;font-size:14px;font-weight:bold;">' + rssi + ' dBm / CH' + channel + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '</div>';
+            
+            currentTargetHtml += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            currentTargetHtml += '<div style="font-size:11px;color:#00ff7f99;margin-bottom:8px;font-weight:bold;">Attack Sources:</div>';
+            
+            currentTarget = target;
+            inSourcesList = true;
+            continue;
+          }
+          
+          if (inSourcesList && line.trim().startsWith('←')) {
+            const sourceMatch = line.match(/← ([A-F0-9:]+) \((\d+)x\)/);
+            if (sourceMatch) {
+              const [_, source, count] = sourceMatch;
+              currentTargetHtml += '<div style="padding:6px;font-family:monospace;font-size:12px;color:#00ff7f;border-bottom:1px solid #003b24;">';
+              currentTargetHtml += '<span style="color:#ff8844;">←</span> ' + source + ' <span style="color:#00ff7f66;">(' + count + ' attacks)</span>';
+              currentTargetHtml += '</div>';
+            }
+          }
+          
+          if (inSourcesList && line.trim().startsWith('...')) {
+            const moreMatch = line.match(/\((\d+) more attackers\)/);
+            if (moreMatch) {
+              currentTargetHtml += '<div style="padding:8px;text-align:center;color:#00ff7f66;font-size:11px;">+ ' + moreMatch[1] + ' more attackers</div>';
+            }
+          }
+          
+          if (line.trim() === '' && currentTarget) {
+            currentTargetHtml += '</div>';
+            html += currentTargetHtml;
+            currentTarget = null;
+            currentTargetHtml = '';
+            inSourcesList = false;
+          }
+        }
+        
+        if (currentTarget) {
+          currentTargetHtml += '</div>';
+          html += currentTargetHtml;
+        }
+        
+        const finalMoreMatch = text.match(/\.\.\. \((\d+) more targets\)/);
+        if (finalMoreMatch) {
+          html += '<div style="padding:12px;text-align:center;color:#00ff7f66;font-size:12px;border:1px dashed #003b24;border-radius:6px;">+ ' + finalMoreMatch[1] + ' more targets</div>';
+        }
+        
+        return html;
+      }
+
+      function parseDroneResults(text) {
+        let html = '';
+        
+        const totalMatch = text.match(/Total detections: (\d+)/);
+        const uniqueMatch = text.match(/Unique drones: (\d+)/);
+        
+        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:10px;font-weight:bold;">🛸 Drone Detection Results</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;">';
+        if (totalMatch) html += '<span>Total: <strong style="color:#00ff7f;">' + totalMatch[1] + '</strong></span>';
+        if (uniqueMatch) html += '<span>Unique: <strong style="color:#00ff7f;">' + uniqueMatch[1] + '</strong></span>';
+        html += '</div></div>';
+        
+        const droneBlocks = text.split(/(?=MAC:)/g).filter(b => b.includes('MAC:'));
+        droneBlocks.forEach(block => {
+          const macMatch = block.match(/MAC: ([A-F0-9:]+)/);
+          const uavMatch = block.match(/UAV ID: (.+)/);
+          const rssiMatch = block.match(/RSSI: ([-\d]+) dBm/);
+          const locMatch = block.match(/Location: ([-\d.]+), ([-\d.]+)/);
+          const altMatch = block.match(/Altitude: ([\d.]+)m/);
+          const speedMatch = block.match(/Speed: ([\d.]+) m\/s/);
+          const opLocMatch = block.match(/Operator Location: ([-\d.]+), ([-\d.]+)/);
+          
+          if (!macMatch) return;
+          
+          html += '<div style="background:#000;padding:18px;border-radius:8px;border:1px solid #0aff9d;margin-bottom:12px;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
+          html += '<div style="font-family:monospace;font-size:15px;color:#0aff9d;">' + macMatch[1] + '</div>';
+          if (rssiMatch) html += '<span style="color:#00ff7f99;font-size:12px;">RSSI: <strong style="color:#00ff7f;">' + rssiMatch[1] + ' dBm</strong></span>';
+          html += '</div>';
+          
+          if (uavMatch) {
+            html += '<div style="padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;margin-bottom:8px;font-size:12px;color:#0aff9d;">';
+            html += 'UAV ID: <strong>' + uavMatch[1] + '</strong>';
+            html += '</div>';
+          }
+          
+          if (locMatch) {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:#00ff7f66;margin-top:8px;">';
+            html += '<div>Location: <strong style="color:#00ff7f99;">' + locMatch[1] + ', ' + locMatch[2] + '</strong></div>';
+            if (altMatch) html += '<div>Altitude: <strong style="color:#00ff7f99;">' + altMatch[1] + 'm</strong></div>';
+            if (speedMatch) html += '<div>Speed: <strong style="color:#00ff7f99;">' + speedMatch[1] + ' m/s</strong></div>';
+            html += '</div>';
+          }
+          
+          if (opLocMatch) {
+            html += '<div style="margin-top:8px;padding:8px;background:#001a10;border:1px solid #003b24;border-radius:6px;font-size:11px;color:#00ff7f66;">';
+            html += 'Operator: <strong style="color:#00ff7f99;">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>';
+            html += '</div>';
+          }
+          
+          html += '</div>';
+        });
+        
+        return html;
+      }
+
+      function parseDeviceScanResults(text) {
+        let html = '';
+        
+        const modeMatch = text.match(/Mode: ([^\s]+)/);
+        const durationMatch = text.match(/Duration: ([^\n]+)/);
+        const hitsMatch = text.match(/Target Hits: (\d+)/);
+        const uniqueMatch = text.match(/Unique devices: (\d+)/);
+        
+        if (modeMatch || durationMatch || hitsMatch || uniqueMatch) {
+          html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+          html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:8px;font-weight:bold;">Device Discovery Scan Results</div>';
+          html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;flex-wrap:wrap;">';
+          if (modeMatch) html += '<span>Mode: <strong style="color:#00ff7f;">' + modeMatch[1] + '</strong></span>';
+          if (durationMatch) html += '<span>Duration: <strong style="color:#00ff7f;">' + durationMatch[1] + '</strong></span>';
+          if (hitsMatch) html += '<span>Target Hits: <strong style="color:#00ff7f;">' + hitsMatch[1] + '</strong></span>';
+          if (uniqueMatch) html += '<span>Unique: <strong style="color:#00ff7f;">' + uniqueMatch[1] + '</strong></span>';
+          html += '</div></div>';
+        }
+        
+        const lines = text.split('\n');
+        lines.forEach(line => {
+          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+Name=(.+))?/);
+          if (match) {
+            const [_, type, mac, rssi, channel, name] = match;
+            
+            html += '<div style="background:#000;padding:14px;border-radius:8px;border:1px solid #003b24;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
+            html += '<div style="font-family:monospace;font-size:15px;color:#00ff7f;">' + mac + '</div>';
+            html += '<span style="background:#003b24;color:#00ff7f;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
+            html += '</div>';
+            html += '<div style="display:flex;gap:16px;font-size:12px;color:#00ff7f66;flex-wrap:wrap;">';
+            html += '<span>RSSI: <strong style="color:#00ff7f99;">' + rssi + ' dBm</strong></span>';
+            if (channel) html += '<span>Channel: <strong style="color:#00ff7f99;">' + channel + '</strong></span>';
+            if (name) html += '<span>Name: <strong style="color:#00ff7f99;">' + name + '</strong></span>';
+            html += '</div>';
+            html += '</div>';
+          }
+        });
+        
+        const moreMatch = text.match(/\.\.\. \((\d+) more\)/);
+        if (moreMatch) {
+          html += '<div style="padding:12px;text-align:center;color:#00ff7f66;font-size:12px;border:1px dashed #003b24;border-radius:6px;">+ ' + moreMatch[1] + ' more devices</div>';
+        }
+        
+        return html;
+      }
+
       function resetRandomizationDetection() {
         if (!confirm('Reset all randomization detection data?')) return;
         
@@ -1278,7 +1721,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (resultsElement && !resultsElement.contains(document.activeElement)) {
             if (isScanning || (lastScanningState && !isScanning)) {
               const rr = await fetch('/results');
-              document.getElementById('r').innerText = await rr.text();
+              const resultsText = await rr.text();
+              resultsElement.innerHTML = parseAndStyleResults(resultsText);
+              
+              resultsElement.querySelectorAll('details').forEach(details => {
+                const summary = details.querySelector('summary');
+                const arrow = summary?.querySelector('span');
+                if (arrow) {
+                  details.addEventListener('toggle', () => {
+                    arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+                  });
+                }
+              });
             }
           }
           lastScanningState = isScanning;
