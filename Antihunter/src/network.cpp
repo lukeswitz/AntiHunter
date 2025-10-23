@@ -19,6 +19,8 @@ extern "C"
 
 // Network and LoRa
 AsyncWebServer *server = nullptr;
+static String customApSsid = "";
+static String customApPass = "";
 const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
@@ -133,14 +135,21 @@ void initializeNetwork()
   randomizeMacAddress();
   delay(50);
   
+  customApSsid = prefs.getString("apSsid", AP_SSID);
+  customApPass = prefs.getString("apPass", AP_PASS);
+  
+  if (customApSsid.length() == 0) customApSsid = AP_SSID;
+  if (customApPass.length() < 8) customApPass = AP_PASS;
+  
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL, 0);
+  WiFi.softAP(customApSsid.c_str(), customApPass.c_str(), AP_CHANNEL, 0);
   delay(500);
   WiFi.setHostname("Antihunter");
   delay(100);
   Serial.println("Starting web server...");
   startWebServer();
 }
+
 // ------------- AP HTML -------------
 
 static const char INDEX_HTML[] PROGMEM = R"HTML(
@@ -431,7 +440,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       
     <div class="grid-node-diag" style="margin-bottom:16px;">
       <div class="card" style="min-width:280px;">
-        <h3>RF Scan Settings</h3>
+        <h3>RF Settings</h3>
         <div class="" id="detectionCardBody">
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy)</option>
@@ -466,6 +475,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           
         </div>
         <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
+
+        <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+          
+          <h4 style="margin:0 0 8px;font-size:13px;">WiFi Access Point</h4>
+          <label style="font-size:11px;">SSID</label>
+          <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
+          
+          <label style="font-size:11px;">Password</label>
+          <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
+          
+          <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
       </div>
       
       <div class="card" style="margin-bottom:16px;">
@@ -639,6 +659,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
           loadNodeId();
           loadRFConfig();
+          loadWiFiConfig();
         } catch (e) {}
       }
       async function loadNodeId() {
@@ -706,6 +727,42 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } catch(e) {
           toast('Error: ' + e.message);
         }
+      }
+
+      async function saveWiFiConfig() {
+        const ssid = document.getElementById('apSsid').value.trim();
+        const pass = document.getElementById('apPass').value;
+        
+        if (ssid.length === 0) {
+          toast('SSID cannot be empty');
+          return;
+        }
+        
+        if (pass.length > 0 && pass.length < 8) {
+          toast('Password must be at least 8 characters');
+          return;
+        }
+        
+        const fd = new FormData();
+        fd.append('ssid', ssid);
+        fd.append('pass', pass);
+        
+        try {
+          const r = await fetch('/wifi-config', {method: 'POST', body: fd});
+          const msg = await r.text();
+          toast(msg);
+        } catch(e) {
+          toast('Error: ' + e.message);
+        }
+      }
+
+      async function loadWiFiConfig() {
+        try {
+          const r = await fetch('/wifi-config');
+          const cfg = await r.json();
+          document.getElementById('apSsid').value = cfg.ssid;
+          document.getElementById('apPass').value = cfg.pass;
+        } catch(e) {}
       }
       
       function toggleCard(cardId) {
@@ -2823,6 +2880,53 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       } else {
           req->send(400, "text/plain", "Missing parameters");
       }
+  });
+
+   server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
+      String ssid = prefs.getString("apSsid", AP_SSID);
+      String pass = prefs.getString("apPass", AP_PASS);
+      
+      if (ssid.length() == 0) ssid = AP_SSID;
+      if (pass.length() == 0) pass = AP_PASS;
+      
+      String json = "{";
+      json += "\"ssid\":\"" + ssid + "\",";
+      json += "\"pass\":\"" + pass + "\"";
+      json += "}";
+      req->send(200, "application/json", json);
+  });
+
+  server->on("/wifi-config", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (!req->hasParam("ssid", true)) {
+          req->send(400, "text/plain", "Missing SSID parameter");
+          return;
+      }
+      
+      String ssid = req->getParam("ssid", true)->value();
+      ssid.trim();
+      
+      if (ssid.length() == 0 || ssid.length() > 32) {
+          req->send(400, "text/plain", "SSID must be 1-32 characters");
+          return;
+      }
+      
+      String pass = "";
+      if (req->hasParam("pass", true)) {
+          pass = req->getParam("pass", true)->value();
+          if (pass.length() > 0 && (pass.length() < 8 || pass.length() > 63)) {
+              req->send(400, "text/plain", "Password must be 8-63 characters or empty");
+              return;
+          }
+      }
+      
+      prefs.putString("apSsid", ssid);
+      if (pass.length() > 0) {
+          prefs.putString("apPass", pass);
+      }
+      
+      saveConfiguration();
+      
+      req->send(200, "text/plain", "WiFi settings saved. Restart device to apply changes.");
   });
 
   server->begin();
