@@ -921,9 +921,21 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                      bestRssiDelta, identity.macs.size(), identity.confidence,
                      sessionIsMinimal ? "MIN" : "FULL");
         
-    } else {
+     } else {
         if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
             return;
+        }
+        
+        // Check if exists
+        for (const auto& existingEntry : deviceIdentities) {
+            const DeviceIdentity& existingIdentity = existingEntry.second;
+            for (const auto& existingMac : existingIdentity.macs) {
+                if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
+                    Serial.printf("[RAND] MAC %s already in %s, skipping new identity\n",
+                                macStr.c_str(), existingIdentity.identityId);
+                    return;
+                }
+            }
         }
         
         DeviceIdentity newIdentity;
@@ -932,6 +944,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         newIdentity.identityId[sizeof(newIdentity.identityId) - 1] = '\0';
 
         newIdentity.macs.push_back(MacAddress(session.mac));
+        newIdentity.isBLE = isBLE;
 
         // Store signature type
         if(sessionIsMinimal) {
@@ -1053,6 +1066,7 @@ String getRandomizationResults() {
         const DeviceIdentity& identity = entry.second;
         
         results += "Track ID: " + String(identity.identityId) + "\n";
+        results += "  Type: " + String(identity.isBLE ? "BLE Device" : "WiFi Device") + "\n";
         results += "  MACs linked: " + String(identity.macs.size()) + "\n";
         results += "  Confidence: " + String(identity.confidence, 2) + "\n";
         results += "  Sessions: " + String(identity.observedSessions) + "\n";
@@ -1212,8 +1226,8 @@ void randomizationDetectionTask(void *pv) {
                     session.rssiMin = event.rssi;
                     session.rssiMax = event.rssi;
                     session.probeCount = 1;
-                    session.primaryChannel = 0;
-                    session.channelMask = 0;
+                    session.primaryChannel = event.channel;
+                    session.channelMask = (1 << event.channel);
                     session.rssiReadings.push_back(event.rssi);
                     session.probeTimestamps[0] = now;
                     session.linkedToIdentity = false;
@@ -1242,6 +1256,11 @@ void randomizationDetectionTask(void *pv) {
                     
                 } else {
                     ProbeSession& session = activeSessions[macStr];
+                    
+                    if (session.primaryChannel == 0 && event.channel > 0) {
+                        session.primaryChannel = event.channel;
+                    }
+                    session.channelMask |= (1 << event.channel);
                     
                     if (session.probeCount < 50) {
                         session.probeTimestamps[session.probeCount] = now;
@@ -1504,6 +1523,7 @@ void loadDeviceIdentities() {
         file.read((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
         file.read((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
         file.read((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
+        file.read((uint8_t*)&id.isBLE, sizeof(id.isBLE));
         
         String key = macFmt6(id.macs[0].bytes.data());
         deviceIdentities[key] = id;

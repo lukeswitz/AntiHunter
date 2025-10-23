@@ -114,6 +114,8 @@ struct DeviceIdentity {
     
     bool hasKnownGlobalMac;
     uint8_t knownGlobalMac[6];
+    
+    bool isBLE;
 };
 
 const uint32_t SESSION_START_THRESHOLD = 3000;
