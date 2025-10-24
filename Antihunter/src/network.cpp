@@ -510,6 +510,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <option value="sessions-desc">Sessions (Most)</option>
               <option value="lastseen-asc">Last Seen (Recent)</option>
               <option value="name-asc">Name (A-Z)</option>
+              <option value="type-asc">Type (WiFi/BLE)</option>
             </select>
             <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;">↕</button>
             <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
@@ -873,7 +874,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
           const startDetectionBtn = document.getElementById('startDetectionBtn');
-          const detectionMode = document.getElementById('detectionMode').value;
+          const detectionMode = document.getElementById('detectionMode')?.value;
+          const cacheBtn = document.getElementById('cacheBtn');
+          const clearOldBtn = document.getElementById('clearOldBtn');
+          
+          if (cacheBtn) cacheBtn.style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
+          if (clearOldBtn) clearOldBtn.style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
           
           if (detectionMode === 'baseline' && stats.scanning) {
             startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
@@ -972,7 +978,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function sortResultsDisplay() {
         const resultsElement = document.getElementById('r');
         
-        // Detect result type
         const isRandomization = resultsElement.textContent.includes('MAC RANDOMIZATION DETECTION');
         const isBaseline = resultsElement.textContent.includes('Baseline');
         const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
@@ -982,7 +987,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let items = [];
         
         if (isRandomization) {
-          // Extract track details from DOM
           const details = resultsElement.querySelectorAll('details');
           details.forEach(detail => {
             const summary = detail.querySelector('summary');
@@ -1011,7 +1015,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             });
           });
         } else if (isBaseline) {
-          // Sort baseline device cards
           const cards = resultsElement.querySelectorAll('[style*="background:#000"]');
           cards.forEach(card => {
             const macMatch = card.textContent.match(/([A-F0-9:]+)/);
@@ -1031,7 +1034,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             });
           });
         } else if (isDeauth) {
-          // Sort deauth target cards
           const cards = resultsElement.querySelectorAll('[style*="border:1px solid #ff4444"]');
           cards.forEach(card => {
             const macMatch = card.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
@@ -1051,7 +1053,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             });
           });
         } else if (isDrone) {
-          // Sort drone cards
           const cards = resultsElement.querySelectorAll('[style*="border:1px solid #0aff9d"]');
           cards.forEach(card => {
             const macMatch = card.textContent.match(/([A-F0-9:]+)/);
@@ -1068,8 +1069,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             });
           });
         } else if (isDeviceScan) {
-          // Sort device cards
-          const cards = resultsElement.querySelectorAll('[style*="border:1px solid #003b24"]');
+          const cards = resultsElement.querySelectorAll('.device-card');
           cards.forEach(card => {
             const macMatch = card.textContent.match(/([A-F0-9:]+)/);
             const mac = macMatch ? macMatch[1] : '';
@@ -1077,19 +1077,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
             const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
             
-            const nameMatch = card.textContent.match(/Name:\s*"?([^"\n]+)"?/);
-            const name = nameMatch ? nameMatch[1] : '';
+            const nameMatch = card.textContent.match(/Name:\s*([^\n]+)/);
+            const name = nameMatch ? nameMatch[1].trim() : '';
+            
+            const deviceType = card.getAttribute('data-type') || '';
             
             items.push({
               element: card,
-              mac, rssi, name,
+              mac, rssi, name, deviceType,
               sortKey: currentSort,
               type: 'device'
             });
           });
         }
         
-        // Apply sort
         items.sort((a, b) => {
           let cmp = 0;
           
@@ -1112,6 +1113,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             case 'name-asc':
               cmp = (a.name || a.mac).localeCompare(b.name || b.mac);
               break;
+            case 'type-asc':
+              cmp = (a.deviceType || '').localeCompare(b.deviceType || '');
+              break;
             default:
               cmp = 0;
           }
@@ -1119,10 +1123,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return sortReverse ? -cmp : cmp;
         });
         
-        // Re-insert sorted elements
-        const container = resultsElement;
+        const header = resultsElement.querySelector('#deviceScanHeader');
+        if (header) {
+          header.remove();
+        }
+        
+        resultsElement.innerHTML = '';
+        
+        if (header) {
+          resultsElement.appendChild(header);
+        }
+        
         items.forEach(item => {
-          container.appendChild(item.element);
+          resultsElement.appendChild(item.element);
         });
       }
 
@@ -1201,7 +1214,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       
                       const detectionMode = document.getElementById('detectionMode')?.value;
                       document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
-                      document.getElementById('randTracksBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
                       document.getElementById('clearOldBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
                   }
               }
@@ -1577,7 +1589,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (anomalySection) {
             const anomalyLines = anomalySection.split('\n').filter(l => l.trim() && !l.includes('Total anomalies'));
             anomalyLines.forEach(line => {
-              const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?\s*(?:"([^"]+)")?\s+-\s+(.+)$/);
+              const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?\s+-\s+(.+)$/);
               if (match) {
                 const [_, type, mac, rssi, channel, name, reason] = match;
                 
@@ -1614,17 +1626,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:([-\d]+)dBm\s+Max:([-\d]+)dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
             if (match) {
               const [_, type, mac, avg, min, max, hits, channel, name] = match;
-              html += '<div style="padding:8px;border-bottom:1px solid #003b24;font-size:12px;color:#00ff7f;">';
-              html += '<div style="font-family:monospace;margin-bottom:4px;">' + mac + ' <span style="background:#003b24;padding:2px 6px;border-radius:3px;font-size:10px;margin-left:8px;">' + type + '</span></div>';
-              html += '<div style="color:#00ff7f66;font-size:11px;">Avg: ' + avg + 'dBm | Min: ' + min + 'dBm | Max: ' + max + 'dBm | Hits: ' + hits;
-              if (channel) html += ' | CH: ' + channel;
-              if (name) html += ' | "' + name + '"';
+              
+              html += '<div style="padding:8px;margin-bottom:6px;background:#000;border-radius:6px;border:1px solid #003b24;">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px;">';
+              html += '<div>';
+              html += '<div style="font-family:monospace;font-size:12px;color:#00ff7f;margin-bottom:3px;">' + mac + '</div>';
+              if (name) html += '<div style="font-size:11px;color:#00ff7f99;">Name: ' + name + '</div>';
+              html += '</div>';
+              html += '<div style="text-align:right;">';
+              html += '<div style="font-size:11px;color:#00ff7f99;">Avg: ' + avg + ' dBm</div>';
+              html += '<div style="font-size:10px;color:#00ff7f66;">' + min + '→' + max + ' dBm</div>';
+              html += '</div>';
+              html += '</div>';
+              html += '<div style="display:flex;gap:12px;font-size:10px;color:#00ff7f66;margin-top:4px;">';
+              html += '<span>Type: <strong style="color:#00ff7f99;">' + type + '</strong></span>';
+              html += '<span>Hits: <strong style="color:#00ff7f99;">' + hits + '</strong></span>';
+              if (channel) html += '<span>CH: <strong style="color:#00ff7f99;">' + channel + '</strong></span>';
               html += '</div>';
               html += '</div>';
             }
           });
           
-          html += '</div></details>';
+          html += '</div>';
+          html += '</details>';
         }
         
         return html;
@@ -1811,7 +1835,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const uniqueMatch = text.match(/Unique devices: (\d+)/);
         
         if (modeMatch || durationMatch || hitsMatch || uniqueMatch) {
-          html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+          html += '<div id="deviceScanHeader" style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
           html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:8px;font-weight:bold;">Device Discovery Scan Results</div>';
           html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;flex-wrap:wrap;">';
           if (modeMatch) html += '<span>Mode: <strong style="color:#00ff7f;">' + modeMatch[1] + '</strong></span>';
@@ -1823,28 +1847,35 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         
         const lines = text.split('\n');
         lines.forEach(line => {
-          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+Name=(.+))?/);
-          if (match) {
-            const [_, type, mac, rssi, channel, name] = match;
-            
-            html += '<div style="background:#000;padding:14px;border-radius:8px;border:1px solid #003b24;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
-            html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
-            html += '<div style="font-family:monospace;font-size:15px;color:#00ff7f;">' + mac + '</div>';
-            html += '<span style="background:#003b24;color:#00ff7f;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
-            html += '</div>';
-            html += '<div style="display:flex;gap:16px;font-size:12px;color:#00ff7f66;flex-wrap:wrap;">';
-            html += '<span>RSSI: <strong style="color:#00ff7f99;">' + rssi + ' dBm</strong></span>';
-            if (channel) html += '<span>Channel: <strong style="color:#00ff7f99;">' + channel + '</strong></span>';
-            if (name) html += '<span>Name: <strong style="color:#00ff7f99;">' + name + '</strong></span>';
-            html += '</div>';
-            html += '</div>';
-          }
+          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
+          if (!match) return;
+          
+          const type = match[1];
+          const mac = match[2];
+          const rssi = match[3];
+          const channel = match[4] || '';
+          const name = match[5] || 'Unknown';
+          
+          const typeColor = type === 'BLE' ? '#4da6ff' : '#00ff7f';
+          const rssiStrength = parseInt(rssi);
+          let rssiColor = '#00ff7f99';
+          if (rssiStrength >= -50) rssiColor = '#00ff7f';
+          else if (rssiStrength >= -70) rssiColor = '#00ff7fcc';
+          
+          html += '<div class="device-card" data-type="' + type + '" style="margin-bottom:10px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
+          html += '<div>';
+          html += '<div style="font-family:monospace;font-size:13px;color:#00ff7f;margin-bottom:4px;">' + mac + '</div>';
+          html += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
+          html += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
+          html += '</div>';
+          html += '<div style="text-align:right;">';
+          html += '<div style="font-size:12px;color:' + rssiColor + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
+          if (channel) html += '<div style="font-size:11px;color:#00ff7f99;margin-top:2px;">CH: ' + channel + '</div>';
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
         });
-        
-        const moreMatch = text.match(/\.\.\. \((\d+) more\)/);
-        if (moreMatch) {
-          html += '<div style="padding:12px;text-align:center;color:#00ff7f66;font-size:12px;border:1px dashed #003b24;border-radius:6px;">+ ' + moreMatch[1] + ' more devices</div>';
-        }
         
         return html;
       }
@@ -2150,14 +2181,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const cacheBtn = document.getElementById('cacheBtn');
         const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
-        const randTracksBtn = document.getElementById('randTracksBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
         
         // Hide all controls first
         cacheBtn.style.display = 'none';
         baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
-        randTracksBtn.style.display = 'none';
         clearOldBtn.style.display = 'none';
         standardControls.style.display = 'none';
         baselineControls.style.display = 'none';
@@ -2174,7 +2203,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } else if (selectedMethod === 'randomization-detection') {
             standardControls.style.display = 'block';
             randomizationModeControls.style.display = 'block';
-            randTracksBtn.style.display = 'inline-block';
             clearOldBtn.style.display = 'inline-block';
             document.getElementById('detectionDuration').disabled = false;
             document.getElementById('baselineMonitorDuration').disabled = true;
