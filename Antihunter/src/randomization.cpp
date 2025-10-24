@@ -601,7 +601,7 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
         if (!isRandomizedMAC(session.mac)) continue;
         if (session.linkedToIdentity) continue;
         if ((now - session.lastSeen) > 30000) continue;
-        if (session.probeCount < 2) continue;
+        if (session.probeCount < 1) continue; // TODO fix this, right now all shall pass
         
         float score = 0.0f;
         
@@ -650,24 +650,26 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
 }
 
 void linkSessionToTrackBehavioral(ProbeSession& session) {
+    // if (session.linkedToIdentity) return;
+    
+    // if (!isRandomizedMAC(session.mac)) return;
+    
+    // if (session.probeCount < 1) return; // let all though, for speed
+    
+    // std::lock_guard<std::mutex> lock(randMutex);
+    
     String macStr = macFmt6(session.mac);
     uint32_t now = millis();
     
-    if (session.linkedToIdentity) {
-        return;
-    }
-    
-    if (session.probeCount < 5) return;
-    
     bool sessionIsMinimal = isMinimalSignature(session.fingerprint);
     
-    uint8_t sessionChannelSeq[32];
+    uint8_t sessionChannelSeq[20];
     uint8_t sessionChannelSeqLen = 0;
     extractChannelSequence(session, sessionChannelSeq, sessionChannelSeqLen);
     
     int16_t sessionRssiSum = 0;
-    for (size_t i = 0; i < session.rssiReadings.size(); i++) {
-        sessionRssiSum += session.rssiReadings[i];
+    for (const auto& rssi : session.rssiReadings) {
+        sessionRssiSum += rssi;
     }
     int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
                             sessionRssiSum / (int)session.rssiReadings.size() : 
@@ -873,15 +875,17 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         }
     }
     
-    float confidenceThreshold = (deviceIdentities.empty() || session.probeCount < 8) ? 
-                                CONFIDENCE_THRESHOLD_NEW_SESSION : CONFIDENCE_THRESHOLD_ESTABLISHED;
+    float confidenceThreshold = CONFIDENCE_THRESHOLD_ESTABLISHED;
+    
+    if (deviceIdentities.empty() || session.probeCount < 8) {
+        confidenceThreshold = CONFIDENCE_THRESHOLD_NEW_SESSION;
+    }
     
     if (bestScore >= confidenceThreshold && !bestIdentityKey.isEmpty()) {
         DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
         
         if (identity.macs.size() >= 50) return;
         
-        // Store signature type
         if(sessionIsMinimal && !identity.signature.hasMinimalSignature) {
             memcpy(identity.signature.ieFingerprintMinimal, session.fingerprint, sizeof(session.fingerprint));
             identity.signature.ieOrderMinimal = session.ieOrder;
@@ -892,7 +896,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             identity.signature.hasFullSignature = true;
         }
         
-        // Store channel sequence
         if(sessionChannelSeqLen > 0 && identity.signature.channelSeqLength == 0) {
             memcpy(identity.signature.channelSequence, sessionChannelSeq, sessionChannelSeqLen);
             identity.signature.channelSeqLength = sessionChannelSeqLen;
@@ -956,7 +959,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             return;
         }
         
-        // Check if exists
         for (const auto& existingEntry : deviceIdentities) {
             const DeviceIdentity& existingIdentity = existingEntry.second;
             for (const auto& existingMac : existingIdentity.macs) {
@@ -976,7 +978,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         newIdentity.macs.push_back(MacAddress(session.mac));
         newIdentity.isBLE = isBLE;
 
-        // Store signature type
         if(sessionIsMinimal) {
             memcpy(newIdentity.signature.ieFingerprintMinimal, session.fingerprint, sizeof(session.fingerprint));
             newIdentity.signature.ieOrderMinimal = session.ieOrder;
@@ -989,7 +990,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             newIdentity.signature.hasMinimalSignature = false;
         }
         
-        // Store channel sequence
         if(sessionChannelSeqLen > 0) {
             memcpy(newIdentity.signature.channelSequence, sessionChannelSeq, sessionChannelSeqLen);
             newIdentity.signature.channelSeqLength = sessionChannelSeqLen;
@@ -1026,7 +1026,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         
         newIdentity.firstSeen = now;
         newIdentity.lastSeen = now;
-        newIdentity.confidence = 0.5f;
+        newIdentity.confidence = 1.0f;
         newIdentity.sessionCount = 1;
         newIdentity.observedSessions = 1;
         
@@ -1155,14 +1155,21 @@ void randomizationDetectionTask(void *pv) {
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
-    
+
     probeRequestQueue = xQueueCreate(512, sizeof(ProbeRequestEvent));
     if (!probeRequestQueue) {
         Serial.println("[RAND] FATAL: Failed to create queue");
-        workerTaskHandle = nullptr;
-        vTaskDelete(nullptr);
-        return;
+        vTaskDelay(pdMS_TO_TICKS(200));
+        
+        probeRequestQueue = xQueueCreate(512, sizeof(ProbeRequestEvent));
+        if (!probeRequestQueue) {
+            Serial.println("[RAND] FATAL: Queue creation failed twice, aborting");
+            workerTaskHandle = nullptr;
+            vTaskDelete(nullptr);
+            return;
+        }
     }
 
     loadDeviceIdentities();
@@ -1172,7 +1179,6 @@ void randomizationDetectionTask(void *pv) {
         
         uint32_t now = millis();
         std::vector<String> staleSessions;
-        std::vector<String> staleIdentities;
         
         for (auto& entry : activeSessions) {
             if (now - entry.second.lastSeen > SESSION_CLEANUP_AGE) {
@@ -1180,23 +1186,12 @@ void randomizationDetectionTask(void *pv) {
             }
         }
         
-        for (auto& entry : deviceIdentities) {
-            if (now - entry.second.lastSeen > TRACK_STALE_TIME) {
-                staleIdentities.push_back(entry.first);
-            }
-        }
-        
         for (const auto& key : staleSessions) {
             activeSessions.erase(key);
         }
         
-        for (const auto& key : staleIdentities) {
-            deviceIdentities.erase(key);
-        }
-        
-        Serial.printf("[RAND] Cleanup: Removed %d stale sessions, %d stale identities. Retained: %d sessions, %d identities\n",
-                     staleSessions.size(), staleIdentities.size(), 
-                     activeSessions.size(), deviceIdentities.size());
+        Serial.printf("[RAND] Cleanup: Removed %d stale sessions. Retained: %d sessions, %d identities\n",
+                     staleSessions.size(), activeSessions.size(), deviceIdentities.size());
     }
     
     randomizationDetectionEnabled = true;
@@ -1221,7 +1216,7 @@ void randomizationDetectionTask(void *pv) {
     
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
-    uint32_t nextCleanup = startTime + 30000;
+    uint32_t nextCleanup = startTime + 10000;
     uint32_t nextResultsUpdate = startTime + 2000;
     uint32_t lastBLEScan = 0;
     const uint32_t BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
@@ -1233,7 +1228,7 @@ void randomizationDetectionTask(void *pv) {
             ProbeRequestEvent event;
             int processedCount = 0;
             
-            while (processedCount < 100 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
+            while (processedCount < 200 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
                 processedCount++;
                 
                 String macStr = macFmt6(event.mac);
@@ -1326,10 +1321,6 @@ void randomizationDetectionTask(void *pv) {
                     if (session.rssiReadings.size() < 20) {
                         session.rssiReadings.push_back(event.rssi);
                     }
-
-                    if (session.probeCount >= 8 && (now - session.startTime) >= 5000 && !session.linkedToIdentity) {
-                        linkSessionToTrackBehavioral(session);
-                    }
                 }
             }
         }
@@ -1337,91 +1328,146 @@ void randomizationDetectionTask(void *pv) {
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && 
             pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
+
+            // Stop any existing scan before starting a new one
+            if (pBLEScan->isScanning()) {
+                pBLEScan->stop();
+                vTaskDelay(pdMS_TO_TICKS(100)); // Brief delay
+            }
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            bool scanStarted = pBLEScan->start(rfConfig.bleScanDuration, false);
             
-            if (scanResults.getCount() > 0) {
-                std::lock_guard<std::mutex> lock(randMutex);
+            if (scanStarted) {
                 
-                for (int i = 0; i < scanResults.getCount(); i++) {
-                    const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
+                // Wait for scan to complete
+                vTaskDelay(pdMS_TO_TICKS(rfConfig.bleScanDuration));
+                
+                NimBLEScanResults scanResults = pBLEScan->getResults();
+                Serial.printf("[RAND BLE] Scan results: %d devices\n", scanResults.getCount());
+                
+                if (scanResults.getCount() > 0) {
+                    std::lock_guard<std::mutex> lock(randMutex);
                     
-                    const uint8_t* macBytes = device->getAddress().getVal();
-                    uint8_t mac[6];
-                    memcpy(mac, macBytes, 6);
-                    
-                    if (!isRandomizedMAC(mac)) {
-                        continue;
-                    }
-                    
-                    String macStr = macFmt6(mac);
-                    uint32_t now = millis();
-                    int8_t rssi = device->getRSSI();
-                    
-                    bool isSession = activeSessions.find(macStr) != activeSessions.end();
-                    
-                    if (!isSession && activeSessions.size() >= MAX_ACTIVE_SESSIONS) {
-                        continue;
-                    }
-                    
-                    if (!isSession) {
-                        ProbeSession session;
-                        memcpy(session.mac, mac, 6);
-                        session.startTime = now;
-                        session.lastSeen = now;
-                        session.rssiSum = rssi;
-                        session.rssiMin = rssi;
-                        session.rssiMax = rssi;
-                        session.probeCount = 1;
-                        session.primaryChannel = 0;
-                        session.channelMask = 0;
-                        session.rssiReadings.push_back(rssi);
-                        session.probeTimestamps[0] = now;
-                        session.linkedToIdentity = false;
-                        memset(session.linkedIdentityId, 0, sizeof(session.linkedIdentityId));
-                        session.seqNumValid = false;
-                        session.lastSeqNum = 0;
-                        session.seqNumGaps = 0;
-                        session.seqNumWraps = 0;
-                        session.hasGlobalMacLeak = false;
+                    for (int i = 0; i < scanResults.getCount(); i++) {
+                        const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                         
-                        extractBLEFingerprint(device, session.fingerprint);
-                        memset(&session.ieOrder, 0, sizeof(session.ieOrder));
+                        Serial.printf("[RAND BLE] Processing device %d/%d\n", i+1, scanResults.getCount());
                         
-                        activeSessions[macStr] = session;
-                        Serial.printf("[RAND] BLE session %s rssi:%d\n", macStr.c_str(), rssi);
-
-                    } else {
-                        ProbeSession& session = activeSessions[macStr];
+                        const uint8_t* macBytes = device->getAddress().getVal();
+                        uint8_t mac[6];
+                        memcpy(mac, macBytes, 6);
                         
-                        if (session.probeCount < 50) {
-                            session.probeTimestamps[session.probeCount] = now;
+                        Serial.printf("[RAND BLE] Device %s - MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+                            device->getName().c_str(),
+                            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                        
+                        if (!isRandomizedMAC(mac)) {
+                            continue;
                         }
                         
-                        session.lastSeen = now;
-                        session.rssiSum += rssi;
-                        session.rssiMin = min(session.rssiMin, rssi);
-                        session.rssiMax = max(session.rssiMax, rssi);
-                        session.probeCount++;
+                        String macStr = macFmt6(mac);
+                        uint32_t now = millis();
+                        int8_t rssi = device->getRSSI();
                         
-                        if (session.rssiReadings.size() < 20) {
+                        bool isSession = activeSessions.find(macStr) != activeSessions.end();
+                        
+                        if (!isSession && activeSessions.size() >= MAX_ACTIVE_SESSIONS) {
+                            continue;
+                        }
+                        
+                        if (!isSession) {
+                            ProbeSession session;
+                            memcpy(session.mac, mac, 6);
+                            session.startTime = now;
+                            session.lastSeen = now;
+                            session.rssiSum = rssi;
+                            session.rssiMin = rssi;
+                            session.rssiMax = rssi;
+                            session.probeCount = 1;
+                            session.primaryChannel = 0;
+                            session.channelMask = 0;
                             session.rssiReadings.push_back(rssi);
-                        }
-
-                        if (session.probeCount >= 10 && (now - session.startTime) >= 8000 && !session.linkedToIdentity) {
-                            linkSessionToTrackBehavioral(session);
+                            session.probeTimestamps[0] = now;
+                            session.linkedToIdentity = false;
+                            memset(session.linkedIdentityId, 0, sizeof(session.linkedIdentityId));
+                            session.seqNumValid = false;
+                            session.lastSeqNum = 0;
+                            session.seqNumGaps = 0;
+                            session.seqNumWraps = 0;
+                            session.hasGlobalMacLeak = false;
+                            
+                            extractBLEFingerprint(device, session.fingerprint);
+                            memset(&session.ieOrder, 0, sizeof(session.ieOrder));
+                            
+                            activeSessions[macStr] = session;
+                            Serial.printf("[RAND] BLE session %s rssi:%d\n", macStr.c_str(), rssi);
+                            
+                        } else {
+                            ProbeSession& session = activeSessions[macStr];
+                            
+                            if (session.probeCount < 50) {
+                                session.probeTimestamps[session.probeCount] = now;
+                            }
+                            
+                            session.lastSeen = now;
+                            session.rssiSum += rssi;
+                            session.rssiMin = min(session.rssiMin, rssi);
+                            session.rssiMax = max(session.rssiMax, rssi);
+                            session.probeCount++;
+                            
+                            Serial.printf("[RAND BLE] Updated session %s rssi:%d count:%d\n", 
+                                        macStr.c_str(), rssi, session.probeCount);
+                            
+                            try {
+                                if (session.rssiReadings.size() < 20) {
+                                    session.rssiReadings.push_back(rssi);
+                                }
+                                if (session.probeCount >= 2 && (now - session.startTime) >= 2000 && !session.linkedToIdentity) {
+                                    Serial.printf("[RAND BLE] About to link session %s\n", macStr.c_str());
+                                    uint32_t linkStartTime = millis();
+                                    linkSessionToTrackBehavioral(session);
+                                    uint32_t linkDuration = millis() - linkStartTime;
+                                    
+                                    Serial.printf("[RAND BLE] Linked session %s in %ums\n", macStr.c_str(), linkDuration);
+                                }
+                            } catch (const std::exception& e) {
+                                Serial.printf("[RAND BLE] Exception: %s\n", e.what());
+                            }
                         }
                     }
                 }
-                
                 pBLEScan->clearResults();
+            } else {
+                Serial.printf("[RAND BLE] Scan start FAILED!\n");
             }
-        }
+        } 
         
+        // Process all unlinked randomized sessions
         if ((int32_t)(millis() - nextStatus) >= 0) {
-            std::lock_guard<std::mutex> lock(randMutex);
-            Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu\n",
-                         activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap());
+            uint32_t now = millis();
+            std::vector<ProbeSession*> toProcess;
+            
+            {
+                std::lock_guard<std::mutex> lock(randMutex);
+                for (auto& entry : activeSessions) {
+                    if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac)) {
+                        if (now - entry.second.startTime >= 2000) {
+                            toProcess.push_back(&entry.second);
+                        }
+                    }
+                }
+            }
+            
+            for (auto* session : toProcess) {
+                linkSessionToTrackBehavioral(*session);
+            }
+            
+            {
+                std::lock_guard<std::mutex> lock(randMutex);
+                Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu\n",
+                            activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap());
+            }
+            
             nextStatus += 5000;
         }
         
@@ -1436,20 +1482,27 @@ void randomizationDetectionTask(void *pv) {
             nextCleanup += 30000;
         }
         
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
     
     // Cleanup
     randomizationDetectionEnabled = false;
     scanning = false;
-    
-    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
-        radioStopBLE();
-    }
-    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        radioStopSTA();
-    }
+
+    radioStopSTA();
     delay(100);
+    
+    Serial.println("[RAND] Processing all remaining sessions...");
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        for (auto& entry : activeSessions) {
+            if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac)) {
+                linkSessionToTrackBehavioral(entry.second);
+            }
+        }
+    }
+
+    saveDeviceIdentities();
     
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -1459,12 +1512,6 @@ void randomizationDetectionTask(void *pv) {
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
-    }
-
-    if ((int32_t)(millis() - nextCleanup) >= 0) {
-        cleanupStaleSessions();
-        saveDeviceIdentities();
-        nextCleanup += 30000;
     }
     
     Serial.println("[RAND] Detection complete, results stored");

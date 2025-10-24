@@ -119,9 +119,9 @@ struct DeviceIdentity {
 };
 
 const uint32_t SESSION_START_THRESHOLD = 3000;
-const uint32_t SESSION_END_TIMEOUT = 20000;
-const uint32_t SESSION_CLEANUP_AGE = 90000;
-const uint32_t TRACK_STALE_TIME = 120000;
+const uint32_t SESSION_END_TIMEOUT = 10000;
+const uint32_t SESSION_CLEANUP_AGE = 45000;
+const uint32_t TRACK_STALE_TIME = 86400000; // 24hr window for SD 
 const uint32_t MAX_ACTIVE_SESSIONS = 50;
 const uint32_t MAX_DEVICE_TRACKS = 30;
 const uint32_t FINGERPRINT_MATCH_THRESHOLD = 2;
