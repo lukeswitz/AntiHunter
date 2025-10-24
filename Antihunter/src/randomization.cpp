@@ -1158,18 +1158,21 @@ void randomizationDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    probeRequestQueue = xQueueCreate(512, sizeof(ProbeRequestEvent));
+    probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
     if (!probeRequestQueue) {
-        Serial.println("[RAND] FATAL: Failed to create queue");
+        Serial.printf("[RAND] FATAL: Failed to create queue (heap: %u)\n", ESP.getFreeHeap());
         vTaskDelay(pdMS_TO_TICKS(200));
         
-        probeRequestQueue = xQueueCreate(512, sizeof(ProbeRequestEvent));
+        probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
         if (!probeRequestQueue) {
-            Serial.println("[RAND] FATAL: Queue creation failed twice, aborting");
+            Serial.printf("[RAND] FATAL: Queue creation failed twice (heap: %u), aborting\n", ESP.getFreeHeap());
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
             return;
         }
+        Serial.printf("[RAND] Reduced queue created (128 entries, heap: %u)\n", ESP.getFreeHeap());
+    } else {
+        Serial.printf("[RAND] Queue created (256 entries, heap: %u)\n", ESP.getFreeHeap());
     }
 
     loadDeviceIdentities();
