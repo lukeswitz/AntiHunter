@@ -79,19 +79,19 @@ RFScanConfig rfConfig = {
 void setRFPreset(uint8_t preset) {
     switch(preset) {
         case 0:
-            rfConfig.wifiChannelTime = 200;
+            rfConfig.wifiChannelTime = 300;
             rfConfig.wifiScanInterval = 8000;
             rfConfig.bleScanInterval = 4000;
             rfConfig.bleScanDuration = 3000;
             break;
         case 1:
-            rfConfig.wifiChannelTime = 120;
+            rfConfig.wifiChannelTime = 160;
             rfConfig.wifiScanInterval = 4000;
             rfConfig.bleScanInterval = 2000;
             rfConfig.bleScanDuration = 2000;
             break;
         case 2:
-            rfConfig.wifiChannelTime = 60;
+            rfConfig.wifiChannelTime = 110;
             rfConfig.wifiScanInterval = 2000;
             rfConfig.bleScanInterval = 1000;
             rfConfig.bleScanDuration = 1500;
@@ -1099,37 +1099,31 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 actualChannel = ppkt->rx_ctrl.channel;
             }
             processProbeRequest(sa, ppkt->rx_ctrl.rssi, actualChannel,
-                              payload, ppkt->rx_ctrl.sig_len);
+                            payload, ppkt->rx_ctrl.sig_len);
         }
         
         // Authentication frames (subtype 11 = 0xB)
         else if (ftype == 0 && stype == 11) {
             const uint8_t *srcMac = payload + 10;
-            if (isGlobalMAC(srcMac)) {
-                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi, 
-                                                     ppkt->rx_ctrl.channel,
-                                                     payload, ppkt->rx_ctrl.sig_len);
-            }
+            processAuthenticationFrame(srcMac, ppkt->rx_ctrl.rssi, 
+                                    ppkt->rx_ctrl.channel,
+                                    payload, ppkt->rx_ctrl.sig_len);
         }
         
         // Association Request frames (subtype 0)
         else if (ftype == 0 && stype == 0) {
             const uint8_t *srcMac = payload + 10;
-            if (isGlobalMAC(srcMac)) {
-                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
-                                                     ppkt->rx_ctrl.channel, 
-                                                     payload, ppkt->rx_ctrl.sig_len);
-            }
+            processAuthenticationFrame(srcMac, ppkt->rx_ctrl.rssi,
+                                    ppkt->rx_ctrl.channel, 
+                                    payload, ppkt->rx_ctrl.sig_len);
         }
         
         // Reassociation Request frames (subtype 2)
         else if (ftype == 0 && stype == 2) {
             const uint8_t *srcMac = payload + 10;
-            if (isGlobalMAC(srcMac)) {
-                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
-                                                     ppkt->rx_ctrl.channel,
-                                                     payload, ppkt->rx_ctrl.sig_len);
-            }
+            processAuthenticationFrame(srcMac, ppkt->rx_ctrl.rssi,
+                                    ppkt->rx_ctrl.channel,
+                                    payload, ppkt->rx_ctrl.sig_len);
         }
     }
 
@@ -1347,13 +1341,21 @@ void radioStopBLE()
     if (pBLEScan)
     {
         pBLEScan->stop();
-        BLEDevice::deinit(false);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        pBLEScan->clearResults();
+        BLEDevice::deinit(true);
         pBLEScan = nullptr;
     }
 }
 
+
 void radioStartBLE()
 {
+    if (pBLEScan) {
+        radioStopBLE();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
     BLEDevice::init("");
     pBLEScan = BLEDevice::getScan();
     pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
@@ -1367,28 +1369,27 @@ void radioStartBLE()
 void radioStopSTA() {
     Serial.println("[RADIO] Stopping STA mode");
     
-    // Stop promiscuous but keep AP running
-    esp_wifi_set_promiscuous(false);
-    esp_wifi_set_promiscuous_rx_cb(NULL);
-    delay(50);
-    
-    // Stop channel hopping
     if (hopTimer) {
         esp_timer_stop(hopTimer);
+        vTaskDelay(pdMS_TO_TICKS(100));
         esp_timer_delete(hopTimer);
         hopTimer = nullptr;
     }
     
+    esp_wifi_set_promiscuous(false);
+    esp_wifi_set_promiscuous_rx_cb(NULL);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    
+    if (pBLEScan) {
+        radioStopBLE();
+    }
+
     // Stop BLE if running
     if (pBLEScan) {
         pBLEScan->stop();
         BLEDevice::deinit(false);
         pBLEScan = nullptr;
     }
-    
-    // Switch back to AP only mode
-    WiFi.mode(WIFI_AP);
-    delay(100);
 }
 
 void radioStartSTA() {

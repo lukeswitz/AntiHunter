@@ -503,7 +503,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <h3 style="margin:0;">Scan Results</h3>
           <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 12px;font-size:11px;">Clear</button>
         </div>
-        <pre id="r" style="margin:0;">No scan data yet.</pre>
+        <div id="r" style="margin:0;">No scan data yet.</div>
       </div>
     </div>
     
@@ -1255,10 +1255,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const macsMatch = block.match(/MACs linked: (\d+)/);
           const confMatch = block.match(/Confidence: ([\d.]+)/);
           const sessionsMatch = block.match(/Sessions: (\d+)/);
+          const signaturesMatch = block.match(/Signatures: (.+)/);
           const intervalMatch = block.match(/Interval consistency: ([\d.]+)/);
           const rssiMatch = block.match(/RSSI consistency: ([\d.]+)/);
           const channelsMatch = block.match(/Channels: (\d+)/);
+          const channelSeqMatch = block.match(/Channel sequence: (.+)/);
+          const seqTrackMatch = block.match(/Sequence tracking: (.+)/);
           const globalMacMatch = block.match(/Global MAC: ([A-F0-9:]+)/);
+          const anchorMacMatch = block.match(/Anchor MAC: ([A-F0-9:]+)/);
           const lastSeenMatch = block.match(/Last seen: (\d+)s ago/);
           const macsListMatch = block.match(/MACs: (.+)/);
           
@@ -1268,6 +1272,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const macCount = macsMatch ? macsMatch[1] : '0';
           const confidence = confMatch ? (parseFloat(confMatch[1]) * 100).toFixed(0) : '0';
           const sessions = sessionsMatch ? sessionsMatch[1] : '0';
+          const signatures = signaturesMatch ? signaturesMatch[1].trim() : null;
+          const channelSeq = channelSeqMatch ? channelSeqMatch[1].trim() : null;
+          const seqTrack = seqTrackMatch ? seqTrackMatch[1].trim() : null;
+          const globalMac = globalMacMatch ? globalMacMatch[1] : null;
+          const anchorMac = anchorMacMatch ? anchorMacMatch[1] : null;
           
           html += '<div style="background:#000;padding:18px;border-radius:8px;border:1px solid #003b24;margin-bottom:12px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
 
@@ -1296,9 +1305,36 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           html += '</div>';
           
-          if (globalMacMatch) {
-            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;font-family:monospace;font-size:12px;color:#0aff9d;">';
-            html += 'Global MAC: <strong>' + globalMacMatch[1] + '</strong>';
+          if (signatures) {
+            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            html += '<span style="font-size:11px;color:#00ff7f66;">Signatures: </span>';
+            html += '<strong style="font-size:12px;color:#00ff7f;">' + signatures + '</strong>';
+            html += '</div>';
+          }
+          
+          // if (globalMac) {
+          //   html += '<div style="margin-bottom:10px;padding:8px;background:#1a0808;border:1px solid #ff4444;border-radius:6px;font-family:monospace;font-size:12px;color:#ff6666;">';
+          //   html += 'Global MAC Leak: <strong style="color:#ff4444;">' + globalMac + '</strong>';
+          //   html += '</div>';
+          // }
+          
+          if (anchorMac) {
+            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;font-family:monospace;font-size:12px;color:#00ff7f99;">';
+            html += 'Anchor MAC: <strong style="color:#00ff7f;">' + anchorMac + '</strong>';
+            html += '</div>';
+          }
+          
+          if (channelSeq) {
+            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            html += '<span style="font-size:11px;color:#00ff7f66;">Channel Sequence: </span>';
+            html += '<span style="font-family:monospace;font-size:12px;color:#00ff7f;">' + channelSeq + '</span>';
+            html += '</div>';
+          }
+          
+          if (seqTrack) {
+            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
+            html += '<span style="font-size:11px;color:#00ff7f66;">Sequence Tracking: </span>';
+            html += '<span style="font-family:monospace;font-size:12px;color:#00ff7f;">' + seqTrack + '</span>';
             html += '</div>';
           }
           
