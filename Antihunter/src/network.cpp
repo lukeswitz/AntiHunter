@@ -435,7 +435,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
-                <button type="button" class="btn" id="randTracksBtn" style="display:none;" onclick="showDeviceIdentities()">View IDs</button>
                 <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
               </div>              
             </form>
@@ -1151,70 +1150,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (modal) {
           document.body.removeChild(modal);
         }
-      }
-
-      function showDeviceIdentities() {
-        fetch('/randomization/identities')
-          .then(r => r.json())
-          .then(identities => {
-            // identities should be an array of device identity objects
-            console.log('Identities JSON:', identities); // Debug log
-            
-            const modal = document.createElement('div');
-            modal.id = 'randTracksModal';
-            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
-            
-            let content = '<div style="background:#1a1a1a;padding:24px;border-radius:8px;max-width:1200px;width:100%;max-height:90vh;overflow:auto;">';
-            content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-            content += '<h3 style="margin:0;">Ghost Traces: (' + identities.length + ')</h3>';
-            content += '<button onclick="document.getElementById(\'randTracksModal\').remove()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">&times;</button>';
-            content += '</div>';
-            content += '<div style="display:grid;gap:12px;">';
-            
-            identities.forEach(track => {
-              const isBLE = track.deviceType === 'BLE Device' || track.isBLE === true;
-              content += '<div style="background:#0a0a0a;padding:16px;border-radius:4px;border-left:3px solid #4CAF50;">';
-              content += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
-              content += '<strong style="font-size:16px;color:#4CAF50;">' + track.identityId + '</strong>';
-              content += '<div style="display:flex;gap:16px;font-size:14px;flex-wrap:wrap;">';
-              content += '<span>Sessions: <strong>' + track.observedSessions + '</strong></span>';
-              content += '<span>Confidence: <strong>' + (track.confidence * 100).toFixed(0) + '%</strong></span>';
-              content += '</div>';
-              content += '</div>';
-              
-              content += '<div style="display:flex;gap:16px;font-size:13px;color:#888;margin-bottom:8px;">';
-              content += '<span>Type: <strong style="color:#4CAF50;">' + track.deviceType + '</strong></span>';
-              content += '<span>Avg RSSI: <strong style="color:#4CAF50;">' + track.avgRssi + ' dBm</strong></span>';
-              content += '</div>';
-              
-              content += '<details style="margin-top:14px;" onclick="this.querySelector(\'span\').style.transform = this.open ? \'rotate(90deg)\' : \'rotate(0deg)\'">';
-              content += '<summary style="cursor:pointer;color:#0aff9d;user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
-              content += '<span style="display:inline-block;transition:transform 0.2s;font-size:11px;">▶</span>';
-              content += 'Device MACs (' + track.macs.length + ')</summary>';
-              content += '<div style="margin-top:8px;padding:8px;background:#1a1a1a;border-radius:4px;max-height:300px;overflow-y:auto;">';
-              content += '</summary>';
-              content += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;max-height:300px;overflow-y:auto;">';
-
-              track.macs.forEach((mac, idx) => {
-                const isRand = (parseInt(mac.substring(0, 2), 16) & 0x02) !== 0;
-                const badge = isRand ? 
-                  '<span style="background:#FF5722;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">RANDOMIZED</span>' : 
-                  '<span style="background:#2196F3;padding:2px 6px;border-radius:3px;font-size:11px;margin-left:8px;">STABLE</span>';
-                content += '<div style="padding:4px 0;font-family:monospace;font-size:13px;">';
-                content += mac + badge;
-                content += '</div>';
-              });
-              
-              content += '</div></details>';
-              content += '</div>';
-            });
-            
-            content += '</div></div>';
-            modal.innerHTML = content;
-            document.body.appendChild(modal);
-          })
-          .catch(err => toast('Error fetching fingerprints: ' + err, 'error'));
-          toast('Error fetching fingerprints: ' + err, 'error');
       }
 
       function parseAndStyleResults(text) {
