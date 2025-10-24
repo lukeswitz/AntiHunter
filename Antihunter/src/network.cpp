@@ -930,9 +930,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function clearResults() {
-        if (!confirm('Clear scan results? This will only clear the display, not the actual data.')) return;
-        document.getElementById('r').innerText = 'Results cleared.';
-        toast('Results display cleared', 'info');
+        if (!confirm('Clear scan results?')) return;
+        
+        fetch('/clear-results', { method: 'POST' })
+          .then(r => r.text())
+          .then(() => {
+            document.getElementById('r').innerText = 'No scan data yet.';
+            toast('Results cleared', 'info');
+          })
+          .catch(err => {
+            console.error('Clear failed:', err);
+            toast('Failed to clear results', 'error');
+          });
       }
       
       function updateStatusIndicators(diagText) {
@@ -2904,6 +2913,14 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       json += "\"pass\":\"" + pass + "\"";
       json += "}";
       req->send(200, "application/json", json);
+  });
+
+  server->on("/clear-results", HTTP_POST, [](AsyncWebServerRequest *req) {
+      {
+          std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+          antihunter::lastResults.clear();
+      }
+      req->send(200, "text/plain", "Results cleared");
   });
 
   server->on("/wifi-config", HTTP_POST, [](AsyncWebServerRequest *req) {
