@@ -89,10 +89,37 @@ bool detectWiFiBLECorrelation(const uint8_t* wifiMac, const uint8_t* bleMac) {
 }
 
 bool detectGlobalMACLeak(const ProbeSession& session, uint8_t* globalMac) {
-    if ((session.mac[0] & 0x02) == 0) {
-        memcpy(globalMac, session.mac, 6);
-        return true;
+    if (!isRandomizedMAC(session.mac)) {
+        return false;
     }
+    
+    for (const auto& entry : activeSessions) {
+        const ProbeSession& candidate = entry.second;
+        if (isRandomizedMAC(candidate.mac)) continue;
+        if (!isGlobalMAC(candidate.mac)) continue;
+        
+        uint32_t timeDelta = (session.lastSeen > candidate.lastSeen) ?
+                            (session.lastSeen - candidate.lastSeen) :
+                            (candidate.lastSeen - session.lastSeen);
+        if (timeDelta > 30000) continue;
+        
+        bool seqMatch = false;
+        if (session.seqNumValid && candidate.seqNumValid) {
+            uint16_t seqDelta = (session.lastSeqNum >= candidate.lastSeqNum) ?
+                               (session.lastSeqNum - candidate.lastSeqNum) :
+                               ((4096 + session.lastSeqNum - candidate.lastSeqNum) & 0x0FFF);
+            seqMatch = (seqDelta > 0 && seqDelta < 200);
+        }
+        
+        uint8_t fpMatches = 0;
+        bool fpMatch = matchFingerprints(session.fingerprint, candidate.fingerprint, fpMatches);
+        
+        if (seqMatch || (fpMatch && fpMatches >= 2)) {
+            memcpy(globalMac, candidate.mac, 6);
+            return true;
+        }
+    }
+    
     return false;
 }
 
@@ -532,6 +559,9 @@ uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length) {
 
 bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime) {
     uint32_t gap = currentTime - identity.lastSeen;
+    if (identity.isBLE) {
+        return (gap >= MAC_ROTATION_GAP_MIN_BLE && gap <= MAC_ROTATION_GAP_MAX_BLE);
+    }
     return (gap >= MAC_ROTATION_GAP_MIN && gap <= MAC_ROTATION_GAP_MAX);
 }
 
@@ -1194,7 +1224,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t nextCleanup = startTime + 30000;
     uint32_t nextResultsUpdate = startTime + 2000;
     uint32_t lastBLEScan = 0;
-    const uint32_t BLE_SCAN_INTERVAL = 3000;
+    const uint32_t BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
     
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
