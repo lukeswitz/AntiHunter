@@ -498,9 +498,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </div>
       
       <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;">
           <h3 style="margin:0;">Scan Results</h3>
-          <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 12px;font-size:11px;">Clear</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="font-size:11px;color:var(--muted);">Sort:</label>
+            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;background:#000;border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:11px;">
+              <option value="default">Default</option>
+              <option value="rssi-desc">RSSI (Strongest)</option>
+              <option value="rssi-asc">RSSI (Weakest)</option>
+              <option value="confidence-desc">Confidence (High)</option>
+              <option value="sessions-desc">Sessions (Most)</option>
+              <option value="lastseen-asc">Last Seen (Recent)</option>
+              <option value="name-asc">Name (A-Z)</option>
+            </select>
+            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;">↕</button>
+            <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
+          </div>
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
       </div>
@@ -942,6 +955,187 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             toast('Failed to clear results', 'error');
           });
       }
+      
+      let currentSort = 'default';
+      let sortReverse = false;
+
+      function applySorting() {
+        currentSort = document.getElementById('sortBy').value;
+        sortResultsDisplay();
+      }
+
+      function toggleSortOrder() {
+        sortReverse = !sortReverse;
+        sortResultsDisplay();
+      }
+
+      function sortResultsDisplay() {
+        const resultsElement = document.getElementById('r');
+        
+        // Detect result type
+        const isRandomization = resultsElement.textContent.includes('MAC RANDOMIZATION DETECTION');
+        const isBaseline = resultsElement.textContent.includes('Baseline');
+        const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
+        const isDrone = resultsElement.textContent.includes('Drone Detection');
+        const isDeviceScan = resultsElement.textContent.includes('Device Discovery');
+        
+        let items = [];
+        
+        if (isRandomization) {
+          // Extract track details from DOM
+          const details = resultsElement.querySelectorAll('details');
+          details.forEach(detail => {
+            const summary = detail.querySelector('summary');
+            const mac = summary.querySelector('[style*="monospace"]')?.textContent || '';
+            
+            const confidenceMatch = summary.textContent.match(/(\d+)%/);
+            const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 0;
+            
+            const rssiMatch = summary.textContent.match(/([-\d]+)dBm/);
+            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+            
+            const sessionsMatch = detail.textContent.match(/SESSIONS[\s\S]*?(\d+)/);
+            const sessions = sessionsMatch ? parseInt(sessionsMatch[1]) : 0;
+            
+            const lastSeenMatch = detail.textContent.match(/LAST SEEN[\s\S]*?(\d+)s/);
+            const lastSeen = lastSeenMatch ? parseInt(lastSeenMatch[1]) : 0;
+            
+            const trackIdMatch = detail.textContent.match(/TRACK ID[\s\S]*?([A-Z0-9-]+)/);
+            const trackId = trackIdMatch ? trackIdMatch[1] : '';
+            
+            items.push({
+              element: detail,
+              mac, confidence, rssi, sessions, lastSeen, trackId,
+              sortKey: currentSort,
+              type: 'randomization'
+            });
+          });
+        } else if (isBaseline) {
+          // Sort baseline device cards
+          const cards = resultsElement.querySelectorAll('[style*="background:#000"]');
+          cards.forEach(card => {
+            const macMatch = card.textContent.match(/([A-F0-9:]+)/);
+            const mac = macMatch ? macMatch[1] : '';
+            
+            const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+            
+            const nameMatch = card.textContent.match(/Name:\s*"([^"]+)"/);
+            const name = nameMatch ? nameMatch[1] : '';
+            
+            items.push({
+              element: card,
+              mac, rssi, name,
+              sortKey: currentSort,
+              type: 'baseline'
+            });
+          });
+        } else if (isDeauth) {
+          // Sort deauth target cards
+          const cards = resultsElement.querySelectorAll('[style*="border:1px solid #ff4444"]');
+          cards.forEach(card => {
+            const macMatch = card.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
+            const mac = macMatch ? macMatch[1] : '';
+            
+            const totalMatch = card.textContent.match(/Total Attacks[\s\S]*?(\d+)/);
+            const attacks = totalMatch ? parseInt(totalMatch[1]) : 0;
+            
+            const rssiMatch = card.textContent.match(/Signal[\s\S]*?([-\d]+)\s*dBm/);
+            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+            
+            items.push({
+              element: card,
+              mac, attacks, rssi,
+              sortKey: currentSort,
+              type: 'deauth'
+            });
+          });
+        } else if (isDrone) {
+          // Sort drone cards
+          const cards = resultsElement.querySelectorAll('[style*="border:1px solid #0aff9d"]');
+          cards.forEach(card => {
+            const macMatch = card.textContent.match(/([A-F0-9:]+)/);
+            const mac = macMatch ? macMatch[1] : '';
+            
+            const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+            
+            items.push({
+              element: card,
+              mac, rssi,
+              sortKey: currentSort,
+              type: 'drone'
+            });
+          });
+        } else if (isDeviceScan) {
+          // Sort device cards
+          const cards = resultsElement.querySelectorAll('[style*="border:1px solid #003b24"]');
+          cards.forEach(card => {
+            const macMatch = card.textContent.match(/([A-F0-9:]+)/);
+            const mac = macMatch ? macMatch[1] : '';
+            
+            const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+            
+            const nameMatch = card.textContent.match(/Name:\s*"?([^"\n]+)"?/);
+            const name = nameMatch ? nameMatch[1] : '';
+            
+            items.push({
+              element: card,
+              mac, rssi, name,
+              sortKey: currentSort,
+              type: 'device'
+            });
+          });
+        }
+        
+        // Apply sort
+        items.sort((a, b) => {
+          let cmp = 0;
+          
+          switch(currentSort) {
+            case 'rssi-desc':
+              cmp = b.rssi - a.rssi;
+              break;
+            case 'rssi-asc':
+              cmp = a.rssi - b.rssi;
+              break;
+            case 'confidence-desc':
+              cmp = (b.confidence || 0) - (a.confidence || 0);
+              break;
+            case 'sessions-desc':
+              cmp = (b.sessions || 0) - (a.sessions || 0);
+              break;
+            case 'lastseen-asc':
+              cmp = (a.lastSeen || 0) - (b.lastSeen || 0);
+              break;
+            case 'name-asc':
+              cmp = (a.name || a.mac).localeCompare(b.name || b.mac);
+              break;
+            default:
+              cmp = 0;
+          }
+          
+          return sortReverse ? -cmp : cmp;
+        });
+        
+        // Re-insert sorted elements
+        const container = resultsElement;
+        items.forEach(item => {
+          container.appendChild(item.element);
+        });
+      }
+
+      // Override the parseAndStyleResults to reset sort after reload
+      const originalParseAndStyleResults = window.parseAndStyleResults;
+      window.parseAndStyleResults = function(text) {
+        currentSort = 'default';
+        sortReverse = false;
+        if (document.getElementById('sortBy')) {
+          document.getElementById('sortBy').value = 'default';
+        }
+        return originalParseAndStyleResults.call(this, text);
+      };
       
       function updateStatusIndicators(diagText) {
           const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
