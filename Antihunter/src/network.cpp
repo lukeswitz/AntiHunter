@@ -978,6 +978,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function sortResultsDisplay() {
         const resultsElement = document.getElementById('r');
         
+        if (currentSort === 'default') {
+          return;
+        }
+        
         const isRandomization = resultsElement.textContent.includes('MAC RANDOMIZATION DETECTION');
         const isBaseline = resultsElement.textContent.includes('Baseline');
         const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
@@ -985,110 +989,133 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const isDeviceScan = resultsElement.textContent.includes('Device Discovery');
         
         let items = [];
+        const preservedElements = [];
         
         if (isRandomization) {
-          const details = resultsElement.querySelectorAll('details');
-          details.forEach(detail => {
-            const summary = detail.querySelector('summary');
-            const mac = summary.querySelector('[style*="monospace"]')?.textContent || '';
-            
-            const confidenceMatch = summary.textContent.match(/(\d+)%/);
-            const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 0;
-            
-            const rssiMatch = summary.textContent.match(/([-\d]+)dBm/);
-            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-            
-            const sessionsMatch = detail.textContent.match(/SESSIONS[\s\S]*?(\d+)/);
-            const sessions = sessionsMatch ? parseInt(sessionsMatch[1]) : 0;
-            
-            const lastSeenMatch = detail.textContent.match(/LAST SEEN[\s\S]*?(\d+)s/);
-            const lastSeen = lastSeenMatch ? parseInt(lastSeenMatch[1]) : 0;
-            
-            const trackIdMatch = detail.textContent.match(/TRACK ID[\s\S]*?([A-Z0-9-]+)/);
-            const trackId = trackIdMatch ? trackIdMatch[1] : '';
-            
-            items.push({
-              element: detail,
-              mac, confidence, rssi, sessions, lastSeen, trackId,
-              sortKey: currentSort,
-              type: 'randomization'
-            });
+          Array.from(resultsElement.children).forEach(child => {
+            if (child.tagName === 'DETAILS') {
+              const summary = child.querySelector('summary');
+              const mac = summary?.querySelector('[style*="monospace"]')?.textContent || '';
+              
+              const confidenceMatch = summary?.textContent.match(/(\d+)%/);
+              const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 0;
+              
+              const rssiMatch = summary?.textContent.match(/([-\d]+)dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              const sessionsMatch = child.textContent.match(/SESSIONS[\s\S]*?(\d+)/);
+              const sessions = sessionsMatch ? parseInt(sessionsMatch[1]) : 0;
+              
+              const lastSeenMatch = child.textContent.match(/LAST SEEN[\s\S]*?(\d+)s/);
+              const lastSeen = lastSeenMatch ? parseInt(lastSeenMatch[1]) : 0;
+              
+              const trackIdMatch = child.textContent.match(/TRACK ID[\s\S]*?([A-Z0-9-]+)/);
+              const trackId = trackIdMatch ? trackIdMatch[1] : '';
+              
+              items.push({
+                element: child,
+                mac, confidence, rssi, sessions, lastSeen, trackId,
+                sortKey: currentSort,
+                type: 'randomization'
+              });
+            } else {
+              preservedElements.push(child);
+            }
           });
         } else if (isBaseline) {
-          const cards = resultsElement.querySelectorAll('[style*="background:#000"]');
-          cards.forEach(card => {
-            const macMatch = card.textContent.match(/([A-F0-9:]+)/);
-            const mac = macMatch ? macMatch[1] : '';
-            
-            const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
-            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-            
-            const nameMatch = card.textContent.match(/Name:\s*"([^"]+)"/);
-            const name = nameMatch ? nameMatch[1] : '';
-            
-            items.push({
-              element: card,
-              mac, rssi, name,
-              sortKey: currentSort,
-              type: 'baseline'
-            });
+          Array.from(resultsElement.children).forEach(child => {
+            const hasBackgroundStyle = child.getAttribute('style')?.includes('background:#000');
+            if (hasBackgroundStyle && child.textContent.match(/[A-F0-9:]{17}/)) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              const nameMatch = child.textContent.match(/Name:\s*"([^"]+)"/);
+              const name = nameMatch ? nameMatch[1] : '';
+              
+              items.push({
+                element: child,
+                mac, rssi, name,
+                sortKey: currentSort,
+                type: 'baseline'
+              });
+            } else {
+              preservedElements.push(child);
+            }
           });
         } else if (isDeauth) {
-          const cards = resultsElement.querySelectorAll('[style*="border:1px solid #ff4444"]');
-          cards.forEach(card => {
-            const macMatch = card.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
-            const mac = macMatch ? macMatch[1] : '';
-            
-            const totalMatch = card.textContent.match(/Total Attacks[\s\S]*?(\d+)/);
-            const attacks = totalMatch ? parseInt(totalMatch[1]) : 0;
-            
-            const rssiMatch = card.textContent.match(/Signal[\s\S]*?([-\d]+)\s*dBm/);
-            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-            
-            items.push({
-              element: card,
-              mac, attacks, rssi,
-              sortKey: currentSort,
-              type: 'deauth'
-            });
+          Array.from(resultsElement.children).forEach(child => {
+            const hasDeauthBorder = child.getAttribute('style')?.includes('border:1px solid #ff4444');
+            if (hasDeauthBorder) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const totalMatch = child.textContent.match(/Total Attacks[\s\S]*?(\d+)/);
+              const attacks = totalMatch ? parseInt(totalMatch[1]) : 0;
+              
+              const rssiMatch = child.textContent.match(/Signal[\s\S]*?([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              items.push({
+                element: child,
+                mac, attacks, rssi,
+                sortKey: currentSort,
+                type: 'deauth'
+              });
+            } else {
+              preservedElements.push(child);
+            }
           });
         } else if (isDrone) {
-          const cards = resultsElement.querySelectorAll('[style*="border:1px solid #0aff9d"]');
-          cards.forEach(card => {
-            const macMatch = card.textContent.match(/([A-F0-9:]+)/);
-            const mac = macMatch ? macMatch[1] : '';
-            
-            const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
-            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-            
-            items.push({
-              element: card,
-              mac, rssi,
-              sortKey: currentSort,
-              type: 'drone'
-            });
+          Array.from(resultsElement.children).forEach(child => {
+            const hasDroneBorder = child.getAttribute('style')?.includes('border:1px solid #0aff9d');
+            if (hasDroneBorder) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              items.push({
+                element: child,
+                mac, rssi,
+                sortKey: currentSort,
+                type: 'drone'
+              });
+            } else {
+              preservedElements.push(child);
+            }
           });
         } else if (isDeviceScan) {
-          const cards = resultsElement.querySelectorAll('.device-card');
-          cards.forEach(card => {
-            const macMatch = card.textContent.match(/([A-F0-9:]+)/);
-            const mac = macMatch ? macMatch[1] : '';
-            
-            const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
-            const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-            
-            const nameMatch = card.textContent.match(/Name:\s*([^\n]+)/);
-            const name = nameMatch ? nameMatch[1].trim() : '';
-            
-            const deviceType = card.getAttribute('data-type') || '';
-            
-            items.push({
-              element: card,
-              mac, rssi, name, deviceType,
-              sortKey: currentSort,
-              type: 'device'
-            });
+          Array.from(resultsElement.children).forEach(child => {
+            if (child.classList.contains('device-card')) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              const nameMatch = child.textContent.match(/Name:\s*([^\n]+)/);
+              const name = nameMatch ? nameMatch[1].trim() : '';
+              
+              const deviceType = child.getAttribute('data-type') || '';
+              
+              items.push({
+                element: child,
+                mac, rssi, name, deviceType,
+                sortKey: currentSort,
+                type: 'device'
+              });
+            } else {
+              preservedElements.push(child);
+            }
           });
+        }
+        
+        if (items.length === 0) {
+          return;
         }
         
         items.sort((a, b) => {
@@ -1123,16 +1150,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return sortReverse ? -cmp : cmp;
         });
         
-        const header = resultsElement.querySelector('#deviceScanHeader');
-        if (header) {
-          header.remove();
-        }
-        
         resultsElement.innerHTML = '';
         
-        if (header) {
-          resultsElement.appendChild(header);
-        }
+        preservedElements.forEach(el => {
+          resultsElement.appendChild(el);
+        });
         
         items.forEach(item => {
           resultsElement.appendChild(item.element);
