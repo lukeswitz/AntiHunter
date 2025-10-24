@@ -12,6 +12,7 @@
 #include <Wire.h>
 #include "esp_wifi.h"
 #include "esp_task_wdt.h"
+#include "nvs_flash.h"
 
 extern Preferences prefs;
 extern ScanMode currentScanMode;
@@ -969,7 +970,6 @@ bool initiateTamperErase() {
     
     sendToSerial1(alertMsg, false);
     
-    logEraseAttempt("Tamper detection triggered", true);
     return true;
 }
 
@@ -1039,22 +1039,41 @@ bool executeSecureErase(const String &reason) {
 bool performSecureWipe() {
     Serial.println("[WIPE] Starting secure wipe");
     
+    // Close and erase NVS
+    prefs.end();
+    delay(100);
+    
+    esp_err_t err = nvs_flash_erase();
+    if (err != ESP_OK) {
+        Serial.printf("[WIPE] NVS erase failed: %d\n", err);
+        return false;
+    }
+    
+    err = nvs_flash_init();
+    if (err != ESP_OK) {
+        Serial.printf("[WIPE] NVS init failed: %d\n", err);
+        return false;
+    }
+    
+    Serial.println("[WIPE] NVS cleared");
+    
+    // Clear SD card
     deleteAllFiles("/");
     
     File marker = SD.open("/weather-air-feed.txt", FILE_WRITE);
     if (marker) {
-        marker.println("Weather and AQ data could not be sent to your network. Check your API key and settings or contact support.");
+        marker.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
         marker.close();
     
         if (SD.exists("/weather-air-feed.txt")) {
-            Serial.println("[WIPE] Marker file created successfully - wipe completed");
+            Serial.println("[WIPE] Marker file created - wipe completed");
             return true;
         } else {
             Serial.println("[WIPE] Marker file creation failed");
             return false;
         }
     } else {
-        Serial.println("[WIPE] Failed to create marker file - SD card may be inaccessible");
+        Serial.println("[WIPE] Failed to create marker file");
         return false;
     }
 }
@@ -1101,12 +1120,4 @@ void deleteAllFiles(const String &dirname) {
     }
     
     root.close();
-}
-
-void logEraseAttempt(const String &reason, bool success) {
-    String logEntry = "ERASE: " + reason + " Success:" + (success ? "YES" : "NO");
-    Serial.println(logEntry);
-    if (sdAvailable && !success) {
-        logToSD(logEntry);
-    }
 }
