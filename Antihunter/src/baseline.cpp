@@ -422,13 +422,26 @@ void baselineDetectionTask(void *pv) {
     bleFramesSeen = 0;
     scanning = true;
     
-    // Initialize baseline stats
     baselineStats = BaselineStats();
     baselineStats.isScanning = true;
     baselineStats.phase1Complete = false;
     baselineStats.totalDuration = baselineDuration;
     
     radioStartSTA();
+    vTaskDelay(pdMS_TO_TICKS(200)); 
+
+    if (!pBLEScan) {
+        BLEDevice::init("");
+        pBLEScan = BLEDevice::getScan();
+    }
+    
+    if (pBLEScan && !pBLEScan->isScanning()) {
+        pBLEScan->setActiveScan(true);
+        pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
+        pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
+        pBLEScan->setDuplicateFilter(false);
+        pBLEScan->start(0, false);
+    }
 
     uint32_t phaseStart = millis();
     uint32_t nextStatus = millis() + 5000;
@@ -439,9 +452,9 @@ void baselineDetectionTask(void *pv) {
     
     Hit h;
     
-    // Phase 1: Establish baseline
     Serial.printf("[BASELINE] Phase 1 starting at %u ms, will run until %u ms\n", 
                   phaseStart, phaseStart + baselineDuration);
+    
     while (millis() - phaseStart < baselineDuration && !stopRequested) {
         baselineStats.elapsedTime = millis() - phaseStart;
         
@@ -459,8 +472,7 @@ void baselineDetectionTask(void *pv) {
         // WiFi scanning
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            //scanNetworks(bool async, bool show_hidden, bool passive, uint32_t max_ms_per_chan, uint8_t channel)
-            int networksFound = WiFi.scanNetworks(false,true,false,rfConfig.wifiChannelTime);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
             
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
@@ -488,8 +500,8 @@ void baselineDetectionTask(void *pv) {
             WiFi.scanDelete();
         }
         
-        // BLE scanning
-        if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+        // BLE scanning - only if pBLEScan is valid and running
+        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
             
             NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
@@ -524,7 +536,6 @@ void baselineDetectionTask(void *pv) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
-
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
         
@@ -542,13 +553,8 @@ void baselineDetectionTask(void *pv) {
     
     Serial.printf("[BASELINE] Baseline established with %d devices\n", baselineDeviceCount);
     Serial.printf("[BASELINE] Phase 2: Monitoring for anomalies (threshold: %d dBm)\n", baselineRssiThreshold);
-    if (forever) {
-        Serial.printf("[BASELINE] Phase 2 will run forever until stopped\n");
-    } else {
-        Serial.printf("[BASELINE] Phase 2 will run for %d seconds (%d ms)\n", duration, duration * 1000);
-    }
 
-    // Phase 2: Anomaly Detection
+    // Phase 2: Same pattern, checking pBLEScan validity
     uint32_t monitorStart = millis();
     phaseStart = millis();
     nextStatus = millis() + 5000;
@@ -556,10 +562,9 @@ void baselineDetectionTask(void *pv) {
     lastCleanup = millis();
     lastWiFiScan = 0;
     lastBLEScan = 0;
-    uint32_t monitorDurationMs = forever ? UINT32_MAX : (uint32_t)duration * 1000;
 
     Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n", 
-                monitorStart, monitorDurationMs);
+                monitorStart, (forever ? UINT32_MAX : (uint32_t)duration * 1000));
         
     while ((forever && !stopRequested) || 
            (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
@@ -607,8 +612,8 @@ void baselineDetectionTask(void *pv) {
             WiFi.scanDelete();
         }
 
-        // BLE scanning
-        if (pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+        // BLE scanning - check validity
+        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
             lastBLEScan = millis();
             
             NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
@@ -661,10 +666,9 @@ void baselineDetectionTask(void *pv) {
                  baselineDeviceCount, anomalyCount, finalHeap);
     
     radioStopSTA();
+    vTaskDelay(pdMS_TO_TICKS(200));
     
     Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%u bytes\n",
-                 baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
-    Serial.printf("[BASELINE] Detection complete. Baseline:%d Anomalies:%d Final heap:%u\n",
                  baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
     
     if (sdBaselineInitialized) {
@@ -733,6 +737,7 @@ void cleanupBaselineMemory() {
     Serial.printf("[BASELINE] Cache: %d devices, History: %d tracked, Anomalies: %d, Heap: %u\n",
                  baselineCache.size(), deviceHistory.size(), anomalyLog.size(), ESP.getFreeHeap());
 }
+
 // Baseline SD 
 uint8_t calculateDeviceChecksum(BaselineDevice& device) {
     uint8_t sum = 0;
