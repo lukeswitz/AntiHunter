@@ -213,7 +213,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details[open] > summary > span:first-child{transform:rotate(90deg)}
       .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:10px}
       .card-header h3{margin:0}
-      .collapse-icon{transition:transform 0.2s;font-size:13px;color:var(--muted)}
+      .collapse-icon{transition:transform 0.2s;font-size:13px;color:var(--muted);display:inline-block;transform-origin:center;}
       .collapse-icon.open{transform:rotate(90deg)}
       .card-body{overflow:hidden;transition:max-height 0.3s ease}
       .card-body.collapsed{max-height:0!important;margin:0;padding:0}
@@ -1157,6 +1157,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         fetch('/randomization/identities')
           .then(r => r.json())
           .then(identities => {
+            // identities should be an array of device identity objects
+            console.log('Identities JSON:', identities); // Debug log
+            
             const modal = document.createElement('div');
             modal.id = 'randTracksModal';
             modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
@@ -1169,11 +1172,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             content += '<div style="display:grid;gap:12px;">';
             
             identities.forEach(track => {
+              const isBLE = track.deviceType === 'BLE Device' || track.isBLE === true;
               content += '<div style="background:#0a0a0a;padding:16px;border-radius:4px;border-left:3px solid #4CAF50;">';
               content += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">';
               content += '<strong style="font-size:16px;color:#4CAF50;">' + track.identityId + '</strong>';
               content += '<div style="display:flex;gap:16px;font-size:14px;flex-wrap:wrap;">';
-              content += '<span>Sessions: <strong>' + track.sessions + '</strong></span>';
+              content += '<span>Sessions: <strong>' + track.observedSessions + '</strong></span>';
               content += '<span>Confidence: <strong>' + (track.confidence * 100).toFixed(0) + '%</strong></span>';
               content += '</div>';
               content += '</div>';
@@ -1210,6 +1214,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             document.body.appendChild(modal);
           })
           .catch(err => toast('Error fetching fingerprints: ' + err, 'error'));
+          toast('Error fetching fingerprints: ' + err, 'error');
       }
 
       function parseAndStyleResults(text) {
@@ -1241,143 +1246,168 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const identitiesMatch = text.match(/Device Identities: (\d+)/);
         
         let html = '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
-        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:8px;font-weight:bold;">MAC Randomization Detection Results</div>';
-        html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;">';
-        if (headerMatch) html += '<span>Active Sessions: <strong style="color:#00ff7f;">' + headerMatch[1] + '</strong></span>';
-        if (identitiesMatch) html += '<span>Device Identities: <strong style="color:#00ff7f;">' + identitiesMatch[1] + '</strong></span>';
+        html += '<div style="font-size:13px;color:#00ff7f;margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">MAC RANDOMIZATION DETECTION</div>';
+        html += '<div style="display:flex;gap:20px;font-size:11px;color:#00ff7f99;">';
+        if (headerMatch) html += '<span>Sessions: <strong style="color:#00ff7f;">' + headerMatch[1] + '</strong></span>';
+        if (identitiesMatch) html += '<span>Identities: <strong style="color:#00ff7f;">' + identitiesMatch[1] + '</strong></span>';
         html += '</div></div>';
         
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
         
-        trackBlocks.forEach(block => {
-          const trackMatch = block.match(/Track ID: (T-\d+)/);
-          const typeMatch = block.match(/Type: (WiFi Device|BLE Device)/);
+        trackBlocks.forEach((block, index) => {
+          const trackMatch = block.match(/Track ID:\s*([^\n]+)/);
+          const typeMatch = block.match(/Type:\s*([^\n]+)/);
           const macsMatch = block.match(/MACs linked: (\d+)/);
           const confMatch = block.match(/Confidence: ([\d.]+)/);
           const sessionsMatch = block.match(/Sessions: (\d+)/);
-          const signaturesMatch = block.match(/Signatures: (.+)/);
           const intervalMatch = block.match(/Interval consistency: ([\d.]+)/);
           const rssiMatch = block.match(/RSSI consistency: ([\d.]+)/);
           const channelsMatch = block.match(/Channels: (\d+)/);
           const channelSeqMatch = block.match(/Channel sequence: (.+)/);
-          const seqTrackMatch = block.match(/Sequence tracking: (.+)/);
-          const globalMacMatch = block.match(/Global MAC: ([A-F0-9:]+)/);
           const anchorMacMatch = block.match(/Anchor MAC: ([A-F0-9:]+)/);
           const lastSeenMatch = block.match(/Last seen: (\d+)s ago/);
           const macsListMatch = block.match(/MACs: (.+)/);
           
-          if (!trackMatch) return;
+          if (!trackMatch || !anchorMacMatch) return;
           
           const trackId = trackMatch[1];
+          const anchorMac = anchorMacMatch[1];
           const macCount = macsMatch ? macsMatch[1] : '0';
           const confidence = confMatch ? (parseFloat(confMatch[1]) * 100).toFixed(0) : '0';
           const sessions = sessionsMatch ? sessionsMatch[1] : '0';
-          const signatures = signaturesMatch ? signaturesMatch[1].trim() : null;
-          const channelSeq = channelSeqMatch ? channelSeqMatch[1].trim() : null;
-          const seqTrack = seqTrackMatch ? seqTrackMatch[1].trim() : null;
-          const globalMac = globalMacMatch ? globalMacMatch[1] : null;
-          const anchorMac = anchorMacMatch ? anchorMacMatch[1] : null;
+          const isBLE = typeMatch && typeMatch[1] === 'BLE Device';
           
-          html += '<div style="background:#000;padding:18px;border-radius:8px;border:1px solid #003b24;margin-bottom:12px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
-
-          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-          html += '<strong style="font-size:17px;color:#00ff7f;letter-spacing:0.5px;">' + trackId + '</strong>';
-          html += '<div style="display:flex;gap:18px;font-size:13px;color:#00ff7f99;">';
-          html += '<span>Sessions: <strong style="color:#00ff7f;">' + sessions + '</strong></span>';
-          html += '<span>Confidence: <strong style="color:#00ff7f;">' + confidence + '%</strong></span>';
-          html += '</div>';
-          html += '</div>';
+          const rssiList = macsListMatch ? macsListMatch[1].match(/([-\d]+)dBm/g) : null;
+          let avgRssi = null;
+          if (rssiList && rssiList.length > 0) {
+            const rssiValues = rssiList.map(r => parseInt(r.match(/([-\d]+)/)[1]));
+            avgRssi = Math.round(rssiValues.reduce((a, b) => a + b, 0) / rssiValues.length);
+          }
           
-          html += '<div style="display:flex;gap:18px;font-size:12px;color:#00ff7f66;margin-bottom:10px;flex-wrap:wrap;">';
-          const deviceType = typeMatch ? typeMatch[1] : 'Unknown';
-          html += '<span>Type: <strong style="color:#00ff7f99;">' + deviceType + '</strong></span>';
-          if (channelsMatch && parseInt(channelsMatch[1]) > 0) {
-            html += '<span>Channels: <strong style="color:#00ff7f99;">' + channelsMatch[1] + '</strong></span>';
-          }
-          if (intervalMatch) {
-            html += '<span>Interval: <strong style="color:#00ff7f99;">' + intervalMatch[1] + '</strong></span>';
-          }
-          if (rssiMatch) {
-            html += '<span>RSSI: <strong style="color:#00ff7f99;">' + rssiMatch[1] + '</strong></span>';
-          }
-          if (lastSeenMatch) {
-            html += '<span>Last: <strong style="color:#00ff7f99;">' + lastSeenMatch[1] + 's ago</strong></span>';
-          }
+          html += '<details style="background:#000;border:1px solid #003b24;border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
+          html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
+          html += '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;flex-wrap:wrap;">';
+          html += '<span style="font-family:monospace;font-size:12px;color:#0aff9d;font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
+          html += '<span style="background:' + (isBLE ? '#4a1a4a' : '#1a2a4a') + ';color:' + (isBLE ? '#d896ff' : '#6ab7ff') + ';padding:2px 8px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + (isBLE ? 'BLE' : 'WiFi') + '</span>';
+          html += '<span style="color:#00ff7f66;font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
+          html += '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">';
           
-          if (signatures) {
-            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            html += '<span style="font-size:11px;color:#00ff7f66;">Signatures: </span>';
-            html += '<strong style="font-size:12px;color:#00ff7f;">' + signatures + '</strong>';
+          if (avgRssi !== null) {
+            const rssiColor = avgRssi >= -50 ? '#0aff9d' : avgRssi >= -70 ? '#ffaa00' : '#ff4444';
+            html += '<div style="text-align:right;">';
+            html += '<div style="font-size:8px;color:#00ff7f66;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">RSSI</div>';
+            html += '<div style="font-size:13px;color:' + rssiColor + ';font-weight:700;white-space:nowrap;">' + avgRssi + '<span style="font-size:9px;margin-left:1px;">dBm</span></div>';
             html += '</div>';
           }
           
-          // if (globalMac) {
-          //   html += '<div style="margin-bottom:10px;padding:8px;background:#1a0808;border:1px solid #ff4444;border-radius:6px;font-family:monospace;font-size:12px;color:#ff6666;">';
-          //   html += 'Global MAC Leak: <strong style="color:#ff4444;">' + globalMac + '</strong>';
+          const confColor = confidence >= 75 ? '#0aff9d' : confidence >= 50 ? '#ffaa00' : '#ff6666';
+          html += '<div style="text-align:right;">';
+          html += '<div style="font-size:8px;color:#00ff7f66;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Confidence</div>';
+          html += '<div style="font-size:13px;color:' + confColor + ';font-weight:700;white-space:nowrap;">' + confidence + '<span style="font-size:9px;">%</span></div>';
+          html += '</div>';
+          
+          html += '<span style="color:#00ff7f66;font-size:18px;">▶</span>';
+          html += '</div>';
+          html += '</summary>';
+          
+          html += '<div style="padding:0 14px 14px 14px;border-top:1px solid #003b24;">';
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px;">';
+          
+          html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
+          html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">SESSIONS</div>';
+          html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + sessions + '</div>';
+          html += '</div>';
+          
+          // if (intervalMatch) {
+          //   const intervalPct = (parseFloat(intervalMatch[1]) * 100).toFixed(0);
+          //   html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
+          //   html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">INTERVAL</div>';
+          //   html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + intervalPct + '%</div>';
           //   html += '</div>';
           // }
           
-          if (anchorMac) {
-            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;font-family:monospace;font-size:12px;color:#00ff7f99;">';
-            html += 'Anchor MAC: <strong style="color:#00ff7f;">' + anchorMac + '</strong>';
+          if (rssiMatch) {
+            const rssiConPct = (parseFloat(rssiMatch[1]) * 100).toFixed(0);
+            html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
+            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">RSSI STABILITY</div>';
+            html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + rssiConPct + '%</div>';
             html += '</div>';
           }
           
-          if (channelSeq) {
-            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            html += '<span style="font-size:11px;color:#00ff7f66;">Channel Sequence: </span>';
-            html += '<span style="font-family:monospace;font-size:12px;color:#00ff7f;">' + channelSeq + '</span>';
+          if (channelsMatch) {
+            html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
+            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">CHANNELS</div>';
+            html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + channelsMatch[1] + '</div>';
             html += '</div>';
           }
           
-          if (seqTrack) {
-            html += '<div style="margin-bottom:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            html += '<span style="font-size:11px;color:#00ff7f66;">Sequence Tracking: </span>';
-            html += '<span style="font-family:monospace;font-size:12px;color:#00ff7f;">' + seqTrack + '</span>';
+          if (lastSeenMatch) {
+            html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
+            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">LAST SEEN</div>';
+            html += '<div style="font-size:11px;color:#00ff7f;font-weight:600;">' + lastSeenMatch[1] + 's</div>';
             html += '</div>';
           }
+          
+          html += '</div>';
+          
+          if (channelSeqMatch) {
+            html += '<div style="margin-top:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:4px;">';
+            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:4px;">CHANNEL SEQUENCE</div>';
+            html += '<div style="font-size:10px;color:#00ff7f;font-family:monospace;">' + channelSeqMatch[1].trim() + '</div>';
+            html += '</div>';
+          }
+          
+          html += '<div style="margin-top:10px;padding:8px;background:#001a10;border:1px solid #0c6;border-radius:4px;">';
+          html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:4px;">TRACK ID</div>';
+          html += '<div style="font-size:11px;color:#0aff9d;font-family:monospace;font-weight:600;">' + trackId + '</div>';
+          html += '</div>';
           
           if (macsListMatch) {
-            const macsList = macsListMatch[1].split(',').map(m => m.trim()).filter(m => m && m !== '');
-            const moreMatch = macsListMatch[1].match(/\(\+(\d+) more\)/);
+            const macsList = macsListMatch[1];
+            const moreMatch = macsList.match(/\(\+(\d+) more\)/);
+            const cleanMacsList = macsList.replace(/\s*\(\+\d+ more\)/, '');
+            const macs = cleanMacsList.split(',').map(m => m.trim()).filter(m => m.length > 0);
             
-            html += '<details style="margin-top:14px;" onclick="this.querySelector(\'span\').style.transform = this.open ? \'rotate(90deg)\' : \'rotate(0deg)\'">';
-            html += '<summary style="cursor:pointer;color:#0aff9d;user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
-            html += '<span style="display:inline-block;transition:transform 0.2s;font-size:11px;">▶</span>';
-            html += '<strong>Device MACs (' + macCount + ')</strong>';
-            html += '</summary>';
-            html += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;max-height:300px;overflow-y:auto;">';
+            html += '<details style="margin-top:10px;" open>';
+            html += '<summary style="font-size:9px;color:#00ff7f99;cursor:pointer;padding:6px 0;list-style:none;user-select:none;">MAC ADDRESSES (' + (moreMatch ? macCount : macs.length) + ')</summary>';
+            html += '<div style="display:grid;gap:4px;margin-top:6px;">';
             
-            macsList.forEach(mac => {
-              if (mac.includes('(+')) return;
-              const firstByte = parseInt(mac.substring(0, 2), 16);
-              const isRand = (firstByte & 0x02) !== 0;
-              const isGlobalLeak = !isRand && globalMacMatch && (globalMacMatch[1] === mac);
-              let badge;
-              if (isRand) {
-                badge = '<span style="background:#FF5722;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">RANDOMIZED</span>';
-              } else if (isGlobalLeak) {
-                badge = '<span style="background:#FF9800;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">GLOBAL LEAK</span>';
-              } else {
-                badge = '<span style="background:#2196F3;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;margin-left:10px;font-weight:bold;">STABLE</span>';
-              }
-              html += '<div style="padding:6px 0;font-family:monospace;font-size:13px;color:#00ff7f;border-bottom:1px solid #003b24;display:flex;justify-content:space-between;align-items:center;">';
-              html += '<span>' + mac + '</span>' + badge;
+            macs.forEach((mac, i) => {
+              const isAnchor = mac.includes(anchorMac);
+              html += '<div style="background:' + (isAnchor ? '#001a10' : '#000') + ';border:1px solid:' + (isAnchor ? '#0c6' : '#003b24') + ';border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isAnchor ? '#0aff9d' : '#00ff7f99') + ';display:flex;justify-content:space-between;align-items:center;">';
+              html += '<span>' + mac.split(' ')[0] + '</span>';
+              if (isAnchor) html += '<span style="font-size:7px;padding:2px 5px;background:#002417;border:1px solid #0c6;border-radius:2px;color:#0c6;font-weight:600;">ANCHOR</span>';
               html += '</div>';
             });
             
             if (moreMatch) {
-              html += '<div style="padding:8px;text-align:center;color:#00ff7f99;font-size:11px;font-style:italic;">+ ' + moreMatch[1] + ' more addresses not shown</div>';
+              html += '<div style="padding:6px;text-align:center;color:#00ff7f66;font-size:10px;font-style:italic;">+ ' + moreMatch[1] + ' more</div>';
             }
             
             html += '</div></details>';
           }
           
           html += '</div>';
+          html += '</details>';
         });
         
         return html;
+      }
+
+      function toggleTrackCollapse(cardId) {
+        const content = document.getElementById(cardId + 'Content');
+        const icon = document.getElementById(cardId + 'Icon');
+        
+        if (content.style.display === 'none') {
+          content.style.display = 'block';
+          icon.style.transform = 'rotate(0deg)';
+          icon.textContent = '▼';
+        } else {
+          content.style.display = 'none';
+          icon.style.transform = 'rotate(-90deg)';
+          icon.textContent = '▶';
+        }
       }
 
       function parseBaselineResults(text) {
@@ -1872,16 +1902,60 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (isScanning || (lastScanningState && !isScanning)) {
               const rr = await fetch('/results');
               const resultsText = await rr.text();
+              const expandedCards = new Set();
+              const expandedDetails = new Set();
+              
+              resultsElement.querySelectorAll('[id$="Content"]').forEach(content => {
+                if (content.style.display !== 'none') {
+                  expandedCards.add(content.id);
+                }
+              });
+              
+              resultsElement.querySelectorAll('details[open]').forEach(details => {
+                const summary = details.querySelector('summary');
+                if (summary && summary.textContent) {
+                  expandedDetails.add(summary.textContent.trim());
+                }
+              });
+              
+              // Update content
               resultsElement.innerHTML = parseAndStyleResults(resultsText);
               
-              resultsElement.querySelectorAll('details').forEach(details => {
-                const summary = details.querySelector('summary');
-                const arrow = summary?.querySelector('span');
-                if (arrow) {
-                  details.addEventListener('toggle', () => {
-                    arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
-                  });
+              // Restore expanded states
+              expandedCards.forEach(contentId => {
+                const content = document.getElementById(contentId);
+                const iconId = contentId.replace('Content', 'Icon');
+                const icon = document.getElementById(iconId);
+                
+                if (content && icon) {
+                  content.style.display = 'block';
+                  icon.style.transform = 'rotate(0deg)';
+                  icon.textContent = '▼';
                 }
+              });
+              
+              expandedDetails.forEach(summaryText => {
+                const details = Array.from(resultsElement.querySelectorAll('details')).find(d => {
+                  const summary = d.querySelector('summary');
+                  return summary && summary.textContent.trim() === summaryText;
+                });
+                if (details) {
+                  details.open = true;
+                  const spans = details.querySelectorAll('summary span');
+                  const arrow = spans[spans.length - 1];
+                  if (arrow) arrow.style.transform = 'rotate(90deg)';
+                }
+              });
+              
+              // Re-attach event listeners
+              resultsElement.querySelectorAll('details').forEach(details => {
+                details.addEventListener('toggle', () => {
+                  const spans = details.querySelectorAll('summary span');
+                  const arrow = spans[spans.length - 1];
+                  if (arrow) {
+                    arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+                  }
+                });
               });
             }
           }

@@ -70,9 +70,9 @@ std::vector<Allowlist> allowlist;
 // Scan config
 RFScanConfig rfConfig = {
     .wifiChannelTime = 120,
-    .wifiScanInterval = 4000,
+    .wifiScanInterval = 6000,
     .bleScanInterval = 2000,
-    .bleScanDuration = 2000,
+    .bleScanDuration = 3000,
     .preset = 1
 };
 
@@ -86,15 +86,15 @@ void setRFPreset(uint8_t preset) {
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
-            rfConfig.wifiScanInterval = 4000;
-            rfConfig.bleScanInterval = 2000;
-            rfConfig.bleScanDuration = 2000;
+            rfConfig.wifiScanInterval = 6000;
+            rfConfig.bleScanInterval = 3000;
+            rfConfig.bleScanDuration = 3000;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
-            rfConfig.wifiScanInterval = 2000;
-            rfConfig.bleScanInterval = 1000;
-            rfConfig.bleScanDuration = 1500;
+            rfConfig.wifiScanInterval = 4000;
+            rfConfig.bleScanInterval = 2000;
+            rfConfig.bleScanDuration = 2000;
             break;
         default:
             preset = 1;
@@ -141,9 +141,9 @@ void loadRFConfigFromPrefs() {
         setRFPreset(preset);
     } else {
         uint32_t wct = prefs.getUInt("wifiChanTime", 120);
-        uint32_t wsi = prefs.getUInt("wifiInterval", 4000);
+        uint32_t wsi = prefs.getUInt("wifiInterval", 5000);
         uint32_t bsi = prefs.getUInt("bleInterval", 2000);
-        uint32_t bsd = prefs.getUInt("bleDuration", 2000);
+        uint32_t bsd = prefs.getUInt("bleDuration", 3000);
         setCustomRFConfig(wct, wsi, bsi, bsd);
     }
 }
@@ -363,9 +363,8 @@ static inline bool matchesMac(const uint8_t *mac)
 
 static void hopTimerCb(void *)
 {
+    if (!hopTimer || CHANNELS.empty()) return;
     static size_t idx = 0;
-    if (CHANNELS.empty())
-        return;
     idx = (idx + 1) % CHANNELS.size();
     esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
 }
@@ -1105,25 +1104,31 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         // Authentication frames (subtype 11 = 0xB)
         else if (ftype == 0 && stype == 11) {
             const uint8_t *srcMac = payload + 10;
-            processAuthenticationFrame(srcMac, ppkt->rx_ctrl.rssi, 
-                                    ppkt->rx_ctrl.channel,
-                                    payload, ppkt->rx_ctrl.sig_len);
+            if (isGlobalMAC(srcMac)) {
+                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi, 
+                                                     ppkt->rx_ctrl.channel,
+                                                     payload, ppkt->rx_ctrl.sig_len);
+            }
         }
         
         // Association Request frames (subtype 0)
         else if (ftype == 0 && stype == 0) {
             const uint8_t *srcMac = payload + 10;
-            processAuthenticationFrame(srcMac, ppkt->rx_ctrl.rssi,
-                                    ppkt->rx_ctrl.channel, 
-                                    payload, ppkt->rx_ctrl.sig_len);
+            if (isGlobalMAC(srcMac)) {
+                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
+                                                     ppkt->rx_ctrl.channel, 
+                                                     payload, ppkt->rx_ctrl.sig_len);
+            }
         }
         
         // Reassociation Request frames (subtype 2)
         else if (ftype == 0 && stype == 2) {
             const uint8_t *srcMac = payload + 10;
-            processAuthenticationFrame(srcMac, ppkt->rx_ctrl.rssi,
-                                    ppkt->rx_ctrl.channel,
-                                    payload, ppkt->rx_ctrl.sig_len);
+            if (isGlobalMAC(srcMac)) {
+                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
+                                                     ppkt->rx_ctrl.channel,
+                                                     payload, ppkt->rx_ctrl.sig_len);
+            }
         }
     }
 
@@ -1366,30 +1371,33 @@ void radioStartBLE()
     pBLEScan->start(0, false);
 }
 
+
 void radioStopSTA() {
     Serial.println("[RADIO] Stopping STA mode");
     
-    if (hopTimer) {
-        esp_timer_stop(hopTimer);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-    }
-    
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(NULL);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    delay(50);
+    
+    if (hopTimer) {
+        esp_timer_stop(hopTimer);
+        delay(50);
+        esp_timer_delete(hopTimer);
+        hopTimer = nullptr;
+        delay(50);
+    }
     
     if (pBLEScan) {
-        radioStopBLE();
-    }
-
-    // Stop BLE if running
-    if (pBLEScan) {
         pBLEScan->stop();
+        delay(100);
         BLEDevice::deinit(false);
         pBLEScan = nullptr;
+        delay(100);
     }
+    
+
+    WiFi.mode(WIFI_AP_STA);
+    delay(200);
 }
 
 void radioStartSTA() {
@@ -1431,7 +1439,7 @@ void radioStartSTA() {
     esp_timer_create(&targs, &hopTimer);
     esp_timer_start_periodic(hopTimer, 300000);
     
-    // Start BLE if needed
+    // Start BLE if needed from a scan call
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
         radioStartBLE();
     }
