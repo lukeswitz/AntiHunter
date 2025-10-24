@@ -1997,11 +1997,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       async function tick() {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
+        
         try {
           const d = await fetch('/diag');
           const diagText = await d.text();
           const isScanning = diagText.includes('Scanning: yes');
           const sections = diagText.split('\n');
+          
           try {
             const droneStatus = await fetch('/drone/status');
             const droneData = await droneStatus.json();
@@ -2013,6 +2015,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               document.getElementById('droneStatus').classList.remove('active');
             }
           } catch (e) {}
+          
           let overview = '';
           let hardware = '';
           let network = '';
@@ -2048,79 +2051,91 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
           document.getElementById('networkDiag').innerText = network || 'No network data';
+          
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
           }
+          
           updateStatusIndicators(diagText);
+          
           const stopAllBtn = document.getElementById('stopAllBtn');
           if (stopAllBtn) {
             stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
           }
+          
           const resultsElement = document.getElementById('r');
           if (resultsElement && !resultsElement.contains(document.activeElement)) {
-            if (isScanning || (lastScanningState && !isScanning)) {
+            if (isScanning) {
               const rr = await fetch('/results');
               const resultsText = await rr.text();
-              const expandedCards = new Set();
-              const expandedDetails = new Set();
               
-              resultsElement.querySelectorAll('[id$="Content"]').forEach(content => {
-                if (content.style.display !== 'none') {
-                  expandedCards.add(content.id);
-                }
-              });
-              
-              resultsElement.querySelectorAll('details[open]').forEach(details => {
-                const summary = details.querySelector('summary');
-                if (summary && summary.textContent) {
-                  expandedDetails.add(summary.textContent.trim());
-                }
-              });
-              
-              // Update content
-              resultsElement.innerHTML = parseAndStyleResults(resultsText);
-              
-              // Restore expanded states
-              expandedCards.forEach(contentId => {
-                const content = document.getElementById(contentId);
-                const iconId = contentId.replace('Content', 'Icon');
-                const icon = document.getElementById(iconId);
+              const currentText = resultsElement.textContent || resultsElement.innerText || '';
+              if (currentText !== resultsText) {
+                const expandedCards = new Set();
+                const expandedDetails = new Set();
                 
-                if (content && icon) {
-                  content.style.display = 'block';
-                  icon.style.transform = 'rotate(0deg)';
-                  icon.textContent = '▼';
-                }
-              });
-              
-              expandedDetails.forEach(summaryText => {
-                const details = Array.from(resultsElement.querySelectorAll('details')).find(d => {
-                  const summary = d.querySelector('summary');
-                  return summary && summary.textContent.trim() === summaryText;
-                });
-                if (details) {
-                  details.open = true;
-                  const spans = details.querySelectorAll('summary span');
-                  const arrow = spans[spans.length - 1];
-                  if (arrow) arrow.style.transform = 'rotate(90deg)';
-                }
-              });
-              
-              // Re-attach event listeners
-              resultsElement.querySelectorAll('details').forEach(details => {
-                details.addEventListener('toggle', () => {
-                  const spans = details.querySelectorAll('summary span');
-                  const arrow = spans[spans.length - 1];
-                  if (arrow) {
-                    arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+                resultsElement.querySelectorAll('[id$="Content"]').forEach(content => {
+                  if (content.style.display !== 'none') {
+                    expandedCards.add(content.id);
                   }
                 });
-              });
+                
+                resultsElement.querySelectorAll('details[open]').forEach(details => {
+                  const summary = details.querySelector('summary');
+                  if (summary && summary.textContent) {
+                    expandedDetails.add(summary.textContent.trim());
+                  }
+                });
+                
+                resultsElement.innerHTML = parseAndStyleResults(resultsText);
+                
+                expandedCards.forEach(contentId => {
+                  const content = document.getElementById(contentId);
+                  const iconId = contentId.replace('Content', 'Icon');
+                  const icon = document.getElementById(iconId);
+                  
+                  if (content && icon) {
+                    content.style.display = 'block';
+                    icon.style.transform = 'rotate(0deg)';
+                    icon.textContent = '▼';
+                  }
+                });
+                
+                expandedDetails.forEach(summaryText => {
+                  const details = Array.from(resultsElement.querySelectorAll('details')).find(d => {
+                    const summary = d.querySelector('summary');
+                    return summary && summary.textContent.trim() === summaryText;
+                  });
+                  if (details) {
+                    details.open = true;
+                    const spans = details.querySelectorAll('summary span');
+                    const arrow = spans[spans.length - 1];
+                    if (arrow) arrow.style.transform = 'rotate(90deg)';
+                  }
+                });
+                
+                resultsElement.querySelectorAll('details').forEach(details => {
+                  details.addEventListener('toggle', () => {
+                    const spans = details.querySelectorAll('summary span');
+                    const arrow = spans[spans.length - 1];
+                    if (arrow) {
+                      arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+                    }
+                  });
+                });
+              }
+            } else if (lastScanningState && !isScanning) {
+              const rr = await fetch('/results');
+              const resultsText = await rr.text();
+              resultsElement.innerHTML = parseAndStyleResults(resultsText);
             }
           }
+          
           lastScanningState = isScanning;
-        } catch (e) {}
+        } catch (e) {
+          console.error('Tick error:', e);
+        }
       }
       
       document.getElementById('triangulate').addEventListener('change', e => {
@@ -2842,7 +2857,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                   ("Randomization detection starting for " + String(secs) + "s - " + modeStr));
         
         if (!workerTaskHandle) {
-            xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 12288,
+            xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
                                   (void*)(intptr_t)(forever ? 0 : secs),
                                   1, &workerTaskHandle, 1);
         }
