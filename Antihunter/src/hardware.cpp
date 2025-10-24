@@ -73,6 +73,10 @@ void initializeHardware()
 {
     Serial.println("Loading preferences...");
     prefs.begin("antihunter", false);
+
+    prefs.putString("apSsid", AP_SSID);
+    prefs.putString("apPass", AP_PASS);
+    
     loadRFConfigFromPrefs();
 
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
