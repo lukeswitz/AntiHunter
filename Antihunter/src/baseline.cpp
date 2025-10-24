@@ -676,6 +676,16 @@ void baselineDetectionTask(void *pv) {
         Serial.printf("[BASELINE] Final flush: %d total devices\n", baselineDeviceCount);
     }
 
+    // Cleanup queues for other tasks.. 
+    if (macQueue) {
+        vQueueDelete(macQueue);
+        macQueue = nullptr;
+    }
+    if (anomalyQueue) {
+        vQueueDelete(anomalyQueue);
+        anomalyQueue = nullptr;
+    }
+
     scanning = false;
     baselineDetectionEnabled = false;
     workerTaskHandle = nullptr;
