@@ -335,7 +335,7 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 - **Device Discovery**: General scanning for all WiFi/BLE devices
 - **Baseline Anomaly Scan**: Be alerted to new/approaching devices
 - **MAC Randomization Analyzer**: Discover, correlate and de-randomize
-- **eauthentication Attack Detections**: Discover, correlate and de-randomize
+- **Deauthentication Attack Detection**: Spots WiFi deauth packet traces 
 - **Drone WiFi RID**: Detect remote ID compliant drones & pilots
 
 #### **System Diagnostics**
