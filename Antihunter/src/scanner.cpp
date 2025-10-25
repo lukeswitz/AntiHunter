@@ -1478,7 +1478,7 @@ void radioStartSTA() {
         .name = "hop"
     };
     esp_timer_create(&targs, &hopTimer);
-    esp_timer_start_periodic(hopTimer, 300000);
+    esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
     
     // Start BLE if needed from a scan call
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
