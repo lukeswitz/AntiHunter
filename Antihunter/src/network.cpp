@@ -504,7 +504,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
                 <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
-              </div>              
+                <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
+              </div>
+             
             </form>
           </div>
         </div>
@@ -541,15 +543,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <label style="font-size:10px;color:var(--muted);">BLE Scan Interval (ms)</label>
                 <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
               </div>
-              
             </div>
           </div>
-          
         </div>
         <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
 
         <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
-        
         <div class="card-header" onclick="toggleCollapse('wifiApCard')" style="cursor:pointer;padding:0;margin-bottom:12px;border:none;background:none;box-shadow:none;">
             <h4 style="margin:0;font-size:13px;">WiFi Access Point</h4>
             <span class="collapse-icon" id="wifiApCardIcon">▶</span>
@@ -1355,6 +1354,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       const detectionMode = document.getElementById('detectionMode')?.value;
                       document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
                       document.getElementById('clearOldBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+                      document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
                   }
               }
           } else {
@@ -1505,10 +1505,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
           return '<div style="color:#00ff7f99;padding:20px;text-align:center;">No scan data yet.</div>';
         }
-        
+
         let html = '';
-        
-        if (text.includes('MAC Randomization Detection Results')) {
+
+        if (text.includes('=== Triangulation Results ===') || text.includes('Weighted GPS Trilateration')) {
+          html = parseTriangulationResults(text);
+        } else if(text.includes('MAC Randomization Detection Results')) {
           html = parseRandomizationResults(text);
         } else if (text.includes('Baseline not yet established') || text.includes('BASELINE ESTABLISHED')) {
           html = parseBaselineResults(text);
@@ -1520,6 +1522,268 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html = parseDeviceScanResults(text);
         } else {
           html = '<pre style="margin:0;background:#000;border:1px solid #003b24;border-radius:8px;padding:12px;color:#00ff7f;font-size:11px;overflow-x:auto;">' + text + '</pre>';
+        }
+        
+        return html;
+      }
+
+      function parseTriangulationResults(text) {
+        let html = '';
+        
+        const targetMatch = text.match(/Target MAC: ([A-F0-9:]+)/);
+        const durationMatch = text.match(/Duration: (\d+)s/);
+        const elapsedMatch = text.match(/Elapsed: (\d+)s/);
+        const nodesMatch = text.match(/Reporting Nodes: (\d+)/);
+        const syncMatch = text.match(/Clock Sync: ([^\n]+)/);
+        
+        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#0aff9d;margin-bottom:10px;font-weight:bold;">TRIANGULATION RESULTS</div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:11px;color:#00ff7f99;">';
+        if (targetMatch) html += '<span>Target: <strong style="color:#0aff9d;">' + targetMatch[1] + '</strong></span>';
+        if (durationMatch) html += '<span>Duration: <strong style="color:#00ff7f;">' + durationMatch[1] + 's</strong></span>';
+        if (elapsedMatch) html += '<span>Elapsed: <strong style="color:#00ff7f;">' + elapsedMatch[1] + 's</strong></span>';
+        if (nodesMatch) html += '<span>Nodes: <strong style="color:#00ff7f;">' + nodesMatch[1] + '</strong></span>';
+        html += '</div>';
+        if (syncMatch) {
+          const syncColor = syncMatch[1].includes('VERIFIED') ? '#0aff9d' : '#ffaa00';
+          html += '<div style="margin-top:8px;font-size:10px;color:' + syncColor + ';">⏱ ' + syncMatch[1] + '</div>';
+        }
+        html += '</div>';
+        
+        // No nodes responding
+        if (text.includes('No Mesh Nodes Responding')) {
+          html += '<div style="padding:16px;background:#300;border:1px solid #ff4444;border-radius:8px;text-align:center;color:#ff6666;">';
+          html += '⚠ No mesh nodes responded to triangulation request';
+          html += '</div>';
+          return html;
+        }
+        
+        // Triangulation impossible (no GPS)
+        if (text.includes('TRIANGULATION IMPOSSIBLE')) {
+          html += '<div style="padding:16px;background:#300;border:1px solid #ff4444;border-radius:8px;color:#ff6666;">';
+          html += '<div style="font-weight:bold;margin-bottom:8px;">⚠ Triangulation Impossible</div>';
+          const reasonMatch = text.match(/node\(s\) reporting, but none have GPS/);
+          if (reasonMatch) {
+            html += '<div style="font-size:12px;">None of the reporting nodes have GPS enabled.</div>';
+            html += '<div style="font-size:11px;margin-top:4px;color:#ffaa00;">Enable GPS on at least 3 nodes to enable triangulation.</div>';
+          }
+          html += '</div>';
+          return html;
+        }
+        
+        // Insufficient GPS nodes
+        if (text.includes('Insufficient GPS Nodes')) {
+          const gpsMatch = text.match(/GPS nodes: (\d+)\/3/);
+          const totalMatch = text.match(/Total nodes: (\d+)/);
+          
+          html += '<div style="padding:16px;background:#1a2a1a;border:1px solid #ffaa00;border-radius:8px;color:#ffaa00;">';
+          html += '<div style="font-weight:bold;margin-bottom:8px;">⚠ Insufficient GPS Nodes</div>';
+          if (gpsMatch && totalMatch) {
+            html += '<div style="font-size:12px;">GPS nodes: <strong>' + gpsMatch[1] + '</strong>/3 required</div>';
+            html += '<div style="font-size:12px;margin-top:4px;">Total nodes: <strong>' + totalMatch[1] + '</strong></div>';
+          }
+          html += '</div>';
+          
+          // Show available nodes
+          const gpsNodesSection = text.split('Current GPS nodes:')[1];
+          if (gpsNodesSection) {
+            html += '<div style="margin-top:12px;padding:12px;background:#001108;border:1px solid #003b24;border-radius:8px;">';
+            html += '<div style="font-size:11px;color:#00ff7f66;margin-bottom:8px;font-weight:bold;">GPS NODES AVAILABLE</div>';
+            const gpsLines = gpsNodesSection.split('\n').filter(l => l.includes('•')).slice(0, 5);
+            gpsLines.forEach(line => {
+              const match = line.match(/• ([^\s]+) @ ([-\d.]+),([-\d.]+)/);
+              if (match) {
+                html += '<div style="padding:6px;margin-bottom:4px;background:#000;border-radius:4px;font-size:10px;color:#00ff7f99;">';
+                html += '<strong style="color:#0aff9d;">' + match[1] + '</strong> @ ' + match[2] + ', ' + match[3];
+                html += '</div>';
+              }
+            });
+            html += '</div>';
+          }
+          return html;
+        }
+        
+        // SUCCESS - Parse full results
+        const nodeReportsSection = text.split('--- Node Reports ---')[1]?.split('---')[0];
+        if (nodeReportsSection) {
+          html += '<details style="margin-top:12px;margin-bottom:12px;background:#000;border:1px solid #003b24;border-radius:8px;padding:12px;" open>';
+          html += '<summary style="cursor:pointer;color:#0aff9d;font-weight:bold;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;">';
+          html += '<span style="display:inline-block;transition:transform 0.2s;">▼</span>NODE REPORTS';
+          html += '</summary>';
+          html += '<div style="margin-top:10px;display:grid;gap:8px;">';
+          
+          const nodeLines = nodeReportsSection.split('\n').filter(l => l.trim() && l.includes(':') && !l.includes('---'));
+          nodeLines.forEach(line => {
+            const match = line.match(/^([^\s:]+): (.+)/);
+            if (match) {
+              const nodeId = match[1];
+              const data = match[2];
+              
+              const rssiMatch = data.match(/Filtered=([-\d.]+)dBm/);
+              const hitsMatch = data.match(/Hits=(\d+)/);
+              const signalMatch = data.match(/Signal=([\d.]+)%/);
+              const typeMatch = data.match(/Type=(WiFi|BLE)/);
+              const gpsMatch = data.match(/GPS=([-\d.,]+|NO)/);
+              const distMatch = data.match(/Dist=([\d.]+)m/);
+              const hdopMatch = data.match(/HDOP=([\d.]+)/);
+              
+              const isGPS = gpsMatch && gpsMatch[1] !== 'NO';
+              const borderColor = isGPS ? '#0c6' : '#003b24';
+              
+              html += '<div style="background:#001108;padding:12px;border:1px solid ' + borderColor + ';border-radius:6px;">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
+              html += '<div style="font-family:monospace;font-size:11px;color:' + (isGPS ? '#0aff9d' : '#00ff7f99') + ';">' + nodeId + (isGPS ? ' ✓' : '') + '</div>';
+              
+              if (typeMatch) {
+                const color = typeMatch[1] === 'BLE' ? '#d896ff' : '#6ab7ff';
+                html += '<span style="background:#1a0a2a;color:' + color + ';padding:2px 6px;border-radius:3px;font-size:9px;border:1px solid ' + color + ';">' + typeMatch[1] + '</span>';
+              }
+              
+              html += '</div>';
+              
+              html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;font-size:10px;">';
+              if (rssiMatch) {
+                const rssiColor = rssiMatch[1] >= -50 ? '#0aff9d' : rssiMatch[1] >= -70 ? '#ffaa00' : '#ff6666';
+                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
+                html += '<div style="color:#00ff7f66;font-size:8px;">RSSI</div>';
+                html += '<div style="color:' + rssiColor + ';font-weight:600;">' + rssiMatch[1] + ' dBm</div>';
+                html += '</div>';
+              }
+              if (hitsMatch) {
+                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
+                html += '<div style="color:#00ff7f66;font-size:8px;">HITS</div>';
+                html += '<div style="color:#00ff7f;font-weight:600;">' + hitsMatch[1] + '</div>';
+                html += '</div>';
+              }
+              if (signalMatch) {
+                const sigColor = signalMatch[1] >= 70 ? '#0aff9d' : signalMatch[1] >= 50 ? '#ffaa00' : '#ff8844';
+                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
+                html += '<div style="color:#00ff7f66;font-size:8px;">QUALITY</div>';
+                html += '<div style="color:' + sigColor + ';font-weight:600;">' + signalMatch[1] + '%</div>';
+                html += '</div>';
+              }
+              if (distMatch) {
+                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
+                html += '<div style="color:#00ff7f66;font-size:8px;">DISTANCE</div>';
+                html += '<div style="color:#00ff7f;font-weight:600;">' + distMatch[1] + 'm</div>';
+                html += '</div>';
+              }
+              html += '</div>';
+              
+              if (isGPS) {
+                html += '<div style="margin-top:8px;padding:8px;background:#000;border:1px solid #0c6;border-radius:4px;font-size:9px;color:#0aff9d;">';
+                html += '@ ' + gpsMatch[1];
+                if (hdopMatch) html += ' | HDOP: ' + hdopMatch[1];
+                html += '</div>';
+              }
+              
+              html += '</div>';
+            }
+          });
+          
+          html += '</div></details>';
+        }
+        
+        // GPS-RSSI Validation
+        const validationSection = text.split('--- GPS-RSSI Distance Validation ---')[1]?.split('---')[0];
+        if (validationSection) {
+          html += '<details style="margin-bottom:12px;background:#000;border:1px solid #003b24;border-radius:8px;padding:12px;">';
+          html += '<summary style="cursor:pointer;color:#00ff7f99;font-weight:600;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;font-size:12px;">';
+          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>GPS-RSSI Validation';
+          html += '</summary>';
+          html += '<div style="margin-top:10px;display:grid;gap:6px;">';
+          
+          const valLines = validationSection.split('\n').filter(l => l.trim() && (l.includes('<->') || l.includes('Avg error')));
+          valLines.forEach(line => {
+            if (line.includes('<->')) {
+              const checkMark = line.includes('✓') ? '✓' : '✗';
+              const color = line.includes('✓') ? '#0aff9d' : '#ff6666';
+              const cleanLine = line.replace(/✓|✗/g, '').trim();
+              html += '<div style="padding:6px;background:#001108;border-left:3px solid ' + color + ';font-size:10px;color:#00ff7f99;">';
+              html += '<span style="color:' + color + ';font-weight:bold;">' + checkMark + '</span> ' + cleanLine;
+              html += '</div>';
+            } else if (line.includes('Avg error')) {
+              const errorMatch = line.match(/([\d.]+)%/);
+              let quality = 'POOR';
+              let color = '#ff6666';
+              if (errorMatch) {
+                const error = parseFloat(errorMatch[1]);
+                if (error < 25) { quality = 'GOOD'; color = '#0aff9d'; }
+                else if (error < 50) { quality = 'FAIR'; color = '#ffaa00'; }
+              }
+              html += '<div style="padding:8px;background:#001a10;border:1px solid ' + color + ';border-radius:4px;margin-top:8px;color:' + color + ';font-weight:600;">';
+              html += line.trim() + ' - <span style="font-style:italic;">' + quality + '</span>';
+              html += '</div>';
+            }
+          });
+          
+          html += '</div></details>';
+        }
+        
+        // Trilateration Results
+        const trilaterSection = text.split('--- Weighted GPS Trilateration ---')[1]?.split('===')[0];
+        if (trilaterSection && trilaterSection.includes('ESTIMATED POSITION')) {
+          const latMatch = trilaterSection.match(/Latitude:\s*([-\d.]+)/);
+          const lonMatch = trilaterSection.match(/Longitude:\s*([-\d.]+)/);
+          const confMatch = trilaterSection.match(/Confidence:\s*([\d.]+)%/);
+          const cepMatch = trilaterSection.match(/Uncertainty \(CEP68\):\s*±([\d.]+)m/);
+          const uncMatch = trilaterSection.match(/Uncertainty \(95%\):\s*±([\d.]+)m/);
+          const mapsMatch = trilaterSection.match(/(https:\/\/www\.google\.com\/maps[^\s]+)/);
+          
+          html += '<div style="margin-top:12px;padding:16px;background:#001a10;border:2px solid #0aff9d;border-radius:8px;">';
+          html += '<div style="font-size:14px;color:#0aff9d;margin-bottom:12px;font-weight:bold;">✓ POSITION ESTIMATED</div>';
+          
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
+          
+          if (latMatch) {
+            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
+            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">LATITUDE</div>';
+            html += '<div style="font-family:monospace;font-size:12px;color:#0aff9d;">' + latMatch[1] + '</div>';
+            html += '</div>';
+          }
+          
+          if (lonMatch) {
+            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
+            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">LONGITUDE</div>';
+            html += '<div style="font-family:monospace;font-size:12px;color:#0aff9d;">' + lonMatch[1] + '</div>';
+            html += '</div>';
+          }
+          
+          if (confMatch) {
+            const confColor = confMatch[1] >= 75 ? '#0aff9d' : confMatch[1] >= 50 ? '#ffaa00' : '#ff6666';
+            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
+            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">CONFIDENCE</div>';
+            html += '<div style="font-size:14px;color:' + confColor + ';font-weight:bold;">' + confMatch[1] + '%</div>';
+            html += '</div>';
+          }
+          
+          html += '</div>';
+          
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
+          
+          if (cepMatch) {
+            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
+            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">CEP68 ±</div>';
+            html += '<div style="font-size:13px;color:#ffaa00;font-weight:600;">' + cepMatch[1] + 'm</div>';
+            html += '</div>';
+          }
+          
+          if (uncMatch) {
+            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
+            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">95% Confidence ±</div>';
+            html += '<div style="font-size:13px;color:#ffaa00;font-weight:600;">' + uncMatch[1] + 'm</div>';
+            html += '</div>';
+          }
+          
+          html += '</div>';
+          
+          if (mapsMatch) {
+            html += '<a href="' + mapsMatch[1] + '" target="_blank" style="display:inline-block;background:#0aff9d;color:#000;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:12px;margin-top:8px;">';
+            html += '@ Open in Google Maps';
+            html += '</a>';
+          }
+          
+          html += '</div>';
         }
         
         return html;
@@ -2472,6 +2736,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             standardControls.style.display = 'block';
             randomizationModeControls.style.display = 'block';
             clearOldBtn.style.display = 'inline-block';
+            resetRandBtn.style.display = 'inline-block';
             document.getElementById('detectionDuration').disabled = false;
             document.getElementById('baselineMonitorDuration').disabled = true;
             
