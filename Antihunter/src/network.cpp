@@ -1002,8 +1002,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             startDetectionBtn.classList.add('danger');
             startDetectionBtn.type = 'button';
             startDetectionBtn.onclick = function(e) {
-              e.preventDefault();
-              fetch('/stop').then(r=>r.text()).then(t=>toast(t));
+                e.preventDefault();
+                fetch('/stop').then(r=>r.text()).then(t=>{
+                    toast(t);
+                    setTimeout(updateBaselineStatus, 500);
+                });
             };
           } else if (detectionMode === 'baseline' && !stats.scanning) {
             startDetectionBtn.textContent = 'Start Scan';
