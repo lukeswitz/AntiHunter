@@ -550,7 +550,6 @@ void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
     if (higher_prio_woken) portYIELD_FROM_ISR();
 }
 
-
 uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length) {
     if (length < 24) return 0;
     uint16_t seqCtrl = (payload[23] << 8) | payload[22];
@@ -650,7 +649,7 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
 }
 
 void linkSessionToTrackBehavioral(ProbeSession& session) {
-    // if (session.linkedToIdentity) return;
+    if (session.linkedToIdentity) return; // bail if already linked
     
     // if (!isRandomizedMAC(session.mac)) return;
     
@@ -1353,6 +1352,7 @@ void randomizationDetectionTask(void *pv) {
                     
                     for (int i = 0; i < scanResults.getCount(); i++) {
                         const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
+                        String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                         
                         Serial.printf("[RAND BLE] Processing device %d/%d\n", i+1, scanResults.getCount());
                         broadcastToTerminal("[RAND BLE] Processing device %d/%d\n");
@@ -1399,6 +1399,9 @@ void randomizationDetectionTask(void *pv) {
                             session.seqNumGaps = 0;
                             session.seqNumWraps = 0;
                             session.hasGlobalMacLeak = false;
+
+                            strncpy(session.deviceName, name.c_str(), sizeof(session.deviceName) - 1);
+                            session.deviceName[sizeof(session.deviceName) - 1] = '\0';
                             
                             extractBLEFingerprint(device, session.fingerprint);
                             memset(&session.ieOrder, 0, sizeof(session.ieOrder));
@@ -1412,6 +1415,10 @@ void randomizationDetectionTask(void *pv) {
                             if (session.probeCount < 50) {
                                 session.probeTimestamps[session.probeCount] = now;
                             }
+
+                            // Update name even if session exists
+                            strncpy(session.deviceName, name.c_str(), sizeof(session.deviceName) - 1);
+                            session.deviceName[sizeof(session.deviceName) - 1] = '\0';
                             
                             session.lastSeen = now;
                             session.rssiSum += rssi;
@@ -1476,16 +1483,19 @@ void randomizationDetectionTask(void *pv) {
         }
         
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = getRandomizationResults().c_str();
+            std::string results = getRandomizationResults().c_str();
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = results;
+            }
             nextResultsUpdate += 2000;
         }
-        
+
         if ((int32_t)(millis() - nextCleanup) >= 0) {
             cleanupStaleSessions();
             nextCleanup += 30000;
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(10));
     }
     

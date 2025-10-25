@@ -946,15 +946,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function clearOldIdentities() {
-        if (!confirm('Remove identities not seen in the last hour?')) return;
-        
-        fetch('/randomization/clear-old', { method: 'POST', body: 'age=3600' })
-          .then(r => r.text())
-          .then(data => {
-            toast(data, 'success');
-            load();
-          })
-          .catch(err => toast('Error: ' + err, 'error'));
+        if (!confirm('Clear device identities older than 1 hour?')) return;
+          fetch('/randomization/clear-old', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'age=3600'
+          }).then(r => r.text()).then(t => {
+            toast(t, 'success');
+          }).catch(err => toast('Error: ' + err, 'error'));
       }
 
       function updateBaselineStatus() {
