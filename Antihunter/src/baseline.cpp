@@ -325,16 +325,25 @@ void baselineDetectionTask(void *pv) {
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Establishing... Devices:%d WiFi:%u BLE:%u Heap:%u\n",
-                         baselineDeviceCount, framesSeen, bleFramesSeen, ESP.getFreeHeap());
+                        baselineDeviceCount, framesSeen, bleFramesSeen, ESP.getFreeHeap());
             nextStatus += 5000;
+        }
+
+        if (stopRequested) {
+            break;
         }
         
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            int networksFound = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime);
             
+            if (stopRequested) {
+                WiFi.scanDelete();
+                break;
+            }
+
             if (networksFound > 0) {
-                for (int i = 0; i < networksFound; i++) {
+                for (int i = 0; i < networksFound && !stopRequested; i++) {
                     uint8_t *bssidBytes = WiFi.BSSID(i);
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
@@ -358,7 +367,11 @@ void baselineDetectionTask(void *pv) {
             }
             WiFi.scanDelete();
         }
-        
+
+        if (stopRequested) {
+            break;
+        }
+
         if (pBLEScan && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
             lastBLEScan = millis();
             
@@ -366,12 +379,14 @@ void baselineDetectionTask(void *pv) {
                 pBLEScan->start(0, false);
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
+
+            if (stopRequested) {
+                break;
+            }
             
             NimBLEScanResults scanResults = pBLEScan->getResults(0, true);
-
-            // Serial.printf("[BASELINE] BLE scan found %d results\n", scanResults.getCount());
-
-            for (int i = 0; i < scanResults.getCount(); i++) {
+            
+            for (int i = 0; i < scanResults.getCount() && !stopRequested; i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                 String macStr = device->getAddress().toString().c_str();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
@@ -398,7 +413,7 @@ void baselineDetectionTask(void *pv) {
             pBLEScan->clearResults();
         }
         
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
@@ -410,9 +425,35 @@ void baselineDetectionTask(void *pv) {
             lastCleanup = millis();
         }
         
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
-    
+
+    if (stopRequested) {
+        baselineStats.isScanning = false;
+        scanning = false;
+        updateBaselineStats();
+        
+        radioStopSTA();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        
+        if (macQueue) {
+            vQueueDelete(macQueue);
+            macQueue = nullptr;
+        }
+        if (anomalyQueue) {
+            vQueueDelete(anomalyQueue);
+            anomalyQueue = nullptr;
+        }
+        
+        sdLookupCache.clear();
+        sdLookupLRU.clear();
+        
+        baselineDetectionEnabled = false;
+        workerTaskHandle = nullptr;
+        vTaskDelete(nullptr);
+        return;
+    }
+
     baselineEstablished = true;
     baselineStats.phase1Complete = true;
     updateBaselineStats();
@@ -432,7 +473,7 @@ void baselineDetectionTask(void *pv) {
                 monitorStart, (forever ? UINT32_MAX : (uint32_t)duration * 1000));
         
     while ((forever && !stopRequested) || 
-           (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
+        (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
         
         baselineStats.elapsedTime = (millis() - phaseStart);
 
@@ -443,16 +484,25 @@ void baselineDetectionTask(void *pv) {
 
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Monitoring... Baseline:%d Anomalies:%d Heap:%u\n",
-                         baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
+                        baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
             nextStatus += 5000;
+        }
+
+        if (stopRequested) {
+            break;
         }
 
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            int networksFound = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime);
+
+            if (stopRequested) {
+                WiFi.scanDelete();
+                break;
+            }
 
             if (networksFound > 0) {
-                for (int i = 0; i < networksFound; i++) {
+                for (int i = 0; i < networksFound && !stopRequested; i++) {
                     uint8_t *bssidBytes = WiFi.BSSID(i);
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
@@ -477,6 +527,10 @@ void baselineDetectionTask(void *pv) {
             WiFi.scanDelete();
         }
 
+        if (stopRequested) {
+            break;
+        }
+
         if (pBLEScan && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
             lastBLEScan = millis();
             
@@ -484,10 +538,14 @@ void baselineDetectionTask(void *pv) {
                 pBLEScan->start(0, false);
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
+
+            if (stopRequested) {
+                break;
+            }
             
             NimBLEScanResults scanResults = pBLEScan->getResults(0, true);
             
-            for (int i = 0; i < scanResults.getCount(); i++) {
+            for (int i = 0; i < scanResults.getCount() && !stopRequested; i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                 String macStr = device->getAddress().toString().c_str();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
@@ -507,26 +565,27 @@ void baselineDetectionTask(void *pv) {
                         xQueueSend(macQueue, &bh, 0);
                     }
                     bleFramesSeen = bleFramesSeen + 1;
+                } else {
+                    Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
                 }
             }
             pBLEScan->clearResults();
         }
         
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
-            checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
+            updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
-
+        
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
             lastCleanup = millis();
         }
-
-        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
-    
     baselineStats.isScanning = false;
     updateBaselineStats();
     

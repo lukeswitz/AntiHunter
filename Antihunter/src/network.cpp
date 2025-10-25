@@ -218,7 +218,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>AntiHunter</title>
     <style>
-      :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff4444;--border:#003b24}
+      :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff8800;--border:#003b24}
       *{box-sizing:border-box;margin:0;padding:0}
       body,html{height:100%;margin:0}
       body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.4}
@@ -236,7 +236,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
       .btn.primary{background:#002417;border-color:#0c6}
       .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
-      .btn.danger{background:#300;border-color:#f44;color:#f66}
+      .btn.danger{background:#330;border-color:#cc6600;color:#ff8800}
       .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .small{opacity:.65;font-size:10px}
       pre{white-space:pre-wrap;background:#000;border:1px dashed var(--border);border-radius:6px;padding:8px;font-size:10px;line-height:1.3;overflow-x:auto;max-height:350px;overflow-y:auto}
@@ -246,7 +246,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:8px 10px;border-radius:6px;box-shadow:0 6px 24px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s;font-size:11px}
       .toast.show{opacity:1;transform:none}
       .toast.success{border-color:#00cc66;background:#002200}
-      .toast.error{border-color:#ff4444;background:#300}
+      .toast.error{border-color:#ff8800;background:#330}
       .toast.warning{border-color:#ffaa00;background:#332200}
       .footer{opacity:.7;font-size:10px;padding:6px;text-align:center;margin-top:12px}
       .logo{width:24px;height:24px}
@@ -275,8 +275,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #terminalWindow.visible{display:flex}
       #terminalHeader{background:linear-gradient(180deg,#001a10,#000);padding:8px 12px;border-bottom:1px solid #0aff9d;display:flex;justify-content:space-between;align-items:center;cursor:move}
       #terminalTitle{color:#0aff9d;font-size:11px;font-weight:600;letter-spacing:0.5px;user-select:none}
-      #terminalClose{color:#ff4444;cursor:pointer;font-size:16px;line-height:1;padding:0 4px;user-select:none}
-      #terminalClose:hover{color:#ff6666}
+      #terminalClose{color:#ff8800;cursor:pointer;font-size:16px;line-height:1;padding:0 4px;user-select:none}
+      #terminalClose:hover{color:#ffaa00}
       #terminalContent{flex:1;overflow-y:auto;padding:8px;font-family:monospace;font-size:10px;line-height:1.4;color:#00ff7f}
       #terminalContent::-webkit-scrollbar{width:6px}
       #terminalContent::-webkit-scrollbar-track{background:#000}
@@ -1578,7 +1578,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">';
           
           if (avgRssi !== null) {
-            const rssiColor = avgRssi >= -50 ? '#0aff9d' : avgRssi >= -70 ? '#ffaa00' : '#ff4444';
+            const rssiColor = avgRssi >= -50 ? '#0aff9d' : avgRssi >= -70 ? '#ffaa00' : '#ff8800';
             html += '<div style="text-align:right;">';
             html += '<div style="font-size:8px;color:#00ff7f66;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">RSSI</div>';
             html += '<div style="font-size:13px;color:' + rssiColor + ';font-weight:700;white-space:nowrap;">' + avgRssi + '<span style="font-size:9px;margin-left:1px;">dBm</span></div>';
@@ -1736,17 +1736,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (match) {
                 const [_, type, mac, rssi, channel, name, reason] = match;
                 
-                html += '<div style="background:#000;padding:14px;border-radius:8px;border:1px solid #ff4444;margin-bottom:10px;">';
+                html += '<div style="background:#000;padding:14px;border-radius:8px;border:1px solid #ff8800;margin-bottom:10px;">';
                 html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
-                html += '<div style="font-family:monospace;font-size:15px;color:#ff4444;">' + mac + '</div>';
-                html += '<span style="background:#ff4444;color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
+                html += '<div style="font-family:monospace;font-size:15px;color:#ff8800;">' + mac + '</div>';
+                html += '<span style="background:#ff8800;color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
                 html += '</div>';
                 html += '<div style="display:flex;gap:16px;font-size:12px;color:#00ff7f66;margin-bottom:8px;flex-wrap:wrap;">';
                 html += '<span>RSSI: <strong style="color:#00ff7f99;">' + rssi + ' dBm</strong></span>';
                 if (channel) html += '<span>Channel: <strong style="color:#00ff7f99;">' + channel + '</strong></span>';
                 if (name) html += '<span>Name: <strong style="color:#00ff7f99;">' + name + '</strong></span>';
                 html += '</div>';
-                html += '<div style="padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;color:#ff6666;font-size:12px;">';
+                html += '<div style="padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;color:#ffaa00;font-size:12px;">';
                 html += reason;
                 html += '</div>';
                 html += '</div>';
@@ -1838,11 +1838,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const [_, target, total, broadcast, targeted, rssi, channel] = targetMatch;
             const isBroadcast = target === '[BROADCAST]';
             
-            currentTargetHtml = '<div style="background:#000;padding:16px;border-radius:8px;border:1px solid #ff4444;margin-bottom:12px;">';
+            currentTargetHtml = '<div style="background:#000;padding:16px;border-radius:8px;border:1px solid #ff8800;margin-bottom:12px;">';
             currentTargetHtml += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:#ff4444;">' + target + '</div>';
+            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:#ff8800;">' + target + '</div>';
             if (isBroadcast) {
-              currentTargetHtml += '<span style="background:#ff6666;color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
+              currentTargetHtml += '<span style="background:#ffaa00;color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
             }
             currentTargetHtml += '</div>';
             
