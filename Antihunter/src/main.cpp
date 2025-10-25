@@ -204,6 +204,7 @@ void loop() {
             time_t epoch = cmd.substring(8).toInt();
             if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
                 Serial.println("OK: RTC set");
+                broadcastToTerminal("[RTC] OK: RTC set");
             }
         }
     }

@@ -282,6 +282,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             sendToSerial1(String(meshMsg), false);
             
             Serial.println("[DRONE] " + jsonStr);
+            broadcastToTerminal("[DRONE]" + jsonStr);
         }
         
         if (droneQueue) {

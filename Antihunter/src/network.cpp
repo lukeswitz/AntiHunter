@@ -5,6 +5,7 @@
 #include "scanner.h"
 #include "main.h"
 #include <AsyncTCP.h>
+#include <AsyncWebSocket.h>
 #include <RTClib.h>
 #include "esp_task_wdt.h"
 #include <esp_timer.h>
@@ -25,7 +26,7 @@ static String customApPass = "";
 const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
-const unsigned long MESH_SEND_INTERVAL = 5000;
+unsigned long meshSendInterval = 5000;
 const int MAX_MESH_SIZE = 240;
 static String nodeId = "";
 
@@ -45,6 +46,12 @@ extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 extern void randomizeMacAddress();
+
+// WebSocket for terminal
+AsyncWebSocket ws("/terminal");
+static std::vector<String> terminalBuffer;
+static const size_t TERMINAL_BUFFER_SIZE = 500;
+static bool terminalClientsConnected = false;
 
 // T114 handling
 SerialRateLimiter rateLimiter;
@@ -83,6 +90,36 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
     return (needed * REFILL_INTERVAL) / TOKENS_PER_REFILL;
 }
 
+
+void broadcastToTerminal(const String &message) {
+    if (!terminalClientsConnected || ws.count() == 0) return;
+    
+    String timestamped = "[" + getRTCTimeString() + "] " + message;
+    ws.textAll(timestamped);
+    
+    terminalBuffer.push_back(timestamped);
+    if (terminalBuffer.size() > TERMINAL_BUFFER_SIZE) {
+        terminalBuffer.erase(terminalBuffer.begin());
+    }
+}
+
+void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
+                     AwsEventType type, void *arg, uint8_t *data, size_t len) {
+    if (type == WS_EVT_CONNECT) {
+        Serial.printf("[TERMINAL] Client connected: %u\n", client->id());
+        terminalClientsConnected = true;
+        
+        for (const auto &line : terminalBuffer) {
+            client->text(line);
+        }
+    } else if (type == WS_EVT_DISCONNECT) {
+        Serial.printf("[TERMINAL] Client disconnected: %u\n", client->id());
+        if (ws.count() == 0) {
+            terminalClientsConnected = false;
+        }
+    }
+}
+
 bool sendToSerial1(const String &message, bool canDelay) {
     // Priority messages bypass rate limiting
     bool isPriority = message.indexOf("TRIANGULATE_STOP") >= 0 || 
@@ -95,6 +132,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
             if (wait > 0 && wait < 5000) { 
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
+                broadcastToTerminal("[MESH] Rate limit: waiting..");
                 delay(wait);
                 rateLimiter.refillTokens();
             } else {
@@ -113,6 +151,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     }
     
     Serial1.println(message);
+    broadcastToTerminal("[TX] " + message);
     
     if (!isPriority) {
         rateLimiter.consume(msgLen);
@@ -153,6 +192,20 @@ void initializeNetwork()
   delay(100);
   Serial.println("Starting web server...");
   startWebServer();
+}
+
+void setMeshSendInterval(unsigned long interval) {
+    if (interval >= 1500 && interval <= 30000) {
+        meshSendInterval = interval;
+        prefs.putULong("meshInterval", interval);
+        Serial.printf("[MESH] Send interval set to %lums\n", interval);
+    } else {
+        Serial.println("[MESH] Invalid interval (1500-30000ms)");
+    }
+}
+
+unsigned long getMeshSendInterval() {
+    return meshSendInterval;
 }
 
 // ------------- AP HTML -------------
@@ -218,7 +271,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .card-body{overflow:hidden;transition:max-height 0.3s ease}
       .card-body.collapsed{max-height:0!important;margin:0;padding:0}
       .section-divider{border-top:1px solid var(--border);margin:12px 0;padding-top:12px}
-      
+      #terminalWindow{position:fixed;bottom:20px;left:20px;width:600px;max-width:90vw;background:#000;border:2px solid #0aff9d;border-radius:8px;box-shadow:0 8px 32px rgba(10,255,157,.3);display:none;flex-direction:column;z-index:10000;max-height:400px}
+      #terminalWindow.visible{display:flex}
+      #terminalHeader{background:linear-gradient(180deg,#001a10,#000);padding:8px 12px;border-bottom:1px solid #0aff9d;display:flex;justify-content:space-between;align-items:center;cursor:move}
+      #terminalTitle{color:#0aff9d;font-size:11px;font-weight:600;letter-spacing:0.5px;user-select:none}
+      #terminalClose{color:#ff4444;cursor:pointer;font-size:16px;line-height:1;padding:0 4px;user-select:none}
+      #terminalClose:hover{color:#ff6666}
+      #terminalContent{flex:1;overflow-y:auto;padding:8px;font-family:monospace;font-size:10px;line-height:1.4;color:#00ff7f}
+      #terminalContent::-webkit-scrollbar{width:6px}
+      #terminalContent::-webkit-scrollbar-track{background:#000}
+      #terminalContent::-webkit-scrollbar-thumb{background:#0aff9d;border-radius:3px}
+      .terminal-line{margin:1px 0;white-space:pre-wrap;word-break:break-all}
+      .terminal-line.tx{color:#0aff9d}
+      .terminal-line.rx{color:#00ff7f}
+      #terminalToggle{position:fixed;bottom:20px;left:20px;background:#001b12;border:2px solid #0aff9d;color:#0aff9d;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(10,255,157,.2)}
+      #terminalToggle:hover{background:#002417;box-shadow:0 6px 20px rgba(10,255,157,.3)}
+      #terminalToggle.active{background:#002417;border-color:#00ff7f}
       
       @media (min-width:900px){
         .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -347,8 +415,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <select name="detection" id="detectionMode">
                 <option value="device-scan">Device Discovery Scan</option>
                 <option value="baseline" selected>Baseline Anomaly Sniffer</option>
-                <option value="randomization-detection">MAC Randomization Tracer</option>
-                <option value="deauth">Deauth/Disassoc Detection</option>
+                <option value="randomization-detection">MAC Randomization Analyzer</option>
+                <option value="deauth">Deauthentication Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
               </select>
 
@@ -531,6 +599,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <input type="text" id="nodeId" name="id" maxlength="16" placeholder="NODE_01">
             <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
           </form>
+
+          <div style="margin-top:12px;">
+            <label>Mesh Send Interval (ms)</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
+              <button class="btn" onclick="saveMeshInterval()">Save</button>
+            </div>
+            <div class="small" style="margin-top:4px;opacity:0.7;">
+              Rate limit for mesh notifications (1500-30000ms). Lower = more frequent updates, higher traffic.
+            </div>
+          </div>
           
           <hr>
           
@@ -645,8 +724,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </details>
       </div>
       
+      <!-- 
+      <div id="terminalToggle">TERMINAL</div>
+      <div id="terminalWindow">
+        <div id="terminalHeader">
+          <span id="terminalTitle">SERIAL MONITOR</span>
+          <span id="terminalClose">×</span>
+        </div>
+        <div id="terminalContent"></div>
+      </div>
+      -->
+      
       <div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
-    <script>
+    
+      <script>
       let selectedMode = '0';
       let baselineUpdateInterval = null;
       let lastScanningState = false;
@@ -728,6 +819,30 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const preset = document.getElementById('rfPreset').value;
         const customDiv = document.getElementById('customRFSettings');
         customDiv.style.display = (preset === '3') ? 'block' : 'none';
+      }
+
+      function loadMeshInterval() {
+        fetch('/mesh-interval').then(r => r.json()).then(data => {
+          document.getElementById('meshInterval').value = data.interval;
+        }).catch(e => console.error('[CONFIG] Failed to load mesh interval:', e));
+      }
+
+      function saveMeshInterval() {
+        const interval = document.getElementById('meshInterval').value;
+        if (interval < 1500 || interval > 30000) {
+          toast('Invalid interval: must be 1500-30000ms', 'error');
+          return;
+        }
+        
+        fetch('/mesh-interval', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'interval=' + interval
+        }).then(r => r.text()).then(data => {
+          toast(data, 'success');
+        }).catch(e => {
+          toast('Failed to save mesh interval', 'error');
+        });
       }
 
       async function saveRFConfig() {
@@ -1902,6 +2017,116 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return html;
       }
 
+      let terminalWs = null;
+      let terminalVisible = false;
+      let terminalDragging = false;
+      let terminalDragOffset = {x: 0, y: 0};
+
+      function initTerminal() {
+        const toggle = document.getElementById('terminalToggle');
+        const window = document.getElementById('terminalWindow');
+        
+        if (!toggle || !window) {
+          console.log('[TERMINAL] Elements not found, feature disabled');
+          return;
+        }
+        
+        const close = document.getElementById('terminalClose');
+        const header = document.getElementById('terminalHeader');
+        const content = document.getElementById('terminalContent');
+        
+        toggle.addEventListener('click', () => {
+          terminalVisible = !terminalVisible;
+          if (terminalVisible) {
+            window.classList.add('visible');
+            toggle.classList.add('active');
+            connectTerminal();
+          } else {
+            window.classList.remove('visible');
+            toggle.classList.remove('active');
+            if (terminalWs) {
+              terminalWs.close();
+              terminalWs = null;
+            }
+          }
+        });
+        
+        close.addEventListener('click', () => {
+          terminalVisible = false;
+          window.classList.remove('visible');
+          toggle.classList.remove('active');
+          if (terminalWs) {
+            terminalWs.close();
+            terminalWs = null;
+          }
+        });
+        
+        header.addEventListener('mousedown', (e) => {
+          terminalDragging = true;
+          terminalDragOffset.x = e.clientX - window.offsetLeft;
+          terminalDragOffset.y = e.clientY - window.offsetTop;
+          window.style.position = 'fixed';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+          if (!terminalDragging) return;
+          const x = e.clientX - terminalDragOffset.x;
+          const y = e.clientY - terminalDragOffset.y;
+          window.style.left = Math.max(0, Math.min(x, window.innerWidth - window.offsetWidth)) + 'px';
+          window.style.top = Math.max(0, Math.min(y, window.innerHeight - window.offsetHeight)) + 'px';
+          window.style.right = 'auto';
+          window.style.bottom = 'auto';
+        });
+        
+        document.addEventListener('mouseup', () => {
+          terminalDragging = false;
+        });
+      }
+
+      function connectTerminal() {
+        if (terminalWs) return;
+        
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        terminalWs = new WebSocket(protocol + '//' + location.host + '/terminal');
+        
+        terminalWs.onopen = () => {
+          console.log('[TERMINAL] Connected');
+        };
+        
+        terminalWs.onmessage = (event) => {
+          const content = document.getElementById('terminalContent');
+          const line = document.createElement('div');
+          line.className = 'terminal-line';
+          
+          if (event.data.includes('[TX]')) {
+            line.classList.add('tx');
+          } else if (event.data.includes('[RX]')) {
+            line.classList.add('rx');
+          }
+          
+          line.textContent = event.data;
+          content.appendChild(line);
+          
+          while (content.children.length > 500) {
+            content.removeChild(content.firstChild);
+          }
+          
+          content.scrollTop = content.scrollHeight;
+        };
+        
+        terminalWs.onerror = (error) => {
+          console.error('[TERMINAL] Error:', error);
+        };
+        
+        terminalWs.onclose = () => {
+          console.log('[TERMINAL] Disconnected');
+          terminalWs = null;
+          if (terminalVisible) {
+            setTimeout(connectTerminal, 2000);
+          }
+        };
+      }
+
       function resetRandomizationDetection() {
         if (!confirm('Reset all randomization detection data?')) return;
         
@@ -2320,7 +2545,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       // Initialize
       load();
+      initTerminal();
       loadBaselineAnomalyConfig();
+      loadMeshInterval();
       setInterval(tick, 2000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
     </script>
@@ -2332,6 +2559,9 @@ void startWebServer()
 {
   if (!server)
     server = new AsyncWebServer(80);
+
+    ws.onEvent(onTerminalEvent);
+    server->addHandler(&ws);
 
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -2665,6 +2895,24 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         Serial.printf("[MESH] Test: %s\n", test_msg);
         sendToSerial1(test_msg);
         r->send(200, "text/plain", "Test message sent to mesh"); });
+
+   server->on("/mesh-interval", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("interval", true)) {
+        req->send(400, "text/plain", "Missing interval parameter");
+        return;
+    }
+    
+    unsigned long interval = req->getParam("interval", true)->value().toInt();
+    setMeshSendInterval(interval);
+    saveConfiguration();
+    
+    req->send(200, "text/plain", "Mesh interval updated to " + String(interval) + "ms");
+  });
+
+  server->on("/mesh-interval", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String json = "{\"interval\":" + String(meshSendInterval) + "}";
+    req->send(200, "application/json", json);
+  });
 
   server->on("/diag", HTTP_GET, [](AsyncWebServerRequest *r)
              {
@@ -3273,10 +3521,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
-    
     if (triangulationActive) return;
     
-    if (!meshEnabled || millis() - lastMeshSend < MESH_SEND_INTERVAL) return;
+    if (!meshEnabled || millis() - lastMeshSend < meshSendInterval) return;
     lastMeshSend = millis();
     
     char mac_str[18];
@@ -3589,6 +3836,7 @@ void processMeshMessage(const String &message) {
     }
     
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
+    broadcastToTerminal("[RX] " + cleanMessage);
 
     if (triangulationActive && colonPos > 0) {
         String sendingNode = cleanMessage.substring(0, colonPos);
