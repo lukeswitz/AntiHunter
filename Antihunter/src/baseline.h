@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <vector>
 #include <map>
+#include <list>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
@@ -50,6 +51,20 @@ struct DeviceHistory {
     bool wasPresent;
     uint8_t significantChanges;
 };
+
+struct CachedSDLookup {
+    String mac;
+    bool inBaseline;
+    uint32_t timestamp;
+};
+
+extern std::map<String, bool> sdLookupCache;
+extern std::list<String> sdLookupLRU;
+extern const uint32_t SD_LOOKUP_CACHE_SIZE;
+extern const uint32_t SD_LOOKUP_CACHE_TTL;
+
+void addToSDCache(const String& mac, bool found);
+bool checkSDCache(const String& mac, bool& found);
 
 // Baseline detection configuration constants
 const uint32_t BASELINE_SCAN_DURATION = 300000;

@@ -34,6 +34,12 @@ extern void radioStartSTA();
 extern void radioStopSTA();
 extern bool isAllowlisted(const uint8_t *mac);
 
+// RAM SD Cache
+std::map<String, bool> sdLookupCache;
+std::list<String> sdLookupLRU;
+const uint32_t SD_LOOKUP_CACHE_SIZE = 200;
+const uint32_t SD_LOOKUP_CACHE_TTL = 300000;
+
 // Scan intervals from scanner
 extern uint32_t WIFI_SCAN_INTERVAL;
 extern uint32_t BLE_SCAN_INTERVAL;
@@ -106,45 +112,38 @@ void resetBaselineDetection() {
     Serial.println("[BASELINE] Reset complete");
 }
 
-bool isDeviceInBaseline(const uint8_t *mac) {
-    String macStr = macFmt6(mac);
-    
-    // Check RAM cache quicjk
-    if (baselineCache.find(macStr) != baselineCache.end()) {
-        return true;
-    }
-    
-    // Check SD (slower)
-    BaselineDevice dev;
-    return readBaselineDeviceFromSD(mac, dev);
-}
-
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
     String macStr = macFmt6(mac);
     uint32_t now = millis();
     
-    // Check RAM cache first
     if (baselineCache.find(macStr) == baselineCache.end()) {
-        // Not in cache - make room if needed
-        if (baselineCache.size() >= baselineRamCacheSize) {
-            // Evict oldest from cache to SD
-            String oldestKey;
-            uint32_t oldestTime = UINT32_MAX;
-            
-            for (const auto& entry : baselineCache) {
-                if (entry.second.lastSeen < oldestTime) {
-                    oldestTime = entry.second.lastSeen;
-                    oldestKey = entry.first;
+        uint32_t effectiveLimit = (sdAvailable && sdBaselineInitialized) ? baselineRamCacheSize : 1500;
+        
+        if (baselineCache.size() >= effectiveLimit) {
+            if (sdAvailable && sdBaselineInitialized) {
+                String oldestKey;
+                uint32_t oldestTime = UINT32_MAX;
+                
+                for (const auto& entry : baselineCache) {
+                    if (entry.second.lastSeen < oldestTime) {
+                        oldestTime = entry.second.lastSeen;
+                        oldestKey = entry.first;
+                    }
                 }
-            }
-            
-            if (oldestKey.length() > 0) {
-                writeBaselineDeviceToSD(baselineCache[oldestKey]);
-                baselineCache.erase(oldestKey);
+                
+                if (oldestKey.length() > 0) {
+                    writeBaselineDeviceToSD(baselineCache[oldestKey]);
+                    baselineCache.erase(oldestKey);
+                }
+            } else {
+                if (baselineCache.size() % 100 == 0) {
+                    Serial.printf("[BASELINE] No SD - RAM limit reached: %d devices (heap: %u)\n", 
+                                baselineCache.size(), ESP.getFreeHeap());
+                }
+                return;
             }
         }
         
-        // Create new device in cache
         BaselineDevice dev;
         memcpy(dev.mac, mac, 6);
         dev.avgRssi = rssi;
@@ -162,7 +161,6 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         baselineCache[macStr] = dev;
         baselineDeviceCount++;
     } else {
-        // Update existing device in cache
         BaselineDevice &dev = baselineCache[macStr];
         dev.avgRssi = (dev.avgRssi * dev.hitCount + rssi) / (dev.hitCount + 1);
         if (rssi < dev.minRssi) dev.minRssi = rssi;
@@ -176,148 +174,10 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         }
     }
     
-    // Periodic flush to SD
-    if (millis() - lastSDFlush >= BASELINE_SD_FLUSH_INTERVAL) {
+    if (sdAvailable && sdBaselineInitialized && millis() - lastSDFlush >= BASELINE_SD_FLUSH_INTERVAL) {
         flushBaselineCacheToSD();
         lastSDFlush = millis();
     }
-}
-
-void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
-    if (rssi < baselineRssiThreshold) {
-        return;
-    }
-    
-    String macStr = macFmt6(mac);
-    uint32_t now = millis();
-    bool isInBaseline = (baselineCache.find(macStr) != baselineCache.end());
-    
-    // Initialize devices history
-    if (deviceHistory.find(macStr) == deviceHistory.end()) {
-        // Check RAM/SD for it
-        bool inFullBaseline = isDeviceInBaseline(mac);
-        deviceHistory[macStr] = {rssi, now, 0, inFullBaseline, 0};
-    }
-    
-    DeviceHistory &history = deviceHistory[macStr];
-    
-    // Check for new device (not in baseline)
-    if (!isInBaseline) {
-        // Only alert once per device
-        if (!history.wasPresent) {
-            AnomalyHit hit;
-            memcpy(hit.mac, mac, 6);
-            hit.rssi = rssi;
-            hit.channel = channel;
-            strncpy(hit.name, name, sizeof(hit.name) - 1);
-            hit.name[sizeof(hit.name) - 1] = '\0';
-            hit.isBLE = isBLE;
-            hit.timestamp = now;
-            hit.reason = "New device (not in baseline)";
-            
-            if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
-            anomalyLog.push_back(hit);
-            anomalyCount++;
-            
-            String alert = "[ANOMALY] NEW: " + macStr;
-            alert += " RSSI:" + String(rssi) + "dBm";
-            alert += " Type:" + String(isBLE ? "BLE" : "WiFi");
-            if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
-                alert += " Name:" + String(name);
-            }
-            if (gpsValid) {
-                alert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-            }
-            
-            Serial.println(alert);
-            logToSD(alert);
-
-            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
-                lastBaselineAnomalyMeshSend = millis();
-                String meshAlert = getNodeId() + ": ANOMALY-NEW: " + String(isBLE ? "BLE" : "WiFi") + 
-                                " " + macStr + " RSSI:" + String(rssi) + "dBm";
-                sendToSerial1(String(meshAlert), false);
-            }
-            
-            history.wasPresent = true;
-        }
-    } else {
-        // Device is in baseline - check for suspicious patterns
-        
-        // Check for reappearance after absence
-        if (history.disappearedAt > 0 && (now - history.disappearedAt < reappearanceAlertWindow)) {
-            uint32_t absenceDuration = history.disappearedAt - history.lastSeen;
-            
-            AnomalyHit hit;
-            memcpy(hit.mac, mac, 6);
-            hit.rssi = rssi;
-            hit.channel = channel;
-            strncpy(hit.name, name, sizeof(hit.name) - 1);
-            hit.name[sizeof(hit.name) - 1] = '\0';
-            hit.isBLE = isBLE;
-            hit.timestamp = now;
-            hit.reason = "Reappeared after " + String(absenceDuration / 1000) + "s absence";
-            
-            if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
-            anomalyLog.push_back(hit);
-            anomalyCount++;
-            
-            String alert = "[ANOMALY] REAPPEAR: " + macStr;
-            alert += " RSSI:" + String(rssi) + "dBm";
-            alert += " Absent:" + String(absenceDuration / 1000) + "s";
-            
-            Serial.println(alert);
-            logToSD(alert);
-            
-            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
-                lastBaselineAnomalyMeshSend = millis();
-                String meshAlert = getNodeId() + ": ANOMALY-REAPPEAR: " + macStr + 
-                                " Absent:" + String(absenceDuration / 1000) + "s";
-                sendToSerial1(String(meshAlert), false);
-            }
-
-            history.disappearedAt = 0;  // Reset
-        }
-        
-        // Check for significant RSSI change
-        int8_t rssiDelta = abs(rssi - history.lastRssi);
-        if (rssiDelta >= significantRssiChange) {
-            history.significantChanges++;
-            
-            // Only alert on first few changes to avoid spam
-            if (history.significantChanges <= 3) {
-                AnomalyHit hit;
-                memcpy(hit.mac, mac, 6);
-                hit.rssi = rssi;
-                hit.channel = channel;
-                strncpy(hit.name, name, sizeof(hit.name) - 1);
-                hit.name[sizeof(hit.name) - 1] = '\0';
-                hit.isBLE = isBLE;
-                hit.timestamp = now;
-                
-                if (rssi > history.lastRssi) {
-                    hit.reason = "Signal stronger +" + String(rssiDelta) + "dBm";
-                } else {
-                    hit.reason = "Signal weaker -" + String(rssiDelta) + "dBm";
-                }
-                
-                if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
-                anomalyLog.push_back(hit);
-                anomalyCount++;
-                
-                String alert = "[ANOMALY] RSSI: " + macStr;
-                alert += " " + String(history.lastRssi) + "→" + String(rssi) + "dBm";
-                alert += " (" + String(rssi > history.lastRssi ? "+" : "") + String(rssiDelta) + ")";
-                
-                Serial.println(alert);
-                logToSD(alert);
-            }
-        }
-    }
-    
-    // Update history
-    history.lastRssi = rssi;
-    history.lastSeen = now;
 }
 
 String getBaselineResults() {
@@ -685,6 +545,10 @@ void baselineDetectionTask(void *pv) {
         vQueueDelete(anomalyQueue);
         anomalyQueue = nullptr;
     }
+
+    // Cache wipe
+    sdLookupCache.clear();
+    sdLookupLRU.clear();
 
     scanning = false;
     baselineDetectionEnabled = false;
@@ -1078,4 +942,178 @@ void setSignificantRssiChange(int8_t dBm) {
         prefs.putInt("rssiChange", dBm);
         Serial.printf("[BASELINE] RSSI change threshold set to %d dBm\n", dBm);
     }
+}
+
+// RAM SD Caching 
+
+void addToSDCache(const String& mac, bool found) {
+    if (sdLookupCache.size() >= SD_LOOKUP_CACHE_SIZE) {
+        if (!sdLookupLRU.empty()) {
+            String oldest = sdLookupLRU.front();
+            sdLookupLRU.pop_front();
+            sdLookupCache.erase(oldest);
+        }
+    }
+    
+    sdLookupCache[mac] = found;
+    sdLookupLRU.push_back(mac);
+}
+
+bool checkSDCache(const String& mac, bool& found) {
+    auto it = sdLookupCache.find(mac);
+    if (it != sdLookupCache.end()) {
+        found = it->second;
+        
+        sdLookupLRU.remove(mac);
+        sdLookupLRU.push_back(mac);
+        
+        return true;
+    }
+    return false;
+}
+
+bool isDeviceInBaseline(const uint8_t *mac) {
+    String macStr = macFmt6(mac);
+    
+    if (baselineCache.find(macStr) != baselineCache.end()) {
+        return true;
+    }
+    
+    bool found;
+    if (checkSDCache(macStr, found)) {
+        return found;
+    }
+    
+    BaselineDevice dev;
+    bool inSD = readBaselineDeviceFromSD(mac, dev);
+    addToSDCache(macStr, inSD);
+    
+    return inSD;
+}
+
+void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
+    if (rssi < baselineRssiThreshold) {
+        return;
+    }
+    
+    String macStr = macFmt6(mac);
+    uint32_t now = millis();
+    
+    if (deviceHistory.find(macStr) == deviceHistory.end()) {
+        bool inBaseline = isDeviceInBaseline(mac);
+        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0};
+    }
+    
+    DeviceHistory &history = deviceHistory[macStr];
+    
+    if (!history.wasPresent) {
+        AnomalyHit hit;
+        memcpy(hit.mac, mac, 6);
+        hit.rssi = rssi;
+        hit.channel = channel;
+        strncpy(hit.name, name, sizeof(hit.name) - 1);
+        hit.name[sizeof(hit.name) - 1] = '\0';
+        hit.isBLE = isBLE;
+        hit.timestamp = now;
+        hit.reason = "New device (not in baseline)";
+        
+        if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+        anomalyLog.push_back(hit);
+        anomalyCount++;
+        
+        String alert = "[ANOMALY] NEW: " + macStr;
+        alert += " RSSI:" + String(rssi) + "dBm";
+        alert += " Type:" + String(isBLE ? "BLE" : "WiFi");
+        if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
+            alert += " Name:" + String(name);
+        }
+        if (gpsValid) {
+            alert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+        }
+        
+        Serial.println(alert);
+        logToSD(alert);
+
+        if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+            lastBaselineAnomalyMeshSend = millis();
+            String meshAlert = getNodeId() + ": ANOMALY-NEW: " + String(isBLE ? "BLE " : "WiFi ") + macStr;
+            meshAlert += " RSSI:" + String(rssi);
+            if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
+                meshAlert += " Name:" + String(name);
+            }
+            Serial1.println(meshAlert);
+        }
+        
+        return;
+    }
+    
+    if (history.disappearedAt > 0) {
+        uint32_t absentTime = now - history.disappearedAt;
+        if (absentTime <= reappearanceAlertWindow) {
+            AnomalyHit hit;
+            memcpy(hit.mac, mac, 6);
+            hit.rssi = rssi;
+            hit.channel = channel;
+            strncpy(hit.name, name, sizeof(hit.name) - 1);
+            hit.name[sizeof(hit.name) - 1] = '\0';
+            hit.isBLE = isBLE;
+            hit.timestamp = now;
+            hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
+            
+            if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+            anomalyLog.push_back(hit);
+            anomalyCount++;
+            
+            String alert = "[ANOMALY] RETURNED: " + macStr;
+            alert += " was absent " + String(absentTime / 1000) + "s";
+            alert += " RSSI:" + String(rssi) + "dBm";
+            if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
+                alert += " Name:" + String(name);
+            }
+            
+            Serial.println(alert);
+            logToSD(alert);
+
+            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+                lastBaselineAnomalyMeshSend = millis();
+                String meshAlert = getNodeId() + ": ANOMALY-RETURN: " + String(isBLE ? "BLE " : "WiFi ") + macStr;
+                meshAlert += " absent:" + String(absentTime / 1000) + "s";
+                Serial1.println(meshAlert);
+            }
+        }
+        
+        history.disappearedAt = 0;
+    }
+    
+    if (abs(rssi - history.lastRssi) >= significantRssiChange) {
+        history.significantChanges++;
+        
+        if (history.significantChanges >= 3) {
+            AnomalyHit hit;
+            memcpy(hit.mac, mac, 6);
+            hit.rssi = rssi;
+            hit.channel = channel;
+            strncpy(hit.name, name, sizeof(hit.name) - 1);
+            hit.name[sizeof(hit.name) - 1] = '\0';
+            hit.isBLE = isBLE;
+            hit.timestamp = now;
+            hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
+            
+            if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+            anomalyLog.push_back(hit);
+            anomalyCount++;
+            
+            String alert = "[ANOMALY] RSSI-CHANGE: " + macStr;
+            alert += " " + String(history.lastRssi) + "dBm -> " + String(rssi) + "dBm";
+            
+            Serial.println(alert);
+            logToSD(alert);
+            
+            history.significantChanges = 0;
+        }
+    }
+    
+    history.lastRssi = rssi;
+    history.lastSeen = now;
+    history.wasPresent = true;
 }
