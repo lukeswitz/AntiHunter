@@ -1653,7 +1653,8 @@ void listScanTask(void *pv) {
     uint32_t lastBLEScan = 0;
     Hit h;
 
-    
+    uint32_t nextTriResultsUpdate = millis() + 2000;
+
     static unsigned long lastTriSendTime = 0;
     static size_t sentTriInWindow = 0;
     static int childHitCount = 0; 
@@ -1938,6 +1939,39 @@ void listScanTask(void *pv) {
                     }
                 }
             }
+        }
+
+        // Dynamic update to results
+        if (triangulationActive && (int32_t)(millis() - nextTriResultsUpdate) >= 0) {
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                
+                std::string results = "\n=== Triangulation Results (IN PROGRESS) ===\n";
+                results += "Target MAC: " + std::string(macFmt6(triangulationTarget).c_str()) + "\n";
+                results += "Duration: " + std::to_string(triangulationDuration) + "s\n";
+                results += "Elapsed: " + std::to_string((millis() - triangulationStart) / 1000) + "s\n";
+                results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n\n";
+                results += "--- Node Reports ---\n";
+                
+                for (const auto& node : triangulationNodes) {
+                    results += std::string(node.nodeId.c_str()) + ": ";
+                    results += "RSSI=" + std::to_string((int)node.filteredRssi) + "dBm ";
+                    results += "Hits=" + std::to_string(node.hitCount) + " ";
+                    results += "Signal=" + std::to_string((int)(node.signalQuality * 100.0)) + "% ";
+                    results += "Type=" + std::string(node.isBLE ? "BLE" : "WiFi");
+                    if (node.hasGPS) {
+                        results += " GPS=" + std::to_string(node.lat) + "," + std::to_string(node.lon);
+                        results += " HDOP=" + std::to_string(node.hdop);
+                    } else {
+                        results += " GPS=NO";
+                    }
+                    results += "\n";
+                }
+                
+                results += "\n=== End Triangulation ===\n";
+                antihunter::lastResults = results;
+            }
+            nextTriResultsUpdate = millis() + 2000;
         }
 
         if (triangulationActive && !triangulationInitiator) {
