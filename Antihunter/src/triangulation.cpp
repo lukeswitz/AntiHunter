@@ -580,7 +580,7 @@ void stopTriangulation() {
             break;
         }
         
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(10)); // tiny yield so async_tcp doesnt starve
     }
 
     if ((millis() - waitStart) >= 40000) {
