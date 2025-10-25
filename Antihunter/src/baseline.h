@@ -20,6 +20,7 @@ struct BaselineDevice {
     uint8_t channel;
     uint16_t hitCount;
     uint8_t checksum;
+    bool dirtyFlag;
 } __attribute__((packed));
 
 struct AnomalyHit {

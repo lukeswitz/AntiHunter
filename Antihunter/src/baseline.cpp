@@ -117,7 +117,8 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
     uint32_t now = millis();
     
     if (baselineCache.find(macStr) == baselineCache.end()) {
-        uint32_t effectiveLimit = (sdAvailable && sdBaselineInitialized) ? baselineRamCacheSize : 1500;
+        uint32_t effectiveLimit = (sdAvailable && sdBaselineInitialized) ? 
+                                    baselineRamCacheSize : 1500;
         
         if (baselineCache.size() >= effectiveLimit) {
             if (sdAvailable && sdBaselineInitialized) {
@@ -132,7 +133,10 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
                 }
                 
                 if (oldestKey.length() > 0) {
-                    writeBaselineDeviceToSD(baselineCache[oldestKey]);
+                    auto& oldestDevice = baselineCache[oldestKey];
+                    if (oldestDevice.dirtyFlag) {
+                        writeBaselineDeviceToSD(oldestDevice);
+                    }
                     baselineCache.erase(oldestKey);
                 }
             } else {
@@ -157,6 +161,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         dev.channel = channel;
         dev.hitCount = 1;
         dev.checksum = 0;
+        dev.dirtyFlag = true;
         
         baselineCache[macStr] = dev;
         baselineDeviceCount++;
@@ -167,6 +172,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         if (rssi > dev.maxRssi) dev.maxRssi = rssi;
         dev.lastSeen = now;
         dev.hitCount++;
+        dev.dirtyFlag = true;
         
         if (strlen(name) > 0 && strcmp(name, "Unknown") != 0 && strcmp(name, "WiFi") != 0) {
             strncpy(dev.name, name, sizeof(dev.name) - 1);
@@ -808,16 +814,29 @@ bool flushBaselineCacheToSD() {
         return false;
     }
     
-    Serial.printf("[BASELINE_SD] Flushing %d devices\n", baselineCache.size());
-    
-    uint32_t flushed = 0;
+    uint32_t dirtyCount = 0;
     for (const auto& entry : baselineCache) {
-        if (writeBaselineDeviceToSD(entry.second)) {
-            flushed++;
+        if (entry.second.dirtyFlag) {
+            dirtyCount++;
         }
     }
     
-    // Update header with device count
+    if (dirtyCount == 0) {
+        return true;
+    }
+    
+    Serial.printf("[BASELINE_SD] Flushing %d modified devices\n", dirtyCount);
+    
+    uint32_t flushed = 0;
+    for (auto& entry : baselineCache) {
+        if (entry.second.dirtyFlag) {
+            if (writeBaselineDeviceToSD(entry.second)) {
+                entry.second.dirtyFlag = false;
+                flushed++;
+            }
+        }
+    }
+    
     File dataFile = SD.open("/baseline_data.bin", "r+");
     if (dataFile) {
         dataFile.seek(6);
