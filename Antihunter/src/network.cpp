@@ -1111,26 +1111,36 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           Array.from(resultsElement.children).forEach(child => {
             if (child.tagName === 'DETAILS') {
               const summary = child.querySelector('summary');
-              const mac = summary?.querySelector('[style*="monospace"]')?.textContent || '';
+              if (!summary) {
+                preservedElements.push(child);
+                return;
+              }
               
-              const confidenceMatch = summary?.textContent.match(/(\d+)%/);
+              const macElement = summary.querySelector('[style*="monospace"]');
+              const mac = macElement ? macElement.textContent.trim() : '';
+              
+              const summaryText = summary.textContent;
+              const confidenceMatch = summaryText.match(/(\d+)%/);
               const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 0;
               
-              const rssiMatch = summary?.textContent.match(/([-\d]+)dBm/);
-              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              const rssiMatch = summaryText.match(/([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : -999;
               
-              const sessionsMatch = child.textContent.match(/SESSIONS[\s\S]*?(\d+)/);
+              const detailsContent = child.textContent;
+              const sessionsMatch = detailsContent.match(/SESSIONS\s*(\d+)/);
               const sessions = sessionsMatch ? parseInt(sessionsMatch[1]) : 0;
               
-              const lastSeenMatch = child.textContent.match(/LAST SEEN[\s\S]*?(\d+)s/);
-              const lastSeen = lastSeenMatch ? parseInt(lastSeenMatch[1]) : 0;
+              const lastSeenMatch = detailsContent.match(/LAST SEEN\s*(\d+)s/);
+              const lastSeen = lastSeenMatch ? parseInt(lastSeenMatch[1]) : 999999;
               
-              const trackIdMatch = child.textContent.match(/TRACK ID[\s\S]*?([A-Z0-9-]+)/);
-              const trackId = trackIdMatch ? trackIdMatch[1] : '';
+              const trackIdMatch = detailsContent.match(/TRACK ID\s*([A-Z0-9-]+)/);
+              const trackId = trackIdMatch ? trackIdMatch[1].trim() : '';
+              
+              const deviceType = child.getAttribute('data-type') || '';
               
               items.push({
                 element: child,
-                mac, confidence, rssi, sessions, lastSeen, trackId,
+                mac, confidence, rssi, sessions, lastSeen, trackId, deviceType,
                 sortKey: currentSort,
                 type: 'randomization'
               });
@@ -1823,6 +1833,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const confidence = confMatch ? (parseFloat(confMatch[1]) * 100).toFixed(0) : '0';
           const sessions = sessionsMatch ? sessionsMatch[1] : '0';
           const isBLE = typeMatch && typeMatch[1] === 'BLE Device';
+          const deviceType = isBLE ? 'BLE' : 'WiFi';
           
           const rssiList = macsListMatch ? macsListMatch[1].match(/([-\d]+)dBm/g) : null;
           let avgRssi = null;
@@ -1831,7 +1842,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             avgRssi = Math.round(rssiValues.reduce((a, b) => a + b, 0) / rssiValues.length);
           }
           
-          html += '<details style="background:#000;border:1px solid #003b24;border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
+          html += '<details data-type="' + deviceType + '" style="background:#000;border:1px solid #003b24;border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
           html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
           html += '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;flex-wrap:wrap;">';
           html += '<span style="font-family:monospace;font-size:12px;color:#0aff9d;font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
@@ -1865,14 +1876,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">SESSIONS</div>';
           html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + sessions + '</div>';
           html += '</div>';
-          
-          // if (intervalMatch) {
-          //   const intervalPct = (parseFloat(intervalMatch[1]) * 100).toFixed(0);
-          //   html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
-          //   html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">INTERVAL</div>';
-          //   html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + intervalPct + '%</div>';
-          //   html += '</div>';
-          // }
           
           if (rssiMatch) {
             const rssiConPct = (parseFloat(rssiMatch[1]) * 100).toFixed(0);
