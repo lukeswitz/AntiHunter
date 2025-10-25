@@ -59,6 +59,7 @@ struct CachedSDLookup {
     uint32_t timestamp;
 };
 
+extern std::map<String, uint32_t> sdDeviceIndex;
 extern std::map<String, bool> sdLookupCache;
 extern std::list<String> sdLookupLRU;
 extern const uint32_t SD_LOOKUP_CACHE_SIZE;
@@ -131,3 +132,4 @@ void loadBaselineFromSD();
 void saveBaselineStatsToSD();
 void loadBaselineStatsFromSD();
 uint8_t calculateDeviceChecksum(BaselineDevice& device);
+void buildSDIndex();

@@ -39,6 +39,7 @@ std::map<String, bool> sdLookupCache;
 std::list<String> sdLookupLRU;
 const uint32_t SD_LOOKUP_CACHE_SIZE = 200;
 const uint32_t SD_LOOKUP_CACHE_TTL = 300000;
+std::map<String, uint32_t> sdDeviceIndex;
 
 // Scan intervals from scanner
 extern uint32_t WIFI_SCAN_INTERVAL;
@@ -709,7 +710,6 @@ bool initializeBaselineSD() {
             return false;
         }
         
-        // Throw a header on there
         uint32_t magic = 0xBA5EBA11;
         uint16_t version = 1;
         uint32_t deviceCount = 0;
@@ -720,6 +720,8 @@ bool initializeBaselineSD() {
         dataFile.close();
         
         Serial.println("[BASELINE_SD] Data file created");
+    } else {
+        buildSDIndex();
     }
     
     if (!SD.exists("/baseline_stats.json")) {
@@ -751,18 +753,46 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
     BaselineDevice writeDevice = device;
     calculateDeviceChecksum(writeDevice);
     
-    File dataFile = SD.open("/baseline_data.bin", FILE_APPEND);
-    if (!dataFile) {
-        Serial.println("[BASELINE_SD] Failed to open for append");
-        return false;
-    }
+    String macStr = macFmt6(device.mac);
     
-    size_t written = dataFile.write((uint8_t*)&writeDevice, sizeof(BaselineDevice));
-    dataFile.close();
-    
-    if (written == sizeof(BaselineDevice)) {
-        totalDevicesOnSD++;
-        return true;
+    if (sdDeviceIndex.find(macStr) != sdDeviceIndex.end()) {
+        uint32_t position = sdDeviceIndex[macStr];
+        
+        File dataFile = SD.open("/baseline_data.bin", "r+");
+        if (!dataFile) {
+            Serial.println("[BASELINE_SD] Failed to open for update");
+            return false;
+        }
+        
+        dataFile.seek(position);
+        size_t written = dataFile.write((uint8_t*)&writeDevice, sizeof(BaselineDevice));
+        dataFile.close();
+        
+        return (written == sizeof(BaselineDevice));
+    } else {
+        File dataFile = SD.open("/baseline_data.bin", FILE_APPEND);
+        if (!dataFile) {
+            Serial.println("[BASELINE_SD] Failed to open for append");
+            return false;
+        }
+        
+        uint32_t position = dataFile.position();
+        size_t written = dataFile.write((uint8_t*)&writeDevice, sizeof(BaselineDevice));
+        dataFile.close();
+        
+        if (written == sizeof(BaselineDevice)) {
+            sdDeviceIndex[macStr] = position;
+            totalDevicesOnSD++;
+            
+            File headerFile = SD.open("/baseline_data.bin", "r+");
+            if (headerFile) {
+                headerFile.seek(6);
+                headerFile.write((uint8_t*)&totalDevicesOnSD, sizeof(totalDevicesOnSD));
+                headerFile.close();
+            }
+            
+            return true;
+        }
     }
     
     return false;
@@ -773,40 +803,36 @@ bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
         return false;
     }
     
+    String macStr = macFmt6(mac);
+    
+    if (sdDeviceIndex.find(macStr) == sdDeviceIndex.end()) {
+        return false;
+    }
+    
+    uint32_t position = sdDeviceIndex[macStr];
+    
     File dataFile = SD.open("/baseline_data.bin", FILE_READ);
     if (!dataFile) {
         return false;
     }
     
-    dataFile.seek(10);  // Skip header
+    dataFile.seek(position);
+    size_t bytesRead = dataFile.read((uint8_t*)&device, sizeof(BaselineDevice));
+    dataFile.close();
     
-    BaselineDevice rec;
-    String targetMac = macFmt6(mac);
-    
-    while (dataFile.available() >= sizeof(BaselineDevice)) {
-        size_t bytesRead = dataFile.read((uint8_t*)&rec, sizeof(BaselineDevice));
-        
-        if (bytesRead != sizeof(BaselineDevice)) {
-            break;
-        }
-        
-        uint8_t storedChecksum = rec.checksum;
-        uint8_t calcChecksum = calculateDeviceChecksum(rec);
-        
-        if (calcChecksum != storedChecksum) {
-            Serial.println("[BASELINE_SD] Checksum fail");
-            continue;
-        }
-        
-        if (macFmt6(rec.mac) == targetMac) {
-            device = rec;
-            dataFile.close();
-            return true;
-        }
+    if (bytesRead != sizeof(BaselineDevice)) {
+        return false;
     }
     
-    dataFile.close();
-    return false;
+    uint8_t storedChecksum = device.checksum;
+    uint8_t calcChecksum = calculateDeviceChecksum(device);
+    
+    if (calcChecksum != storedChecksum) {
+        Serial.println("[BASELINE_SD] Checksum fail");
+        return false;
+    }
+    
+    return true;
 }
 
 bool flushBaselineCacheToSD() {
@@ -837,14 +863,7 @@ bool flushBaselineCacheToSD() {
         }
     }
     
-    File dataFile = SD.open("/baseline_data.bin", "r+");
-    if (dataFile) {
-        dataFile.seek(6);
-        dataFile.write((uint8_t*)&totalDevicesOnSD, sizeof(totalDevicesOnSD));
-        dataFile.close();
-    }
-    
-    Serial.printf("[BASELINE_SD] Flushed %d devices. Total on SD: %d\n", flushed, totalDevicesOnSD);
+    Serial.printf("[BASELINE_SD] Flushed %d devices. Total unique on SD: %d\n", flushed, totalDevicesOnSD);
     saveBaselineStatsToSD();
     
     return true;
@@ -880,9 +899,8 @@ void loadBaselineFromSD() {
     totalDevicesOnSD = deviceCount;
     baselineDeviceCount = deviceCount;
     
-    // Load last N devices into RAM cache
     if (deviceCount > 0) {
-          uint32_t toLoad = min(deviceCount, baselineRamCacheSize);
+        uint32_t toLoad = min(deviceCount, baselineRamCacheSize);
         uint32_t skipRecords = (deviceCount > toLoad) ? (deviceCount - toLoad) : 0;
         
         dataFile.seek(10 + (skipRecords * sizeof(BaselineDevice)));
@@ -904,6 +922,7 @@ void loadBaselineFromSD() {
                 continue;
             }
             
+            rec.dirtyFlag = false;
             baselineCache[macFmt6(rec.mac)] = rec;
             loaded++;
         }
@@ -912,6 +931,7 @@ void loadBaselineFromSD() {
     }
     
     dataFile.close();
+    buildSDIndex();
     loadBaselineStatsFromSD();
 }
 
@@ -1201,4 +1221,50 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     history.lastRssi = rssi;
     history.lastSeen = now;
     history.wasPresent = true;
+}
+
+void buildSDIndex() {
+    sdDeviceIndex.clear();
+    
+    File dataFile = SD.open("/baseline_data.bin", FILE_READ);
+    if (!dataFile) {
+        return;
+    }
+    
+    uint32_t magic, deviceCount;
+    uint16_t version;
+    
+    dataFile.read((uint8_t*)&magic, sizeof(magic));
+    dataFile.read((uint8_t*)&version, sizeof(version));
+    dataFile.read((uint8_t*)&deviceCount, sizeof(deviceCount));
+    
+    if (magic != 0xBA5EBA11) {
+        dataFile.close();
+        return;
+    }
+    
+    BaselineDevice rec;
+    uint32_t position = 10;
+    
+    while (dataFile.available() >= sizeof(BaselineDevice)) {
+        size_t bytesRead = dataFile.read((uint8_t*)&rec, sizeof(BaselineDevice));
+        
+        if (bytesRead != sizeof(BaselineDevice)) {
+            break;
+        }
+        
+        uint8_t storedChecksum = rec.checksum;
+        uint8_t calcChecksum = calculateDeviceChecksum(rec);
+        
+        if (calcChecksum == storedChecksum) {
+            String macStr = macFmt6(rec.mac);
+            sdDeviceIndex[macStr] = position;
+        }
+        
+        position += sizeof(BaselineDevice);
+    }
+    
+    dataFile.close();
+    totalDevicesOnSD = sdDeviceIndex.size();
+    Serial.printf("[BASELINE_SD] Index built: %d unique devices\n", totalDevicesOnSD);
 }
