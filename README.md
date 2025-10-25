@@ -516,7 +516,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `/node-id` | GET | Get current node ID | None |
 | `/node-id` | POST | Set node ID | `id` (1-16 chars) |
 | `/mesh-interval` | GET | Get mesh send interval | None |
-| `/mesh-interval` | POST | Set mesh send interval | `interval` (500-30000 ms) |
+| `/mesh-interval` | POST | Set mesh send interval | `interval` (1500-30000 ms) |
 | `/config` | GET | Get system configuration | None |
 | `/config` | POST | Update configuration | `channels` (CSV), `targets` (pipe-delimited) |
 | `/api/time` | POST | Set RTC time from epoch | `epoch` (Unix timestamp, 1609459200-2147483647) |
