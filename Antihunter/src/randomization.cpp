@@ -643,7 +643,7 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
         Serial.printf("[RAND] AUTH LEAK: %s->%s sc:%.2f sq:%d->%d\n",
                      macFmt6(session.mac).c_str(), macFmt6(globalMac).c_str(),
                      bestScore, session.lastSeqNum, seqNum);
-        
+
         if (session.probeCount < 8) session.probeCount = 8;
         linkSessionToTrackBehavioral(session);
     }
@@ -1355,6 +1355,7 @@ void randomizationDetectionTask(void *pv) {
                         const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                         
                         Serial.printf("[RAND BLE] Processing device %d/%d\n", i+1, scanResults.getCount());
+                        broadcastToTerminal("[RAND BLE] Processing device %d/%d\n");
                         
                         const uint8_t* macBytes = device->getAddress().getVal();
                         uint8_t mac[6];

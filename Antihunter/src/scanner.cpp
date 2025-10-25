@@ -599,6 +599,7 @@ void snifferScanTask(void *pv)
     unsigned long lastWiFiScan = 0;
     const unsigned long BLE_SCAN_INTERVAL = 4000;
     const unsigned long WIFI_SCAN_INTERVAL = 2000;
+    unsigned long nextResultsUpdate = millis() + 5000;
 
     NimBLEScan *bleScan = nullptr;
 
@@ -745,6 +746,46 @@ void snifferScanTask(void *pv)
                 Serial.printf("[SNIFFER] BLE scan found %d devices\n", scanResults.getCount());
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
+        }
+
+         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            
+            std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
+            results += "Elapsed: " + std::to_string((millis() - lastScanStart) / 1000) + "s";
+            if (!forever && duration > 0) {
+                results += " / " + std::to_string(duration) + "s";
+            }
+            results += "\nWiFi APs: " + std::to_string(apCache.size()) + 
+                      "\nBLE devices: " + std::to_string(bleDeviceCache.size()) + 
+                      "\nUnique devices: " + std::to_string(uniqueMacs.size()) + 
+                      "\nTarget hits: " + std::to_string(totalHits) + "\n\n";
+            
+            std::vector<Hit> sortedHits = hitsLog;
+            std::sort(sortedHits.begin(), sortedHits.end(), 
+                     [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+            
+            int shown = 0;
+            for (const auto& hit : sortedHits) {
+                if (shown++ >= 50) break;
+                results += std::string(hit.isBLE ? "BLE " : "WiFi");
+                char macStr[18];
+                snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
+                results += " " + std::string(macStr);
+                results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+                if (!hit.isBLE && hit.ch > 0) results += " CH=" + std::to_string(hit.ch);
+                if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
+                    results += " Name=" + std::string(hit.name);
+                }
+                results += "\n";
+            }
+            if (hitsLog.size() > 50) {
+                results += "... (" + std::to_string(hitsLog.size() - 50) + " more)\n";
+            }
+            
+            antihunter::lastResults = results;
+            nextResultsUpdate = millis() + 5000;
         }
 
         Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",

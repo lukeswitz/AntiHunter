@@ -107,3 +107,4 @@ void deleteAllFiles(const String &dirname);
 bool executeSecureErase(const String &reason);
 String generateEraseToken();
 bool validateEraseToken(const String &token);
+void broadcastToTerminal(const String &message);

@@ -46,10 +46,13 @@ void initializeNetwork();
 void initializeMesh();
 void startWebServer();
 
-// Mesh communication functions
+// Mesh communication
 void sendMeshNotification(const Hit &hit);
 void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);
 void processUSBToMesh();
 void setNodeId(const String &id);
 String getNodeId();
+extern unsigned long meshSendInterval;
+void setMeshSendInterval(unsigned long interval);
+unsigned long getMeshSendInterval();

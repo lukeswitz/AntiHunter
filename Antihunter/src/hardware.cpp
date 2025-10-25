@@ -73,12 +73,18 @@ void initializeHardware()
 {
     Serial.println("Loading preferences...");
     prefs.begin("antihunter", false);
-
+    
     prefs.putString("apSsid", AP_SSID);
     prefs.putString("apPass", AP_PASS);
     
     loadRFConfigFromPrefs();
-
+    
+    meshSendInterval = prefs.getULong("meshInterval", 5000);
+    if (meshSendInterval < 1500 || meshSendInterval > 60000) {
+        meshSendInterval = 5000;
+    }
+    Serial.printf("[CONFIG] Mesh send interval: %lums\n", meshSendInterval);
+    
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
     deviceAbsenceThreshold = prefs.getUInt("absenceThresh", 120000);
@@ -93,6 +99,7 @@ void initializeHardware()
         prefs.putString("nodeId", nodeId);
     }
     setNodeId(nodeId);
+    
     Serial.println("[NODE_ID] " + nodeId);
     Serial.printf("Hardware initialized: nodeID=%s\n", nodeId);
 }
@@ -121,6 +128,7 @@ void saveConfiguration() {
     config += " \"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
     config += " \"scanMode\":" + String(currentScanMode) + ",\n";
     config += " \"channels\":\"" + channelsCSV + "\",\n";
+    config += " \"meshInterval\":" + String(meshSendInterval) + ",\n";
     config += " \"autoEraseEnabled\":" + String(autoEraseEnabled ? "true" : "false") + ",\n";
     config += " \"autoEraseDelay\":" + String(autoEraseDelay) + ",\n";
     config += " \"autoEraseCooldown\":" + String(autoEraseCooldown) + ",\n";
@@ -213,6 +221,15 @@ void loadConfiguration() {
             parseChannelsCSV(channels);
             prefs.putString("channels", channels);
             // Serial.println("Loaded channels from SD: " + channels);
+        }
+    }
+
+    if (doc.containsKey("meshInterval") && doc["meshInterval"].is<unsigned long>()) {
+        unsigned long interval = doc["meshInterval"].as<unsigned long>();
+        if (interval >= 500 && interval <= 30000) {
+            meshSendInterval = interval;
+            prefs.putULong("meshInterval", interval);
+            Serial.printf("Loaded meshInterval from SD: %lums\n", interval);
         }
     }
 
