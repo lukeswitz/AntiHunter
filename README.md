@@ -2,7 +2,6 @@
 [![Pre-release](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?include_prereleases&label=pre-release&color=orange)](https://github.com/lukeswitz/AntiHunter/releases)
 [![GitHub last commit](https://img.shields.io/github/last-commit/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/commits/main/)
 [![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter)
-(https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
 <img width="90%" height="90%" alt="image" src="https://github.com/user-attachments/assets/6c3c4d36-50b7-4257-93b1-5738fb274d5d" />
 
