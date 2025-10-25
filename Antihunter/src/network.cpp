@@ -464,7 +464,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                   <div>
-                    <label style="font-size:11px;">RAM Device Cache</label>
+                    <label style="font-size:11px;">RAM Cache (Non-SD defaults to 1500)</label>
                     <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
                   </div>
                   <div>
@@ -1332,7 +1332,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   }
               }
 
-              if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam' || taskType === 'baseline') {
+              if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam') {
                   const startDetectionBtn = document.getElementById('startDetectionBtn');
                   if (startDetectionBtn) {
                       startDetectionBtn.textContent = 'Stop Scanning';
@@ -1368,13 +1368,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   startScanBtn.style.background = '';
               }
 
-              const startDetectionBtn = document.getElementById('startDetectionBtn');
-              if (startDetectionBtn) {
-                  startDetectionBtn.textContent = 'Start Scan';
-                  startDetectionBtn.classList.remove('danger');
-                  startDetectionBtn.classList.add('primary');
-                  startDetectionBtn.type = 'submit';
-                  startDetectionBtn.onclick = null;
+              const detectionMode = document.getElementById('detectionMode')?.value;
+              if (detectionMode !== 'baseline') {
+                  const startDetectionBtn = document.getElementById('startDetectionBtn');
+                  if (startDetectionBtn) {
+                      startDetectionBtn.textContent = 'Start Scan';
+                      startDetectionBtn.classList.remove('danger');
+                      startDetectionBtn.classList.add('primary');
+                      startDetectionBtn.type = 'submit';
+                      startDetectionBtn.onclick = null;
+                  }
               }
           }
 
