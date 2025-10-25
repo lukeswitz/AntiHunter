@@ -235,8 +235,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .btn{display:inline-block;padding:7px 11px;border-radius:6px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:11px;transition:all .2s;white-space:nowrap}
       .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
       .btn.primary{background:#002417;border-color:#0c6}
-      .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
-      .btn.danger{background:#330;border-color:#cc6600;color:#ff8800}
+      .btn.alt{background:#1a0f00;border-color:#4e3000;color:#ffa500}
+      .btn.danger{background:#2d1500;border-color:#dd6600;color:#ff9933}
       .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .small{opacity:.65;font-size:10px}
       pre{white-space:pre-wrap;background:#000;border:1px dashed var(--border);border-radius:6px;padding:8px;font-size:10px;line-height:1.3;overflow-x:auto;max-height:350px;overflow-y:auto}
@@ -287,7 +287,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #terminalToggle{position:fixed;bottom:20px;left:20px;background:#001b12;border:2px solid #0aff9d;color:#0aff9d;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(10,255,157,.2)}
       #terminalToggle:hover{background:#002417;box-shadow:0 6px 20px rgba(10,255,157,.3)}
       #terminalToggle.active{background:#002417;border-color:#00ff7f}
-      
+
       @media (min-width:900px){
         .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
         .grid-2 > .card{align-self:stretch}
