@@ -297,8 +297,8 @@ void baselineDetectionTask(void *pv) {
     
     if (pBLEScan && !pBLEScan->isScanning()) {
         pBLEScan->setActiveScan(true);
-        pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
-        pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
+        pBLEScan->setInterval(100);
+        pBLEScan->setWindow(99);
         pBLEScan->setDuplicateFilter(false);
         pBLEScan->start(0, false);
     }
@@ -359,11 +359,18 @@ void baselineDetectionTask(void *pv) {
             WiFi.scanDelete();
         }
         
-        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
+        if (pBLEScan && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
             lastBLEScan = millis();
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(rfConfig.bleScanDuration, false);
+            if (!pBLEScan->isScanning()) {
+                pBLEScan->start(0, false);
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
             
+            NimBLEScanResults scanResults = pBLEScan->getResults(0, true);
+
+            // Serial.printf("[BASELINE] BLE scan found %d results\n", scanResults.getCount());
+
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                 String macStr = device->getAddress().toString().c_str();
@@ -384,6 +391,8 @@ void baselineDetectionTask(void *pv) {
                         xQueueSend(macQueue, &bh, 0);
                     }
                     bleFramesSeen = bleFramesSeen + 1;
+                }  else {
+                    Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
                 }
             }
             pBLEScan->clearResults();
@@ -468,10 +477,15 @@ void baselineDetectionTask(void *pv) {
             WiFi.scanDelete();
         }
 
-        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
+        if (pBLEScan && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
             lastBLEScan = millis();
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(rfConfig.bleScanDuration, false);
+            if (!pBLEScan->isScanning()) {
+                pBLEScan->start(0, false);
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            
+            NimBLEScanResults scanResults = pBLEScan->getResults(0, true);
             
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
