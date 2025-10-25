@@ -329,7 +329,6 @@ void baselineDetectionTask(void *pv) {
             nextStatus += 5000;
         }
         
-        // WiFi scanning
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
@@ -360,11 +359,10 @@ void baselineDetectionTask(void *pv) {
             WiFi.scanDelete();
         }
         
-        // BLE scanning - only if pBLEScan is valid and running
-        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
             lastBLEScan = millis();
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(rfConfig.bleScanDuration, false);
             
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
@@ -391,7 +389,6 @@ void baselineDetectionTask(void *pv) {
             pBLEScan->clearResults();
         }
         
-        // Process queue
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
             if (isAllowlisted(h.mac)) {
                 continue;
@@ -414,7 +411,6 @@ void baselineDetectionTask(void *pv) {
     Serial.printf("[BASELINE] Baseline established with %d devices\n", baselineDeviceCount);
     Serial.printf("[BASELINE] Phase 2: Monitoring for anomalies (threshold: %d dBm)\n", baselineRssiThreshold);
 
-    // Phase 2: Same pattern, checking pBLEScan validity
     uint32_t monitorStart = millis();
     phaseStart = millis();
     nextStatus = millis() + 5000;
@@ -442,7 +438,6 @@ void baselineDetectionTask(void *pv) {
             nextStatus += 5000;
         }
 
-        // WiFi scanning
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
@@ -467,16 +462,16 @@ void baselineDetectionTask(void *pv) {
                     if (macQueue) {
                         xQueueSend(macQueue, &wh, 0);
                     }
+                    framesSeen = framesSeen + 1;
                 }
             }
             WiFi.scanDelete();
         }
 
-        // BLE scanning - check validity
-        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
+        if (pBLEScan && pBLEScan->isScanning() && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
             lastBLEScan = millis();
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(rfConfig.bleScanDuration, false);
             
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
@@ -497,12 +492,12 @@ void baselineDetectionTask(void *pv) {
                     if (macQueue) {
                         xQueueSend(macQueue, &bh, 0);
                     }
+                    bleFramesSeen = bleFramesSeen + 1;
                 }
             }
             pBLEScan->clearResults();
         }
         
-        // Process queue for anomaly detection
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
             if (isAllowlisted(h.mac)) {
                 continue;
@@ -536,7 +531,6 @@ void baselineDetectionTask(void *pv) {
         Serial.printf("[BASELINE] Final flush: %d total devices\n", baselineDeviceCount);
     }
 
-    // Cleanup queues for other tasks.. 
     if (macQueue) {
         vQueueDelete(macQueue);
         macQueue = nullptr;
@@ -546,7 +540,6 @@ void baselineDetectionTask(void *pv) {
         anomalyQueue = nullptr;
     }
 
-    // Cache wipe
     sdLookupCache.clear();
     sdLookupLRU.clear();
 
