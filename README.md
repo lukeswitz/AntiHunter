@@ -2,7 +2,7 @@
 [![Pre-release](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?include_prereleases&label=pre-release&color=orange)](https://github.com/lukeswitz/AntiHunter/releases)
 [![GitHub last commit](https://img.shields.io/github/last-commit/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/commits/main/)
 [![GitHub repo size](https://img.shields.io/github/repo-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter)
-[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
+(https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
 <img width="90%" height="90%" alt="image" src="https://github.com/user-attachments/assets/6c3c4d36-50b7-4257-93b1-5738fb274d5d" />
 
@@ -45,10 +45,6 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 - **Global Allowlist**: User configurable, applies to all scans. 
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
 - **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
-- **Use Cases**:
-  - Passive device activity reporting for secure environments
-  - Wireless survey and network auditing
-  - Active RF environmental awareness and attack detection
 
 #### 2. Triangulation/Trilateration  (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for advanced trilateration processing.
@@ -61,14 +57,9 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 
 **Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details. 
 - **AH Command Center Integration**: Data forwarded for centralized processing, MQTT broker and mapping. 
-- **Use Cases**:
-  - Perimeter defense and intrusion detection
-  - Asset tracking and geofencing
-  - Incident response and tactical operations
-  - Large-area device monitoring
 
 #### 3. **Detection & Analysis**
-Comprehensive wireless environment analysis combining general device discovery, baseline anomaly detection, and specialized Remote ID drone detection.
+Wireless environment analysis combining general device discovery, baseline anomaly detection, and specialized Remote ID drone detection.
 
 **Device Scanner:**
 - Captures all WiFi and Bluetooth devices in range
@@ -103,7 +94,7 @@ Comprehensive wireless environment analysis combining general device discovery, 
 - Detects global MAC leaks and WiFi-BLE device correlation
 
 
-**Use Cases:**
+#### Use Cases
 
 - Perimeter security and intrusion detection
 - WiFi penetration testing, security auditing, and MAC randomization analysis
@@ -322,7 +313,8 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 
 #### **Target Configuration**
 - **Watchlist Management**: Add/remove MAC addresses and OUI prefixes
-- **Format**: Full MAC (`AA:BB:CC:DD:EE:FF`) or OUI (`AA:BB:CC`)
+- **Allow List**: Devices to exclude from alerts and scans
+- **Format**: Full MAC (`AA:BB:CC:DD:EE:FF`), OUI (`AA:BB:CC`), or by `T-XXXX` grouped ID
 - **Export/Import**: Save/load target lists for deployment
 - **Validation**: Real-time format checking and duplicate detection
 
@@ -342,8 +334,9 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 #### **Detection & Analysis**
 - **Device Discovery**: General scanning for all WiFi/BLE devices
 - **Baseline Anomaly Scan**: Be alerted to new/approaching devices
+- **MAC Randomization Analyzer**: Discover, correlate and de-randomize
+- **eauthentication Attack Detections**: Discover, correlate and de-randomize
 - **Drone WiFi RID**: Detect remote ID compliant drones & pilots
-- **Cache Viewer**: Recent device history and signal patterns
 
 #### **System Diagnostics**
 **Overview Tab:**
@@ -380,15 +373,12 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Position Reporting**: GPS coordinates included in all relevant alerts
 
 ### **Hardware Integration**
-- **Connection**: `TEXTMSG` at 115200 baud; pins 9 TX and 10 RX
+- **Connection**: **Mode: `TEXTMSG`;Speed: 115200 baud;Pins 9 TX / 10 RX for T114 and 19/20 for the Heltec V3**
 - **Protocol**: Standard Meshtastic serial, public and encrypted channels
 - **Configuration**: Set the device to the following under Serial Settings
 
-<img width="69%" src="https://github.com/user-attachments/assets/76a74acc-b14b-433a-86ea-b817ccec0343">
-
-
 ### **Network Behavior**
-- **Alert Rate Limiting**: 10-second intervals prevent mesh flooding
+- **Alert Rate Limiting**: 3-second intervals prevent mesh flooding
 - **Node Identification**: Each device uses a unique Node ID prefix
 - **Broadcast Commands**: `@ALL` commands coordinate multiple nodes
 - **Targeted Control**: `@NODE_XX` commands address specific nodes
