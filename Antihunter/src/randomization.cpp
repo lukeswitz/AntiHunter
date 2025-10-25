@@ -1352,7 +1352,6 @@ void randomizationDetectionTask(void *pv) {
                     
                     for (int i = 0; i < scanResults.getCount(); i++) {
                         const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
-                        String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                         
                         Serial.printf("[RAND BLE] Processing device %d/%d\n", i+1, scanResults.getCount());
                         broadcastToTerminal("[RAND BLE] Processing device %d/%d\n");
@@ -1399,9 +1398,6 @@ void randomizationDetectionTask(void *pv) {
                             session.seqNumGaps = 0;
                             session.seqNumWraps = 0;
                             session.hasGlobalMacLeak = false;
-
-                            strncpy(session.deviceName, name.c_str(), sizeof(session.deviceName) - 1);
-                            session.deviceName[sizeof(session.deviceName) - 1] = '\0';
                             
                             extractBLEFingerprint(device, session.fingerprint);
                             memset(&session.ieOrder, 0, sizeof(session.ieOrder));
@@ -1415,10 +1411,6 @@ void randomizationDetectionTask(void *pv) {
                             if (session.probeCount < 50) {
                                 session.probeTimestamps[session.probeCount] = now;
                             }
-
-                            // Update name even if session exists
-                            strncpy(session.deviceName, name.c_str(), sizeof(session.deviceName) - 1);
-                            session.deviceName[sizeof(session.deviceName) - 1] = '\0';
                             
                             session.lastSeen = now;
                             session.rssiSum += rssi;
