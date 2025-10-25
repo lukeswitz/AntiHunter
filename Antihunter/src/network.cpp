@@ -236,7 +236,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
       .btn.primary{background:#002417;border-color:#0c6}
       .btn.alt{background:#1a0f00;border-color:#4e3000;color:#ffa500}
-      .btn.danger{background:#2d1500;border-color:#dd6600;color:#ff9933}
+      .btn.danger{background:transparent;border-color:#dd6600;color:#ff9933}
       .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .small{opacity:.65;font-size:10px}
       pre{white-space:pre-wrap;background:#000;border:1px dashed var(--border);border-radius:6px;padding:8px;font-size:10px;line-height:1.3;overflow-x:auto;max-height:350px;overflow-y:auto}
