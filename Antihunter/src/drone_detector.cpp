@@ -383,8 +383,6 @@ void droneDetectorTask(void *pv) {
     Serial.printf("[DRONE] Starting drone detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
     
-    // stopAPAndServer();
-    
     initializeDroneDetector();
     droneDetectionEnabled = true;
     scanning = true;
@@ -401,6 +399,34 @@ void droneDetectorTask(void *pv) {
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
         
         while (xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
+            if (meshEnabled && millis() - lastDroneLog >= DRONE_LOG_INTERVAL)
+            {
+                lastDroneLog = millis();
+                
+                String macStr = macFmt6(drone.mac);
+                String droneMsg = getNodeId() + ": DRONE: " + macStr +
+                                " RSSI:" + String(drone.rssi);
+                
+                if (strlen(drone.uavId) > 0) {
+                    droneMsg += " ID:" + String(drone.uavId);
+                }
+                
+                if (drone.latitude != 0.0 || drone.longitude != 0.0) {
+                    droneMsg += " Pos:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
+                    droneMsg += " Alt:" + String(drone.altitudeMsl, 1);
+                }
+                
+                if (drone.speed > 0) {
+                    droneMsg += " Spd:" + String(drone.speed, 1) + " Hdg:" + String(drone.heading, 0);
+                }
+                
+                if (drone.operatorLat != 0.0 || drone.operatorLon != 0.0) {
+                    droneMsg += " OpPos:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
+                }
+                
+                sendToSerial1(droneMsg, false);
+                Serial.println("[DRONE] Mesh alert: " + macStr);
+            }
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
@@ -426,7 +452,6 @@ void droneDetectorTask(void *pv) {
         antihunter::lastResults = getDroneDetectionResults().c_str();
     }
     
-    // startAPAndServer();
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

@@ -1146,7 +1146,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
                 meshAlert += " Name:" + String(name);
             }
-            Serial1.println(meshAlert);
+            sendToSerial1(meshAlert, false);
         }
         
         return;
@@ -1183,7 +1183,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 lastBaselineAnomalyMeshSend = millis();
                 String meshAlert = getNodeId() + ": ANOMALY-RETURN: " + String(isBLE ? "BLE " : "WiFi ") + macStr;
                 meshAlert += " absent:" + String(absentTime / 1000) + "s";
-                Serial1.println(meshAlert);
+                sendToSerial1(meshAlert, false); 
             }
         }
         
