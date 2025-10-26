@@ -600,7 +600,7 @@ void snifferScanTask(void *pv)
     unsigned long lastMeshUpdate = 0;
     const unsigned long BLE_SCAN_INTERVAL = 4000;
     const unsigned long WIFI_SCAN_INTERVAL = 2000;
-    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 2500;
+    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long nextResultsUpdate = millis() + 5000;
     
     std::set<String> transmittedDevices;
@@ -747,43 +747,71 @@ void snifferScanTask(void *pv)
         }
 
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
-        {
+{
             lastMeshUpdate = millis();
             
-            for (const auto& hit : hitsLog)
+            // Send all WiFi APs from cache
+            for (const auto& entry : apCache)
             {
-                String macStr = macFmt6(hit.mac);
+                String macStr = entry.first;
+                String ssid = entry.second;
                 
                 if (transmittedDevices.find(macStr) == transmittedDevices.end())
                 {
-                    String deviceMsg = getNodeId() + ": DEVICE:";
-                    deviceMsg += macStr;
-                    deviceMsg += " ";
-                    deviceMsg += hit.isBLE ? "B" : "W";
-                    deviceMsg += " ";
-                    deviceMsg += String(hit.rssi);
+                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " W ";
                     
-                    if (!hit.isBLE && hit.ch > 0) {
-                        deviceMsg += " C" + String(hit.ch);
+                    // Find best RSSI for this AP from hitsLog
+                    int8_t bestRssi = -128;
+                    uint8_t bestCh = 0;
+                    for (const auto& hit : hitsLog) {
+                        String hitMac = macFmt6(hit.mac);
+                        if (hitMac == macStr && hit.rssi > bestRssi) {
+                            bestRssi = hit.rssi;
+                            bestCh = hit.ch;
+                        }
                     }
                     
-                    if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && 
-                        strcmp(hit.name, "[Hidden]") != 0 && strcmp(hit.name, "WiFi") != 0) {
-                        String shortName = String(hit.name);
-                        if (shortName.length() > 30) {
-                            shortName = shortName.substring(0, 30);
-                        }
-                        
-                        int remaining = 230 - deviceMsg.length();
-                        if (shortName.length() < remaining) {
-                            deviceMsg += " N:" + shortName;
-                        }
+                    deviceMsg += String(bestRssi);
+                    if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+                    if (ssid.length() > 0 && ssid != "[Hidden]") {
+                        deviceMsg += " N:" + ssid.substring(0, 30);
                     }
                     
                     if (deviceMsg.length() < 230) {
                         sendToSerial1(deviceMsg, false);
                         transmittedDevices.insert(macStr);
-                        delay(50);
+                        delay(30);
+                    }
+                }
+            }
+            
+            // Send all BLE devices from cache
+            for (const auto& entry : bleDeviceCache)
+            {
+                String macStr = entry.first;
+                String name = entry.second;
+                
+                if (transmittedDevices.find(macStr) == transmittedDevices.end())
+                {
+                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " B ";
+                    
+                    int8_t bestRssi = -128;
+                    for (const auto& hit : hitsLog) {
+                        String hitMac = macFmt6(hit.mac);
+                        if (hitMac == macStr && hit.isBLE && hit.rssi > bestRssi) {
+                            bestRssi = hit.rssi;
+                        }
+                    }
+                    
+                    deviceMsg += String(bestRssi);
+                    if (name.length() > 0 && name != "Unknown") {
+                        deviceMsg += " N:" + name.substring(0, 30);
+                    }
+                    
+                    if (deviceMsg.length() < 230) {
+                        sendToSerial1(deviceMsg, false);
+                        transmittedDevices.insert(macStr);
+                        delay(30);
                     }
                 }
             }
@@ -845,6 +873,57 @@ void snifferScanTask(void *pv)
     
     scanning = false;
     lastScanEnd = millis();
+
+    if (meshEnabled)
+    {
+        for (const auto& entry : apCache)
+        {
+            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
+            {
+                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
+                int8_t bestRssi = -128;
+                uint8_t bestCh = 0;
+                for (const auto& hit : hitsLog) {
+                    String hitMac = macFmt6(hit.mac);
+                    if (hitMac == entry.first && hit.rssi > bestRssi) {
+                        bestRssi = hit.rssi;
+                        bestCh = hit.ch;
+                    }
+                }
+                deviceMsg += String(bestRssi);
+                if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+                if (entry.second.length() > 0 && entry.second != "[Hidden]") {
+                    deviceMsg += " N:" + entry.second.substring(0, 30);
+                }
+                if (deviceMsg.length() < 230) {
+                    sendToSerial1(deviceMsg, false);
+                    delay(25);
+                }
+            }
+        }
+        for (const auto& entry : bleDeviceCache)
+        {
+            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
+            {
+                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
+                int8_t bestRssi = -128;
+                for (const auto& hit : hitsLog) {
+                    String hitMac = macFmt6(hit.mac);
+                    if (hitMac == entry.first && hit.isBLE && hit.rssi > bestRssi) {
+                        bestRssi = hit.rssi;
+                    }
+                }
+                deviceMsg += String(bestRssi);
+                if (entry.second.length() > 0 && entry.second != "Unknown") {
+                    deviceMsg += " N:" + entry.second.substring(0, 30);
+                }
+                if (deviceMsg.length() < 230) {
+                    sendToSerial1(deviceMsg, false);
+                    delay(25);
+                }
+            }
+        }
+    }
 
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
