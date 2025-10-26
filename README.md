@@ -419,6 +419,10 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` | Starts scanning (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
+| `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Starts device discovery scan (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL DEVICE_SCAN_START:2:300` |
+| `DRONE_START` | `secs[:FOREVER]` | Starts drone RID detection (WiFi only, max 86400 secs) | `@ALL DRONE_START:600` |
+| `DEAUTH_START` | `secs[:FOREVER]` | Starts deauthentication attack detection (max 86400 secs) | `@ALL DEAUTH_START:300` |
+| `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | Starts MAC randomization detection (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL RANDOMIZATION_START:2:600` |
 | `BASELINE_START` | `duration[:FOREVER]` | Initiates baseline environment establishment (max 86400 secs) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | Reports baseline detection status (scanning, established, device count, anomalies) | `@ALL BASELINE_STATUS` |
 | `STOP` | None | Stops all operations | `@ALL STOP` |
@@ -443,6 +447,10 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Setup Mode** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
 | **Config ACK** | `NODE_ID: CONFIG_ACK:TYPE:VALUE` | `NODE_ABC: CONFIG_ACK:CHANNELS:1,6,11` |
 | **Scan ACK** | `NODE_ID: SCAN_ACK:STARTED` | `NODE_ABC: SCAN_ACK:STARTED` |
+| **Device Scan ACK** | `NODE_ID: DEVICE_SCAN_ACK:STARTED` | `NODE_ABC: DEVICE_SCAN_ACK:STARTED` |
+| **Drone ACK** | `NODE_ID: DRONE_ACK:STARTED` | `NODE_ABC: DRONE_ACK:STARTED` |
+| **Deauth ACK** | `NODE_ID: DEAUTH_ACK:STARTED` | `NODE_ABC: DEAUTH_ACK:STARTED` |
+| **Randomization ACK** | `NODE_ID: RANDOMIZATION_ACK:STARTED` | `NODE_ABC: RANDOMIZATION_ACK:STARTED` |
 | **Baseline ACK** | `NODE_ID: BASELINE_ACK:STARTED` | `NODE_ABC: BASELINE_ACK:STARTED` |
 | **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices=42 Anomalies=3 Phase1:ACTIVE` |
 | **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-sensor001` |
@@ -461,6 +469,16 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
     @NODE_22 CONFIG_CHANNELS:1,6,11
     @ALL CONFIG_CHANNELS:1..14
     @NODE_22 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33:44:55:66
+
+#### Detection & Analysis
+    @ALL DEVICE_SCAN_START:2:300
+    @NODE_22 DEVICE_SCAN_START:2:300:FOREVER
+    @ALL DRONE_START:600
+    @NODE_22 DRONE_START:600:FOREVER
+    @ALL DEAUTH_START:300
+    @NODE_22 DEAUTH_START:300:FOREVER
+    @ALL RANDOMIZATION_START:2:600
+    @NODE_22 RANDOMIZATION_START:0:600:FOREVER
 
 #### Baseline Detection
     @ALL BASELINE_START:300
