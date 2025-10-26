@@ -38,7 +38,6 @@ Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalab
 #### 1. **List Scan Mode**
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
-**Key Features:**
 - **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
 - **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
 - **Global Allowlist**: User configurable, applies to all scans. 
@@ -46,43 +45,45 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 - **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
 
 #### 2. Triangulation/Trilateration  (Distributed)
-Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for advanced trilateration processing.
+Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for more advanced trilateration processing.
 
 **`EXPERIMENTAL T114 SUPPORT:`** small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
-**Key Features:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
-
-**Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details. 
+- **Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details. 
 - **AH Command Center Integration**: Data forwarded for centralized processing, MQTT broker and mapping. 
 
 #### 3. **Detection & Analysis**
 Wireless environment analysis combining general device discovery, baseline anomaly detection, and specialized Remote ID drone detection.
 
-**Device Scanner:**
+**Device Scanner**
 - Captures all WiFi and Bluetooth devices in range
-- Records MAC addresses, SSIDs, signal strength, and channels
+- Records MAC addresses, SSIDs, signal strength, names and channels
 - Provides complete 2.4GHz wireless spectrum visibility
 
-**Baseline Anomaly Detection:**
+**Baseline Anomaly Detection**
 - Two-phase scanning: establishes baseline, then monitors for anomalies
 - Detects new devices, disappeared/reappeared devices, significant RSSI changes
-- Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices)
+- Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). **Defaults to 1500 devices if no SD card**
 - Persistent storage with automatic tiering, survives reboots
 - Real-time mesh alerts with GPS coordinates and anomaly reasons
 - Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
 
-**RID Drone Detection:**
+**Deauthentication Attack Scan**
+- WiFi deauth/disassoc attack sniffer with frame filtering and real-time detection
+- Integration with randomization tracking for source identification
+
+**Drone RID Detection**
 - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
 - Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
 - Detects French drone ID format (OUI 0x6a5c35)
 - Extracts UAV ID, pilot location, and flight telemetry data
 - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
 
-**MAC Randomization Detection**
+**MAC Randomization Analysis**
 
-**`EXPERIMENTAL FEATURE` - In Active Development**
+**`EXPERIMENTAL FEATURE`**
 
 - Traces device identities across randomized MAC addresses using behavioral signatures
 - IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation
@@ -92,8 +93,7 @@ Wireless environment analysis combining general device discovery, baseline anoma
 - Confidence-based linking with threshold adaptation
 - Detects global MAC leaks and WiFi-BLE device correlation
 
-
-#### Use Cases
+**Use Cases**
 
 - Perimeter security and intrusion detection
 - WiFi penetration testing, security auditing, and MAC randomization analysis
@@ -110,7 +110,7 @@ Wireless environment analysis combining general device discovery, baseline anoma
 #### **GPS Positioning**
 - **Interface**: UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud using TinyGPS++
 - **Functionality**: Parses NMEA sentences for location, altitude, and satellite data
-- **Web Interface**: Real-time GPS status, last known position, and fix quality
+- **Web Interface**: Real-time GPS status and fix quality
 - **API Endpoint**: `/gps` returns current latitude/longitude coordinates
 - **Integration**: All detection events include GPS coordinates when available
 
@@ -130,7 +130,7 @@ Wireless environment analysis combining general device discovery, baseline anoma
 #### **Real-Time Clock (RTC)**
 - **Module**: DS3231 RTC via I2C
 - **Functionality**: Accurate timekeeping during power outages and GPS synchronization
-- **Features**: Automatic time sync from GPS, manual time setting, sync status monitoring
+- **Features**: Automatic time sync from NTP on flash with fallback to system time and GPS, sync status monitoring & obedience/drift  correction. 
 - **Web Interface**: Current time display and synchronization status
 
 --- 
@@ -197,6 +197,7 @@ While individual nodes provide standalone capability, the full system power come
 - Provides real-time mapping and visualization
 - Enables coordinated response operations
 - Maintains historical threat intelligence
+
 
 ## Hardware Requirements
 
@@ -300,13 +301,15 @@ pio device monitor
 
 ## Web Interface
 
-After flashing, AntiHunter creates a WiFi access point for configuration and monitoring.
+After flashing, AntiHunter creates a WiFi access point for configuration and monitoring. The ESP32 will randomize its MAC address on each boot. 
 
 ### **Connection**
 1. **Join Network**: Connect to `Antihunter` WiFi AP
    - **Password**: `ouispy123`
    - **IP Address**: `192.168.4.1`
 2. **Access Interface**: Open browser to `http://192.168.4.1`
+
+**Change** SSID and password in the AP under RF Settings. 
 
 ### **Main Interface Sections**
 
@@ -322,7 +325,11 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
   - **Modes**: WiFi Only, BLE Only, WiFi+BLE Combined
   - **Duration**: Configurable scan time (0 = continuous)
   - **Channels**: Custom WiFi channel selection (`1,6,11` or `1..14`)
-  - **Triangulation**: Enable multi-node tracking (requires mesh, GPS, RTC)
+  - **Triangulation**: Enable multi-node tracking (requires mesh, GPS, RTC
+  
+  - **RF Settings**: Choose from three presets or use custom scan intervals and channel timing.
+  - **Results Sorting**: Easily find your target using six ordering methods
+    
 
 - **Triangulation Mode**:
   - **Target MAC**: Specify device for location tracking
@@ -357,6 +364,7 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 #### **Configuration**
 - **Node Identification**: Set unique node ID (1-16 characters)
 - **Mesh Integration**: Enable/disable Meshtastic communications
+- **Mesh Interval**: Control the frequency of alerts over mesh to match your use case
 
 ---
 
@@ -374,11 +382,10 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ### **Hardware Integration**
 - **Connection**: **Mode: `TEXTMSG`;Speed: 115200 baud;Pins 9 TX / 10 RX for T114 and 19/20 for the Heltec V3**
 - **Protocol**: Standard Meshtastic serial, public and encrypted channels
-- **Configuration**: Set the device to the following under Serial Settings
 
 ### **Network Behavior**
-- **Alert Rate Limiting**: 3-second intervals prevent mesh flooding
-- **Node Identification**: Each device uses a unique Node ID prefix
+- **Alert Rate Limiting**: 3-second intervals prevent mesh flooding, configurable. 
+- **Node Identification**: Each device uses a configurable Node ID for addressing. 
 - **Broadcast Commands**: `@ALL` commands coordinate multiple nodes
 - **Targeted Control**: `@NODE_XX` commands address specific nodes
 - **Status Reporting**: Periodic heartbeats and operational status
@@ -401,23 +408,6 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - `ch`: WiFi channels (CSV: `1,6,11` or range: `1..14`)
 - `triangulate`: `1` = Enable multi-node triangulation
 - `targetMac`: Target device MAC address (format: `AA:BB:CC:DD:EE:FF`)
-
-### **Detection Modes** (via `/sniffer` endpoint)
-- `device-scan`: General WiFi/BLE device discovery (default)
-- `deauth`: Deauthentication attack detection
-- `baseline`: Baseline environment establishment
-
-### **Baseline Configuration**
-- `rssiThreshold`: Minimum RSSI for device detection (dBm)
-- `baselineDuration`: Baseline establishment duration (seconds)
-
-### **Auto-Erase Configuration**
-- `enabled`: Enable/disable auto-erase (`true`/`false`)
-- `delay`: Time before erase activation (10000-300000ms)
-- `cooldown`: Recovery period after erase (60000-3600000ms)
-- `vibrationsRequired`: Vibrations needed to trigger (2-10)
-- `detectionWindow`: Time window for vibration detection (5000-120000ms)
-- `setupDelay`: Activation delay after power-up (30000-600000ms)
 
 ---
 
