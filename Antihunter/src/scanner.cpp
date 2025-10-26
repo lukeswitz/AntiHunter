@@ -597,13 +597,9 @@ void snifferScanTask(void *pv)
     int networksFound = 0;
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
-    unsigned long lastMeshUpdate = 0;
     const unsigned long BLE_SCAN_INTERVAL = 4000;
     const unsigned long WIFI_SCAN_INTERVAL = 2000;
-    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 5000;
     unsigned long nextResultsUpdate = millis() + 5000;
-    
-    std::set<String> transmittedDevices;
 
     NimBLEScan *bleScan = nullptr;
 
@@ -688,6 +684,7 @@ void snifferScanTask(void *pv)
 
             if (bleScan)
             {
+                // Use getResults for blocking scan
                 NimBLEScanResults scanResults = bleScan->getResults(2000, false);
 
                 for (int i = 0; i < scanResults.getCount(); i++)
@@ -748,49 +745,6 @@ void snifferScanTask(void *pv)
                 bleScan->clearResults();
                 Serial.printf("[SNIFFER] BLE scan found %d devices\n", scanResults.getCount());
                 vTaskDelay(pdMS_TO_TICKS(10));
-            }
-        }
-
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
-        {
-            lastMeshUpdate = millis();
-            
-            for (const auto& hit : hitsLog)
-            {
-                String macStr = macFmt6(hit.mac);
-                
-                if (transmittedDevices.find(macStr) == transmittedDevices.end())
-                {
-                    String deviceMsg = getNodeId() + ": DEVICE:";
-                    deviceMsg += macStr;
-                    deviceMsg += " ";
-                    deviceMsg += hit.isBLE ? "B" : "W";
-                    deviceMsg += " ";
-                    deviceMsg += String(hit.rssi);
-                    
-                    if (!hit.isBLE && hit.ch > 0) {
-                        deviceMsg += " C" + String(hit.ch);
-                    }
-                    
-                    if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && 
-                        strcmp(hit.name, "[Hidden]") != 0 && strcmp(hit.name, "WiFi") != 0) {
-                        String shortName = String(hit.name);
-                        if (shortName.length() > 30) {
-                            shortName = shortName.substring(0, 30);
-                        }
-                        
-                        int remaining = 230 - deviceMsg.length();
-                        if (shortName.length() < remaining) {
-                            deviceMsg += " N:" + shortName;
-                        }
-                    }
-                    
-                    if (deviceMsg.length() < 230) {
-                        sendToSerial1(deviceMsg, false);
-                        transmittedDevices.insert(macStr);
-                        delay(50);
-                    }
-                }
             }
         }
 
