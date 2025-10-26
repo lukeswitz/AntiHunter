@@ -747,10 +747,9 @@ void snifferScanTask(void *pv)
         }
 
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
-{
+        {
             lastMeshUpdate = millis();
             
-            // Send all WiFi APs from cache
             for (const auto& entry : apCache)
             {
                 String macStr = entry.first;
@@ -760,7 +759,6 @@ void snifferScanTask(void *pv)
                 {
                     String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " W ";
                     
-                    // Find best RSSI for this AP from hitsLog
                     int8_t bestRssi = -128;
                     uint8_t bestCh = 0;
                     for (const auto& hit : hitsLog) {
@@ -778,14 +776,13 @@ void snifferScanTask(void *pv)
                     }
                     
                     if (deviceMsg.length() < 230) {
-                        sendToSerial1(deviceMsg, false);
-                        transmittedDevices.insert(macStr);
-                        delay(30);
+                        if (sendToSerial1(deviceMsg, false)) {
+                            transmittedDevices.insert(macStr);
+                        }
                     }
                 }
             }
             
-            // Send all BLE devices from cache
             for (const auto& entry : bleDeviceCache)
             {
                 String macStr = entry.first;
@@ -809,15 +806,15 @@ void snifferScanTask(void *pv)
                     }
                     
                     if (deviceMsg.length() < 230) {
-                        sendToSerial1(deviceMsg, false);
-                        transmittedDevices.insert(macStr);
-                        delay(30);
+                        if (sendToSerial1(deviceMsg, false)) {
+                            transmittedDevices.insert(macStr);
+                        }
                     }
                 }
             }
         }
 
-         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
             
             std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
@@ -876,6 +873,15 @@ void snifferScanTask(void *pv)
 
     if (meshEnabled)
     {
+        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t devicesBeforeFinal = transmittedDevices.size();
+        
+        Serial.printf("[SNIFFER] Scan complete - transmitting final batch\n");
+        Serial.printf("[SNIFFER] Already sent: %d/%d devices\n", devicesBeforeFinal, totalExpectedDevices);
+        
+        rateLimiter.flush();
+        delay(100);
+        
         for (const auto& entry : apCache)
         {
             if (transmittedDevices.find(entry.first) == transmittedDevices.end())
@@ -896,11 +902,13 @@ void snifferScanTask(void *pv)
                     deviceMsg += " N:" + entry.second.substring(0, 30);
                 }
                 if (deviceMsg.length() < 230) {
-                    sendToSerial1(deviceMsg, false);
-                    delay(25);
+                    if (sendToSerial1(deviceMsg, true)) {
+                        transmittedDevices.insert(entry.first);
+                    }
                 }
             }
         }
+        
         for (const auto& entry : bleDeviceCache)
         {
             if (transmittedDevices.find(entry.first) == transmittedDevices.end())
@@ -918,11 +926,21 @@ void snifferScanTask(void *pv)
                     deviceMsg += " N:" + entry.second.substring(0, 30);
                 }
                 if (deviceMsg.length() < 230) {
-                    sendToSerial1(deviceMsg, false);
-                    delay(25);
+                    if (sendToSerial1(deviceMsg, true)) {
+                        transmittedDevices.insert(entry.first);
+                    }
                 }
             }
         }
+        
+        Serial1.flush();
+        delay(100);
+        
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
+        
+        Serial.printf("[SNIFFER] Final transmission complete: %d/%d devices sent, %d pending\n",
+                     finalTransmitted, totalExpectedDevices, finalRemaining);
     }
 
     {
@@ -970,12 +988,23 @@ void snifferScanTask(void *pv)
     
     if (meshEnabled && !stopRequested)
     {
+        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
+        
         String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
                         " B=" + String(bleDeviceCache.size()) + 
                         " U=" + String(uniqueMacs.size()) +
-                        " H=" + String(totalHits);
+                        " H=" + String(totalHits) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
         sendToSerial1(summary, true);
         Serial.println("[SNIFFER] Scan complete summary transmitted");
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[SNIFFER] WARNING: %d devices not transmitted\n", finalRemaining);
+        }
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
