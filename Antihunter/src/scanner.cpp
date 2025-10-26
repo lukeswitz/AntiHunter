@@ -600,7 +600,7 @@ void snifferScanTask(void *pv)
     unsigned long lastMeshUpdate = 0;
     const unsigned long BLE_SCAN_INTERVAL = 4000;
     const unsigned long WIFI_SCAN_INTERVAL = 2000;
-    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 2000;
+    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 2500;
     unsigned long nextResultsUpdate = millis() + 5000;
     
     std::set<String> transmittedDevices;
