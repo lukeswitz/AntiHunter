@@ -3940,6 +3940,135 @@ void processCommand(const String &command)
              baselineStats.phase1Complete ? "COMPLETE" : "ACTIVE");
     sendToSerial1(String(status_msg), true);
   }
+  else if (command.startsWith("DEVICE_SCAN_START:"))
+  {
+    String params = command.substring(18);
+    int modeDelim = params.indexOf(':');
+    int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+    int secs = 60;
+    bool forever = false;
+
+    if (modeDelim > 0)
+    {
+      int secsDelim = params.indexOf(':', modeDelim + 1);
+      secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
+      if (secsDelim > 0 && params.substring(secsDelim + 1) == "FOREVER")
+      {
+        forever = true;
+      }
+    }
+
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
+    
+    if (mode >= 0 && mode <= 2)
+    {
+      currentScanMode = (ScanMode)mode;
+      stopRequested = false;
+
+      if (!workerTaskHandle)
+      {
+        xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
+                                (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      }
+      Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
+      sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
+    }
+  }
+  else if (command.startsWith("DRONE_START:"))
+  {
+    String params = command.substring(12);
+    int secs = params.toInt();
+    bool forever = false;
+
+    int colonPos = params.indexOf(':');
+    if (colonPos > 0)
+    {
+      secs = params.substring(0, colonPos).toInt();
+      if (params.substring(colonPos + 1) == "FOREVER")
+      {
+        forever = true;
+      }
+    }
+
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
+
+    currentScanMode = SCAN_WIFI;
+    stopRequested = false;
+
+    if (!workerTaskHandle)
+    {
+      xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
+                              (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+    }
+    Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
+    sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
+  }
+  else if (command.startsWith("DEAUTH_START:"))
+  {
+    String params = command.substring(13);
+    int secs = params.toInt();
+    bool forever = false;
+
+    int colonPos = params.indexOf(':');
+    if (colonPos > 0)
+    {
+      secs = params.substring(0, colonPos).toInt();
+      if (params.substring(colonPos + 1) == "FOREVER")
+      {
+        forever = true;
+      }
+    }
+
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
+
+    stopRequested = false;
+
+    if (!blueTeamTaskHandle)
+    {
+      xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288,
+                              (void *)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+    }
+    Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
+    sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
+  }
+  else if (command.startsWith("RANDOMIZATION_START:"))
+  {
+    String params = command.substring(20);
+    int modeDelim = params.indexOf(':');
+    int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+    int secs = 60;
+    bool forever = false;
+
+    if (modeDelim > 0)
+    {
+      int secsDelim = params.indexOf(':', modeDelim + 1);
+      secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
+      if (secsDelim > 0 && params.substring(secsDelim + 1) == "FOREVER")
+      {
+        forever = true;
+      }
+    }
+
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
+
+    if (mode >= 0 && mode <= 2)
+    {
+      currentScanMode = (ScanMode)mode;
+      stopRequested = false;
+
+      if (!workerTaskHandle)
+      {
+        xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
+                                (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      }
+      Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
+      sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
+    }
+  }
   else if (command.startsWith("STOP"))
   {
     stopRequested = true;
