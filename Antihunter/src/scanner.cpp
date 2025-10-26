@@ -600,18 +600,12 @@ void snifferScanTask(void *pv)
     unsigned long lastMeshUpdate = 0;
     const unsigned long BLE_SCAN_INTERVAL = 4000;
     const unsigned long WIFI_SCAN_INTERVAL = 2000;
-    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 5000;
+    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 2000;
     unsigned long nextResultsUpdate = millis() + 5000;
     
     std::set<String> transmittedDevices;
 
-    NimBLEScan *bleScan = nullptr;
-
-    BLEDevice::init("");
-    bleScan = BLEDevice::getScan();
-    bleScan->setActiveScan(true);
-    bleScan->setInterval(100);
-    bleScan->setWindow(99);
+    NimBLEScan *bleScan = pBLEScan;
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
@@ -680,7 +674,8 @@ void snifferScanTask(void *pv)
             vTaskDelay(pdMS_TO_TICKS(10));
         }
 
-        if (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0)
+        if (bleScan && (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
+            (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0))
         {
             lastBLEScan = millis();
 
