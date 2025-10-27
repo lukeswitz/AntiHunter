@@ -1,7 +1,6 @@
 #pragma once
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include "scanner.h"
 
@@ -28,25 +27,11 @@ bool sendToSerial1(const String &message, bool canDelay = true);
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
 extern SerialRateLimiter rateLimiter;
-extern AsyncWebServer *server;
 extern bool meshEnabled;
 
-#ifndef AP_SSID
-#define AP_SSID "Antihunter"
-#endif
-#ifndef AP_PASS  
-#define AP_PASS "ouispy123"
-#endif
-#ifndef AP_CHANNEL
-#define AP_CHANNEL 6
-#endif
-
-// Network and Web Server functions
+// Mesh communication
 void initializeNetwork();
 void initializeMesh();
-void startWebServer();
-
-// Mesh communication
 void sendMeshNotification(const Hit &hit);
 void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);

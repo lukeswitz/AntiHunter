@@ -442,11 +442,6 @@ void startTriangulation(const String &targetMac, int duration) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
-    }
-    
     triangulationNodes.clear();
     nodeSyncStatus.clear();
     triangulationNodes.reserve(10);
@@ -589,11 +584,6 @@ void stopTriangulation() {
     
     String results = calculateTriangulation();
 
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = results.c_str();
-    }
-    
     if (sdAvailable) {
         String logEntry = getFormattedTimestamp() + " TRIANGULATION_COMPLETE\n";
         logEntry += results;

@@ -156,8 +156,7 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
-    Serial.println("\n=== Antihunter v5 Boot ===");
-    Serial.println("WiFi+BLE dual-mode scanner");
+    Serial.println("\n=== Antihunter [Headless] Boot ===");
 
     delay(400);
     initializeHardware();
@@ -167,7 +166,6 @@ void setup() {
     initializeSD();
     delay(500);
     loadConfiguration();
-    initializeNetwork();
     delay(500);
     initializeGPS();
     delay(1000);
@@ -185,10 +183,8 @@ void setup() {
         .trigger_panic = true
     };
 
-    Serial.println("=== Boot Complete ===");
-    Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
+    Serial.println("=== Boot Complete - HEADLESS ===");
     Serial.printf("Mesh @ 115200 on pins %d,%d\n", MESH_RX_PIN, MESH_TX_PIN);
-    Serial.printf("AP MAC: %s\n", WiFi.softAPmacAddress().c_str());
     
     delay(2000);
 }
@@ -204,7 +200,6 @@ void loop() {
             time_t epoch = cmd.substring(8).toInt();
             if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
                 Serial.println("OK: RTC set");
-                broadcastToTerminal("[RTC] OK: RTC set");
             }
         }
     }

@@ -2,7 +2,6 @@
 #include "scanner.h"
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include <map>
 #include <vector>
