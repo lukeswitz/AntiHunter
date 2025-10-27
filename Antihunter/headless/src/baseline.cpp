@@ -278,7 +278,11 @@ void baselineDetectionTask(void *pv) {
     baselineEstablished = false;
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
-    
+
+    if (meshEnabled) {
+        sendToSerial1(getNodeId() + ": BASELINE_ACK:STARTED", true);
+    }
+
     if (anomalyQueue) vQueueDelete(anomalyQueue);
     anomalyQueue = xQueueCreate(256, sizeof(AnomalyHit));
     
@@ -603,12 +607,18 @@ void baselineDetectionTask(void *pv) {
     radioStopSTA();
     vTaskDelay(pdMS_TO_TICKS(200));
     
-    Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%u bytes\n",
-                 baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
-    
     if (sdBaselineInitialized) {
         flushBaselineCacheToSD();
         Serial.printf("[BASELINE] Final flush: %d total devices\n", baselineDeviceCount);
+    }
+
+    if (meshEnabled && !stopRequested) {
+        String summary = getNodeId() + ": BASELINE_DONE: Devices=" + String(baselineDeviceCount) +
+                        " Anomalies=" + String(anomalyCount) +
+                        " WiFi=" + String(baselineStats.wifiDevices) +
+                        " BLE=" + String(baselineStats.bleDevices);
+        sendToSerial1(summary, true);
+        Serial.println("[BASELINE] Detection complete summary transmitted");
     }
 
     if (macQueue) {

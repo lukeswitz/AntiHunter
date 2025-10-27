@@ -765,14 +765,12 @@ void snifferScanTask(void *pv)
     scanning = false;
     lastScanEnd = millis();
     
-    if (meshEnabled && !stopRequested)
-    {
-        String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
-                        " B=" + String(bleDeviceCache.size()) + 
-                        " U=" + String(uniqueMacs.size()) +
-                        " H=" + String(totalHits);
+    if (meshEnabled && !stopRequested && !triangulationActive) {
+        String summary = getNodeId() + ": SCAN_DONE: Unique=" + String(uniqueMacs.size()) +
+                        " WiFi=" + String(framesSeen) +
+                        " BLE=" + String(bleFramesSeen);
         sendToSerial1(summary, true);
-        Serial.println("[SNIFFER] Scan complete summary transmitted");
+        Serial.println("[SCAN] Scan complete summary transmitted");
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -969,6 +967,14 @@ void blueTeamTask(void *pv) {
             lastCleanup = millis();
         }
         vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    if (meshEnabled && !stopRequested) {
+        String summary = getNodeId() + ": DEAUTH_DONE: Deauth=" + String(deauthCount) +
+                        " Disassoc=" + String(disassocCount) +
+                        " Total=" + String(deauthLog.size());
+        sendToSerial1(summary, true);
+        Serial.println("[BLUE] Deauth detection complete summary transmitted");
     }
 
     deauthDetectionEnabled = false;
@@ -1909,6 +1915,15 @@ void listScanTask(void *pv) {
     
     scanning = false;
     lastScanEnd = millis();
+
+    if (meshEnabled && !stopRequested && !triangulationActive) {
+        String summary = getNodeId() + ": SCAN_DONE: Unique=" + String(uniqueMacs.size()) +
+                        " Hits=" + String(totalHits) +
+                        " WiFi=" + String(framesSeen) +
+                        " BLE=" + String(bleFramesSeen);
+        sendToSerial1(summary, true);
+        Serial.println("[SCAN] Scan complete summary transmitted");
+    }
 
     radioStopSTA();
     delay(500);

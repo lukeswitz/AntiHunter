@@ -139,7 +139,7 @@ void saveConfiguration() {
     config += " \"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",\n";
     config += " \"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",\n";
     config += " \"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",\n";
-    config += " \"targets\":\"" + prefs.getString("maclist", "") + "\",\n";
+    config += " \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
     config += "}";
     configFile.print(config);
     configFile.close();
@@ -166,17 +166,22 @@ void loadConfiguration() {
 
     String config = configFile.readString();
     configFile.close();
-    
-    // Serial.println("Raw config: " + config);
-    
+
+    config.replace(",\n}", "\n}");
+    config.replace(",}", "}");
+
     DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, config);
-    
+
     if (error) {
         Serial.println("Failed to parse config file: " + String(error.c_str()));
-        Serial.println("Config content was: " + config);
+        Serial.println("Deleting corrupted config and creating new one");
+        SD.remove("/config.json");
+        saveConfiguration();
         return;
     }
+    
+    // Serial.println("Raw config: " + config);
 
     if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
         String nodeId = doc["nodeId"].as<String>();
@@ -236,15 +241,6 @@ void loadConfiguration() {
             // Serial.println("Loaded targets from SD: " + targets);
             Serial.println("Target count: " + String(getTargetCount()));
         }
-    }
-    if (doc.containsKey("autoEraseEnabled")) {
-        autoEraseEnabled = doc["autoEraseEnabled"].as<bool>();
-    }
-    if (doc.containsKey("autoEraseDelay")) {
-        autoEraseDelay = doc["autoEraseDelay"].as<uint32_t>();
-    }
-    if (doc.containsKey("autoEraseCooldown")) {
-        autoEraseCooldown = doc["autoEraseCooldown"].as<uint32_t>();
     }
     if (doc.containsKey("autoEraseEnabled")) {
         autoEraseEnabled = doc["autoEraseEnabled"].as<bool>();
