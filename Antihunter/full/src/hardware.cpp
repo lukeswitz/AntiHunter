@@ -179,7 +179,9 @@ void loadConfiguration() {
     
     if (error) {
         Serial.println("Failed to parse config file: " + String(error.c_str()));
-        Serial.println("Config content was: " + config);
+        Serial.println("Deleting corrupted config and creating new one");
+        SD.remove("/config.json");
+        saveConfiguration();
         return;
     }
 
