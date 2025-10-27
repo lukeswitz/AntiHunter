@@ -163,6 +163,8 @@ void setup() {
     delay(10);
     initializeDroneDetector();
     delay(20);
+    initializeNetwork();
+    delay(200);
     initializeSD();
     delay(500);
     loadConfiguration();

@@ -279,10 +279,6 @@ void baselineDetectionTask(void *pv) {
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
 
-    if (meshEnabled) {
-        sendToSerial1(getNodeId() + ": BASELINE_ACK:STARTED", true);
-    }
-
     if (anomalyQueue) vQueueDelete(anomalyQueue);
     anomalyQueue = xQueueCreate(256, sizeof(AnomalyHit));
     
