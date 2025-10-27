@@ -1150,6 +1150,10 @@ void randomizationDetectionTask(void *pv) {
     bool forever = (duration <= 0);
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
+
+    if (meshEnabled) {
+        sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:STARTED", true);
+    }
     
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
@@ -1484,6 +1488,14 @@ void randomizationDetectionTask(void *pv) {
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    if (meshEnabled && !stopRequested) {
+        std::lock_guard<std::mutex> lock(randMutex);
+        String summary = getNodeId() + ": RANDOMIZATION_DONE: Identities=" + String(deviceIdentities.size()) +
+                        " Sessions=" + String(activeSessions.size());
+        sendToSerial1(summary, true);
+        Serial.println("[RAND] Detection complete summary transmitted");
     }
     
     // Cleanup

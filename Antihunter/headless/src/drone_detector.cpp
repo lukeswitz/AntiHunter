@@ -381,7 +381,11 @@ void droneDetectorTask(void *pv) {
     
     Serial.printf("[DRONE] Starting drone detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
-    
+
+    if (meshEnabled) {
+        sendToSerial1(getNodeId() + ": DRONE_ACK:STARTED", true);
+    }
+
     initializeDroneDetector();
     droneDetectionEnabled = true;
     scanning = true;
@@ -416,6 +420,14 @@ void droneDetectorTask(void *pv) {
     
     droneDetectionEnabled = false;
     scanning = false;
+
+    if (meshEnabled && !stopRequested) {
+        String summary = getNodeId() + ": DRONE_DONE: Detected=" + String(droneDetectionCount) +
+                        " Unique=" + String(detectedDrones.size());
+        sendToSerial1(summary, true);
+        Serial.println("[DRONE] Detection complete summary transmitted");
+    }
+
     radioStopSTA();
     
     workerTaskHandle = nullptr;
