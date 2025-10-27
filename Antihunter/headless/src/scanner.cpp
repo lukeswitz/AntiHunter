@@ -750,6 +750,114 @@ void snifferScanTask(void *pv)
             }
         }
 
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
+        {
+            lastMeshUpdate = millis();
+            
+            for (const auto& entry : apCache)
+            {
+                String macStr = entry.first;
+                String ssid = entry.second;
+                
+                if (transmittedDevices.find(macStr) == transmittedDevices.end())
+                {
+                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " W ";
+                    
+                    int8_t bestRssi = -128;
+                    uint8_t bestCh = 0;
+                    for (const auto& hit : hitsLog) {
+                        String hitMac = macFmt6(hit.mac);
+                        if (hitMac == macStr && hit.rssi > bestRssi) {
+                            bestRssi = hit.rssi;
+                            bestCh = hit.ch;
+                        }
+                    }
+                    
+                    deviceMsg += String(bestRssi);
+                    if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+                    if (ssid.length() > 0 && ssid != "[Hidden]") {
+                        deviceMsg += " N:" + ssid.substring(0, 30);
+                    }
+                    
+                    if (deviceMsg.length() < 230) {
+                        if (sendToSerial1(deviceMsg, false)) {
+                            transmittedDevices.insert(macStr);
+                        }
+                    }
+                }
+            }
+            
+            for (const auto& entry : bleDeviceCache)
+            {
+                String macStr = entry.first;
+                String name = entry.second;
+                
+                if (transmittedDevices.find(macStr) == transmittedDevices.end())
+                {
+                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " B ";
+                    
+                    int8_t bestRssi = -128;
+                    for (const auto& hit : hitsLog) {
+                        String hitMac = macFmt6(hit.mac);
+                        if (hitMac == macStr && hit.isBLE && hit.rssi > bestRssi) {
+                            bestRssi = hit.rssi;
+                        }
+                    }
+                    
+                    deviceMsg += String(bestRssi);
+                    if (name.length() > 0 && name != "Unknown") {
+                        deviceMsg += " N:" + name.substring(0, 30);
+                    }
+                    
+                    if (deviceMsg.length() < 230) {
+                        if (sendToSerial1(deviceMsg, false)) {
+                            transmittedDevices.insert(macStr);
+                        }
+                    }
+                }
+            }
+        }
+
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            
+            std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
+            results += "Elapsed: " + std::to_string((millis() - lastScanStart) / 1000) + "s";
+            if (!forever && duration > 0) {
+                results += " / " + std::to_string(duration) + "s";
+            }
+            results += "\nWiFi APs: " + std::to_string(apCache.size()) + 
+                      "\nBLE devices: " + std::to_string(bleDeviceCache.size()) + 
+                      "\nUnique devices: " + std::to_string(uniqueMacs.size()) + 
+                      "\nTarget hits: " + std::to_string(totalHits) + "\n\n";
+            
+            std::vector<Hit> sortedHits = hitsLog;
+            std::sort(sortedHits.begin(), sortedHits.end(), 
+                     [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+            
+            int shown = 0;
+            for (const auto& hit : sortedHits) {
+                if (shown++ >= 50) break;
+                results += std::string(hit.isBLE ? "BLE " : "WiFi");
+                char macStr[18];
+                snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
+                results += " " + std::string(macStr);
+                results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+                if (!hit.isBLE && hit.ch > 0) results += " CH=" + std::to_string(hit.ch);
+                if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
+                    results += " Name=" + std::string(hit.name);
+                }
+                results += "\n";
+            }
+            if (hitsLog.size() > 50) {
+                results += "... (" + std::to_string(hitsLog.size() - 50) + " more)\n";
+            }
+            
+            antihunter::lastResults = results;
+            nextResultsUpdate = millis() + 5000;
+        }
+
         Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
                       apCache.size(), bleDeviceCache.size(), uniqueMacs.size(), totalHits);
 
@@ -766,13 +874,141 @@ void snifferScanTask(void *pv)
     
     scanning = false;
     lastScanEnd = millis();
+
+    if (meshEnabled)
+    {
+        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t devicesBeforeFinal = transmittedDevices.size();
+        
+        Serial.printf("[SNIFFER] Scan complete - transmitting final batch\n");
+        Serial.printf("[SNIFFER] Already sent: %d/%d devices\n", devicesBeforeFinal, totalExpectedDevices);
+        
+        rateLimiter.flush();
+        delay(100);
+        
+        for (const auto& entry : apCache)
+        {
+            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
+            {
+                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
+                int8_t bestRssi = -128;
+                uint8_t bestCh = 0;
+                for (const auto& hit : hitsLog) {
+                    String hitMac = macFmt6(hit.mac);
+                    if (hitMac == entry.first && hit.rssi > bestRssi) {
+                        bestRssi = hit.rssi;
+                        bestCh = hit.ch;
+                    }
+                }
+                deviceMsg += String(bestRssi);
+                if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+                if (entry.second.length() > 0 && entry.second != "[Hidden]") {
+                    deviceMsg += " N:" + entry.second.substring(0, 30);
+                }
+                if (deviceMsg.length() < 230) {
+                    if (sendToSerial1(deviceMsg, true)) {
+                        transmittedDevices.insert(entry.first);
+                    }
+                }
+            }
+        }
+        
+        for (const auto& entry : bleDeviceCache)
+        {
+            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
+            {
+                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
+                int8_t bestRssi = -128;
+                for (const auto& hit : hitsLog) {
+                    String hitMac = macFmt6(hit.mac);
+                    if (hitMac == entry.first && hit.isBLE && hit.rssi > bestRssi) {
+                        bestRssi = hit.rssi;
+                    }
+                }
+                deviceMsg += String(bestRssi);
+                if (entry.second.length() > 0 && entry.second != "Unknown") {
+                    deviceMsg += " N:" + entry.second.substring(0, 30);
+                }
+                if (deviceMsg.length() < 230) {
+                    if (sendToSerial1(deviceMsg, true)) {
+                        transmittedDevices.insert(entry.first);
+                    }
+                }
+            }
+        }
+        
+        Serial1.flush();
+        delay(100);
+        
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
+        
+        Serial.printf("[SNIFFER] Final transmission complete: %d/%d devices sent, %d pending\n",
+                     finalTransmitted, totalExpectedDevices, finalRemaining);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        
+        std::string results = 
+            "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
+            " Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n" +
+            "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
+            "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
+            "Total hits: " + std::to_string(totalHits) + "\n" +
+            "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
+        
+        std::vector<Hit> sortedHits = hitsLog;
+        std::sort(sortedHits.begin(), sortedHits.end(), 
+                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+
+        int shown = 0;
+        for (const auto& hit : sortedHits) {
+            if (shown++ >= 100) break;
+            
+            results += (hit.isBLE ? "BLE  " : "WiFi ");
+            results += macFmt6(hit.mac).c_str();
+            results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+            
+            if (!hit.isBLE && hit.ch > 0) {
+                results += " CH=" + std::to_string(hit.ch);
+            }
+            
+            if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0 && strcmp(hit.name, "Unknown") != 0) {
+                results += " \"";
+                results += hit.name;
+                results += "\"";
+            }
+            
+            results += "\n";
+        }
+        
+        if (sortedHits.size() > 100) {
+            results += "... (" + std::to_string(sortedHits.size() - 100) + " more)\n";
+        }
+
+        antihunter::lastResults = results;
+    }
     
-    if (meshEnabled && !stopRequested && !triangulationActive) {
-        String summary = getNodeId() + ": SCAN_DONE: Unique=" + String(uniqueMacs.size()) +
-                        " WiFi=" + String(framesSeen) +
-                        " BLE=" + String(bleFramesSeen);
+    if (meshEnabled && !stopRequested)
+    {
+        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
+        
+        String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
+                        " B=" + String(bleDeviceCache.size()) + 
+                        " U=" + String(uniqueMacs.size()) +
+                        " H=" + String(totalHits) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
         sendToSerial1(summary, true);
-        Serial.println("[SCAN] Scan complete summary transmitted");
+        Serial.println("[SNIFFER] Scan complete summary transmitted");
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[SNIFFER] WARNING: %d devices not transmitted\n", finalRemaining);
+        }
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
