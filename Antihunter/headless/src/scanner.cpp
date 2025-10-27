@@ -24,7 +24,7 @@ extern "C"
 #include "esp_coexist.h"
 }
 
-// AP handlers
+// RF handlers
 void radioStartSTA();
 void radioStopSTA();
 
@@ -45,6 +45,8 @@ static std::map<String, String> apCache;
 static std::map<String, String> bleDeviceCache;
 static unsigned long lastSnifferScan = 0;
 const unsigned long SNIFFER_SCAN_INTERVAL = 10000;
+static unsigned long lastDeauthMeshSend = 0;
+static const unsigned long DEAUTH_MESH_INTERVAL = 2000;
 
 // BLE 
 NimBLEScan *pBLEScan;
@@ -880,12 +882,14 @@ std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount,
     return results;
 }
 
-void blueTeamTask(void *pv) {
+void blueTeamTask(void *pv)
+{
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
 
-    String startMsg = forever ? String("[BLUE] Starting deauth detection (forever)\n")
-                              : String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
+    String startMsg = forever ? 
+        String("[BLUE] Starting deauth detection (forever)\n") :
+        String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
     Serial.print(startMsg);
     
     deauthLog.clear();
@@ -897,6 +901,8 @@ void blueTeamTask(void *pv) {
     deauthTargetCounts.clear();
     deauthTimings.clear();
     scanning = true;
+    
+    uint32_t localFramesSeen = 0;  // LOCAL VARIABLE
 
     if (deauthQueue) {
         vQueueDelete(deauthQueue);
@@ -907,7 +913,6 @@ void blueTeamTask(void *pv) {
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
-    uint32_t lastResultsUpdate = millis() + 2000;
     DeauthHit hit;
 
     radioStartSTA();
@@ -920,72 +925,65 @@ void blueTeamTask(void *pv) {
         int processed = 0;
         
         while (processed++ < BATCH_LIMIT && xQueueReceive(deauthQueue, &hit, 0) == pdTRUE) {
+            localFramesSeen++;  // LOCAL INCREMENT
+            
             if (deauthLog.size() < 2000) {
                 deauthLog.push_back(hit);
             }
             
-            String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
-            if (hit.isBroadcast) {
-                alert += " [BROADCAST]";
-            } else {
-                alert += " [TARGETED]";
+            String destMacStr = macFmt6(hit.destMac);
+            if (destMacStr == "FF:FF:FF:FF:FF:FF") {
+                destMacStr = "[BROADCAST]";
             }
-            alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
-            alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
-
-            Serial.println("[ALERT] " + alert);
+            
+            String alert = String(hit.isDisassoc ? "DISASSOC " : "DEAUTH ");
+            alert += macFmt6(hit.srcMac) + " -> " + destMacStr;
+            alert += " RSSI:" + String(hit.rssi) + " CH:" + String(hit.channel);
+            alert += " | " + getDeauthReasonText(hit.reasonCode);
+            
+            if (hit.isBroadcast) {
+                alert += " [BROADCAST ATTACK]";
+            }
+            
+            Serial.println(alert);
             logToSD(alert);
-
-            if (meshEnabled) {
-                String meshAlert = getNodeId() + ": ATTACK: " + alert;
-                if (gpsValid) {
-                    meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-                }
-                sendToSerial1(meshAlert, false);
+            
+            if (meshEnabled && (millis() - lastDeauthMeshSend >= DEAUTH_MESH_INTERVAL)) {
+                String meshMsg = getNodeId() + ": DEAUTH: " + macFmt6(hit.srcMac) +
+                                " -> " + destMacStr + " RSSI=" + String(hit.rssi);
+                sendToSerial1(meshMsg, false);
+                lastDeauthMeshSend = millis();
             }
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
-            Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n", 
-                         deauthCount, disassocCount, (unsigned)deauthLog.size());
+            Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n",
+                         deauthCount, disassocCount, localFramesSeen);
             nextStatus += 5000;
         }
         
-        if (millis() - lastCleanup > 60000) {
-            if (deauthTimings.size() > 100) {
-                std::map<String, std::vector<uint32_t>> newTimings;
-                for (auto& entry : deauthTimings) {
-                    if (entry.second.size() > 20) {
-                        auto &vec = entry.second;
-                        newTimings[entry.first] = std::vector<uint32_t>(vec.end() - 20, vec.end());
-                    } else {
-                        newTimings[entry.first] = entry.second;
-                    }
-                }
-                deauthTimings = std::move(newTimings);
+        if (millis() - lastCleanup > 30000) {
+            if (deauthLog.size() > 1000) {
+                deauthLog.erase(deauthLog.begin(), deauthLog.begin() + 500);
             }
             lastCleanup = millis();
         }
-        vTaskDelay(pdMS_TO_TICKS(50));
-    }
-
-    if (meshEnabled && !stopRequested) {
-        String summary = getNodeId() + ": DEAUTH_DONE: Deauth=" + String(deauthCount) +
-                        " Disassoc=" + String(disassocCount) +
-                        " Total=" + String(deauthLog.size());
-        sendToSerial1(summary, true);
-        Serial.println("[BLUE] Deauth detection complete summary transmitted");
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
     deauthDetectionEnabled = false;
     scanning = false;
 
-    vTaskDelay(pdMS_TO_TICKS(200));
+    if (meshEnabled && !stopRequested) {
+        String summary = getNodeId() + ": DEAUTH_DONE: Deauth=" + String(deauthCount) +
+                        " Disassoc=" + String(disassocCount) +
+                        " Total=" + String(localFramesSeen);
+        sendToSerial1(summary, true);
+        Serial.println("[BLUE] Detection complete summary transmitted");
+    }
 
     if (deauthQueue) {
-        DeauthHit dummy;
-        while (xQueueReceive(deauthQueue, &dummy, 0) == pdTRUE) {
-        }
         vQueueDelete(deauthQueue);
         deauthQueue = nullptr;
     }
@@ -998,7 +996,8 @@ void blueTeamTask(void *pv) {
 
     lastScanEnd = millis();
 
-    Serial.println("[BLUE] Deauth detection stopped cleanly");
+    Serial.printf("[BLUE] Complete: %u deauth, %u disassoc frames detected\n",
+                  deauthCount, disassocCount);
 
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
