@@ -1136,6 +1136,8 @@ void blueTeamTask(void *pv) {
     
     deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
     
+    std::set<String> transmittedAttacks;
+    
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults.clear();
@@ -1161,24 +1163,30 @@ void blueTeamTask(void *pv) {
                 deauthLog.push_back(hit);
             }
             
+            String srcMac = macFmt6(hit.srcMac);
+            String dstMac = macFmt6(hit.destMac);
+            String attackKey = srcMac + "->" + dstMac;
+            
             String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
             if (hit.isBroadcast) {
                 alert += " [BROADCAST]";
             } else {
                 alert += " [TARGETED]";
             }
-            alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
+            alert += " SRC:" + srcMac + " DST:" + dstMac;
             alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
 
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
 
-            if (meshEnabled) {
+            if (meshEnabled && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String meshAlert = getNodeId() + ": ATTACK: " + alert;
                 if (gpsValid) {
                     meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
                 }
-                sendToSerial1(meshAlert, false);
+                if (sendToSerial1(meshAlert, false)) {
+                    transmittedAttacks.insert(attackKey);
+                }
             }
         }
         
@@ -1778,6 +1786,7 @@ void listScanTask(void *pv) {
     hitsLog.clear();
     totalHits = 0;
     std::set<String> seenTargets;
+    std::set<String> transmittedDevices;
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
