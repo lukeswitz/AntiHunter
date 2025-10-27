@@ -287,16 +287,29 @@ pip install -U platformio
 pio --version
 
 # From inside AntiHunter folder containing platformio.ini:
-pio run -t upload
-pio device monitor
+
+# Build and upload Full environment (with web interface)
+pio run -e AntiHunter-full -t upload
+pio device monitor -e AntiHunter-full
+
+# Or build and upload Headless environment (mesh only comms)
+pio run -e AntiHunter-headless -t upload
+pio device monitor -e AntiHunter-headless
 ```
 
 ### Option 2 - Using VS Code:
 
-1. **Select Environment**: In VS Code's PlatformIO toolbar, select the `AntiHunter` environment
+1. **Select Environment**: Click the environment selector in PlatformIO's status bar at the bottom:
+   - Choose `AntiHunter-full` for the web interface version
+   - Choose `AntiHunter-headless` for the mesh only version
+
 2. **Build & Upload**: Click the "Upload" button (→) in the PlatformIO status bar
+
 3. **Monitor Output**: Use the Serial Monitor to verify successful boot
 
+**Environment Notes:**
+- **Full**: Includes web server (ESPAsyncWebServer, AsyncTCP) for AP dashboard
+- **Headless**: Minimal dependencies, ideal for AHCC/background operation
 ---
 
 ## Web Interface
