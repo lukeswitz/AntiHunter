@@ -1354,7 +1354,6 @@ void randomizationDetectionTask(void *pv) {
                         const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                         
                         Serial.printf("[RAND BLE] Processing device %d/%d\n", i+1, scanResults.getCount());
-                        broadcastToTerminal("[RAND BLE] Processing device %d/%d\n");
                         
                         const uint8_t* macBytes = device->getAddress().getVal();
                         uint8_t mac[6];
@@ -1476,10 +1475,6 @@ void randomizationDetectionTask(void *pv) {
         
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             std::string results = getRandomizationResults().c_str();
-            {
-                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                antihunter::lastResults = results;
-            }
             nextResultsUpdate += 2000;
         }
 
@@ -1509,11 +1504,6 @@ void randomizationDetectionTask(void *pv) {
     }
 
     saveDeviceIdentities();
-    
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = getRandomizationResults().c_str();
-    }
     
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);

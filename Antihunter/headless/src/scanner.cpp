@@ -748,46 +748,6 @@ void snifferScanTask(void *pv)
             }
         }
 
-         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            
-            std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
-            results += "Elapsed: " + std::to_string((millis() - lastScanStart) / 1000) + "s";
-            if (!forever && duration > 0) {
-                results += " / " + std::to_string(duration) + "s";
-            }
-            results += "\nWiFi APs: " + std::to_string(apCache.size()) + 
-                      "\nBLE devices: " + std::to_string(bleDeviceCache.size()) + 
-                      "\nUnique devices: " + std::to_string(uniqueMacs.size()) + 
-                      "\nTarget hits: " + std::to_string(totalHits) + "\n\n";
-            
-            std::vector<Hit> sortedHits = hitsLog;
-            std::sort(sortedHits.begin(), sortedHits.end(), 
-                     [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-            
-            int shown = 0;
-            for (const auto& hit : sortedHits) {
-                if (shown++ >= 50) break;
-                results += std::string(hit.isBLE ? "BLE " : "WiFi");
-                char macStr[18];
-                snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-                         hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-                results += " " + std::string(macStr);
-                results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
-                if (!hit.isBLE && hit.ch > 0) results += " CH=" + std::to_string(hit.ch);
-                if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
-                    results += " Name=" + std::string(hit.name);
-                }
-                results += "\n";
-            }
-            if (hitsLog.size() > 50) {
-                results += "... (" + std::to_string(hitsLog.size() - 50) + " more)\n";
-            }
-            
-            antihunter::lastResults = results;
-            nextResultsUpdate = millis() + 5000;
-        }
-
         Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
                       apCache.size(), bleDeviceCache.size(), uniqueMacs.size(), totalHits);
 
@@ -804,49 +764,6 @@ void snifferScanTask(void *pv)
     
     scanning = false;
     lastScanEnd = millis();
-
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        
-        std::string results = 
-            "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
-            " Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n" +
-            "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
-            "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
-            "Total hits: " + std::to_string(totalHits) + "\n" +
-            "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
-        
-        std::vector<Hit> sortedHits = hitsLog;
-        std::sort(sortedHits.begin(), sortedHits.end(), 
-                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-
-        int shown = 0;
-        for (const auto& hit : sortedHits) {
-            if (shown++ >= 100) break;
-            
-            results += (hit.isBLE ? "BLE  " : "WiFi ");
-            results += macFmt6(hit.mac).c_str();
-            results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
-            
-            if (!hit.isBLE && hit.ch > 0) {
-                results += " CH=" + std::to_string(hit.ch);
-            }
-            
-            if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0 && strcmp(hit.name, "Unknown") != 0) {
-                results += " \"";
-                results += hit.name;
-                results += "\"";
-            }
-            
-            results += "\n";
-        }
-        
-        if (sortedHits.size() > 100) {
-            results += "... (" + std::to_string(sortedHits.size() - 100) + " more)\n";
-        }
-
-        antihunter::lastResults = results;
-    }
     
     if (meshEnabled && !stopRequested)
     {
@@ -989,11 +906,6 @@ void blueTeamTask(void *pv) {
     
     deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
     
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
-    }
-    
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
@@ -1041,17 +953,6 @@ void blueTeamTask(void *pv) {
             nextStatus += 5000;
         }
         
-        if ((int32_t)(millis() - lastResultsUpdate) >= 0) {
-            std::string results = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
-            
-            {
-                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                antihunter::lastResults = results;
-            }
-            
-            lastResultsUpdate = millis() + 2000;
-        }
-        
         if (millis() - lastCleanup > 60000) {
             if (deauthTimings.size() > 100) {
                 std::map<String, std::vector<uint32_t>> newTimings;
@@ -1090,11 +991,6 @@ void blueTeamTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(500));
 
     lastScanEnd = millis();
-
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
-    }
 
     Serial.println("[BLUE] Deauth detection stopped cleanly");
 
@@ -1447,7 +1343,7 @@ void radioStopSTA() {
     }
     
 
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_OFF);
     delay(200);
 }
 
@@ -1597,12 +1493,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
 void listScanTask(void *pv) {
     int secs = (int)(intptr_t)pv;
     bool forever = (secs <= 0);
-
-    // Clear old results
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
-    }
 
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
@@ -1951,39 +1841,6 @@ void listScanTask(void *pv) {
             }
         }
 
-        // Dynamic update to results
-        if (triangulationActive && (int32_t)(millis() - nextTriResultsUpdate) >= 0) {
-            {
-                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                
-                std::string results = "\n=== Triangulation Results (IN PROGRESS) ===\n";
-                results += "Target MAC: " + std::string(macFmt6(triangulationTarget).c_str()) + "\n";
-                results += "Duration: " + std::to_string(triangulationDuration) + "s\n";
-                results += "Elapsed: " + std::to_string((millis() - triangulationStart) / 1000) + "s\n";
-                results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n\n";
-                results += "--- Node Reports ---\n";
-                
-                for (const auto& node : triangulationNodes) {
-                    results += std::string(node.nodeId.c_str()) + ": ";
-                    results += "RSSI=" + std::to_string((int)node.filteredRssi) + "dBm ";
-                    results += "Hits=" + std::to_string(node.hitCount) + " ";
-                    results += "Signal=" + std::to_string((int)(node.signalQuality * 100.0)) + "% ";
-                    results += "Type=" + std::string(node.isBLE ? "BLE" : "WiFi");
-                    if (node.hasGPS) {
-                        results += " GPS=" + std::to_string(node.lat) + "," + std::to_string(node.lon);
-                        results += " HDOP=" + std::to_string(node.hdop);
-                    } else {
-                        results += " GPS=NO";
-                    }
-                    results += "\n";
-                }
-                
-                results += "\n=== End Triangulation ===\n";
-                antihunter::lastResults = results;
-            }
-            nextTriResultsUpdate = millis() + 2000;
-        }
-
         if (triangulationActive && !triangulationInitiator) {
             String myNodeId = getNodeId();
             if (myNodeId.length() == 0) {
@@ -2053,82 +1910,6 @@ void listScanTask(void *pv) {
     scanning = false;
     lastScanEnd = millis();
 
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-
-        std::string results =
-            "List scan - Mode: " + std::string(modeStr.c_str()) +
-            " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n" +
-            "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
-            "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
-            "Target hits: " + std::to_string(totalHits) + "\n\n";
-
-        std::map<String, Hit> hitsMap;
-        for (const auto& targetMacStr : seenTargets) {
-            Hit bestHit;
-            int8_t bestRssi = -128; 
-            bool found = false;
-
-            String targetMac = targetMacStr; 
-            for (const auto& hit : hitsLog) {
-                String hitMacStrOrig = macFmt6(hit.mac);
-                String hitMacStr = hitMacStrOrig;
-                hitMacStr.toUpperCase();
-                if (hitMacStr == targetMac && hit.rssi > bestRssi) {
-                    bestHit = hit;
-                    bestRssi = hit.rssi;
-                    found = true;
-                }
-            }
-
-            if (found) {
-                hitsMap[targetMac] = bestHit;
-            }
-        }
-
-        if (hitsMap.empty()) {
-            results += "No targets detected.\n";
-        } else {
-            // Sort hits by RSSI
-            std::vector<Hit> sortedHits;
-            for (const auto& entry : hitsMap) {
-                sortedHits.push_back(entry.second);
-            }
-            std::sort(sortedHits.begin(), sortedHits.end(),
-                      [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-
-            int show = sortedHits.size();
-            if (show > 200) show = 200;
-            for (int i = 0; i < show; i++) {
-                const auto &e = sortedHits[i];
-                results += std::string(e.isBLE ? "BLE " : "WiFi");
-                String macOut = macFmt6(e.mac);
-                results += " " + std::string(macOut.c_str());
-                results += " RSSI=" + std::to_string(e.rssi) + "dBm";
-                if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
-                if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
-                    results += " Name=" + std::string(e.name);
-                }
-                results += "\n";
-            }
-            if (static_cast<int>(sortedHits.size()) > show) {
-                results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
-            }
-        }
-
-        bool hasTriangulation = (antihunter::lastResults.find("=== Triangulation Results ===") != std::string::npos);
-            
-        if (hasTriangulation) {
-            antihunter::lastResults = results + "\n\n" + antihunter::lastResults;
-        } else if (triangulationNodes.size() > 0) {
-            antihunter::lastResults = antihunter::lastResults + "\n\n=== List Scan Results ===\n" + results;
-        } else {
-            antihunter::lastResults = results;
-        }
-        
-        Serial.printf("[DEBUG] Results stored: %d chars\n", results.length());
-    }
-    
     radioStopSTA();
     delay(500);
 

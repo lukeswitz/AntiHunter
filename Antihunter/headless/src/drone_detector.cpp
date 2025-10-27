@@ -282,7 +282,6 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             sendToSerial1(String(meshMsg), false);
             
             Serial.println("[DRONE] " + jsonStr);
-            broadcastToTerminal("[DRONE]" + jsonStr);
         }
         
         if (droneQueue) {
@@ -418,11 +417,6 @@ void droneDetectorTask(void *pv) {
     droneDetectionEnabled = false;
     scanning = false;
     radioStopSTA();
-    
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = getDroneDetectionResults().c_str();
-    }
     
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
