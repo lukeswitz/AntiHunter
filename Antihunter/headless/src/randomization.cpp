@@ -1151,55 +1151,42 @@ void randomizationDetectionTask(void *pv) {
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
     
+    randomizationDetectionEnabled = false;
+    scanning = false;
+    
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
-    if (!probeRequestQueue) {
-        Serial.printf("[RAND] FATAL: Failed to create queue (heap: %u)\n", ESP.getFreeHeap());
-        vTaskDelay(pdMS_TO_TICKS(200));
-        
-        probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
-        if (!probeRequestQueue) {
-            Serial.printf("[RAND] FATAL: Queue creation failed twice (heap: %u), aborting\n", ESP.getFreeHeap());
-            workerTaskHandle = nullptr;
-            vTaskDelete(nullptr);
-            return;
-        }
-        Serial.printf("[RAND] Reduced queue created (128 entries, heap: %u)\n", ESP.getFreeHeap());
-    } else {
-        Serial.printf("[RAND] Queue created (256 entries, heap: %u)\n", ESP.getFreeHeap());
-    }
-
-    loadDeviceIdentities();
+    Serial.printf("[RAND] ProbeRequestEvent size: %zu bytes\n", sizeof(ProbeRequestEvent));
     
+    if (sdAvailable && SD.exists("/rand_identities.dat")) {
+        Serial.println("[RAND] Removing corrupted identities file...");
+        SD.remove("/rand_identities.dat");
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
+    probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
+    if (!probeRequestQueue) {
+        Serial.printf("[RAND] FATAL: Queue creation failed (heap: %u)\n", ESP.getFreeHeap());
+        workerTaskHandle = nullptr;
+        vTaskDelete(nullptr);
+        return;
+    }
+    Serial.printf("[RAND] Queue created (128 entries, heap: %u)\n", ESP.getFreeHeap());
+
     std::set<String> transmittedIdentities;
     
     {
         std::lock_guard<std::mutex> lock(randMutex);
-        
-        uint32_t now = millis();
-        std::vector<String> staleSessions;
-        
-        for (auto& entry : activeSessions) {
-            if (now - entry.second.lastSeen > SESSION_CLEANUP_AGE) {
-                staleSessions.push_back(entry.first);
-            }
-        }
-        
-        for (const auto& key : staleSessions) {
-            activeSessions.erase(key);
-        }
-        
-        Serial.printf("[RAND] Cleanup: Removed %d stale sessions. Retained: %d sessions, %d identities\n",
-                     staleSessions.size(), activeSessions.size(), deviceIdentities.size());
+        activeSessions.clear();
+        deviceIdentities.clear();
     }
     
-    randomizationDetectionEnabled = true;
-    scanning = true;
+    Serial.println("[RAND] Starting radios...");
+    vTaskDelay(pdMS_TO_TICKS(100));
     
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStartSTA();
@@ -1208,7 +1195,7 @@ void randomizationDetectionTask(void *pv) {
     
     if (currentScanMode == SCAN_BLE) {
         WiFi.mode(WIFI_AP);
-        delay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
         radioStartBLE();
         vTaskDelay(pdMS_TO_TICKS(200));
     }
@@ -1217,6 +1204,10 @@ void randomizationDetectionTask(void *pv) {
         radioStartBLE();
         vTaskDelay(pdMS_TO_TICKS(200));
     }
+    
+    Serial.println("[RAND] Enabling detection...");
+    randomizationDetectionEnabled = true;
+    scanning = true;
 
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
