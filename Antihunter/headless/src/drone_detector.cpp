@@ -382,10 +382,6 @@ void droneDetectorTask(void *pv) {
     Serial.printf("[DRONE] Starting drone detection %s\n",
                   forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
 
-    if (meshEnabled) {
-        sendToSerial1(getNodeId() + ": DRONE_ACK:STARTED", true);
-    }
-
     initializeDroneDetector();
     droneDetectionEnabled = true;
     scanning = true;

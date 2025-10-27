@@ -1150,10 +1150,6 @@ void randomizationDetectionTask(void *pv) {
     bool forever = (duration <= 0);
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
-
-    if (meshEnabled) {
-        sendToSerial1(getNodeId() + ": RANDOMIZATION_ACK:STARTED", true);
-    }
     
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
