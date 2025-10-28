@@ -389,6 +389,104 @@ void loadConfiguration() {
     Serial.println("Configuration loaded from SD card");
 }
 
+bool waitForInitialConfig() {
+    if (!sdAvailable) {
+        Serial.println("[CONFIG] SD card not available, skipping initial config");
+        return false;
+    }
+    
+    // Check if config exists
+    bool configExists = SD.exists("/config.json");
+    
+    if (configExists) {
+        Serial.println("[CONFIG] Existing config found");
+        Serial.println("[CONFIG] Waiting for RECONFIG command...");
+        Serial.flush();
+        
+        unsigned long startWait = millis();
+        while (millis() - startWait < 10000) {
+            if (Serial.available()) {
+                String line = Serial.readStringUntil('\n');
+                line.trim();
+                if (line == "RECONFIG") {
+                    Serial.println("[CONFIG] Entering reconfiguration mode");
+                    SD.remove("/config.json");
+                    break;
+                } else {
+                    Serial.println("[CONFIG] Skipped - using existing config");
+                    return false;
+                }
+            }
+            delay(100);
+        }
+        
+        if (SD.exists("/config.json")) {
+            Serial.println("[CONFIG] Timeout - using existing config");
+            return false;
+        }
+    }
+    
+    Serial.println("\n==================================================");
+    Serial.println("=== INITIAL CONFIGURATION MODE ===");
+    Serial.println("==================================================");
+    Serial.println("Send JSON config or timeout in 30s...");
+    Serial.println("Format: CONFIG:{json}");
+    Serial.flush();
+    
+    unsigned long startWait = millis();
+    String configBuffer = "";
+    bool receivingConfig = false;
+    
+    while (millis() - startWait < 30000) {
+        if (Serial.available()) {
+            String line = Serial.readStringUntil('\n');
+            line.trim();
+            
+            if (line.startsWith("CONFIG:")) {
+                configBuffer = line.substring(7);
+                receivingConfig = true;
+                break;
+            } else if (line == "SKIP") {
+                Serial.println("[CONFIG] Skipped - using defaults");
+                return false;
+            }
+        }
+        delay(100);
+    }
+    
+    if (!receivingConfig || configBuffer.length() < 10) {
+        Serial.println("[CONFIG] Timeout - using defaults");
+        return false;
+    }
+    
+    Serial.println("[CONFIG] Received config, validating...");
+    
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, configBuffer);
+    
+    if (error) {
+        Serial.println("[CONFIG] Invalid JSON: " + String(error.c_str()));
+        return false;
+    }
+    
+    File configFile = SD.open("/config.json", FILE_WRITE);
+    if (!configFile) {
+        Serial.println("[CONFIG] Failed to create config file");
+        return false;
+    }
+    
+    configFile.print(configBuffer);
+    configFile.close();
+    
+    Serial.println("[CONFIG] Configuration saved to SD card!");
+    Serial.println("[CONFIG] Rebooting in 2 seconds...");
+    Serial.flush();
+    delay(2000);
+    
+    ESP.restart();
+    return true;
+}
+
 String getDiagnostics() {
     static unsigned long lastDiagTime = 0;
     static unsigned long lastSDTime = 0;

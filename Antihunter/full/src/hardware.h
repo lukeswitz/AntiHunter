@@ -92,6 +92,7 @@ void initializeVibrationSensor();
 void initializeSD();
 void initializeGPS();
 
+bool waitForInitialConfig();
 void checkAndSendVibrationAlert();
 String getDiagnostics();
 String getGPSData();
