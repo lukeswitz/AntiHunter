@@ -1251,6 +1251,25 @@ void blueTeamTask(void *pv) {
         antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
     }
 
+    if (meshEnabled && !stopRequested) {
+        uint32_t totalAttacks = deauthLog.size();
+        uint32_t finalTransmitted = transmittedAttacks.size();
+        uint32_t finalRemaining = totalAttacks - finalTransmitted;
+        
+        String summary = getNodeId() + ": DEAUTH_DONE: Total=" + String(deauthCount + disassocCount) +
+                        " Deauth=" + String(deauthCount) +
+                        " Disassoc=" + String(disassocCount) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
+        sendToSerial1(summary, true);
+        Serial.println("[BLUE] Detection complete, summary transmitted");
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[BLUE] WARNING: %d attacks not transmitted\n", finalRemaining);
+        }
+    }
+
     Serial.println("[BLUE] Deauth detection stopped cleanly");
 
     blueTeamTaskHandle = nullptr;
@@ -2283,6 +2302,25 @@ void listScanTask(void *pv) {
         }
         
         Serial.printf("[DEBUG] Results stored: %d chars\n", results.length());
+    }
+
+    if (meshEnabled && !stopRequested) {
+        uint32_t totalTargets = seenTargets.size();
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalTargets - finalTransmitted;
+        
+        String summary = getNodeId() + ": LIST_SCAN_DONE: Hits=" + String(totalHits) +
+                        " Unique=" + String(uniqueMacs.size()) +
+                        " Targets=" + String(totalTargets) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
+        sendToSerial1(summary, true);
+        Serial.println("[SCAN] List scan summary transmitted");
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[SCAN] WARNING: %d targets not transmitted\n", finalRemaining);
+        }
     }
     
     radioStopSTA();

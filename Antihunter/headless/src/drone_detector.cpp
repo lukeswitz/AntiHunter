@@ -13,6 +13,7 @@ const size_t MAX_DETECTED_DRONES = 50;
 const uint32_t DRONE_STALE_TIME = 300000;
 
 std::map<String, DroneDetection> detectedDrones;
+std::set<String> transmittedDrones;
 std::vector<String> droneEventLog;
 volatile uint32_t droneDetectionCount = 0;
 bool droneDetectionEnabled = false;
@@ -282,6 +283,10 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
                 meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
             }
             sendToSerial1(String(meshMsg), false);
+
+            if (sendToSerial1(meshMsg, false)) {
+                transmittedDrones.insert(drone.uavId);
+            }
             
             Serial.println("[DRONE] " + jsonStr);
         }
@@ -441,11 +446,21 @@ void droneDetectorTask(void *pv)
     scanning = false;
 
     if (meshEnabled && !stopRequested) {
+        uint32_t totalDrones = detectedDrones.size();
+        uint32_t finalTransmitted = transmittedDrones.size();
+        uint32_t finalRemaining = totalDrones - finalTransmitted;
+        
         String summary = getNodeId() + ": DRONE_DONE: Detected=" + String(droneDetectionCount) +
-                        " Unique=" + String(detectedDrones.size()) +
-                        " Frames=" + String(localFramesSeen);
+                        " Unique=" + String(totalDrones) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
         sendToSerial1(summary, true);
-        Serial.println("[DRONE] Detection complete summary transmitted");
+        Serial.println("[DRONE] Summary transmitted");
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[DRONE] WARNING: %d drones not transmitted\n", finalRemaining);
+        }
     }
 
     radioStopSTA();
