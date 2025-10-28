@@ -183,4 +183,3 @@ String getRandomizationResults();
 bool isRandomizedMAC(const uint8_t *mac);
 bool isGlobalMAC(const uint8_t *mac);
 
-extern std::mutex randMutex;

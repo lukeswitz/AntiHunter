@@ -4,6 +4,8 @@
 #include "main.h"
 #include <RTClib.h>
 #include <TinyGPSPlus.h>
+#include <FS.h>
+#include <SD.h>
 
 #ifndef COUNTRY
 #define COUNTRY "US"
@@ -35,6 +37,26 @@
 // Configuration constants
 #define CONFIG_FILE "/config.json"
 #define MAX_CONFIG_SIZE 4096
+
+class SafeSD {
+private:
+    static uint32_t lastCheckTime;
+    static bool lastCheckResult;
+    static const uint32_t CHECK_INTERVAL_MS = 1000;
+    static bool checkAvailability();
+
+public:
+    static bool isAvailable();
+    static fs::File open(const char* path, const char* mode = FILE_READ);
+    static bool exists(const char* path);
+    static bool remove(const char* path);
+    static bool mkdir(const char* path);
+    static bool rmdir(const char* path);
+    static size_t write(fs::File& file, const uint8_t* data, size_t len);
+    static size_t read(fs::File& file, uint8_t* data, size_t len);
+    static bool flush(fs::File& file);
+    static void forceRecheck();
+};
 
 // RTC Status
 extern RTC_DS3231 rtc;
@@ -78,7 +100,6 @@ void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
 void parseChannelsCSV(const String &csv);
 void saveTargetsList(const String &txt);
-void saveConfiguration();
 void saveConfiguration();
 void loadConfiguration();
 void logToSD(const String &data);
