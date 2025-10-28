@@ -51,6 +51,8 @@ extern bool lastScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern TaskHandle_t blueTeamTaskHandle;
+uint32_t SafeSD::lastCheckTime = 0;
+bool SafeSD::lastCheckResult = false;
 
 // Tamper Detection Erase
 uint32_t setupDelay = 120000;  // 2 minutes default
@@ -68,6 +70,124 @@ uint32_t detectionWindow = 20000;
 String eraseStatus = "INACTIVE";
 bool eraseInProgress = false;
 
+// SD & HW Init
+
+bool SafeSD::checkAvailability() {
+    uint32_t now = millis();
+    if (now - lastCheckTime < CHECK_INTERVAL_MS) {
+        return lastCheckResult;
+    }
+    
+    lastCheckTime = now;
+    lastCheckResult = SD.begin(SD_CS_PIN);
+    sdAvailable = lastCheckResult;
+    
+    if (!lastCheckResult) {
+        Serial.println("[SAFE_SD] SD card not available");
+    }
+    
+    return lastCheckResult;
+}
+
+bool SafeSD::isAvailable() {
+    return checkAvailability();
+}
+
+fs::File SafeSD::open(const char* path, const char* mode) {
+    if (!checkAvailability()) {
+        return File();
+    }
+    
+    fs::File f = SD.open(path, mode);
+    if (!f) {
+        Serial.printf("[SAFE_SD] Failed to open: %s\n", path);
+    }
+    return f;
+}
+
+bool SafeSD::exists(const char* path) {
+    if (!checkAvailability()) {
+        return false;
+    }
+    return SD.exists(path);
+}
+
+bool SafeSD::remove(const char* path) {
+    if (!checkAvailability()) {
+        Serial.printf("[SAFE_SD] Cannot remove %s - SD unavailable\n", path);
+        return false;
+    }
+    
+    bool result = SD.remove(path);
+    if (!result) {
+        Serial.printf("[SAFE_SD] Failed to remove: %s\n", path);
+    }
+    return result;
+}
+
+bool SafeSD::mkdir(const char* path) {
+    if (!checkAvailability()) {
+        Serial.printf("[SAFE_SD] Cannot mkdir %s - SD unavailable\n", path);
+        return false;
+    }
+    
+    bool result = SD.mkdir(path);
+    if (!result) {
+        Serial.printf("[SAFE_SD] Failed to mkdir: %s\n", path);
+    }
+    return result;
+}
+
+bool SafeSD::rmdir(const char* path) {
+    if (!checkAvailability()) {
+        Serial.printf("[SAFE_SD] Cannot rmdir %s - SD unavailable\n", path);
+        return false;
+    }
+    
+    bool result = SD.rmdir(path);
+    if (!result) {
+        Serial.printf("[SAFE_SD] Failed to rmdir: %s\n", path);
+    }
+    return result;
+}
+
+size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
+    if (!file || !checkAvailability()) {
+        Serial.println("[SAFE_SD] Write failed - file invalid or SD unavailable");
+        return 0;
+    }
+    
+    size_t written = file.write(data, len);
+    if (written != len) {
+        Serial.printf("[SAFE_SD] Partial write: %d/%d bytes\n", written, len);
+    }
+    return written;
+}
+
+size_t SafeSD::read(fs::File& file, uint8_t* data, size_t len) {
+    if (!file || !checkAvailability()) {
+        Serial.println("[SAFE_SD] Read failed - file invalid or SD unavailable");
+        return 0;
+    }
+    
+    size_t bytesRead = file.read(data, len);
+    if (bytesRead != len) {
+        Serial.printf("[SAFE_SD] Partial read: %d/%d bytes\n", bytesRead, len);
+    }
+    return bytesRead;
+}
+
+bool SafeSD::flush(fs::File& file) {
+    if (!file || !checkAvailability()) {
+        return false;
+    }
+    file.flush();
+    return true;
+}
+
+void SafeSD::forceRecheck() {
+    lastCheckTime = 0;
+}
 
 void initializeHardware()
 {
@@ -102,12 +222,12 @@ void initializeHardware()
 }
 
 void saveConfiguration() {
-    if (!sdAvailable) {
+      if (!SafeSD::isAvailable()) {
         Serial.println("SD card not available, cannot save configuration");
         return;
     }
     
-    File configFile = SD.open("/config.json", FILE_WRITE);
+    File configFile = SafeSD::open("/config.json", FILE_WRITE);
     if (!configFile) {
         Serial.println("Failed to open config file for writing!");
         return;
@@ -148,17 +268,17 @@ void saveConfiguration() {
 }
 
 void loadConfiguration() {
-    if (!sdAvailable) {
+     if (!SafeSD::isAvailable()) {
         Serial.println("SD card not available, cannot load configuration from SD");
         return;
     }
     
-    if (!SD.exists("/config.json")) {
+       if (!SafeSD::exists("/config.json")) {
         Serial.println("No config file found on SD card");
         return;
     }
 
-    File configFile = SD.open("/config.json", FILE_READ);
+    File configFile = SafeSD::open("/config.json", FILE_READ);
     if (!configFile) {
         Serial.println("Failed to open config file!");
         return;
@@ -176,7 +296,7 @@ void loadConfiguration() {
     if (error) {
         Serial.println("Failed to parse config file: " + String(error.c_str()));
         Serial.println("Deleting corrupted config and creating new one");
-        SD.remove("/config.json");
+        SafeSD::remove("/config.json");
         saveConfiguration();
         return;
     }
@@ -393,21 +513,18 @@ void initializeSD()
 {
     Serial.println("Initializing SD card...");
     Serial.printf("[SD] GPIO Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
-
     SPI.end();
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
     delay(100);
-
     if (SD.begin(SD_CS_PIN, SPI, 400000)) {
-        Serial.println("SD card initialized");
+        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+        Serial.printf("SD Card initialized: %lluMB\n", cardSize);
         sdAvailable = true;
+        SafeSD::forceRecheck();
         delay(10);        
-        
         initializeBaselineSD();
-
         return;
     }
-
     Serial.println("[SD] FAILED");
     sdAvailable = false;
 }
@@ -529,7 +646,7 @@ void updateGPSLocation() {
 
 
 void logToSD(const String &data) {
-    if (!sdAvailable) return;
+    if (!SafeSD::isAvailable()) return;
     
     static uint32_t totalWrites = 0;
     static uint32_t failCount = 0;
@@ -544,17 +661,17 @@ void logToSD(const String &data) {
         return;
     }
     
-    if (!SD.exists("/")) {
-        SD.mkdir("/");
+    if (!SafeSD::exists("/")) {
+        SafeSD::mkdir("/");
     }
 
     if (!logFile || totalWrites % 50 == 0) {
         if (logFile) {
             logFile.close();
         }
-        logFile = SD.open("/antihunter.log", FILE_APPEND);
+        logFile = SafeSD::open("/antihunter.log", FILE_APPEND);
         if (!logFile) {
-            logFile = SD.open("/antihunter.log", FILE_WRITE);
+            logFile = SafeSD::open("/antihunter.log", FILE_WRITE);
             if (!logFile) {
                 Serial.println("[SD] Failed to open log file");
                 return;
@@ -574,7 +691,7 @@ void logToSD(const String &data) {
     
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
-        File checkFile = SD.open("/antihunter.log", FILE_READ);
+        File checkFile = SafeSD::open("/antihunter.log", FILE_READ);
         if (checkFile) {
             Serial.printf("[SD] Log file size: %lu bytes\n", checkFile.size());
             checkFile.close();
@@ -1003,7 +1120,7 @@ bool executeSecureErase(const String &reason) {
     
     Serial.println("EXECUTING SECURE ERASE: " + reason);
     
-    if (!sdAvailable) {
+    if (!SafeSD::isAvailable()) {
         eraseStatus = "FAILED - SD card not available";
         eraseInProgress = false;
         return false;
@@ -1059,12 +1176,12 @@ bool performSecureWipe() {
     // Clear SD card
     deleteAllFiles("/");
     
-    File marker = SD.open("/weather-air-feed.txt", FILE_WRITE);
+    File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
     if (marker) {
         marker.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
         marker.close();
     
-        if (SD.exists("/weather-air-feed.txt")) {
+        if (SafeSD::exists("/weather-air-feed.txt")) {
             Serial.println("[WIPE] Marker file created - wipe completed");
             return true;
         } else {
@@ -1078,7 +1195,7 @@ bool performSecureWipe() {
 }
 
 void deleteAllFiles(const String &dirname) {
-    File root = SD.open(dirname);
+    File root = SafeSD::open(dirname.c_str());
     if (!root) {
         Serial.println("[WIPE] Failed to open directory: " + dirname);
         return;
@@ -1101,14 +1218,14 @@ void deleteAllFiles(const String &dirname) {
             deleteAllFiles(fullPath);
             
             // Remove the directory itself
-            if (SD.rmdir(fullPath)) {
+            if (SafeSD::rmdir(fullPath.c_str())) {
                 Serial.println("[WIPE] Removed directory: " + fullPath);
             } else {
                 Serial.println("[WIPE] Failed to remove directory: " + fullPath);
             }
         } else {
             // Remove the file
-            if (SD.remove(fullPath)) {
+            if (SafeSD::remove(fullPath.c_str())) {
                 Serial.println("[WIPE] Removed file: " + fullPath);
             } else {
                 Serial.println("[WIPE] Failed to remove file: " + fullPath);
