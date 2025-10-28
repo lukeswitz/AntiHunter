@@ -14,13 +14,11 @@ extern "C"
 #include "esp_coexist.h"
 }
 
-// Network and LoRa
-
-const int MAX_RETRIES = 10;
+// LoRa RF Config
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
-const int MAX_MESH_SIZE = 240;
+const int MAX_MESH_SIZE = 200;
 static String nodeId = "";
 
 // Scanner vars
@@ -40,7 +38,7 @@ extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 extern void randomizeMacAddress();
 
-// T114 handling
+// Mesh serial processing
 SerialRateLimiter rateLimiter;
 SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
 
@@ -87,7 +85,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         if (canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
-            if (wait > 0 && wait < 5000) { 
+            if (wait > 0 && wait < meshSendInterval) { 
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
                 delay(wait);
                 rateLimiter.refillTokens();
@@ -131,12 +129,12 @@ void initializeNetwork()
 }
 
 void setMeshSendInterval(unsigned long interval) {
-    if (interval >= 1500 && interval <= 30000) {
+    if (interval >= 1500 && interval <= 50000) {
         meshSendInterval = interval;
         prefs.putULong("meshInterval", interval);
         Serial.printf("[MESH] Send interval set to %lums\n", interval);
     } else {
-        Serial.println("[MESH] Invalid interval (1500-30000ms)");
+        Serial.println("[MESH] Invalid interval (1500-50000ms)");
     }
 }
 
@@ -851,7 +849,7 @@ void processUSBToMesh() {
         // Only process printable ASCII characters and line endings for mesh
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
-                if (usbBuffer.length() > 5 && usbBuffer.length() <= 240) {  // Mesh 240 char limit
+                if (usbBuffer.length() > 5 && usbBuffer.length() <= 220) {
                     Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {
@@ -866,7 +864,7 @@ void processUSBToMesh() {
         }
         
         // Prevent buffer overflow at mesh limit
-        if (usbBuffer.length() > 240) {
+        if (usbBuffer.length() > 220) {
             Serial.println("[MESH] at 240 chars, clearing");
             usbBuffer = "";
         }

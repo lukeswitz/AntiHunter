@@ -43,8 +43,6 @@ uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
 static std::map<String, String> apCache;
 static std::map<String, String> bleDeviceCache;
-static unsigned long lastSnifferScan = 0;
-const unsigned long SNIFFER_SCAN_INTERVAL = 10000;
 
 // BLE 
 NimBLEScan *pBLEScan;
@@ -610,8 +608,8 @@ void snifferScanTask(void *pv)
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
-    const unsigned long BLE_SCAN_INTERVAL = 4000;
-    const unsigned long WIFI_SCAN_INTERVAL = 2000;
+    const unsigned long BLE_SCAN_INTERVAL = 2000;
+    const unsigned long WIFI_SCAN_INTERVAL = 4000;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long nextResultsUpdate = millis() + 5000;
     
@@ -759,9 +757,10 @@ void snifferScanTask(void *pv)
             }
         }
 
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
+       if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
         {
             lastMeshUpdate = millis();
+            uint32_t sentThisCycle = 0;
             
             for (const auto& entry : apCache)
             {
@@ -789,8 +788,14 @@ void snifferScanTask(void *pv)
                     }
                     
                     if (deviceMsg.length() < 230) {
-                        if (sendToSerial1(deviceMsg, false)) {
+                        if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
+                            sentThisCycle++;
+                            
+                            if (sentThisCycle % 2 == 0) {
+                                delay(1000);
+                                rateLimiter.refillTokens();
+                            }
                         }
                     }
                 }
@@ -819,8 +824,14 @@ void snifferScanTask(void *pv)
                     }
                     
                     if (deviceMsg.length() < 230) {
-                        if (sendToSerial1(deviceMsg, false)) {
+                        if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
+                            sentThisCycle++;
+                            
+                            if (sentThisCycle % 2 == 0) {
+                                delay(1000);
+                                rateLimiter.refillTokens();
+                            }
                         }
                     }
                 }
