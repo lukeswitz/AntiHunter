@@ -579,6 +579,20 @@ void snifferScanTask(void *pv)
 
     radioStartSTA();
 
+    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
+        if (!pBLEScan) {
+            BLEDevice::init("");
+            pBLEScan = BLEDevice::getScan();
+        }
+        if (pBLEScan) {
+            pBLEScan->setActiveScan(true);
+            pBLEScan->setInterval(100);
+            pBLEScan->setWindow(99);
+            pBLEScan->setDuplicateFilter(false);
+            pBLEScan->start(0, false);
+        }
+    }
+
     scanning = true;
     uniqueMacs.clear();
     hitsLog.clear();
@@ -608,7 +622,8 @@ void snifferScanTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
-        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)
+        if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
+            (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0))
         {
             lastWiFiScan = millis();
 
