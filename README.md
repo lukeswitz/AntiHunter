@@ -455,7 +455,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `BASELINE_STATUS` | None | Reports baseline detection status (scanning, established, device count, anomalies) | `@ALL BASELINE_STATUS` |
 | `STOP` | None | Stops all operations | `@ALL STOP` |
 | `VIBRATION_STATUS` | None | Checks tamper sensor status | `@NODE_22 VIBRATION_STATUS` |
-| `TRIANGULATE_START` | `MAC/Identity:duration` | Initiates triangulation for target MAC or Identity ID (format: T-xxxxx) | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
+| `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@ALL TRIANGULATE_START:T-002F:300` |
 | `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results for all nodes | `@NODE_22 TRIANGULATE_RESULTS` |
 | `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` |
@@ -467,12 +467,22 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 | Alert Type | Format | Example |
 |------------|--------|---------|
-| **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
-| **Vibration Alert** | `NODE_ID: VIBRATION: Movement at HH:MM:SS [GPS=lat,lon]` | `NODE_ABC: VIBRATION: Movement at 12:34:56 GPS=40.7128,-74.0060` |
-| **GPS Status** | `NODE_ID: GPS: STATUS Location:lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
-| **RTC Sync** | `NODE_ID: RTC_SYNC: YYYY-MM-DD HH:MM:SS UTC` | `NODE_ABC: RTC_SYNC: 2025-09-19 12:34:56 UTC` |
-| **Node Heartbeat** | `[NODE_HB] NODE_ID Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC/XX.XF [GPS:lat,lon]` | `[NODE_ABC] NODE_ABC Time:2025-10-28_14:32:15 Temp:42.3C/108.1F GPS:40.7128,-74.0060` |
-| **Setup Mode** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
+| **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
+| **Device Discovered** | `NODE_ID: DEVICE:MAC W/B RSSI [CN] [N:Name]` | `NODE_ABC: DEVICE:AA:BB:CC:DD:EE:FF W -65 C6 N:MyRouter` |
+| **Baseline Anomaly - New** | `NODE_ID: ANOMALY-NEW: TYPE MAC RSSI:dBm [Name:name]` | `NODE_ABC: ANOMALY-NEW: WiFi AA:BB:CC:DD:EE:FF RSSI:-45 Name:Unknown` |
+| **Baseline Anomaly - Return** | `NODE_ID: ANOMALY-RETURN: TYPE MAC RSSI:dBm [Name:name]` | `NODE_ABC: ANOMALY-RETURN: BLE AA:BB:CC:DD:EE:FF RSSI:-55` |
+| **Baseline Anomaly - RSSI** | `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:dBm New:dBm Delta:dBm` | `NODE_ABC: ANOMALY-RSSI: WiFi AA:BB:CC:DD:EE:FF Old:-75 New:-45 Delta:30` |
+| **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
+| **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC SRC->DST RX CHN` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
+| **Randomization Identity** | `NODE_ID: IDENTITY:T-XXXX B/W MACs:N Conf:X.XX Sess:N Anchor:XX:XX:XX:XX:XX:XX` | `AH99: IDENTITY:T-002F W MACs:5 Conf:0.62 Sess:5 Anchor:02:9F:C2:3D:92:CE` |
+| **Randomization Complete** | `NODE_ID: RANDOMIZATION_DONE: Identities=N Sessions=N TX=N PEND=N` | `AH99: RANDOMIZATION_DONE: Identities=14 Sessions=22 TX=14 PEND=0` |
+| **Vibration Alert** | `NODE_ID: VIBRATION: Movement detected at HH:MM:SS [GPS:lat,lon] [TAMPER_ERASE_IN:Xs]` | `NODE_ABC: VIBRATION: Movement detected at 12:34:56 GPS:40.7128,-74.0060 TAMPER_ERASE_IN:60s` |
+| **Vibration Setup Mode** | `NODE_ID: VIBRATION: Movement in setup mode (active in Xs) [GPS:lat,lon]` | `NODE_ABC: VIBRATION: Movement in setup mode (active in 45s) GPS:40.7128,-74.0060` |
+| **Setup Mode Active** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
+| **Setup Complete** | `NODE_ID: SETUP_COMPLETE: Auto-erase activated` | `NODE_ABC: SETUP_COMPLETE: Auto-erase activated` |
+| **GPS Status** | `NODE_ID: GPS: STATUS Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
+| **RTC Sync** | `NODE_ID: RTC_SYNC: GPS/NTP` | `NODE_ABC: RTC_SYNC: GPS` |
+| **Node Heartbeat** | `[NODE_HB] NODE_ID Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC/XX.XF [GPS:lat,lon]` | `[NODE_HB] NODE_ABC Time:2025-10-28_14:32:15 Temp:42.3C/108.1F GPS:40.7128,-74.0060` |
 | **Config ACK** | `NODE_ID: CONFIG_ACK:TYPE:VALUE` | `NODE_ABC: CONFIG_ACK:CHANNELS:1,6,11` |
 | **Scan ACK** | `NODE_ID: SCAN_ACK:STARTED` | `NODE_ABC: SCAN_ACK:STARTED` |
 | **Device Scan ACK** | `NODE_ID: DEVICE_SCAN_ACK:STARTED` | `NODE_ABC: DEVICE_SCAN_ACK:STARTED` |
@@ -480,54 +490,12 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Deauth ACK** | `NODE_ID: DEAUTH_ACK:STARTED` | `NODE_ABC: DEAUTH_ACK:STARTED` |
 | **Randomization ACK** | `NODE_ID: RANDOMIZATION_ACK:STARTED` | `NODE_ABC: RANDOMIZATION_ACK:STARTED` |
 | **Baseline ACK** | `NODE_ID: BASELINE_ACK:STARTED` | `NODE_ABC: BASELINE_ACK:STARTED` |
-| **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices=42 Anomalies=3 Phase1:ACTIVE` |
-| **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-sensor001` |
+| **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices:42 Anomalies:3 Phase1:ACTIVE` |
+| **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-0001` |
 | **Triangulation Results** | `NODE_ID: TRIANGULATE_RESULTS_START` ... results ... `NODE_ID: TRIANGULATE_RESULTS_END` | Multi-line result output |
 | **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
 | **Erase ACK** | `NODE_ID: ERASE_ACK:STATUS` | `NODE_ABC: ERASE_ACK:COMPLETE` or `NODE_ABC: ERASE_ACK:CANCELLED` |
 
----
-
-### **Command Workflow Example**
-
-#### Basic Operations
-    @ALL STATUS
-    @NODE_22 STATUS
-    @ALL STOP
-    @NODE_22 CONFIG_CHANNELS:1,6,11
-    @ALL CONFIG_CHANNELS:1..14
-    @NODE_22 CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33:44:55:66
-
-#### Detection & Analysis
-    @ALL DEVICE_SCAN_START:2:300
-    @NODE_22 DEVICE_SCAN_START:2:300:FOREVER
-    @ALL DRONE_START:600
-    @NODE_22 DRONE_START:600:FOREVER
-    @ALL DEAUTH_START:300
-    @NODE_22 DEAUTH_START:300:FOREVER
-    @ALL RANDOMIZATION_START:2:600
-    @NODE_22 RANDOMIZATION_START:0:600:FOREVER
-
-#### Baseline Detection
-    @ALL BASELINE_START:300
-    @NODE_22 BASELINE_START:600:FOREVER
-    @ALL BASELINE_STATUS
-
-#### Scanning
-    @ALL SCAN_START:0:60:1,6,11
-    @NODE_22 SCAN_START:2:300:1..14:FOREVER
-    @ALL SCAN_START:1:120:1,6,11
-
-#### Triangulation
-    @ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300
-    @NODE_22 TRIANGULATE_START:T-sensor001:600
-    @ALL TRIANGULATE_STOP
-    @NODE_22 TRIANGULATE_RESULTS
-
-#### Security
-    @NODE_22 VIBRATION_STATUS
-    @NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234
-    @ALL ERASE_CANCEL
 
 ---
 
