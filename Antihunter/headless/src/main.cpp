@@ -167,6 +167,11 @@ void setup() {
     delay(200);
     initializeSD();
     delay(500);
+
+    if (waitForInitialConfig()) {
+        return;
+    }
+
     loadConfiguration();
     delay(500);
     initializeGPS();

@@ -66,7 +66,7 @@ extern time_t lastRTCSync;
 extern String rtcTimeString;
 extern SemaphoreHandle_t rtcMutex;
 
-
+bool waitForInitialConfig();
 void initializeRTC();
 void syncRTCFromGPS();
 void updateRTCTime();

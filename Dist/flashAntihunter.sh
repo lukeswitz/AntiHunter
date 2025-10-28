@@ -4,18 +4,19 @@ set -e
 # Variables
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
-    "AntiHunter - v6:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter_v6.bin"
+    "AntiHunter Full - v0.6.6 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_6_full.bin"
+    "AntiHunter Headless - v0.6.6 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_6_headless.bin"
 )
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
 ERASE_FLASH=false
+CONFIG_MODE=false
 
 # PlatformIO Config Values
 MONITOR_SPEED=115200
 UPLOAD_SPEED=230400
 ESP32_PORT=""
 
-# Function to display help
 show_help() {
     cat << EOF
 Usage: $0 [OPTION]
@@ -24,6 +25,7 @@ Flash firmware to ESP32 devices.
 Options:
   -f, --file FILE    Path to custom .bin file to flash
   -e, --erase        Erase flash before flashing (default: no)
+  -c, --configure    Configure device parameters during flash
   -h, --help         Display this help message and exit
   -l, --list         List available firmware options and exit
 
@@ -31,7 +33,6 @@ Without options, the script will run in interactive mode.
 EOF
 }
 
-# Function to find serial devices
 find_serial_devices() {
     local devices=""
 
@@ -50,7 +51,57 @@ find_serial_devices() {
     echo "$devices"
 }
 
-# Parse command line arguments
+collect_configuration() {
+    echo ""
+    echo "==================================================="
+    echo "Device Configuration Setup"
+    echo "==================================================="
+    echo ""
+    
+    read -p "Node ID (leave empty for auto-generated): " NODE_ID
+    
+    echo ""
+    echo "Scan Mode:"
+    echo "  0 - WiFi only"
+    echo "  1 - BLE only"
+    echo "  2 - Both WiFi and BLE"
+    read -p "Select scan mode (0-2) [default: 2]: " SCAN_MODE
+    SCAN_MODE=${SCAN_MODE:-2}
+    
+    echo ""
+    read -p "WiFi channels (comma-separated or range like 1..11) [default: 1,6,11]: " CHANNELS
+    CHANNELS=${CHANNELS:-"1,6,11"}
+    
+    echo ""
+    read -p "Mesh send interval in milliseconds [default: 5000]: " MESH_INTERVAL
+    MESH_INTERVAL=${MESH_INTERVAL:-5000}
+    
+    echo ""
+    read -p "Target MAC addresses (comma-separated, leave empty for none): " TARGETS
+    
+    echo ""
+    echo "RF Preset:"
+    echo "  0 - Balanced"
+    echo "  1 - Fast scan"
+    echo "  2 - Deep scan"
+    read -p "Select RF preset (0-2) [default: 0]: " RF_PRESET
+    RF_PRESET=${RF_PRESET:-0}
+    
+    echo ""
+    read -p "Baseline RAM cache size [default: 400]: " BASELINE_RAM
+    BASELINE_RAM=${BASELINE_RAM:-400}
+    
+    read -p "Baseline SD max devices [default: 50000]: " BASELINE_SD
+    BASELINE_SD=${BASELINE_SD:-50000}
+    
+    cat > /tmp/antihunter_config.json <<EOF
+{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS","meshInterval":$MESH_INTERVAL,"maclist":"$TARGETS","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD}
+EOF
+    
+    echo ""
+    echo "Configuration prepared"
+}
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         -f|--file)
@@ -60,6 +111,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -e|--erase)
             ERASE_FLASH=true
+            shift
+            ;;
+        -c|--configure)
+            CONFIG_MODE=true
             shift
             ;;
         -h|--help)
@@ -89,7 +144,6 @@ cat <<'BANNER'
 ▛▌▌▌▐▖▌▌▌▙▌▌▌▐▖▙▖▌ 
 BANNER
 
-# Ensure Python command is set
 PYTHON_CMD=python3
 if ! command -v python3 &> /dev/null; then
     PYTHON_CMD=python
@@ -99,7 +153,6 @@ if ! command -v python3 &> /dev/null; then
     fi
 fi
 
-# Check for esptool system-wide or clone if missing
 if command -v esptool &>/dev/null; then
     ESPTOOL_CMD="esptool"
 elif command -v esptool.py &>/dev/null; then
@@ -117,7 +170,6 @@ echo "====================================="
 echo "Unified for multiple ESP32S3 configs"
 echo "====================================="
 
-# Handle custom bin file
 if [ -n "$CUSTOM_BIN" ]; then
     if [ ! -f "$CUSTOM_BIN" ]; then
         echo "Error: Custom file '$CUSTOM_BIN' not found."
@@ -126,7 +178,6 @@ if [ -n "$CUSTOM_BIN" ]; then
     FIRMWARE_FILE="$CUSTOM_BIN"
     firmware_choice="Custom firmware: $(basename "$CUSTOM_BIN")"
 else
-    # Interactive firmware selection
     declare -a options_array
     for i in "${!FIRMWARE_OPTIONS[@]}"; do
         echo "$((i+1)). ${FIRMWARE_OPTIONS[$i]%%:*}"
@@ -154,7 +205,6 @@ else
                 echo "Downloading $firmware_choice firmware..."
                 curl -fLo "$FIRMWARE_FILE" "$FIRMWARE_URL" || { echo "Error downloading firmware. Please check the URL and your connection."; exit 1; }
                 
-                # Download bootloader and partitions from same directory
                 FIRMWARE_DIR=$(dirname "$FIRMWARE_URL")
                 BOOTLOADER_URL="$FIRMWARE_DIR/bootloader.bin"
                 PARTITIONS_URL="$FIRMWARE_DIR/partitions.bin"
@@ -178,7 +228,6 @@ else
                 fi
                 
             else
-                # Custom file selection
                 read -p "Enter path to custom .bin file: " custom_file
                 if [ ! -f "$custom_file" ]; then
                     echo "Error: File '$custom_file' not found."
@@ -187,7 +236,6 @@ else
                 FIRMWARE_FILE="$custom_file"
                 firmware_choice="Custom firmware: $(basename "$custom_file")"
                 
-                # Look for bootloader and partitions in same directory
                 CUSTOM_DIR=$(dirname "$custom_file")
                 BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
                 PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
@@ -240,7 +288,10 @@ while true; do
     fi
 done
 
-# Interactive erase flash prompt if not set via command line
+if [ "$CONFIG_MODE" = true ]; then
+    collect_configuration
+fi
+
 if [ "$ERASE_FLASH" = false ]; then
     echo ""
     read -p "Erase flash before flashing? (y/N): " erase_response
@@ -249,7 +300,6 @@ if [ "$ERASE_FLASH" = false ]; then
     fi
 fi
 
-# Erase flash if requested
 if [ "$ERASE_FLASH" = true ]; then
     echo ""
     echo "==================================================="
@@ -259,11 +309,10 @@ if [ "$ERASE_FLASH" = true ]; then
         --chip auto \
         --port "$ESP32_PORT" \
         --baud "$UPLOAD_SPEED" \
-        erase_flash
+        erase-flash
     echo "Flash erase complete."
     echo ""
     
-    # After erase, prompt for bootloader/partitions if not already found
     if [ -z "$BOOTLOADER_FILE" ] || [ ! -f "$BOOTLOADER_FILE" ]; then
         echo "Bootloader required after flash erase."
         read -p "Enter path to bootloader.bin: " bootloader_path
@@ -288,7 +337,6 @@ if [ "$ERASE_FLASH" = true ]; then
 fi
 
 echo ""
-# Only flash bootloader+partitions if erase was performed
 if [ "$ERASE_FLASH" = true ] && [ -n "$BOOTLOADER_FILE" ] && [ -n "$PARTITIONS_FILE" ]; then
     echo "Flashing complete firmware (bootloader + partitions + app)..."
     $ESPTOOL_CMD \
@@ -320,12 +368,76 @@ echo "==================================================="
 echo "Firmware flashing complete!"
 echo "==================================================="
 
-# Set RTC time via serial
 echo ""
-echo "Setting RTC time..."
+echo "Device initialization..."
 sleep 3
 
-# Try to get NTP time first
+if [ "$CONFIG_MODE" = true ]; then
+    echo ""
+    echo "Sending configuration to device..."
+    
+    CONFIG_JSON_COMPACT=$(cat /tmp/antihunter_config.json | tr -d '\n' | tr -d ' ')
+    
+    $PYTHON_CMD -c "
+import serial
+import time
+import sys
+
+try:
+    ser = serial.Serial('$ESP32_PORT', 115200, timeout=5)
+    time.sleep(3)
+    
+    ser.write(b'RECONFIG\n')
+    ser.flush()
+    time.sleep(0.5)
+    
+    print('[CONFIG] Waiting for device ready...')
+    start = time.time()
+    ready = False
+    
+    while time.time() - start < 35:
+        if ser.in_waiting:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            print('[DEVICE]', line)
+            if 'INITIAL CONFIGURATION MODE' in line:
+                ready = True
+                break
+        time.sleep(0.1)
+    
+    if not ready:
+        print('[CONFIG] Device not in config mode - may already be configured')
+        ser.close()
+        sys.exit(0)
+    
+    time.sleep(0.5)
+    config_cmd = 'CONFIG:$CONFIG_JSON_COMPACT\n'
+    ser.write(config_cmd.encode())
+    ser.flush()
+    print('[CONFIG] Configuration sent')
+    
+    time.sleep(1)
+    while ser.in_waiting:
+        line = ser.readline().decode('utf-8', errors='ignore').strip()
+        print('[DEVICE]', line)
+    
+    ser.close()
+    print('[CONFIG] Configuration complete')
+    
+except Exception as e:
+    print('[CONFIG] Error:', e)
+    sys.exit(1)
+" || echo "[CONFIG] Warning: Config send may have failed"
+
+    rm -f /tmp/antihunter_config.json
+    
+    echo ""
+    echo "Waiting for device reboot..."
+    sleep 8
+fi
+
+echo ""
+echo "Setting RTC time..."
+
 echo "Fetching time from NTP..."
 NTP_EPOCH=$($PYTHON_CMD -c "
 import socket, struct
@@ -348,26 +460,33 @@ else
   echo "✗ NTP failed, using system time: $(date -u -d @$EPOCH '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null || date -r $EPOCH -u '+%Y-%m-%d %H:%M:%S UTC')"
 fi
 
-# Send via serial
 $PYTHON_CMD -c "
 import serial
 import time
 try:
   ser = serial.Serial('$ESP32_PORT', 115200, timeout=2)
   time.sleep(1)
+  
+  # Clear buffer
+  ser.reset_input_buffer()
+  
   ser.write(b'SETTIME:$EPOCH\n')
   ser.flush()
   time.sleep(0.5)
-  if ser.in_waiting:
-    print('[RTC]', ser.readline().decode().strip())
-  else:
-    print('[RTC] Time command sent')
+  
+  # Read until we get actual RTC response
+  while ser.in_waiting:
+    line = ser.readline().decode('utf-8', errors='ignore').strip()
+    if 'RTC' in line or 'OK' in line:
+      print(line)
+      break
+  
   ser.close()
+  print('[RTC] Time command sent')
 except Exception as e:
   print('[RTC] Failed:', e)
 " 2>/dev/null
 
-# Delete downloads
 if [ -z "$CUSTOM_BIN" ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
   rm -f "$FIRMWARE_FILE"
   [ -n "$BOOTLOADER_FILE" ] && rm -f "bootloader.bin"

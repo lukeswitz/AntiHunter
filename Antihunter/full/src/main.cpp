@@ -165,6 +165,11 @@ void setup() {
     initializeDroneDetector();
     delay(20);
     initializeSD();
+    
+    if (waitForInitialConfig()) {
+        delay(1000);
+    }
+
     delay(500);
     loadConfiguration();
     initializeNetwork();
