@@ -130,14 +130,22 @@ void parseChannelsCSV(const String &csv) {
 }
 
 void sendNodeIdUpdate() {
-    String nodeMsg = "[NODE_HB] " + getNodeId();
+    float esp_temp = temperatureRead();
+    float esp_temp_f = (esp_temp * 9.0 / 5.0) + 32.0;
+    String timestamp = getFormattedTimestamp();
+    timestamp.replace(" ", "_");
+    
+    String nodeMsg = "[NODE_HB] " + getNodeId() + 
+                     " Time:" + timestamp + 
+                     " Temp:" + String(esp_temp, 1) + "C/" + String(esp_temp_f, 1) + "F";
+    
     if (gpsValid) {
         nodeMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
+    
     Serial.println(nodeMsg);
     sendToSerial1(nodeMsg, true);
 }
-
 void randomizeMacAddress() {
     uint8_t newMACAddress[6];
     newMACAddress[0] = (random(0, 256) & 0xFE) | 0x02;
