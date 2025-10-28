@@ -3,8 +3,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/commits/main/)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
-<img width="90%" height="90%" alt="image" src="https://github.com/user-attachments/assets/6c3c4d36-50b7-4257-93b1-5738fb274d5d" />
-
+# AntiHunter
 
 ## Table of Contents
 
@@ -202,7 +201,6 @@ While individual nodes provide standalone capability, the full system power come
 ## Hardware Requirements
 
 _PCBs and kits are in production!_
-![image](https://github.com/user-attachments/assets/f808d692-136b-473a-b835-63ac782fca07)
 
 ### Enclosure STL Files
 - Provided by @TheRealSirHaXalot, find them in the hw folder [here](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/hw/Prototype_STL_Files)
