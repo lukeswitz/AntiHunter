@@ -24,7 +24,7 @@ extern "C"
 #include "esp_coexist.h"
 }
 
-// AP handlers
+// RF handlers
 void radioStartSTA();
 void radioStopSTA();
 
@@ -398,7 +398,6 @@ String getDeauthReasonText(uint16_t reasonCode) {
     }
 }
 
-
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
     if (!ppkt || ppkt->rx_ctrl.sig_len < 26) return;
@@ -597,17 +596,15 @@ void snifferScanTask(void *pv)
     int networksFound = 0;
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
+    unsigned long lastMeshUpdate = 0;
     const unsigned long BLE_SCAN_INTERVAL = 4000;
     const unsigned long WIFI_SCAN_INTERVAL = 2000;
+    const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long nextResultsUpdate = millis() + 5000;
+    
+    std::set<String> transmittedDevices;
 
-    NimBLEScan *bleScan = nullptr;
-
-    BLEDevice::init("");
-    bleScan = BLEDevice::getScan();
-    bleScan->setActiveScan(true);
-    bleScan->setInterval(100);
-    bleScan->setWindow(99);
+    NimBLEScan *bleScan = pBLEScan;
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
@@ -676,7 +673,8 @@ void snifferScanTask(void *pv)
             vTaskDelay(pdMS_TO_TICKS(10));
         }
 
-        if (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0)
+        if (bleScan && (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
+            (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0))
         {
             lastBLEScan = millis();
 
@@ -684,7 +682,6 @@ void snifferScanTask(void *pv)
 
             if (bleScan)
             {
-                // Use getResults for blocking scan
                 NimBLEScanResults scanResults = bleScan->getResults(2000, false);
 
                 for (int i = 0; i < scanResults.getCount(); i++)
