@@ -1142,7 +1142,8 @@ void blueTeamTask(void *pv) {
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
 
-    String startMsg = forever ? String("[BLUE] Starting deauth detection (forever)\n")
+    String startMsg = forever ?
+                              String("[BLUE] Starting deauth detection (forever)\n")
                               : String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
     Serial.print(startMsg);
     
@@ -1173,6 +1174,8 @@ void blueTeamTask(void *pv) {
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
     uint32_t lastResultsUpdate = millis() + 2000;
+    uint32_t lastMeshUpdate = millis();
+    const unsigned long MESH_DEAUTH_UPDATE_INTERVAL = 5000;
     DeauthHit hit;
 
     radioStartSTA();
@@ -1212,6 +1215,34 @@ void blueTeamTask(void *pv) {
                 }
                 if (sendToSerial1(meshAlert, false)) {
                     transmittedAttacks.insert(attackKey);
+                }
+            }
+        }
+        
+        if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DEAUTH_UPDATE_INTERVAL)) {
+            lastMeshUpdate = millis();
+            
+            int sentThisCycle = 0;
+            for (const auto& entry : deauthLog) {
+                String srcMac = macFmt6(entry.srcMac);
+                String dstMac = macFmt6(entry.destMac);
+                String attackKey = srcMac + "->" + dstMac;
+                
+                if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+                    String attackMsg = getNodeId() + ": ATTACK: ";
+                    attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
+                    attackMsg += " " + srcMac + "->" + dstMac;
+                    attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
+                    
+                    if (attackMsg.length() < 230 && sendToSerial1(attackMsg, true)) {
+                        transmittedAttacks.insert(attackKey);
+                        sentThisCycle++;
+                        
+                        if (sentThisCycle % 2 == 0) {
+                            delay(1000);
+                            rateLimiter.refillTokens();
+                        }
+                    }
                 }
             }
         }
@@ -1278,6 +1309,32 @@ void blueTeamTask(void *pv) {
     }
 
     if (meshEnabled && !stopRequested) {
+        Serial.printf("[BLUE] Scan complete - transmitting final batch\n");
+        rateLimiter.flush();
+        delay(100);
+        
+        for (const auto& entry : deauthLog) {
+            String srcMac = macFmt6(entry.srcMac);
+            String dstMac = macFmt6(entry.destMac);
+            String attackKey = srcMac + "->" + dstMac;
+            
+            if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+                String attackMsg = getNodeId() + ": ATTACK: ";
+                attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
+                attackMsg += " " + srcMac + "->" + dstMac;
+                attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
+                
+                if (attackMsg.length() < 230) {
+                    if (sendToSerial1(attackMsg, true)) {
+                        transmittedAttacks.insert(attackKey);
+                    }
+                }
+            }
+        }
+        
+        Serial1.flush();
+        delay(100);
+        
         uint32_t totalAttacks = deauthLog.size();
         uint32_t finalTransmitted = transmittedAttacks.size();
         uint32_t finalRemaining = totalAttacks - finalTransmitted;
@@ -1289,7 +1346,8 @@ void blueTeamTask(void *pv) {
                         " PEND=" + String(finalRemaining);
         
         sendToSerial1(summary, true);
-        Serial.println("[BLUE] Detection complete, summary transmitted");
+        Serial.printf("[BLUE] Detection complete: %d/%d attacks transmitted, %d pending\n",
+                     finalTransmitted, totalAttacks, finalRemaining);
         
         if (finalRemaining > 0) {
             Serial.printf("[BLUE] WARNING: %d attacks not transmitted\n", finalRemaining);
@@ -1866,9 +1924,6 @@ void listScanTask(void *pv) {
 
     uint32_t nextTriResultsUpdate = millis() + 2000;
 
-    static unsigned long lastTriSendTime = 0;
-    static size_t sentTriInWindow = 0;
-    static int childHitCount = 0; 
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {

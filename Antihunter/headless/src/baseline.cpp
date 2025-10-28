@@ -433,34 +433,41 @@ void baselineDetectionTask(void *pv) {
         }
         
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
-            lastMeshUpdate = millis();
+        lastMeshUpdate = millis();
+        uint32_t sentThisCycle = 0;
+        
+        for (const auto& entry : baselineCache) {
+            String macStr = macFmt6(entry.second.mac);
             
-            for (const auto& entry : baselineCache) {
-                String macStr = macFmt6(entry.second.mac);
+            if (transmittedDevices.find(macStr) == transmittedDevices.end()) {
+                String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
+                deviceMsg += entry.second.isBLE ? " B " : " W ";
+                deviceMsg += String(entry.second.avgRssi);
                 
-                if (transmittedDevices.find(macStr) == transmittedDevices.end()) {
-                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
-                    deviceMsg += entry.second.isBLE ? " B " : " W ";
-                    deviceMsg += String(entry.second.avgRssi);
-                    
-                    if (!entry.second.isBLE && entry.second.channel > 0) {
-                        deviceMsg += " C" + String(entry.second.channel);
-                    }
-                    
-                    if (strlen(entry.second.name) > 0 && 
-                        strcmp(entry.second.name, "Unknown") != 0 && 
-                        strcmp(entry.second.name, "[Hidden]") != 0) {
-                        deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
-                    }
-                    
-                    if (deviceMsg.length() < 230) {
-                        if (sendToSerial1(deviceMsg, false)) {
-                            transmittedDevices.insert(macStr);
+                if (!entry.second.isBLE && entry.second.channel > 0) {
+                    deviceMsg += " C" + String(entry.second.channel);
+                }
+                
+                if (strlen(entry.second.name) > 0 && 
+                    strcmp(entry.second.name, "Unknown") != 0 && 
+                    strcmp(entry.second.name, "[Hidden]") != 0) {
+                    deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
+                }
+                
+                if (deviceMsg.length() < 230) {
+                    if (sendToSerial1(deviceMsg, true)) {
+                        transmittedDevices.insert(macStr);
+                        sentThisCycle++;
+                        
+                        if (sentThisCycle % 2 == 0) {
+                            delay(1000);
+                            rateLimiter.refillTokens();
                         }
                     }
                 }
             }
         }
+    }
         
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
@@ -629,6 +636,7 @@ void baselineDetectionTask(void *pv) {
         
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
             lastMeshUpdate = millis();
+            uint32_t sentThisCycle = 0;
             
             for (const auto& entry : baselineCache) {
                 String macStr = macFmt6(entry.second.mac);
@@ -649,8 +657,14 @@ void baselineDetectionTask(void *pv) {
                     }
                     
                     if (deviceMsg.length() < 230) {
-                        if (sendToSerial1(deviceMsg, false)) {
+                        if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
+                            sentThisCycle++;
+                            
+                            if (sentThisCycle % 2 == 0) {
+                                delay(1000);
+                                rateLimiter.refillTokens();
+                            }
                         }
                     }
                 }
@@ -669,8 +683,14 @@ void baselineDetectionTask(void *pv) {
                     }
                     
                     if (anomalyMsg.length() < 230) {
-                        if (sendToSerial1(anomalyMsg, false)) {
+                        if (sendToSerial1(anomalyMsg, true)) {
                             transmittedAnomalies.insert(macStr);
+                            sentThisCycle++;
+                            
+                            if (sentThisCycle % 2 == 0) {
+                                delay(1000);
+                                rateLimiter.refillTokens();
+                            }
                         }
                     }
                 }
