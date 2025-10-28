@@ -214,8 +214,10 @@ void initializeHardware()
     String nodeId = prefs.getString("nodeId", "");
     if (nodeId.length() == 0)
     {
-        uint64_t chipid = ESP.getEfuseMac();
-        nodeId = "NODE_" + String((uint32_t)(chipid >> 32), HEX) + String((uint32_t)chipid, HEX);
+        int randomNum = random(1, 100);
+        char buffer[10];
+        sprintf(buffer, "AH%02d", randomNum);
+        nodeId = buffer;
         prefs.putString("nodeId", nodeId);
     }
     setNodeId(nodeId);
