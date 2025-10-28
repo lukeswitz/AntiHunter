@@ -1336,6 +1336,13 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             
             Serial.println(alert);
             logToSD(alert);
+
+            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+                lastBaselineAnomalyMeshSend = millis();
+                String meshAlert = getNodeId() + ": ANOMALY-RSSI: " + String(isBLE ? "BLE " : "WiFi ") + macStr;
+                meshAlert += " " + String(history.lastRssi) + "dBm -> " + String(rssi) + "dBm";
+                sendToSerial1(meshAlert, false); 
+            }
             
             history.significantChanges = 0;
         }
