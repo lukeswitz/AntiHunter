@@ -1151,31 +1151,30 @@ void randomizationDetectionTask(void *pv) {
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
     
-    randomizationDetectionEnabled = false;
-    scanning = false;
-    
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    Serial.printf("[RAND] ProbeRequestEvent size: %zu bytes\n", sizeof(ProbeRequestEvent));
-    
-    if (SafeSD::exists("/rand_identities.dat")) {
-        Serial.println("[RAND] Removing corrupted identities file...");
-        SafeSD::remove("/rand_identities.dat");
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-    
-    probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
+    probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
     if (!probeRequestQueue) {
-        Serial.printf("[RAND] FATAL: Queue creation failed (heap: %u)\n", ESP.getFreeHeap());
-        workerTaskHandle = nullptr;
-        vTaskDelete(nullptr);
-        return;
+        Serial.printf("[RAND] FATAL: Failed to create queue (heap: %u)\n", ESP.getFreeHeap());
+        vTaskDelay(pdMS_TO_TICKS(200));
+        
+        probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
+        if (!probeRequestQueue) {
+            Serial.printf("[RAND] FATAL: Queue creation failed twice (heap: %u), aborting\n", ESP.getFreeHeap());
+            workerTaskHandle = nullptr;
+            vTaskDelete(nullptr);
+            return;
+        }
+        Serial.printf("[RAND] Reduced queue created (128 entries, heap: %u)\n", ESP.getFreeHeap());
+    } else {
+        Serial.printf("[RAND] Queue created (256 entries, heap: %u)\n", ESP.getFreeHeap());
     }
-    Serial.printf("[RAND] Queue created (128 entries, heap: %u)\n", ESP.getFreeHeap());
+
+    loadDeviceIdentities();
 
     std::set<String> transmittedIdentities;
     
@@ -1579,58 +1578,77 @@ void saveDeviceIdentities() {
         file.write((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
         file.write((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
         file.write((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
+        file.write((uint8_t*)&id.isBLE, sizeof(id.isBLE));
     }
-    
+
     file.close();
     Serial.printf("[RAND] Saved %d identities to SD\n", count);
 }
 
 void loadDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
-    
     if (!SafeSD::exists("/rand_identities.dat")) return;
     
     std::lock_guard<std::mutex> lock(randMutex);
     
     File file = SafeSD::open("/rand_identities.dat", FILE_READ);
     if (!file) {
-        Serial.println("[RAND] Failed to open identities file for reading");
+        Serial.println("[RAND] Failed to open identities file");
         return;
     }
     
     uint32_t count = 0;
-    SafeSD::read(file, (uint8_t*)&count, sizeof(count));
+    if (file.read((uint8_t*)&count, sizeof(count)) != sizeof(count)) {
+        Serial.println("[RAND] Failed to read identity count");
+        file.close();
+        return;
+    }
     
-    for (uint32_t i = 0; i < count && i < MAX_DEVICE_TRACKS; i++) {
+    if (count > MAX_DEVICE_TRACKS) {
+        Serial.printf("[RAND] Invalid count: %u\n", count);
+        file.close();
+        return;
+    }
+    
+    for (uint32_t i = 0; i < count; i++) {
         DeviceIdentity id;
+        memset(&id, 0, sizeof(id));
         
-       SafeSD::read(file, (uint8_t*)&id.identityId, sizeof(id.identityId));
+        if (file.read((uint8_t*)&id.identityId, sizeof(id.identityId)) != sizeof(id.identityId)) break;
         
         uint32_t macCount = 0;
-       SafeSD::read(file, (uint8_t*)&macCount, sizeof(macCount));
-        for (uint32_t j = 0; j < macCount && j < 50; j++) {
+        if (file.read((uint8_t*)&macCount, sizeof(macCount)) != sizeof(macCount)) break;
+        
+        if (macCount > 50) break;
+        
+        for (uint32_t j = 0; j < macCount; j++) {
             uint8_t macBytes[6];
-            file.read(macBytes, 6);
+            if (file.read(macBytes, 6) != 6) {
+                file.close();
+                return;
+            }
             id.macs.push_back(MacAddress(macBytes));
         }
         
-       SafeSD::read(file, (uint8_t*)&id.signature, sizeof(BehavioralSignature));
-       SafeSD::read(file, (uint8_t*)&id.firstSeen, sizeof(id.firstSeen));
-       SafeSD::read(file, (uint8_t*)&id.lastSeen, sizeof(id.lastSeen));
-       SafeSD::read(file, (uint8_t*)&id.confidence, sizeof(id.confidence));
-       SafeSD::read(file, (uint8_t*)&id.sessionCount, sizeof(id.sessionCount));
-       SafeSD::read(file, (uint8_t*)&id.observedSessions, sizeof(id.observedSessions));
-       SafeSD::read(file, (uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum));
-       SafeSD::read(file, (uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
-       SafeSD::read(file, (uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
-       SafeSD::read(file, (uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
-       SafeSD::read(file, (uint8_t*)&id.isBLE, sizeof(id.isBLE));
+        if (file.read((uint8_t*)&id.signature, sizeof(BehavioralSignature)) != sizeof(BehavioralSignature)) break;
+        if (file.read((uint8_t*)&id.firstSeen, sizeof(id.firstSeen)) != sizeof(id.firstSeen)) break;
+        if (file.read((uint8_t*)&id.lastSeen, sizeof(id.lastSeen)) != sizeof(id.lastSeen)) break;
+        if (file.read((uint8_t*)&id.confidence, sizeof(id.confidence)) != sizeof(id.confidence)) break;
+        if (file.read((uint8_t*)&id.sessionCount, sizeof(id.sessionCount)) != sizeof(id.sessionCount)) break;
+        if (file.read((uint8_t*)&id.observedSessions, sizeof(id.observedSessions)) != sizeof(id.observedSessions)) break;
+        if (file.read((uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum)) != sizeof(id.lastSequenceNum)) break;
+        if (file.read((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid)) != sizeof(id.sequenceValid)) break;
+        if (file.read((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac)) != sizeof(id.hasKnownGlobalMac)) break;
+        if (file.read((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac)) != sizeof(id.knownGlobalMac)) break;
+        if (file.read((uint8_t*)&id.isBLE, sizeof(id.isBLE)) != sizeof(id.isBLE)) break;
         
-        String key = macFmt6(id.macs[0].bytes.data());
-        deviceIdentities[key] = id;
-        identityIdCounter = max(identityIdCounter, (uint32_t)strtol(id.identityId + 2, NULL, 16));
+        if (!id.macs.empty()) {
+            String key = macFmt6(id.macs[0].bytes.data());
+            deviceIdentities[key] = id;
+            identityIdCounter = max(identityIdCounter, (uint32_t)strtol(id.identityId + 2, NULL, 16));
+        }
     }
     
     file.close();
-    Serial.printf("[RAND] Loaded %d identities from SD\n", deviceIdentities.size());
+    Serial.printf("[RAND] Loaded %d identities\n", deviceIdentities.size());
 }
