@@ -249,7 +249,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .toast.error{border-color:#ff8800;background:#330}
       .toast.warning{border-color:#ffaa00;background:#332200}
       .footer{opacity:.7;font-size:10px;padding:6px;text-align:center;margin-top:12px}
-      .logo{width:24px;height:24px}
       .status-bar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-left:auto;font-size:10px}
       .status-item{background:#001a10;border:1px solid var(--border);padding:3px 7px;border-radius:5px;font-size:9px;white-space:nowrap}
       .status-item.active{border-color:#0c6;background:#002417}
@@ -312,11 +311,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
   <body>
     <div id="toast"></div>
     <div class="header">
-      <svg class="logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect x="6" y="6" width="52" height="52" rx="8" fill="#00180F" stroke="#00ff7f" stroke-width="2"/>
-        <path d="M16 40 L32 16 L48 40" fill="none" stroke="#0aff9d" stroke-width="3"/>
-        <circle cx="32" cy="44" r="3" fill="#00ff7f"/>
-      </svg>
       <h1>AntiHunter</h1>
       <div class="status-bar">
         <div class="status-item" id="modeStatus">WiFi</div>
