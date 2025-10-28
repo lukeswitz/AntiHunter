@@ -250,12 +250,17 @@ For rapid deployment without building from source, precompiled binaries are avai
 # Download the flasher script
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
 chmod +x flashAntihunter.sh
-```
 
-```bash
 # Run the flasher script with default configuration (Full AP Firmware)
 ./flashAntihunter.sh
 
+```
+
+- Optional Headless Config:
+
+**`NOTE`: Configuration on flash** erase process requires the bootloader and partitions files from inside `Dist/` folder to be in the same directory:
+
+```bash
 # Run the flasher script with interactive configuration (Headless Firmware)
 ./flashAntihunter.sh -c -e
 ```
