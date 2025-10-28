@@ -1162,9 +1162,9 @@ void randomizationDetectionTask(void *pv) {
 
     Serial.printf("[RAND] ProbeRequestEvent size: %zu bytes\n", sizeof(ProbeRequestEvent));
     
-    if (sdAvailable && SD.exists("/rand_identities.dat")) {
+    if (SafeSD::exists("/rand_identities.dat")) {
         Serial.println("[RAND] Removing corrupted identities file...");
-        SD.remove("/rand_identities.dat");
+        SafeSD::remove("/rand_identities.dat");
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
@@ -1545,11 +1545,11 @@ void randomizationDetectionTask(void *pv) {
 
 // Storage
 void saveDeviceIdentities() {
-    if (!sdAvailable) return;
+    if (!SafeSD::isAvailable()) return;
     
     std::lock_guard<std::mutex> lock(randMutex);
     
-    File file = SD.open("/rand_identities.dat", FILE_WRITE);
+    File file = SafeSD::open("/rand_identities.dat", FILE_WRITE);
     if (!file) {
         Serial.println("[RAND] Failed to open identities file for writing");
         return;
@@ -1586,45 +1586,45 @@ void saveDeviceIdentities() {
 }
 
 void loadDeviceIdentities() {
-    if (!sdAvailable) return;
+    if (!SafeSD::isAvailable()) return;
     
-    if (!SD.exists("/rand_identities.dat")) return;
+    if (!SafeSD::exists("/rand_identities.dat")) return;
     
     std::lock_guard<std::mutex> lock(randMutex);
     
-    File file = SD.open("/rand_identities.dat", FILE_READ);
+    File file = SafeSD::open("/rand_identities.dat", FILE_READ);
     if (!file) {
         Serial.println("[RAND] Failed to open identities file for reading");
         return;
     }
     
     uint32_t count = 0;
-    file.read((uint8_t*)&count, sizeof(count));
+    SafeSD::read(file, (uint8_t*)&count, sizeof(count));
     
     for (uint32_t i = 0; i < count && i < MAX_DEVICE_TRACKS; i++) {
         DeviceIdentity id;
         
-        file.read((uint8_t*)&id.identityId, sizeof(id.identityId));
+       SafeSD::read(file, (uint8_t*)&id.identityId, sizeof(id.identityId));
         
         uint32_t macCount = 0;
-        file.read((uint8_t*)&macCount, sizeof(macCount));
+       SafeSD::read(file, (uint8_t*)&macCount, sizeof(macCount));
         for (uint32_t j = 0; j < macCount && j < 50; j++) {
             uint8_t macBytes[6];
             file.read(macBytes, 6);
             id.macs.push_back(MacAddress(macBytes));
         }
         
-        file.read((uint8_t*)&id.signature, sizeof(BehavioralSignature));
-        file.read((uint8_t*)&id.firstSeen, sizeof(id.firstSeen));
-        file.read((uint8_t*)&id.lastSeen, sizeof(id.lastSeen));
-        file.read((uint8_t*)&id.confidence, sizeof(id.confidence));
-        file.read((uint8_t*)&id.sessionCount, sizeof(id.sessionCount));
-        file.read((uint8_t*)&id.observedSessions, sizeof(id.observedSessions));
-        file.read((uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum));
-        file.read((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
-        file.read((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
-        file.read((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
-        file.read((uint8_t*)&id.isBLE, sizeof(id.isBLE));
+       SafeSD::read(file, (uint8_t*)&id.signature, sizeof(BehavioralSignature));
+       SafeSD::read(file, (uint8_t*)&id.firstSeen, sizeof(id.firstSeen));
+       SafeSD::read(file, (uint8_t*)&id.lastSeen, sizeof(id.lastSeen));
+       SafeSD::read(file, (uint8_t*)&id.confidence, sizeof(id.confidence));
+       SafeSD::read(file, (uint8_t*)&id.sessionCount, sizeof(id.sessionCount));
+       SafeSD::read(file, (uint8_t*)&id.observedSessions, sizeof(id.observedSessions));
+       SafeSD::read(file, (uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum));
+       SafeSD::read(file, (uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
+       SafeSD::read(file, (uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
+       SafeSD::read(file, (uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
+       SafeSD::read(file, (uint8_t*)&id.isBLE, sizeof(id.isBLE));
         
         String key = macFmt6(id.macs[0].bytes.data());
         deviceIdentities[key] = id;

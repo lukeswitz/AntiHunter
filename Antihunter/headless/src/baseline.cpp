@@ -96,13 +96,13 @@ void resetBaselineDetection() {
     baselineStats.bleHits = 0;
     
     // Clear SD storage
-    if (sdAvailable) {
-        if (SD.exists("/baseline_data.bin")) {
-            SD.remove("/baseline_data.bin");
+      if (SafeSD::isAvailable()) {
+        if (SafeSD::exists("/baseline_data.bin")) {
+            SafeSD::remove("/baseline_data.bin");
             Serial.println("[BASELINE] Removed SD data file");
         }
-        if (SD.exists("/baseline_stats.json")) {
-            SD.remove("/baseline_stats.json");
+        if (SafeSD::exists("/baseline_stats.json")) {
+            SafeSD::remove("/baseline_stats.json");
             Serial.println("[BASELINE] Removed SD stats file");
         }
     }
@@ -800,14 +800,14 @@ uint8_t calculateDeviceChecksum(BaselineDevice& device) {
 }
 
 bool initializeBaselineSD() {
-    if (!sdAvailable) {
+     if (!SafeSD::isAvailable()) {
         Serial.println("[BASELINE_SD] SD card not available");
         return false;
     }
     
-    if (!SD.exists("/baseline_data.bin")) {
+    if (!SafeSD::exists("/baseline_data.bin")) {
         Serial.println("[BASELINE_SD] Creating baseline data file");
-        File dataFile = SD.open("/baseline_data.bin", FILE_WRITE);
+        File dataFile = SafeSD::open("/baseline_data.bin", FILE_WRITE);
         if (!dataFile) {
             Serial.println("[BASELINE_SD] Failed to create data file");
             return false;
@@ -827,9 +827,9 @@ bool initializeBaselineSD() {
         buildSDIndex();
     }
     
-    if (!SD.exists("/baseline_stats.json")) {
+    if (!SafeSD::exists("/baseline_stats.json")) {
         Serial.println("[BASELINE_SD] Creating stats file");
-        File statsFile = SD.open("/baseline_stats.json", FILE_WRITE);
+         File statsFile = SafeSD::open("/baseline_stats.json", FILE_WRITE);
         if (!statsFile) {
             Serial.println("[BASELINE_SD] Failed to create stats file");
             return false;
@@ -849,7 +849,7 @@ bool initializeBaselineSD() {
 }
 
 bool writeBaselineDeviceToSD(const BaselineDevice& device) {
-    if (!sdAvailable || !sdBaselineInitialized) {
+    if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return false;
     }
     
@@ -861,7 +861,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
     if (sdDeviceIndex.find(macStr) != sdDeviceIndex.end()) {
         uint32_t position = sdDeviceIndex[macStr];
         
-        File dataFile = SD.open("/baseline_data.bin", "r+");
+        File dataFile = SafeSD::open("/baseline_data.bin", "r+");
         if (!dataFile) {
             Serial.println("[BASELINE_SD] Failed to open for update");
             return false;
@@ -873,7 +873,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
         
         return (written == sizeof(BaselineDevice));
     } else {
-        File dataFile = SD.open("/baseline_data.bin", FILE_APPEND);
+        File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         if (!dataFile) {
             Serial.println("[BASELINE_SD] Failed to open for append");
             return false;
@@ -887,7 +887,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
             sdDeviceIndex[macStr] = position;
             totalDevicesOnSD++;
             
-            File headerFile = SD.open("/baseline_data.bin", "r+");
+            File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
                 headerFile.write((uint8_t*)&totalDevicesOnSD, sizeof(totalDevicesOnSD));
@@ -902,7 +902,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
 }
 
 bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
-    if (!sdAvailable || !sdBaselineInitialized) {
+    if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return false;
     }
     
@@ -914,13 +914,13 @@ bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
     
     uint32_t position = sdDeviceIndex[macStr];
     
-    File dataFile = SD.open("/baseline_data.bin", FILE_READ);
+    File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
     if (!dataFile) {
         return false;
     }
     
     dataFile.seek(position);
-    size_t bytesRead = dataFile.read((uint8_t*)&device, sizeof(BaselineDevice));
+    size_t bytesRead = SafeSD::read(dataFile, (uint8_t*)&device, sizeof(BaselineDevice));
     dataFile.close();
     
     if (bytesRead != sizeof(BaselineDevice)) {
@@ -939,7 +939,7 @@ bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
 }
 
 bool flushBaselineCacheToSD() {
-    if (!sdAvailable || !sdBaselineInitialized || baselineCache.empty()) {
+    if (!SafeSD::isAvailable() || !sdBaselineInitialized || baselineCache.empty()) {
         return false;
     }
     
@@ -973,11 +973,11 @@ bool flushBaselineCacheToSD() {
 }
 
 void loadBaselineFromSD() {
-    if (!sdAvailable || !sdBaselineInitialized) {
+    if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return;
     }
     
-    File dataFile = SD.open("/baseline_data.bin", FILE_READ);
+    File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
     if (!dataFile) {
         Serial.println("[BASELINE_SD] No baseline file");
         return;
@@ -987,9 +987,9 @@ void loadBaselineFromSD() {
     uint16_t version;
     uint32_t deviceCount;
     
-    dataFile.read((uint8_t*)&magic, sizeof(magic));
-    dataFile.read((uint8_t*)&version, sizeof(version));
-    dataFile.read((uint8_t*)&deviceCount, sizeof(deviceCount));
+    SafeSD::read(dataFile, (uint8_t*)&magic, sizeof(magic));
+    SafeSD::read(dataFile, (uint8_t*)&version, sizeof(version));
+    SafeSD::read(dataFile, (uint8_t*)&deviceCount, sizeof(deviceCount));
     
     if (magic != 0xBA5EBA11) {
         Serial.println("[BASELINE_SD] Invalid header");
@@ -1012,7 +1012,7 @@ void loadBaselineFromSD() {
         uint32_t loaded = 0;
         
         while (dataFile.available() >= sizeof(BaselineDevice) && loaded < toLoad) {
-            size_t bytesRead = dataFile.read((uint8_t*)&rec, sizeof(BaselineDevice));
+            size_t bytesRead = SafeSD::read(dataFile, (uint8_t*)&rec, sizeof(BaselineDevice));
             
             if (bytesRead != sizeof(BaselineDevice)) {
                 break;
@@ -1039,11 +1039,11 @@ void loadBaselineFromSD() {
 }
 
 void saveBaselineStatsToSD() {
-    if (!sdAvailable) {
+     if (!SafeSD::isAvailable()) {
         return;
     }
     
-    File statsFile = SD.open("/baseline_stats.json", FILE_WRITE);
+    File statsFile = SafeSD::open("/baseline_stats.json", FILE_WRITE);
     if (!statsFile) {
         return;
     }
@@ -1066,11 +1066,11 @@ void saveBaselineStatsToSD() {
 }
 
 void loadBaselineStatsFromSD() {
-    if (!sdAvailable) {
+    if (!SafeSD::isAvailable()) {
         return;
     }
     
-    File statsFile = SD.open("/baseline_stats.json", FILE_READ);
+    File statsFile = SafeSD::open("/baseline_stats.json", FILE_READ);
     if (!statsFile) {
         return;
     }
@@ -1329,7 +1329,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
 void buildSDIndex() {
     sdDeviceIndex.clear();
     
-    File dataFile = SD.open("/baseline_data.bin", FILE_READ);
+    File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
     if (!dataFile) {
         return;
     }
@@ -1337,9 +1337,9 @@ void buildSDIndex() {
     uint32_t magic, deviceCount;
     uint16_t version;
     
-    dataFile.read((uint8_t*)&magic, sizeof(magic));
-    dataFile.read((uint8_t*)&version, sizeof(version));
-    dataFile.read((uint8_t*)&deviceCount, sizeof(deviceCount));
+    SafeSD::read(dataFile, (uint8_t*)&magic, sizeof(magic));
+    SafeSD::read(dataFile, (uint8_t*)&version, sizeof(version));
+    SafeSD::read(dataFile, (uint8_t*)&deviceCount, sizeof(deviceCount));
     
     if (magic != 0xBA5EBA11) {
         dataFile.close();
@@ -1350,7 +1350,7 @@ void buildSDIndex() {
     uint32_t position = 10;
     
     while (dataFile.available() >= sizeof(BaselineDevice)) {
-        size_t bytesRead = dataFile.read((uint8_t*)&rec, sizeof(BaselineDevice));
+        size_t bytesRead = SafeSD::read(dataFile, (uint8_t*)&rec, sizeof(BaselineDevice));
         
         if (bytesRead != sizeof(BaselineDevice)) {
             break;
