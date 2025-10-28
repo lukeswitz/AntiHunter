@@ -217,10 +217,19 @@ void initializeHardware()
         nodeId = buffer;
         prefs.putString("nodeId", nodeId);
     }
+    else if (!nodeId.startsWith("AH")) {
+        Serial.println("Warning: Stored nodeId does not have AH prefix, correcting...");
+        String correctedId = "AH" + nodeId;
+        if (correctedId.length() > 16) {
+            correctedId = correctedId.substring(0, 16);
+        }
+        nodeId = correctedId;
+        prefs.putString("nodeId", nodeId);
+    }
     setNodeId(nodeId);
-    
+
     Serial.println("[NODE_ID] " + nodeId);
-    Serial.printf("Hardware initialized: nodeID=%s\n", nodeId);
+    Serial.printf("Hardware initialized: nodeID=%s\n", nodeId.c_str());
 }
 
 void saveConfiguration() {

@@ -595,7 +595,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <h3>Node Configuration</h3>
           <form id="nodeForm" method="POST" action="/node-id">
             <label>Node ID</label>
-            <input type="text" id="nodeId" name="id" maxlength="16" placeholder="NODE_01">
+            <input type="text" id="nodeId" name="id" minlength="3" maxlength="16" placeholder="AH01" pattern="^AH.*" required>
             <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
           </form>
 
@@ -2690,6 +2690,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       document.getElementById('nodeForm').addEventListener('submit', e => {
         e.preventDefault();
+        const idValue = document.getElementById('nodeId').value.trim();
+        if (!idValue.startsWith('AH')) {
+          toast('Node ID must start with AH prefix', 'error');
+          return;
+        }
         ajaxForm(e.target, 'Node ID updated');
         setTimeout(loadNodeId, 500);
       });
@@ -2872,15 +2877,24 @@ void startWebServer()
         req->send(200, "text/plain", "Saved"); });
 
   server->on("/node-id", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-    String id = req->hasParam("id", true) ? req->getParam("id", true)->value() : "";
-    if (id.length() > 0 && id.length() <= 16) {
-        setNodeId(id);
-        saveConfiguration();
-        req->send(200, "text/plain", "Node ID updated");
-    } else {
-        req->send(400, "text/plain", "Invalid ID (1-16 chars)");
-    } });
+            {
+      String id = req->hasParam("id", true) ? req->getParam("id", true)->value() : "";
+      id.trim();
+      
+      if (id.length() < 3 || id.length() > 16) {
+          req->send(400, "text/plain", "Invalid ID length (3-16 chars required)");
+          return;
+      }
+      
+      if (!id.startsWith("AH")) {
+          req->send(400, "text/plain", "Node ID must start with 'AH' prefix");
+          return;
+      }
+      
+      setNodeId(id);
+      saveConfiguration();
+      req->send(200, "text/plain", "Node ID updated");
+  });
 
   server->on("/node-id", HTTP_GET, [](AsyncWebServerRequest *r)
              {
