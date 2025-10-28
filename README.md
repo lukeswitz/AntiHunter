@@ -247,18 +247,30 @@ For rapid deployment without building from source, precompiled binaries are avai
 
 **Linux/macOS:**
 ```bash
-# Download and run the flasher script
+# Download the flasher script
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
 chmod +x flashAntihunter.sh
+```
+
+```bash
+# Run the flasher script with default configuration (Full AP Firmware)
 ./flashAntihunter.sh
+
+# Run the flasher script with interactive configuration (Headless Firmware)
+./flashAntihunter.sh -c -e
 ```
 
 **Process:**
 1. Connect your ESP32-S3 board via USB
 2. Run the flasher script, follow prompts
 3. The device will reboot with AntiHunter firmware
-4. Connect to the `Antihunter` WiFi AP (password: `ouispy123`)
-5. Access the web interface at `http://192.168.4.1`
+
+Full Firmware:
+- Connect to the `Antihunter` WiFi AP (password: `ouispy123`)
+- Access the web interface at `http://192.168.4.1`
+
+Headless Firmware:
+- Use the [commands list](https://github.com/lukeswitz/AntiHunter/edit/main/README.md#command-reference) below to interact with the device
 
 ### **Development Setup**
 
