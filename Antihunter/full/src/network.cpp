@@ -389,17 +389,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 </div>
               </div>
               
-              <label style="font-size:11px;">Channels</label>
-              <input type="text" name="ch" placeholder="1..14" value="1..14" style="margin-bottom:8px;">
-              
-              <div style="display:flex;gap:16px;margin-bottom:12px;align-items:center;">
-                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;cursor:pointer;color:var(--txt);">
-                  <input type="checkbox" id="forever" name="forever" value="1" style="width:auto;margin:0;">
-                  <span>Forever</span>
+              <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="forever" name="forever" value="1">Forever
                 </label>
-                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;cursor:pointer;color:var(--txt);">
-                  <input type="checkbox" id="triangulate" name="triangulate" value="1" style="width:auto;margin:0;">
-                  <span>Triangulate</span>
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="triangulate">Triangulate
                 </label>
               </div>
               
@@ -552,7 +547,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
               </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
                 <label style="font-size:10px;color:var(--muted);">BLE Scan Duration (ms)</label>
                 <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
@@ -561,6 +556,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <label style="font-size:10px;color:var(--muted);">BLE Scan Interval (ms)</label>
                 <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
               </div>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:10px;color:var(--muted);">WiFi Channels</label>
+              <input type="text" id="wifiChannels" placeholder="1..14" value="1..14" style="padding:4px;font-size:11px;">
             </div>
           </div>
         </div>
@@ -829,6 +828,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
           document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
           document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
+          document.getElementById('wifiChannels').value = cfg.channels || '1..14';
           updateRFPresetUI();
         } catch(e) {}
       }
@@ -929,6 +929,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           fd.append('wifiScanInterval', document.getElementById('wifiScanInterval').value);
           fd.append('bleScanInterval', document.getElementById('bleScanInterval').value);
           fd.append('bleScanDuration', document.getElementById('bleScanDuration').value);
+          fd.append('channels', document.getElementById('wifiChannels').value);
         } else {
           fd.append('preset', preset);
         }
@@ -936,9 +937,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         try {
           const r = await fetch('/rf-config', {method: 'POST', body: fd});
           const msg = await r.text();
-          toast(msg);
+          toast(msg, 'success');
         } catch(e) {
-          toast('Error: ' + e.message);
+          toast('Failed to save RF config', 'error');
         }
       }
 
@@ -3830,15 +3831,25 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
 
   server->on("/rf-config", HTTP_GET, [](AsyncWebServerRequest *req) {
-      RFScanConfig cfg = getRFConfig();
-      String json = "{";
-      json += "\"preset\":" + String(cfg.preset) + ",";
-      json += "\"wifiChannelTime\":" + String(cfg.wifiChannelTime) + ",";
-      json += "\"wifiScanInterval\":" + String(cfg.wifiScanInterval) + ",";
-      json += "\"bleScanInterval\":" + String(cfg.bleScanInterval) + ",";
-      json += "\"bleScanDuration\":" + String(cfg.bleScanDuration);
-      json += "}";
-      req->send(200, "application/json", json);
+    extern RFScanConfig rfConfig;
+    
+    String channelsCSV = "";
+    for (size_t i = 0; i < CHANNELS.size(); i++) {
+        channelsCSV += String(CHANNELS[i]);
+        if (i < CHANNELS.size() - 1) {
+            channelsCSV += ",";
+        }
+    }
+    
+    String json = "{";
+    json += "\"preset\":" + String(rfConfig.preset) + ",";
+    json += "\"wifiChannelTime\":" + String(rfConfig.wifiChannelTime) + ",";
+    json += "\"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",";
+    json += "\"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",";
+    json += "\"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",";
+    json += "\"channels\":\"" + channelsCSV + "\"";
+    json += "}";
+    req->send(200, "application/json", json);
   });
 
   server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -3853,7 +3864,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
           uint32_t wsi = req->getParam("wifiScanInterval", true)->value().toInt();
           uint32_t bsi = req->getParam("bleScanInterval", true)->value().toInt();
           uint32_t bsd = req->getParam("bleScanDuration", true)->value().toInt();
-          setCustomRFConfig(wct, wsi, bsi, bsd);
+          String channels = req->hasParam("channels", true) ? 
+                          req->getParam("channels", true)->value() : "1..14";
+          setCustomRFConfig(wct, wsi, bsi, bsd, channels);
           saveConfiguration();
           req->send(200, "text/plain", "Custom RF config updated");
       } else {
@@ -3861,18 +3874,18 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       }
   });
 
-   server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
-      String ssid = prefs.getString("apSsid", AP_SSID);
-      String pass = prefs.getString("apPass", AP_PASS);
-      
-      if (ssid.length() == 0) ssid = AP_SSID;
-      if (pass.length() == 0) pass = AP_PASS;
-      
-      String json = "{";
-      json += "\"ssid\":\"" + ssid + "\",";
-      json += "\"pass\":\"" + pass + "\"";
-      json += "}";
-      req->send(200, "application/json", json);
+  server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String ssid = prefs.getString("apSsid", AP_SSID);
+    String pass = prefs.getString("apPass", AP_PASS);
+    
+    if (ssid.length() == 0) ssid = AP_SSID;
+    if (pass.length() == 0) pass = AP_PASS;
+    
+    String json = "{";
+    json += "\"ssid\":\"" + ssid + "\",";
+    json += "\"pass\":\"" + pass + "\"";
+    json += "}";
+    req->send(200, "application/json", json);
   });
 
   server->on("/clear-results", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -4004,7 +4017,7 @@ void processCommand(const String &command)
     saveConfiguration();
     Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
     sendToSerial1(nodeId + ": CONFIG_ACK:CHANNELS:" + channels, true);
-}
+  }
   else if (command.startsWith("CONFIG_TARGETS:"))
   {
     String targets = command.substring(15);

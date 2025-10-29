@@ -80,12 +80,13 @@ struct RFScanConfig {
     uint32_t bleScanInterval;
     uint32_t bleScanDuration;
     uint8_t preset;
+    String wifiChannels;
 };
 
 // Granular settings
 extern RFScanConfig rfConfig;
 void setRFPreset(uint8_t preset);
-void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration);
+void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels);
 RFScanConfig getRFConfig();
 void loadRFConfigFromPrefs();
 
