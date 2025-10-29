@@ -212,114 +212,110 @@ unsigned long getMeshSendInterval() {
 
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html>
-<html>
+<html data-theme="light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>AntiHunter</title>
     <style>
-      :root{--bg:#000;--fg:#00ff7f;--fg2:#00cc66;--accent:#0aff9d;--card:#0b0b0b;--muted:#00ff7f99;--danger:#ff8800;--border:#003b24}
+      :root{--t:0.2s}
+      [data-theme="light"]{--bg:#f8fafc;--surf:#fff;--bord:#e5e7eb;--txt:#1f2937;--mut:#6b7280;--acc:#3b82f6;--acch:#2563eb;--accbg:#eff6ff;--succ:#10b981;--warn:#f59e0b;--dang:#ef4444;--shad:rgba(0,0,0,.08)}
+      [data-theme="dark"]{--bg:#0f1419;--surf:#1a1f2e;--bord:#2d3748;--txt:#e2e8f0;--mut:#94a3b8;--acc:#4a90e2;--acch:#5b9bd5;--accbg:#1e3a5f;--succ:#10b981;--warn:#f59e0b;--dang:#ef4444;--shad:rgba(0,0,0,.3)}
       *{box-sizing:border-box;margin:0;padding:0}
-      body,html{height:100%;margin:0}
-      body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.4}
-      .header{padding:10px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#001a10,#000);display:flex;flex-wrap:wrap;align-items:center;gap:7px}
-      h1{font-size:16px;letter-spacing:0.5px}
-      h3{margin:0 0 8px;color:var(--fg);font-size:14px}
-      .container{max-width:1400px;margin:0 auto;padding:10px}
-      .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom: 16px;box-shadow:0 4px 20px rgba(0,255,127,.05)}
-      label{display:block;margin:5px 0 3px;color:var(--muted);font-size:11px}
-      input[type=number],input[type=text],select,textarea{width:100%;background:#000;border:1px solid var(--border);border-radius:6px;color:var(--fg);padding:7px;font-family:inherit;font-size:12px}
-      input[type=number]{-moz-appearance:textfield}
-      input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+      body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.5;transition:background var(--t),color var(--t)}
+      .header{padding:16px 24px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;align-items:center;gap:16px;box-shadow:0 1px 3px var(--shad);flex-wrap:wrap}
+      h1{font-size:18px;font-weight:600;flex-shrink:0}
+      h3{margin:0 0 16px;font-size:15px;font-weight:600}
+      .container{max-width:1400px;margin:0 auto;padding:24px}
+      .card{background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px var(--shad)}
+      label{display:block;margin:8px 0 6px;color:var(--mut);font-size:13px;font-weight:500}
+      input,select,textarea{width:100%;background:var(--surf);border:1px solid var(--bord);border-radius:6px;color:var(--txt);padding:8px 12px;font:inherit;font-size:14px;transition:all .15s}
+      input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg)}
       textarea{min-height:70px;resize:vertical}
-      .btn{display:inline-block;padding:7px 11px;border-radius:6px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:11px;transition:all .2s;white-space:nowrap}
-      .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
-      .btn.primary{background:#002417;border-color:#0c6}
-      .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
-      .btn.danger{background:transparent;border-color:#dd6600;color:#ff9933}
-      .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-      .small{opacity:.65;font-size:10px}
-      pre{white-space:pre-wrap;background:#000;border:1px dashed var(--border);border-radius:6px;padding:8px;font-size:10px;line-height:1.3;overflow-x:auto;max-height:350px;overflow-y:auto}
-      hr{border:0;border-top:1px dashed var(--border);margin:10px 0}
-      .banner{font-size:10px;color:#0aff9d;border:1px dashed #004e2f;padding:5px 7px;border-radius:6px;background:#001108;margin-bottom:8px}
-      #toast{position:fixed;right:12px;bottom:12px;display:flex;flex-direction:column;gap:5px;z-index:9999}
-      .toast{background:#001d12;border:1px solid #0aff9d55;color:var(--fg);padding:8px 10px;border-radius:6px;box-shadow:0 6px 24px rgba(10,255,157,.2);opacity:0;transform:translateY(8px);transition:opacity .15s,transform .15s;font-size:11px}
+      .btn{display:inline-block;padding:8px 16px;border-radius:6px;border:1px solid var(--bord);background:var(--surf);color:var(--txt);text-decoration:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s}
+      .btn:hover{transform:translateY(-1px);box-shadow:0 2px 8px var(--shad)}
+      .btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+      .btn.primary:hover{background:var(--acch)}
+      .btn.alt{color:var(--acc)}
+      .btn.danger{background:var(--dang);border-color:var(--dang);color:#fff}
+      .theme-toggle{width:42px;height:24px;background:var(--surf);border:2px solid var(--acc);border-radius:12px;cursor:pointer;position:relative;transition:all .2s;margin-left:auto;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 1px var(--bord)}
+      .theme-toggle:hover{transform:scale(1.05);box-shadow:0 2px 8px var(--shad)}
+      .theme-toggle svg{width:16px;height:16px;position:absolute;transition:opacity .3s,transform .3s;stroke:var(--acc);fill:var(--acc)}
+      .theme-toggle .sun{opacity:1;transform:rotate(0deg) scale(1)}
+      .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0);stroke:none}
+      [data-theme="dark"] .theme-toggle{background:var(--surf);border-color:var(--acc)}
+      [data-theme="dark"] .theme-toggle svg{stroke:var(--acc);fill:var(--acc)}
+      [data-theme="dark"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
+      [data-theme="dark"] .theme-toggle .moon{opacity:1;transform:rotate(0deg) scale(1)}
+      [data-theme="dark"] input[type="number"]::-webkit-outer-spin-button,
+      [data-theme="dark"] input[type="number"]::-webkit-inner-spin-button {filter: invert(1);}
+      pre{background:var(--surf);border:1px solid var(--bord);border-radius:6px;padding:12px;font-size:12px;overflow-x:auto;font-family:monospace}
+      hr{border:0;border-top:1px solid var(--bord);margin:16px 0}
+      .banner{color:var(--dang);border:1px solid var(--dang);padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px}
+      #toast{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:9999}
+      .toast{background:var(--surf);border:1px solid var(--bord);padding:12px 16px;border-radius:6px;box-shadow:0 4px 12px var(--shad);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;font-size:13px}
       .toast.show{opacity:1;transform:none}
-      .toast.success{border-color:#00cc66;background:#002200}
-      .toast.error{border-color:#ff8800;background:#330}
-      .toast.warning{border-color:#ffaa00;background:#332200}
-      .footer{opacity:.7;font-size:10px;padding:6px;text-align:center;margin-top:12px}
-      .status-bar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-left:auto;font-size:10px}
-      .status-item{background:#001a10;border:1px solid var(--border);padding:3px 7px;border-radius:5px;font-size:9px;white-space:nowrap}
-      .status-item.active{border-color:#0c6;background:#002417}
-      .tab-buttons{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap}
-      .tab-btn{padding:6px 11px;background:#001b12;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--muted);font-size:11px;transition:all .2s}
-      .tab-btn.active{background:#002417;border-color:#0c6;color:var(--fg)}
+      .toast.success{border-color:var(--succ)}
+      .toast.error{border-color:var(--dang)}
+      .toast.warning{border-color:var(--warn)}
+      .footer{color:var(--mut);font-size:12px;padding:16px;text-align:center}
+      .status-bar{display:flex;gap:8px;align-items:center;flex-shrink:0}
+      .status-item{background:var(--surf);border:1px solid var(--bord);padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500;color:var(--mut)}
+      .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
+      .tab-buttons{display:flex;gap:4px;margin-bottom:16px;background:var(--surf);padding:4px;border-radius:8px}
+      .tab-btn{padding:6px 14px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:500}
+      .tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 1px 2px var(--shad)}
       .tab-content{display:none}
       .tab-content.active{display:block}
-      .stat-item{background:#001108;border:1px solid var(--border);padding:8px;border-radius:6px}
-      .stat-label{color:var(--muted);font-size:9px;text-transform:uppercase;margin-bottom:3px}
-      .stat-value{color:var(--fg);font-size:15px;font-weight:700}
-      details > summary{list-style:none;cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:7px;font-size:11px}
-      details > summary::-webkit-details-marker{display:none}
-      details > summary > span:first-child{display:inline-block;transition:transform 0.2s;transform-origin:center}
-      details[open] > summary > span:first-child{transform:rotate(90deg)}
-      .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:10px}
+      .stat-item{background:var(--surf);border:1px solid var(--bord);padding:16px;border-radius:6px}
+      .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:6px;font-weight:600}
+      .stat-value{color:var(--txt);font-size:20px;font-weight:700}
+      .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:16px}
       .card-header h3{margin:0}
-      .collapse-icon{transition:transform 0.2s;font-size:13px;color:var(--muted);display:inline-block;transform-origin:center;}
+      .collapse-icon{transition:transform .2s;font-size:14px;color:var(--mut)}
       .collapse-icon.open{transform:rotate(90deg)}
-      .card-body{overflow:hidden;transition:max-height 0.3s ease}
+      .card-body{overflow:hidden;transition:max-height .3s ease}
       .card-body.collapsed{max-height:0!important;margin:0;padding:0}
-      .section-divider{border-top:1px solid var(--border);margin:12px 0;padding-top:12px}
-      #terminalWindow{position:fixed;bottom:20px;left:20px;width:600px;max-width:90vw;background:#000;border:2px solid #0aff9d;border-radius:8px;box-shadow:0 8px 32px rgba(10,255,157,.3);display:none;flex-direction:column;z-index:10000;max-height:400px}
-      #terminalWindow.visible{display:flex}
-      #terminalHeader{background:linear-gradient(180deg,#001a10,#000);padding:8px 12px;border-bottom:1px solid #0aff9d;display:flex;justify-content:space-between;align-items:center;cursor:move}
-      #terminalTitle{color:#0aff9d;font-size:11px;font-weight:600;letter-spacing:0.5px;user-select:none}
-      #terminalClose{color:#ff8800;cursor:pointer;font-size:16px;line-height:1;padding:0 4px;user-select:none}
-      #terminalClose:hover{color:#ffaa00}
-      #terminalContent{flex:1;overflow-y:auto;padding:8px;font-family:monospace;font-size:10px;line-height:1.4;color:#00ff7f}
-      #terminalContent::-webkit-scrollbar{width:6px}
-      #terminalContent::-webkit-scrollbar-track{background:#000}
-      #terminalContent::-webkit-scrollbar-thumb{background:#0aff9d;border-radius:3px}
-      .terminal-line{margin:1px 0;white-space:pre-wrap;word-break:break-all}
-      .terminal-line.tx{color:#0aff9d}
-      .terminal-line.rx{color:#00ff7f}
-      #terminalToggle{position:fixed;bottom:20px;left:20px;background:#001b12;border:2px solid #0aff9d;color:#0aff9d;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(10,255,157,.2)}
-      #terminalToggle:hover{background:#002417;box-shadow:0 6px 20px rgba(10,255,157,.3)}
-      #terminalToggle.active{background:#002417;border-color:#00ff7f}
-
-      @media (min-width:900px){
-        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-        .grid-2 > .card{align-self:stretch}
-        .grid-node-diag{display:grid;grid-template-columns:minmax(280px,auto) 1fr;gap:10px}
-        .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-      }
-      @media (max-width:899px){
-        .grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:10px}
-        .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
-        .container{padding:8px}
-        .card{padding:10px}
-        h1{font-size:15px}
-        .status-bar{width:100%;margin-left:0;margin-top:6px}
-      }
-      @media (max-width:600px){
-        .stat-grid{grid-template-columns:1fr}
-        .status-item{font-size:8px;padding:2px 5px}
-        input[type=number],input[type=text],select{font-size:11px;padding:6px}
-      }
+      details>summary{list-style:none;cursor:pointer;font-weight:600;color:var(--acc);margin-bottom:8px;font-size:13px;padding:8px 0}
+      details>summary::-webkit-details-marker{display:none}
+      @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}}
+      @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:16px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.container{padding:16px}.card{padding:16px}h1{font-size:16px}.status-bar{width:100%;margin-left:0;margin-top:12px}}
+      @media(max-width:600px){.stat-grid{grid-template-columns:1fr}.status-item{font-size:11px;padding:5px 10px}}
     </style>
+    <script>
+      function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),n='dark'===t?'light':'dark';e.setAttribute('data-theme',n),localStorage.setItem('theme',n)}
+      (function(){const e=localStorage.getItem('theme');e?document.documentElement.setAttribute('data-theme',e):document.documentElement.setAttribute('data-theme','light')})();
+    </script>
   </head>
   <body>
     <div id="toast"></div>
     <div class="header">
       <h1>AntiHunter</h1>
-      <div class="status-bar">
-        <div class="status-item" id="modeStatus">WiFi</div>
-        <div class="status-item" id="scanStatus">Idle</div>
-        <div class="status-item" id="gpsStatus">GPS</div>
-        <div class="status-item" id="rtcStatus">RTC</div>
-        <a class="btn danger" href="/stop" data-ajax="true" id="stopAllBtn" style="margin-left:auto;padding:6px 12px;font-size:11px;display:none;">STOP ALL</a>
+      <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
+        <div class="status-bar">
+          <div class="status-item" id="modeStatus">WiFi</div>
+          <div class="status-item" id="scanStatus">Idle</div>
+          <div class="status-item" id="gpsStatus">GPS</div>
+          <div class="status-item" id="rtcStatus">RTC</div>
+        </div>
+        <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </div>
       </div>
+      <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
     </div>
     <div class="container">
       
@@ -380,12 +376,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <label style="font-size:11px;">Channels</label>
               <input type="text" name="ch" placeholder="1..14" value="1..14" style="margin-bottom:8px;">
               
-              <div style="display:flex;gap:16px;margin-bottom:12px;">
-                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
-                  <input type="checkbox" id="forever" name="forever" value="1">Forever
+              <div style="display:flex;gap:16px;margin-bottom:12px;align-items:center;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;cursor:pointer;color:var(--txt);">
+                  <input type="checkbox" id="forever" name="forever" value="1" style="width:auto;margin:0;">
+                  <span>Forever</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
-                  <input type="checkbox" id="triangulate" name="triangulate" value="1">Triangulate
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;cursor:pointer;color:var(--txt);">
+                  <input type="checkbox" id="triangulate" name="triangulate" value="1" style="width:auto;margin:0;">
+                  <span>Triangulate</span>
                 </label>
               </div>
               
@@ -493,10 +491,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 
                 <label style="font-size:11px;">Monitor (s)</label>
                 <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
-                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
-                  <input type="checkbox" id="foreverBaseline" name="forever" value="1">Forever
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;color:var(--txt);">
+                  <input type="checkbox" id="foreverBaseline" name="forever" value="1" style="width:auto;margin:0;">
+                  <span>Forever</span>
                 </label>
-                <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:11px;margin-bottom:8px;">
+                <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #888;border-radius:6px;font-size:11px;margin-bottom:8px;">
                   <div style="color:#888;">No baseline data</div>
                 </div>
               </div>
@@ -572,7 +571,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <h3 style="margin:0;">Scan Results</h3>
           <div style="display:flex;gap:8px;align-items:center;">
             <label style="font-size:11px;color:var(--muted);">Sort:</label>
-            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;background:#000;border:1px solid var(--border);border-radius:6px;color:var(--fg);font-size:11px;">
+            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;border-radius:6px;font-size:11px;">
               <option value="default">Default</option>
               <option value="rssi-desc">RSSI (Strongest)</option>
               <option value="rssi-asc">RSSI (Weakest)</option>
@@ -601,28 +600,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <input type="text" id="nodeId" name="id" minlength="3" maxlength="16" placeholder="AH01" pattern="^AH.*" required>
             <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
           </form>
-
-          <div style="margin-top:12px;">
-            <label>Mesh Send Interval (ms)</label>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
-              <button class="btn" onclick="saveMeshInterval()">Save</button>
-            </div>
-            <div class="small" style="margin-top:4px;opacity:0.7;">
-              Rate limit for mesh notifications (1500-30000ms). Lower = more frequent updates, higher traffic.
-            </div>
-          </div>
           
           <hr>
           
-          <label style="display:flex;align-items:center;gap:8px;margin:12px 0;">
-            <input type="checkbox" id="meshEnabled" checked>
-            <span style="font-size:13px;">Mesh Communications</span>
-          </label>
-          
-          <div style="display:flex;gap:8px;">
-            <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
-            <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
+          <div style="margin-top:12px;">
+            <label>Mesh Communications</label>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button class="btn" id="meshToggleBtn" onclick="toggleMesh()" style="flex:1;"></button>
+            </div>
+            
+            <div id="meshControls" style="display:none;">
+              <label>Mesh Send Interval (ms)</label>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
+                <button class="btn" onclick="saveMeshInterval()">Save</button>
+              </div>
+              
+              <div style="display:flex;gap:8px;">
+                <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
+                <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -723,9 +721,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Config</button>
             <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
           </div>
-        </details>
       </div>
-      
+      </div>
       <!-- 
       <div id="terminalToggle">TERMINAL</div>
       <div id="terminalWindow">
@@ -743,7 +740,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let selectedMode = '0';
       let baselineUpdateInterval = null;
       let lastScanningState = false;
-      
+      let meshEnabled = true;
+
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -763,21 +761,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast('Error: ' + e.message);
         }
       }
-      async function load() {
-        try {
-          const r = await fetch('/export');
-          const text = await r.text();
-          document.getElementById('list').value = text;
-          const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-          document.getElementById('targetCount').innerText = lines.length + ' targets';
-          const rr = await fetch('/results');
-          const resultsText = await rr.text();
-          document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
-          loadNodeId();
-          loadRFConfig();
-          loadWiFiConfig();
-        } catch (e) {}
-      }
+        async function load() {
+          try {
+            const r = await fetch('/export');
+            const text = await r.text();
+            document.getElementById('list').value = text;
+            const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+            document.getElementById('targetCount').innerText = lines.length + ' targets';
+            const rr = await fetch('/results');
+            const resultsText = await rr.text();
+            document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
+            loadNodeId();
+            loadRFConfig();
+            loadWiFiConfig();
+            loadMeshStatus();
+            loadMeshInterval();
+          } catch (e) {}
+        }
       async function loadNodeId() {
         try {
           const r = await fetch('/node-id');
@@ -845,6 +845,63 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }).catch(e => {
           toast('Failed to save mesh interval', 'error');
         });
+      }
+      
+      
+      
+      function toggleMesh() {
+        meshEnabled = !meshEnabled;
+        
+        fetch('/mesh', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'enabled=' + meshEnabled
+        }).then(r => r.text()).then(msg => {
+          updateMeshUI();
+          toast(msg, 'success');
+        }).catch(e => {
+          toast('Failed to update mesh status', 'error');
+          meshEnabled = !meshEnabled;
+          updateMeshUI();
+        });
+        
+        updateMeshUI();
+      }
+      
+      function updateMeshUI() {
+        const btn = document.getElementById('meshToggleBtn');
+        const controls = document.getElementById('meshControls');
+        
+        if (!btn) return;
+        
+        if (meshEnabled) {
+          btn.textContent = 'Mesh: Enabled';
+          btn.classList.add('primary');
+          btn.style.background = 'var(--succ)';
+          btn.style.borderColor = 'var(--succ)';
+          btn.style.color = '#fff';
+          if (controls) controls.style.display = 'block';
+        } else {
+          btn.textContent = 'Mesh: Disabled';
+          btn.classList.remove('primary');
+          btn.style.background = 'var(--dang)';
+          btn.style.borderColor = 'var(--dang)';
+          btn.style.color = '#fff';
+          if (controls) controls.style.display = 'none';
+        }
+      }
+      
+      async function loadMeshStatus() {
+        try {
+          const r = await fetch('/diag');
+          const text = await r.text();
+          console.log('[MESH] Full diag:', text);
+          meshEnabled = text.includes('Mesh: Enabled');
+          console.log('[MESH] Enabled:', meshEnabled);
+        } catch(e) {
+          console.error('[MESH] Failed to load:', e);
+        }
+        updateMeshUI();
       }
 
       async function saveRFConfig() {
@@ -1302,120 +1359,151 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       };
       
       function updateStatusIndicators(diagText) {
-          const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
-          const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
-          const isScanning = diagText.includes('Scanning: yes');
-          
-          if (isScanning) {
-              document.getElementById('scanStatus').innerText = 'Active';
-              document.getElementById('scanStatus').classList.add('active');
-              
-              const startScanBtn = document.querySelector('#s button');
-              if (startScanBtn && taskType === 'scan') {
-                  startScanBtn.textContent = 'Stop Scanning';
-                  startScanBtn.classList.remove('primary');
-                  startScanBtn.classList.add('danger');
-                  startScanBtn.type = 'button';
-                  startScanBtn.onclick = function(e) {
-                      e.preventDefault();
-                      fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                          setTimeout(async () => {
-                              const refreshedDiag = await fetch('/diag').then(r => r.text());
-                              updateStatusIndicators(refreshedDiag);
-                          }, 500);
-                      });
-                  };
-              }
+        const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
+        const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
+        const isScanning = diagText.includes('Scanning: yes');
+        const detectionMode = document.getElementById('detectionMode')?.value;
+        
+        document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
+        document.getElementById('clearOldBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+        document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+        
+        if (isScanning) {
+            document.getElementById('scanStatus').innerText = 'Active';
+            document.getElementById('scanStatus').classList.add('active');
+            
+            const startScanBtn = document.querySelector('#s button');
+            if (startScanBtn && taskType === 'scan') {
+                startScanBtn.textContent = 'Stop Scanning';
+                startScanBtn.classList.remove('primary');
+                startScanBtn.classList.add('danger');
+                startScanBtn.type = 'button';
+                startScanBtn.onclick = function(e) {
+                    e.preventDefault();
+                    fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                        setTimeout(async () => {
+                            const refreshedDiag = await fetch('/diag').then(r => r.text());
+                            updateStatusIndicators(refreshedDiag);
+                        }, 500);
+                    });
+                };
+            }
 
-              if (taskType === 'triangulate') {
-                  const triangulateBtn = document.querySelector('#s button');
-                  if (triangulateBtn) {
-                      triangulateBtn.textContent = 'Stop Scan';
-                      triangulateBtn.classList.remove('primary');
-                      triangulateBtn.classList.add('danger');
-                      triangulateBtn.type = 'button';
-                      triangulateBtn.onclick = function(e) {
-                          e.preventDefault();
-                          fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                              setTimeout(async () => {
-                                  const refreshedDiag = await fetch('/diag').then(r => r.text());
-                                  updateStatusIndicators(refreshedDiag);
-                              }, 500);
-                          });
-                      };
-                  }
-              }
+            if (taskType === 'triangulate') {
+                const triangulateBtn = document.querySelector('#s button');
+                if (triangulateBtn) {
+                    triangulateBtn.textContent = 'Stop Scan';
+                    triangulateBtn.classList.remove('primary');
+                    triangulateBtn.classList.add('danger');
+                    triangulateBtn.type = 'button';
+                    triangulateBtn.onclick = function(e) {
+                        e.preventDefault();
+                        fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                            setTimeout(async () => {
+                                const refreshedDiag = await fetch('/diag').then(r => r.text());
+                                updateStatusIndicators(refreshedDiag);
+                            }, 500);
+                        });
+                    };
+                }
+            }
 
-              if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam') {
-                  const startDetectionBtn = document.getElementById('startDetectionBtn');
-                  if (startDetectionBtn) {
-                      startDetectionBtn.textContent = 'Stop Scanning';
-                      startDetectionBtn.classList.remove('primary');
-                      startDetectionBtn.classList.add('danger');
-                      startDetectionBtn.type = 'button';
-                      startDetectionBtn.onclick = function(e) {
-                          e.preventDefault();
-                          fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                              setTimeout(async () => {
-                                  const refreshedDiag = await fetch('/diag').then(r => r.text());
-                                  updateStatusIndicators(refreshedDiag);
-                              }, 500);
-                          });
-                      };
-                      
-                      const detectionMode = document.getElementById('detectionMode')?.value;
-                      document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
-                      document.getElementById('clearOldBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
-                      document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
-                  }
-              }
-          } else {
-              document.getElementById('scanStatus').innerText = 'Idle';
-              document.getElementById('scanStatus').classList.remove('active');
+            if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam') {
+                const startDetectionBtn = document.getElementById('startDetectionBtn');
+                if (startDetectionBtn) {
+                    startDetectionBtn.textContent = 'Stop Scanning';
+                    startDetectionBtn.classList.remove('primary');
+                    startDetectionBtn.classList.add('danger');
+                    startDetectionBtn.type = 'button';
+                    startDetectionBtn.onclick = function(e) {
+                        e.preventDefault();
+                        fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                            setTimeout(async () => {
+                                const refreshedDiag = await fetch('/diag').then(r => r.text());
+                                updateStatusIndicators(refreshedDiag);
+                            }, 500);
+                        });
+                    };
+                }
+            }
+        } else {
+            document.getElementById('scanStatus').innerText = 'Idle';
+            document.getElementById('scanStatus').classList.remove('active');
 
-              const startScanBtn = document.querySelector('#s button');
-              if (startScanBtn) {
-                  startScanBtn.textContent = 'Start Scan';
-                  startScanBtn.classList.remove('danger');
-                  startScanBtn.classList.add('primary');
-                  startScanBtn.type = 'submit';
-                  startScanBtn.onclick = null;
-                  startScanBtn.style.background = '';
-              }
+            const startScanBtn = document.querySelector('#s button');
+            if (startScanBtn) {
+                startScanBtn.textContent = 'Start Scan';
+                startScanBtn.classList.remove('danger');
+                startScanBtn.classList.add('primary');
+                startScanBtn.type = 'submit';
+                startScanBtn.onclick = null;
+                startScanBtn.style.background = '';
+            }
 
-              const detectionMode = document.getElementById('detectionMode')?.value;
-              if (detectionMode !== 'baseline') {
-                  const startDetectionBtn = document.getElementById('startDetectionBtn');
-                  if (startDetectionBtn) {
-                      startDetectionBtn.textContent = 'Start Scan';
-                      startDetectionBtn.classList.remove('danger');
-                      startDetectionBtn.classList.add('primary');
-                      startDetectionBtn.type = 'submit';
-                      startDetectionBtn.onclick = null;
-                  }
-              }
-          }
+            const detectionMode = document.getElementById('detectionMode')?.value;
+            if (detectionMode !== 'baseline') {
+                const startDetectionBtn = document.getElementById('startDetectionBtn');
+                if (startDetectionBtn) {
+                    startDetectionBtn.textContent = 'Start Scan';
+                    startDetectionBtn.classList.remove('danger');
+                    startDetectionBtn.classList.add('primary');
+                    startDetectionBtn.type = 'submit';
+                    startDetectionBtn.onclick = null;
+                }
+            }
+        }
 
-          const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
-          if (modeMatch) {
-              document.getElementById('modeStatus').innerText = modeMatch[1];
-          }
-          
-          if (diagText.includes('GPS: Locked')) {
-              document.getElementById('gpsStatus').classList.add('active');
-              document.getElementById('gpsStatus').innerText = 'GPS Lock';
-          } else {
-              document.getElementById('gpsStatus').classList.remove('active');
-              document.getElementById('gpsStatus').innerText = 'GPS';
-          }
-          
-          if (diagText.includes('RTC: Synced')) {
-              document.getElementById('rtcStatus').classList.add('active');
-              document.getElementById('rtcStatus').innerText = 'RTC OK';
-          } else if (diagText.includes('RTC: Not')) {
-              document.getElementById('rtcStatus').classList.remove('active');
-              document.getElementById('rtcStatus').innerText = 'RTC';
-          }
+        const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
+        if (modeMatch) {
+            document.getElementById('modeStatus').innerText = modeMatch[1];
+        }
+        
+        if (diagText.includes('GPS: Locked')) {
+            document.getElementById('gpsStatus').classList.add('active');
+            document.getElementById('gpsStatus').innerText = 'GPS Lock';
+        } else {
+            document.getElementById('gpsStatus').classList.remove('active');
+            document.getElementById('gpsStatus').innerText = 'GPS';
+        }
+        
+        if (diagText.includes('RTC: Synced')) {
+            document.getElementById('rtcStatus').classList.add('active');
+            document.getElementById('rtcStatus').innerText = 'RTC OK';
+        } else if (diagText.includes('RTC: Not')) {
+            document.getElementById('rtcStatus').classList.remove('active');
+            document.getElementById('rtcStatus').innerText = 'RTC';
+        }
+      }
+        
+      function updateModeStatus() {
+        const scanModeSelect = document.querySelector('#s select[name="mode"]');
+        const detectionModeSelect = document.getElementById('detectionMode');
+        const randomizationModeSelect = document.getElementById('randomizationMode');
+        const deviceScanModeSelect = document.getElementById('deviceScanMode');
+        const modeStatus = document.getElementById('modeStatus');
+        
+        let currentMode = '0';
+        
+        // Check which form is active and visible
+        const detectionMethod = detectionModeSelect?.value;
+        
+        if (detectionMethod === 'randomization-detection' && randomizationModeSelect?.offsetParent !== null) {
+          currentMode = randomizationModeSelect.value;
+        } else if (detectionMethod === 'device-scan' && deviceScanModeSelect?.offsetParent !== null) {
+          currentMode = deviceScanModeSelect.value;
+        } else if (scanModeSelect) {
+          currentMode = scanModeSelect.value;
+        }
+        
+        const modeText = {
+          '0': 'WiFi',
+          '1': 'BLE',
+          '2': 'WiFi+BLE'
+        };
+        
+        if (modeStatus) {
+          modeStatus.innerText = modeText[currentMode] || 'WiFi';
+        }
       }
       
       function saveAutoEraseConfig() {
@@ -1515,7 +1603,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       function parseAndStyleResults(text) {
         if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
-          return '<div style="color:#00ff7f99;padding:20px;text-align:center;">No scan data yet.</div>';
+          return '<div style="color:var(--mut);padding:20px;text-align:center;">No scan data yet.</div>';
         }
 
         let html = '';
@@ -1533,7 +1621,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
           html = parseDeviceScanResults(text);
         } else {
-          html = '<pre style="margin:0;background:#000;border:1px solid #003b24;border-radius:8px;padding:12px;color:#00ff7f;font-size:11px;overflow-x:auto;">' + text + '</pre>';
+          html = '<div style="margin:0;background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:12px;color:var(--txt);font-size:11px;overflow-x:auto;">' + text + '</div>';
         }
         
         return html;
@@ -1548,47 +1636,44 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const nodesMatch = text.match(/Reporting Nodes: (\d+)/);
         const syncMatch = text.match(/Clock Sync: ([^\n]+)/);
         
-        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
-        html += '<div style="font-size:14px;color:#0aff9d;margin-bottom:10px;font-weight:bold;">TRIANGULATION RESULTS</div>';
-        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:11px;color:#00ff7f99;">';
-        if (targetMatch) html += '<span>Target: <strong style="color:#0aff9d;">' + targetMatch[1] + '</strong></span>';
-        if (durationMatch) html += '<span>Duration: <strong style="color:#00ff7f;">' + durationMatch[1] + 's</strong></span>';
-        if (elapsedMatch) html += '<span>Elapsed: <strong style="color:#00ff7f;">' + elapsedMatch[1] + 's</strong></span>';
-        if (nodesMatch) html += '<span>Nodes: <strong style="color:#00ff7f;">' + nodesMatch[1] + '</strong></span>';
+        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--acc);margin-bottom:10px;font-weight:bold;">TRIANGULATION RESULTS</div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:11px;color:var(--mut);">';
+        if (targetMatch) html += '<span>Target: <strong style="color:var(--acc);">' + targetMatch[1] + '</strong></span>';
+        if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + 's</strong></span>';
+        if (elapsedMatch) html += '<span>Elapsed: <strong style="color:var(--txt);">' + elapsedMatch[1] + 's</strong></span>';
+        if (nodesMatch) html += '<span>Nodes: <strong style="color:var(--txt);">' + nodesMatch[1] + '</strong></span>';
         html += '</div>';
         if (syncMatch) {
-          const syncColor = syncMatch[1].includes('VERIFIED') ? '#0aff9d' : '#ffaa00';
+          const syncColor = syncMatch[1].includes('VERIFIED') ? 'var(--succ)' : 'var(--warn)';
           html += '<div style="margin-top:8px;font-size:10px;color:' + syncColor + ';">⏱ ' + syncMatch[1] + '</div>';
         }
         html += '</div>';
         
-        // No nodes responding
         if (text.includes('No Mesh Nodes Responding')) {
-          html += '<div style="padding:16px;background:#300;border:1px solid #ff4444;border-radius:8px;text-align:center;color:#ff6666;">';
+          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;text-align:center;color:var(--dang);">';
           html += '⚠ No mesh nodes responded to triangulation request';
           html += '</div>';
           return html;
         }
         
-        // Triangulation impossible (no GPS)
         if (text.includes('TRIANGULATION IMPOSSIBLE')) {
-          html += '<div style="padding:16px;background:#300;border:1px solid #ff4444;border-radius:8px;color:#ff6666;">';
+          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;color:var(--dang);">';
           html += '<div style="font-weight:bold;margin-bottom:8px;">⚠ Triangulation Impossible</div>';
           const reasonMatch = text.match(/node\(s\) reporting, but none have GPS/);
           if (reasonMatch) {
             html += '<div style="font-size:12px;">None of the reporting nodes have GPS enabled.</div>';
-            html += '<div style="font-size:11px;margin-top:4px;color:#ffaa00;">Enable GPS on at least 3 nodes to enable triangulation.</div>';
+            html += '<div style="font-size:11px;margin-top:4px;color:var(--warn);">Enable GPS on at least 3 nodes to enable triangulation.</div>';
           }
           html += '</div>';
           return html;
         }
         
-        // Insufficient GPS nodes
         if (text.includes('Insufficient GPS Nodes')) {
           const gpsMatch = text.match(/GPS nodes: (\d+)\/3/);
           const totalMatch = text.match(/Total nodes: (\d+)/);
           
-          html += '<div style="padding:16px;background:#1a2a1a;border:1px solid #ffaa00;border-radius:8px;color:#ffaa00;">';
+          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--warn);border-radius:8px;color:var(--warn);">';
           html += '<div style="font-weight:bold;margin-bottom:8px;">⚠ Insufficient GPS Nodes</div>';
           if (gpsMatch && totalMatch) {
             html += '<div style="font-size:12px;">GPS nodes: <strong>' + gpsMatch[1] + '</strong>/3 required</div>';
@@ -1596,17 +1681,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           html += '</div>';
           
-          // Show available nodes
           const gpsNodesSection = text.split('Current GPS nodes:')[1];
           if (gpsNodesSection) {
-            html += '<div style="margin-top:12px;padding:12px;background:#001108;border:1px solid #003b24;border-radius:8px;">';
-            html += '<div style="font-size:11px;color:#00ff7f66;margin-bottom:8px;font-weight:bold;">GPS NODES AVAILABLE</div>';
+            html += '<div style="margin-top:12px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+            html += '<div style="font-size:11px;color:var(--mut);margin-bottom:8px;font-weight:bold;">GPS NODES AVAILABLE</div>';
             const gpsLines = gpsNodesSection.split('\n').filter(l => l.includes('•')).slice(0, 5);
             gpsLines.forEach(line => {
               const match = line.match(/• ([^\s]+) @ ([-\d.]+),([-\d.]+)/);
               if (match) {
-                html += '<div style="padding:6px;margin-bottom:4px;background:#000;border-radius:4px;font-size:10px;color:#00ff7f99;">';
-                html += '<strong style="color:#0aff9d;">' + match[1] + '</strong> @ ' + match[2] + ', ' + match[3];
+                html += '<div style="padding:6px;margin-bottom:4px;background:var(--surf);border-radius:4px;font-size:10px;color:var(--mut);">';
+                html += '<strong style="color:var(--acc);">' + match[1] + '</strong> @ ' + match[2] + ', ' + match[3];
                 html += '</div>';
               }
             });
@@ -1615,11 +1699,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return html;
         }
         
-        // SUCCESS - Parse full results
         const nodeReportsSection = text.split('--- Node Reports ---')[1]?.split('---')[0];
         if (nodeReportsSection) {
-          html += '<details style="margin-top:12px;margin-bottom:12px;background:#000;border:1px solid #003b24;border-radius:8px;padding:12px;" open>';
-          html += '<summary style="cursor:pointer;color:#0aff9d;font-weight:bold;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;">';
+          html += '<details style="margin-top:12px;margin-bottom:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:12px;" open>';
+          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:bold;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;">';
           html += '<span style="display:inline-block;transition:transform 0.2s;">▼</span>NODE REPORTS';
           html += '</summary>';
           html += '<div style="margin-top:10px;display:grid;gap:8px;">';
@@ -1640,50 +1723,52 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const hdopMatch = data.match(/HDOP=([\d.]+)/);
               
               const isGPS = gpsMatch && gpsMatch[1] !== 'NO';
-              const borderColor = isGPS ? '#0c6' : '#003b24';
+              const borderColor = isGPS ? 'var(--succ)' : 'var(--bord)';
               
-              html += '<div style="background:#001108;padding:12px;border:1px solid ' + borderColor + ';border-radius:6px;">';
+              html += '<div style="background:var(--bg);padding:12px;border:1px solid ' + borderColor + ';border-radius:6px;">';
               html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
-              html += '<div style="font-family:monospace;font-size:11px;color:' + (isGPS ? '#0aff9d' : '#00ff7f99') + ';">' + nodeId + (isGPS ? ' ✓' : '') + '</div>';
+              html += '<div style="font-family:monospace;font-size:11px;color:' + (isGPS ? 'var(--acc)' : 'var(--mut)') + ';">' + nodeId + (isGPS ? ' ✓' : '') + '</div>';
               
               if (typeMatch) {
                 const color = typeMatch[1] === 'BLE' ? '#d896ff' : '#6ab7ff';
-                html += '<span style="background:#1a0a2a;color:' + color + ';padding:2px 6px;border-radius:3px;font-size:9px;border:1px solid ' + color + ';">' + typeMatch[1] + '</span>';
+                html += '<span style="background:var(--bg);color:' + color + ';padding:2px 6px;border-radius:3px;font-size:9px;border:1px solid ' + color + ';">' + typeMatch[1] + '</span>';
               }
               
               html += '</div>';
               
               html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;font-size:10px;">';
               if (rssiMatch) {
-                const rssiColor = rssiMatch[1] >= -50 ? '#0aff9d' : rssiMatch[1] >= -70 ? '#ffaa00' : '#ff6666';
-                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
-                html += '<div style="color:#00ff7f66;font-size:8px;">RSSI</div>';
+                const rssiVal = parseFloat(rssiMatch[1]);
+                const rssiColor = rssiVal >= -50 ? 'var(--succ)' : rssiVal >= -70 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
+                html += '<div style="color:var(--mut);font-size:8px;">RSSI</div>';
                 html += '<div style="color:' + rssiColor + ';font-weight:600;">' + rssiMatch[1] + ' dBm</div>';
                 html += '</div>';
               }
               if (hitsMatch) {
-                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
-                html += '<div style="color:#00ff7f66;font-size:8px;">HITS</div>';
-                html += '<div style="color:#00ff7f;font-weight:600;">' + hitsMatch[1] + '</div>';
+                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
+                html += '<div style="color:var(--mut);font-size:8px;">HITS</div>';
+                html += '<div style="color:var(--txt);font-weight:600;">' + hitsMatch[1] + '</div>';
                 html += '</div>';
               }
               if (signalMatch) {
-                const sigColor = signalMatch[1] >= 70 ? '#0aff9d' : signalMatch[1] >= 50 ? '#ffaa00' : '#ff8844';
-                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
-                html += '<div style="color:#00ff7f66;font-size:8px;">QUALITY</div>';
+                const sigVal = parseFloat(signalMatch[1]);
+                const sigColor = sigVal >= 70 ? 'var(--succ)' : sigVal >= 50 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
+                html += '<div style="color:var(--mut);font-size:8px;">QUALITY</div>';
                 html += '<div style="color:' + sigColor + ';font-weight:600;">' + signalMatch[1] + '%</div>';
                 html += '</div>';
               }
               if (distMatch) {
-                html += '<div style="background:#000;padding:6px;border-radius:4px;">';
-                html += '<div style="color:#00ff7f66;font-size:8px;">DISTANCE</div>';
-                html += '<div style="color:#00ff7f;font-weight:600;">' + distMatch[1] + 'm</div>';
+                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
+                html += '<div style="color:var(--mut);font-size:8px;">DISTANCE</div>';
+                html += '<div style="color:var(--txt);font-weight:600;">' + distMatch[1] + 'm</div>';
                 html += '</div>';
               }
               html += '</div>';
               
               if (isGPS) {
-                html += '<div style="margin-top:8px;padding:8px;background:#000;border:1px solid #0c6;border-radius:4px;font-size:9px;color:#0aff9d;">';
+                html += '<div style="margin-top:8px;padding:8px;background:var(--surf);border:1px solid var(--succ);border-radius:4px;font-size:9px;color:var(--acc);">';
                 html += '@ ' + gpsMatch[1];
                 if (hdopMatch) html += ' | HDOP: ' + hdopMatch[1];
                 html += '</div>';
@@ -1696,11 +1781,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div></details>';
         }
         
-        // GPS-RSSI Validation
         const validationSection = text.split('--- GPS-RSSI Distance Validation ---')[1]?.split('---')[0];
         if (validationSection) {
-          html += '<details style="margin-bottom:12px;background:#000;border:1px solid #003b24;border-radius:8px;padding:12px;">';
-          html += '<summary style="cursor:pointer;color:#00ff7f99;font-weight:600;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;font-size:12px;">';
+          html += '<details style="margin-bottom:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:12px;">';
+          html += '<summary style="cursor:pointer;color:var(--mut);font-weight:600;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;font-size:12px;">';
           html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>GPS-RSSI Validation';
           html += '</summary>';
           html += '<div style="margin-top:10px;display:grid;gap:6px;">';
@@ -1709,21 +1793,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           valLines.forEach(line => {
             if (line.includes('<->')) {
               const checkMark = line.includes('✓') ? '✓' : '✗';
-              const color = line.includes('✓') ? '#0aff9d' : '#ff6666';
+              const color = line.includes('✓') ? 'var(--succ)' : 'var(--dang)';
               const cleanLine = line.replace(/✓|✗/g, '').trim();
-              html += '<div style="padding:6px;background:#001108;border-left:3px solid ' + color + ';font-size:10px;color:#00ff7f99;">';
+              html += '<div style="padding:6px;background:var(--bg);border-left:3px solid ' + color + ';font-size:10px;color:var(--mut);">';
               html += '<span style="color:' + color + ';font-weight:bold;">' + checkMark + '</span> ' + cleanLine;
               html += '</div>';
             } else if (line.includes('Avg error')) {
               const errorMatch = line.match(/([\d.]+)%/);
               let quality = 'POOR';
-              let color = '#ff6666';
+              let color = 'var(--dang)';
               if (errorMatch) {
                 const error = parseFloat(errorMatch[1]);
-                if (error < 25) { quality = 'GOOD'; color = '#0aff9d'; }
-                else if (error < 50) { quality = 'FAIR'; color = '#ffaa00'; }
+                if (error < 25) { quality = 'GOOD'; color = 'var(--succ)'; }
+                else if (error < 50) { quality = 'FAIR'; color = 'var(--warn)'; }
               }
-              html += '<div style="padding:8px;background:#001a10;border:1px solid ' + color + ';border-radius:4px;margin-top:8px;color:' + color + ';font-weight:600;">';
+              html += '<div style="padding:8px;background:var(--bg);border:1px solid ' + color + ';border-radius:4px;margin-top:8px;color:' + color + ';font-weight:600;">';
               html += line.trim() + ' - <span style="font-style:italic;">' + quality + '</span>';
               html += '</div>';
             }
@@ -1732,7 +1816,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div></details>';
         }
         
-        // Trilateration Results
         const trilaterSection = text.split('--- Weighted GPS Trilateration ---')[1]?.split('===')[0];
         if (trilaterSection && trilaterSection.includes('ESTIMATED POSITION')) {
           const latMatch = trilaterSection.match(/Latitude:\s*([-\d.]+)/);
@@ -1742,29 +1825,30 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const uncMatch = trilaterSection.match(/Uncertainty \(95%\):\s*±([\d.]+)m/);
           const mapsMatch = trilaterSection.match(/(https:\/\/www\.google\.com\/maps[^\s]+)/);
           
-          html += '<div style="margin-top:12px;padding:16px;background:#001a10;border:2px solid #0aff9d;border-radius:8px;">';
-          html += '<div style="font-size:14px;color:#0aff9d;margin-bottom:12px;font-weight:bold;">✓ POSITION ESTIMATED</div>';
+          html += '<div style="margin-top:12px;padding:16px;background:var(--bg);border:2px solid var(--succ);border-radius:8px;">';
+          html += '<div style="font-size:14px;color:var(--succ);margin-bottom:12px;font-weight:bold;">✓ POSITION ESTIMATED</div>';
           
           html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
           
           if (latMatch) {
-            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
-            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">LATITUDE</div>';
-            html += '<div style="font-family:monospace;font-size:12px;color:#0aff9d;">' + latMatch[1] + '</div>';
+            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">LATITUDE</div>';
+            html += '<div style="font-family:monospace;font-size:12px;color:var(--acc);">' + latMatch[1] + '</div>';
             html += '</div>';
           }
           
           if (lonMatch) {
-            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
-            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">LONGITUDE</div>';
-            html += '<div style="font-family:monospace;font-size:12px;color:#0aff9d;">' + lonMatch[1] + '</div>';
+            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">LONGITUDE</div>';
+            html += '<div style="font-family:monospace;font-size:12px;color:var(--acc);">' + lonMatch[1] + '</div>';
             html += '</div>';
           }
           
           if (confMatch) {
-            const confColor = confMatch[1] >= 75 ? '#0aff9d' : confMatch[1] >= 50 ? '#ffaa00' : '#ff6666';
-            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
-            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">CONFIDENCE</div>';
+            const confVal = parseFloat(confMatch[1]);
+            const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
+            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">CONFIDENCE</div>';
             html += '<div style="font-size:14px;color:' + confColor + ';font-weight:bold;">' + confMatch[1] + '%</div>';
             html += '</div>';
           }
@@ -1774,23 +1858,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
           
           if (cepMatch) {
-            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
-            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">CEP68 ±</div>';
-            html += '<div style="font-size:13px;color:#ffaa00;font-weight:600;">' + cepMatch[1] + 'm</div>';
+            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">CEP68 ±</div>';
+            html += '<div style="font-size:13px;color:var(--warn);font-weight:600;">' + cepMatch[1] + 'm</div>';
             html += '</div>';
           }
           
           if (uncMatch) {
-            html += '<div style="background:#000;padding:10px;border-radius:6px;border:1px solid #003b24;">';
-            html += '<div style="font-size:9px;color:#00ff7f66;margin-bottom:4px;">95% Confidence ±</div>';
-            html += '<div style="font-size:13px;color:#ffaa00;font-weight:600;">' + uncMatch[1] + 'm</div>';
+            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">95% Confidence ±</div>';
+            html += '<div style="font-size:13px;color:var(--warn);font-weight:600;">' + uncMatch[1] + 'm</div>';
             html += '</div>';
           }
           
           html += '</div>';
           
           if (mapsMatch) {
-            html += '<a href="' + mapsMatch[1] + '" target="_blank" style="display:inline-block;background:#0aff9d;color:#000;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:12px;margin-top:8px;">';
+            html += '<a href="' + mapsMatch[1] + '" target="_blank" style="display:inline-block;background:var(--succ);color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:12px;margin-top:8px;">';
             html += '@ Open in Google Maps';
             html += '</a>';
           }
@@ -1805,11 +1889,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const headerMatch = text.match(/Active Sessions: (\d+)/);
         const identitiesMatch = text.match(/Device Identities: (\d+)/);
         
-        let html = '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
-        html += '<div style="font-size:13px;color:#00ff7f;margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">MAC RANDOMIZATION DETECTION</div>';
-        html += '<div style="display:flex;gap:20px;font-size:11px;color:#00ff7f99;">';
-        if (headerMatch) html += '<span>Sessions: <strong style="color:#00ff7f;">' + headerMatch[1] + '</strong></span>';
-        if (identitiesMatch) html += '<span>Identities: <strong style="color:#00ff7f;">' + identitiesMatch[1] + '</strong></span>';
+        let html = '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:13px;color:var(--txt);margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">MAC RANDOMIZATION DETECTION</div>';
+        html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);">';
+        if (headerMatch) html += '<span>Sessions: <strong style="color:var(--txt);">' + headerMatch[1] + '</strong></span>';
+        if (identitiesMatch) html += '<span>Identities: <strong style="color:var(--txt);">' + identitiesMatch[1] + '</strong></span>';
         html += '</div></div>';
         
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
@@ -1845,75 +1929,76 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             avgRssi = Math.round(rssiValues.reduce((a, b) => a + b, 0) / rssiValues.length);
           }
           
-          html += '<details data-type="' + deviceType + '" style="background:#000;border:1px solid #003b24;border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'#00cc66\'" onmouseout="this.style.borderColor=\'#003b24\'">';
+          html += '<details data-type="' + deviceType + '" style="background:var(--surf);border:1px solid var(--bord);border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bord)\'">';
           html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
           html += '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;flex-wrap:wrap;">';
-          html += '<span style="font-family:monospace;font-size:12px;color:#0aff9d;font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
+          html += '<span style="font-family:monospace;font-size:12px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
           html += '<span style="background:' + (isBLE ? '#4a1a4a' : '#1a2a4a') + ';color:' + (isBLE ? '#d896ff' : '#6ab7ff') + ';padding:2px 8px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + (isBLE ? 'BLE' : 'WiFi') + '</span>';
-          html += '<span style="color:#00ff7f66;font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
+          html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
           html += '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">';
           
           if (avgRssi !== null) {
-            const rssiColor = avgRssi >= -50 ? '#0aff9d' : avgRssi >= -70 ? '#ffaa00' : '#ff8800';
+            const rssiColor = avgRssi >= -50 ? 'var(--succ)' : avgRssi >= -70 ? 'var(--warn)' : 'var(--dang)';
             html += '<div style="text-align:right;">';
-            html += '<div style="font-size:8px;color:#00ff7f66;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">RSSI</div>';
+            html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">RSSI</div>';
             html += '<div style="font-size:13px;color:' + rssiColor + ';font-weight:700;white-space:nowrap;">' + avgRssi + '<span style="font-size:9px;margin-left:1px;">dBm</span></div>';
             html += '</div>';
           }
           
-          const confColor = confidence >= 75 ? '#0aff9d' : confidence >= 50 ? '#ffaa00' : '#ff6666';
+          const confVal = parseInt(confidence);
+          const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
           html += '<div style="text-align:right;">';
-          html += '<div style="font-size:8px;color:#00ff7f66;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Confidence</div>';
+          html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Confidence</div>';
           html += '<div style="font-size:13px;color:' + confColor + ';font-weight:700;white-space:nowrap;">' + confidence + '<span style="font-size:9px;">%</span></div>';
           html += '</div>';
           
-          html += '<span style="color:#00ff7f66;font-size:18px;">▶</span>';
+          html += '<span style="color:var(--mut);font-size:18px;">▶</span>';
           html += '</div>';
           html += '</summary>';
           
-          html += '<div style="padding:0 14px 14px 14px;border-top:1px solid #003b24;">';
+          html += '<div style="padding:0 14px 14px 14px;border-top:1px solid var(--bord);">';
           html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px;">';
           
-          html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
-          html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">SESSIONS</div>';
-          html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + sessions + '</div>';
+          html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+          html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">SESSIONS</div>';
+          html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + sessions + '</div>';
           html += '</div>';
           
           if (rssiMatch) {
             const rssiConPct = (parseFloat(rssiMatch[1]) * 100).toFixed(0);
-            html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
-            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">RSSI STABILITY</div>';
-            html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + rssiConPct + '%</div>';
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">RSSI STABILITY</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + rssiConPct + '%</div>';
             html += '</div>';
           }
           
           if (channelsMatch) {
-            html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
-            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">CHANNELS</div>';
-            html += '<div style="font-size:14px;color:#00ff7f;font-weight:600;">' + channelsMatch[1] + '</div>';
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">CHANNELS</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + channelsMatch[1] + '</div>';
             html += '</div>';
           }
           
           if (lastSeenMatch) {
-            html += '<div style="background:#001108;padding:8px;border-radius:4px;border:1px solid #003b24;">';
-            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:3px;">LAST SEEN</div>';
-            html += '<div style="font-size:11px;color:#00ff7f;font-weight:600;">' + lastSeenMatch[1] + 's</div>';
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">LAST SEEN</div>';
+            html += '<div style="font-size:11px;color:var(--txt);font-weight:600;">' + lastSeenMatch[1] + 's</div>';
             html += '</div>';
           }
           
           html += '</div>';
           
           if (channelSeqMatch) {
-            html += '<div style="margin-top:10px;padding:8px;background:#001108;border:1px solid #003b24;border-radius:4px;">';
-            html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:4px;">CHANNEL SEQUENCE</div>';
-            html += '<div style="font-size:10px;color:#00ff7f;font-family:monospace;">' + channelSeqMatch[1].trim() + '</div>';
+            html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">CHANNEL SEQUENCE</div>';
+            html += '<div style="font-size:10px;color:var(--txt);font-family:monospace;">' + channelSeqMatch[1].trim() + '</div>';
             html += '</div>';
           }
           
-          html += '<div style="margin-top:10px;padding:8px;background:#001a10;border:1px solid #0c6;border-radius:4px;">';
-          html += '<div style="font-size:8px;color:#00ff7f66;margin-bottom:4px;">TRACK ID</div>';
-          html += '<div style="font-size:11px;color:#0aff9d;font-family:monospace;font-weight:600;">' + trackId + '</div>';
+          html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--succ);border-radius:4px;">';
+          html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">TRACK ID</div>';
+          html += '<div style="font-size:11px;color:var(--acc);font-family:monospace;font-weight:600;">' + trackId + '</div>';
           html += '</div>';
           
           if (macsListMatch) {
@@ -1923,19 +2008,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const macs = cleanMacsList.split(',').map(m => m.trim()).filter(m => m.length > 0);
             
             html += '<details style="margin-top:10px;" open>';
-            html += '<summary style="font-size:9px;color:#00ff7f99;cursor:pointer;padding:6px 0;list-style:none;user-select:none;">MAC ADDRESSES (' + (moreMatch ? macCount : macs.length) + ')</summary>';
+            html += '<summary style="font-size:9px;color:var(--mut);cursor:pointer;padding:6px 0;list-style:none;user-select:none;">MAC ADDRESSES (' + (moreMatch ? macCount : macs.length) + ')</summary>';
             html += '<div style="display:grid;gap:4px;margin-top:6px;">';
             
             macs.forEach((mac, i) => {
               const isAnchor = mac.includes(anchorMac);
-              html += '<div style="background:' + (isAnchor ? '#001a10' : '#000') + ';border:1px solid:' + (isAnchor ? '#0c6' : '#003b24') + ';border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isAnchor ? '#0aff9d' : '#00ff7f99') + ';display:flex;justify-content:space-between;align-items:center;">';
+              html += '<div style="background:' + (isAnchor ? 'var(--bg)' : 'var(--surf)') + ';border:1px solid:' + (isAnchor ? 'var(--succ)' : 'var(--bord)') + ';border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isAnchor ? 'var(--acc)' : 'var(--mut)') + ';display:flex;justify-content:space-between;align-items:center;">';
               html += '<span>' + mac.split(' ')[0] + '</span>';
-              if (isAnchor) html += '<span style="font-size:7px;padding:2px 5px;background:#002417;border:1px solid #0c6;border-radius:2px;color:#0c6;font-weight:600;">ANCHOR</span>';
+              if (isAnchor) html += '<span style="font-size:7px;padding:2px 5px;background:var(--bg);border:1px solid var(--succ);border-radius:2px;color:var(--succ);font-weight:600;">ANCHOR</span>';
               html += '</div>';
             });
             
             if (moreMatch) {
-              html += '<div style="padding:6px;text-align:center;color:#00ff7f66;font-size:10px;font-style:italic;">+ ' + moreMatch[1] + ' more</div>';
+              html += '<div style="padding:6px;text-align:center;color:var(--mut);font-size:10px;font-style:italic;">+ ' + moreMatch[1] + ' more</div>';
             }
             
             html += '</div></details>';
@@ -1973,28 +2058,28 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const anomalyCountMatch = text.match(/Total anomalies: (\d+)/);
         
         if (text.includes('Baseline not yet established')) {
-          html += '<div style="padding:16px;background:#001108;border:1px solid #004e2f;border-radius:8px;text-align:center;color:#00ff7f99;">';
+          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;text-align:center;color:var(--mut);">';
           html += '<div style="font-size:14px;margin-bottom:8px;">Baseline Not Yet Established</div>';
           const devicesMatch = text.match(/Devices detected so far: (\d+)/);
           if (devicesMatch) {
-            html += '<div style="font-size:12px;">Devices detected: <strong style="color:#00ff7f;">' + devicesMatch[1] + '</strong></div>';
+            html += '<div style="font-size:12px;">Devices detected: <strong style="color:var(--txt);">' + devicesMatch[1] + '</strong></div>';
           }
           html += '</div>';
           return html;
         }
         
-        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
-        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:10px;font-weight:bold;">Baseline Established</div>';
-        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;color:#00ff7f99;">';
-        if (totalMatch) html += '<span>Total: <strong style="color:#00ff7f;">' + totalMatch[1] + '</strong></span>';
-        if (wifiMatch) html += '<span>WiFi: <strong style="color:#00ff7f;">' + wifiMatch[1] + '</strong></span>';
-        if (bleMatch) html += '<span>BLE: <strong style="color:#00ff7f;">' + bleMatch[1] + '</strong></span>';
-        if (rssiThreshMatch) html += '<span>Threshold: <strong style="color:#00ff7f;">' + rssiThreshMatch[1] + ' dBm</strong></span>';
+        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">Baseline Established</div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;color:var(--mut);">';
+        if (totalMatch) html += '<span>Total: <strong style="color:var(--txt);">' + totalMatch[1] + '</strong></span>';
+        if (wifiMatch) html += '<span>WiFi: <strong style="color:var(--txt);">' + wifiMatch[1] + '</strong></span>';
+        if (bleMatch) html += '<span>BLE: <strong style="color:var(--txt);">' + bleMatch[1] + '</strong></span>';
+        if (rssiThreshMatch) html += '<span>Threshold: <strong style="color:var(--txt);">' + rssiThreshMatch[1] + ' dBm</strong></span>';
         html += '</div></div>';
         
         if (anomalyCountMatch) {
-          html += '<div style="margin-bottom:12px;padding:12px;background:#300;border:1px solid #ff4444;border-radius:8px;">';
-          html += '<div style="font-size:14px;color:#ff4444;font-weight:bold;">⚠ Anomalies Detected: ' + anomalyCountMatch[1] + '</div>';
+          html += '<div style="margin-bottom:12px;padding:12px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;">';
+          html += '<div style="font-size:14px;color:var(--dang);font-weight:bold;">⚠ Anomalies Detected: ' + anomalyCountMatch[1] + '</div>';
           html += '</div>';
           
           const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];
@@ -2005,17 +2090,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (match) {
                 const [_, type, mac, rssi, channel, name, reason] = match;
                 
-                html += '<div style="background:#000;padding:14px;border-radius:8px;border:1px solid #ff8800;margin-bottom:10px;">';
+                html += '<div style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid var(--warn);margin-bottom:10px;">';
                 html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
-                html += '<div style="font-family:monospace;font-size:15px;color:#ff8800;">' + mac + '</div>';
-                html += '<span style="background:#ff8800;color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
+                html += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + mac + '</div>';
+                html += '<span style="background:var(--warn);color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
                 html += '</div>';
-                html += '<div style="display:flex;gap:16px;font-size:12px;color:#00ff7f66;margin-bottom:8px;flex-wrap:wrap;">';
-                html += '<span>RSSI: <strong style="color:#00ff7f99;">' + rssi + ' dBm</strong></span>';
-                if (channel) html += '<span>Channel: <strong style="color:#00ff7f99;">' + channel + '</strong></span>';
-                if (name) html += '<span>Name: <strong style="color:#00ff7f99;">' + name + '</strong></span>';
+                html += '<div style="display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:8px;flex-wrap:wrap;">';
+                html += '<span>RSSI: <strong style="color:var(--txt);">' + rssi + ' dBm</strong></span>';
+                if (channel) html += '<span>Channel: <strong style="color:var(--txt);">' + channel + '</strong></span>';
+                if (name) html += '<span>Name: <strong style="color:var(--txt);">' + name + '</strong></span>';
                 html += '</div>';
-                html += '<div style="padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;color:#ffaa00;font-size:12px;">';
+                html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;color:var(--warn);font-size:12px;">';
                 html += reason;
                 html += '</div>';
                 html += '</div>';
@@ -2027,11 +2112,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1]?.split('===')[0];
         if (baselineSection) {
           html += '<details style="margin-top:14px;">';
-          html += '<summary style="cursor:pointer;color:#0aff9d;user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
+          html += '<summary style="cursor:pointer;color:var(--acc);user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
           html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
           html += 'Baseline Devices (Cached in RAM)';
           html += '</summary>';
-          html += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;max-height:400px;overflow-y:auto;">';
+          html += '<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;max-height:400px;overflow-y:auto;">';
           
           const deviceLines = baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/));
           deviceLines.forEach(line => {
@@ -2039,21 +2124,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (match) {
               const [_, type, mac, avg, min, max, hits, channel, name] = match;
               
-              html += '<div style="padding:8px;margin-bottom:6px;background:#000;border-radius:6px;border:1px solid #003b24;">';
+              html += '<div style="padding:8px;margin-bottom:6px;background:var(--surf);border-radius:6px;border:1px solid var(--bord);">';
               html += '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px;">';
               html += '<div>';
-              html += '<div style="font-family:monospace;font-size:12px;color:#00ff7f;margin-bottom:3px;">' + mac + '</div>';
-              if (name) html += '<div style="font-size:11px;color:#00ff7f99;">Name: ' + name + '</div>';
+              html += '<div style="font-family:monospace;font-size:12px;color:var(--txt);margin-bottom:3px;">' + mac + '</div>';
+              if (name) html += '<div style="font-size:11px;color:var(--mut);">Name: ' + name + '</div>';
               html += '</div>';
               html += '<div style="text-align:right;">';
-              html += '<div style="font-size:11px;color:#00ff7f99;">Avg: ' + avg + ' dBm</div>';
-              html += '<div style="font-size:10px;color:#00ff7f66;">' + min + '→' + max + ' dBm</div>';
+              html += '<div style="font-size:11px;color:var(--mut);">Avg: ' + avg + ' dBm</div>';
+              html += '<div style="font-size:10px;color:var(--mut);">' + min + '→' + max + ' dBm</div>';
               html += '</div>';
               html += '</div>';
-              html += '<div style="display:flex;gap:12px;font-size:10px;color:#00ff7f66;margin-top:4px;">';
-              html += '<span>Type: <strong style="color:#00ff7f99;">' + type + '</strong></span>';
-              html += '<span>Hits: <strong style="color:#00ff7f99;">' + hits + '</strong></span>';
-              if (channel) html += '<span>CH: <strong style="color:#00ff7f99;">' + channel + '</strong></span>';
+              html += '<div style="display:flex;gap:12px;font-size:10px;color:var(--mut);margin-top:4px;">';
+              html += '<span>Type: <strong style="color:var(--txt);">' + type + '</strong></span>';
+              html += '<span>Hits: <strong style="color:var(--txt);">' + hits + '</strong></span>';
+              if (channel) html += '<span>CH: <strong style="color:var(--txt);">' + channel + '</strong></span>';
               html += '</div>';
               html += '</div>';
             }
@@ -2075,18 +2160,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const totalMatch = text.match(/Total attacks: (\d+)/);
         const targetsMatch = text.match(/Targets attacked: (\d+)/);
         
-        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
-        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:10px;font-weight:bold;">⚠ Deauth Attack Detection Results</div>';
-        html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;flex-wrap:wrap;">';
-        if (durationMatch) html += '<span>Duration: <strong style="color:#00ff7f;">' + durationMatch[1] + '</strong></span>';
-        if (deauthMatch) html += '<span>Deauth: <strong style="color:#ff4444;">' + deauthMatch[1] + '</strong></span>';
-        if (disassocMatch) html += '<span>Disassoc: <strong style="color:#ff4444;">' + disassocMatch[1] + '</strong></span>';
-        if (totalMatch) html += '<span>Total: <strong style="color:#ff4444;">' + totalMatch[1] + '</strong></span>';
-        if (targetsMatch) html += '<span>Targets: <strong style="color:#00ff7f;">' + targetsMatch[1] + '</strong></span>';
+        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">⚠ Deauth Attack Detection Results</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);flex-wrap:wrap;">';
+        if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + '</strong></span>';
+        if (deauthMatch) html += '<span>Deauth: <strong style="color:var(--dang);">' + deauthMatch[1] + '</strong></span>';
+        if (disassocMatch) html += '<span>Disassoc: <strong style="color:var(--dang);">' + disassocMatch[1] + '</strong></span>';
+        if (totalMatch) html += '<span>Total: <strong style="color:var(--dang);">' + totalMatch[1] + '</strong></span>';
+        if (targetsMatch) html += '<span>Targets: <strong style="color:var(--txt);">' + targetsMatch[1] + '</strong></span>';
         html += '</div></div>';
         
         if (text.includes('No attacks detected')) {
-          html += '<div style="padding:20px;text-align:center;color:#00ff7f66;font-size:13px;">No attacks detected</div>';
+          html += '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">No attacks detected</div>';
           return html;
         }
         
@@ -2107,35 +2192,35 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const [_, target, total, broadcast, targeted, rssi, channel] = targetMatch;
             const isBroadcast = target === '[BROADCAST]';
             
-            currentTargetHtml = '<div style="background:#000;padding:16px;border-radius:8px;border:1px solid #ff8800;margin-bottom:12px;">';
+            currentTargetHtml = '<div style="background:var(--surf);padding:16px;border-radius:8px;border:1px solid var(--warn);margin-bottom:12px;">';
             currentTargetHtml += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:#ff8800;">' + target + '</div>';
+            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + target + '</div>';
             if (isBroadcast) {
-              currentTargetHtml += '<span style="background:#ffaa00;color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
+              currentTargetHtml += '<span style="background:var(--warn);color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
             }
             currentTargetHtml += '</div>';
             
             currentTargetHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px;font-size:12px;">';
-            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Total Attacks</div>';
-            currentTargetHtml += '<div style="color:#ff4444;font-size:16px;font-weight:bold;">' + total + '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Total Attacks</div>';
+            currentTargetHtml += '<div style="color:var(--dang);font-size:16px;font-weight:bold;">' + total + '</div>';
             currentTargetHtml += '</div>';
-            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Broadcast</div>';
-            currentTargetHtml += '<div style="color:#ff6666;font-size:16px;font-weight:bold;">' + broadcast + '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Broadcast</div>';
+            currentTargetHtml += '<div style="color:var(--dang);font-size:16px;font-weight:bold;">' + broadcast + '</div>';
             currentTargetHtml += '</div>';
-            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Targeted</div>';
-            currentTargetHtml += '<div style="color:#ff8844;font-size:16px;font-weight:bold;">' + targeted + '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Targeted</div>';
+            currentTargetHtml += '<div style="color:var(--warn);font-size:16px;font-weight:bold;">' + targeted + '</div>';
             currentTargetHtml += '</div>';
-            currentTargetHtml += '<div style="padding:8px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            currentTargetHtml += '<div style="color:#00ff7f66;font-size:10px;margin-bottom:2px;">Signal / Channel</div>';
-            currentTargetHtml += '<div style="color:#00ff7f99;font-size:14px;font-weight:bold;">' + rssi + ' dBm / CH' + channel + '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Signal / Channel</div>';
+            currentTargetHtml += '<div style="color:var(--txt);font-size:14px;font-weight:bold;">' + rssi + ' dBm / CH' + channel + '</div>';
             currentTargetHtml += '</div>';
             currentTargetHtml += '</div>';
             
-            currentTargetHtml += '<div style="margin-top:10px;padding:10px;background:#001108;border:1px solid #003b24;border-radius:6px;">';
-            currentTargetHtml += '<div style="font-size:11px;color:#00ff7f99;margin-bottom:8px;font-weight:bold;">Attack Sources:</div>';
+            currentTargetHtml += '<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="font-size:11px;color:var(--mut);margin-bottom:8px;font-weight:bold;">Attack Sources:</div>';
             
             currentTarget = target;
             inSourcesList = true;
@@ -2146,8 +2231,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const sourceMatch = line.match(/← ([A-F0-9:]+) \((\d+)x\)/);
             if (sourceMatch) {
               const [_, source, count] = sourceMatch;
-              currentTargetHtml += '<div style="padding:6px;font-family:monospace;font-size:12px;color:#00ff7f;border-bottom:1px solid #003b24;">';
-              currentTargetHtml += '<span style="color:#ff8844;">←</span> ' + source + ' <span style="color:#00ff7f66;">(' + count + ' attacks)</span>';
+              currentTargetHtml += '<div style="padding:6px;font-family:monospace;font-size:12px;color:var(--txt);border-bottom:1px solid var(--bord);">';
+              currentTargetHtml += '<span style="color:var(--warn);">←</span> ' + source + ' <span style="color:var(--mut);">(' + count + ' attacks)</span>';
               currentTargetHtml += '</div>';
             }
           }
@@ -2155,7 +2240,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (inSourcesList && line.trim().startsWith('...')) {
             const moreMatch = line.match(/\((\d+) more attackers\)/);
             if (moreMatch) {
-              currentTargetHtml += '<div style="padding:8px;text-align:center;color:#00ff7f66;font-size:11px;">+ ' + moreMatch[1] + ' more attackers</div>';
+              currentTargetHtml += '<div style="padding:8px;text-align:center;color:var(--mut);font-size:11px;">+ ' + moreMatch[1] + ' more attackers</div>';
             }
           }
           
@@ -2175,7 +2260,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         
         const finalMoreMatch = text.match(/\.\.\. \((\d+) more targets\)/);
         if (finalMoreMatch) {
-          html += '<div style="padding:12px;text-align:center;color:#00ff7f66;font-size:12px;border:1px dashed #003b24;border-radius:6px;">+ ' + finalMoreMatch[1] + ' more targets</div>';
+          html += '<div style="padding:12px;text-align:center;color:var(--mut);font-size:12px;border:1px dashed var(--bord);border-radius:6px;">+ ' + finalMoreMatch[1] + ' more targets</div>';
         }
         
         return html;
@@ -2187,11 +2272,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const totalMatch = text.match(/Total detections: (\d+)/);
         const uniqueMatch = text.match(/Unique drones: (\d+)/);
         
-        html += '<div style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
-        html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:10px;font-weight:bold;">🛸 Drone Detection Results</div>';
-        html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;">';
-        if (totalMatch) html += '<span>Total: <strong style="color:#00ff7f;">' + totalMatch[1] + '</strong></span>';
-        if (uniqueMatch) html += '<span>Unique: <strong style="color:#00ff7f;">' + uniqueMatch[1] + '</strong></span>';
+        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">🛸 Drone Detection Results</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);">';
+        if (totalMatch) html += '<span>Total: <strong style="color:var(--txt);">' + totalMatch[1] + '</strong></span>';
+        if (uniqueMatch) html += '<span>Unique: <strong style="color:var(--txt);">' + uniqueMatch[1] + '</strong></span>';
         html += '</div></div>';
         
         const droneBlocks = text.split(/(?=MAC:)/g).filter(b => b.includes('MAC:'));
@@ -2206,29 +2291,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           
           if (!macMatch) return;
           
-          html += '<div style="background:#000;padding:18px;border-radius:8px;border:1px solid #0aff9d;margin-bottom:12px;">';
+          html += '<div style="background:var(--surf);padding:18px;border-radius:8px;border:1px solid var(--acc);margin-bottom:12px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-          html += '<div style="font-family:monospace;font-size:15px;color:#0aff9d;">' + macMatch[1] + '</div>';
-          if (rssiMatch) html += '<span style="color:#00ff7f99;font-size:12px;">RSSI: <strong style="color:#00ff7f;">' + rssiMatch[1] + ' dBm</strong></span>';
+          html += '<div style="font-family:monospace;font-size:15px;color:var(--acc);">' + macMatch[1] + '</div>';
+          if (rssiMatch) html += '<span style="color:var(--mut);font-size:12px;">RSSI: <strong style="color:var(--txt);">' + rssiMatch[1] + ' dBm</strong></span>';
           html += '</div>';
           
           if (uavMatch) {
-            html += '<div style="padding:8px;background:#001108;border:1px solid #004e2f;border-radius:6px;margin-bottom:8px;font-size:12px;color:#0aff9d;">';
+            html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;margin-bottom:8px;font-size:12px;color:var(--acc);">';
             html += 'UAV ID: <strong>' + uavMatch[1] + '</strong>';
             html += '</div>';
           }
           
           if (locMatch) {
-            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:#00ff7f66;margin-top:8px;">';
-            html += '<div>Location: <strong style="color:#00ff7f99;">' + locMatch[1] + ', ' + locMatch[2] + '</strong></div>';
-            if (altMatch) html += '<div>Altitude: <strong style="color:#00ff7f99;">' + altMatch[1] + 'm</strong></div>';
-            if (speedMatch) html += '<div>Speed: <strong style="color:#00ff7f99;">' + speedMatch[1] + ' m/s</strong></div>';
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:var(--mut);margin-top:8px;">';
+            html += '<div>Location: <strong style="color:var(--txt);">' + locMatch[1] + ', ' + locMatch[2] + '</strong></div>';
+            if (altMatch) html += '<div>Altitude: <strong style="color:var(--txt);">' + altMatch[1] + 'm</strong></div>';
+            if (speedMatch) html += '<div>Speed: <strong style="color:var(--txt);">' + speedMatch[1] + ' m/s</strong></div>';
             html += '</div>';
           }
           
           if (opLocMatch) {
-            html += '<div style="margin-top:8px;padding:8px;background:#001a10;border:1px solid #003b24;border-radius:6px;font-size:11px;color:#00ff7f66;">';
-            html += 'Operator: <strong style="color:#00ff7f99;">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>';
+            html += '<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;color:var(--mut);">';
+            html += 'Operator: <strong style="color:var(--txt);">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>';
             html += '</div>';
           }
           
@@ -2247,13 +2332,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const uniqueMatch = text.match(/Unique devices: (\d+)/);
         
         if (modeMatch || durationMatch || hitsMatch || uniqueMatch) {
-          html += '<div id="deviceScanHeader" style="margin-bottom:16px;padding:12px;background:#000;border:1px solid #003b24;border-radius:8px;">';
-          html += '<div style="font-size:14px;color:#00ff7f;margin-bottom:8px;font-weight:bold;">Device Discovery Scan Results</div>';
-          html += '<div style="display:flex;gap:20px;font-size:12px;color:#00ff7f99;flex-wrap:wrap;">';
-          if (modeMatch) html += '<span>Mode: <strong style="color:#00ff7f;">' + modeMatch[1] + '</strong></span>';
-          if (durationMatch) html += '<span>Duration: <strong style="color:#00ff7f;">' + durationMatch[1] + '</strong></span>';
-          if (hitsMatch) html += '<span>Target Hits: <strong style="color:#00ff7f;">' + hitsMatch[1] + '</strong></span>';
-          if (uniqueMatch) html += '<span>Unique: <strong style="color:#00ff7f;">' + uniqueMatch[1] + '</strong></span>';
+          html += '<div id="deviceScanHeader" style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+          html += '<div style="font-size:14px;color:var(--txt);margin-bottom:8px;font-weight:bold;">Device Discovery Scan Results</div>';
+          html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);flex-wrap:wrap;">';
+          if (modeMatch) html += '<span>Mode: <strong style="color:var(--txt);">' + modeMatch[1] + '</strong></span>';
+          if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + '</strong></span>';
+          if (hitsMatch) html += '<span>Target Hits: <strong style="color:var(--txt);">' + hitsMatch[1] + '</strong></span>';
+          if (uniqueMatch) html += '<span>Unique: <strong style="color:var(--txt);">' + uniqueMatch[1] + '</strong></span>';
           html += '</div></div>';
         }
         
@@ -2268,22 +2353,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const channel = match[4] || '';
           const name = match[5] || 'Unknown';
           
-          const typeColor = type === 'BLE' ? '#4da6ff' : '#00ff7f';
+          const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
           const rssiStrength = parseInt(rssi);
-          let rssiColor = '#00ff7f99';
-          if (rssiStrength >= -50) rssiColor = '#00ff7f';
-          else if (rssiStrength >= -70) rssiColor = '#00ff7fcc';
+          let rssiColor = 'var(--mut)';
+          if (rssiStrength >= -50) rssiColor = 'var(--succ)';
+          else if (rssiStrength >= -70) rssiColor = 'var(--txt)';
           
-          html += '<div class="device-card" data-type="' + type + '" style="margin-bottom:10px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">';
+          html += '<div class="device-card" data-type="' + type + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
           html += '<div>';
-          html += '<div style="font-family:monospace;font-size:13px;color:#00ff7f;margin-bottom:4px;">' + mac + '</div>';
+          html += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + '</div>';
           html += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
           html += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
           html += '</div>';
           html += '<div style="text-align:right;">';
           html += '<div style="font-size:12px;color:' + rssiColor + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
-          if (channel) html += '<div style="font-size:11px;color:#00ff7f99;margin-top:2px;">CH: ' + channel + '</div>';
+          if (channel) html += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
           html += '</div>';
           html += '</div>';
           html += '</div>';
@@ -2725,49 +2810,51 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
+        const resetRandBtn = document.getElementById('resetRandBtn');
         
         cacheBtn.style.display = 'none';
         baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
         clearOldBtn.style.display = 'none';
+        resetRandBtn.style.display = 'none';
         standardControls.style.display = 'none';
         baselineControls.style.display = 'none';
         randomizationModeControls.style.display = 'none';
         deviceScanModeControls.style.display = 'none';
         
         if (selectedMethod === 'baseline') {
-            baselineControls.style.display = 'block';
-            baselineResultsBtn.style.display = 'inline-block';
-            resetBaselineBtn.style.display = 'inline-block';
-            document.getElementById('detectionDuration').disabled = true;
-            document.getElementById('baselineMonitorDuration').disabled = false;
-            updateBaselineStatus();
-            
+          baselineControls.style.display = 'block';
+          baselineResultsBtn.style.display = 'inline-block';
+          resetBaselineBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = true;
+          document.getElementById('baselineMonitorDuration').disabled = false;
+          updateBaselineStatus();
+          
         } else if (selectedMethod === 'randomization-detection') {
-            standardControls.style.display = 'block';
-            randomizationModeControls.style.display = 'block';
-            clearOldBtn.style.display = 'inline-block';
-            resetRandBtn.style.display = 'inline-block';
-            document.getElementById('detectionDuration').disabled = false;
-            document.getElementById('baselineMonitorDuration').disabled = true;
-            
+          standardControls.style.display = 'block';
+          randomizationModeControls.style.display = 'block';
+          clearOldBtn.style.display = 'inline-block';
+          resetRandBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+          
         } else if (selectedMethod === 'device-scan') {
-            standardControls.style.display = 'block';
-            deviceScanModeControls.style.display = 'block';
-            cacheBtn.style.display = 'inline-block';
-            document.getElementById('detectionDuration').disabled = false;
-            document.getElementById('baselineMonitorDuration').disabled = true;
-            
+          standardControls.style.display = 'block';
+          deviceScanModeControls.style.display = 'block';
+          cacheBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+          
         } else if (selectedMethod === 'drone-detection') {
-            standardControls.style.display = 'block';
-            document.getElementById('detectionDuration').disabled = false;
-            document.getElementById('baselineMonitorDuration').disabled = true;
-            
+          standardControls.style.display = 'block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+          
         } else {
-            standardControls.style.display = 'block';
-            cacheBtn.style.display = 'inline-block';
-            document.getElementById('detectionDuration').disabled = false;
-            document.getElementById('baselineMonitorDuration').disabled = true;
+          standardControls.style.display = 'block';
+          cacheBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
         }
       });
 
@@ -2830,6 +2917,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         e.preventDefault();
         fetch('/mesh-test').then(r => r.text()).then(t => toast('Mesh test sent'));
       });
+        
+      // Mode status updates
+      document.querySelector('#s select[name="mode"]')?.addEventListener('change', updateModeStatus);
+      document.getElementById('randomizationMode')?.addEventListener('change', updateModeStatus);
+      document.getElementById('deviceScanMode')?.addEventListener('change', updateModeStatus);
+      document.getElementById('detectionMode')?.addEventListener('change', updateModeStatus);
 
       // Initialize
       load();

@@ -576,6 +576,7 @@ String getDiagnostics() {
     s += "Unique devices: " + String((int)uniqueMacs.size()) + "\n";
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
+    s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
     s += "Vibration sensor: " + String(lastVibrationTime > 0 ? "Active" : "Standby") + "\n";
     if (lastVibrationTime > 0) {
         unsigned long vibrationTime = lastVibrationTime;
