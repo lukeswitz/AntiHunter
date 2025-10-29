@@ -110,12 +110,18 @@ void setRFPreset(uint8_t preset) {
                  rfConfig.bleScanInterval, rfConfig.bleScanDuration);
 }
 
-void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration) {
+void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels) {
     rfConfig.wifiChannelTime = constrain(wifiChanTime, 50, 300);
     rfConfig.wifiScanInterval = constrain(wifiInterval, 1000, 10000);
     rfConfig.bleScanInterval = constrain(bleInterval, 1000, 10000);
     rfConfig.bleScanDuration = constrain(bleDuration, 1000, 5000);
     rfConfig.preset = 3;
+    
+    if (channels.length() > 0) {
+        rfConfig.wifiChannels = channels;
+        parseChannelsCSV(channels);
+        prefs.putString("channels", channels);
+    }
     
     WIFI_SCAN_INTERVAL = rfConfig.wifiScanInterval;
     BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
@@ -126,9 +132,10 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
     prefs.putUInt("rfPreset", 3);
     
-    Serial.printf("[RF] Custom config: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms\n",
+    Serial.printf("[RF] Custom config: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms%s\n",
                  rfConfig.wifiChannelTime, rfConfig.wifiScanInterval, 
-                 rfConfig.bleScanInterval, rfConfig.bleScanDuration);
+                 rfConfig.bleScanInterval, rfConfig.bleScanDuration,
+                 channels.length() > 0 ? (", channels=" + channels).c_str() : "");
 }
 
 RFScanConfig getRFConfig() {
@@ -144,7 +151,8 @@ void loadRFConfigFromPrefs() {
         uint32_t wsi = prefs.getUInt("wifiInterval", 5000);
         uint32_t bsi = prefs.getUInt("bleInterval", 2000);
         uint32_t bsd = prefs.getUInt("bleDuration", 3000);
-        setCustomRFConfig(wct, wsi, bsi, bsd);
+        String channels = prefs.getString("channels", "1..14");
+        setCustomRFConfig(wct, wsi, bsi, bsd, channels);
     }
 }
 
