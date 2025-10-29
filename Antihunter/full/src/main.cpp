@@ -198,10 +198,9 @@ void setup() {
         .trigger_panic = true
     };
 
-    Serial.println("=== Boot Complete ===");
-    Serial.printf("Web UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
-    Serial.printf("Mesh @ 115200 on pins %d,%d\n", MESH_RX_PIN, MESH_TX_PIN);
-    Serial.printf("AP MAC: %s\n", WiFi.softAPmacAddress().c_str());
+    Serial.println("===== ANTIHUNTER BOOT COMPLETE =====");
+    Serial.printf("WEB UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
+    Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
     
     delay(2000);
 }

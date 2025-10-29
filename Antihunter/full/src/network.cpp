@@ -283,6 +283,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--glow)}
       .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em}
       .stat-value{color:var(--txt);font-size:24px;font-weight:800;letter-spacing:-0.02em}
+      .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
       .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:18px;padding:4px 0}
       .card-header:hover h3{color:var(--acc)}
       .card-header h3{margin:0;transition:color 0.2s}
@@ -677,11 +678,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
           
           <div id="hardware" class="tab-content">
-            <pre id="hardwareDiag" style="margin:0;">Loading...</pre>
+            <div id="hardwareDiag" style="margin:0;"></div>
           </div>
-          
+
           <div id="network" class="tab-content">
-            <pre id="networkDiag" style="margin:0;">Loading...</pre>
+            <div id="networkDiag" style="margin:0;"></div>
           </div>
         </div>
       </div>
@@ -2617,6 +2618,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
       }
 
+      function formatDiagnostics(text) {
+        if (!text || text.trim() === '') return '<div style="color:var(--mut);padding:20px;text-align:center;">No data</div>';
+        
+        const lines = text.trim().split('\n');
+        let html = '<div class="stat-grid">';
+        
+        lines.forEach(line => {
+          const parts = line.split(':');
+          if (parts.length >= 2) {
+            const label = parts[0].trim();
+            const value = parts.slice(1).join(':').trim();
+            
+            html += '<div class="stat-item">';
+            html += '<div class="stat-label">' + label + '</div>';
+            html += '<div class="stat-value">' + value + '</div>';
+            html += '</div>';
+          }
+        });
+        
+        html += '</div>';
+        return html;
+      }
+
       async function tick() {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
         
@@ -2671,8 +2695,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
           });
 
-          document.getElementById('hardwareDiag').innerText = hardware || 'No hardware data';
-          document.getElementById('networkDiag').innerText = network || 'No network data';
+          document.getElementById('hardwareDiag').innerHTML = formatDiagnostics(hardware);
+          document.getElementById('networkDiag').innerHTML = formatDiagnostics(network);
           
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
