@@ -1190,16 +1190,8 @@ void randomizationDetectionTask(void *pv) {
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
-    }
-    
-    if (currentScanMode == SCAN_BLE) {
-        WiFi.mode(WIFI_AP);
+    } else if (currentScanMode == SCAN_BLE) {
         vTaskDelay(pdMS_TO_TICKS(100));
-        radioStartBLE();
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
-    
-    if (currentScanMode == SCAN_BOTH) {
         radioStartBLE();
         vTaskDelay(pdMS_TO_TICKS(200));
     }
