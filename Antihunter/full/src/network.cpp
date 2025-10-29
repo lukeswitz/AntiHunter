@@ -26,8 +26,8 @@ static String customApPass = "";
 const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
-unsigned long meshSendInterval = 5000;
-const int MAX_MESH_SIZE = 240;
+unsigned long meshSendInterval = 3000;
+const int MAX_MESH_SIZE = 200; // based on testing 240 will overflow
 static String nodeId = "";
 
 // Scanner vars
