@@ -13,6 +13,7 @@ const size_t MAX_DETECTED_DRONES = 50;
 const uint32_t DRONE_STALE_TIME = 300000;
 
 std::map<String, DroneDetection> detectedDrones;
+std::set<String> transmittedDrones;
 std::vector<String> droneEventLog;
 volatile uint32_t droneDetectionCount = 0;
 bool droneDetectionEnabled = false;
@@ -25,6 +26,8 @@ extern volatile bool scanning;
 
 static unsigned long lastDroneLog = 0;
 const unsigned long DRONE_LOG_INTERVAL = 1000;
+static unsigned long lastDroneMeshSend = 0;
+static const unsigned long DRONE_MESH_INTERVAL = 3000;
 
 extern String macFmt6(const uint8_t *m);
 extern void sendMeshNotification(const Hit &hit);
@@ -280,9 +283,12 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
                 meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
             }
             sendToSerial1(String(meshMsg), false);
+
+            if (sendToSerial1(meshMsg, false)) {
+                transmittedDrones.insert(drone.uavId);
+            }
             
             Serial.println("[DRONE] " + jsonStr);
-            broadcastToTerminal("[DRONE]" + jsonStr);
         }
         
         if (droneQueue) {
@@ -376,34 +382,92 @@ void cleanupDroneData() {
     }
 }
 
-void droneDetectorTask(void *pv) {
+void droneDetectorTask(void *pv)
+{
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
-    
+
     Serial.printf("[DRONE] Starting drone detection %s\n",
-                  forever ? "(forever)" : ("for " + String(duration) + "s").c_str());
-    
+                  forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
+
     initializeDroneDetector();
     droneDetectionEnabled = true;
     scanning = true;
     stopRequested = false;
+    
+    uint32_t localFramesSeen = 0;
+    transmittedDrones.clear();
     
     radioStartSTA();
     
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
+    uint32_t lastMeshUpdate = millis();
+    const unsigned long MESH_DRONE_UPDATE_INTERVAL = 5000;
     DroneDetection drone;
     
     while ((forever && !stopRequested) || 
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
         
         while (xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
+            localFramesSeen++;
+            
+            String logEntry = "DRONE: ID=" + String(drone.uavId) +
+                            " Lat=" + String(drone.latitude, 6) +
+                            " Lon=" + String(drone.longitude, 6) +
+                            " Alt=" + String(drone.altitudeMsl, 1) + "m" +
+                            " Speed=" + String(drone.speed, 1) + "m/s" +
+                            " RSSI=" + String(drone.rssi) + "dBm";
+            
+            Serial.println("[DRONE] " + logEntry);
+            logToSD(logEntry);
+            
+            String droneId = String(drone.uavId);
+            if (meshEnabled && transmittedDrones.find(droneId) == transmittedDrones.end()) {
+                String meshMsg = getNodeId() + ": DRONE: ID=" + droneId +
+                                " RSSI=" + String(drone.rssi);
+                if (drone.latitude != 0) {
+                    meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
+                }
+                if (sendToSerial1(meshMsg, false)) {
+                    transmittedDrones.insert(droneId);
+                }
+            }
+        }
+        
+        if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DRONE_UPDATE_INTERVAL)) {
+            lastMeshUpdate = millis();
+            
+            int sentThisCycle = 0;
+            for (const auto& entry : detectedDrones) {
+                String droneId = String(entry.second.uavId);
+                
+                if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
+                    String droneMsg = getNodeId() + ": DRONE: ID=" + droneId;
+                    droneMsg += " R" + String(entry.second.rssi);
+                    
+                    if (entry.second.latitude != 0) {
+                        droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
+                                   "," + String(entry.second.longitude, 6);
+                    }
+                    
+                    if (droneMsg.length() < 230 && sendToSerial1(droneMsg, true)) {
+                        transmittedDrones.insert(droneId);
+                        sentThisCycle++;
+                        
+                        if (sentThisCycle % 2 == 0) {
+                            delay(1000);
+                            rateLimiter.refillTokens();
+                        }
+                    }
+                }
+            }
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
-            Serial.printf("[DRONE] Detected:%u Unique:%u\n", 
-                         droneDetectionCount, (unsigned)detectedDrones.size());
+            Serial.printf("[DRONE] Detected:%u Unique:%u Frames:%u\n", 
+                         droneDetectionCount, (unsigned)detectedDrones.size(), localFramesSeen);
             nextStatus += 5000;
         }
         
@@ -417,13 +481,65 @@ void droneDetectorTask(void *pv) {
     
     droneDetectionEnabled = false;
     scanning = false;
+
+    if (meshEnabled && !stopRequested) {
+        Serial.printf("[DRONE] Scan complete - transmitting final batch\n");
+        rateLimiter.flush();
+        delay(100);
+        
+        for (const auto& entry : detectedDrones) {
+            String droneId = String(entry.second.uavId);
+            
+            if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
+                String droneMsg = getNodeId() + ": DRONE: ID=" + droneId;
+                droneMsg += " R" + String(entry.second.rssi);
+                
+                if (entry.second.latitude != 0) {
+                    droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
+                               "," + String(entry.second.longitude, 6);
+                }
+                
+                if (droneMsg.length() < 230) {
+                    if (sendToSerial1(droneMsg, true)) {
+                        transmittedDrones.insert(droneId);
+                    }
+                }
+            }
+        }
+        
+        Serial1.flush();
+        delay(100);
+        
+        uint32_t totalDrones = detectedDrones.size();
+        uint32_t finalTransmitted = transmittedDrones.size();
+        uint32_t finalRemaining = totalDrones - finalTransmitted;
+        
+        String summary = getNodeId() + ": DRONE_DONE: Detected=" + String(droneDetectionCount) +
+                        " Unique=" + String(totalDrones) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
+        sendToSerial1(summary, true);
+        Serial.printf("[DRONE] Detection complete: %d/%d drones transmitted, %d pending\n",
+                     finalTransmitted, totalDrones, finalRemaining);
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[DRONE] WARNING: %d drones not transmitted\n", finalRemaining);
+        }
+    }
+
     radioStopSTA();
-    
+    delay(100);
+       
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = getDroneDetectionResults().c_str();
     }
-    
+
+    Serial.printf("[DRONE] Complete: %u drones detected, %u unique\n",
+                  droneDetectionCount, (unsigned)detectedDrones.size());
+
+    vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
