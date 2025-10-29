@@ -27,6 +27,8 @@ extern "C"
 // RF handlers
 void radioStartSTA();
 void radioStopSTA();
+void radioStartBLE();
+void radioStopBLE();
 
 // Scanner state variables
 extern Preferences prefs;
