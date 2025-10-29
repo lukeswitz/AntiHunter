@@ -1178,6 +1178,7 @@ void blueTeamTask(void *pv) {
     DeauthHit hit;
 
     radioStartSTA();
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     const int BATCH_LIMIT = 4;
 
@@ -1354,6 +1355,9 @@ void blueTeamTask(void *pv) {
     }
 
     Serial.println("[BLUE] Deauth detection stopped cleanly");
+    
+    radioStopSTA();
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
