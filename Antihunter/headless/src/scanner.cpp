@@ -575,7 +575,14 @@ void snifferScanTask(void *pv)
     Serial.printf("[SNIFFER] Starting device scan %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
 
-    radioStartSTA();
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        radioStartSTA();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    } else if (currentScanMode == SCAN_BLE) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        radioStartBLE();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
 
     scanning = true;
     uniqueMacs.clear();
@@ -1165,6 +1172,7 @@ void blueTeamTask(void *pv) {
     DeauthHit hit;
 
     radioStartSTA();
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     const int BATCH_LIMIT = 4;
 
@@ -1341,6 +1349,9 @@ void blueTeamTask(void *pv) {
     }
 
     Serial.println("[BLUE] Deauth detection stopped cleanly");
+    
+    radioStopSTA();
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
