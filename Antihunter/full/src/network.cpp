@@ -335,7 +335,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <!-- Target List -->
             <details open>
-              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;">Target List</summary>
+              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;"><span>▶</span> Target List</summary>
               <form id="f" method="POST" action="/save">
                 <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="3"></textarea>
                 <div id="targetCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 targets</div>
@@ -348,7 +348,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <!-- Allowlist -->
             <details style="margin-top:12px;">
-              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;">Allow List</summary>
+              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;"><span>▶</span> Allow List</summary>
               <form id="af" method="POST" action="/allowlist-save">
                 <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
                 <div id="allowlistCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 allowlisted</div>
