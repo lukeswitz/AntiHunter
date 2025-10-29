@@ -198,8 +198,9 @@ void setup() {
         .trigger_panic = true
     };
 
-    Serial.println("=== Boot Complete - HEADLESS ===");
+    Serial.println("===== ANTIHUNTER HEADLESS BOOT COMPLETE =====");
     Serial.printf("Mesh @ 115200 on pins %d,%d\n", MESH_RX_PIN, MESH_TX_PIN);
+    Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
     
     delay(2000);
 }
