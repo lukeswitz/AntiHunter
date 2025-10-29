@@ -296,7 +296,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details>summary::-webkit-details-marker{display:none}
       @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
-      @media(max-width:600px){.stat-grid{grid-template-columns:1fr}.status-item{font-size:11px;padding:6px 10px}input,select,textarea{font-size:13px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}}
+      @media(max-width:600px){.stat-grid,.diag-grid{grid-template-columns:1fr}.status-item{font-size:11px;padding:6px 10px}input,select,textarea{font-size:13px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}}
+.diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
     </style>
     <script>
       function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),n='dark'===t?'light':'dark';e.setAttribute('data-theme',n),localStorage.setItem('theme',n)}
@@ -676,12 +677,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
           </div>
           
-          <div id="hardware" class="tab-content">
-            <div id="hardwareDiag" style="margin:0;"></div>
+         <div id="hardware" class="tab-content">
+            <div id="hardwareDiag">Loading...</div>
           </div>
 
           <div id="network" class="tab-content">
-            <div id="networkDiag" style="margin:0;"></div>
+            <div id="networkDiag">Loading...</div>
           </div>
         </div>
       </div>
@@ -2642,6 +2643,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return html;
       }
 
+      function formatDiagGrid(text,type){
+        if(!text||text.trim()==='')return'<div style="color:var(--mut);text-align:center;padding:20px;">No data</div>';
+        let html='<div class="diag-grid">';
+        const lines=text.trim().split('\n');
+        lines.forEach(line=>{
+          const parts=line.split(':');
+          if(parts.length<2)return;
+          const label=parts[0].trim();
+          const value=parts.slice(1).join(':').trim();
+          html+='<div class="stat-item">';
+          html+='<div class="stat-label">'+label+'</div>';
+          html+='<div class="stat-value" style="font-size:14px;">'+value+'</div>';
+          html+='</div>';
+        });
+        html+='</div>';
+        return html;
+      }
+
       async function tick() {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
         
@@ -2696,8 +2715,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
           });
 
-          document.getElementById('hardwareDiag').innerHTML = formatDiagnostics(hardware);
-          document.getElementById('networkDiag').innerHTML = formatDiagnostics(network);
+          document.getElementById('hardwareDiag').innerHTML=formatDiagGrid(hardware,'hardware');
+          document.getElementById('networkDiag').innerHTML=formatDiagGrid(network,'network');
           
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
