@@ -235,7 +235,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .btn{display:inline-block;padding:7px 11px;border-radius:6px;border:1px solid #004e2f;background:#001b12;color:var(--fg);text-decoration:none;cursor:pointer;font-size:11px;transition:all .2s;white-space:nowrap}
       .btn:hover{box-shadow:0 4px 14px rgba(10,255,157,.15);transform:translateY(-1px)}
       .btn.primary{background:#002417;border-color:#0c6}
-      .btn.alt{background:#1a0f00;border-color:#4e3000;color:#ffa500}
+      .btn.alt{background:#00140d;border-color:#004e2f;color:var(--accent)}
       .btn.danger{background:transparent;border-color:#dd6600;color:#ff9933}
       .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .small{opacity:.65;font-size:10px}
@@ -417,6 +417,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
                 <select id="randomizationMode" name="randomizationMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
+              </div>
+              <div id="deviceScanModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="deviceScanMode" name="deviceScanMode">
                   <option value="0">WiFi Only</option>
                   <option value="2" selected>WiFi + BLE</option>
                   <option value="1">BLE Only</option>
@@ -2711,12 +2719,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const standardControls = document.getElementById('standardDurationControls');
         const baselineControls = document.getElementById('baselineConfigControls');
         const randomizationModeControls = document.getElementById('randomizationModeControls');
+        const deviceScanModeControls = document.getElementById('deviceScanModeControls');
         const cacheBtn = document.getElementById('cacheBtn');
         const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
         
-        // Hide all controls first
         cacheBtn.style.display = 'none';
         baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
@@ -2724,6 +2732,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         standardControls.style.display = 'none';
         baselineControls.style.display = 'none';
         randomizationModeControls.style.display = 'none';
+        deviceScanModeControls.style.display = 'none';
         
         if (selectedMethod === 'baseline') {
             baselineControls.style.display = 'block';
@@ -2743,17 +2752,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
         } else if (selectedMethod === 'device-scan') {
             standardControls.style.display = 'block';
+            deviceScanModeControls.style.display = 'block';
             cacheBtn.style.display = 'inline-block';
             document.getElementById('detectionDuration').disabled = false;
             document.getElementById('baselineMonitorDuration').disabled = true;
             
-        } else {
-            // deauth, drone-detection, etc
+        } else if (selectedMethod === 'drone-detection') {
             standardControls.style.display = 'block';
             document.getElementById('detectionDuration').disabled = false;
             document.getElementById('baselineMonitorDuration').disabled = true;
+            
+        } else {
+            standardControls.style.display = 'block';
+            cacheBtn.style.display = 'inline-block';
+            document.getElementById('detectionDuration').disabled = false;
+            document.getElementById('baselineMonitorDuration').disabled = true;
         }
-    });
+      });
 
       document.getElementById('sniffer').addEventListener('submit', e => {
         e.preventDefault();
@@ -3355,81 +3370,19 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     req->send(200, "text/plain", "Cancelled"); });
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
-    String detection = req->getParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
-    int secs = req->getParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
-    bool forever = req->hasParam("forever", true);
-    
-    if (detection == "deauth") {
-      if (secs < 0) secs = 0; 
-      if (secs > 86400) secs = 86400;
-      
-      stopRequested = false;
-      req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
-      
-      if (!blueTeamTaskHandle) {
-        xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
-      }
-      
-    } else if (detection == "baseline") {
-      currentScanMode = SCAN_BOTH;
-      if (secs < 0) secs = 0;
-      if (secs > 86400) secs = 86400;
-      
-      stopRequested = false;
-      req->send(200, "text/plain", 
-                forever ? "Baseline detection starting (forever)" : 
-                ("Baseline detection starting for " + String(secs) + "s"));
-      
-      if (!workerTaskHandle) {
-          xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288, 
-                                (void*)(intptr_t)(forever ? 0 : secs), 
-                                1, &workerTaskHandle, 1);
-      }
-    } else if (detection == "randomization-detection") {
-        int scanMode = SCAN_BOTH;
-        if (req->hasParam("randomizationMode", true)) {
-            int mode = req->getParam("randomizationMode", true)->value().toInt();
-            if (mode >= 0 && mode <= 2) {
-                scanMode = mode;  // 0=WiFi, 1=BLE, 2=Both
-            }
-        }
-        
-        currentScanMode = (ScanMode)scanMode;
-        if (secs < 0) secs = 0;
-        if (secs > 86400) secs = 86400;
-        
-        stopRequested = false;
-        
-        String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" : 
-                        (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-        
-        req->send(200, "text/plain", 
-                  forever ? ("Randomization detection starting (forever) - " + modeStr) : 
-                  ("Randomization detection starting for " + String(secs) + "s - " + modeStr));
-        
-        if (!workerTaskHandle) {
-            xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
-                                  (void*)(intptr_t)(forever ? 0 : secs),
-                                  1, &workerTaskHandle, 1);
-        }
-    } else if (detection == "device-scan") {
-        currentScanMode = SCAN_BOTH;
-        if (secs < 0) secs = 0;
-        if (secs > 86400) secs = 86400;
+        String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
+        int secs = req->hasParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
+        bool forever = req->hasParam("forever", true);
         
         if (detection == "deauth") {
-            if (secs < 0) secs = 0;
+            if (secs < 0) secs = 0; 
             if (secs > 86400) secs = 86400;
             
             stopRequested = false;
-            req->send(200, "text/plain", 
-                      forever ? "Deauth detection starting (forever)" : 
-                      ("Deauth detection starting for " + String(secs) + "s"));
+            req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
             
             if (!blueTeamTaskHandle) {
-                xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, 
-                                      (void*)(intptr_t)(forever ? 0 : secs), 
-                                      1, &blueTeamTaskHandle, 1);
+                xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
             }
             
         } else if (detection == "baseline") {
@@ -3438,30 +3391,72 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             if (secs > 86400) secs = 86400;
             
             stopRequested = false;
-            req->send(200, "text/plain",
-                      forever ? "Baseline detection starting (forever)" :
-                      ("Baseline detection starting for " + String(secs) + "s"));
+            req->send(200, "text/plain", 
+                    forever ? "Baseline detection starting (forever)" : 
+                    ("Baseline detection starting for " + String(secs) + "s"));
             
             if (!workerTaskHandle) {
-                xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
-                                      (void*)(intptr_t)(forever ? 0 : secs),
-                                      1, &workerTaskHandle, 1);
+                xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288, 
+                                    (void*)(intptr_t)(forever ? 0 : secs), 
+                                    1, &workerTaskHandle, 1);
             }
-        } else if (detection == "device-scan") {
-            currentScanMode = SCAN_BOTH;
+            
+        } else if (detection == "randomization-detection") {
+            int scanMode = SCAN_BOTH;
+            if (req->hasParam("randomizationMode", true)) {
+                int mode = req->getParam("randomizationMode", true)->value().toInt();
+                if (mode >= 0 && mode <= 2) {
+                    scanMode = mode;
+                }
+            }
+            
+            currentScanMode = (ScanMode)scanMode;
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
             
             stopRequested = false;
+            
+            String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" : 
+                            (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+            
             req->send(200, "text/plain", 
-                      forever ? "Device scan starting (forever)" : 
-                      ("Device scan starting for " + String(secs) + "s"));
+                    forever ? ("Randomization detection starting (forever) - " + modeStr) : 
+                    ("Randomization detection starting for " + String(secs) + "s - " + modeStr));
+            
+            if (!workerTaskHandle) {
+                xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
+                                    (void*)(intptr_t)(forever ? 0 : secs),
+                                    1, &workerTaskHandle, 1);
+            }
+            
+        } else if (detection == "device-scan") {
+            int scanMode = SCAN_BOTH;
+            if (req->hasParam("deviceScanMode", true)) {
+                int mode = req->getParam("deviceScanMode", true)->value().toInt();
+                if (mode >= 0 && mode <= 2) {
+                    scanMode = mode;
+                }
+            }
+            
+            currentScanMode = (ScanMode)scanMode;
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+            
+            stopRequested = false;
+            
+            String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" : 
+                            (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+            
+            req->send(200, "text/plain", 
+                    forever ? ("Device scan starting (forever) - " + modeStr) : 
+                    ("Device scan starting for " + String(secs) + "s - " + modeStr));
             
             if (!workerTaskHandle) {
                 xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
-                                      (void*)(intptr_t)(forever ? 0 : secs), 
-                                      1, &workerTaskHandle, 1);
+                                    (void*)(intptr_t)(forever ? 0 : secs), 
+                                    1, &workerTaskHandle, 1);
             }
+            
         } else if (detection == "drone-detection") {
             currentScanMode = SCAN_WIFI;
             if (secs < 0) secs = 0;
@@ -3469,20 +3464,19 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             
             stopRequested = false;
             req->send(200, "text/plain",
-                      forever ? "Drone detection starting (forever)" :
-                      ("Drone detection starting for " + String(secs) + "s"));
+                    forever ? "Drone detection starting (forever)" :
+                    ("Drone detection starting for " + String(secs) + "s"));
             
             if (!workerTaskHandle) {
                 xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
-                                      (void*)(intptr_t)(forever ? 0 : secs),
-                                      1, &workerTaskHandle, 1);
+                                    (void*)(intptr_t)(forever ? 0 : secs),
+                                    1, &workerTaskHandle, 1);
             }
             
         } else {
             req->send(400, "text/plain", "Unknown detection mode");
         }
-      }
-  });
+    });
 
   server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {
       String results = "Deauth Attack Detection Results\n\n";
