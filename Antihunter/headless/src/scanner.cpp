@@ -575,25 +575,7 @@ void snifferScanTask(void *pv)
     Serial.printf("[SNIFFER] Starting device scan %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
 
-    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        radioStartSTA();
-    } else if (currentScanMode == SCAN_BLE) {
-        
-        if (pBLEScan) {
-            pBLEScan->stop();
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
-
-        BLEDevice::init("");
-        pBLEScan = BLEDevice::getScan();
-        pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
-        pBLEScan->setActiveScan(true);
-        pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
-        pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
-        pBLEScan->setDuplicateFilter(false);
-        pBLEScan->start(0, false);
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
+    radioStartSTA();
 
     scanning = true;
     uniqueMacs.clear();
@@ -2411,9 +2393,9 @@ void listScanTask(void *pv) {
     radioStopSTA();
     delay(500);
 
-    if (pBLEScan && pBLEScan->isScanning()) {
-        pBLEScan->stop();
-    }
+    // if (pBLEScan && pBLEScan->isScanning()) {
+    //     pBLEScan->stop();
+    // }
 
     vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;
