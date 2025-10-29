@@ -27,6 +27,8 @@ extern "C"
 // RF handlers
 void radioStartSTA();
 void radioStopSTA();
+void radioStartBLE();
+void radioStopBLE();
 
 // Scanner state variables
 extern Preferences prefs;
@@ -578,7 +580,14 @@ void snifferScanTask(void *pv)
     Serial.printf("[SNIFFER] Starting device scan %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
 
-    radioStartSTA();
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        radioStartSTA();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    } else if (currentScanMode == SCAN_BLE) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        radioStartBLE();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
 
     scanning = true;
     uniqueMacs.clear();
@@ -1888,22 +1897,17 @@ void listScanTask(void *pv) {
     lastScanForever = forever;
 
     vTaskDelay(pdMS_TO_TICKS(200));
-    
-    radioStartSTA();
-    
-    vTaskDelay(pdMS_TO_TICKS(100));
 
-    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
-        if (!pBLEScan) {
-            BLEDevice::init("");
-            pBLEScan = BLEDevice::getScan();
-        }
-        pBLEScan->setActiveScan(true);
-        pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
-        pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
-        pBLEScan->setDuplicateFilter(false);
-        pBLEScan->start(0, false);
+    if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        radioStartSTA();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    } else if (currentScanMode == SCAN_BLE) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        radioStartBLE();
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     uint32_t nextStatus = millis() + 1000;
     std::map<String, uint32_t> deviceLastSeen;
