@@ -1175,38 +1175,26 @@ void randomizationDetectionTask(void *pv) {
     }
 
     loadDeviceIdentities();
+
+    std::set<String> transmittedIdentities;
     
     {
         std::lock_guard<std::mutex> lock(randMutex);
-        
-        uint32_t now = millis();
-        std::vector<String> staleSessions;
-        
-        for (auto& entry : activeSessions) {
-            if (now - entry.second.lastSeen > SESSION_CLEANUP_AGE) {
-                staleSessions.push_back(entry.first);
-            }
-        }
-        
-        for (const auto& key : staleSessions) {
-            activeSessions.erase(key);
-        }
-        
-        Serial.printf("[RAND] Cleanup: Removed %d stale sessions. Retained: %d sessions, %d identities\n",
-                     staleSessions.size(), activeSessions.size(), deviceIdentities.size());
+        activeSessions.clear();
+        deviceIdentities.clear();
     }
     
-    randomizationDetectionEnabled = true;
-    scanning = true;
+    Serial.println("[RAND] Starting radios...");
+    vTaskDelay(pdMS_TO_TICKS(100));
     
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
     }
-
+    
     if (currentScanMode == SCAN_BLE) {
         WiFi.mode(WIFI_AP);
-        delay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
         radioStartBLE();
         vTaskDelay(pdMS_TO_TICKS(200));
     }
@@ -1216,13 +1204,19 @@ void randomizationDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     
+    Serial.println("[RAND] Enabling detection...");
+    randomizationDetectionEnabled = true;
+    scanning = true;
+
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
     uint32_t nextCleanup = startTime + 10000;
     uint32_t nextResultsUpdate = startTime + 2000;
     uint32_t lastBLEScan = 0;
+    uint32_t lastMeshUpdate = 0;
+    const uint32_t MESH_IDENTITY_UPDATE_INTERVAL = 5000;
     const uint32_t BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
-    
+
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
         
@@ -1474,6 +1468,44 @@ void randomizationDetectionTask(void *pv) {
             nextStatus += 5000;
         }
         
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_IDENTITY_UPDATE_INTERVAL) {
+            lastMeshUpdate = millis();
+            uint32_t sentThisCycle = 0;
+            
+            std::lock_guard<std::mutex> lock(randMutex);
+            
+            for (const auto& entry : deviceIdentities) {
+                const DeviceIdentity& identity = entry.second;
+                String identityKey = String(identity.identityId);
+                
+                if (transmittedIdentities.find(identityKey) == transmittedIdentities.end()) {
+                    String identityMsg = getNodeId() + ": IDENTITY:" + String(identity.identityId);
+                    identityMsg += identity.isBLE ? " B " : " W ";
+                    identityMsg += "MACs:" + String(identity.macs.size());
+                    identityMsg += " Conf:" + String(identity.confidence, 2);
+                    identityMsg += " Sess:" + String(identity.observedSessions);
+                    
+                    if (identity.macs.size() > 0) {
+                        identityMsg += " Anchor:" + macFmt6(identity.macs[0].bytes.data());
+                    }
+                    
+                    if (identityMsg.length() < 230) {
+                        if (sendToSerial1(identityMsg, true)) {
+                            transmittedIdentities.insert(identityKey);
+                            sentThisCycle++;
+                            
+                            if (sentThisCycle % 2 == 0) {
+                                delay(1000);
+                                rateLimiter.refillTokens();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        
+
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             std::string results = getRandomizationResults().c_str();
             {
@@ -1482,6 +1514,7 @@ void randomizationDetectionTask(void *pv) {
             }
             nextResultsUpdate += 2000;
         }
+        
 
         if ((int32_t)(millis() - nextCleanup) >= 0) {
             cleanupStaleSessions();
@@ -1490,8 +1523,59 @@ void randomizationDetectionTask(void *pv) {
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+
+    if (meshEnabled && !stopRequested) {
+        Serial.printf("[RAND] Scan complete - transmitting final batch\n");
+        
+        std::lock_guard<std::mutex> lock(randMutex);
+        
+        rateLimiter.flush();
+        delay(100);
+        
+        for (const auto& entry : deviceIdentities) {
+            String identityKey = String(entry.second.identityId);
+            
+            if (transmittedIdentities.find(identityKey) == transmittedIdentities.end()) {
+                const DeviceIdentity& identity = entry.second;
+                
+                String identityMsg = getNodeId() + ": IDENTITY:" + identityKey;
+                identityMsg += identity.isBLE ? " B " : " W ";
+                identityMsg += "MACs:" + String(identity.macs.size());
+                identityMsg += " Conf:" + String(identity.confidence, 2);
+                identityMsg += " Sess:" + String(identity.observedSessions);
+                
+                if (identity.macs.size() > 0) {
+                    identityMsg += " Anchor:" + macFmt6(identity.macs[0].bytes.data());
+                }
+                
+                if (identityMsg.length() < 230) {
+                    if (sendToSerial1(identityMsg, true)) {
+                        transmittedIdentities.insert(identityKey);
+                    }
+                }
+            }
+        }
+        
+        Serial1.flush();
+        delay(100);
+        
+        uint32_t totalIdentities = deviceIdentities.size();
+        uint32_t finalTransmitted = transmittedIdentities.size();
+        uint32_t finalRemaining = totalIdentities - finalTransmitted;
+        
+        String summary = getNodeId() + ": RANDOMIZATION_DONE: Identities=" + String(totalIdentities) +
+                        " Sessions=" + String(activeSessions.size()) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        sendToSerial1(summary, true);
+        Serial.printf("[RAND] Detection complete: %d/%d identities transmitted, %d pending\n",
+                     finalTransmitted, totalIdentities, finalRemaining);
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[RAND] WARNING: %d identities not transmitted\n", finalRemaining);
+        }
+    }
     
-    // Cleanup
     randomizationDetectionEnabled = false;
     scanning = false;
 

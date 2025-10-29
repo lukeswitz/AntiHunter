@@ -1560,7 +1560,7 @@ void randomizationDetectionTask(void *pv) {
     }
     
     randomizationDetectionEnabled = false;
-    scanning = true;
+    scanning = false;
 
     radioStopSTA();
     delay(100);
