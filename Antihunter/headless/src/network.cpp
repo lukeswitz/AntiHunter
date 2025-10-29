@@ -165,10 +165,12 @@ void initializeMesh() {
 
 void processCommand(const String &command)
 {
-  if (command.startsWith("CONFIG_CHANNELS:"))
+  if (command.startsWith("CONFIG_CHANNELS:")) 
   {
     String channels = command.substring(16);
     parseChannelsCSV(channels);
+    prefs.putString("channels", channels);
+    saveConfiguration();
     Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
     sendToSerial1(nodeId + ": CONFIG_ACK:CHANNELS:" + channels, true);
   }

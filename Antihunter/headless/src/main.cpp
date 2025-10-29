@@ -125,8 +125,6 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-
-    saveConfiguration();
 }
 
 void sendNodeIdUpdate() {
