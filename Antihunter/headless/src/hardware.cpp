@@ -351,7 +351,7 @@ void loadConfiguration() {
         if (channels.length() > 0) {
             parseChannelsCSV(channels);
             prefs.putString("channels", channels);
-            // Serial.println("Loaded channels from SD: " + channels);
+            Serial.println("Loaded channels from SD: " + channels);
         }
     }
 
@@ -588,7 +588,15 @@ String getDiagnostics() {
     }
     s += "RTC: ";
     if (rtcAvailable) {
-        s += rtcSynced ? "Synced" : "Not synced";
+        if (rtcSynced) {
+            s += "Synced";
+        } else {
+            if (gpsValid) {
+                s += "Not synced (waiting)";
+            } else {
+                s += "Not synced (no GPS)";
+            }
+        }
         s += " Time: " + getRTCTimeString() + "\n";
         if (lastRTCSync > 0) {
             s += "Last sync: " + String((millis() - lastRTCSync) / 1000) + "s ago\n";
