@@ -262,6 +262,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .stat-value{color:var(--fg);font-size:15px;font-weight:700}
       details > summary{list-style:none;cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:7px;font-size:11px}
       details > summary::-webkit-details-marker{display:none}
+      details > summary > span:first-child{display:inline-block;transition:transform 0.2s;transform-origin:center}
       details[open] > summary > span:first-child{transform:rotate(90deg)}
       .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:10px}
       .card-header h3{margin:0}
