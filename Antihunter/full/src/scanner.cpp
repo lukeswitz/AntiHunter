@@ -615,8 +615,8 @@ void snifferScanTask(void *pv)
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
-    const unsigned long BLE_SCAN_INTERVAL = 4000;
-    const unsigned long WIFI_SCAN_INTERVAL = 2000;
+    const unsigned long BLE_SCAN_INTERVAL = 2000;
+    const unsigned long WIFI_SCAN_INTERVAL = 4000;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long nextResultsUpdate = millis() + 5000;
     
@@ -763,7 +763,88 @@ void snifferScanTask(void *pv)
             }
         }
 
-         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+       if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
+        {
+            lastMeshUpdate = millis();
+            uint32_t sentThisCycle = 0;
+            
+            for (const auto& entry : apCache)
+            {
+                String macStr = entry.first;
+                String ssid = entry.second;
+                
+                if (transmittedDevices.find(macStr) == transmittedDevices.end())
+                {
+                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " W ";
+                    
+                    int8_t bestRssi = -128;
+                    uint8_t bestCh = 0;
+                    for (const auto& hit : hitsLog) {
+                        String hitMac = macFmt6(hit.mac);
+                        if (hitMac == macStr && hit.rssi > bestRssi) {
+                            bestRssi = hit.rssi;
+                            bestCh = hit.ch;
+                        }
+                    }
+                    
+                    deviceMsg += String(bestRssi);
+                    if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+                    if (ssid.length() > 0 && ssid != "[Hidden]") {
+                        deviceMsg += " N:" + ssid.substring(0, 30);
+                    }
+                    
+                    if (deviceMsg.length() < 230) {
+                        if (sendToSerial1(deviceMsg, true)) {
+                            transmittedDevices.insert(macStr);
+                            sentThisCycle++;
+                            
+                            if (sentThisCycle % 2 == 0) {
+                                delay(1000);
+                                rateLimiter.refillTokens();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            for (const auto& entry : bleDeviceCache)
+            {
+                String macStr = entry.first;
+                String name = entry.second;
+                
+                if (transmittedDevices.find(macStr) == transmittedDevices.end())
+                {
+                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " B ";
+                    
+                    int8_t bestRssi = -128;
+                    for (const auto& hit : hitsLog) {
+                        String hitMac = macFmt6(hit.mac);
+                        if (hitMac == macStr && hit.isBLE && hit.rssi > bestRssi) {
+                            bestRssi = hit.rssi;
+                        }
+                    }
+                    
+                    deviceMsg += String(bestRssi);
+                    if (name.length() > 0 && name != "Unknown") {
+                        deviceMsg += " N:" + name.substring(0, 30);
+                    }
+                    
+                    if (deviceMsg.length() < 230) {
+                        if (sendToSerial1(deviceMsg, true)) {
+                            transmittedDevices.insert(macStr);
+                            sentThisCycle++;
+                            
+                            if (sentThisCycle % 2 == 0) {
+                                delay(1000);
+                                rateLimiter.refillTokens();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
             
             std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
@@ -820,6 +901,78 @@ void snifferScanTask(void *pv)
     scanning = false;
     lastScanEnd = millis();
 
+    if (meshEnabled)
+    {
+        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t devicesBeforeFinal = transmittedDevices.size();
+        
+        Serial.printf("[SNIFFER] Scan complete - transmitting final batch\n");
+        Serial.printf("[SNIFFER] Already sent: %d/%d devices\n", devicesBeforeFinal, totalExpectedDevices);
+        
+        rateLimiter.flush();
+        delay(100);
+        
+        for (const auto& entry : apCache)
+        {
+            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
+            {
+                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
+                int8_t bestRssi = -128;
+                uint8_t bestCh = 0;
+                for (const auto& hit : hitsLog) {
+                    String hitMac = macFmt6(hit.mac);
+                    if (hitMac == entry.first && hit.rssi > bestRssi) {
+                        bestRssi = hit.rssi;
+                        bestCh = hit.ch;
+                    }
+                }
+                deviceMsg += String(bestRssi);
+                if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+                if (entry.second.length() > 0 && entry.second != "[Hidden]") {
+                    deviceMsg += " N:" + entry.second.substring(0, 30);
+                }
+                if (deviceMsg.length() < 230) {
+                    if (sendToSerial1(deviceMsg, true)) {
+                        transmittedDevices.insert(entry.first);
+                    }
+                }
+            }
+        }
+        
+        for (const auto& entry : bleDeviceCache)
+        {
+            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
+            {
+                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
+                int8_t bestRssi = -128;
+                for (const auto& hit : hitsLog) {
+                    String hitMac = macFmt6(hit.mac);
+                    if (hitMac == entry.first && hit.isBLE && hit.rssi > bestRssi) {
+                        bestRssi = hit.rssi;
+                    }
+                }
+                deviceMsg += String(bestRssi);
+                if (entry.second.length() > 0 && entry.second != "Unknown") {
+                    deviceMsg += " N:" + entry.second.substring(0, 30);
+                }
+                if (deviceMsg.length() < 230) {
+                    if (sendToSerial1(deviceMsg, true)) {
+                        transmittedDevices.insert(entry.first);
+                    }
+                }
+            }
+        }
+        
+        Serial1.flush();
+        delay(100);
+        
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
+        
+        Serial.printf("[SNIFFER] Final transmission complete: %d/%d devices sent, %d pending\n",
+                     finalTransmitted, totalExpectedDevices, finalRemaining);
+    }
+
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         
@@ -865,12 +1018,23 @@ void snifferScanTask(void *pv)
     
     if (meshEnabled && !stopRequested)
     {
+        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
+        
         String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
                         " B=" + String(bleDeviceCache.size()) + 
                         " U=" + String(uniqueMacs.size()) +
-                        " H=" + String(totalHits);
+                        " H=" + String(totalHits) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
         sendToSerial1(summary, true);
         Serial.println("[SNIFFER] Scan complete summary transmitted");
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[SNIFFER] WARNING: %d devices not transmitted\n", finalRemaining);
+        }
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -1004,6 +1168,8 @@ void blueTeamTask(void *pv) {
     
     deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
     
+    std::set<String> transmittedAttacks;
+    
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults.clear();
@@ -1013,6 +1179,8 @@ void blueTeamTask(void *pv) {
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
     uint32_t lastResultsUpdate = millis() + 2000;
+    uint32_t lastMeshUpdate = millis();
+    const unsigned long MESH_DEAUTH_UPDATE_INTERVAL = 5000;
     DeauthHit hit;
 
     radioStartSTA();
@@ -1029,24 +1197,58 @@ void blueTeamTask(void *pv) {
                 deauthLog.push_back(hit);
             }
             
+            String srcMac = macFmt6(hit.srcMac);
+            String dstMac = macFmt6(hit.destMac);
+            String attackKey = srcMac + "->" + dstMac;
+            
             String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
             if (hit.isBroadcast) {
                 alert += " [BROADCAST]";
             } else {
                 alert += " [TARGETED]";
             }
-            alert += " SRC:" + macFmt6(hit.srcMac) + " DST:" + macFmt6(hit.destMac);
+            alert += " SRC:" + srcMac + " DST:" + dstMac;
             alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
 
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
 
-            if (meshEnabled) {
+            if (meshEnabled && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String meshAlert = getNodeId() + ": ATTACK: " + alert;
                 if (gpsValid) {
                     meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
                 }
-                sendToSerial1(meshAlert, false);
+                if (sendToSerial1(meshAlert, false)) {
+                    transmittedAttacks.insert(attackKey);
+                }
+            }
+        }
+        
+        if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DEAUTH_UPDATE_INTERVAL)) {
+            lastMeshUpdate = millis();
+            
+            int sentThisCycle = 0;
+            for (const auto& entry : deauthLog) {
+                String srcMac = macFmt6(entry.srcMac);
+                String dstMac = macFmt6(entry.destMac);
+                String attackKey = srcMac + "->" + dstMac;
+                
+                if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+                    String attackMsg = getNodeId() + ": ATTACK: ";
+                    attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
+                    attackMsg += " " + srcMac + "->" + dstMac;
+                    attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
+                    
+                    if (attackMsg.length() < 230 && sendToSerial1(attackMsg, true)) {
+                        transmittedAttacks.insert(attackKey);
+                        sentThisCycle++;
+                        
+                        if (sentThisCycle % 2 == 0) {
+                            delay(1000);
+                            rateLimiter.refillTokens();
+                        }
+                    }
+                }
             }
         }
         
@@ -1109,6 +1311,52 @@ void blueTeamTask(void *pv) {
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
+    }
+
+    if (meshEnabled && !stopRequested) {
+        Serial.printf("[BLUE] Scan complete - transmitting final batch\n");
+        rateLimiter.flush();
+        delay(100);
+        
+        for (const auto& entry : deauthLog) {
+            String srcMac = macFmt6(entry.srcMac);
+            String dstMac = macFmt6(entry.destMac);
+            String attackKey = srcMac + "->" + dstMac;
+            
+            if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+                String attackMsg = getNodeId() + ": ATTACK: ";
+                attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
+                attackMsg += " " + srcMac + "->" + dstMac;
+                attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
+                
+                if (attackMsg.length() < 230) {
+                    if (sendToSerial1(attackMsg, true)) {
+                        transmittedAttacks.insert(attackKey);
+                    }
+                }
+            }
+        }
+        
+        Serial1.flush();
+        delay(100);
+        
+        uint32_t totalAttacks = deauthLog.size();
+        uint32_t finalTransmitted = transmittedAttacks.size();
+        uint32_t finalRemaining = totalAttacks - finalTransmitted;
+        
+        String summary = getNodeId() + ": DEAUTH_DONE: Total=" + String(deauthCount + disassocCount) +
+                        " Deauth=" + String(deauthCount) +
+                        " Disassoc=" + String(disassocCount) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
+        sendToSerial1(summary, true);
+        Serial.printf("[BLUE] Detection complete: %d/%d attacks transmitted, %d pending\n",
+                     finalTransmitted, totalAttacks, finalRemaining);
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[BLUE] WARNING: %d attacks not transmitted\n", finalRemaining);
+        }
     }
 
     Serial.println("[BLUE] Deauth detection stopped cleanly");
@@ -1646,6 +1894,7 @@ void listScanTask(void *pv) {
     hitsLog.clear();
     totalHits = 0;
     std::set<String> seenTargets;
+    std::set<String> transmittedDevices;
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
@@ -1680,9 +1929,6 @@ void listScanTask(void *pv) {
 
     uint32_t nextTriResultsUpdate = millis() + 2000;
 
-    static unsigned long lastTriSendTime = 0;
-    static size_t sentTriInWindow = 0;
-    static int childHitCount = 0; 
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
@@ -2142,6 +2388,25 @@ void listScanTask(void *pv) {
         }
         
         Serial.printf("[DEBUG] Results stored: %d chars\n", results.length());
+    }
+
+    if (meshEnabled && !stopRequested) {
+        uint32_t totalTargets = seenTargets.size();
+        uint32_t finalTransmitted = transmittedDevices.size();
+        uint32_t finalRemaining = totalTargets - finalTransmitted;
+        
+        String summary = getNodeId() + ": LIST_SCAN_DONE: Hits=" + String(totalHits) +
+                        " Unique=" + String(uniqueMacs.size()) +
+                        " Targets=" + String(totalTargets) +
+                        " TX=" + String(finalTransmitted) +
+                        " PEND=" + String(finalRemaining);
+        
+        sendToSerial1(summary, true);
+        Serial.println("[SCAN] List scan summary transmitted");
+        
+        if (finalRemaining > 0) {
+            Serial.printf("[SCAN] WARNING: %d targets not transmitted\n", finalRemaining);
+        }
     }
     
     radioStopSTA();

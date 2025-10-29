@@ -875,32 +875,18 @@ void checkAndSendVibrationAlert() {
             lastAutoEraseAttempt = millis();
         }
         
-        // Only send alert if enough time has passed since last alert
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
             lastVibrationAlert = millis();
             
-            // Format timestamp as HH:MM:SS
-            unsigned long currentTime = lastVibrationTime;
-            unsigned long seconds = currentTime / 1000;
-            unsigned long minutes = seconds / 60;
-            unsigned long hours = minutes / 60;
-            
-            seconds = seconds % 60;
-            minutes = minutes % 60;
-            hours = hours % 24;
-            
-            char timeStr[12];
-            snprintf(timeStr, sizeof(timeStr), "%02lu:%02lu:%02lu", hours, minutes, seconds);
+            String timestamp = getFormattedTimestamp();
             int sensorValue = digitalRead(VIBRATION_PIN);
             
-            String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + String(timeStr);
+            String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + timestamp;
             
-            // Add GPS if we have it
             if (gpsValid) {
                 vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
             }
             
-            // Add tamper status
             if (tamperEraseActive) {
                 uint32_t timeLeft = (TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart)) / 1000;
                 vibrationMsg += " TAMPER_ERASE_IN:" + String(timeLeft) + "s";
