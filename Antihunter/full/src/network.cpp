@@ -708,38 +708,85 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           
           <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:12px;"></div>
           
-          <!-- Auto-Erase Configuration -->
           <div style="margin-top:16px;">
-            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-weight:bold;color:var(--accent);">Auto-Erase Configuration</span>
+              <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
+            </div>
+            
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
               <input type="checkbox" id="autoEraseEnabled">
               <span>Enable auto-erase on tampering</span>
             </label>
             
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <div>
-                <label style="font-size:11px;">Delay</label>
-                <select id="autoEraseDelay">
-                  <option value="30000" selected>30s</option>
-                  <option value="60000">1m</option>
-                  <option value="120000">2m</option>
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Setup Period</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Grace period after enabling before tamper detection becomes active</label>
+              <select id="setupDelay">
+                <option value="30000">30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000" selected>2 minutes</option>
+                <option value="300000">5 minutes</option>
+                <option value="600000">10 minutes</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Erase Countdown</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time you have to cancel after tamper detection</label>
+              <select id="autoEraseDelay">
+                <option value="10000">10 seconds</option>
+                <option value="30000" selected>30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000">2 minutes</option>
+                <option value="300000">5 minutes</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Trigger Cooldown</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Minimum time before another tamper event can trigger erase</label>
+              <select id="autoEraseCooldown">
+                <option value="60000">1 minute</option>
+                <option value="300000" selected>5 minutes</option>
+                <option value="600000">10 minutes</option>
+                <option value="1800000">30 minutes</option>
+                <option value="3600000">1 hour</option>
+              </select>
+            </div>
+            
+            <div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--bord);border-radius:6px;margin-bottom:16px;">
+              <div style="font-size:10px;font-weight:bold;color:var(--mut);margin-bottom:8px;">ADVANCED SETTINGS</div>
+              
+              <div style="margin-bottom:12px;">
+                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Vibrations Required</label>
+                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Number of vibrations needed within detection window to trigger</label>
+                <select id="vibrationsRequired">
+                  <option value="2">2</option>
+                  <option value="3" selected>3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
                 </select>
               </div>
-              <div>
-                <label style="font-size:11px;">Cooldown</label>
-                <select id="autoEraseCooldown">
-                  <option value="300000" selected>5m</option>
-                  <option value="600000">10m</option>
-                  <option value="1800000">30m</option>
+              
+              <div style="margin-bottom:0;">
+                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Detection Window</label>
+                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time window for counting required vibrations</label>
+                <select id="detectionWindow">
+                  <option value="5000">5 seconds</option>
+                  <option value="10000">10 seconds</option>
+                  <option value="20000" selected>20 seconds</option>
+                  <option value="30000">30 seconds</option>
+                  <option value="60000">1 minute</option>
                 </select>
               </div>
             </div>
             
-            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Config</button>
+            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Configuration</button>
             <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
           </div>
-      </div>
-      </div>
-      <!-- 
+        </div>
+      </div>      <!-- 
       <div id="terminalToggle">TERMINAL</div>
       <div id="terminalWindow">
         <div id="terminalHeader">
@@ -2983,6 +3030,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       document.getElementById('deviceScanMode')?.addEventListener('change', updateModeStatus);
       document.getElementById('detectionMode')?.addEventListener('change', updateModeStatus);
 
+      function showAutoEraseHelp() {
+        toast('Auto-Erase: 1) Setup period prevents wipe during install 2) Vibration triggers countdown 3) You can cancel 4) Cooldown prevents false triggers', 'info');
+      }
+
       // Initialize
       load();
       initTerminal();
@@ -3461,24 +3512,24 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     saveConfiguration();
     req->send(200, "text/plain", "Auto-erase config updated"); });
 
-  server->on("/erase/status", HTTP_GET, [](AsyncWebServerRequest *req)
-             {
-    String status;
-    
-    if (eraseStatus == "COMPLETED") {
-        status = "COMPLETED";
-    }
-    else if (eraseInProgress) {
-        status = eraseStatus;
-    }
-    else if (tamperEraseActive) {
-        uint32_t timeLeft = TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart);
-        status = "ACTIVE - Tamper erase countdown: " + String(timeLeft / 1000) + " seconds remaining";
-    } else {
-        status = "INACTIVE";
-    }
-    
-    req->send(200, "text/plain", status); });
+  server->on("/erase/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+      String status;
+      
+      if (eraseStatus == "COMPLETED") {
+          status = "COMPLETED";
+      }
+      else if (eraseInProgress) {
+          status = eraseStatus;
+      }
+      else if (tamperEraseActive) {
+          uint32_t timeLeft = autoEraseDelay - (millis() - tamperSequenceStart);
+          status = "ACTIVE - Tamper erase countdown: " + String(timeLeft / 1000) + " seconds remaining";
+      } else {
+          status = "INACTIVE";
+      }
+      
+      req->send(200, "text/plain", status);
+  });
 
   server->on("/erase/request", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -3510,12 +3561,12 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     cancelTamperErase();
     req->send(200, "text/plain", "Tamper erase cancelled"); });
 
-  server->on("/secure/status", HTTP_GET, [](AsyncWebServerRequest *req)
-             {
-    String status = tamperEraseActive ? 
-        "TAMPER_ACTIVE:" + String((TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart))/1000) + "s" : 
-        "INACTIVE";
-    req->send(200, "text/plain", status); });
+  server->on("/secure/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+      String status = tamperEraseActive ? 
+          "TAMPER_ACTIVE:" + String((autoEraseDelay - (millis() - tamperSequenceStart))/1000) + "s" : 
+          "INACTIVE";
+      req->send(200, "text/plain", status);
+  });
 
   server->on("/secure/abort", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -4767,7 +4818,7 @@ void handleEraseRequest(AsyncWebServerRequest *request) {
 void handleEraseStatus(AsyncWebServerRequest *request) {
     String status;
     if (tamperEraseActive) {
-        uint32_t timeLeft = TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart);
+        uint32_t timeLeft = autoEraseDelay - (millis() - tamperSequenceStart);
         status = "ACTIVE - Tamper erase countdown\n";
         status += "Time remaining: " + String(timeLeft / 1000) + " seconds\n";
         status += "Send ERASE_CANCEL to abort";

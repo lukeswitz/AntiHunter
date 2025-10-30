@@ -105,7 +105,6 @@ void loadConfiguration();
 void logToSD(const String &data);
 
 // Tamper Detection System
-#define TAMPER_DETECTION_WINDOW 30000  // 30 seconds to cancel
 extern bool tamperEraseActive;
 extern uint32_t tamperSequenceStart;
 extern String tamperAuthToken;
