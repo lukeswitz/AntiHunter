@@ -922,7 +922,7 @@ void checkAndSendVibrationAlert() {
             }
             
             if (tamperEraseActive) {
-                uint32_t timeLeft = (TAMPER_DETECTION_WINDOW - (millis() - tamperSequenceStart)) / 1000;
+                uint32_t timeLeft = (autoEraseDelay - (millis() - tamperSequenceStart)) / 1000;
                 vibrationMsg += " TAMPER_ERASE_IN:" + String(timeLeft) + "s";
             }
             
@@ -1206,9 +1206,9 @@ bool initiateTamperErase() {
     tamperSequenceStart = millis();
     tamperAuthToken = generateEraseToken();
     
-    Serial.println("[TAMPER] Device movement detected - auto-erase in 30 seconds");
+    Serial.printf("[TAMPER] Device movement detected - auto-erase in %us\n", autoEraseDelay/1000);
     
-    String alertMsg = getNodeId() + ": TAMPER_DETECTED: Auto-erase in 30s";
+    String alertMsg = getNodeId() + ": TAMPER_DETECTED: Auto-erase in " + String(autoEraseDelay/1000) + "s";
     if (gpsValid) {
         alertMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
@@ -1235,7 +1235,7 @@ bool checkTamperTimeout() {
     
     uint32_t elapsed = millis() - tamperSequenceStart;
     
-    if (elapsed >= TAMPER_DETECTION_WINDOW) {
+    if (elapsed >= autoEraseDelay) {
         Serial.println("[TAMPER] Timeout - executing erase");
         return executeSecureErase("Tamper timeout");
     }
