@@ -642,7 +642,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 AntiHunter is the result of collaborative development by security researchers, embedded systems engineers, and open-source contributors.
 
-**Team Antihunter**: Conceived by the visionary @TheRealSirHaXalot, a hardware development and design engineer who brings this endeavor to life. We collaborate on innovative concepts, transforming them into tangible reality.
+Conceived by @TheRealSirHaXalot, a hardware development and design engineer extraordinaire. Original concept, design, all hardware and software are attributed to him.
 
 Get [involved](https://github.com/lukeswitz/AntiHunter/discussions). The project continues to evolve through community contributions. Contributions via pull requests, issue reports, and documentation improvements are welcome. 
 
