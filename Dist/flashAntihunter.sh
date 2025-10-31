@@ -4,8 +4,8 @@ set -e
 # Variables
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
-    "AntiHunter Full - v0.6.7 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_7_full.bin"
-    "AntiHunter Headless - v0.6.7 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_7_headless.bin"
+    "AntiHunter Full - v0.6.8 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_8_full.bin"
+    "AntiHunter Headless - v0.6.8 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_8_headless.bin"
 )
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""

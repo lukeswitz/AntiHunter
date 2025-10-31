@@ -795,6 +795,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div id="terminalContent"></div>
       </div>
       -->
+      
+      <div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let selectedMode = '0';
