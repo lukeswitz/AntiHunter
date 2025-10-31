@@ -86,13 +86,13 @@ struct AdaptivePathLoss {
     uint32_t lastUpdate;
     
     // Default/fallback values
-    const float DEFAULT_RSSI0_WIFI = -30.0;
-    const float DEFAULT_RSSI0_BLE = -66.0;
-    const float DEFAULT_N_WIFI = 3.0;
-    const float DEFAULT_N_BLE = 3.5;
+    static constexpr float DEFAULT_RSSI0_WIFI = -30.0;
+    static constexpr float DEFAULT_RSSI0_BLE = -66.0;
+    static constexpr float DEFAULT_N_WIFI = 3.0;
+    static constexpr float DEFAULT_N_BLE = 3.5;
     
-    const size_t MIN_SAMPLES = 5;
-    const size_t MAX_SAMPLES = 50;
+    static constexpr size_t MIN_SAMPLES = 5;
+    static constexpr size_t MAX_SAMPLES = 50;
 };
 
 extern AdaptivePathLoss adaptivePathLoss;

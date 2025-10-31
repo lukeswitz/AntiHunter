@@ -190,12 +190,6 @@ void setup() {
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    esp_task_wdt_config_t wdt_config = {
-        .timeout_ms = 30000,
-        .idle_core_mask = 0,
-        .trigger_panic = true
-    };
-
     Serial.println("===== ANTIHUNTER BOOT COMPLETE =====");
     Serial.printf("WEB UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
     Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());

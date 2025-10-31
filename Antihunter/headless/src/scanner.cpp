@@ -1098,7 +1098,10 @@ std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount,
         
         std::vector<std::pair<String, DeauthStats>> sorted(statsMap.begin(), statsMap.end());
         std::sort(sorted.begin(), sorted.end(),
-            [](const auto& a, const auto& b) { return a.second.count > b.second.count; });
+            [](const std::pair<String, DeauthStats>& a, 
+            const std::pair<String, DeauthStats>& b) { 
+                return a.second.count > b.second.count; 
+            });
         
         for (size_t i = 0; i < sorted.size() && i < 100; i++) {
             const auto& entry = sorted[i];
