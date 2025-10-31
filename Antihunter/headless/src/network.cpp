@@ -384,6 +384,8 @@ void processCommand(const String &command)
   {
     float esp_temp = temperatureRead();
     float esp_temp_f = (esp_temp * 9.0 / 5.0) + 32.0;
+    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE"
+                                                                                             : "WiFi+BLE";
 
     uint32_t uptime_secs = millis() / 1000;
     uint32_t uptime_mins = uptime_secs / 60;
@@ -392,8 +394,9 @@ void processCommand(const String &command)
     char status_msg[240];
 
     int written = snprintf(status_msg, sizeof(status_msg),
-             "%s: STATUS: Scan:%s Hits:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
+             "%s: STATUS: Mode:%s Scan:%s Hits:%d Unique:%d Temp:%.1fC/%.1fF Up:%02d:%02d:%02d",
              nodeId.c_str(),
+             modeStr.c_str(),
              scanning ? "ACTIVE" : "IDLE",
              totalHits,
              (int)uniqueMacs.size(),
