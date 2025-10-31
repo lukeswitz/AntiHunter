@@ -7,7 +7,6 @@
 #include <AsyncTCP.h>
 #include <AsyncWebSocket.h>
 #include <RTClib.h>
-#include "esp_task_wdt.h"
 #include <esp_timer.h>
 
 extern "C"
@@ -2336,7 +2335,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const uniqueMatch = text.match(/Unique drones: (\d+)/);
         
         html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">🛸 Drone Detection Results</div>';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">Drone Detection Results</div>';
         html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);">';
         if (totalMatch) html += '<span>Total: <strong style="color:var(--txt);">' + totalMatch[1] + '</strong></span>';
         if (uniqueMatch) html += '<span>Unique: <strong style="color:var(--txt);">' + uniqueMatch[1] + '</strong></span>';

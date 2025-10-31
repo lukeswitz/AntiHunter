@@ -1282,15 +1282,15 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
 
 
 AdaptivePathLoss adaptivePathLoss = {
-    -30.0,  // rssi0_wifi initial
-    -66.0,  // rssi0_ble initial
-    3.0,    // n_wifi initial
-    2.5,    // n_ble initial
-    {},     // wifiSamples
-    {},     // bleSamples
-    false,  // wifi_calibrated
-    false,  // ble_calibrated
-    0       // lastUpdate
+    -30.0,                             // rssi0_wifi initial
+    -66.0,                             // rssi0_ble initial
+    3.0,                               // n_wifi initial
+    2.5,                               // n_ble initial
+    std::vector<PathLossSample>(),     // wifiSamples
+    std::vector<PathLossSample>(),     // bleSamples
+    false,                             // wifi_calibrated
+    false,                             // ble_calibrated
+    0                                  // lastUpdate
 };
 
 // Least squares estimation of path loss parameters

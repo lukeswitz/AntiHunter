@@ -5,7 +5,6 @@
 #include "scanner.h"
 #include "main.h"
 #include <RTClib.h>
-#include "esp_task_wdt.h"
 #include <esp_timer.h>
 
 extern "C"

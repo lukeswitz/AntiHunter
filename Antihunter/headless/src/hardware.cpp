@@ -11,7 +11,6 @@
 #include <HardwareSerial.h>
 #include <Wire.h>
 #include "esp_wifi.h"
-#include "esp_task_wdt.h"
 #include "nvs_flash.h"
 
 extern Preferences prefs;
