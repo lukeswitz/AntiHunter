@@ -3,11 +3,11 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/commits/main/)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 
-# AntiHunter
+<img width="80%" height="80%" alt="image" src="https://github.com/user-attachments/assets/7fc3f42a-b582-4f67-820f-a0384a410480" />
 
 ## Table of Contents
 
-1. [Overview](#overview)
+1. [Firmware Overview](#overview)
 2. [Primary Detection Modes](#primary-detection-modes)
 3. [System Architecture](#system-architecture)
 4. [Secure Data Destruction](#secure-data-destruction)
