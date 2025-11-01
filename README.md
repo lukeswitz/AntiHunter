@@ -8,7 +8,7 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Core Capabilities](#core-capabilities)
+2. [Primary Detection Modes](#primary-detection-modes)
 3. [System Architecture](#system-architecture)
 4. [Secure Data Destruction](#secure-data-destruction)
 5. [Hardware Requirements](#hardware-requirements)
@@ -30,14 +30,12 @@
 
 Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalable sensor network for real-time threat detection, device mapping, and perimeter security. The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide a digital and physical "tripwire". 
 
+
+## Primary Detection Modes
+
 ![image](https://github.com/user-attachments/assets/b3be1602-c651-41d2-9caf-c2e4956d3aff)
 
-
-## Core Capabilities
-
-### Primary Detection Modes
-
-#### 1. **List Scan Mode**
+### 1. **List Scan Mode**
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
 - **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
@@ -46,56 +44,55 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
 - **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
 
-#### 2. Triangulation/Trilateration  (Distributed)
+### 2. Triangulation/Trilateration  (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for more advanced trilateration processing.
 
 **`EXPERIMENTAL T114 SUPPORT:`** small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
-- **Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details. 
-- **AH Command Center Integration**: Data forwarded for centralized processing, MQTT broker and mapping. 
+- **Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details
 
-#### 3. **Detection & Analysis**
-Wireless environment analysis combining general device discovery, baseline anomaly detection, and specialized Remote ID drone detection.
+### 3. **Detection & Analysis Sniffers**
+   
+   **A. Device Scanner**
+   - Captures all WiFi and Bluetooth devices in range
+   - Records MAC addresses, SSIDs, signal strength, names and channels
+   - Provides complete 2.4GHz wireless spectrum visibility
+   
+   **B. Baseline Anomaly Detection**
+   - Two-phase scanning: establishes baseline, then monitors for anomalies
+   - Detects new devices, disappeared/reappeared devices, significant RSSI changes
+   - Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). **Defaults to 1500 devices if no SD card**
+   - Persistent storage with automatic tiering, survives reboots
+   - Real-time mesh alerts with GPS coordinates and anomaly reasons
+   - Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
+   
+   **C. Deauthentication Attack Scan**
+   - WiFi deauth/disassoc attack sniffer with frame filtering and real-time detection
+   - Integration with randomization tracking for source identification
+   
+   **D. Drone RID Detection**
+   - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
+   - Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
+   - Detects French drone ID format (OUI 0x6a5c35)
+   - Extracts UAV ID, pilot location, and flight telemetry data
+   - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
+   
+   **E. MAC Randomization Analyzer**
+   ![384F3718-6308-477C-B882-477FCF25578C_4_5005_c](https://github.com/user-attachments/assets/601def0d-c5f0-4089-ac33-3b59b51eae48)
 
-**Device Scanner**
-- Captures all WiFi and Bluetooth devices in range
-- Records MAC addresses, SSIDs, signal strength, names and channels
-- Provides complete 2.4GHz wireless spectrum visibility
+   **`EXPERIMENTAL FEATURE`**
+   - Traces device identities across randomized MAC addresses using behavioral signatures
+   - IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation
+   - Assigns unique identity IDs (format: `T-XXXX`) with persistent SD storage
+   - Supports up to 30 simultaneous device identities with up to 50 linked MACs each
+   - Dual signature support (full and minimal IE patterns)
+   - Confidence-based linking with threshold adaptation
+   - Detects global MAC leaks and WiFi-BLE device correlation
 
-**Baseline Anomaly Detection**
-- Two-phase scanning: establishes baseline, then monitors for anomalies
-- Detects new devices, disappeared/reappeared devices, significant RSSI changes
-- Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). **Defaults to 1500 devices if no SD card**
-- Persistent storage with automatic tiering, survives reboots
-- Real-time mesh alerts with GPS coordinates and anomaly reasons
-- Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
 
-**Deauthentication Attack Scan**
-- WiFi deauth/disassoc attack sniffer with frame filtering and real-time detection
-- Integration with randomization tracking for source identification
-
-**Drone RID Detection**
-- Identifies drones broadcasting Remote ID (FAA/EASA compliant)
-- Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
-- Detects French drone ID format (OUI 0x6a5c35)
-- Extracts UAV ID, pilot location, and flight telemetry data
-- Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
-
-**MAC Randomization Analysis**
-
-**`EXPERIMENTAL FEATURE`**
-
-- Traces device identities across randomized MAC addresses using behavioral signatures
-- IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation
-- Assigns unique identity IDs (format: `T-XXXX`) with persistent SD storage
-- Supports up to 30 simultaneous device identities with up to 50 linked MACs each
-- Dual signature support (full and minimal IE patterns)
-- Confidence-based linking with threshold adaptation
-- Detects global MAC leaks and WiFi-BLE device correlation
-
-**Use Cases**
+### Use Cases
 
 - Perimeter security and intrusion detection
 - WiFi penetration testing, security auditing, and MAC randomization analysis
@@ -108,6 +105,7 @@ Wireless environment analysis combining general device discovery, baseline anoma
 ---
 
 ### Sensor Integration
+![095B0BC8-1A8D-4EBD-9D95-976288F0F86E_1_201_a](https://github.com/user-attachments/assets/35752f4a-bc78-4834-a652-e72622d5d732)
 
 #### **GPS Positioning**
 - **Interface**: UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud using TinyGPS++
@@ -138,8 +136,9 @@ Wireless environment analysis combining general device discovery, baseline anoma
 --- 
 
 ## Secure Data Destruction
+AntiHunter includes tamper detection and emergency data wiping capabilities to protect data from unauthorized access
 
-AntiHunter includes tamper detection and emergency data wiping capabilities to protect data from unauthorized access.
+![9FEB36B3-6914-4601-A532-FC794C755B0E_1_201_a](https://github.com/user-attachments/assets/bdd8825d-82aa-46d4-b20c-3ebf7ca0dd9f)
 
 ### Features
 - **Auto-erase on tampering**: Configurable vibration detection triggers automatic data destruction
@@ -341,61 +340,6 @@ After flashing, AntiHunter creates a WiFi access point for configuration and mon
 2. **Access Interface**: Open browser to `http://192.168.4.1`
 
 **Change** SSID and password in the AP under RF Settings. 
-
-### **Main Interface Sections**
-
-#### **Target Configuration**
-- **Watchlist Management**: Add/remove MAC addresses and OUI prefixes
-- **Allow List**: Devices to exclude from alerts and scans
-- **Format**: Full MAC (`AA:BB:CC:DD:EE:FF`), OUI (`AA:BB:CC`), or by `T-XXXX` grouped ID
-- **Export/Import**: Save/load target lists for deployment
-- **Validation**: Real-time format checking and duplicate detection
-
-#### **Scanning Operations**
-- **List Scan**: Area surveillance for configured targets
-  - **Modes**: WiFi Only, BLE Only, WiFi+BLE Combined
-  - **Duration**: Configurable scan time (0 = continuous)
-  - **Channels**: Custom WiFi channel selection (`1,6,11` or `1..14`)
-  - **Triangulation**: Enable multi-node tracking (requires mesh, GPS, RTC
-  
-  - **RF Settings**: Choose from three presets or use custom scan intervals and channel timing.
-  - **Results Sorting**: Easily find your target using six ordering methods
-    
-
-- **Triangulation Mode**:
-  - **Target MAC**: Specify device for location tracking
-  - **Node Coordination**: Automatically syncs with mesh network
-  - **Duration**: Tracking period for position calculations
-  - **Status**: Shows participating nodes and signal data
-
-#### **Detection & Analysis**
-- **Device Discovery**: General scanning for all WiFi/BLE devices
-- **Baseline Anomaly Scan**: Be alerted to new/approaching devices
-- **MAC Randomization Analyzer**: Discover, correlate and de-randomize
-- **Deauthentication Attack Detection**: Spots WiFi deauth packet traces 
-- **Drone WiFi RID**: Detect remote ID compliant drones & pilots
-
-#### **System Diagnostics**
-**Overview Tab:**
-- Real-time system status and performance metrics
-- Detection statistics (frames seen, hits, unique devices)
-- Temperature monitoring and uptime tracking
-
-**Hardware Tab:**
-- GPS status and satellite information
-- SD card storage usage and file management
-- RTC time synchronization status
-- Vibration sensor state and history
-
-**Network Tab:**
-- Mesh connectivity and node status
-- WiFi access point configuration
-- Channel usage and scanning parameters
-
-#### **Configuration**
-- **Node Identification**: Set unique node ID (1-16 characters)
-- **Mesh Integration**: Enable/disable Meshtastic communications
-- **Mesh Interval**: Control the frequency of alerts over mesh to match your use case
 
 ---
 
@@ -643,9 +587,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ## Credits
 
-AntiHunter is the result of collaborative development by security researchers, embedded systems engineers, and open-source contributors.
-
-Conceived by @TheRealSirHaXalot, a hardware development and design engineer extraordinaire. Original concept, design, all hardware and software are attributed to him.
+AntiHunter is the result of collaborative development by security researchers, embedded systems engineers, and open-source contributors. Original concept and hardware design by @TheRealSirHaXalot.
 
 Get [involved](https://github.com/lukeswitz/AntiHunter/discussions). The project continues to evolve through community contributions. Contributions via pull requests, issue reports, and documentation improvements are welcome. 
 
