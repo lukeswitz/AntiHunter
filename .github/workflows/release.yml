@@ -31,21 +31,40 @@ jobs:
     - name: Build AntiHunter-headless
       run: pio run -e AntiHunter-headless
     
+    - name: Debug - Show build structure
+      run: |
+        echo "=== Build directory structure ==="
+        ls -R .pio/build/ || echo "No .pio/build directory"
+        echo "=== Searching for all bin files ==="
+        find . -name "*.bin" -type f
+    
     - name: Prepare release assets
       run: |
-        mkdir -p release
-        cp .pio/build/AntiHunter-full/firmware.bin release/antihunter-full-${{ github.ref_name }}.bin
-        cp .pio/build/AntiHunter-headless/firmware.bin release/antihunter-headless-${{ github.ref_name }}.bin
+        mkdir -p Dist
+        # Copy firmware files with proper error checking
+        if [ -f ".pio/build/AntiHunter-full/firmware.bin" ]; then
+          cp .pio/build/AntiHunter-full/firmware.bin Dist/antihunter-full-${{ github.ref_name }}.bin
+        else
+          echo "ERROR: AntiHunter-full firmware.bin not found"
+          exit 1
+        fi
+        
+        if [ -f ".pio/build/AntiHunter-headless/firmware.bin" ]; then
+          cp .pio/build/AntiHunter-headless/firmware.bin Dist/antihunter-headless-${{ github.ref_name }}.bin
+        else
+          echo "ERROR: AntiHunter-headless firmware.bin not found"
+          exit 1
+        fi
     
     - name: Generate checksums
       run: |
-        cd release
+        cd Dist
         sha256sum *.bin > SHA256SUMS.txt
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: release/*
+        files: Dist/*
         generate_release_notes: true
         body: |
           ## Firmware Builds
