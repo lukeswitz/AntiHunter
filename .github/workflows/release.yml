@@ -14,8 +14,6 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -25,57 +23,20 @@ jobs:
     - name: Install PlatformIO
       run: pip install --upgrade platformio
     
-    - name: Build AntiHunter-full
-      run: pio run -e AntiHunter-full
+    - name: Build
+      run: pio run
     
-    - name: Build AntiHunter-headless
-      run: pio run -e AntiHunter-headless
-    
-    - name: Debug - Show build structure
+    - name: Copy firmware
       run: |
-        echo "=== Build directory structure ==="
-        ls -R .pio/build/ || echo "No .pio/build directory"
-        echo "=== Searching for all bin files ==="
-        find . -name "*.bin" -type f
+        cp .pio/build/AntiHunter-full/firmware.bin Dist/antihunter-full-${{ github.ref_name }}.bin
+        cp .pio/build/AntiHunter-headless/firmware.bin Dist/antihunter-headless-${{ github.ref_name }}.bin
     
-    - name: Prepare release assets
-      run: |
-        mkdir -p Dist
-        # Copy firmware files with proper error checking
-        if [ -f ".pio/build/AntiHunter-full/firmware.bin" ]; then
-          cp .pio/build/AntiHunter-full/firmware.bin Dist/antihunter-full-${{ github.ref_name }}.bin
-        else
-          echo "ERROR: AntiHunter-full firmware.bin not found"
-          exit 1
-        fi
-        
-        if [ -f ".pio/build/AntiHunter-headless/firmware.bin" ]; then
-          cp .pio/build/AntiHunter-headless/firmware.bin Dist/antihunter-headless-${{ github.ref_name }}.bin
-        else
-          echo "ERROR: AntiHunter-headless firmware.bin not found"
-          exit 1
-        fi
-    
-    - name: Generate checksums
+    - name: Checksums
       run: |
         cd Dist
-        sha256sum *.bin > SHA256SUMS.txt
+        sha256sum antihunter-*.bin > SHA256SUMS.txt
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: Dist/*
-        generate_release_notes: true
-        body: |
-          ## Firmware Builds
-          
-          ### Full Version (with WebServer)
-          - `antihunter-full-${{ github.ref_name }}.bin`
-          
-          ### Headless Version
-          - `antihunter-headless-${{ github.ref_name }}.bin`
-          
-          ### Checksums
-          See `SHA256SUMS.txt` for verification.
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
