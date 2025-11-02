@@ -14,6 +14,15 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Get latest tag
+      id: get_tag
+      run: |
+        git fetch --tags
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -28,8 +37,8 @@ jobs:
     
     - name: Copy firmware
       run: |
-        cp .pio/build/AntiHunter-full/firmware.bin Dist/antihunter-full-${{ github.ref_name }}.bin
-        cp .pio/build/AntiHunter-headless/firmware.bin Dist/antihunter-headless-${{ github.ref_name }}.bin
+        cp .pio/build/AntiHunter-full/firmware.bin Dist/antihunter-full-${{ steps.get_tag.outputs.tag }}.bin
+        cp .pio/build/AntiHunter-headless/firmware.bin Dist/antihunter-headless-${{ steps.get_tag.outputs.tag }}.bin
     
     - name: Checksums
       run: |
@@ -39,4 +48,6 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: ${{ steps.get_tag.outputs.tag }}
         files: Dist/*
+        prerelease: true
