@@ -1,0 +1,62 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install PlatformIO
+      run: pip install --upgrade platformio
+    
+    - name: Build AntiHunter-full
+      run: pio run -e AntiHunter-full
+    
+    - name: Build AntiHunter-headless
+      run: pio run -e AntiHunter-headless
+    
+    - name: Prepare release assets
+      run: |
+        mkdir -p release
+        cp .pio/build/AntiHunter-full/firmware.bin release/antihunter-full-${{ github.ref_name }}.bin
+        cp .pio/build/AntiHunter-headless/firmware.bin release/antihunter-headless-${{ github.ref_name }}.bin
+    
+    - name: Generate checksums
+      run: |
+        cd release
+        sha256sum *.bin > SHA256SUMS.txt
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        generate_release_notes: true
+        body: |
+          ## Firmware Builds
+          
+          ### Full Version (with WebServer)
+          - `antihunter-full-${{ github.ref_name }}.bin`
+          
+          ### Headless Version
+          - `antihunter-headless-${{ github.ref_name }}.bin`
+          
+          ### Checksums
+          See `SHA256SUMS.txt` for verification.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
