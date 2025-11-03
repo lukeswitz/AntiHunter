@@ -13,6 +13,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.platformio
+          .pio
+        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
+    
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -20,6 +30,11 @@ jobs:
     
     - name: Install PlatformIO
       run: pip install --upgrade platformio
+    
+    - name: Install dependencies
+      run: |
+        pio pkg install -e AntiHunter-full
+        pio pkg install -e AntiHunter-headless
     
     - name: Run cppcheck on AntiHunter-full
       run: |
@@ -42,6 +57,16 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.platformio
+          .pio
+        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
     
     - name: Set up Python
       uses: actions/setup-python@v5
