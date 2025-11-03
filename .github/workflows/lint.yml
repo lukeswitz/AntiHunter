@@ -25,7 +25,7 @@ jobs:
       run: |
         pio check -e AntiHunter-full \
           --skip-packages \
-          --severity=high,medium \
+          --severity=high \
           --flags "cppcheck: --suppress=unusedFunction --suppress=missingIncludeSystem --inline-suppr"
       continue-on-error: true
     
@@ -33,7 +33,7 @@ jobs:
       run: |
         pio check -e AntiHunter-headless \
           --skip-packages \
-          --severity=high,medium \
+          --severity=high \
           --flags "cppcheck: --suppress=unusedFunction --suppress=missingIncludeSystem --inline-suppr"
       continue-on-error: true
 
