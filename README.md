@@ -420,6 +420,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ### **Mesh Alert Messages**
 
+## Detection & RF Attack Alerts
+
 | Alert Type | Format | Example |
 |------------|--------|---------|
 | **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
@@ -429,15 +431,39 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Baseline Anomaly - RSSI** | `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:dBm New:dBm Delta:dBm` | `NODE_ABC: ANOMALY-RSSI: WiFi AA:BB:CC:DD:EE:FF Old:-75 New:-45 Delta:30` |
 | **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
 | **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC SRC->DST RX CHN` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
+
+## Identification & Randomization Alerts
+
+| Alert Type | Format | Example |
+|------------|--------|---------|
 | **Randomization Identity** | `NODE_ID: IDENTITY:T-XXXX B/W MACs:N Conf:X.XX Sess:N Anchor:XX:XX:XX:XX:XX:XX` | `AH99: IDENTITY:T-002F W MACs:5 Conf:0.62 Sess:5 Anchor:02:9F:C2:3D:92:CE` |
 | **Randomization Complete** | `NODE_ID: RANDOMIZATION_DONE: Identities=N Sessions=N TX=N PEND=N` | `AH99: RANDOMIZATION_DONE: Identities=14 Sessions=22 TX=14 PEND=0` |
+
+## Tamper, Security & Vibration Alerts
+
+| Alert Type | Format | Example |
+|------------|--------|---------|
 | **Vibration Alert** | `NODE_ID: VIBRATION: Movement detected at HH:MM:SS [GPS:lat,lon] [TAMPER_ERASE_IN:Xs]` | `NODE_ABC: VIBRATION: Movement detected at 12:34:56 GPS:40.7128,-74.0060 TAMPER_ERASE_IN:60s` |
 | **Vibration Setup Mode** | `NODE_ID: VIBRATION: Movement in setup mode (active in Xs) [GPS:lat,lon]` | `NODE_ABC: VIBRATION: Movement in setup mode (active in 45s) GPS:40.7128,-74.0060` |
 | **Setup Mode Active** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
 | **Setup Complete** | `NODE_ID: SETUP_COMPLETE: Auto-erase activated` | `NODE_ABC: SETUP_COMPLETE: Auto-erase activated` |
-| **GPS Status** | `NODE_ID: GPS: STATUS Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
+| **Tamper Detected** | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` | `NODE_ABC: TAMPER_DETECTED: Auto-erase in 60s GPS:40.7128,-74.0060` |
+| **Tamper Cancelled** | `NODE_ID: TAMPER_CANCELLED` | `NODE_ABC: TAMPER_CANCELLED` |
+| **Erase Executing** | `NODE_ID: ERASE_EXECUTING: reason [GPS:lat,lon]` | `NODE_ABC: ERASE_EXECUTING: Tamper timeout GPS:40.7128,-74.0060` |
+| **Erase Complete** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
+| **Erase Cancelled** | `NODE_ID: ERASE_ACK:CANCELLED` | `NODE_ABC: ERASE_ACK:CANCELLED` |
+
+## Status, Sync & System Commands
+
+| Alert Type | Format | Example |
+|------------|--------|---------|
+| **Startup Status** | `NODE_ID: STARTUP: System initialized GPS:LOCKED/SEARCHING TEMP:XXC SD:OK/FAIL Status:ONLINE` | `NODE_ABC: STARTUP: System initialized GPS:LOCKED TEMP:42.3C SD:OK Status:ONLINE` |
+| **Node Heartbeat** | `[NODE_HB] NODE_ID Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]` | `[NODE_HB] NODE_ABC Time:2025-10-28_14:32:15 Temp:42.3C GPS:40.7128,-74.0060` |
+| **GPS Locked** | `NODE_ID: GPS: LOCKED Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
+| **GPS Lost** | `NODE_ID: GPS: LOST` | `NODE_ABC: GPS: LOST` |
 | **RTC Sync** | `NODE_ID: RTC_SYNC: GPS/NTP` | `NODE_ABC: RTC_SYNC: GPS` |
-| **Node Heartbeat** | `[NODE_HB] NODE_ID Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC/XX.XF [GPS:lat,lon]` | `[NODE_HB] NODE_ABC Time:2025-10-28_14:32:15 Temp:42.3C/108.1F GPS:40.7128,-74.0060` |
+| **Time Sync Request** | `NODE_ID: TIME_SYNC_REQ:epoch:subsec:micros:propDelay` | `NODE_ABC: TIME_SYNC_REQ:1725000000:5000:123456:0` |
+| **Time Sync Response** | `NODE_ID: TIME_SYNC_RESP:epoch:subsec:micros:propDelay` | `NODE_ABC: TIME_SYNC_RESP:1725000000:5000:123456:50` |
 | **Config ACK** | `NODE_ID: CONFIG_ACK:TYPE:VALUE` | `NODE_ABC: CONFIG_ACK:CHANNELS:1,6,11` |
 | **Scan ACK** | `NODE_ID: SCAN_ACK:STARTED` | `NODE_ABC: SCAN_ACK:STARTED` |
 | **Device Scan ACK** | `NODE_ID: DEVICE_SCAN_ACK:STARTED` | `NODE_ABC: DEVICE_SCAN_ACK:STARTED` |
@@ -449,7 +475,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-0001` |
 | **Triangulation Results** | `NODE_ID: TRIANGULATE_RESULTS_START` ... results ... `NODE_ID: TRIANGULATE_RESULTS_END` | Multi-line result output |
 | **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
-| **Erase ACK** | `NODE_ID: ERASE_ACK:STATUS` | `NODE_ABC: ERASE_ACK:COMPLETE` or `NODE_ABC: ERASE_ACK:CANCELLED` |
+| **Stop ACK** | `NODE_ID: STOP_ACK:OK` | `NODE_ABC: STOP_ACK:OK` |
+| **Wipe Token** | `NODE_ID: WIPE_TOKEN:token_string` | `NODE_ABC: WIPE_TOKEN:AH_12AB34CD_56EF78GH_1234567890` |
+| **Reboot ACK** | `NODE_ID: REBOOT_ACK` | `NODE_ABC: REBOOT_ACK` |
 
 
 ---
