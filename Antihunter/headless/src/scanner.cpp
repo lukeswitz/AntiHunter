@@ -703,6 +703,7 @@ void snifferScanTask(void *pv)
                 {
                     const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                     String macStr = device->getAddress().toString().c_str();
+                    macStr.toUpperCase();
 
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
