@@ -1,0 +1,103 @@
+name: Code Quality
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.platformio
+          .pio
+        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install PlatformIO
+      run: pip install --upgrade platformio
+    
+    - name: Install dependencies
+      run: |
+        pio pkg install -e AntiHunter-full
+        pio pkg install -e AntiHunter-headless
+    
+    - name: Run cppcheck on AntiHunter-full
+      run: |
+        pio check -e AntiHunter-full \
+          --skip-packages \
+          --severity=high \
+          --flags "cppcheck: --suppress=unusedFunction --suppress=missingIncludeSystem --inline-suppr"
+      continue-on-error: true
+    
+    - name: Run cppcheck on AntiHunter-headless
+      run: |
+        pio check -e AntiHunter-headless \
+          --skip-packages \
+          --severity=high \
+          --flags "cppcheck: --suppress=unusedFunction --suppress=missingIncludeSystem --inline-suppr"
+      continue-on-error: true
+
+  build-warnings:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.platformio
+          .pio
+        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install PlatformIO
+      run: pip install --upgrade platformio
+    
+    - name: Build and capture warnings
+      run: |
+        pio run -e AntiHunter-full 2>&1 | tee full-build.log
+        pio run -e AntiHunter-headless 2>&1 | tee headless-build.log
+    
+    - name: Report warnings
+      run: |
+        echo "=== AntiHunter-full warnings ==="
+        grep -E "warning:|error:" full-build.log | head -20 || echo "No warnings"
+        echo ""
+        echo "=== AntiHunter-headless warnings ==="
+        grep -E "warning:|error:" headless-build.log | head -20 || echo "No warnings"
+      continue-on-error: true
+    
+    - name: Upload build logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: build-logs
+        path: |
+          full-build.log
+          headless-build.log
+        retention-days: 7

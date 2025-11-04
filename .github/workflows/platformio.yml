@@ -1,0 +1,49 @@
+name: PlatformIO CI
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment:
+          - AntiHunter-full
+          - AntiHunter-headless
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.platformio
+          .pio
+        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install PlatformIO
+      run: pip install --upgrade platformio
+    
+    - name: Build ${{ matrix.environment }}
+      run: pio run -e ${{ matrix.environment }}
+    
+    - name: Upload firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-${{ matrix.environment }}
+        path: .pio/build/${{ matrix.environment }}/firmware.bin
+        retention-days: 30
