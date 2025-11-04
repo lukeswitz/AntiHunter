@@ -671,7 +671,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
               <div class="stat-item">
                 <div class="stat-label">CPU Temp</div>
-                <div class="stat-value" id="temperature">--°C</div>
+                <div class="stat-value" id="temperature">--C</div>
               </div>
             </div>
           </div>
@@ -2749,8 +2749,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (match) document.getElementById('uniqueDevices').innerText = match[1];
             }
             if (line.includes('ESP32 Temp')) {
-              const match = line.match(/([\d.]+)°C/);
-              if (match) document.getElementById('temperature').innerText = match[1] + '°C';
+              const match = line.match(/([\d.]+)C/);
+              if (match) document.getElementById('temperature').innerText = match[1] + 'C';
             }
             if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
               hardware += line + '\n';

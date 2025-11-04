@@ -615,7 +615,7 @@ String getDiagnostics() {
 
     float temp_c = temperatureRead();
     float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
-    s += "ESP32 Temp: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
+    s += "ESP32 Temp: " + String(temp_c, 1) + "C / " + String(temp_f, 1) + "F\n";
     
     s += "WiFi Channels: ";
     for (auto c : CHANNELS) {
@@ -655,10 +655,10 @@ void initializeGPS() {
     GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 
     // Give it a moment to start spitting characters
-    delay(120);
+    delay(500);
     unsigned long start = millis();
     bool sawSentence = false;
-    while (millis() - start < 2000) {
+    while (millis() - start < 4000) {
         if (GPS.available()) {
             char c = GPS.read();
             if (gps.encode(c)) {
@@ -688,7 +688,7 @@ void sendStartupStatus() {
     String startupMsg = getNodeId() + ": STARTUP: System initialized";
     startupMsg += " GPS:";
     startupMsg += (gpsValid ? "LOCKED " : "SEARCHING ");
-    startupMsg += "TEMP: " + String(temp_c, 1) + "°C / " + String(temp_f, 1) + "°F\n";
+    startupMsg += "TEMP: " + String(temp_c, 1) + "C / " + String(temp_f, 1) + "F\n";
     // startupMsg += " SD:";
     // startupMsg += (sdAvailable ? "OK" : "FAIL");
     // startupMsg += " Status:ONLINE";
