@@ -946,7 +946,7 @@ String calculateTriangulation() {
         results += "Reason: Poor geometry or signal quality\n";
         results += "Average HDOP: " + String(avgHDOP, 1) + " (>10.0 = poor)\n\n";
         results += "Suggestions:\n";
-        results += "  • Reposition nodes (120° separation ideal)\n";
+        results += "  • Reposition nodes (120 degree separation ideal)\n";
         results += "  • Improve with more runtime\n";
         results += "  • Add more GPS nodes\n";
     }
