@@ -184,7 +184,7 @@ Configure auto-erase settings via the web interface:
 
 ## RF Configuration
 
-AntiHunter provides adjustable RF scan parameters to optimize detection performance for different operational scenarios. Configuration is available through both the web interface and API endpoints. Values can be set upon flashing as well. 
+AntiHunter provides adjustable RF scan parameters to optimize detection performance for different operational scenarios. Configuration is available through both the web interface and API endpoints.
 
 ### Scan Presets
 
@@ -201,13 +201,24 @@ AntiHunter provides adjustable RF scan parameters to optimize detection performa
 - **WiFi Scan Interval**: Time between WiFi scan cycles (1000-10000ms)
 - **BLE Scan Interval**: Time between BLE scan cycles (1000-10000ms)
 - **BLE Scan Duration**: Active BLE scanning duration per cycle (1000-5000ms)
+- **WiFi Channels**: Comma-separated list (1,6,11) or range (1..14) of 2.4GHz channels to scan
+
+### Channel Configuration
+
+WiFi channels accept two formats:
+- **Range**: `1..14` scans all channels from 1 to 14
+- **CSV**: `1,6,11` scans only specified channels
+
+Valid channels: 1-14 (2.4GHz band). Default: 1,6,11 if no channels specified.
 
 ### Web Interface Configuration
 
 1. Navigate to the web interface at `http://192.168.4.1`
 2. Locate the RF Settings section
 3. Select a preset from the dropdown or choose "Custom" for manual tuning
-4. For custom configuration, adjust individual timing parameters
+4. For custom configuration:
+   - Adjust individual timing parameters
+   - Specify WiFi channels using CSV or range notation
 5. Click "Save RF Settings" to apply changes
 
 ### API Configuration
@@ -225,26 +236,27 @@ Content-Type: application/x-www-form-urlencoded
 preset=1
 ```
 
-**Update RF settings (custom):**
+**Update RF settings (custom with channels):**
 ```
 POST /rf-config
 Content-Type: application/x-www-form-urlencoded
 
-wifiChannelTime=120&wifiScanInterval=5000&bleScanInterval=2500&bleScanDuration=2500
+wifiChannelTime=120&wifiScanInterval=5000&bleScanInterval=2500&bleScanDuration=2500&channels=1,6,11
 ```
 
 ### Configuration Persistence
 
 All RF settings are automatically persisted to NVS (non-volatile storage) and restored on reboot. When an SD card is present, settings are also saved to `/config.json` for backup and portability across devices.
 
-#### Operational Considerations
+### Operational Considerations
 
 - **Lower intervals**: Increase detection speed and coverage but consume more power
 - **Higher intervals**: Reduce power consumption and RF noise but may miss brief transmissions
 - **Channel time**: Affects WiFi channel hop rate; shorter times provide faster channel coverage
 - **BLE duration**: Longer durations improve BLE device discovery but reduce WiFi scan frequency
+- **Channel selection**: Limit to specific channels (1,6,11) for focused monitoring or use full range (1..14) for comprehensive coverage
 
-Adjust parameters based on deployment environment, power budget, and target detection requirements.
+Adjust parameters based on deployment environment, power budget, target detection requirements, and regulatory constraints.
 
 ---
 
