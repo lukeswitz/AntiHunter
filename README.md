@@ -24,11 +24,10 @@
 7. [Getting Started](#getting-started)
    - [Quick Flasher](#quick-flasher)
    - [Development Setup](#development-setup)
-   - [Firmware Flashing](#firmware-flashing)
 8. [Web Interface](#web-interface)
 9. [Mesh Network Integration](#mesh-network-integration)
 10. [Command Reference](#command-reference)
-11. [API Endpoints](#api-endpoints)
+11. [API Reference](#api-reference)
 
 > [!NOTE]  
 > **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
@@ -327,9 +326,9 @@ _PCBs and kits are in production!_
 
 ## Getting Started
 
-### **Quick Flasher**
+### Quick Flasher
 
-For rapid deployment without building from source, precompiled binaries are available:
+For rapid deployment without building from source, precompiled binaries are available.
 
 **Linux/macOS:**
 ```bash
@@ -339,51 +338,51 @@ chmod +x flashAntihunter.sh
 
 # Run the flasher script with default configuration (Full AP Firmware)
 ./flashAntihunter.sh
-
 ```
 
-- Optional Headless Config:
+**Headless Configuration (Optional):**
 
-**`NOTE`: Configuration on flash** erase process requires the bootloader and partitions files from inside `Dist/` folder to be in the same directory:
-
+Configuration on flash requires the bootloader and partitions files from `Dist/` folder in the same directory.
 ```bash
 # Run the flasher script with interactive configuration (Headless Firmware)
 ./flashAntihunter.sh -c -e
 ```
 
-**Process:**
+**Flashing Process:**
 1. Connect your ESP32-S3 board via USB
-2. Run the flasher script, follow prompts
-3. The device will reboot with AntiHunter firmware
+2. Run the flasher script and follow prompts
+3. Device will reboot with AntiHunter firmware
 
-Full Firmware:
-- Connect to the `Antihunter` WiFi AP (password: `ouispy123`)
-- Access the web interface at `http://192.168.4.1`
+**Post-Flash Setup:**
 
-Headless Firmware:
-- Use the [commands list](https://github.com/lukeswitz/AntiHunter/edit/main/README.md#command-reference) below to interact with the device
+**Full Firmware:**
+- Connect to `Antihunter` WiFi AP (password: `ouispy123`)
+- Access web interface at `http://192.168.4.1`
+- Change SSID and password in RF Settings
 
-### **Development Setup**
+**Headless Firmware:**
+- Use serial monitor or mesh commands (see Command Reference section)
+
+### Development Setup
 
 For developers and advanced users:
 
-#### **Prerequisites**
-- **PlatformIO**
-- **Git** for repository management
-- **USB cable** for programming and debugging
-- **Optional: Visual Studio Code** with PlatformIO IDE extension
+**Prerequisites:**
+- PlatformIO
+- Git
+- USB cable for programming and debugging
+- Optional: Visual Studio Code with PlatformIO IDE extension
 
-#### **Repository Setup**
+**Repository Setup:**
 ```bash
 # Clone the AntiHunter repository
 git clone https://github.com/lukeswitz/AntiHunter.git
 cd AntiHunter
 ```
 
-#### **Firmware Flashing**
+**Firmware Flashing:**
 
-### Option 1 - PIO command line:
-
+**Option 1 - PlatformIO Command Line:**
 ```bash
 # Ensure PlatformIO Core is installed
 pip install -U platformio
@@ -400,11 +399,11 @@ pio run -e AntiHunter-headless -t upload
 pio device monitor -e AntiHunter-headless
 ```
 
-### Option 2 - Using VS Code:
+**Option 2 - Using VS Code:**
 
-1. **Select Environment**: Click the environment selector in PlatformIO's status bar at the bottom:
-   - Choose `AntiHunter-full` for the web interface version
-   - Choose `AntiHunter-headless` for the mesh only version
+1. **Select Environment**: Click the environment selector in PlatformIO's status bar:
+   - Choose `AntiHunter-full` for web interface version
+   - Choose `AntiHunter-headless` for mesh-only version
 
 2. **Build & Upload**: Click the "Upload" button (→) in the PlatformIO status bar
 
@@ -412,20 +411,18 @@ pio device monitor -e AntiHunter-headless
 
 **Environment Notes:**
 - **Full**: Includes web server (ESPAsyncWebServer, AsyncTCP) for AP dashboard
-- **Headless**: Minimal dependencies, ideal for AHCC/background operation
+- **Headless**: Minimal dependencies, ideal for distributed deployment and background operation
+
 ---
 
 ## Web Interface
 
-After flashing, AntiHunter creates a WiFi access point for configuration and monitoring. The ESP32 will randomize its MAC address on each boot. 
+Access the AntiHunter web interface after flashing:
+- Connect to `Antihunter` WiFi AP (password: `ouispy123`)
+- Navigate to `http://192.168.4.1`
+- Configure RF settings, detection modes, and security parameters
 
-### **Connection**
-1. **Join Network**: Connect to `Antihunter` WiFi AP
-   - **Password**: `ouispy123`
-   - **IP Address**: `192.168.4.1`
-2. **Access Interface**: Open browser to `http://192.168.4.1`
-
-**Change** SSID and password in the AP under RF Settings. 
+Change SSID and password in RF Settings panel.
 
 ---
 
@@ -453,24 +450,23 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ## Command Reference
 
-### **Node Addressing**
+### Node Addressing Format
 - **Specific Node**: `@NODE_22 COMMAND` - Targets individual node
 - **All Nodes**: `@ALL COMMAND` - Broadcast to entire network
-- **Node ID Format**: Up to 16 alphanumeric characters
-- **Response Format**: All responses prefixed with sending Node ID
+- **Node ID**: Up to 16 alphanumeric characters
+- **Response**: All responses prefixed with sending Node ID
 
----
-## **Parameter Reference**
+### Command Parameters
 
-### **Scan Parameters**
-- `mode`: `0` = WiFi Only, `1` = BLE Only, `2` = WiFi+BLE
-- `secs`: Duration in seconds (0 or omit for continuous, max 86400)
-- `forever`: `1` or present = Run indefinitely
-- `ch`: WiFi channels (CSV: `1,6,11` or range: `1..14`)
-- `triangulate`: `1` = Enable multi-node triangulation
-- `targetMac`: Target device MAC address (format: `AA:BB:CC:DD:EE:FF`)
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `mode` | `0`, `1`, `2` | WiFi Only, BLE Only, WiFi+BLE |
+| `secs` | `0-86400` | Duration in seconds (0 or omit for continuous) |
+| `forever` | `1` or present | Run indefinitely |
+| `ch` | `1,6,11` or `1..14` | WiFi channels (CSV or range) |
+| `triangulate` | `1` | Enable multi-node triangulation |
+| `targetMac` | `AA:BB:CC:DD:EE:FF` | Target device MAC address |
 
----
 
 ## **Mesh Commands**
 
@@ -560,144 +556,99 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ---
 
-## **API Endpoints**
+## API Reference
 
-### **Core Functionality**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/` | GET | Main web interface | None |
-| `/export` | GET | Export target MAC list | None |
-| `/results` | GET | Latest scan/triangulation results | None |
-| `/save` | POST | Save target configuration | `list` (text) |
-| `/stop` | GET | Stop all operations | None |
-| `/diag` | GET | System diagnostics | None |
-| `/sniffer-cache` | GET | View cached device detections | None |
+### Core Operations
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/` | GET | - | Main web interface |
+| `/diag` | GET | - | System diagnostics |
+| `/stop` | GET | - | Stop all operations |
+| `/config` | GET | - | Get system configuration (JSON) |
+| `/config` | POST | `channels`, `targets` | Update channels and target list |
 
----
+### Scanning & Detection
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/scan` | POST | `mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac` | Start WiFi/BLE scan |
+| `/sniffer` | POST | `detection`, `secs`, `forever`, `randomizationMode` | Start detection mode (device-scan, deauth, baseline, randomization) |
+| `/drone` | POST | `secs`, `forever` | Start drone RID detection |
 
-### **Node Configuration**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/node-id` | GET | Get current node ID | None |
-| `/node-id` | POST | Set node ID | `id` (1-16 chars) |
-| `/mesh-interval` | GET | Get mesh send interval | None |
-| `/mesh-interval` | POST | Set mesh send interval | `interval` (1500-30000 ms) |
-| `/config` | GET | Get system configuration | None |
-| `/config` | POST | Update configuration | `channels` (CSV), `targets` (pipe-delimited) |
-| `/api/time` | POST | Set RTC time from epoch | `epoch` (Unix timestamp, 1609459200-2147483647) |
+### Results & Logs
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/results` | GET | - | Latest scan/triangulation results |
+| `/sniffer-cache` | GET | - | Cached device detections |
+| `/drone-results` | GET | - | Drone detection results |
+| `/drone-log` | GET | - | Drone event logs (JSON) |
+| `/deauth-results` | GET | - | Deauth attack logs |
+| `/randomization-results` | GET | - | Randomization detection results |
+| `/baseline-results` | GET | - | Baseline detection results |
 
----
+### Configuration Management
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/node-id` | GET/POST | `id` | Get/set node ID (1-16 chars) |
+| `/mesh-interval` | GET/POST | `interval` | Get/set mesh send interval (1500-30000ms) |
+| `/save` | POST | `list` | Save target configuration |
+| `/export` | GET | - | Export target MAC list |
+| `/allowlist-export` | GET | - | Export allowlist |
+| `/allowlist-save` | POST | `list` | Save allowlist |
+| `/api/time` | POST | `epoch` | Set RTC time from Unix timestamp |
 
-### **Scanning Operations**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/scan` | POST | Start WiFi/BLE scan | `mode` (0=WiFi, 1=BLE, 2=Both), `secs` (0-86400), `forever`, `ch` (CSV/range), `triangulate`, `targetMac` |
-| `/sniffer` | POST | Start detection mode | `detection` (device-scan, deauth, baseline, randomization-detection), `secs` (0-86400), `forever`, `randomizationMode` (for randomization-detection) |
+### RF Configuration
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/rf-config` | GET | - | Get RF scan configuration (JSON) |
+| `/rf-config` | POST | `preset` OR `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `channels` | Update RF configuration |
+| `/wifi-config` | GET/POST | `ssid`, `pass` | Get/update WiFi AP settings |
 
----
+### Baseline Detection
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/baseline/status` | GET | - | Baseline scan status (JSON) |
+| `/baseline/stats` | GET | - | Detailed baseline statistics (JSON) |
+| `/baseline/config` | GET/POST | `rssiThreshold`, `baselineDuration`, `ramCacheSize`, `sdMaxDevices`, `absenceThreshold`, `reappearanceWindow`, `rssiChangeDelta` | Get/update baseline configuration |
+| `/baseline/reset` | POST | - | Reset baseline detection |
 
-### **Baseline Detection**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/baseline/status` | GET | Baseline scan status (JSON) | None |
-| `/baseline/stats` | GET | Detailed baseline statistics (JSON) | None |
-| `/baseline/config` | GET | Get baseline configuration (JSON) | None |
-| `/baseline/config` | POST | Update baseline configuration | `rssiThreshold` (dBm), `baselineDuration` (secs), `ramCacheSize`, `sdMaxDevices`, `absenceThreshold` (secs), `reappearanceWindow` (secs), `rssiChangeDelta` (dBm) |
-| `/baseline/reset` | POST | Reset baseline detection | None |
-| `/baseline-results` | GET | View baseline detection results | None |
+### Triangulation
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/triangulate/start` | POST | `mac`, `duration` | Start triangulation for target MAC (≥60 secs) |
+| `/triangulate/stop` | POST | - | Stop triangulation |
+| `/triangulate/status` | GET | - | Get triangulation status (JSON) |
+| `/triangulate/results` | GET | - | Get triangulation results |
+| `/triangulate/calibrate` | POST | `mac`, `distance` | Calibrate path loss for target |
 
----
+### Randomization Detection
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/randomization/reset` | POST | - | Reset randomization detection |
+| `/randomization/clear-old` | POST | `age` (optional) | Clear old device identities |
+| `/randomization/identities` | GET | - | Get tracked device identities (JSON) |
 
-### **Drone Detection**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/drone` | POST | Start drone detection | `secs` (0-86400), `forever` |
-| `/drone-results` | GET | View drone detection results | None |
-| `/drone-log` | GET | Access drone event logs (JSON) | None |
-| `/drone/status` | GET | Drone detection status (JSON) | None |
+### Security & Erasure
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/erase/status` | GET | - | Check erasure status |
+| `/erase/request` | POST | `confirm` (WIPE_ALL_DATA), `reason` (optional) | Request secure erase |
+| `/erase/cancel` | POST | - | Cancel tamper erase sequence |
+| `/secure/status` | GET | - | Tamper detection status |
+| `/secure/abort` | POST | - | Abort tamper sequence |
+| `/secure/destruct` | POST | `confirm` (WIPE_ALL_DATA) | Execute immediate secure wipe |
+| `/secure/generate-token` | POST | `target`, `confirm` (GENERATE_ERASE_TOKEN) | Generate remote erase token |
+| `/config/autoerase` | GET/POST | `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay` | Get/update auto-erase configuration |
 
----
-
-### **Deauthentication Detection**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/deauth-results` | GET | View deauthentication attack logs | None |
-
----
-
-### **Randomization Detection**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/randomization-results` | GET | View randomization detection results | None |
-| `/randomization/reset` | POST | Reset randomization detection | None |
-| `/randomization/clear-old` | POST | Clear old device identities | `age` (seconds, optional) |
-| `/randomization/identities` | GET | Get tracked device identities (JSON) | None |
-
----
-
-### **Triangulation**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/triangulate/start` | POST | Start triangulation for target MAC | `mac` (AA:BB:CC:DD:EE:FF), `duration` (≥60 secs) |
-| `/triangulate/stop` | POST | Stop triangulation | None |
-| `/triangulate/status` | GET | Get triangulation status (JSON) | None |
-| `/triangulate/results` | GET | Get triangulation results | None |
-| `/triangulate/calibrate` | POST | Calibrate path loss for target | `mac` (AA:BB:CC:DD:EE:FF), `distance` (meters) |
-
----
-
-### **Allowlist Management**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/allowlist-export` | GET | Export allowlist | None |
-| `/allowlist-save` | POST | Save allowlist | `list` (text) |
-
----
-
-### **Security & Erasure**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/erase/status` | GET | Check erasure status | None |
-| `/erase/request` | POST | Request secure erase | `confirm` (WIPE_ALL_DATA), `reason` (optional) |
-| `/erase/cancel` | POST | Cancel tamper erase sequence | None |
-| `/secure/status` | GET | Tamper detection status | None |
-| `/secure/abort` | POST | Abort tamper sequence | None |
-| `/secure/destruct` | POST | Execute immediate secure wipe | `confirm` (WIPE_ALL_DATA) |
-| `/secure/generate-token` | POST | Generate remote erase token | `target` (node ID), `confirm` (GENERATE_ERASE_TOKEN) |
-| `/config/autoerase` | GET | Get auto-erase configuration (JSON) | None |
-| `/config/autoerase` | POST | Update auto-erase configuration | `enabled` (true/false), `delay` (10000-300000ms), `cooldown` (60000-3600000ms), `vibrationsRequired` (2-10), `detectionWindow` (5000-120000ms), `setupDelay` (30000-600000ms) |
+### Hardware & Status
+| Endpoint | Method | Parameters | Description |
+|----------|--------|------------|-------------|
+| `/gps` | GET | - | Current GPS status and location |
+| `/sd-status` | GET | - | SD card status and health |
+| `/drone/status` | GET | - | Drone detection status (JSON) |
+| `/mesh` | POST | `enabled` | Enable/disable mesh networking |
+| `/mesh-test` | GET | - | Test mesh connectivity |
 
 ---
-
-### **Mesh Networking**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/mesh` | POST | Enable/disable mesh networking | `enabled` (true/false) |
-| `/mesh-test` | GET | Test mesh connectivity | None |
-
----
-
-### **GPS & Hardware**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/gps` | GET | Current GPS status and location | None |
-| `/sd-status` | GET | SD card status and health | None |
-
----
-
-### **RF Configuration**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/rf-config` | GET | Get RF scan configuration (JSON) | None |
-| `/rf-config` | POST | Update RF configuration | `preset` (uint8_t) OR `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration` |
-
----
-
-### **WiFi Configuration**
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/wifi-config` | GET | Get WiFi AP settings (JSON) | None |
-| `/wifi-config` | POST | Update WiFi AP settings | `ssid` (1-32 chars, required), `pass` (8-63 chars or empty, optional) |
 
 ## Credits
 
