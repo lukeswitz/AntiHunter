@@ -19,15 +19,16 @@
 2. [Primary Detection Modes](#primary-detection-modes)
 3. [System Architecture](#system-architecture)
 4. [Secure Data Destruction](#secure-data-destruction)
-5. [Hardware Requirements](#hardware-requirements)
-6. [Getting Started](#getting-started)
+5. [RF Configuration](#rf-configuration)
+6. [Hardware Requirements](#hardware-requirements)
+7. [Getting Started](#getting-started)
    - [Quick Flasher](#quick-flasher)
    - [Development Setup](#development-setup)
    - [Firmware Flashing](#firmware-flashing)
-7. [Web Interface](#web-interface)
-8. [Mesh Network Integration](#mesh-network-integration)
-9. [Command Reference](#command-reference)
-10. [API Endpoints](#api-endpoints)
+8. [Web Interface](#web-interface)
+9. [Mesh Network Integration](#mesh-network-integration)
+10. [Command Reference](#command-reference)
+11. [API Endpoints](#api-endpoints)
 
 > [!NOTE]  
 > **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
@@ -179,6 +180,71 @@ Configure auto-erase settings via the web interface:
 5. Use web interface to generate authenticated mesh erase tokens for remote destruction
 
 > **Warning**: Data destruction is permanent and irreversible. Configure thresholds carefully to prevent false triggers.
+---
+
+## RF Configuration
+
+AntiHunter provides adjustable RF scan parameters to optimize detection performance for different operational scenarios. Configuration is available through both the web interface and API endpoints. Values can be set upon flashing as well. 
+
+### Scan Presets
+
+| Preset | WiFi Channel Time | WiFi Scan Interval | BLE Scan Interval | BLE Scan Duration | Use Case |
+|--------|-------------------|-------------------|-------------------|-------------------|----------|
+| **Relaxed** | 300ms | 8000ms | 4000ms | 3000ms | Low power, stealthy operations |
+| **Balanced** | 160ms | 6000ms | 3000ms | 3000ms | General use, default configuration |
+| **Aggressive** | 110ms | 4000ms | 2000ms | 2000ms | Fast detection, high coverage |
+| **Custom** | User-defined | User-defined | User-defined | User-defined | Fine-tuned for specific requirements |
+
+### Parameter Definitions
+
+- **WiFi Channel Time**: Duration spent on each WiFi channel (50-300ms)
+- **WiFi Scan Interval**: Time between WiFi scan cycles (1000-10000ms)
+- **BLE Scan Interval**: Time between BLE scan cycles (1000-10000ms)
+- **BLE Scan Duration**: Active BLE scanning duration per cycle (1000-5000ms)
+
+### Web Interface Configuration
+
+1. Navigate to the web interface at `http://192.168.4.1`
+2. Locate the RF Settings section
+3. Select a preset from the dropdown or choose "Custom" for manual tuning
+4. For custom configuration, adjust individual timing parameters
+5. Click "Save RF Settings" to apply changes
+
+### API Configuration
+
+**Get current RF settings:**
+```
+GET /rf-config
+```
+
+**Update RF settings (preset):**
+```
+POST /rf-config
+Content-Type: application/x-www-form-urlencoded
+
+preset=1
+```
+
+**Update RF settings (custom):**
+```
+POST /rf-config
+Content-Type: application/x-www-form-urlencoded
+
+wifiChannelTime=120&wifiScanInterval=5000&bleScanInterval=2500&bleScanDuration=2500
+```
+
+### Configuration Persistence
+
+All RF settings are automatically persisted to NVS (non-volatile storage) and restored on reboot. When an SD card is present, settings are also saved to `/config.json` for backup and portability across devices.
+
+#### Operational Considerations
+
+- **Lower intervals**: Increase detection speed and coverage but consume more power
+- **Higher intervals**: Reduce power consumption and RF noise but may miss brief transmissions
+- **Channel time**: Affects WiFi channel hop rate; shorter times provide faster channel coverage
+- **BLE duration**: Longer durations improve BLE device discovery but reduce WiFi scan frequency
+
+Adjust parameters based on deployment environment, power budget, and target detection requirements.
 
 ---
 
