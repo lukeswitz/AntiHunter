@@ -492,9 +492,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ---
 
-### **Mesh Alert Messages**
+## **Mesh Alert Messages**
 
-## Detection & RF Attack Alerts
+### Detection & RF Attack Alerts
 
 | Alert Type | Format | Example |
 |------------|--------|---------|
@@ -506,14 +506,14 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
 | **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC SRC->DST RX CHN` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
 
-## Identification & Randomization Alerts
+### Identification & Randomization Alerts
 
 | Alert Type | Format | Example |
 |------------|--------|---------|
 | **Randomization Identity** | `NODE_ID: IDENTITY:T-XXXX B/W MACs:N Conf:X.XX Sess:N Anchor:XX:XX:XX:XX:XX:XX` | `AH99: IDENTITY:T-002F W MACs:5 Conf:0.62 Sess:5 Anchor:02:9F:C2:3D:92:CE` |
 | **Randomization Complete** | `NODE_ID: RANDOMIZATION_DONE: Identities=N Sessions=N TX=N PEND=N` | `AH99: RANDOMIZATION_DONE: Identities=14 Sessions=22 TX=14 PEND=0` |
 
-## Tamper, Security & Vibration Alerts
+### Tamper, Security & Vibration Alerts
 
 | Alert Type | Format | Example |
 |------------|--------|---------|
@@ -527,7 +527,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Erase Complete** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
 | **Erase Cancelled** | `NODE_ID: ERASE_ACK:CANCELLED` | `NODE_ABC: ERASE_ACK:CANCELLED` |
 
-## Status, Sync & System Commands
+### Status, Sync & System Commands
 
 | Alert Type | Format | Example |
 |------------|--------|---------|
