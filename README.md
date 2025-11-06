@@ -71,7 +71,7 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
    **B. Baseline Anomaly Detection**
    - Two-phase scanning: establishes baseline, then monitors for anomalies
    - Detects new devices, disappeared/reappeared devices, significant RSSI changes
-   - Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). **Defaults to 1500 devices if no SD card**
+   - Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). Defaults to 1500 devices if no SD card. 
    - Persistent storage with automatic tiering, survives reboots
    - Real-time mesh alerts with GPS coordinates and anomaly reasons
    - Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
@@ -106,36 +106,35 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 - WiFi penetration testing, security auditing, and MAC randomization analysis
 - Device fingerprinting and persistent identification across randomization
 - Counter-UAV operations and airspace awareness
-- Infrastructure drone monitoring
 - Event security and monitoring
 - Red team detection and defensive operations
 - Wireless threat hunting, forensics, and privacy assessments
 ---
 
-### Sensor Integration
+## Sensor Integration
 ![095B0BC8-1A8D-4EBD-9D95-976288F0F86E_1_201_a](https://github.com/user-attachments/assets/35752f4a-bc78-4834-a652-e72622d5d732)
 
-#### **GPS Positioning**
+### **GPS Positioning**
 - **Interface**: UART2 (RX=GPIO44, TX=GPIO43) at 9600 baud using TinyGPS++
 - **Functionality**: Parses NMEA sentences for location, altitude, and satellite data
 - **Web Interface**: Real-time GPS status and fix quality
 - **API Endpoint**: `/gps` returns current latitude/longitude coordinates
 - **Integration**: All detection events include GPS coordinates when available
 
-#### **SD Card Logging**
+### **SD Card Logging**
 - **Interface**: SPI
 - **Storage**: Logs to `/antihunter.log` with timestamps, detection types, and metadata
 - **Format**: Structured entries including MAC addresses, RSSI, GPS data, and timestamps
 - **Diagnostics**: Web interface shows storage status and usage stats
 
-#### **Vibration/Tamper Detection**
+### **Vibration/Tamper Detection**
 - **Sensor**: SW-420 vibration sensor
 - **Detection**: Interrupt-driven monitoring with 3-second rate limiting
 - **Alerts**: Mesh network notifications with GPS coordinates and timestamps
 - **Format**: `NODE_ABC: VIBRATION: Movement detected at HH:MM:SS GPS:lat,lon`
 - **Status**: Real-time sensor state displayed in diagnostics panel
 
-#### **Real-Time Clock (RTC)**
+### **Real-Time Clock (RTC)**
 - **Module**: DS3231 RTC via I2C
 - **Functionality**: Accurate timekeeping during power outages and GPS synchronization
 - **Features**: Automatic time sync from NTP on flash with fallback to system time and GPS, sync status monitoring & obedience/drift  correction. 
@@ -260,6 +259,8 @@ Adjust parameters based on deployment environment, power budget, target detectio
 ---
 
 ## System Architecture
+
+<img width="1407" height="913" alt="image" src="https://github.com/user-attachments/assets/67348f3d-6613-462c-8e0f-dad419e43f9a" />
 
 ### **Distributed Node Network**
 AntiHunter operates as a distributed sensor network where each node functions independently while contributing to the overall security picture. Nodes communicate via Meshtastic mesh networking, enabling:
