@@ -714,14 +714,15 @@ void sendStartupStatus() {
     startupMsg += " GPS:";
     startupMsg += (gpsValid ? "LOCKED " : "SEARCHING ");
     startupMsg += "TEMP: " + String(temp_c, 1) + "C\n";
-    startupMsg += " SD:";
-    startupMsg += (sdAvailable ? "OK" : "FAIL");
-    startupMsg += " Status:ONLINE";
+    // startupMsg += " SD:";
+    // startupMsg += (sdAvailable ? "OK" : "FAIL");
+    // startupMsg += " Status:ONLINE";
     
     Serial.printf("[STARTUP] %s\n", startupMsg.c_str());
     sendToSerial1(startupMsg, false);
     logToSD(startupMsg);
 }
+
 void sendGPSLockStatus(bool locked) {
     String gpsMsg = getNodeId() + ": GPS: ";
     gpsMsg += (locked ? "LOCKED" : "LOST");
