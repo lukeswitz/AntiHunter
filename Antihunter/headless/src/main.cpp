@@ -132,15 +132,13 @@ void sendNodeIdUpdate() {
     float esp_temp_f = (esp_temp * 9.0 / 5.0) + 32.0;
     String timestamp = getFormattedTimestamp();
     timestamp.replace(" ", "_");
-    
-    String nodeMsg = "[NODE_HB] " + getNodeId() + 
-                     " Time:" + timestamp + 
-                     " Temp:" + String(esp_temp, 1) + "C/" + String(esp_temp_f, 1) + "F";
-    
+
+    String nodeMsg = getNodeId() + " Time:" + timestamp + " Temp:" + String(esp_temp, 1) + "C/" + String(esp_temp_f, 1) + "F";
+
     if (gpsValid) {
         nodeMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
-    
+
     Serial.println(nodeMsg);
     sendToSerial1(nodeMsg, true);
 }

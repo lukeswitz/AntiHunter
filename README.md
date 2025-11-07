@@ -533,7 +533,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | Alert Type | Format | Example |
 |------------|--------|---------|
 | **Startup Status** | `NODE_ID: STARTUP: System initialized GPS:LOCKED/SEARCHING TEMP:XXC SD:OK/FAIL Status:ONLINE` | `NODE_ABC: STARTUP: System initialized GPS:LOCKED TEMP:42.3C SD:OK Status:ONLINE` |
-| **Node Heartbeat** | `[NODE_HB] NODE_ID Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]` | `[NODE_HB] NODE_ABC Time:2025-10-28_14:32:15 Temp:42.3C GPS:40.7128,-74.0060` |
+| **Node Heartbeat** | `NODE_ID Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]` | `[NODE_HB] NODE_ABC Time:2025-10-28_14:32:15 Temp:42.3C GPS:40.7128,-74.0060` |
 | **GPS Locked** | `NODE_ID: GPS: LOCKED Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
 | **GPS Lost** | `NODE_ID: GPS: LOST` | `NODE_ABC: GPS: LOST` |
 | **RTC Sync** | `NODE_ID: RTC_SYNC: GPS/NTP` | `NODE_ABC: RTC_SYNC: GPS` |
