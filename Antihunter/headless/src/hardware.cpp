@@ -231,9 +231,29 @@ void initializeHardware()
     Serial.printf("Hardware initialized: nodeID=%s\n", nodeId.c_str());
 }
 
+void syncSettingsToNVS() {
+    prefs.putInt("scanMode", currentScanMode);
+    prefs.putULong("meshInterval", meshSendInterval);
+    prefs.putUInt("baselineRamSize", getBaselineRamCacheSize());
+    prefs.putUInt("baselineSdMax", getBaselineSdMaxDevices());
+    prefs.putUInt("absenceThresh", getDeviceAbsenceThreshold());
+    prefs.putUInt("reappearWin", getReappearanceAlertWindow());
+    prefs.putInt("rssiChange", getSignificantRssiChange());
+    prefs.putBool("autoEraseEnabled", autoEraseEnabled);
+    prefs.putUInt("autoEraseDelay", autoEraseDelay);
+    prefs.putUInt("autoEraseCooldown", autoEraseCooldown);
+    prefs.putUInt("vibrationsRequired", vibrationsRequired);
+    prefs.putUInt("detectionWindow", detectionWindow);
+    prefs.putUInt("setupDelay", setupDelay);
+    prefs.putUInt("baselineDuration", baselineDuration);
+    prefs.putInt("baselineRssi", getBaselineRssiThreshold());
+}
+
 void saveConfiguration() {
-      if (!SafeSD::isAvailable()) {
-        Serial.println("SD card not available, cannot save configuration");
+    syncSettingsToNVS();
+    
+    if (!SafeSD::isAvailable()) {
+        Serial.println("SD card not available, settings saved to NVS only");
         return;
     }
     
@@ -242,7 +262,7 @@ void saveConfiguration() {
         Serial.println("Failed to open config file for writing!");
         return;
     }
-
+    
     String channelsCSV = "";
     for (size_t i = 0; i < CHANNELS.size(); i++) {
         channelsCSV += String(CHANNELS[i]);
@@ -250,7 +270,7 @@ void saveConfiguration() {
             channelsCSV += ",";
         }
     }
-
+    
     String config = "{\n";
     config += " \"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
     config += " \"scanMode\":" + String(currentScanMode) + ",\n";
@@ -264,6 +284,11 @@ void saveConfiguration() {
     config += " \"setupDelay\":" + String(setupDelay) + ",\n";
     config += " \"baselineRamSize\":" + String(getBaselineRamCacheSize()) + ",\n";
     config += " \"baselineSdMax\":" + String(getBaselineSdMaxDevices()) + ",\n";
+    config += " \"baselineRssiThreshold\":" + String(getBaselineRssiThreshold()) + ",\n";
+    config += " \"baselineDuration\":" + String(baselineDuration / 1000) + ",\n";
+    config += " \"absenceThreshold\":" + String(getDeviceAbsenceThreshold() / 1000) + ",\n";
+    config += " \"reappearanceWindow\":" + String(getReappearanceAlertWindow() / 1000) + ",\n";
+    config += " \"rssiChangeDelta\":" + String(getSignificantRssiChange()) + ",\n";
     config += " \"rfPreset\":" + String(rfConfig.preset) + ",\n";
     config += " \"wifiChannelTime\":" + String(rfConfig.wifiChannelTime) + ",\n";
     config += " \"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",\n";
@@ -271,20 +296,36 @@ void saveConfiguration() {
     config += " \"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",\n";
     config += " \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
     config += "}";
+    
     configFile.print(config);
     configFile.close();
-    Serial.println("Configuration saved to SD card");
-    // Serial.println("Saved JSON: " + config); // Debug
+    
+    Serial.println("Configuration saved to NVS and SD card");
 }
 
 void loadConfiguration() {
-     if (!SafeSD::isAvailable()) {
-        Serial.println("SD card not available, cannot load configuration from SD");
+    if (!SafeSD::isAvailable()) {
+        Serial.println("SD card not available, loading from NVS only");
+        currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
+        meshSendInterval = prefs.getULong("meshInterval", 5000);
+        autoEraseEnabled = prefs.getBool("autoEraseEnabled", false);
+        autoEraseDelay = prefs.getUInt("autoEraseDelay", 30000);
+        autoEraseCooldown = prefs.getUInt("autoEraseCooldown", 300000);
+        vibrationsRequired = prefs.getUInt("vibrationsRequired", 3);
+        detectionWindow = prefs.getUInt("detectionWindow", 20000);
+        setupDelay = prefs.getUInt("setupDelay", 120000);
+        setBaselineRamCacheSize(prefs.getUInt("baselineRamSize", 400));
+        setBaselineSdMaxDevices(prefs.getUInt("baselineSdMax", 50000));
+        setDeviceAbsenceThreshold(prefs.getUInt("absenceThresh", 120000));
+        setReappearanceAlertWindow(prefs.getUInt("reappearWin", 300000));
+        setSignificantRssiChange(prefs.getInt("rssiChange", 20));
+        setBaselineRssiThreshold(prefs.getInt("baselineRssi", -70));
+        baselineDuration = prefs.getUInt("baselineDuration", 300000);
         return;
     }
     
-       if (!SafeSD::exists("/config.json")) {
-        Serial.println("No config file found on SD card");
+    if (!SafeSD::exists("/config.json")) {
+        Serial.println("No config file found on SD card, using NVS defaults");
         return;
     }
 
@@ -310,15 +351,19 @@ void loadConfiguration() {
         saveConfiguration();
         return;
     }
-    
-    // Serial.println("Raw config: " + config);
 
     if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
         String nodeId = doc["nodeId"].as<String>();
         if (nodeId.length() > 0) {
+            if (!nodeId.startsWith("AH")) {
+                Serial.println("Warning: nodeId from SD does not have AH prefix, correcting...");
+                nodeId = "AH" + nodeId;
+                if (nodeId.length() > 16) {
+                    nodeId = nodeId.substring(0, 16);
+                }
+            }
             prefs.putString("nodeId", nodeId);
             setNodeId(nodeId);
-            // Serial.println("Loaded nodeId from SD: " + nodeId);
         }
     }
 
@@ -327,7 +372,6 @@ void loadConfiguration() {
         if (scanMode >= 0 && scanMode <= 2) {
             currentScanMode = (ScanMode)scanMode;
             prefs.putInt("scanMode", scanMode);
-            // Serial.println("Loaded scanMode from SD: " + String(scanMode));
         }
     }
 
@@ -370,35 +414,96 @@ void loadConfiguration() {
         if (targets.length() > 0) {
             saveTargetsList(targets);
             prefs.putString("maclist", targets);
-            // Serial.println("Loaded targets from SD: " + targets);
             Serial.println("Target count: " + String(getTargetCount()));
         }
     }
+    
+    if (doc.containsKey("apSsid") && doc["apSsid"].is<String>()) {
+        String apSsid = doc["apSsid"].as<String>();
+        if (apSsid.length() > 0) {
+            prefs.putString("apSsid", apSsid);
+        }
+    }
+    
+    if (doc.containsKey("apPass") && doc["apPass"].is<String>()) {
+        String apPass = doc["apPass"].as<String>();
+        if (apPass.length() >= 8) {
+            prefs.putString("apPass", apPass);
+        }
+    }
+    
     if (doc.containsKey("autoEraseEnabled")) {
         autoEraseEnabled = doc["autoEraseEnabled"].as<bool>();
+        prefs.putBool("autoEraseEnabled", autoEraseEnabled);
     }
+    
     if (doc.containsKey("autoEraseDelay")) {
         autoEraseDelay = doc["autoEraseDelay"].as<uint32_t>();
+        prefs.putUInt("autoEraseDelay", autoEraseDelay);
     }
+    
     if (doc.containsKey("autoEraseCooldown")) {
         autoEraseCooldown = doc["autoEraseCooldown"].as<uint32_t>();
+        prefs.putUInt("autoEraseCooldown", autoEraseCooldown);
     }
+    
     if (doc.containsKey("vibrationsRequired")) {
         vibrationsRequired = doc["vibrationsRequired"].as<uint32_t>();
+        prefs.putUInt("vibrationsRequired", vibrationsRequired);
     }
+    
     if (doc.containsKey("detectionWindow")) {
         detectionWindow = doc["detectionWindow"].as<uint32_t>();
+        prefs.putUInt("detectionWindow", detectionWindow);
     }
+    
+    if (doc.containsKey("setupDelay")) {
+        setupDelay = doc["setupDelay"].as<uint32_t>();
+        prefs.putUInt("setupDelay", setupDelay);
+    }
+    
     if (doc.containsKey("baselineRamSize")) {
         uint32_t ramSize = doc["baselineRamSize"].as<uint32_t>();
         setBaselineRamCacheSize(ramSize);
+        prefs.putUInt("baselineRamSize", ramSize);
     }
+    
     if (doc.containsKey("baselineSdMax")) {
         uint32_t sdMax = doc["baselineSdMax"].as<uint32_t>();
         setBaselineSdMaxDevices(sdMax);
+        prefs.putUInt("baselineSdMax", sdMax);
+    }
+    
+    if (doc.containsKey("baselineRssiThreshold")) {
+        int8_t rssiThresh = doc["baselineRssiThreshold"].as<int>();
+        setBaselineRssiThreshold(rssiThresh);
+        prefs.putInt("baselineRssi", rssiThresh);
+    }
+    
+    if (doc.containsKey("baselineDuration")) {
+        baselineDuration = doc["baselineDuration"].as<uint32_t>() * 1000;
+        prefs.putUInt("baselineDuration", baselineDuration);
+    }
+    
+    if (doc.containsKey("absenceThreshold")) {
+        uint32_t absence = doc["absenceThreshold"].as<uint32_t>() * 1000;
+        setDeviceAbsenceThreshold(absence);
+        prefs.putUInt("absenceThresh", absence);
+    }
+    
+    if (doc.containsKey("reappearanceWindow")) {
+        uint32_t reappear = doc["reappearanceWindow"].as<uint32_t>() * 1000;
+        setReappearanceAlertWindow(reappear);
+        prefs.putUInt("reappearWin", reappear);
+    }
+    
+    if (doc.containsKey("rssiChangeDelta")) {
+        int8_t delta = doc["rssiChangeDelta"].as<int>();
+        setSignificantRssiChange(delta);
+        prefs.putInt("rssiChange", delta);
     }
 
-    Serial.println("Configuration loaded from SD card");
+    Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
 bool waitForInitialConfig() {
