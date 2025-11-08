@@ -102,6 +102,7 @@ void parseChannelsCSV(const String &csv);
 void saveTargetsList(const String &txt);
 void saveConfiguration();
 void loadConfiguration();
+void syncSettingsToNVS();
 void logToSD(const String &data);
 
 // Tamper Detection System

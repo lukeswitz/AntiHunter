@@ -3202,37 +3202,51 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       req->send(200, "application/json", json);
     });
 
- server->on("/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req)
-            {
-        if (req->hasParam("rssiThreshold", true)) {
-            int8_t threshold = req->getParam("rssiThreshold", true)->value().toInt();
-            setBaselineRssiThreshold(threshold);
-        }
-        if (req->hasParam("baselineDuration", true)) {
-            baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
-        }
-        if (req->hasParam("ramCacheSize", true)) {
-            uint32_t ramSize = req->getParam("ramCacheSize", true)->value().toInt();
-            setBaselineRamCacheSize(ramSize);
-        }
-        if (req->hasParam("sdMaxDevices", true)) {
-            uint32_t sdMax = req->getParam("sdMaxDevices", true)->value().toInt();
-            setBaselineSdMaxDevices(sdMax);
-        }
-        if (req->hasParam("absenceThreshold", true)) {
-            uint32_t absence = req->getParam("absenceThreshold", true)->value().toInt() * 1000;
-            setDeviceAbsenceThreshold(absence);
-        }
-        if (req->hasParam("reappearanceWindow", true)) {
-            uint32_t reappear = req->getParam("reappearanceWindow", true)->value().toInt() * 1000;
-            setReappearanceAlertWindow(reappear);
-        }
-        if (req->hasParam("rssiChangeDelta", true)) {
-            int8_t delta = req->getParam("rssiChangeDelta", true)->value().toInt();
-            setSignificantRssiChange(delta);
-        }
-        req->send(200, "text/plain", "Baseline configuration updated"); 
-      });
+ server->on("/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (req->hasParam("rssiThreshold", true)) {
+          int8_t threshold = req->getParam("rssiThreshold", true)->value().toInt();
+          setBaselineRssiThreshold(threshold);
+          prefs.putInt("baselineRssi", threshold);
+      }
+      
+      if (req->hasParam("baselineDuration", true)) {
+          baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
+          prefs.putUInt("baselineDuration", baselineDuration);
+      }
+      
+      if (req->hasParam("ramCacheSize", true)) {
+          uint32_t ramSize = req->getParam("ramCacheSize", true)->value().toInt();
+          setBaselineRamCacheSize(ramSize);
+          prefs.putUInt("baselineRamSize", ramSize);
+      }
+      
+      if (req->hasParam("sdMaxDevices", true)) {
+          uint32_t sdMax = req->getParam("sdMaxDevices", true)->value().toInt();
+          setBaselineSdMaxDevices(sdMax);
+          prefs.putUInt("baselineSdMax", sdMax);
+      }
+      
+      if (req->hasParam("absenceThreshold", true)) {
+          uint32_t absence = req->getParam("absenceThreshold", true)->value().toInt() * 1000;
+          setDeviceAbsenceThreshold(absence);
+          prefs.putUInt("absenceThresh", absence);
+      }
+      
+      if (req->hasParam("reappearanceWindow", true)) {
+          uint32_t reappear = req->getParam("reappearanceWindow", true)->value().toInt() * 1000;
+          setReappearanceAlertWindow(reappear);
+          prefs.putUInt("reappearWin", reappear);
+      }
+      
+      if (req->hasParam("rssiChangeDelta", true)) {
+          int8_t delta = req->getParam("rssiChangeDelta", true)->value().toInt();
+          setSignificantRssiChange(delta);
+          prefs.putInt("rssiChange", delta);
+      }
+      
+      saveConfiguration();
+      req->send(200, "text/plain", "Baseline configuration updated");
+  });
 
   server->on("/baseline/reset", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -3395,14 +3409,21 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         sendToSerial1(test_msg);
         r->send(200, "text/plain", "Test message sent to mesh"); });
 
-   server->on("/mesh-interval", HTTP_POST, [](AsyncWebServerRequest *req) {
+  server->on("/mesh-interval", HTTP_POST, [](AsyncWebServerRequest *req) {
     if (!req->hasParam("interval", true)) {
         req->send(400, "text/plain", "Missing interval parameter");
         return;
     }
     
     unsigned long interval = req->getParam("interval", true)->value().toInt();
-    setMeshSendInterval(interval);
+    
+    if (interval < 1500 || interval > 30000) {
+        req->send(400, "text/plain", "Interval must be 1500-30000ms");
+        return;
+    }
+    
+    meshSendInterval = interval;
+    prefs.putULong("meshInterval", interval);
     saveConfiguration();
     
     req->send(200, "text/plain", "Mesh interval updated to " + String(interval) + "ms");
