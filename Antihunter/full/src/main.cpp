@@ -176,6 +176,10 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+
+    Serial.println("Waiting for mesh device stability...");
+    delay(15000);
+
     initializeNetwork();
     delay(500);
     initializeGPS();
