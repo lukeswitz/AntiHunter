@@ -3184,46 +3184,46 @@ void startWebServer()
   });
 
 server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
-           {
-      String json = "{";
-      json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
-      json += "\"baselineDuration\":" + String(baselineDuration / 1000) + ",";
-      json += "\"ramCacheSize\":" + String(getBaselineRamCacheSize()) + ",";
-      json += "\"sdMaxDevices\":" + String(getBaselineSdMaxDevices()) + ",";
-      json += "\"absenceThreshold\":" + String(getDeviceAbsenceThreshold() / 1000) + ",";
-      json += "\"reappearanceWindow\":" + String(getReappearanceAlertWindow() / 1000) + ",";
-      json += "\"rssiChangeDelta\":" + String(getSignificantRssiChange()) + ",";
-      json += "\"enabled\":" + String(baselineDetectionEnabled ? "true" : "false") + ",";
-      json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
-      json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
-      json += "\"anomalyCount\":" + String(anomalyCount);
-      json += "}";
-      
-      req->send(200, "application/json", json);
-    });
+        {
+    String json = "{";
+    json += "\"rssiThreshold\":" + String(getBaselineRssiThreshold()) + ",";
+    json += "\"baselineDuration\":" + String(baselineDuration / 1000) + ",";
+    json += "\"ramCacheSize\":" + String(getBaselineRamCacheSize()) + ",";
+    json += "\"sdMaxDevices\":" + String(getBaselineSdMaxDevices()) + ",";
+    json += "\"absenceThreshold\":" + String(getDeviceAbsenceThreshold() / 1000) + ",";
+    json += "\"reappearanceWindow\":" + String(getReappearanceAlertWindow() / 1000) + ",";
+    json += "\"rssiChangeDelta\":" + String(getSignificantRssiChange()) + ",";
+    json += "\"enabled\":" + String(baselineDetectionEnabled ? "true" : "false") + ",";
+    json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+    json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
+    json += "\"anomalyCount\":" + String(anomalyCount);
+    json += "}";
+    
+    req->send(200, "application/json", json);
+  });
 
  server->on("/baseline/config", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (req->hasParam("rssiThreshold", true)) {
           int8_t threshold = req->getParam("rssiThreshold", true)->value().toInt();
           setBaselineRssiThreshold(threshold);
-          prefs.putInt("baselineRssi", threshold);
+          prefs.putInt("blRssi", threshold);
       }
       
       if (req->hasParam("baselineDuration", true)) {
           baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
-          prefs.putUInt("baselineDuration", baselineDuration);
+          prefs.putUInt("blDuration", baselineDuration);
       }
       
       if (req->hasParam("ramCacheSize", true)) {
           uint32_t ramSize = req->getParam("ramCacheSize", true)->value().toInt();
           setBaselineRamCacheSize(ramSize);
-          prefs.putUInt("baselineRamSize", ramSize);
+          prefs.putUInt("blRamSize", ramSize);
       }
       
       if (req->hasParam("sdMaxDevices", true)) {
           uint32_t sdMax = req->getParam("sdMaxDevices", true)->value().toInt();
           setBaselineSdMaxDevices(sdMax);
-          prefs.putUInt("baselineSdMax", sdMax);
+          prefs.putUInt("blSdMax", sdMax);
       }
       
       if (req->hasParam("absenceThreshold", true)) {

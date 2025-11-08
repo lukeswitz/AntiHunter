@@ -234,19 +234,19 @@ void initializeHardware()
 void syncSettingsToNVS() {
     prefs.putInt("scanMode", currentScanMode);
     prefs.putULong("meshInterval", meshSendInterval);
-    prefs.putUInt("baselineRamSize", getBaselineRamCacheSize());
-    prefs.putUInt("baselineSdMax", getBaselineSdMaxDevices());
+    prefs.putUInt("blRamSize", getBaselineRamCacheSize());
+    prefs.putUInt("blSdMax", getBaselineSdMaxDevices());
     prefs.putUInt("absenceThresh", getDeviceAbsenceThreshold());
     prefs.putUInt("reappearWin", getReappearanceAlertWindow());
     prefs.putInt("rssiChange", getSignificantRssiChange());
-    prefs.putBool("autoEraseEnabled", autoEraseEnabled);
-    prefs.putUInt("autoEraseDelay", autoEraseDelay);
-    prefs.putUInt("autoEraseCooldown", autoEraseCooldown);
-    prefs.putUInt("vibrationsRequired", vibrationsRequired);
-    prefs.putUInt("detectionWindow", detectionWindow);
+    prefs.putBool("autoErase", autoEraseEnabled);
+    prefs.putUInt("eraseDelay", autoEraseDelay);
+    prefs.putUInt("eraseCooldown", autoEraseCooldown);
+    prefs.putUInt("vibRequired", vibrationsRequired);
+    prefs.putUInt("detectWindow", detectionWindow);
     prefs.putUInt("setupDelay", setupDelay);
-    prefs.putUInt("baselineDuration", baselineDuration);
-    prefs.putInt("baselineRssi", getBaselineRssiThreshold());
+    prefs.putUInt("blDuration", baselineDuration);
+    prefs.putInt("blRssi", getBaselineRssiThreshold());
 }
 
 void saveConfiguration() {
@@ -308,19 +308,19 @@ void loadConfiguration() {
         Serial.println("SD card not available, loading from NVS only");
         currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
         meshSendInterval = prefs.getULong("meshInterval", 5000);
-        autoEraseEnabled = prefs.getBool("autoEraseEnabled", false);
-        autoEraseDelay = prefs.getUInt("autoEraseDelay", 30000);
-        autoEraseCooldown = prefs.getUInt("autoEraseCooldown", 300000);
-        vibrationsRequired = prefs.getUInt("vibrationsRequired", 3);
-        detectionWindow = prefs.getUInt("detectionWindow", 20000);
+        autoEraseEnabled = prefs.getBool("autoErase", false);
+        autoEraseDelay = prefs.getUInt("eraseDelay", 30000);
+        autoEraseCooldown = prefs.getUInt("eraseCooldown", 300000);
+        vibrationsRequired = prefs.getUInt("vibRequired", 3);
+        detectionWindow = prefs.getUInt("detectWindow", 20000);
         setupDelay = prefs.getUInt("setupDelay", 120000);
-        setBaselineRamCacheSize(prefs.getUInt("baselineRamSize", 400));
-        setBaselineSdMaxDevices(prefs.getUInt("baselineSdMax", 50000));
+        setBaselineRamCacheSize(prefs.getUInt("blRamSize", 400));
+        setBaselineSdMaxDevices(prefs.getUInt("blSdMax", 50000));
         setDeviceAbsenceThreshold(prefs.getUInt("absenceThresh", 120000));
         setReappearanceAlertWindow(prefs.getUInt("reappearWin", 300000));
         setSignificantRssiChange(prefs.getInt("rssiChange", 20));
-        setBaselineRssiThreshold(prefs.getInt("baselineRssi", -70));
-        baselineDuration = prefs.getUInt("baselineDuration", 300000);
+        setBaselineRssiThreshold(prefs.getInt("blRssi", -70));
+        baselineDuration = prefs.getUInt("blDuration", 300000);
         return;
     }
     
@@ -434,27 +434,27 @@ void loadConfiguration() {
     
     if (doc.containsKey("autoEraseEnabled")) {
         autoEraseEnabled = doc["autoEraseEnabled"].as<bool>();
-        prefs.putBool("autoEraseEnabled", autoEraseEnabled);
+        prefs.putBool("autoErase", autoEraseEnabled);
     }
     
     if (doc.containsKey("autoEraseDelay")) {
         autoEraseDelay = doc["autoEraseDelay"].as<uint32_t>();
-        prefs.putUInt("autoEraseDelay", autoEraseDelay);
+        prefs.putUInt("eraseDelay", autoEraseDelay);
     }
     
     if (doc.containsKey("autoEraseCooldown")) {
         autoEraseCooldown = doc["autoEraseCooldown"].as<uint32_t>();
-        prefs.putUInt("autoEraseCooldown", autoEraseCooldown);
+        prefs.putUInt("eraseCooldown", autoEraseCooldown);
     }
     
     if (doc.containsKey("vibrationsRequired")) {
         vibrationsRequired = doc["vibrationsRequired"].as<uint32_t>();
-        prefs.putUInt("vibrationsRequired", vibrationsRequired);
+        prefs.putUInt("vibRequired", vibrationsRequired);
     }
     
     if (doc.containsKey("detectionWindow")) {
         detectionWindow = doc["detectionWindow"].as<uint32_t>();
-        prefs.putUInt("detectionWindow", detectionWindow);
+        prefs.putUInt("detectWindow", detectionWindow);
     }
     
     if (doc.containsKey("setupDelay")) {
@@ -465,24 +465,24 @@ void loadConfiguration() {
     if (doc.containsKey("baselineRamSize")) {
         uint32_t ramSize = doc["baselineRamSize"].as<uint32_t>();
         setBaselineRamCacheSize(ramSize);
-        prefs.putUInt("baselineRamSize", ramSize);
+        prefs.putUInt("blRamSize", ramSize);
     }
     
     if (doc.containsKey("baselineSdMax")) {
         uint32_t sdMax = doc["baselineSdMax"].as<uint32_t>();
         setBaselineSdMaxDevices(sdMax);
-        prefs.putUInt("baselineSdMax", sdMax);
+        prefs.putUInt("blSdMax", sdMax);
     }
     
     if (doc.containsKey("baselineRssiThreshold")) {
         int8_t rssiThresh = doc["baselineRssiThreshold"].as<int>();
         setBaselineRssiThreshold(rssiThresh);
-        prefs.putInt("baselineRssi", rssiThresh);
+        prefs.putInt("blRssi", rssiThresh);
     }
     
     if (doc.containsKey("baselineDuration")) {
         baselineDuration = doc["baselineDuration"].as<uint32_t>() * 1000;
-        prefs.putUInt("baselineDuration", baselineDuration);
+        prefs.putUInt("blDuration", baselineDuration);
     }
     
     if (doc.containsKey("absenceThreshold")) {
