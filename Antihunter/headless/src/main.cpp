@@ -178,6 +178,10 @@ void setup() {
 
     loadConfiguration();
     delay(500);
+
+    Serial.println("Waiting for mesh device stability...");
+    delay(15000);
+
     initializeGPS();
     delay(1000);
     initializeRTC();
