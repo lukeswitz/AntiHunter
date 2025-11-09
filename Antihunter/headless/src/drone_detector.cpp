@@ -282,6 +282,9 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             if (drone.latitude != 0) {
                 meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
             }
+            if (drone.operatorLat != 0 || drone.operatorLon != 0) {
+                meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
+            }
             sendToSerial1(String(meshMsg), false);
 
             if (sendToSerial1(meshMsg, false)) {
@@ -430,6 +433,9 @@ void droneDetectorTask(void *pv)
                 if (drone.latitude != 0) {
                     meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
                 }
+                if (drone.operatorLat != 0 || drone.operatorLon != 0) {
+                    meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
+                }
                 if (sendToSerial1(meshMsg, false)) {
                     transmittedDrones.insert(droneId);
                 }
@@ -449,7 +455,12 @@ void droneDetectorTask(void *pv)
                     
                     if (entry.second.latitude != 0) {
                         droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
-                                   "," + String(entry.second.longitude, 6);
+                                "," + String(entry.second.longitude, 6);
+                    }
+                    
+                    if (entry.second.operatorLat != 0 || entry.second.operatorLon != 0) {
+                        droneMsg += " OP:" + String(entry.second.operatorLat, 6) + 
+                                "," + String(entry.second.operatorLon, 6);
                     }
                     
                     if (droneMsg.length() < 230 && sendToSerial1(droneMsg, true)) {
@@ -496,7 +507,12 @@ void droneDetectorTask(void *pv)
                 
                 if (entry.second.latitude != 0) {
                     droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
-                               "," + String(entry.second.longitude, 6);
+                            "," + String(entry.second.longitude, 6);
+                }
+                
+                if (entry.second.operatorLat != 0 || entry.second.operatorLon != 0) {
+                    droneMsg += " OP:" + String(entry.second.operatorLat, 6) + 
+                            "," + String(entry.second.operatorLon, 6);
                 }
                 
                 if (droneMsg.length() < 230) {
