@@ -501,6 +501,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 |------------|--------|---------|
 | **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
 | **Device Discovered** | `NODE_ID: DEVICE:MAC W/B RSSI [CN] [N:Name]` | `NODE_ABC: DEVICE:AA:BB:CC:DD:EE:FF W -65 C6 N:MyRouter` |
+| **Drone Detected** | `NODE_ID: DRONE: MAC ID:id Rrssi GPS:lat,lon OP:lat,lon` | `NODE_ABC: DRONE: AA:BB:CC:DD:EE:FF ID:1234567890ABCDEF R-65 GPS:40.7128,-74.0060 OP:40.7128,-74.0060` |
 | **Baseline Anomaly - New** | `NODE_ID: ANOMALY-NEW: TYPE MAC RSSI:dBm [Name:name]` | `NODE_ABC: ANOMALY-NEW: WiFi AA:BB:CC:DD:EE:FF RSSI:-45 Name:Unknown` |
 | **Baseline Anomaly - Return** | `NODE_ID: ANOMALY-RETURN: TYPE MAC RSSI:dBm [Name:name]` | `NODE_ABC: ANOMALY-RETURN: BLE AA:BB:CC:DD:EE:FF RSSI:-55` |
 | **Baseline Anomaly - RSSI** | `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:dBm New:dBm Delta:dBm` | `NODE_ABC: ANOMALY-RSSI: WiFi AA:BB:CC:DD:EE:FF Old:-75 New:-45 Delta:30` |
