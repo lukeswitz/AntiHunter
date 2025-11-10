@@ -1,8 +1,7 @@
 # Enclosure Prototypes 
-_**3D Printable STL Files**_
----
 
-## Field Deployment Cases
+
+## 1.  Field Deployment Cases
 Credit @SirHaxAlot
 
 - Bunker vented roll-proof lid with fan mount
@@ -29,7 +28,7 @@ LIDwGPSwUSBC.stl
 Gasket.stl
 ```
 
-## Development Puck Case
+## 2. Development Puck Case
 Credit @nitekry
 
 - Slim design with USBC port access
