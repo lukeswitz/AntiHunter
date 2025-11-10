@@ -279,13 +279,20 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             logToSD("DRONE: " + jsonStr);
             
             String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + uavIdStr;
+            meshMsg += " R" + String(drone.rssi);
             if (drone.latitude != 0) {
                 meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
+            }
+            if (drone.altitudeMsl != 0) {
+                meshMsg += " ALT:" + String(drone.altitudeMsl, 1);
+            }
+            if (drone.speed != 0) {
+                meshMsg += " SPD:" + String(drone.speed, 1);
             }
             if (drone.operatorLat != 0 || drone.operatorLon != 0) {
                 meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
             }
-            sendToSerial1(String(meshMsg), false);
+            // sendToSerial1(String(meshMsg), false);
 
             if (sendToSerial1(meshMsg, false)) {
                 transmittedDrones.insert(drone.uavId);
@@ -416,22 +423,34 @@ void droneDetectorTask(void *pv)
         while (xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
             localFramesSeen++;
             
-            String logEntry = "DRONE: ID=" + String(drone.uavId) +
+            String macStr = macFmt6(drone.mac);
+            String logEntry = "DRONE: " + macStr + " ID:" + String(drone.uavId) +
                             " Lat=" + String(drone.latitude, 6) +
                             " Lon=" + String(drone.longitude, 6) +
                             " Alt=" + String(drone.altitudeMsl, 1) + "m" +
                             " Speed=" + String(drone.speed, 1) + "m/s" +
                             " RSSI=" + String(drone.rssi) + "dBm";
             
+            if (drone.operatorLat != 0 || drone.operatorLon != 0) {
+                logEntry += " OpLat=" + String(drone.operatorLat, 6) +
+                        " OpLon=" + String(drone.operatorLon, 6);
+            }
+
             Serial.println("[DRONE] " + logEntry);
             logToSD(logEntry);
             
             String droneId = String(drone.uavId);
             if (meshEnabled && transmittedDrones.find(droneId) == transmittedDrones.end()) {
-                String meshMsg = getNodeId() + ": DRONE: ID=" + droneId +
-                                " RSSI=" + String(drone.rssi);
+                String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + droneId;
+                meshMsg += " R" + String(drone.rssi);
                 if (drone.latitude != 0) {
                     meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
+                }
+                if (drone.altitudeMsl != 0) {
+                    meshMsg += " ALT:" + String(drone.altitudeMsl, 1);
+                }
+                if (drone.speed != 0) {
+                    meshMsg += " SPD:" + String(drone.speed, 1);
                 }
                 if (drone.operatorLat != 0 || drone.operatorLon != 0) {
                     meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
@@ -450,14 +469,18 @@ void droneDetectorTask(void *pv)
                 String droneId = String(entry.second.uavId);
                 
                 if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
-                    String droneMsg = getNodeId() + ": DRONE: ID=" + droneId;
+                    String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId;
                     droneMsg += " R" + String(entry.second.rssi);
-                    
                     if (entry.second.latitude != 0) {
                         droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
                                 "," + String(entry.second.longitude, 6);
                     }
-                    
+                    if (entry.second.altitudeMsl != 0) {
+                        droneMsg += " ALT:" + String(entry.second.altitudeMsl, 1);
+                    }
+                    if (entry.second.speed != 0) {
+                        droneMsg += " SPD:" + String(entry.second.speed, 1);
+                    }
                     if (entry.second.operatorLat != 0 || entry.second.operatorLon != 0) {
                         droneMsg += " OP:" + String(entry.second.operatorLat, 6) + 
                                 "," + String(entry.second.operatorLon, 6);
@@ -502,14 +525,18 @@ void droneDetectorTask(void *pv)
             String droneId = String(entry.second.uavId);
             
             if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
-                String droneMsg = getNodeId() + ": DRONE: ID=" + droneId;
+                String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId;
                 droneMsg += " R" + String(entry.second.rssi);
-                
                 if (entry.second.latitude != 0) {
                     droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
                             "," + String(entry.second.longitude, 6);
                 }
-                
+                if (entry.second.altitudeMsl != 0) {
+                    droneMsg += " ALT:" + String(entry.second.altitudeMsl, 1);
+                }
+                if (entry.second.speed != 0) {
+                    droneMsg += " SPD:" + String(entry.second.speed, 1);
+                }
                 if (entry.second.operatorLat != 0 || entry.second.operatorLon != 0) {
                     droneMsg += " OP:" + String(entry.second.operatorLat, 6) + 
                             "," + String(entry.second.operatorLon, 6);
