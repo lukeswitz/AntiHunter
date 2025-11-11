@@ -298,7 +298,7 @@ _PCBs and kits are in production!_
   - Minimum 8MB flash memory required for reliable operation)
 - **Meshtastic Board** (LoRa-based mesh networking) Heltec v3.2 (recommended) or T114
 - **GPS Module** (NMEA-compatible)
-- **SD Card Module** 
+- **SD Card Module** (FAT32, 16GB)
 - **SW-420 Vibration Sensor**
 - **DS3231 RTC Module**
 
