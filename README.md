@@ -291,7 +291,7 @@ While individual nodes provide standalone capability, the full system power come
 _PCBs and kits are in final production. Tindie link coming soon_
 
 ### Enclosure STL Files
-- Find them in the hw folder [here](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/README.md)
+- Find them in the hw folder [here](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
 
 ### **Core Components**
 - **ESP32-S3 Development Board** (Seeed Studio XIAO ESP32S3 recommended)
