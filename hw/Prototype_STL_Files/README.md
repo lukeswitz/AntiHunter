@@ -2,7 +2,7 @@
 
 
 ## 1.  Field Deployment Cases
-Credit @SirHaxAlot
+Credit @TheRealSirHaxAlot
 
 - Bunker vented roll-proof lid with fan mount
 - Variations for full battery (10x 18650) and 2S (2x 18650)
