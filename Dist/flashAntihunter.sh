@@ -73,8 +73,8 @@ collect_configuration() {
     CHANNELS=${CHANNELS:-"1,6,11"}
     
     echo ""
-    read -p "Mesh send interval in milliseconds [default: 5000]: " MESH_INTERVAL
-    MESH_INTERVAL=${MESH_INTERVAL:-5000}
+    read -p "Mesh send interval in milliseconds [default: 3000]: " MESH_INTERVAL
+    MESH_INTERVAL=${MESH_INTERVAL:-3000}
     
     echo ""
     read -p "Target MAC addresses (comma-separated, leave empty for none): " TARGETS
