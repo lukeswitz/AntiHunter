@@ -473,7 +473,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
-| `STATUS` | None | Reports system status (mode, scan state, hits, targets, unique MACs, temperature, uptime, GPS) | `@ALL STATUS` |
+| `STATUS` | None | Reports system status (mode, scan state, hits, targets, unique MACs, temperature, uptime, GPS, HDOP) | `@ALL STATUS` |
 | `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` | Starts scanning (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
@@ -534,6 +534,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | Alert Type | Format | Example |
 |------------|--------|---------|
 | **Startup Status** | `NODE_ID: STARTUP: System initialized GPS:LOCKED/SEARCHING TEMP:XXC SD:OK/FAIL Status:ONLINE` | `NODE_ABC: STARTUP: System initialized GPS:LOCKED TEMP:42.3C SD:OK Status:ONLINE` |
+| **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:YES/NO Hits:N Targets:N Unique:N Temp:XX.XC/XX.XF Up:HH:MM:SS [GPS=lat,lon HDOP=X.X]` | `NODE_ABC: STATUS: Mode:WiFi+BLE Scan:YES Hits:142 Targets:5 Unique:87 Temp:42.3C/108.1F Up:03:24:15 GPS=40.712800,-74.006000 HDOP=1.2` |
 | **Node Heartbeat** | `NODE_ID Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]` | `[NODE_HB] NODE_ABC Time:2025-10-28_14:32:15 Temp:42.3C GPS:40.7128,-74.0060` |
 | **GPS Locked** | `NODE_ID: GPS: LOCKED Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
 | **GPS Lost** | `NODE_ID: GPS: LOST` | `NODE_ABC: GPS: LOST` |

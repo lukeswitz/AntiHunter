@@ -17,7 +17,7 @@ extern "C"
 bool meshEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
-const int MAX_MESH_SIZE = 200;
+const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
 static String nodeId = "";
 
 // Scanner vars
@@ -381,36 +381,32 @@ void processCommand(const String &command)
     sendToSerial1(nodeId + ": STOP_ACK:OK", true);
   }
   else if (command.startsWith("STATUS"))
-  {
-    float esp_temp = temperatureRead();
-    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE"
-                                                                                             : "WiFi+BLE";
-
-    uint32_t uptime_secs = millis() / 1000;
-    uint32_t uptime_mins = uptime_secs / 60;
-    uint32_t uptime_hours = uptime_mins / 60;
-
-    char status_msg[240];
-
-    int written = snprintf(status_msg, sizeof(status_msg),
-                           "%s: STATUS: Mode:%s Scan:%s Hits:%d Unique:%d Temp:%.1fC Up:%02d:%02d:%02d",
-                           nodeId.c_str(),
-                           modeStr.c_str(),
-                           scanning ? "ACTIVE" : "IDLE",
-                           totalHits,
-                           (int)uniqueMacs.size(),
-                           esp_temp,
-                           (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
-
-    if (gpsValid && written > 0 && written < MAX_MESH_SIZE)
     {
-      snprintf(status_msg + written, sizeof(status_msg) - written,
-               " GPS:%.6f,%.6f",
-               gpsLat, gpsLon);
+        float esp_temp = temperatureRead();
+        String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE"
+                                                                                                : "WiFi+BLE";
+        uint32_t uptime_secs = millis() / 1000;
+        uint32_t uptime_mins = uptime_secs / 60;
+        uint32_t uptime_hours = uptime_mins / 60;
+        char status_msg[240];
+        int written = snprintf(status_msg, sizeof(status_msg),
+                            "%s: STATUS: Mode:%s Scan:%s Hits:%d Unique:%d Temp:%.1fC Up:%02d:%02d:%02d",
+                            nodeId.c_str(),
+                            modeStr.c_str(),
+                            scanning ? "ACTIVE" : "IDLE",
+                            totalHits,
+                            (int)uniqueMacs.size(),
+                            esp_temp,
+                            (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+        if (gpsValid && written > 0 && written < MAX_MESH_SIZE)
+        {
+            float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
+            snprintf(status_msg + written, sizeof(status_msg) - written,
+                    " GPS:%.6f,%.6f HDOP=%.1f",
+                    gpsLat, gpsLon, hdop);
+        }
+        sendToSerial1(String(status_msg), true);
     }
-
-    sendToSerial1(String(status_msg), true);
-  }
   else if (command.startsWith("VIBRATION_STATUS"))
   {
     String status = lastVibrationTime > 0 ? ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") : "No vibrations detected";
@@ -877,7 +873,7 @@ void sendMeshNotification(const Hit &hit) {
     char mac_str[18];
     snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
              hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-    
+
     String cleanName = "";
     if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0) {
         for (size_t i = 0; i < strlen(hit.name) && i < 32; i++) {
@@ -887,10 +883,10 @@ void sendMeshNotification(const Hit &hit) {
             }
         }
     }
-    
+
     char mesh_msg[MAX_MESH_SIZE];
     memset(mesh_msg, 0, sizeof(mesh_msg));
-    
+
     String baseMsg = String(nodeId) + ": Target: " + String(mac_str) + 
                      " RSSI:" + String(hit.rssi) +
                      " Type:" + (hit.isBLE ? "BLE" : "WiFi");
