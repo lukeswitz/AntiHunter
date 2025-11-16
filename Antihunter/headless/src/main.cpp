@@ -142,6 +142,7 @@ void sendNodeIdUpdate() {
     Serial.println(nodeMsg);
     sendToSerial1(nodeMsg, true);
 }
+
 void randomizeMacAddress() {
     uint8_t newMACAddress[6];
     newMACAddress[0] = (random(0, 256) & 0xFE) | 0x02;

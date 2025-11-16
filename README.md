@@ -438,24 +438,27 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Alert Propagation**: Real-time threat notifications across the network
 - **Position Reporting**: GPS coordinates included in all relevant alerts
 
-### **Hardware Integration**
+### **Hardware Configuration**
 - **Connection**: **Mode: `TEXTMSG`;Speed: 115200 baud;Pins 9 TX / 10 RX for T114 and 19/20 for the Heltec V3**
 - **Protocol**: Standard Meshtastic serial, public and encrypted channels
 
 ### **Network Behavior**
 - **Alert Rate Limiting**: 3-second intervals prevent mesh flooding, configurable. 
-- **Node Identification**: Each device uses a configurable Node ID for addressing. 
+- **Node Identification**: Each device uses a configurable AHXXX Node ID for addressing.
 - **Broadcast Commands**: `@ALL` commands coordinate multiple nodes
-- **Targeted Control**: `@NODE_XX` commands address specific nodes
+- **Targeted Control**: `@AH_XX` commands address specific nodes
 - **Status Reporting**: Periodic heartbeats and operational status
 
 ## Command Reference
 
 ### Node Addressing Format
-- **Specific Node**: `@NODE_22 COMMAND` - Targets individual node
+- **Specific Node**: `@AH02 COMMAND` - Targets individual node
 - **All Nodes**: `@ALL COMMAND` - Broadcast to entire network
 - **Node ID**: Up to 16 alphanumeric characters
 - **Response**: All responses prefixed with sending Node ID
+
+[!IMPORTANT]
+> Node IDs must begin with `AH` prefix followed by 1-3 alphanumeric characters (total length: 3-5 characters). Valid examples: `AH1`, `AH01`, `AH99`, `AHAB`. This format is required for C2 integration.
 
 ### Command Parameters
 
@@ -474,7 +477,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
 | `STATUS` | None | Reports system status (mode, scan state, hits, targets, unique MACs, temperature, uptime, GPS, HDOP) | `@ALL STATUS` |
-| `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@NODE_22 CONFIG_CHANNELS:1,6,11` |
+| `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@AH02 CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` | Starts scanning (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Starts device discovery scan (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL DEVICE_SCAN_START:2:300` |
@@ -484,11 +487,11 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `BASELINE_START` | `duration[:FOREVER]` | Initiates baseline environment establishment (max 86400 secs) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | Reports baseline detection status (scanning, established, device count, anomalies) | `@ALL BASELINE_STATUS` |
 | `STOP` | None | Stops all operations | `@ALL STOP` |
-| `VIBRATION_STATUS` | None | Checks tamper sensor status | `@NODE_22 VIBRATION_STATUS` |
+| `VIBRATION_STATUS` | None | Checks tamper sensor status | `@AH02 VIBRATION_STATUS` |
 | `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@ALL TRIANGULATE_START:T-002F:300` |
 | `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
-| `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results for all nodes | `@NODE_22 TRIANGULATE_RESULTS` |
-| `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@NODE_22 ERASE_FORCE:AH_12345678_87654321_00001234` |
+| `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results for all nodes | `@AH02 TRIANGULATE_RESULTS` |
+| `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
 
 ---
