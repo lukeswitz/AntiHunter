@@ -194,9 +194,9 @@ void setup() {
     delay(120);
 
     Serial.println("===== ANTIHUNTER HEADLESS BOOT COMPLETE =====");
-    Serial.printf("Mesh @ 115200 on pins %d,%d\n", MESH_RX_PIN, MESH_TX_PIN);
+    String currentNodeId = getNodeId();
+    Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
-    
     delay(2000);
 }
 

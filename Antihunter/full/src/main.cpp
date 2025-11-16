@@ -193,9 +193,19 @@ void setup() {
     delay(120);
 
     Serial.println("===== ANTIHUNTER BOOT COMPLETE =====");
-    Serial.printf("WEB UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", AP_SSID, AP_PASS);
+
+    String currentSsid = prefs.getString("apSsid", AP_SSID);
+    String currentPass = prefs.getString("apPass", AP_PASS);
+    String currentNodeId = getNodeId();
+
+    if (currentSsid.length() == 0) currentSsid = AP_SSID;
+    if (currentPass.length() == 0) currentPass = AP_PASS;
+
+    Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
+    Serial.printf("WEB UI: http://192.168.4.1/ (SSID: %s, PASS: %s)\n", 
+                  currentSsid.c_str(), currentPass.c_str());
     Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
-    
+
     delay(2000);
 }
 
