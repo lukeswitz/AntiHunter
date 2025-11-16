@@ -198,15 +198,15 @@ String sanitizeNodeId(String nodeId) {
     
     String result = nodeId.substring(0, 2);
     for (size_t i = 2; i < nodeId.length() && result.length() < 5; i++) {
-        if (isalnum(nodeId[i])) {
+        if (isdigit(nodeId[i])) {
             result += nodeId[i];
         } else {
-            Serial.printf("[SANITIZE] Skipping invalid char '%c' at position %d\n", nodeId[i], i);
+            Serial.printf("[SANITIZE] Skipping non-digit char '%c' at position %d\n", nodeId[i], i);
         }
     }
     
     if (result.length() < 3) {
-        Serial.printf("[SANITIZE] Too short after sanitization, padding\n");
+        Serial.printf("[SANITIZE] Too short after sanitization, padding with digits\n");
         while (result.length() < 3) {
             result += String(random(0, 10));
         }
@@ -393,13 +393,15 @@ void loadConfiguration() {
     if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
         String nodeId = doc["nodeId"].as<String>();
         if (nodeId.length() > 0) {
-            if (!nodeId.startsWith("AH")) {
-                Serial.println("Warning: nodeId from SD does not have AH prefix, correcting...");
-                nodeId = "AH" + nodeId;
-                if (nodeId.length() > 16) {
-                    nodeId = nodeId.substring(0, 16);
-                }
+            String original = nodeId;
+            nodeId = sanitizeNodeId(nodeId);
+            
+            if (nodeId != original) {
+                Serial.printf("[CONFIG] Sanitized nodeId from SD: '%s' -> '%s'\n", original.c_str(), nodeId.c_str());
+            } else {
+                Serial.printf("[CONFIG] Loaded valid nodeId from SD: %s\n", nodeId.c_str());
             }
+            
             prefs.putString("nodeId", nodeId);
             setNodeId(nodeId);
         }

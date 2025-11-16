@@ -35,7 +35,7 @@ extern bool meshEnabled;
 #define AP_SSID "Antihunter"
 #endif
 #ifndef AP_PASS  
-#define AP_PASS "ouispy123"
+#define AP_PASS "antihunt3r123"
 #endif
 #ifndef AP_CHANNEL
 #define AP_CHANNEL 6
