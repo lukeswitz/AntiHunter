@@ -58,7 +58,41 @@ collect_configuration() {
     echo "==================================================="
     echo ""
     
-    read -p "Node ID (leave empty for auto-generated): " NODE_ID
+    while true; do
+        read -p "Node ID (AH + 1-3 alphanumeric, leave empty for auto): " NODE_ID
+        
+        if [ -z "$NODE_ID" ]; then
+            echo "Using auto-generated node ID"
+            break
+        fi
+        
+        NODE_ID=$(echo "$NODE_ID" | tr '[:lower:]' '[:upper:]')
+        
+        if [[ ! "$NODE_ID" =~ ^AH ]]; then
+            echo "Node ID must start with 'AH' prefix"
+            echo "Example: AH01, AH5, AHAB"
+            continue
+        fi
+        
+        NODE_ID_SUFFIX="${NODE_ID:2}"
+        
+        if [ ${#NODE_ID_SUFFIX} -lt 1 ] || [ ${#NODE_ID_SUFFIX} -gt 3 ]; then
+            echo "Node ID must have 1-3 characters after 'AH' (total 3-5 chars)"
+            echo "You entered: $NODE_ID (length ${#NODE_ID})"
+            echo "Example: AH01 (4 chars), AH5 (3 chars), AHAB (4 chars)"
+            continue
+        fi
+        
+        if [[ ! "$NODE_ID_SUFFIX" =~ ^[A-Z0-9]+$ ]]; then
+            echo "Characters after 'AH' must be alphanumeric only (A-Z, 0-9)"
+            echo "Invalid characters detected in: $NODE_ID_SUFFIX"
+            echo "Example: AH01 ✓, AHAB ✓, AH-1 ✗, AH_X ✗"
+            continue
+        fi
+        
+        echo "✓ Valid node ID: $NODE_ID"
+        break
+    done
     
     echo ""
     echo "Scan Mode:"

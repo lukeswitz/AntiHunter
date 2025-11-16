@@ -624,9 +624,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         
         <div class="card" style="min-width:280px;">
           <h3>Node Configuration</h3>
-          <form id="nodeForm" method="POST" action="/node-id">
+          <form id="nodeForm" method="POST" action="/node-id" novalidate>
             <label>Node ID</label>
-            <input type="text" id="nodeId" name="id" minlength="3" maxlength="16" placeholder="AH01" pattern="^AH.*" required>
+            <input type="text" id="nodeId" name="id" minlength="3" maxlength="5" placeholder="AH01" pattern="^AH[A-Z0-9]{1,3}$" title="Node ID: AH + 1-3 letters/numbers (examples: AH01, AH5, AHAB)" required style="text-transform:uppercase;">
             <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
           </form>
           
@@ -810,7 +810,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       -->
       
-      <div class="footer">© Team AntiHunter 2025 | Node: <span id="footerNodeId">--</span></div>
+      <div class="footer">AntiHunter v0.7 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let selectedMode = '0';
@@ -824,6 +824,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         event.target.classList.add('active');
         document.getElementById(tabName).classList.add('active');
       }
+
       async function ajaxForm(form, okMsg) {
         const fd = new FormData(form);
         try {
@@ -837,23 +838,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast('Error: ' + e.message);
         }
       }
-        async function load() {
-          try {
-            const r = await fetch('/export');
-            const text = await r.text();
-            document.getElementById('list').value = text;
-            const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-            document.getElementById('targetCount').innerText = lines.length + ' targets';
-            const rr = await fetch('/results');
-            const resultsText = await rr.text();
-            document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
-            loadNodeId();
-            loadRFConfig();
-            loadWiFiConfig();
-            loadMeshStatus();
-            loadMeshInterval();
-          } catch (e) {}
-        }
+
+      async function load() {
+        try {
+          const r = await fetch('/export');
+          const text = await r.text();
+          document.getElementById('list').value = text;
+          const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+          document.getElementById('targetCount').innerText = lines.length + ' targets';
+          const rr = await fetch('/results');
+          const resultsText = await rr.text();
+          document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
+          loadNodeId();
+          loadRFConfig();
+          loadWiFiConfig();
+          loadMeshStatus();
+          loadMeshInterval();
+        } catch (e) {}
+      }
+
       async function loadNodeId() {
         try {
           const r = await fetch('/node-id');
@@ -923,9 +926,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast('Failed to save mesh interval', 'error');
         });
       }
-      
-      
-      
+
       function toggleMesh() {
         meshEnabled = !meshEnabled;
         
@@ -2895,15 +2896,51 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }, 500);
       });
 
-      document.getElementById('nodeForm').addEventListener('submit', e => {
+      document.getElementById('nodeForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        const idValue = document.getElementById('nodeId').value.trim();
-        if (!idValue.startsWith('AH')) {
-          toast('Node ID must start with AH prefix', 'error');
+        
+        const input = document.getElementById('nodeId');
+        const value = input.value.trim().toUpperCase();
+        input.value = value;
+        
+        if (value === '') {
+          toast('Node ID required: AH followed by 1-3 alphanumeric characters (examples: AH01, AH5, AHAB)', 'error');
           return;
         }
-        ajaxForm(e.target, 'Node ID updated');
-        setTimeout(loadNodeId, 500);
+        
+        if (!value.startsWith('AH')) {
+          toast('Node ID must start with AH (examples: AH01, AH5, AHAB)', 'error');
+          return;
+        }
+        
+        if (value.length < 3) {
+          toast('Node ID too short - need AH plus 1-3 characters', 'error');
+          return;
+        }
+        
+        if (value.length > 5) {
+          toast('Node ID too long - maximum 5 characters total', 'error');
+          return;
+        }
+        
+        const afterAH = value.substring(2);
+        if (!/^[A-Z0-9]+$/.test(afterAH)) {
+          toast('Only letters and numbers allowed after AH', 'error');
+          return;
+        }
+        
+        const fd = new FormData();
+        fd.append('id', value);
+        
+        fetch('/node-id', {
+          method: 'POST',
+          body: fd
+        }).then(r => r.text()).then(msg => {
+          toast(msg, 'success');
+          setTimeout(loadNodeId, 500);
+        }).catch(err => {
+          toast('Error: ' + err.message, 'error');
+        });
       });
 
       document.getElementById('s').addEventListener('submit', e => {
@@ -3102,13 +3139,14 @@ void startWebServer()
         saveConfiguration();
         req->send(200, "text/plain", "Saved"); });
 
-  server->on("/node-id", HTTP_POST, [](AsyncWebServerRequest *req)
-            {
-      String id = req->hasParam("id", true) ? req->getParam("id", true)->value() : "";
+  server->on("/node-id", HTTP_POST, [](AsyncWebServerRequest *req) {
+      String id = req->hasParam("id", true) ? 
+          req->getParam("id", true)->value() : "";
       id.trim();
+      id.toUpperCase();
       
-      if (id.length() < 3 || id.length() > 16) {
-          req->send(400, "text/plain", "Invalid ID length (3-16 chars required)");
+      if (id.length() < 3 || id.length() > 5) {
+          req->send(400, "text/plain", "Node ID must be 3-5 characters (AH + 1-3 alphanumeric)");
           return;
       }
       
@@ -3117,9 +3155,16 @@ void startWebServer()
           return;
       }
       
+      for (size_t i = 2; i < id.length(); i++) {
+          if (!isalnum(id[i])) {
+              req->send(400, "text/plain", "Only letters and numbers allowed after 'AH' (no spaces, dashes, or special chars)");
+              return;
+          }
+      }
+      
       setNodeId(id);
       saveConfiguration();
-      req->send(200, "text/plain", "Node ID updated");
+      req->send(200, "text/plain", "Node ID updated to " + id);
   });
 
   server->on("/node-id", HTTP_GET, [](AsyncWebServerRequest *r)

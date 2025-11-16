@@ -188,19 +188,51 @@ void SafeSD::forceRecheck() {
     lastCheckTime = 0;
 }
 
-void initializeHardware()
-{
-    Serial.println("Loading preferences...");
+String sanitizeNodeId(String nodeId) {
+    nodeId.toUpperCase();
+    
+    if (!nodeId.startsWith("AH")) {
+        Serial.printf("[SANITIZE] Adding AH prefix to '%s'\n", nodeId.c_str());
+        nodeId = "AH" + nodeId;
+    }
+    
+    String result = nodeId.substring(0, 2);
+    for (size_t i = 2; i < nodeId.length() && result.length() < 5; i++) {
+        if (isalnum(nodeId[i])) {
+            result += nodeId[i];
+        } else {
+            Serial.printf("[SANITIZE] Skipping invalid char '%c' at position %d\n", nodeId[i], i);
+        }
+    }
+    
+    if (result.length() < 3) {
+        Serial.printf("[SANITIZE] Too short after sanitization, padding with random digit\n");
+        while (result.length() < 3) {
+            result += String(random(0, 10));
+        }
+    }
+    
+    if (result.length() > 5) {
+        Serial.printf("[SANITIZE] Truncating from %d to 5 chars\n", result.length());
+        result = result.substring(0, 5);
+    }
+    
+    return result;
+}
+
+void initializeHardware() {
     prefs.begin("antihunter", false);
     
-    prefs.putString("apSsid", AP_SSID);
-    prefs.putString("apPass", AP_PASS);
+    randomSeed(esp_random());
     
-    loadRFConfigFromPrefs();
+    pinMode(VIBRATION_PIN, INPUT_PULLUP);
     
-    meshSendInterval = prefs.getULong("meshInterval", 5000);
+    currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
+    Serial.printf("[CONFIG] Current scan mode: %d\n", currentScanMode);
+    
+    meshSendInterval = prefs.getULong("meshInterval", 3000);
     if (meshSendInterval < 1500 || meshSendInterval > 60000) {
-        meshSendInterval = 5000;
+        meshSendInterval = 3000;
     }
     Serial.printf("[CONFIG] Mesh send interval: %lums\n", meshSendInterval);
     
@@ -213,23 +245,27 @@ void initializeHardware()
     String nodeId = prefs.getString("nodeId", "");
     if (nodeId.length() == 0)
     {
-        int randomNum = random(1, 100);
-        char buffer[10];
-        sprintf(buffer, "AH%02d", randomNum);
-        nodeId = buffer;
-        prefs.putString("nodeId", nodeId);
-    }
-    else if (!nodeId.startsWith("AH")) {
-        Serial.println("Warning: Stored nodeId does not have AH prefix, correcting...");
-        String correctedId = "AH" + nodeId;
-        if (correctedId.length() > 16) {
-            correctedId = correctedId.substring(0, 16);
+        int randomNum = random(1, 1000);
+        char buffer[8];
+        snprintf(buffer, sizeof(buffer), "AH%d", randomNum);
+        nodeId = String(buffer);
+        if (nodeId.length() > 5) {
+            nodeId = nodeId.substring(0, 5);
         }
-        nodeId = correctedId;
+        Serial.printf("[INIT] Generated new node ID: %s\n", nodeId.c_str());
         prefs.putString("nodeId", nodeId);
     }
+    else {
+        String original = nodeId;
+        nodeId = sanitizeNodeId(nodeId);
+        
+        if (nodeId != original) {
+            Serial.printf("[INIT] Corrected node ID '%s' -> '%s'\n", original.c_str(), nodeId.c_str());
+            prefs.putString("nodeId", nodeId);
+        }
+    }
+    
     setNodeId(nodeId);
-
     Serial.println("[NODE_ID] " + nodeId);
     Serial.printf("Hardware initialized: nodeID=%s\n", nodeId.c_str());
 }
@@ -359,14 +395,16 @@ void loadConfiguration() {
 
     if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
         String nodeId = doc["nodeId"].as<String>();
+        
         if (nodeId.length() > 0) {
-            if (!nodeId.startsWith("AH")) {
-                Serial.println("Warning: nodeId from SD does not have AH prefix, correcting...");
-                nodeId = "AH" + nodeId;
-                if (nodeId.length() > 16) {
-                    nodeId = nodeId.substring(0, 16);
-                }
+            String original = nodeId;
+            nodeId = sanitizeNodeId(nodeId);
+            
+            if (nodeId != original) {
+                Serial.printf("[LOAD] Corrected nodeId from config '%s' -> '%s'\n", 
+                    original.c_str(), nodeId.c_str());
             }
+            
             prefs.putString("nodeId", nodeId);
             setNodeId(nodeId);
         }
