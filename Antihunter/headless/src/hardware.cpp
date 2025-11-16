@@ -244,26 +244,12 @@ void initializeHardware()
     String nodeId = prefs.getString("nodeId", "");
     if (nodeId.length() == 0)
     {
-        int randomNum = random(1, 1000);
-        char buffer[8];
-        snprintf(buffer, sizeof(buffer), "AH%d", randomNum);
-        nodeId = String(buffer);
-        if (nodeId.length() > 5) {
-            nodeId = nodeId.substring(0, 5);
-        }
-        Serial.printf("[INIT] Generated new node ID: %s\n", nodeId.c_str());
+        int randomNum = random(10, 100);
+        char buffer[10];
+        sprintf(buffer, "AH%02d", randomNum);
+        nodeId = buffer;
         prefs.putString("nodeId", nodeId);
     }
-    else {
-        String original = nodeId;
-        nodeId = sanitizeNodeId(nodeId);
-        
-        if (nodeId != original) {
-            Serial.printf("[INIT] Corrected node ID '%s' -> '%s'\n", original.c_str(), nodeId.c_str());
-            prefs.putString("nodeId", nodeId);
-        }
-    }
-    
     setNodeId(nodeId);
     Serial.println("[NODE_ID] " + nodeId);
     Serial.printf("Hardware initialized: nodeID=%s\n", nodeId.c_str());

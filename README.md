@@ -452,13 +452,13 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ## Command Reference
 
 ### Node Addressing Format
-- **Specific Node**: `@AH02 COMMAND` - Targets individual node
+- **Specific Node**: `@ABC12 COMMAND` - Targets individual node
 - **All Nodes**: `@ALL COMMAND` - Broadcast to entire network
-- **Node ID**: Up to 16 alphanumeric characters
+- **Node ID**: 2-5 alphanumeric characters (A-Z, 0-9)
 - **Response**: All responses prefixed with sending Node ID
 
 [!IMPORTANT]
-> Node IDs must begin with `AH` prefix followed by 1-3 alphanumeric characters (total length: 3-5 characters). Valid examples: `AH1`, `AH01`, `AH99`, `AHAB`. This format is required for C2 integration.
+> Node IDs must be 2-5 alphanumeric characters (A-Z, 0-9). Valid examples: `AB`, `A1C`, `XYZ99`, `12345`. This format is required for C2 integration.
 
 ### Command Parameters
 
