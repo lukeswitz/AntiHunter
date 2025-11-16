@@ -2,12 +2,18 @@
 
 
 ## 1.  Field Deployment Cases
-Credit @TheRealSirHaxAlot
+
+
+<img width="90%" height="90%" alt="image" src="https://github.com/user-attachments/assets/aca6b72a-1571-48c0-a57b-332a085478da" />
+
 
 - Bunker vented roll-proof lid with fan mount
 - Variations for full battery (10x 18650) and 2S (2x 18650)
 - Spacer mod for legacy design
 - Base accepts 1/4"-20 UNC heat-set inserts
+
+Credit @TheRealSirHaxAlot
+
 
 ```
 2Sbatteryholder.stl
@@ -29,6 +35,9 @@ Gasket.stl
 ```
 
 ## 2. Development Puck Case
+![image](https://github.com/user-attachments/assets/e954dae6-5335-4b3b-9724-8b1a6c737ce2)
+
+
 Credit @nitekry
 
 - Slim design with USBC port access
