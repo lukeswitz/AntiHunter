@@ -206,7 +206,7 @@ String sanitizeNodeId(String nodeId) {
     }
     
     if (result.length() < 3) {
-        Serial.printf("[SANITIZE] Too short after sanitization, padding with random digit\n");
+        Serial.printf("[SANITIZE] Too short after sanitization, padding\n");
         while (result.length() < 3) {
             result += String(random(0, 10));
         }
@@ -220,19 +220,21 @@ String sanitizeNodeId(String nodeId) {
     return result;
 }
 
-void initializeHardware() {
+void initializeHardware()
+{
+    Serial.println("Loading preferences...");
     prefs.begin("antihunter", false);
     
+    prefs.putString("apSsid", AP_SSID);
+    prefs.putString("apPass", AP_PASS);
+
     randomSeed(esp_random());
     
-    pinMode(VIBRATION_PIN, INPUT_PULLUP);
+    loadRFConfigFromPrefs();
     
-    currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
-    Serial.printf("[CONFIG] Current scan mode: %d\n", currentScanMode);
-    
-    meshSendInterval = prefs.getULong("meshInterval", 3000);
+    meshSendInterval = prefs.getULong("meshInterval", 5000);
     if (meshSendInterval < 1500 || meshSendInterval > 60000) {
-        meshSendInterval = 3000;
+        meshSendInterval = 5000;
     }
     Serial.printf("[CONFIG] Mesh send interval: %lums\n", meshSendInterval);
     
@@ -395,16 +397,14 @@ void loadConfiguration() {
 
     if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
         String nodeId = doc["nodeId"].as<String>();
-        
         if (nodeId.length() > 0) {
-            String original = nodeId;
-            nodeId = sanitizeNodeId(nodeId);
-            
-            if (nodeId != original) {
-                Serial.printf("[LOAD] Corrected nodeId from config '%s' -> '%s'\n", 
-                    original.c_str(), nodeId.c_str());
+            if (!nodeId.startsWith("AH")) {
+                Serial.println("Warning: nodeId from SD does not have AH prefix, correcting...");
+                nodeId = "AH" + nodeId;
+                if (nodeId.length() > 16) {
+                    nodeId = nodeId.substring(0, 16);
+                }
             }
-            
             prefs.putString("nodeId", nodeId);
             setNodeId(nodeId);
         }

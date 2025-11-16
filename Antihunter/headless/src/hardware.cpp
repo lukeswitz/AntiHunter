@@ -206,7 +206,7 @@ String sanitizeNodeId(String nodeId) {
     }
     
     if (result.length() < 3) {
-        Serial.printf("[SANITIZE] Too short after sanitization, padding with random digit\n");
+        Serial.printf("[SANITIZE] Too short after sanitization, padding\n");
         while (result.length() < 3) {
             result += String(random(0, 10));
         }
@@ -224,6 +224,9 @@ void initializeHardware()
 {
     Serial.println("Loading preferences...");
     prefs.begin("antihunter", false);
+    
+    randomSeed(esp_random());
+    
     loadRFConfigFromPrefs();
     
     meshSendInterval = prefs.getULong("meshInterval", 5000);
@@ -389,16 +392,14 @@ void loadConfiguration() {
 
     if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
         String nodeId = doc["nodeId"].as<String>();
-        
         if (nodeId.length() > 0) {
-            String original = nodeId;
-            nodeId = sanitizeNodeId(nodeId);
-            
-            if (nodeId != original) {
-                Serial.printf("[LOAD] Corrected nodeId from config '%s' -> '%s'\n", 
-                    original.c_str(), nodeId.c_str());
+            if (!nodeId.startsWith("AH")) {
+                Serial.println("Warning: nodeId from SD does not have AH prefix, correcting...");
+                nodeId = "AH" + nodeId;
+                if (nodeId.length() > 16) {
+                    nodeId = nodeId.substring(0, 16);
+                }
             }
-            
             prefs.putString("nodeId", nodeId);
             setNodeId(nodeId);
         }
