@@ -626,7 +626,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <h3>Node Configuration</h3>
           <form id="nodeForm" method="POST" action="/node-id" novalidate>
             <label>Node ID</label>
-            <input type="text" id="nodeId" name="id" minlength="3" maxlength="5" placeholder="AH01" pattern="^AH[0-9]{1,3}$" style="text-transform:uppercase;">
+            <input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="text-transform:uppercase;">
             <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
           </form>
           
@@ -2903,43 +2903,28 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         input.value = value;
         
         if (value === '') {
-          toast('Node ID required: AH followed by 1-3 digits (examples: AH1, AH42, AH999)', 'error');
-          return;
+            toast('Node ID required: 2-5 alphanumeric characters (examples: AB, A1C, XYZ99)', 'error');
+            return;
         }
         
-        if (!value.startsWith('AH')) {
-          toast('Node ID must start with AH (examples: AH1, AH42, AH999)', 'error');
-          return;
-        }
-        
-        if (value.length < 3) {
-          toast('Node ID too short - need AH plus 1-3 digits', 'error');
-          return;
+        if (value.length < 2) {
+            toast('Node ID too short - minimum 2 characters', 'error');
+            return;
         }
         
         if (value.length > 5) {
-          toast('Node ID too long - maximum 5 characters total', 'error');
-          return;
+            toast('Node ID too long - maximum 5 characters', 'error');
+            return;
         }
         
-        const afterAH = value.substring(2);
-        if (!/^[0-9]+$/.test(afterAH)) {
-          toast('Only digits (0-9) allowed after AH prefix', 'error');
-          return;
+        if (!/^[A-Z0-9]+$/.test(value)) {
+            toast('Only alphanumeric characters (A-Z, 0-9) allowed', 'error');
+            return;
         }
         
-        const fd = new FormData();
-        fd.append('id', value);
-        fetch('/node-id', {
-          method: 'POST',
-          body: fd
-        }).then(r => r.text()).then(msg => {
-          toast(msg, 'success');
-          setTimeout(loadNodeId, 500);
-        }).catch(err => {
-          toast('Error: ' + err.message, 'error');
-        });
-      });
+        ajaxForm(e.target, 'Node ID updated');
+        setTimeout(loadNodeId, 500);
+    });
 
       document.getElementById('s').addEventListener('submit', e => {
           e.preventDefault();
@@ -3138,24 +3123,19 @@ void startWebServer()
         req->send(200, "text/plain", "Saved"); });
 
   server->on("/node-id", HTTP_POST, [](AsyncWebServerRequest *req) {
-      String id = req->hasParam("id", true) ? 
+      String id = req->hasParam("id", true) ?
           req->getParam("id", true)->value() : "";
       id.trim();
       id.toUpperCase();
       
-      if (id.length() < 3 || id.length() > 5) {
-          req->send(400, "text/plain", "Node ID must be 3-5 characters (AH + 1-3 digits)");
+      if (id.length() < 2 || id.length() > 5) {
+          req->send(400, "text/plain", "Node ID must be 2-5 characters");
           return;
       }
       
-      if (!id.startsWith("AH")) {
-          req->send(400, "text/plain", "Node ID must start with 'AH' prefix");
-          return;
-      }
-      
-      for (size_t i = 2; i < id.length(); i++) {
-          if (!isdigit(id[i])) {
-              req->send(400, "text/plain", "Only digits (0-9) allowed after 'AH' prefix (e.g., AH1, AH42, AH999)");
+      for (size_t i = 0; i < id.length(); i++) {
+          if (!isalnum(id[i])) {
+              req->send(400, "text/plain", "Only alphanumeric characters (A-Z, 0-9) allowed");
               return;
           }
       }
