@@ -59,7 +59,7 @@ collect_configuration() {
     echo ""
     
     while true; do
-        read -p "Node ID (AH + 1-3 alphanumeric, leave empty for auto): " NODE_ID
+        read -p "Node ID (AH + 1-3 digits, leave empty for auto): " NODE_ID
         
         if [ -z "$NODE_ID" ]; then
             echo "Using auto-generated node ID"
@@ -70,23 +70,23 @@ collect_configuration() {
         
         if [[ ! "$NODE_ID" =~ ^AH ]]; then
             echo "Node ID must start with 'AH' prefix"
-            echo "Example: AH01, AH5, AHAB"
+            echo "Example: AH1, AH42, AH999"
             continue
         fi
         
         NODE_ID_SUFFIX="${NODE_ID:2}"
         
         if [ ${#NODE_ID_SUFFIX} -lt 1 ] || [ ${#NODE_ID_SUFFIX} -gt 3 ]; then
-            echo "Node ID must have 1-3 characters after 'AH' (total 3-5 chars)"
+            echo "Node ID must have 1-3 digits after 'AH' (total 3-5 chars)"
             echo "You entered: $NODE_ID (length ${#NODE_ID})"
-            echo "Example: AH01 (4 chars), AH5 (3 chars), AHAB (4 chars)"
+            echo "Example: AH1 (3 chars), AH42 (4 chars), AH999 (5 chars)"
             continue
         fi
         
-        if [[ ! "$NODE_ID_SUFFIX" =~ ^[A-Z0-9]+$ ]]; then
-            echo "Characters after 'AH' must be alphanumeric only (A-Z, 0-9)"
+        if [[ ! "$NODE_ID_SUFFIX" =~ ^[0-9]+$ ]]; then
+            echo "Characters after 'AH' must be digits only (0-9)"
             echo "Invalid characters detected in: $NODE_ID_SUFFIX"
-            echo "Example: AH01 ✓, AHAB ✓, AH-1 ✗, AH_X ✗"
+            echo "Example: AH1 ✓, AH42 ✓, AH999 ✓, AHAB ✗, AH-1 ✗"
             continue
         fi
         
