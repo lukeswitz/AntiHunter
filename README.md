@@ -285,22 +285,37 @@ While individual nodes provide standalone capability, the full system power come
 - Enables coordinated response operations
 - Maintains historical threat intelligence
 
+---
 
 ## Hardware Requirements
 
 _PCBs and kits are in final production. Tindie link coming soon_
+![807BFBDE-0DD4-4504-823A-820551452662_1_105_c](https://github.com/user-attachments/assets/8dae424f-10ad-4f19-a3f3-a07061e7633f)
 
 ### Enclosure STL Files
 - Find them in the hw folder [here](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
 
+> [!IMPORTANT]
+> Requires regulated 5V power supply. Unregulated battery sources cause voltage instability that may disable or damage components.
+
 ### **Core Components**
-- **ESP32-S3 Development Board** (Seeed Studio XIAO ESP32S3 recommended)
+- **ESP32-S3 Development Board**
   - Minimum 8MB flash memory required for reliable operation)
-- **Meshtastic Board** (LoRa-based mesh networking) Heltec v3.2 (recommended) or T114
-- **GPS Module** (NMEA-compatible)
-- **SD Card Module** (FAT32, 16GB)
-- **SW-420 Vibration Sensor**
-- **DS3231 RTC Module**
+- **Meshtastic Board** Heltec v3.2 (recommended) or T114
+  - Other alternatives can be found in the [discussions](https://github.com/lukeswitz/AntiHunter/discussions)
+- **GPS, SDHC, Vibration and RTC modules**
+
+### Bill of Materials
+- Seeed Studio XIAO ESP32-S3
+- Heltec WiFi LoRa 32 V3.2 (Heltec T114 is also compatible, V3.2 is preferred)
+- ATGM336H GPS module
+- Micro SD SDHC TF Card Adapter Reader Module with SPI
+- SD Card (Formatted FAT32, 16GB recommended)
+- SW-420 Vibration Sensor
+- DS3231 Real Time Clock Module
+- KSD9700 Normally Open Thermal Wire Sensor (30-40C)
+- JST 2.54 2-Pin Terminals
+
 
 ### **Pinout Reference**
 
@@ -457,8 +472,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Node ID**: 2-5 alphanumeric characters (A-Z, 0-9)
 - **Response**: All responses prefixed with sending Node ID
 
-[!IMPORTANT]
-> Node IDs must be 2-5 alphanumeric characters (A-Z, 0-9). Valid examples: `AB`, `A1C`, `XYZ99`, `12345`. This format is required for C2 integration.
+> [!IMPORTANT]
+> Node IDs must be 2-5 alphanumeric characters (A-Z, 0-9). Valid examples: `AB`, `A1C`, `XYZ99`, `12345`. This format is required for C2 integration
 
 ### Command Parameters
 
