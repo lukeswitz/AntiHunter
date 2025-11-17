@@ -50,7 +50,7 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 - **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
 - **Global Allowlist**: User configurable, applies to all scans. 
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
-- **Real-time Alerts**: Immediate notifications via web interface, AH command center and mesh network. 
+- **Real-time Alerts**: Immediate notifications via web interface,  command center and mesh network. 
 
 ### 2. Triangulation/Trilateration  (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for more advanced trilateration processing.
@@ -460,9 +460,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ### **Network Behavior**
 - **Alert Rate Limiting**: 3-second intervals prevent mesh flooding, configurable. 
-- **Node Identification**: Each device uses a configurable AHXXX Node ID for addressing.
+- **Node Identification**: Each device uses a configurable Node ID for addressing.
 - **Broadcast Commands**: `@ALL` commands coordinate multiple nodes
-- **Targeted Control**: `@AH_XX` commands address specific nodes
+- **Targeted Control**: `@AH01` commands address specific node `AH01`
 - **Status Reporting**: Periodic heartbeats and operational status
 
 ## Command Reference
