@@ -308,13 +308,14 @@ _PCBs and kits are in final production. Tindie link coming soon_
 ### Bill of Materials
 - Seeed Studio XIAO ESP32-S3
 - Heltec WiFi LoRa 32 V3.2 (Heltec T114 is also compatible, V3.2 is preferred)
-- ATGM336H GPS module
+- ATGM336H GPS Module
 - Micro SD SDHC TF Card Adapter Reader Module with SPI
 - SD Card (Formatted FAT32, 16GB recommended)
 - SW-420 Vibration Sensor
 - DS3231 Real Time Clock Module
 - KSD9700 Normally Open Thermal Wire Sensor (30-40C)
 - JST 2.54 2-Pin Terminals
+- 30mm 5V Fan
 
 
 ### **Pinout Reference**
