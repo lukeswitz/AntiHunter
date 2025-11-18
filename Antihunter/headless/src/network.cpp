@@ -199,6 +199,7 @@ void processCommand(const String &command)
       
       if (valid) {
         setNodeId(nodeID);
+        saveConfiguration();
         Serial.printf("[MESH] Updated Node ID\n");
         sendToSerial1(nodeId + ": CONFIG_ACK:NODE_ID:OK", true);
       } else {
