@@ -411,9 +411,10 @@ void loadConfiguration() {
             uint32_t wsi = doc["wifiScanInterval"].as<uint32_t>();
             uint32_t bsi = doc["bleScanInterval"].as<uint32_t>();
             uint32_t bsd = doc["bleScanDuration"].as<uint32_t>();
-            String channels = doc.containsKey("channels") && doc["channels"].is<String>() ? 
+            String channels = doc.containsKey("channels") && doc["channels"].is<String>() ?
                             doc["channels"].as<String>() : "1..14";
-            setCustomRFConfig(wct, wsi, bsi, bsd, channels);
+            int8_t rssiThreshold = doc["globalRssiThreshold"] | -90;
+            setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
         }
     }
 

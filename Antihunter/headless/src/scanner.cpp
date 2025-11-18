@@ -73,7 +73,9 @@ RFScanConfig rfConfig = {
     .wifiScanInterval = 6000,
     .bleScanInterval = 2000,
     .bleScanDuration = 3000,
-    .preset = 1
+    .preset = 1,
+    .wifiChannels = "1..14",
+    .globalRssiThreshold = -90
 };
 
 void setRFPreset(uint8_t preset) {
@@ -83,18 +85,21 @@ void setRFPreset(uint8_t preset) {
             rfConfig.wifiScanInterval = 8000;
             rfConfig.bleScanInterval = 4000;
             rfConfig.bleScanDuration = 3000;
+            rfConfig.globalRssiThreshold = -80;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
             rfConfig.wifiScanInterval = 6000;
             rfConfig.bleScanInterval = 3000;
             rfConfig.bleScanDuration = 3000;
+            rfConfig.globalRssiThreshold = -90;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
             rfConfig.wifiScanInterval = 4000;
             rfConfig.bleScanInterval = 2000;
             rfConfig.bleScanDuration = 2000;
+            rfConfig.globalRssiThreshold = -70;
             break;
         default:
             preset = 1;
@@ -104,17 +109,21 @@ void setRFPreset(uint8_t preset) {
     rfConfig.preset = preset;
     WIFI_SCAN_INTERVAL = rfConfig.wifiScanInterval;
     BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
+    
     prefs.putUInt("rfPreset", preset);
-    Serial.printf("[RF] Preset %d: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms\n",
+    prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
+    
+    Serial.printf("[RF] Preset %d: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms, RSSI threshold=%ddBm\n",
                  preset, rfConfig.wifiChannelTime, rfConfig.wifiScanInterval, 
-                 rfConfig.bleScanInterval, rfConfig.bleScanDuration);
+                 rfConfig.bleScanInterval, rfConfig.bleScanDuration, rfConfig.globalRssiThreshold);
 }
 
-void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels) {
+void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels, int8_t rssiThreshold) {
     rfConfig.wifiChannelTime = constrain(wifiChanTime, 50, 300);
     rfConfig.wifiScanInterval = constrain(wifiInterval, 1000, 10000);
     rfConfig.bleScanInterval = constrain(bleInterval, 1000, 10000);
     rfConfig.bleScanDuration = constrain(bleDuration, 1000, 5000);
+    rfConfig.globalRssiThreshold = constrain(rssiThreshold, -100, -10);
     rfConfig.preset = 3;
     
     if (channels.length() > 0) {
@@ -130,16 +139,30 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
     prefs.putUInt("wifiInterval", rfConfig.wifiScanInterval);
     prefs.putUInt("bleInterval", rfConfig.bleScanInterval);
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
+    prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
     prefs.putUInt("rfPreset", 3);
     
-    Serial.printf("[RF] Custom config: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms%s\n",
+    Serial.printf("[RF] Custom config: WiFi chan=%dms interval=%dms, BLE interval=%dms duration=%dms, RSSI threshold=%ddBm%s\n",
                  rfConfig.wifiChannelTime, rfConfig.wifiScanInterval, 
                  rfConfig.bleScanInterval, rfConfig.bleScanDuration,
+                 rfConfig.globalRssiThreshold,
                  channels.length() > 0 ? (", channels=" + channels).c_str() : "");
 }
 
 RFScanConfig getRFConfig() {
     return rfConfig;
+}
+
+int8_t getGlobalRssiThreshold() {
+    return rfConfig.globalRssiThreshold;
+}
+
+void setGlobalRssiThreshold(int8_t threshold) {
+    if (threshold >= -100 && threshold <= -10) {
+        rfConfig.globalRssiThreshold = threshold;
+        prefs.putInt("globalRSSI", threshold);
+        Serial.printf("[RF] Global RSSI threshold set to %d dBm\n", threshold);
+    }
 }
 
 void loadRFConfigFromPrefs() {
@@ -152,8 +175,11 @@ void loadRFConfigFromPrefs() {
         uint32_t bsi = prefs.getUInt("bleInterval", 2000);
         uint32_t bsd = prefs.getUInt("bleDuration", 3000);
         String channels = prefs.getString("channels", "1..14");
-        setCustomRFConfig(wct, wsi, bsi, bsd, channels);
+        int8_t rssiThreshold = prefs.getInt("globalRSSI", -90);
+        setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
+    
+    Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm\n", rfConfig.preset, rfConfig.globalRssiThreshold);
 }
 
 // Detection system variables
@@ -527,6 +553,11 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
         bleFramesSeen = bleFramesSeen + 1;
 
+        int8_t rssi = advertisedDevice->getRSSI();
+        if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
+            return;
+        }
+
         uint8_t mac[6];
         NimBLEAddress addr = advertisedDevice->getAddress();
         String macStr = addr.toString().c_str();
@@ -638,6 +669,9 @@ void snifferScanTask(void *pv)
                     String bssid = WiFi.BSSIDstr(i);
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
+                    if (rssi < rfConfig.globalRssiThreshold) {
+                        continue;
+                    }
                     uint8_t *bssidBytes = WiFi.BSSID(i);
 
                     if (ssid.length() == 0)
@@ -704,6 +738,11 @@ void snifferScanTask(void *pv)
                     const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                     String macStr = device->getAddress().toString().c_str();
                     macStr.toUpperCase();
+                    int8_t rssi = device->getRSSI();
+
+                    if (rssi < rfConfig.globalRssiThreshold) {
+                        continue;
+                    }
 
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
@@ -1400,6 +1439,10 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
+    if (!triangulationActive && ppkt->rx_ctrl.rssi < rfConfig.globalRssiThreshold) {
+        return;
+    }
+
     if (droneDetectionEnabled) {
         processDronePacket(ppkt->payload, ppkt->rx_ctrl.sig_len, ppkt->rx_ctrl.rssi);
     }
@@ -1955,6 +1998,9 @@ void listScanTask(void *pv) {
                     bssid.toUpperCase();
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
+                    if (rssi < rfConfig.globalRssiThreshold) {
+                        continue;
+                    }
                     uint8_t ch = WiFi.channel(i);
                     uint8_t *bssidBytes = WiFi.BSSID(i);
 
@@ -2018,6 +2064,10 @@ void listScanTask(void *pv) {
                 macStr.toUpperCase();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                 int8_t rssi = device->getRSSI();
+
+                if (rssi < rfConfig.globalRssiThreshold) {
+                    continue;
+                }
 
                 uint32_t now = millis();
                 bool shouldProcess = (deviceLastSeen.find(macStr) == deviceLastSeen.end() ||

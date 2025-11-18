@@ -543,6 +543,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <div class="card" style="min-width:280px;">
         <h3>RF Settings</h3>
         <div class="" id="detectionCardBody">
+          <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px;align-items:center;">
+            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-90" 
+                  oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'">
+            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
+          </div>
+          <p style="font-size:10px;color:var(--muted);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
+          
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+          
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy)</option>
             <option value="1">Balanced (Default)</option>
@@ -869,17 +879,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function toggleCollapse(cardId) {
         const body = document.getElementById(cardId + 'Body');
         const icon = document.getElementById(cardId + 'Icon');
+        
+        if (!body) return;
+        
         if (body.classList.contains('collapsed')) {
           body.classList.remove('collapsed');
           body.style.maxHeight = body.scrollHeight + 'px';
-          icon.classList.add('open');
+          if (icon) icon.classList.add('open');
         } else {
           body.style.maxHeight = body.scrollHeight + 'px';
           setTimeout(() => {
             body.classList.add('collapsed');
             body.style.maxHeight = '0';
           }, 10);
-          icon.classList.remove('open');
+          if (icon) icon.classList.remove('open');
         }
       }
 
@@ -887,20 +900,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         try {
           const r = await fetch('/rf-config');
           const cfg = await r.json();
+          document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -90;
+          document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -90) + ' dBm';
           document.getElementById('rfPreset').value = cfg.preset;
           document.getElementById('wifiChannelTime').value = cfg.wifiChannelTime;
           document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
           document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
           document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
-          document.getElementById('wifiChannels').value = cfg.channels || '1..14';
+          document.getElementById('wifiChannels').value = cfg.wifiChannels || '1..14';
           updateRFPresetUI();
         } catch(e) {}
       }
 
       function updateRFPresetUI() {
-        const preset = document.getElementById('rfPreset').value;
+        const preset = parseInt(document.getElementById('rfPreset').value);
         const customDiv = document.getElementById('customRFSettings');
-        customDiv.style.display = (preset === '3') ? 'block' : 'none';
+        
+        if (!customDiv) return;
+        
+        customDiv.style.display = preset === 3 ? 'block' : 'none';
       }
 
       function loadMeshInterval() {
@@ -983,15 +1001,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       async function saveRFConfig() {
-        const preset = document.getElementById('rfPreset').value;
+        const preset = parseInt(document.getElementById('rfPreset').value);
+        const threshold = parseInt(document.getElementById('globalRssiSlider').value);
         const fd = new FormData();
         
-        if (preset === '3') {
+        fd.append('globalRssiThreshold', threshold);
+        
+        if (preset === 3) {
           fd.append('wifiChannelTime', document.getElementById('wifiChannelTime').value);
           fd.append('wifiScanInterval', document.getElementById('wifiScanInterval').value);
           fd.append('bleScanInterval', document.getElementById('bleScanInterval').value);
           fd.append('bleScanDuration', document.getElementById('bleScanDuration').value);
-          fd.append('channels', document.getElementById('wifiChannels').value);
+          fd.append('wifiChannels', document.getElementById('wifiChannels').value);
         } else {
           fd.append('preset', preset);
         }
@@ -3974,32 +3995,41 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     json += "\"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",";
     json += "\"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",";
     json += "\"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",";
-    json += "\"channels\":\"" + channelsCSV + "\"";
+    json += "\"wifiChannels\":\"" + rfConfig.wifiChannels + "\",";
+    json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold);
     json += "}";
     req->send(200, "application/json", json);
   });
 
   server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
-      if (req->hasParam("preset", true)) {
-          uint8_t preset = req->getParam("preset", true)->value().toInt();
-          setRFPreset(preset);
-          saveConfiguration();
-          req->send(200, "text/plain", "RF preset updated");
-      } else if (req->hasParam("wifiChannelTime", true) && req->hasParam("wifiScanInterval", true) &&
-                req->hasParam("bleScanInterval", true) && req->hasParam("bleScanDuration", true)) {
-          uint32_t wct = req->getParam("wifiChannelTime", true)->value().toInt();
-          uint32_t wsi = req->getParam("wifiScanInterval", true)->value().toInt();
-          uint32_t bsi = req->getParam("bleScanInterval", true)->value().toInt();
-          uint32_t bsd = req->getParam("bleScanDuration", true)->value().toInt();
-          String channels = req->hasParam("channels", true) ? 
-                          req->getParam("channels", true)->value() : "1..14";
-          setCustomRFConfig(wct, wsi, bsi, bsd, channels);
-          saveConfiguration();
-          req->send(200, "text/plain", "Custom RF config updated");
-      } else {
-          req->send(400, "text/plain", "Missing parameters");
-      }
-  });
+    if (req->hasParam("globalRssiThreshold", true)) {
+        int8_t threshold = req->getParam("globalRssiThreshold", true)->value().toInt();
+        rfConfig.globalRssiThreshold = constrain(threshold, -100, -10);
+        prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
+    }
+    
+    if (req->hasParam("preset", true)) {
+        uint8_t preset = req->getParam("preset", true)->value().toInt();
+        if (preset >= 0 && preset <= 2) {
+            setRFPreset(preset);
+        }
+    }
+    
+    if (req->hasParam("wifiChannelTime", true)) {
+        uint32_t wct = req->getParam("wifiChannelTime", true)->value().toInt();
+        uint32_t wsi = req->getParam("wifiScanInterval", true)->value().toInt();
+        uint32_t bsi = req->getParam("bleScanInterval", true)->value().toInt();
+        uint32_t bsd = req->getParam("bleScanDuration", true)->value().toInt();
+        int8_t rssiThreshold = req->hasParam("globalRssiThreshold", true) ? 
+                              req->getParam("globalRssiThreshold", true)->value().toInt() : rfConfig.globalRssiThreshold;
+        String channels = req->hasParam("wifiChannels", true) ? 
+                         req->getParam("wifiChannels", true)->value() : "1..14";
+        setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
+    }
+    
+    saveConfiguration();
+    req->send(200, "text/plain", "RF configuration updated");
+});
 
   server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
     String ssid = prefs.getString("apSsid", AP_SSID);

@@ -81,14 +81,17 @@ struct RFScanConfig {
     uint32_t bleScanDuration;
     uint8_t preset;
     String wifiChannels;
+    int8_t globalRssiThreshold;
 };
 
 // Granular settings
 extern RFScanConfig rfConfig;
 void setRFPreset(uint8_t preset);
-void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels);
+void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels, int8_t rssiThreshold);
 RFScanConfig getRFConfig();
 void loadRFConfigFromPrefs();
+int8_t getGlobalRssiThreshold();
+void setGlobalRssiThreshold(int8_t threshold);
 
 extern TaskHandle_t workerTaskHandle;
 
