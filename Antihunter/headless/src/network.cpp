@@ -164,6 +164,8 @@ void initializeMesh() {
 
 void processCommand(const String &command)
 {
+  Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n", 
+                command.length(), command.c_str());
   if (command.startsWith("CONFIG_CHANNELS:")) 
   {
     String channels = command.substring(16);
@@ -179,6 +181,46 @@ void processCommand(const String &command)
     saveTargetsList(targets);
     Serial.printf("[MESH] Updated targets list\n");
     sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
+  }
+  else if (command.startsWith("CONFIG_NODEID:"))
+  {
+    Serial.printf("[DEBUG] CONFIG_NODEID block ENTERED\n");
+    String nodeID = command.substring(14);
+    Serial.printf("[DEBUG] nodeID='%s' length=%d\n", nodeID.c_str(), nodeID.length());
+    
+    if (nodeID.length() >= 2 && nodeID.length() <= 5) {
+      bool valid = true;
+      for (int i = 0; i < nodeID.length(); i++) {
+        if (!isalnum(nodeID[i])) {
+          valid = false;
+          break;
+        }
+      }
+      
+      if (valid) {
+        setNodeId(nodeID);
+        Serial.printf("[MESH] Updated Node ID\n");
+        sendToSerial1(nodeId + ": CONFIG_ACK:NODE_ID:OK", true);
+      } else {
+        Serial.printf("[DEBUG] INVALID_CHARS\n");
+        sendToSerial1(nodeId + ": CONFIG_ACK:NODE_ID:INVALID_CHARS", true);
+      }
+    } else {
+      Serial.printf("[DEBUG] INVALID_LENGTH (got %d)\n", nodeID.length());
+      sendToSerial1(nodeId + ": CONFIG_ACK:NODE_ID:INVALID_LENGTH", true);
+    }
+  }
+  else if (command.startsWith("CONFIG_RSSI:"))
+  {
+    String rssiThresh = command.substring(12);
+    int value = rssiThresh.toInt();
+    if (value >= -128 && value <= -10) {
+      setGlobalRssiThreshold((int8_t)value);
+      Serial.printf("[MESH] Updated RSSI threshold\n");
+      sendToSerial1(nodeId + ": CONFIG_ACK:RSSI:OK", true);
+    } else {
+      sendToSerial1(nodeId + ": CONFIG_ACK:RSSI:INVALID_RANGE", true);
+    }
   }
   else if (command.startsWith("SCAN_START:"))
   {

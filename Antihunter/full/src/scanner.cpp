@@ -125,7 +125,7 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
     rfConfig.wifiScanInterval = constrain(wifiInterval, 1000, 10000);
     rfConfig.bleScanInterval = constrain(bleInterval, 1000, 10000);
     rfConfig.bleScanDuration = constrain(bleDuration, 1000, 5000);
-    rfConfig.globalRssiThreshold = constrain(rssiThreshold, -100, -10);
+    rfConfig.globalRssiThreshold = constrain(rssiThreshold, -128, -10);
     rfConfig.preset = 3;
     
     if (channels.length() > 0) {
@@ -160,7 +160,7 @@ int8_t getGlobalRssiThreshold() {
 }
 
 void setGlobalRssiThreshold(int8_t threshold) {
-    if (threshold >= -100 && threshold <= -10) {
+    if (threshold >= -128 && threshold <= -10) {
         rfConfig.globalRssiThreshold = threshold;
         prefs.putInt("globalRSSI", threshold);
         Serial.printf("[RF] Global RSSI threshold set to %d dBm\n", threshold);
