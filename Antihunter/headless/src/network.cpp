@@ -217,6 +217,7 @@ void processCommand(const String &command)
     int value = rssiThresh.toInt();
     if (value >= -128 && value <= -10) {
       setGlobalRssiThreshold((int8_t)value);
+      saveConfiguration();
       Serial.printf("[MESH] Updated RSSI threshold\n");
       sendToSerial1(nodeId + ": CONFIG_ACK:RSSI:OK", true);
     } else {
