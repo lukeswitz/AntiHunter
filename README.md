@@ -492,7 +492,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
-| `STATUS` | None | Reports system status (mode, scan state, hits, targets, unique MACs, temperature, uptime, GPS, HDOP) | `@ALL STATUS` |
+| `STATUS` | None | Reports system status (mode, scan state, hits, unique MACs, temperature, uptime, GPS, HDOP) | `@ALL STATUS` |
 | `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@AH02 CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
 | `CONFIG_RSSI` | `threshold` (-128 to -10) | Sets RSSI signal strength threshold for detections | `@AH02 CONFIG_RSSI:-65` |
@@ -527,7 +527,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Baseline Anomaly - Return** | `NODE_ID: ANOMALY-RETURN: TYPE MAC RSSI:dBm [Name:name]` | `NODE_ABC: ANOMALY-RETURN: BLE AA:BB:CC:DD:EE:FF RSSI:-55` |
 | **Baseline Anomaly - RSSI** | `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:dBm New:dBm Delta:dBm` | `NODE_ABC: ANOMALY-RSSI: WiFi AA:BB:CC:DD:EE:FF Old:-75 New:-45 Delta:30` |
 | **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
-| **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC SRC->DST RX CHN` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
+| **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC MAC->MAC Rrssi Cchannel` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
 
 ### Identification & Randomization Alerts
 
@@ -554,8 +554,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 | Alert Type | Format | Example |
 |------------|--------|---------|
-| **Startup Status** | `NODE_ID: STARTUP: System initialized GPS:LOCKED/SEARCHING TEMP:XXC SD:OK/FAIL Status:ONLINE` | `NODE_ABC: STARTUP: System initialized GPS:LOCKED TEMP:42.3C SD:OK Status:ONLINE` |
-| **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:YES/NO Hits:N Targets:N Unique:N Temp:XX.XC/XX.XF Up:HH:MM:SS [GPS=lat,lon HDOP=X.X]` | `NODE_ABC: STATUS: Mode:WiFi+BLE Scan:YES Hits:142 Targets:5 Unique:87 Temp:42.3C/108.1F Up:03:24:15 GPS=40.712800,-74.006000 HDOP=1.2` |
+| **Startup Status** | `NODE_ID: STARTUP: System initialized GPS:LOCKED/SEARCHING TEMP:XXC` | `NODE_ABC: STARTUP: System initialized GPS:LOCKED TEMP:42.3C` |
+| **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE/IDLE Hits:N Unique:N Temp:XX.XC/XX.XF Up:HH:MM:SS [GPS=lat,lon HDOP=X.X]` | `NODE_ABC: STATUS: Mode:WiFi+BLE Scan:ACTIVE Hits:142 Unique:87 Temp:42.3C/108.1F Up:03:24:15 GPS=40.712800,-74.006000 HDOP=1.2` |
 | **Node Heartbeat** | `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]` | `NODE_ABC: Time:2025-10-28_14:32:15 Temp:42.3C GPS:40.7128,-74.0060` |
 | **GPS Locked** | `NODE_ID: GPS: LOCKED Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
 | **GPS Lost** | `NODE_ID: GPS: LOST` | `NODE_ABC: GPS: LOST` |
