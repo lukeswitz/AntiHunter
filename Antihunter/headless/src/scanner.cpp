@@ -161,7 +161,6 @@ void setGlobalRssiThreshold(int8_t threshold) {
     if (threshold >= -128 && threshold <= -10) {
         rfConfig.globalRssiThreshold = threshold;
         prefs.putInt("globalRSSI", threshold);
-        saveConfiguration();
         Serial.printf("[RF] Global RSSI threshold set to %d dBm\n", threshold);
     }
 }

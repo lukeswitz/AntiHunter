@@ -551,7 +551,6 @@ void sendMeshCommand(const String &command) {
 void setNodeId(const String &id) {
     nodeId = id;
     prefs.putString("nodeId", nodeId);
-    saveConfiguration();
     Serial.printf("[MESH] Node ID set to: %s\n", nodeId.c_str());
 }
 
