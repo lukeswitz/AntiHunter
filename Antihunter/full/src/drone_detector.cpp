@@ -169,6 +169,10 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     drone.timestamp = millis();
     drone.lastSeen = millis();
     
+    if (rssi < rfConfig.globalRssiThreshold) {
+        return;
+    }
+    
     ODID_UAS_Data uasData;
     odid_initUasData(&uasData);
     

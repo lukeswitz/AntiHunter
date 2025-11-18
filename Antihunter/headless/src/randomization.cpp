@@ -1338,6 +1338,10 @@ void randomizationDetectionTask(void *pv) {
                         const uint8_t* macBytes = device->getAddress().getVal();
                         uint8_t mac[6];
                         memcpy(mac, macBytes, 6);
+                        int8_t rssi = device->getRSSI();
+                        if (rssi < rfConfig.globalRssiThreshold) {
+                            continue;
+                        }
                         
                         Serial.printf("[RAND BLE] Device %s - MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
                                     device->getName().c_str(),
@@ -1349,7 +1353,6 @@ void randomizationDetectionTask(void *pv) {
                         
                         String macStr = macFmt6(mac);
                         uint32_t now = millis();
-                        int8_t rssi = device->getRSSI();
                         
                         bool isSession = activeSessions.find(macStr) != activeSessions.end();
                         
