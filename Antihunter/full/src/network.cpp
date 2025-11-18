@@ -3351,44 +3351,37 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
 
   server->on("/api/time", HTTP_POST, [](AsyncWebServerRequest *req) {
-    if (!req->hasParam("epoch", true)) {
-        req->send(400, "text/plain", "Missing epoch");
-        return;
-    }
-    
-    time_t epoch = req->getParam("epoch", true)->value().toInt();
-    
-    if (epoch < 1609459200 || epoch > 2147483647) {
-        req->send(400, "text/plain", "Invalid epoch");
-        return;
-    }
-    
-    if (setRTCTimeFromEpoch(epoch)) {
-        req->send(200, "text/plain", "OK");
-    } else {
-        req->send(500, "text/plain", "Failed");
-    }
-});
+      if (!req->hasParam("epoch", true)) {
+          req->send(400, "text/plain", "Missing epoch");
+          return;
+      }
+      
+      time_t epoch = req->getParam("epoch", true)->value().toInt();
+      
+      if (epoch < 1609459200 || epoch > 2147483647) {
+          req->send(400, "text/plain", "Invalid epoch");
+          return;
+      }
+      
+      if (setRTCTimeFromEpoch(epoch)) {
+          req->send(200, "text/plain", "OK");
+      } else {
+          req->send(500, "text/plain", "Failed");
+      }
+  });
 
-  server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r)
-             {
+  server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r) {
+      extern RFScanConfig rfConfig;
+      
       String configJson = "{\n";
       configJson += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
       configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
-      configJson += "\"channels\":\"";
-      
-      String channelsCSV;
-      for (size_t i = 0; i < CHANNELS.size(); i++) {
-          channelsCSV += String(CHANNELS[i]);
-          if (i < CHANNELS.size() - 1) {
-              channelsCSV += ",";
-          }
-      }
-      configJson += channelsCSV + "\",\n";
+      configJson += "\"channels\":\"" + rfConfig.wifiChannels + "\",\n";
       configJson += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
       configJson += "}";
       
-      r->send(200, "application/json", configJson); });
+      r->send(200, "application/json", configJson);
+  });
 
   server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -4553,7 +4546,6 @@ void sendMeshCommand(const String &command) {
 void setNodeId(const String &id) {
     nodeId = id;
     prefs.putString("nodeId", nodeId);
-    saveConfiguration();
     Serial.printf("[MESH] Node ID set to: %s\n", nodeId.c_str());
 }
 
