@@ -495,6 +495,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `STATUS` | None | Reports system status (mode, scan state, hits, targets, unique MACs, temperature, uptime, GPS, HDOP) | `@ALL STATUS` |
 | `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@AH02 CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
+| `CONFIG_RSSI` | `threshold` (-128 to -10) | Sets RSSI signal strength threshold for detections | `@AH02 CONFIG_RSSI:-65` |
+| `CONFIG_NODEID` | `id` (2-5 alphanumeric) | Updates node identifier (A-Z, 0-9 only) | `@AH02 CONFIG_NODEID:AH03` |
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` | Starts scanning (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Starts device discovery scan (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL DEVICE_SCAN_START:2:300` |
 | `DRONE_START` | `secs[:FOREVER]` | Starts drone RID detection (WiFi only, max 86400 secs) | `@ALL DRONE_START:600` |
@@ -560,7 +562,23 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **RTC Sync** | `NODE_ID: RTC_SYNC: GPS/NTP` | `NODE_ABC: RTC_SYNC: GPS` |
 | **Time Sync Request** | `NODE_ID: TIME_SYNC_REQ:epoch:subsec:micros:propDelay` | `NODE_ABC: TIME_SYNC_REQ:1725000000:5000:123456:0` |
 | **Time Sync Response** | `NODE_ID: TIME_SYNC_RESP:epoch:subsec:micros:propDelay` | `NODE_ABC: TIME_SYNC_RESP:1725000000:5000:123456:50` |
-| **Config ACK** | `NODE_ID: CONFIG_ACK:TYPE:VALUE` | `NODE_ABC: CONFIG_ACK:CHANNELS:1,6,11` |
+
+### Configuration Acknowledgments
+
+| Alert Type | Format | Example |
+|------------|--------|---------|
+| **Channels Config ACK** | `NODE_ID: CONFIG_ACK:CHANNELS:channels` | `NODE_ABC: CONFIG_ACK:CHANNELS:1,6,11` |
+| **Targets Config ACK** | `NODE_ID: CONFIG_ACK:TARGETS:OK` | `NODE_ABC: CONFIG_ACK:TARGETS:OK` |
+| **RSSI Config ACK (Success)** | `NODE_ID: CONFIG_ACK:RSSI:OK` | `NODE_ABC: CONFIG_ACK:RSSI:OK` |
+| **RSSI Config Error** | `NODE_ID: CONFIG_ACK:RSSI:INVALID_RANGE` | `NODE_ABC: CONFIG_ACK:RSSI:INVALID_RANGE` |
+| **Node ID Config ACK (Success)** | `NODE_ID: CONFIG_ACK:NODE_ID:OK` | `NODE_ABC: CONFIG_ACK:NODE_ID:OK` |
+| **Node ID Config Error (Invalid Chars)** | `NODE_ID: CONFIG_ACK:NODE_ID:INVALID_CHARS` | `NODE_ABC: CONFIG_ACK:NODE_ID:INVALID_CHARS` |
+| **Node ID Config Error (Invalid Length)** | `NODE_ID: CONFIG_ACK:NODE_ID:INVALID_LENGTH` | `NODE_ABC: CONFIG_ACK:NODE_ID:INVALID_LENGTH` |
+
+### Operation Acknowledgments
+
+| Alert Type | Format | Example |
+|------------|--------|---------|
 | **Scan ACK** | `NODE_ID: SCAN_ACK:STARTED` | `NODE_ABC: SCAN_ACK:STARTED` |
 | **Device Scan ACK** | `NODE_ID: DEVICE_SCAN_ACK:STARTED` | `NODE_ABC: DEVICE_SCAN_ACK:STARTED` |
 | **Drone ACK** | `NODE_ID: DRONE_ACK:STARTED` | `NODE_ABC: DRONE_ACK:STARTED` |
@@ -569,13 +587,15 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Baseline ACK** | `NODE_ID: BASELINE_ACK:STARTED` | `NODE_ABC: BASELINE_ACK:STARTED` |
 | **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices:42 Anomalies:3 Phase1:ACTIVE` |
 | **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-0001` |
-| **Triangulation Results** | `NODE_ID: TRIANGULATE_RESULTS_START` ... results ... `NODE_ID: TRIANGULATE_RESULTS_END` | Multi-line result output |
+| **Triangulation Results Start** | `NODE_ID: TRIANGULATE_RESULTS_START` | `NODE_ABC: TRIANGULATE_RESULTS_START` |
+| **Triangulation Results End** | `NODE_ID: TRIANGULATE_RESULTS_END` | `NODE_ABC: TRIANGULATE_RESULTS_END` |
+| **Triangulation Results (No Data)** | `NODE_ID: TRIANGULATE_RESULTS:NO_DATA` | `NODE_ABC: TRIANGULATE_RESULTS:NO_DATA` |
 | **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
 | **Stop ACK** | `NODE_ID: STOP_ACK:OK` | `NODE_ABC: STOP_ACK:OK` |
-| **Wipe Token** | `NODE_ID: WIPE_TOKEN:token_string` | `NODE_ABC: WIPE_TOKEN:AH_12AB34CD_56EF78GH_1234567890` |
+| **Erase ACK (Complete)** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
+| **Erase ACK (Cancelled)** | `NODE_ID: ERASE_ACK:CANCELLED` | `NODE_ABC: ERASE_ACK:CANCELLED` |
+| **Erase Token** | `NODE_ID: WIPE_TOKEN:token_string` | `NODE_ABC: WIPE_TOKEN:AH_12AB34CD_56EF78GH_1234567890` |
 | **Reboot ACK** | `NODE_ID: REBOOT_ACK` | `NODE_ABC: REBOOT_ACK` |
-
-
 ---
 
 ## API Reference
