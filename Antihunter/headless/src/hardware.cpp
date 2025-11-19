@@ -318,6 +318,7 @@ void saveConfiguration() {
     config += " \"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",\n";
     config += " \"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",\n";
     config += " \"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",\n";
+    config += " \"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold) + ",\n";
     config += " \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
     config += "}";
     
@@ -416,6 +417,13 @@ void loadConfiguration() {
             int8_t rssiThreshold = doc["globalRssiThreshold"] | -90;
             setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
         }
+    }
+
+    if (doc.containsKey("globalRssiThreshold")) {
+        int8_t rssiThreshold = doc["globalRssiThreshold"].as<int>();
+        rfConfig.globalRssiThreshold = constrain(rssiThreshold, -100, -10);
+        prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
+        Serial.printf("Loaded globalRssiThreshold from SD: %d dBm\n", rssiThreshold);
     }
 
     if (doc.containsKey("channels") && doc["channels"].is<String>()) {
