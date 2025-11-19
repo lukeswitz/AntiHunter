@@ -186,38 +186,32 @@ AntiHunter provides adjustable RF scan parameters to optimize detection performa
 
 ### Scan Presets
 
-| Preset | WiFi Channel Time | WiFi Scan Interval | BLE Scan Interval | BLE Scan Duration | Use Case |
-|--------|-------------------|-------------------|-------------------|-------------------|----------|
-| **Relaxed** | 300ms | 8000ms | 4000ms | 3000ms | Low power, stealthy operations |
-| **Balanced** | 160ms | 6000ms | 3000ms | 3000ms | General use, default configuration |
-| **Aggressive** | 110ms | 4000ms | 2000ms | 2000ms | Fast detection, high coverage |
-| **Custom** | User-defined | User-defined | User-defined | User-defined | Fine-tuned for specific requirements |
+| Preset | WiFi Chan Time | WiFi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
+|--------|----------------|---------------|--------------|--------------|----------------|----------|
+| **Relaxed** | 300ms | 8000ms | 4000ms | 3000ms | -80 dBm | Low power, stealthy operations |
+| **Balanced** | 160ms | 6000ms | 3000ms | 3000ms | -90 dBm | General use, default configuration |
+| **Aggressive** | 110ms | 4000ms | 2000ms | 2000ms | -70 dBm | Fast detection, high coverage |
+| **Custom** | User-defined | User-defined | User-defined | User-defined | User-defined | Fine-tuned for specific requirements |
 
 ### Parameter Definitions
 
-- **WiFi Channel Time**: Duration spent on each WiFi channel (50-300ms)
+- **WiFi Channel Time**: Duration per WiFi channel (50-300ms)
 - **WiFi Scan Interval**: Time between WiFi scan cycles (1000-10000ms)
 - **BLE Scan Interval**: Time between BLE scan cycles (1000-10000ms)
 - **BLE Scan Duration**: Active BLE scanning duration per cycle (1000-5000ms)
-- **WiFi Channels**: Comma-separated list (1,6,11) or range (1..14) of 2.4GHz channels to scan
+- **RSSI Threshold**: Global signal strength filter in dBm (-100 to -10). Filters weak signals from general scans; triangulation operations exempt from filtering
+- **WiFi Channels**: Comma-separated list (1,6,11) or range (1..14) of 2.4GHz channels
 
-### Channel Configuration
-
-WiFi channels accept two formats:
-- **Range**: `1..14` scans all channels from 1 to 14
-- **CSV**: `1,6,11` scans only specified channels
-
-Valid channels: 1-14 (2.4GHz band). Default: 1,6,11 if no channels specified.
+Valid WiFi channels: 1-14 (2.4GHz band). Default: 1,6,11 if not specified.
 
 ### Web Interface Configuration
 
-1. Navigate to the web interface at `http://192.168.4.1`
-2. Locate the RF Settings section
-3. Select a preset from the dropdown or choose "Custom" for manual tuning
-4. For custom configuration:
-   - Adjust individual timing parameters
-   - Specify WiFi channels using CSV or range notation
-5. Click "Save RF Settings" to apply changes
+1. Navigate to `http://192.168.4.1`
+2. Locate RF Settings section
+3. Adjust Global RSSI Filter slider (-100 to -10 dBm)
+4. Select preset or choose "Custom" for manual tuning
+5. For custom: adjust timing parameters and specify WiFi channels
+6. Click "Save RF Settings"
 
 ### API Configuration
 
@@ -234,14 +228,21 @@ Content-Type: application/x-www-form-urlencoded
 preset=1
 ```
 
-**Update RF settings (custom with channels):**
+**Update RF settings (custom):**
 ```
 POST /rf-config
 Content-Type: application/x-www-form-urlencoded
 
-wifiChannelTime=120&wifiScanInterval=5000&bleScanInterval=2500&bleScanDuration=2500&channels=1,6,11
+wifiChannelTime=120&wifiScanInterval=5000&bleScanInterval=2500&bleScanDuration=2500&wifiChannels=1,6,11&globalRssiThreshold=-85
 ```
 
+**Update RSSI threshold only:**
+```
+POST /rf-config
+Content-Type: application/x-www-form-urlencoded
+
+globalRssiThreshold=-80
+```
 ### Configuration Persistence
 
 All RF settings are automatically persisted to NVS (non-volatile storage) and restored on reboot. When an SD card is present, settings are also saved to `/config.json` for backup and portability across devices.
@@ -252,6 +253,7 @@ All RF settings are automatically persisted to NVS (non-volatile storage) and re
 - **Higher intervals**: Reduce power consumption and RF noise but may miss brief transmissions
 - **Channel time**: Affects WiFi channel hop rate; shorter times provide faster channel coverage
 - **BLE duration**: Longer durations improve BLE device discovery but reduce WiFi scan frequency
+- **RSSI threshold**: Lower values (e.g., -100 dBm) capture more distant/weak signals; higher values (e.g., -60 dBm) focus on strong nearby signals. Does not affect triangulation operations
 - **Channel selection**: Limit to specific channels (1,6,11) for focused monitoring or use full range (1..14) for comprehensive coverage
 
 Adjust parameters based on deployment environment, power budget, target detection requirements, and regulatory constraints.
@@ -305,17 +307,20 @@ _PCBs and kits are in final production. Tindie link coming soon_
   - Other alternatives can be found in the [discussions](https://github.com/lukeswitz/AntiHunter/discussions)
 - **GPS, SDHC, Vibration and RTC modules**
 
-### Bill of Materials
-- Seeed Studio XIAO ESP32-S3
-- Heltec WiFi LoRa 32 V3.2 (Heltec T114 is also compatible, V3.2 is preferred)
-- ATGM336H GPS Module
-- Micro SD SDHC TF Card Adapter Reader Module with SPI
-- SD Card (Formatted FAT32, 16GB recommended)
-- SW-420 Vibration Sensor
-- DS3231 Real Time Clock Module
-- KSD9700 Normally Open Thermal Wire Sensor (30-40C)
-- JST 2.54 2-Pin Terminals
-- 30mm 5V Fan
+### Bill of Materials (Single PCB)
+- 1x Seeed Studio XIAO ESP32-S3
+- 1x Heltec WiFi LoRa 32 V3.2 (Heltec T114 also compatible, V3.2 preferred)
+- 1x ATGM336H GPS Module
+- 1x Micro SD SDHC TF Card Adapter Reader Module with SPI
+- 1x SD Card (Formatted FAT32, 16GB recommended)
+- 1x SW-420 Vibration Sensor
+- 1x DS3231 Real Time Clock Module
+- 1x KSD9700 Normally Open Thermal Wire Sensor (30-40°C)
+- 5x JST 2.54 2-Pin Terminals _(2.0 JST can be used in place)_
+- 2x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm length)
+- 2x 8dBi Antenna 2.4GHz (for WiFi/BLE)
+- 2x 8dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
+- 1x 30mm 5V Fan
 
 
 ### **Pinout Reference**
@@ -528,6 +533,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Baseline Anomaly - RSSI** | `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:dBm New:dBm Delta:dBm` | `NODE_ABC: ANOMALY-RSSI: WiFi AA:BB:CC:DD:EE:FF Old:-75 New:-45 Delta:30` |
 | **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
 | **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC MAC->MAC Rrssi Cchannel` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
+| **Triangulation Data** | `NODE_ID: TARGET_DATA: MAC Hits=N RSSI:dBm [GPS=lat,lon HDOP=X.XX]` | `NODE_ABC: TARGET_DATA: AA:BB:CC:DD:EE:FF Hits=42 RSSI:-65 GPS=40.7128,-74.0060 HDOP=1.2` |
+| **Triangulation Complete** | `NODE_ID: TRIANGULATE_COMPLETE: Nodes=N [https://www.google.com/maps?q=lat,lon]` | `NODE_ABC: TRIANGULATE_COMPLETE: Nodes=5 https://www.google.com/maps?q=40.712800,-74.006000` |
 
 ### Identification & Randomization Alerts
 
@@ -589,7 +596,6 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Triangulation ACK** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-0001` |
 | **Triangulation Results Start** | `NODE_ID: TRIANGULATE_RESULTS_START` | `NODE_ABC: TRIANGULATE_RESULTS_START` |
 | **Triangulation Results End** | `NODE_ID: TRIANGULATE_RESULTS_END` | `NODE_ABC: TRIANGULATE_RESULTS_END` |
-| **Triangulation Results (No Data)** | `NODE_ID: TRIANGULATE_RESULTS:NO_DATA` | `NODE_ABC: TRIANGULATE_RESULTS:NO_DATA` |
 | **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
 | **Stop ACK** | `NODE_ID: STOP_ACK:OK` | `NODE_ABC: STOP_ACK:OK` |
 | **Erase ACK (Complete)** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
