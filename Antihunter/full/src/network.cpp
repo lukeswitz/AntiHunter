@@ -409,7 +409,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <input type="checkbox" id="forever" name="forever" value="1">Forever
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
-                  <input type="checkbox" id="triangulate">Triangulate
+                  <input type="checkbox" id="triangulate" name="triangulate" value="1">Triangulate
                 </label>
               </div>
               
@@ -2997,7 +2997,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         
         ajaxForm(e.target, 'Node ID updated');
         setTimeout(loadNodeId, 500);
-    });
+      });
 
       document.getElementById('s').addEventListener('submit', e => {
           e.preventDefault();
@@ -4230,7 +4230,7 @@ void initializeMesh() {
     Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
 }
 
-void processCommand(const String &command)
+void processCommand(const String &command, const String &targetId = "")
 {
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n", 
                 command.length(), command.c_str());
@@ -4556,12 +4556,12 @@ void processCommand(const String &command)
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
     
-    if (!triangulationOrchestratorAssigned) {
+    if (!triangulationActive) {
         triangulationInitiator = true;
-        triangulationOrchestratorAssigned = true;
     } else {
         triangulationInitiator = false;
     }
+    
     triangulationActive = true;
     triangulationStart = millis();
     triangulationDuration = duration;
@@ -4574,7 +4574,7 @@ void processCommand(const String &command)
     }
     
     Serial.printf("[TRIANGULATE] %s node started for %s (%ds)\n", 
-              triangulationInitiator ? "ORCHESTRATOR" : "CHILD", target.c_str(), duration);;
+                  triangulationInitiator ? "INITIATOR" : "CHILD", target.c_str(), duration);
     sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + target, true);
   }
   else if (command.startsWith("TRIANGULATE_STOP"))
@@ -4940,15 +4940,15 @@ void processMeshMessage(const String &message) {
     }    
 
     if (cleanMessage.startsWith("@")) {
-        int spaceIndex = cleanMessage.indexOf(' ');
-        if (spaceIndex > 0) {
-            String targetId = cleanMessage.substring(1, spaceIndex);
-            if (targetId != nodeId && targetId != "ALL") return;
-            String command = cleanMessage.substring(spaceIndex + 1);
-            processCommand(command);
-        }
+      int spaceIndex = cleanMessage.indexOf(' ');
+      if (spaceIndex > 0) {
+          String targetId = cleanMessage.substring(1, spaceIndex);
+          if (targetId != nodeId && targetId != "ALL") return;
+          String command = cleanMessage.substring(spaceIndex + 1);
+          processCommand(command, targetId);
+      }
     } else {
-        processCommand(cleanMessage);
+        processCommand(cleanMessage, "");
     }
 }
 
