@@ -39,7 +39,7 @@ unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
 const unsigned long VIBRATION_ALERT_INTERVAL = 3000; 
 
-// Diagnostics
+// Diagnostics & Config
 extern volatile bool scanning;
 extern volatile int totalHits;
 extern volatile uint32_t framesSeen;
@@ -52,6 +52,8 @@ extern size_t getTargetCount();
 extern TaskHandle_t blueTeamTaskHandle;
 uint32_t SafeSD::lastCheckTime = 0;
 bool SafeSD::lastCheckResult = false;
+static unsigned long lastSaveTime = 0;
+const unsigned long SAVE_DEBOUNCE_MS = 2000;
 
 // Tamper Detection Erase
 uint32_t setupDelay = 120000;  // 2 minutes default
@@ -274,7 +276,11 @@ void syncSettingsToNVS() {
 }
 
 void saveConfiguration() {
-    syncSettingsToNVS();
+    uint32_t now = millis();
+    if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
+        return;  // Ignore if called too soon
+    }
+    lastSaveTime = now;
     
     if (!SafeSD::isAvailable()) {
         Serial.println("SD card not available, settings saved to NVS only");
