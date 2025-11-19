@@ -55,11 +55,15 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 ### 2. Triangulation/Trilateration  (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for more advanced trilateration processing.
 
-**`EXPERIMENTAL T114 SUPPORT:`** small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
-
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
 - **Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details
+
+> [!IMPORTANT]
+> **Mesh Triangulation:** Send `TRIANGULATE_START` to a specific node (e.g., `@AH02`), NOT `@ALL`. 
+> That node becomes orchestrator and broadcasts results when complete. Use `@ALL TRIANGULATE_STOP` to stop.
+
+**`EXPERIMENTAL T114 SUPPORT:`** small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
    **Optimal Node Placement for RF Triangulation (2.4 GHz)**
    
@@ -486,9 +490,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `BASELINE_STATUS` | None | Reports baseline detection status (scanning, established, device count, anomalies) | `@ALL BASELINE_STATUS` |
 | `STOP` | None | Stops all operations | `@ALL STOP` |
 | `VIBRATION_STATUS` | None | Checks tamper sensor status | `@AH02 VIBRATION_STATUS` |
-| `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@ALL TRIANGULATE_START:T-002F:300` |
-| `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
-| `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results for all nodes | `@AH02 TRIANGULATE_RESULTS` |
+| `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds. **Must send to specific node (e.g., @NODE1), that node becomes orchestrator** | `@NODE1 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@AH02 TRIANGULATE_START:T-002F:300` |
+| `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation (broadcasts to all child nodes) | `@ALL TRIANGULATE_STOP` |
+| `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results from orchestrator node | `@NODE1 TRIANGULATE_RESULTS` |
 | `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
 
