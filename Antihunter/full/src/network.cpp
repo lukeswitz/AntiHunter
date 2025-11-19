@@ -935,47 +935,53 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
-      function loadMeshInterval() {
-        fetch('/mesh-interval').then(r => r.json()).then(data => {
+      async function loadMeshInterval() {
+        try {
+          const r = await fetch('/mesh-interval');
+          const data = await r.json();
           document.getElementById('meshInterval').value = data.interval;
-        }).catch(e => console.error('[CONFIG] Failed to load mesh interval:', e));
+        } catch(e) {
+          console.error('[CONFIG] Failed to load mesh interval:', e);
+        }
       }
 
-      function saveMeshInterval() {
+      async function saveMeshInterval() {
         const interval = document.getElementById('meshInterval').value;
         if (interval < 1500 || interval > 30000) {
           toast('Invalid interval: must be 1500-30000ms', 'error');
           return;
         }
         
-        fetch('/mesh-interval', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: 'interval=' + interval
-        }).then(r => r.text()).then(data => {
+        try {
+          const r = await fetch('/mesh-interval', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'interval=' + interval
+          });
+          const data = await r.text();
           toast(data, 'success');
-        }).catch(e => {
+        } catch(e) {
           toast('Failed to save mesh interval', 'error');
-        });
+        }
       }
 
-      function toggleMesh() {
+      async function toggleMesh() {
         meshEnabled = !meshEnabled;
+        updateMeshUI();
         
-        fetch('/mesh', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: 'enabled=' + meshEnabled
-        }).then(r => r.text()).then(msg => {
-          updateMeshUI();
+        try {
+          const r = await fetch('/mesh', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'enabled=' + meshEnabled
+          });
+          const msg = await r.text();
           toast(msg, 'success');
-        }).catch(e => {
+        } catch(e) {
           toast('Failed to update mesh status', 'error');
           meshEnabled = !meshEnabled;
           updateMeshUI();
-        });
-        
-        updateMeshUI();
+        }
       }
       
       function updateMeshUI() {
@@ -1088,8 +1094,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
            
-      function loadBaselineAnomalyConfig() {
-        fetch('/baseline/config').then(response => response.json()).then(data => {
+      async function loadBaselineAnomalyConfig() {
+        try {
+          const r = await fetch('/baseline/config');
+          const data = await r.json();
           if (data.rssiThreshold !== undefined) {
             document.getElementById('baselineRssiThreshold').value = data.rssiThreshold;
           }
@@ -1111,23 +1119,33 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (data.rssiChangeDelta !== undefined) {
             document.getElementById('rssiChangeDelta').value = data.rssiChangeDelta;
           }
-        }).catch(error => console.error('Error loading baseline config:', error));
+        } catch(error) {
+          console.error('Error loading baseline config:', error);
+        }
         
-        fetch('/allowlist-export').then(r => r.text()).then(t => {
+        try {
+          const r = await fetch('/allowlist-export');
+          const t = await r.text();
           document.getElementById('wlist').value = t;
           document.getElementById('allowlistCount').textContent = t.split('\n').filter(x => x.trim()).length + ' entries';
-        }).catch(error => console.error('Error loading allowlist:', error));
+        } catch(error) {
+          console.error('Error loading allowlist:', error);
+        }
       }
 
-      function clearOldIdentities() {
+      async function clearOldIdentities() {
         if (!confirm('Clear device identities older than 1 hour?')) return;
-          fetch('/randomization/clear-old', {
+        try {
+          const response = await fetch('/randomization/clear-old', {
             method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'age=3600'
-          }).then(r => r.text()).then(t => {
-            toast(t, 'success');
-          }).catch(err => toast('Error: ' + err, 'error'));
+          });
+          const data = await response.text();
+          toast(data, 'success');
+        } catch (error) {
+          toast('Error: ' + error, 'error');
+        }
       }
 
       function updateBaselineStatus() {
@@ -1140,7 +1158,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             return;
           }
           
-        fetch('/baseline/stats').then(response => response.json()).then(stats => {
+        try {
+          const response = await fetch('/baseline/stats');
+          const stats = await response.json();
           const statusDiv = document.getElementById('baselineStatus');
           if (!statusDiv) return;
           let statusHTML = '';
@@ -1203,7 +1223,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             clearInterval(baselineUpdateInterval);
             baselineUpdateInterval = null;
           }
-        }).catch(error => console.error('Status update error:', error));
+        } catch(error) {
+          console.error('Status update error:', error);
+        }
       }
 
       // Initial load
@@ -1216,35 +1238,36 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }, 2000);
       
-      function saveBaselineConfig() {
+      async function saveBaselineConfig() {
         const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
         const duration = document.getElementById('baselineDuration').value;
         const ramSize = document.getElementById('baselineRamSize').value;
         const sdMax = document.getElementById('baselineSdMax').value;
-        fetch('/baseline/config', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
-        }).then(response => response.text()).then(data => {
+        
+        try {
+          const response = await fetch('/baseline/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
+          });
+          const data = await response.text();
           toast('Baseline configuration saved', 'success');
-          updateBaselineStatus();
-        }).catch(error => {
+          await updateBaselineStatus();
+        } catch (error) {
           toast('Error saving config: ' + error, 'error');
-        });
+        }
       }
       
-      function resetBaseline() {
+      async function resetBaseline() {
         if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.')) return;
-        fetch('/baseline/reset', {
-          method: 'POST'
-        }).then(response => response.text()).then(data => {
+        try {
+          const response = await fetch('/baseline/reset', { method: 'POST' });
+          const data = await response.text();
           toast(data, 'success');
-          updateBaselineStatus();
-        }).catch(error => {
+          await updateBaselineStatus();
+        } catch (error) {
           toast('Error resetting baseline: ' + error, 'error');
-        });
+        }
       }
 
       function clearResults() {
@@ -1630,37 +1653,36 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
       
-      function saveAutoEraseConfig() {
+      async function saveAutoEraseConfig() {
         const enabled = document.getElementById('autoEraseEnabled').checked;
         const delay = document.getElementById('autoEraseDelay').value;
         const cooldown = document.getElementById('autoEraseCooldown').value;
         const vibrationsRequired = document.getElementById('vibrationsRequired').value;
         const detectionWindow = document.getElementById('detectionWindow').value;
         const setupDelay = document.getElementById('setupDelay').value;
-        fetch('/config/autoerase', {
+        
+        const response = await fetch('/config/autoerase', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
-        }).then(response => response.text()).then(data => {
-          document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
-          updateAutoEraseStatus();
         });
+        const data = await response.text();
+        document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
+        await updateAutoEraseStatus();
       }
       
-      function updateAutoEraseStatus() {
-        fetch('/config/autoerase').then(response => response.json()).then(data => {
-          if (data.enabled) {
-            if (data.inSetupMode) {
-              document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
-            } else {
-              document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
-            }
+      async function updateAutoEraseStatus() {
+        const response = await fetch('/config/autoerase');
+        const data = await response.json();
+        if (data.enabled) {
+          if (data.inSetupMode) {
+            document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
           } else {
-            document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+            document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
           }
-        });
+        } else {
+          document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+        }
       }
       
       function updateEraseProgress(message, percentage) {
@@ -2668,12 +2690,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
       }
       
-      function cancelErase() {
-        fetch('/erase/cancel', {
-          method: 'POST'
-        }).then(response => response.text()).then(data => {
-          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
-        });
+      async function cancelErase() {
+        const response = await fetch('/erase/cancel', { method: 'POST' });
+        const data = await response.text();
+        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
       }
       
       function pollEraseStatus() {
