@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# Variables
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
     "AntiHunter Full - v0.6.8 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_9_full.bin"
@@ -11,8 +10,8 @@ ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
 ERASE_FLASH=false
 CONFIG_MODE=false
+IS_HEADLESS=false
 
-# PlatformIO Config Values
 MONITOR_SPEED=115200
 UPLOAD_SPEED=230400
 ESP32_PORT=""
@@ -119,8 +118,52 @@ collect_configuration() {
     read -p "Baseline SD max devices [default: 50000]: " BASELINE_SD
     BASELINE_SD=${BASELINE_SD:-50000}
     
+    if [ "$IS_HEADLESS" = false ]; then
+        echo ""
+        echo "WiFi Access Point Configuration:"
+        read -p "WiFi SSID [default: Antihunter]: " AP_SSID
+        AP_SSID=${AP_SSID:-"Antihunter"}
+        
+        read -p "WiFi Password (min 8 chars, empty for default): " AP_PASS
+        if [ -z "$AP_PASS" ]; then
+            AP_PASS="antihunter"
+        fi
+        
+        AP_SSID_JSON=",\"apSsid\":\"$AP_SSID\",\"apPass\":\"$AP_PASS\""
+    else
+        AP_SSID_JSON=""
+    fi
+    
+    echo ""
+    echo "Auto-Erase Configuration:"
+    read -p "Enable auto-erase? (y/N): " AUTO_ERASE_ENABLED
+    if [[ "$AUTO_ERASE_ENABLED" =~ ^[Yy]$ ]]; then
+        AUTO_ERASE_ENABLED="true"
+        read -p "Auto-erase delay in seconds [default: 300]: " AUTO_ERASE_DELAY
+        AUTO_ERASE_DELAY=${AUTO_ERASE_DELAY:-300}
+        
+        read -p "Auto-erase cooldown in seconds [default: 600]: " AUTO_ERASE_COOLDOWN
+        AUTO_ERASE_COOLDOWN=${AUTO_ERASE_COOLDOWN:-600}
+        
+        read -p "Vibrations required [default: 3]: " VIBRATIONS_REQUIRED
+        VIBRATIONS_REQUIRED=${VIBRATIONS_REQUIRED:-3}
+        
+        read -p "Detection window in seconds [default: 10]: " DETECTION_WINDOW
+        DETECTION_WINDOW=${DETECTION_WINDOW:-10}
+        
+        read -p "Setup delay in seconds [default: 60]: " SETUP_DELAY
+        SETUP_DELAY=${SETUP_DELAY:-60}
+    else
+        AUTO_ERASE_ENABLED="false"
+        AUTO_ERASE_DELAY=300
+        AUTO_ERASE_COOLDOWN=600
+        VIBRATIONS_REQUIRED=3
+        DETECTION_WINDOW=10
+        SETUP_DELAY=60
+    fi
+    
     cat > /tmp/antihunter_config.json <<EOF
-{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS","meshInterval":$MESH_INTERVAL,"maclist":"$TARGETS","rfPreset":$RF_PRESET,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD}
+{"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS","meshInterval":$MESH_INTERVAL,"targets":"$TARGETS","rfPreset":$RF_PRESET,"wifiChannelTime":120,"wifiScanInterval":4000,"bleScanInterval":2000,"bleScanDuration":2000,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$AUTO_ERASE_DELAY,"autoEraseCooldown":$AUTO_ERASE_COOLDOWN,"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$DETECTION_WINDOW,"setupDelay":$SETUP_DELAY}
 EOF
     
     echo ""
@@ -202,6 +245,10 @@ if [ -n "$CUSTOM_BIN" ]; then
     fi
     FIRMWARE_FILE="$CUSTOM_BIN"
     firmware_choice="Custom firmware: $(basename "$CUSTOM_BIN")"
+    
+    if [[ "$CUSTOM_BIN" == *"headless"* ]]; then
+        IS_HEADLESS=true
+    fi
 else
     declare -a options_array
     for i in "${!FIRMWARE_OPTIONS[@]}"; do
@@ -217,6 +264,10 @@ else
         if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le $((${#FIRMWARE_OPTIONS[@]}+1)) ]; then
             if [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
                 firmware_choice="${options_array[$((choice-1))]}"
+                
+                if [[ "$firmware_choice" == *"Headless"* ]]; then
+                    IS_HEADLESS=true
+                fi
                 
                 for option in "${FIRMWARE_OPTIONS[@]}"; do
                     if [[ "$option" == "$firmware_choice:"* ]]; then
@@ -260,6 +311,10 @@ else
                 fi
                 FIRMWARE_FILE="$custom_file"
                 firmware_choice="Custom firmware: $(basename "$custom_file")"
+                
+                if [[ "$custom_file" == *"headless"* ]]; then
+                    IS_HEADLESS=true
+                fi
                 
                 CUSTOM_DIR=$(dirname "$custom_file")
                 BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
@@ -492,14 +547,12 @@ try:
   ser = serial.Serial('$ESP32_PORT', 115200, timeout=2)
   time.sleep(1)
   
-  # Clear buffer
   ser.reset_input_buffer()
   
   ser.write(b'SETTIME:$EPOCH\n')
   ser.flush()
   time.sleep(0.5)
   
-  # Read until we get actual RTC response
   while ser.in_waiting:
     line = ser.readline().decode('utf-8', errors='ignore').strip()
     if 'RTC' in line or 'OK' in line:
