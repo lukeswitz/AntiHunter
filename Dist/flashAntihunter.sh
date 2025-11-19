@@ -8,7 +8,6 @@ FIRMWARE_OPTIONS=(
 )
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
-ERASE_FLASH=false
 CONFIG_MODE=false
 IS_HEADLESS=false
 
@@ -23,12 +22,11 @@ Flash firmware to ESP32 devices.
 
 Options:
   -f, --file FILE    Path to custom .bin file to flash
-  -e, --erase        Erase flash before flashing (default: no)
   -c, --configure    Configure device parameters during flash
   -h, --help         Display this help message and exit
   -l, --list         List available firmware options and exit
 
-Without options, the script will run in interactive mode.
+Script always performs full erase and flashes bootloader + partitions + app.
 EOF
 }
 
@@ -177,10 +175,6 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
-        -e|--erase)
-            ERASE_FLASH=true
-            shift
-            ;;
         -c|--configure)
             CONFIG_MODE=true
             shift
@@ -249,6 +243,15 @@ if [ -n "$CUSTOM_BIN" ]; then
     if [[ "$CUSTOM_BIN" == *"headless"* ]]; then
         IS_HEADLESS=true
     fi
+    
+    CUSTOM_DIR=$(dirname "$CUSTOM_BIN")
+    BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
+    PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
+    
+    if [ ! -f "$BOOTLOADER_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
+        echo "ERROR: Custom firmware requires bootloader.bin and partitions.bin in same directory"
+        exit 1
+    fi
 else
     declare -a options_array
     for i in "${!FIRMWARE_OPTIONS[@]}"; do
@@ -288,20 +291,10 @@ else
                 PARTITIONS_FILE="partitions.bin"
                 
                 echo "Downloading bootloader..."
-                if curl -fLo "$BOOTLOADER_FILE" "$BOOTLOADER_URL" 2>/dev/null; then
-                    echo "Bootloader downloaded successfully."
-                else
-                    echo "Warning: Could not download bootloader.bin from $BOOTLOADER_URL"
-                    BOOTLOADER_FILE=""
-                fi
+                curl -fLo "$BOOTLOADER_FILE" "$BOOTLOADER_URL" || { echo "ERROR: Failed to download bootloader.bin"; exit 1; }
                 
                 echo "Downloading partitions..."
-                if curl -fLo "$PARTITIONS_FILE" "$PARTITIONS_URL" 2>/dev/null; then
-                    echo "Partitions downloaded successfully."
-                else
-                    echo "Warning: Could not download partitions.bin from $PARTITIONS_URL"
-                    PARTITIONS_FILE=""
-                fi
+                curl -fLo "$PARTITIONS_FILE" "$PARTITIONS_URL" || { echo "ERROR: Failed to download partitions.bin"; exit 1; }
                 
             else
                 read -p "Enter path to custom .bin file: " custom_file
@@ -320,12 +313,9 @@ else
                 BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
                 PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
                 
-                if [ ! -f "$BOOTLOADER_FILE" ]; then
-                    BOOTLOADER_FILE=""
-                fi
-                
-                if [ ! -f "$PARTITIONS_FILE" ]; then
-                    PARTITIONS_FILE=""
+                if [ ! -f "$BOOTLOADER_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
+                    echo "ERROR: Custom firmware requires bootloader.bin and partitions.bin in same directory"
+                    exit 1
                 fi
             fi
             break
@@ -372,76 +362,30 @@ if [ "$CONFIG_MODE" = true ]; then
     collect_configuration
 fi
 
-if [ "$ERASE_FLASH" = false ]; then
-    echo ""
-    read -p "Erase flash before flashing? (y/N): " erase_response
-    if [[ "$erase_response" =~ ^[Yy]$ ]]; then
-        ERASE_FLASH=true
-    fi
-fi
-
-if [ "$ERASE_FLASH" = true ]; then
-    echo ""
-    echo "==================================================="
-    echo "Erasing flash memory..."
-    echo "==================================================="
-    $ESPTOOL_CMD \
-        --chip auto \
-        --port "$ESP32_PORT" \
-        --baud "$UPLOAD_SPEED" \
-        erase-flash
-    echo "Flash erase complete."
-    echo ""
-    
-    if [ -z "$BOOTLOADER_FILE" ] || [ ! -f "$BOOTLOADER_FILE" ]; then
-        echo "Bootloader required after flash erase."
-        read -p "Enter path to bootloader.bin: " bootloader_path
-        if [ -f "$bootloader_path" ]; then
-            BOOTLOADER_FILE="$bootloader_path"
-        else
-            echo "ERROR: Bootloader file not found. Cannot proceed after erase."
-            exit 1
-        fi
-    fi
-    
-    if [ -z "$PARTITIONS_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
-        echo "Partition table required after flash erase."
-        read -p "Enter path to partitions.bin: " partitions_path
-        if [ -f "$partitions_path" ]; then
-            PARTITIONS_FILE="$partitions_path"
-        else
-            echo "ERROR: Partition file not found. Cannot proceed after erase."
-            exit 1
-        fi
-    fi
-fi
+echo ""
+echo "==================================================="
+echo "Erasing flash memory..."
+echo "==================================================="
+$ESPTOOL_CMD \
+    --chip auto \
+    --port "$ESP32_PORT" \
+    --baud "$UPLOAD_SPEED" \
+    erase-flash
+echo "Flash erase complete."
 
 echo ""
-if [ "$ERASE_FLASH" = true ] && [ -n "$BOOTLOADER_FILE" ] && [ -n "$PARTITIONS_FILE" ]; then
-    echo "Flashing complete firmware (bootloader + partitions + app)..."
-    $ESPTOOL_CMD \
-        --chip auto \
-        --port "$ESP32_PORT" \
-        --baud "$UPLOAD_SPEED" \
-        --before default-reset \
-        --after hard-reset \
-        write-flash -z \
-        --flash-size detect \
-        0x0 "$BOOTLOADER_FILE" \
-        0x8000 "$PARTITIONS_FILE" \
-        0x10000 "$FIRMWARE_FILE"
-else
-    echo "Flashing application firmware only to 0x10000..."
-    $ESPTOOL_CMD \
-        --chip auto \
-        --port "$ESP32_PORT" \
-        --baud "$UPLOAD_SPEED" \
-        --before default-reset \
-        --after hard-reset \
-        write-flash -z \
-        --flash-size detect \
-        0x10000 "$FIRMWARE_FILE"
-fi
+echo "Flashing complete firmware (bootloader + partitions + app)..."
+$ESPTOOL_CMD \
+    --chip auto \
+    --port "$ESP32_PORT" \
+    --baud "$UPLOAD_SPEED" \
+    --before default-reset \
+    --after hard-reset \
+    write-flash -z \
+    --flash-size detect \
+    0x0 "$BOOTLOADER_FILE" \
+    0x8000 "$PARTITIONS_FILE" \
+    0x10000 "$FIRMWARE_FILE"
 
 echo ""
 echo "==================================================="
@@ -567,8 +511,8 @@ except Exception as e:
 
 if [ -z "$CUSTOM_BIN" ] && [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
   rm -f "$FIRMWARE_FILE"
-  [ -n "$BOOTLOADER_FILE" ] && rm -f "bootloader.bin"
-  [ -n "$PARTITIONS_FILE" ] && rm -f "partitions.bin"
+  rm -f "bootloader.bin"
+  rm -f "partitions.bin"
 fi
 
 echo ""

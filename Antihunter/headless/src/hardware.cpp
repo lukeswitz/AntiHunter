@@ -225,8 +225,50 @@ String sanitizeNodeId(String nodeId) {
 void initializeHardware()
 {
     Serial.println("Loading preferences...");
-    prefs.begin("antihunter", false);
     
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        Serial.println("[NVS] Erasing corrupted NVS");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+    
+    if (!prefs.begin("antihunter", false)) {
+        Serial.println("[NVS] Cannot open namespace");
+        ESP.restart();
+    }
+    
+    if (!prefs.isKey("_init")) {
+        Serial.println("[NVS] First boot - initializing all NVS keys");
+        prefs.putBool("_init", true);
+        prefs.putString("maclist", "");
+        prefs.putString("allowlist", "");
+        prefs.putString("nodeId", "");
+        prefs.putString("channels", "1,6,11");
+        prefs.putInt("scanMode", SCAN_BOTH);
+        prefs.putULong("meshInterval", 5000);
+        prefs.putUInt("blRamSize", 400);
+        prefs.putUInt("blSdMax", 50000);
+        prefs.putUInt("absenceThresh", 120000);
+        prefs.putUInt("reappearWin", 300000);
+        prefs.putInt("rssiChange", 20);
+        prefs.putBool("autoErase", false);
+        prefs.putUInt("eraseDelay", 30000);
+        prefs.putUInt("eraseCooldown", 300000);
+        prefs.putUInt("vibRequired", 3);
+        prefs.putUInt("detectWindow", 20000);
+        prefs.putUInt("setupDelay", 120000);
+        prefs.putUInt("blDuration", 300000);
+        prefs.putInt("blRssi", -70);
+        prefs.putUInt("rfPreset", 1);
+        prefs.putInt("globalRSSI", -90);
+        prefs.putUInt("wifiChanTime", 120);
+        prefs.putUInt("wifiInterval", 5000);
+        prefs.putUInt("bleInterval", 2000);
+        prefs.putUInt("bleDuration", 3000);
+    }
+
     randomSeed(esp_random());
     
     loadRFConfigFromPrefs();
@@ -273,15 +315,33 @@ void syncSettingsToNVS() {
     prefs.putUInt("setupDelay", setupDelay);
     prefs.putUInt("blDuration", baselineDuration);
     prefs.putInt("blRssi", getBaselineRssiThreshold());
+    prefs.putUInt("rfPreset", rfConfig.preset);
+    prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
+    prefs.putUInt("wifiChanTime", rfConfig.wifiChannelTime);
+    prefs.putUInt("wifiInterval", rfConfig.wifiScanInterval);
+    prefs.putUInt("bleInterval", rfConfig.bleScanInterval);
+    prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
+    
+    String channelsCSV = "";
+    for (size_t i = 0; i < CHANNELS.size(); i++) {
+        channelsCSV += String(CHANNELS[i]);
+        if (i < CHANNELS.size() - 1) {
+            channelsCSV += ",";
+        }
+    }
+    prefs.putString("channels", channelsCSV);
 }
 
 void saveConfiguration() {
     uint32_t now = millis();
     if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
-        return;  // Ignore if called too soon
+        return;
     }
     lastSaveTime = now;
-    
+
+    syncSettingsToNVS(); 
+    delay(100);
+
     if (!SafeSD::isAvailable()) {
         Serial.println("SD card not available, settings saved to NVS only");
         return;
