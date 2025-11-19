@@ -908,7 +908,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
           document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
           document.getElementById('wifiChannels').value = cfg.wifiChannels || '1..14';
-          updateRFPresetUI();
         } catch(e) {}
       }
 

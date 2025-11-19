@@ -160,8 +160,7 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
-    Serial.println("\n=== Antihunter v5 Boot ===");
-    Serial.println("WiFi+BLE dual-mode scanner");
+    Serial.println("\n=== Antihunter [FULL] Boot ===");
 
     delay(400);
     initializeHardware();

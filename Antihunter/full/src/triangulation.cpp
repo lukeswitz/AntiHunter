@@ -1138,7 +1138,7 @@ void calibrationTask(void *parameter) {
         variance /= wifiSamples.size();
         float stdDev = sqrt(variance);
         
-        // CORRECTED FORMULA
+        // WIP formula for path loss
         pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance);
         
         Serial.println("[CALIB] WiFi Calibration: SUCCESS");
