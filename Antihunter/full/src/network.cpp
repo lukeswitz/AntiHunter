@@ -1148,16 +1148,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
-      function updateBaselineStatus() {
-          const detectionMode = document.getElementById('detectionMode');
-          if (!detectionMode || detectionMode.value !== 'baseline') {
-            if (baselineUpdateInterval) {
-              clearInterval(baselineUpdateInterval);
-              baselineUpdateInterval = null;
-            }
-            return;
+      async function updateBaselineStatus() {
+        const detectionMode = document.getElementById('detectionMode');
+        if (!detectionMode || detectionMode.value !== 'baseline') {
+          if (baselineUpdateInterval) {
+            clearInterval(baselineUpdateInterval);
+            baselineUpdateInterval = null;
           }
-          
+          return;
+        }
+        
         try {
           const response = await fetch('/baseline/stats');
           const stats = await response.json();
@@ -1197,17 +1197,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (cacheBtn) cacheBtn.style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
           if (clearOldBtn) clearOldBtn.style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
           
-          if (detectionMode === 'baseline' && stats.scanning) {
+           if (detectionMode === 'baseline' && stats.scanning) {
             startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
             startDetectionBtn.classList.remove('primary');
             startDetectionBtn.classList.add('danger');
             startDetectionBtn.type = 'button';
-            startDetectionBtn.onclick = function(e) {
-                e.preventDefault();
-                fetch('/stop').then(r=>r.text()).then(t=>{
-                    toast(t);
-                    setTimeout(updateBaselineStatus, 500);
-                });
+            startDetectionBtn.onclick = async function(e) {
+              e.preventDefault();
+              try {
+                const response = await fetch('/stop');
+                const text = await response.text();
+                toast(text);
+                setTimeout(updateBaselineStatus, 500);
+              } catch (error) {
+                console.error('Stop error:', error);
+              }
             };
           } else if (detectionMode === 'baseline' && !stats.scanning) {
             startDetectionBtn.textContent = 'Start Scan';
