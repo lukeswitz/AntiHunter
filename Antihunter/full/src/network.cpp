@@ -1117,6 +1117,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function updateBaselineStatus() {
+          const detectionMode = document.getElementById('detectionMode');
+          if (!detectionMode || detectionMode.value !== 'baseline') {
+            if (baselineUpdateInterval) {
+              clearInterval(baselineUpdateInterval);
+              baselineUpdateInterval = null;
+            }
+            return;
+          }
+          
         fetch('/baseline/stats').then(response => response.json()).then(stats => {
           const statusDiv = document.getElementById('baselineStatus');
           if (!statusDiv) return;
@@ -1187,7 +1196,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       updateBaselineStatus();
       // Poll every 2 seconds when not actively scanning
       setInterval(() => {
-        if (!baselineUpdateInterval) {
+        const detectionMode = document.getElementById('detectionMode');
+        if (detectionMode && detectionMode.value === 'baseline' && !baselineUpdateInterval) {
           updateBaselineStatus();
         }
       }, 2000);
