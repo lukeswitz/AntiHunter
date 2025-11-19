@@ -182,7 +182,7 @@ Configure auto-erase settings via the web interface:
 
 ## RF Configuration
 
-AntiHunter provides adjustable RF scan parameters to optimize detection performance for different operational scenarios. Configuration is available through both the web interface and API endpoints.
+AntiHunter provides adjustable RF scan parameters to optimize detection performance for different operational scenarios.
 
 ### Scan Presets
 
@@ -200,61 +200,20 @@ AntiHunter provides adjustable RF scan parameters to optimize detection performa
 - **BLE Scan Interval**: Time between BLE scan cycles (1000-10000ms)
 - **BLE Scan Duration**: Active BLE scanning duration per cycle (1000-5000ms)
 - **RSSI Threshold**: Global signal strength filter in dBm (-100 to -10). Filters weak signals from general scans; triangulation operations exempt from filtering
-- **WiFi Channels**: Comma-separated list (1,6,11) or range (1..14) of 2.4GHz channels
+- **WiFi Channels**: Comma-separated list (1,6,11) or range (1..14) of 2.4GHz channels. Default: 1,6,11 if not specified
 
-Valid WiFi channels: 1-14 (2.4GHz band). Default: 1,6,11 if not specified.
+### Configuration Methods
 
-### Web Interface Configuration
-
-1. Navigate to `http://192.168.4.1`
-2. Locate RF Settings section
-3. Adjust Global RSSI Filter slider (-100 to -10 dBm)
-4. Select preset or choose "Custom" for manual tuning
-5. For custom: adjust timing parameters and specify WiFi channels
-6. Click "Save RF Settings"
-
-### API Configuration
-
-**Get current RF settings:**
-```
-GET /rf-config
-```
-
-**Update RF settings (preset):**
-```
-POST /rf-config
-Content-Type: application/x-www-form-urlencoded
-
-preset=1
-```
-
-**Update RF settings (custom):**
-```
-POST /rf-config
-Content-Type: application/x-www-form-urlencoded
-
-wifiChannelTime=120&wifiScanInterval=5000&bleScanInterval=2500&bleScanDuration=2500&wifiChannels=1,6,11&globalRssiThreshold=-85
-```
-
-**Update RSSI threshold only:**
-```
-POST /rf-config
-Content-Type: application/x-www-form-urlencoded
-
-globalRssiThreshold=-80
-```
-### Configuration Persistence
-
-All RF settings are automatically persisted to NVS (non-volatile storage) and restored on reboot. When an SD card is present, settings are also saved to `/config.json` for backup and portability across devices.
+Configure via web interface at `http://192.168.4.1` or API endpoints (see API Reference below). All settings persist to NVS and SD card when available.
 
 ### Operational Considerations
 
-- **Lower intervals**: Increase detection speed and coverage but consume more power
-- **Higher intervals**: Reduce power consumption and RF noise but may miss brief transmissions
-- **Channel time**: Affects WiFi channel hop rate; shorter times provide faster channel coverage
-- **BLE duration**: Longer durations improve BLE device discovery but reduce WiFi scan frequency
-- **RSSI threshold**: Lower values (e.g., -100 dBm) capture more distant/weak signals; higher values (e.g., -60 dBm) focus on strong nearby signals. Does not affect triangulation operations
-- **Channel selection**: Limit to specific channels (1,6,11) for focused monitoring or use full range (1..14) for comprehensive coverage
+- **Lower intervals**: Faster detection, higher power consumption
+- **Higher intervals**: Reduced power, may miss brief transmissions
+- **Channel time**: Affects WiFi hop rate; shorter = faster coverage
+- **BLE duration**: Longer improves discovery but reduces WiFi scan frequency
+- **RSSI threshold**: Lower values (-100) capture distant/weak signals; higher (-60) focus on nearby devices. Triangulation exempt from filtering
+- **Channel selection**: Use 1,6,11 for focused monitoring or 1..14 for comprehensive coverage
 
 Adjust parameters based on deployment environment, power budget, target detection requirements, and regulatory constraints.
 
@@ -647,9 +606,13 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ### RF Configuration
 | Endpoint | Method | Parameters | Description |
 |----------|--------|------------|-------------|
-| `/rf-config` | GET | - | Get RF scan configuration (JSON) |
-| `/rf-config` | POST | `preset` OR `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `channels` | Update RF configuration |
-| `/wifi-config` | GET/POST | `ssid`, `pass` | Get/update WiFi AP settings |
+| `/rf-config` | GET | - | Get RF configuration (JSON: preset, wifiChannelTime, wifiScanInterval, bleScanInterval, bleScanDuration, wifiChannels, globalRssiThreshold) |
+| `/rf-config` | POST | `preset` (0-2) | Apply preset: 0=Relaxed, 1=Balanced, 2=Aggressive |
+| `/rf-config` | POST | `preset` (0-2), `globalRssiThreshold` (-100 to -10) | Apply preset with custom RSSI threshold |
+| `/rf-config` | POST | `wifiChannelTime` (50-300), `wifiScanInterval` (1000-10000), `bleScanInterval` (1000-10000), `bleScanDuration` (1000-5000), `wifiChannels` ("1,6,11" or "1..14"), `globalRssiThreshold` (-100 to -10) | Custom RF configuration with all parameters |
+| `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | Update RSSI threshold only |
+| `/wifi-config` | GET | - | Get WiFi AP settings (JSON: ssid, pass) |
+| `/wifi-config` | POST | `ssid` (1-32 chars), `pass` (8-63 chars or empty) | Update AP credentials (triggers 3s reboot) |
 
 ### Baseline Detection
 | Endpoint | Method | Parameters | Description |
