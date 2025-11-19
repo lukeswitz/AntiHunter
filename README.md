@@ -61,6 +61,22 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 - **GPS Integration**: Each node contributes location data for accurate positioning
 - **Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details
 
+   **Optimal Node Placement for RF Triangulation (2.4 GHz)**
+   
+   | Nodes | Geometry | Angular Sep | Urban Spacing | Rural Spacing | Coverage | GDOP | Notes |
+   |-------|----------|-------------|---------------|---------------|----------|------|-------|
+   | 3 | Equilateral Triangle | 120° | 25-35m | 50-70m | 800-1,200 m² | 4-6 | Minimum viable, mobile deployments |
+   | 4 | Square | 90° | 30-40m | 60-85m | 1,200-2,000 m² | 3-5 | Small buildings, perimeters |
+   | 5 | Regular Pentagon | 72° | 35-45m | 75-95m | 2,000-3,200 m² | 2-4 | Medium area coverage |
+   | 6 | Regular Hexagon | 60° | 40-50m | 85-105m | 3,500-4,500 m² | 2-4 | Large perimeter, optimal standard |
+   | 7 | Hexagon + Center | 60° perimeter | 45-55m | 95-115m | 5,000-6,500 m² | 1-3 | Dense/3D, one node at zenith |
+   | 8+ | Octagon/Circle | 45° | 50-65m | 100-130m | 6,500-10,000 m² | 1-3 | Wide area, events |
+   
+   **Range Reference (2.4 GHz)**
+   - **WiFi Urban**: 30-50m | **Rural**: 80-150m LoS
+   - **BLE Urban**: 10-30m | **Rural**: 40-100m LoS  
+   - **Wall Attenuation**: -20 to -30 dB urban, -10 to -15 dB drywall
+
 ### 3. **Detection & Analysis Sniffers**
    
    **A. Device Scanner**
