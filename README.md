@@ -541,7 +541,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | Alert Type | Format | Example |
 |------------|--------|---------|
 | **Startup Status** | `NODE_ID: STARTUP: System initialized GPS:LOCKED/SEARCHING TEMP:XXC` | `NODE_ABC: STARTUP: System initialized GPS:LOCKED TEMP:42.3C` |
-| **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE/IDLE Hits:N Unique:N Temp:XX.XC/XX.XF Up:HH:MM:SS [GPS=lat,lon HDOP=X.X]` | `NODE_ABC: STATUS: Mode:WiFi+BLE Scan:ACTIVE Hits:142 Unique:87 Temp:42.3C/108.1F Up:03:24:15 GPS=40.712800,-74.006000 HDOP=1.2` |
+| **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE/IDLE Hits:N Unique:N Temp:XX.XC/XX.XF Up:HH:MM:SS [GPS=lat,lon HDOP=X.X]` | `NODE_ABC: STATUS: Mode:WiFi+BLE Scan:ACTIVE Hits:142 Unique:87 Temp:42.3C Up:03:24:15 GPS=40.712800,-74.006000 HDOP=1.2` |
 | **Node Heartbeat** | `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]` | `NODE_ABC: Time:2025-10-28_14:32:15 Temp:42.3C GPS:40.7128,-74.0060` |
 | **GPS Locked** | `NODE_ID: GPS: LOCKED Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
 | **GPS Lost** | `NODE_ID: GPS: LOST` | `NODE_ABC: GPS: LOST` |
