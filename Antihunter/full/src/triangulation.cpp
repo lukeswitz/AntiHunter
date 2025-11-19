@@ -15,6 +15,7 @@ extern TinyGPSPlus gps;
 extern float gpsLat, gpsLon;
 extern bool gpsValid;
 extern TriangulationAccumulator triAccum;
+extern bool triangulationOrchestratorAssigned;
 
 // Triang 
 static TaskHandle_t calibrationTaskHandle = nullptr;
@@ -671,6 +672,8 @@ void stopTriangulation() {
     
     // Clear Serial1 TX buffer
     Serial1.flush();
+
+    triangulationOrchestratorAssigned = false;
 
     Serial.println("[TRIANGULATE] Stopped, results generated, buffers cleared");
 }

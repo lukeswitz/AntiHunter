@@ -1951,6 +1951,28 @@ void listScanTask(void *pv) {
     lastScanSecs = secs;
     lastScanForever = forever;
 
+    if (triangulationInitiator) {
+        String myNodeId = getNodeId();
+        if (myNodeId.length() == 0) {
+            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+        }
+        
+        TriangulationNode selfNode;
+        selfNode.nodeId = myNodeId;
+        selfNode.lat = gpsValid ? gpsLat : 0.0;
+        selfNode.lon = gpsValid ? gpsLon : 0.0;
+        selfNode.hdop = gpsValid && gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
+        selfNode.rssi = -128;
+        selfNode.hitCount = 0;
+        selfNode.hasGPS = gpsValid;
+        selfNode.isBLE = false;
+        selfNode.lastUpdate = millis();
+        initNodeKalmanFilter(selfNode);
+        triangulationNodes.push_back(selfNode);
+        
+        Serial.printf("[TRIANGULATE] Initiator registered: %s\n", myNodeId.c_str());
+    }
+
     vTaskDelay(pdMS_TO_TICKS(200));
     
     radioStartSTA();
