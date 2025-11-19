@@ -28,6 +28,7 @@ static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
 static String nodeId = "";
+bool triangulationOrchestratorAssigned = false;
 
 // Scanner vars
 extern volatile bool scanning;
@@ -4555,8 +4556,13 @@ void processCommand(const String &command)
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
     
+    if (!triangulationOrchestratorAssigned) {
+        triangulationInitiator = true;
+        triangulationOrchestratorAssigned = true;
+    } else {
+        triangulationInitiator = false;
+    }
     triangulationActive = true;
-    triangulationInitiator = false;
     triangulationStart = millis();
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
@@ -4567,7 +4573,8 @@ void processCommand(const String &command)
                                (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
     }
     
-    Serial.printf("[TRIANGULATE] Child node started for %s (%ds)\n", target.c_str(), duration);
+    Serial.printf("[TRIANGULATE] %s node started for %s (%ds)\n", 
+              triangulationInitiator ? "ORCHESTRATOR" : "CHILD", target.c_str(), duration);;
     sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + target, true);
   }
   else if (command.startsWith("TRIANGULATE_STOP"))

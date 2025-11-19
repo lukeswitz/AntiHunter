@@ -24,6 +24,7 @@ static String nodeId = "";
 extern volatile bool scanning;
 extern volatile int totalHits;
 extern std::set<String> uniqueMacs;
+bool triangulationOrchestratorAssigned = false;
 
 // Module refs
 extern Preferences prefs;
@@ -488,8 +489,13 @@ void processCommand(const String &command)
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
     
+    if (!triangulationOrchestratorAssigned) {
+        triangulationInitiator = true;
+        triangulationOrchestratorAssigned = true;
+    } else {
+        triangulationInitiator = false;
+    }
     triangulationActive = true;
-    triangulationInitiator = false;
     triangulationStart = millis();
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
@@ -500,7 +506,8 @@ void processCommand(const String &command)
                                (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
     }
     
-    Serial.printf("[TRIANGULATE] Child node started for %s (%ds)\n", target.c_str(), duration);
+    Serial.printf("[TRIANGULATE] %s node started for %s (%ds)\n", 
+              triangulationInitiator ? "ORCHESTRATOR" : "CHILD", target.c_str(), duration);
     sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + target, true);
   }
   else if (command.startsWith("TRIANGULATE_STOP"))
