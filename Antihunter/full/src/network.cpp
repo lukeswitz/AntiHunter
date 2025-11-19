@@ -912,13 +912,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } catch(e) {}
       }
 
-      function updateRFPresetUI() {
+      async function updateRFPresetUI() {
         const preset = parseInt(document.getElementById('rfPreset').value);
         const customDiv = document.getElementById('customRFSettings');
         
         if (!customDiv) return;
         
         customDiv.style.display = preset === 3 ? 'block' : 'none';
+        
+        if (preset >= 0 && preset <= 2) {
+          const threshold = parseInt(document.getElementById('globalRssiSlider').value);
+          const fd = new FormData();
+          fd.append('preset', preset);
+          fd.append('globalRssiThreshold', threshold);
+          
+          try {
+            await fetch('/rf-config', {method: 'POST', body: fd});
+            await loadRFConfig();
+          } catch(e) {
+            console.error('Failed to apply preset:', e);
+          }
+        }
       }
 
       function loadMeshInterval() {
@@ -4005,20 +4019,21 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
 
   server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
-    if (req->hasParam("globalRssiThreshold", true)) {
-        int8_t threshold = req->getParam("globalRssiThreshold", true)->value().toInt();
-        rfConfig.globalRssiThreshold = constrain(threshold, -100, -10);
-        prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
-    }
+    bool updated = false;
     
     if (req->hasParam("preset", true)) {
         uint8_t preset = req->getParam("preset", true)->value().toInt();
         if (preset >= 0 && preset <= 2) {
             setRFPreset(preset);
+            updated = true;
+            
+            if (req->hasParam("globalRssiThreshold", true)) {
+                int8_t threshold = req->getParam("globalRssiThreshold", true)->value().toInt();
+                rfConfig.globalRssiThreshold = constrain(threshold, -100, -10);
+                prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
+            }
         }
-    }
-    
-    if (req->hasParam("wifiChannelTime", true)) {
+    } else if (req->hasParam("wifiChannelTime", true)) {
         uint32_t wct = req->getParam("wifiChannelTime", true)->value().toInt();
         uint32_t wsi = req->getParam("wifiScanInterval", true)->value().toInt();
         uint32_t bsi = req->getParam("bleScanInterval", true)->value().toInt();
@@ -4026,13 +4041,33 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         int8_t rssiThreshold = req->hasParam("globalRssiThreshold", true) ? 
                               req->getParam("globalRssiThreshold", true)->value().toInt() : rfConfig.globalRssiThreshold;
         String channels = req->hasParam("wifiChannels", true) ? 
-                         req->getParam("wifiChannels", true)->value() : "1..14";
+                        req->getParam("wifiChannels", true)->value() : rfConfig.wifiChannels;
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
+        updated = true;
+    } else if (req->hasParam("globalRssiThreshold", true)) {
+        int8_t threshold = req->getParam("globalRssiThreshold", true)->value().toInt();
+        rfConfig.globalRssiThreshold = constrain(threshold, -100, -10);
+        prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
+        updated = true;
     }
     
-    saveConfiguration();
-    req->send(200, "text/plain", "RF configuration updated");
-});
+    if (updated) {
+        saveConfiguration();
+        
+        String json = "{";
+        json += "\"preset\":" + String(rfConfig.preset) + ",";
+        json += "\"wifiChannelTime\":" + String(rfConfig.wifiChannelTime) + ",";
+        json += "\"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",";
+        json += "\"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",";
+        json += "\"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",";
+        json += "\"wifiChannels\":\"" + String(rfConfig.wifiChannels) + "\",";
+        json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold);
+        json += "}";
+        req->send(200, "application/json", json);
+    } else {
+        req->send(400, "text/plain", "Missing parameters");
+    }
+  });
 
   server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
     String ssid = prefs.getString("apSsid", AP_SSID);
