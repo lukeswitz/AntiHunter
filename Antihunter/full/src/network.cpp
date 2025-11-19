@@ -897,18 +897,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       async function loadRFConfig() {
-        try {
-          const r = await fetch('/rf-config');
-          const cfg = await r.json();
-          document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -90;
-          document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -90) + ' dBm';
-          document.getElementById('rfPreset').value = cfg.preset;
-          document.getElementById('wifiChannelTime').value = cfg.wifiChannelTime;
-          document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
-          document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
-          document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
-          document.getElementById('wifiChannels').value = cfg.wifiChannels || '1..14';
-        } catch(e) {}
+          try {
+            const r = await fetch('/rf-config');
+            const cfg = await r.json();
+            document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -90;
+            document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -90) + ' dBm';
+            document.getElementById('rfPreset').value = cfg.preset;
+            document.getElementById('wifiChannelTime').value = cfg.wifiChannelTime;
+            document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
+            document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
+            document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
+            document.getElementById('wifiChannels').value = cfg.wifiChannels || '1..14';
+            
+            // If custom not preset
+            const customDiv = document.getElementById('customRFSettings');
+            if (customDiv) {
+              customDiv.style.display = cfg.preset === 3 ? 'block' : 'none';
+            }
+          } catch(e) {}
       }
 
       async function updateRFPresetUI() {
@@ -920,10 +926,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         customDiv.style.display = preset === 3 ? 'block' : 'none';
         
         if (preset >= 0 && preset <= 2) {
-          const threshold = parseInt(document.getElementById('globalRssiSlider').value);
           const fd = new FormData();
           fd.append('preset', preset);
-          fd.append('globalRssiThreshold', threshold);
           
           try {
             await fetch('/rf-config', {method: 'POST', body: fd});
