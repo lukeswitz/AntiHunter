@@ -295,11 +295,12 @@ _PCBs and kits are in final production. Tindie link coming soon_
 - 1x SW-420 Vibration Sensor
 - 1x DS3231 Real Time Clock Module
 - 1x KSD9700 Normally Open Thermal Wire Sensor (30-40°C)
-- 5x JST 2.54 2-Pin Terminals _(2.0 JST can be used in place)_
+- 6x JST 2.54 2-Pin Terminals _(2.0 JST can be used in place)_
 - 2x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm length)
 - 2x 8dBi Antenna 2.4GHz (for WiFi/BLE)
 - 2x 8dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
 - 1x 30mm 5V Fan
+- 1x 3 Pin Mini On/Off Switch 
 
 
 ### **Pinout Reference**
