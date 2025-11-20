@@ -347,7 +347,7 @@ chmod +x flashAntihunter.sh
 Configuration on flash requires the bootloader and partitions files from `Dist/` folder in the same directory.
 ```bash
 # Run the flasher script with interactive configuration (Headless Firmware)
-./flashAntihunter.sh -c -e
+./flashAntihunter.sh -c
 ```
 
 **Flashing Process:**
