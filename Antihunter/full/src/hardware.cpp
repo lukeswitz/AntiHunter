@@ -232,12 +232,45 @@ void initializeHardware()
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
     }
-    ESP_ERROR_CHECK(err);
+    
+    if (err != ESP_OK) {
+        Serial.printf("[NVS] Init failed: 0x%x (%s) - attempting recovery\n", err, esp_err_to_name(err));
+        
+        esp_err_t erase_err = nvs_flash_erase();
+        if (erase_err == ESP_OK) {
+            err = nvs_flash_init();
+            if (err == ESP_OK) {
+                Serial.println("[NVS] Recovery successful");
+            }
+        }
+        
+        if (err != ESP_OK) {
+            // halt with diagnostics
+            Serial.printf("[NVS] FATAL: Cannot initialize NVS: 0x%x (%s)\n", err, esp_err_to_name(err));
+            Serial.println("[NVS] Device requires factory reset via esptool");
+            while(1) { delay(5000); Serial.printf("[NVS] HALTED: Error 0x%x\n", err); }
+        }
+    }
     
     if (!prefs.begin("antihunter", false)) {
-        Serial.println("[NVS] Cannot open namespace");
-        ESP.restart();
+        // Single recovery try, then halt
+        Serial.println("[NVS] Cannot open namespace - attempting recovery");
+        prefs.end();
+        delay(100);
+        
+        esp_err_t erase_err = nvs_flash_erase();
+        if (erase_err == ESP_OK) {
+            nvs_flash_init();
+        }
+        
+        if (!prefs.begin("antihunter", false)) {
+            // HALT - avoid restart loop
+            Serial.println("[NVS] FATAL: Cannot open namespace after recovery");
+            while(1) { delay(5000); Serial.println("[NVS] HALTED: Namespace failure"); }
+        }
+        Serial.println("[NVS] Namespace recovered successfully");
     }
+
     
     if (!prefs.isKey("_init")) {
         Serial.println("[NVS] First boot - initializing all NVS keys");
@@ -246,6 +279,8 @@ void initializeHardware()
         prefs.putString("allowlist", "");
         prefs.putString("nodeId", "");
         prefs.putString("channels", "1,6,11");
+        prefs.putString("apSsid", AP_SSID);
+        prefs.putString("apPass", AP_PASS);
         prefs.putInt("scanMode", SCAN_BOTH);
         prefs.putULong("meshInterval", 5000);
         prefs.putUInt("blRamSize", 400);
@@ -269,16 +304,11 @@ void initializeHardware()
         prefs.putUInt("bleDuration", 3000);
     }
     
-    // Unconditionals
-    prefs.putString("apSsid", AP_SSID);
-    prefs.putString("apPass", AP_PASS);
-
     randomSeed(esp_random());
-    
     loadRFConfigFromPrefs();
     
-    meshSendInterval = prefs.getULong("meshInterval", 5000);
-    if (meshSendInterval < 1500 || meshSendInterval > 60000) {
+    meshSendInterval = prefs.getULong("meshInterval", 3000);
+    if (meshSendInterval < 1500 || meshSendInterval > 30000) {
         meshSendInterval = 5000;
     }
     Serial.printf("[CONFIG] Mesh send interval: %lums\n", meshSendInterval);
