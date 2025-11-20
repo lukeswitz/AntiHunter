@@ -386,19 +386,21 @@ cd AntiHunter
 
 **Option 1 - PlatformIO Command Line:**
 ```bash
-# Ensure PlatformIO Core is installed
-pip install -U platformio
-pio --version
+# Verify device detection
+pio device list
 
-# From inside AntiHunter folder containing platformio.ini:
-
-# Build and upload Full environment (with web interface)
+# Upload full environment
 pio run -e AntiHunter-full -t upload
+
+# Upload headless environment  
+pio run -e AntiHunter-headless -t upload
+
+# Monitor with auto-config from platformio.ini
 pio device monitor -e AntiHunter-full
 
-# Or build and upload Headless environment (mesh only comms)
-pio run -e AntiHunter-headless -t upload
-pio device monitor -e AntiHunter-headless
+# Force clean rebuild (if corruption suspected)
+pio run -e AntiHunter-full -t clean
+pio run -e AntiHunter-full -t upload
 ```
 
 **Option 2 - Using VS Code:**
