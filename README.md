@@ -332,13 +332,12 @@ _PCBs and kits are in final production. Tindie link coming soon_
 
 For rapid deployment without building from source, precompiled binaries are available.
 
-**Linux/macOS:**
 ```bash
-# Download the flasher script
+# Download the script, erase and flash:
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+
 chmod +x flashAntihunter.sh
 
-# Run the flasher script with default configuration (Full AP Firmware)
 ./flashAntihunter.sh
 ```
 
@@ -346,7 +345,7 @@ chmod +x flashAntihunter.sh
 
 Configuration on flash requires the bootloader and partitions files from `Dist/` folder in the same directory.
 ```bash
-# Run the flasher script with interactive configuration (Headless Firmware)
+# Run the flasher script with interactive NVS configuration (Headless Firmware)
 ./flashAntihunter.sh -c
 ```
 
@@ -386,19 +385,20 @@ cd AntiHunter
 
 **Option 1 - PlatformIO Command Line:**
 ```bash
-# Ensure PlatformIO Core is installed
-pip install -U platformio
-pio --version
+# Verify device detection
+pio device list
 
-# From inside AntiHunter folder containing platformio.ini:
-
-# Build and upload Full environment (with web interface)
+# Upload full environment
 pio run -e AntiHunter-full -t upload
+
+# Upload headless environment  
+pio run -e AntiHunter-headless -t upload
+
+# Monitor with auto-config from platformio.ini
 pio device monitor -e AntiHunter-full
 
-# Or build and upload Headless environment (mesh only comms)
-pio run -e AntiHunter-headless -t upload
-pio device monitor -e AntiHunter-headless
+# Erase + upload (clean deployment)
+pio run -e AntiHunter-full -t erase -t upload
 ```
 
 **Option 2 - Using VS Code:**
