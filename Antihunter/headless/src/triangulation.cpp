@@ -592,9 +592,11 @@ void stopTriangulation() {
         logToSD(logEntry);
     }
 
-    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: Nodes=" + 
-                       String(triangulationNodes.size());
-    
+    String targetMacStr = macFmt6(triAccum.targetMac);
+
+    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
+                       " Nodes=" + String(triangulationNodes.size());
+
     float estLat = 0.0, estLon = 0.0, confidence = 0.0;
     std::vector<TriangulationNode> gpsNodes;
     for (const auto& node : triangulationNodes) {
@@ -602,7 +604,7 @@ void stopTriangulation() {
             gpsNodes.push_back(node);
         }
     }
-    
+
     if (gpsNodes.size() >= 3 && performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
         String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
         resultMsg += " " + mapsUrl;
