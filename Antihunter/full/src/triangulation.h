@@ -127,6 +127,126 @@ void calibratePathLoss(const String &targetMac, float knownDistance);
 void estimatePathLossParameters(bool isWiFi);
 void addPathLossSample(float rssi, float distance, bool isWiFi);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
+void recalculateSlotDuration();
+void initializeCycle(uint32_t startTimeMs);
+
+struct NodeReportingInfo {
+    String nodeId;
+    uint8_t slotIndex;
+    uint32_t firstReportTime;
+    uint32_t lastReportTime;
+    bool hasReported;
+};
+
+struct DynamicReportingSchedule {
+    std::map<String, NodeReportingInfo> nodes;
+    uint32_t slotDurationMs = 0;
+    uint32_t cycleStartMs = 0;
+    uint32_t guardIntervalMs = 200;
+    std::mutex nodeMutex;
+    
+    void addNode(const String& nodeId) {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        if (nodes.find(nodeId) == nodes.end()) {
+            NodeReportingInfo info;
+            info.nodeId = nodeId;
+            info.slotIndex = nodes.size();
+            info.firstReportTime = millis();
+            info.lastReportTime = millis();
+            info.hasReported = false;
+            nodes[nodeId] = info;
+            
+            recalculateSlotDuration();
+            
+            Serial.printf("[SLOTS] Registered: %s -> slot %d/%d (duration=%ums)\n",
+                         nodeId.c_str(), info.slotIndex, nodes.size(), slotDurationMs);
+        }
+    }
+    
+    void recalculateSlotDuration() {
+        if (nodes.empty()) {
+            slotDurationMs = 0;
+            return;
+        }
+        
+        uint8_t numNodes = nodes.size();
+        
+        if (numNodes <= 3) {
+            slotDurationMs = 5000;
+        } else if (numNodes <= 6) {
+            slotDurationMs = 4000;
+        } else if (numNodes <= 10) {
+            slotDurationMs = 3000;
+        } else {
+            slotDurationMs = 2500;
+        }
+        
+        Serial.printf("[SLOTS] Recalculated: %d nodes, %ums/slot, %ums guard\n",
+                     numNodes, slotDurationMs, guardIntervalMs);
+    }
+    
+    bool isMySlotActive(const String& nodeId, uint32_t& nextSlotMs) {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        if (nodes.find(nodeId) == nodes.end()) return false;
+        if (cycleStartMs == 0) return false;
+        
+        uint8_t numNodes = nodes.size();
+        if (numNodes == 0) return false;
+        
+        uint32_t now = millis();
+        uint32_t elapsed = (now >= cycleStartMs) ? (now - cycleStartMs) : 
+                          (UINT32_MAX - cycleStartMs + now + 1);
+        
+        uint32_t cycleMs = slotDurationMs * numNodes;
+        uint8_t mySlot = nodes[nodeId].slotIndex;
+        
+        uint32_t positionInCycle = elapsed % cycleMs;
+        uint32_t slotStartMs = mySlot * slotDurationMs;
+        uint32_t slotEndMs = slotStartMs + slotDurationMs - guardIntervalMs;
+        
+        bool isActive = (positionInCycle >= slotStartMs && positionInCycle < slotEndMs);
+        
+        if (isActive) {
+            uint32_t currentCycleStart = cycleStartMs + (elapsed / cycleMs) * cycleMs;
+            nextSlotMs = currentCycleStart + ((mySlot + 1) % numNodes) * slotDurationMs;
+        } else {
+            uint32_t cyclesCompleted = elapsed / cycleMs;
+            uint32_t currentCycleStart = cycleStartMs + cyclesCompleted * cycleMs;
+            
+            if (positionInCycle < slotStartMs) {
+                nextSlotMs = currentCycleStart + slotStartMs;
+            } else {
+                nextSlotMs = currentCycleStart + cycleMs + slotStartMs;
+            }
+        }
+        
+        return isActive;
+    }
+    
+    void markReportReceived(const String& nodeId) {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        if (nodes.find(nodeId) != nodes.end()) {
+            nodes[nodeId].lastReportTime = millis();
+            nodes[nodeId].hasReported = true;
+        }
+    }
+    
+    void initializeCycle(uint32_t startTimeMs) {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        cycleStartMs = startTimeMs;
+        recalculateSlotDuration();
+        Serial.printf("[SLOTS] Cycle initialized at %ums\n", cycleStartMs);
+    }
+    
+    void reset() {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        nodes.clear();
+        cycleStartMs = 0;
+        slotDurationMs = 0;
+    }
+};
+
+extern DynamicReportingSchedule reportingSchedule;
 
 extern ClockDiscipline clockDiscipline;
 extern PathLossCalibration pathLoss;
