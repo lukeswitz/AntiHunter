@@ -130,7 +130,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         if (canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
-            if (wait > 0 && wait < 5000) { 
+            if (wait > 0 && wait < meshSendInterval) { 
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
                 broadcastToTerminal("[MESH] Rate limit: waiting..");
                 delay(wait);
