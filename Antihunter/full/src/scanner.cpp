@@ -663,6 +663,7 @@ void snifferScanTask(void *pv)
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
             networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            if (stopRequested) break;
 
             if (networksFound > 0)
             {
@@ -734,6 +735,7 @@ void snifferScanTask(void *pv)
             if (bleScan)
             {
                 NimBLEScanResults scanResults = bleScan->getResults(2000, false);
+                if (stopRequested) break;
 
                 for (int i = 0; i < scanResults.getCount(); i++)
                 {
@@ -2027,6 +2029,7 @@ void listScanTask(void *pv) {
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            if (stopRequested) break;
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
                     String bssid = WiFi.BSSIDstr(i);
@@ -2093,6 +2096,7 @@ void listScanTask(void *pv) {
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
             lastBLEScan = millis();
             NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            if (stopRequested) break;
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                 String macStrOrig = device->getAddress().toString().c_str();
