@@ -1852,61 +1852,75 @@ uint32_t hashString(const String& str) {
 }
 
 static void sendTriAccumulatedData(const String& nodeId) {
-    // if (triangulationInitiator) {
-    //     Serial.println("[TRIANGULATE INITIATOR] Skipping TARGET_DATA TX");
-    //     return;
-    // }
-
     if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
     
-    uint32_t now = millis();
-    uint32_t jitter = hashString(nodeId) % 2000;
+    reportingSchedule.addNode(nodeId);
     
-    if (now - triAccum.lastSendTime < TRI_SEND_INTERVAL + jitter) return;
+    if (reportingSchedule.cycleStartMs == 0) {
+        reportingSchedule.initializeCycle(millis());
+    }
+    
+    uint32_t nextSlot = 0;
+    if (!reportingSchedule.isMySlotActive(nodeId, nextSlot)) {
+        uint32_t now = millis();
+        int32_t waitMs = (int32_t)(nextSlot - now);
+        
+        if (waitMs > 0 && waitMs < 60000) {
+            static uint32_t lastLog = 0;
+            if (millis() - lastLog > 2000) {
+                Serial.printf("[TRI-WAIT] Node %s: waiting %dms for slot (next=%u, now=%u)\n", 
+                            nodeId.c_str(), waitMs, nextSlot, now);
+                lastLog = millis();
+            }
+        }
+        return;
+    }
     
     String macStr = macFmt6(triAccum.targetMac);
+    bool sentAny = false;
     
-    // Send WiFi data if available
     if (triAccum.wifiHitCount > 0) {
         int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-        
         String wifiMsg = nodeId + ": TARGET_DATA: " + macStr + 
                          " Hits=" + String(triAccum.wifiHitCount) +
-                         " RSSI:" + String(wifiAvgRssi) +
-                         " Type:WiFi";
-        
+                         " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
         if (triAccum.hasGPS) {
             wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                        " HDOP=" + String(triAccum.hdop, 1);
         }
-        
-        sendToSerial1(wifiMsg, true);
-        Serial.printf("[TRIANGULATE] Sent WiFi: %d hits, avgRSSI=%d\n",
-                     triAccum.wifiHitCount, wifiAvgRssi);
+        if (sendToSerial1(wifiMsg, false)) {
+            sentAny = true;
+            reportingSchedule.markReportReceived(nodeId);
+            Serial.printf("[TRI-SLOT] %s: WiFi sent (%d hits)\n", nodeId.c_str(), triAccum.wifiHitCount);
+            delay(400);
+        }
     }
     
-    // Send BLE data if available
     if (triAccum.bleHitCount > 0) {
         int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-        
         String bleMsg = nodeId + ": TARGET_DATA: " + macStr + 
                         " Hits=" + String(triAccum.bleHitCount) +
-                        " RSSI:" + String(bleAvgRssi) +
-                        " Type:BLE";
-        
+                        " RSSI:" + String(bleAvgRssi) + " Type:BLE";
         if (triAccum.hasGPS) {
             bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                       " HDOP=" + String(triAccum.hdop, 1);
         }
-        
-        sendToSerial1(bleMsg, true);
-        Serial.printf("[TRIANGULATE] Sent BLE: %d hits, avgRSSI=%d\n",
-                     triAccum.bleHitCount, bleAvgRssi);
+        if (sendToSerial1(bleMsg, false)) {
+            sentAny = true;
+            reportingSchedule.markReportReceived(nodeId);
+            Serial.printf("[TRI-SLOT] %s: BLE sent (%d hits)\n", nodeId.c_str(), triAccum.bleHitCount);
+        }
     }
     
-    triAccum.lastSendTime = millis();
+    if (sentAny) {
+        triAccum.wifiHitCount = 0;
+        triAccum.wifiRssiSum = 0.0f;
+        triAccum.bleHitCount = 0;
+        triAccum.bleRssiSum = 0.0f;
+        triAccum.lastSendTime = millis();
+        delay(150);
+    }
 }
-
 
 // Scan tasks
 void listScanTask(void *pv) {
@@ -2347,18 +2361,43 @@ void listScanTask(void *pv) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
         
-        // Force send child node final accumulated data
-        if (triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
-            triAccum.lastSendTime = 0;
-            sendTriAccumulatedData(myNodeId);
-            Serial.println("[SCAN CHILD] Done. Sent final triangulation data");
-            vTaskDelay(pdMS_TO_TICKS(500));
+        // Child nodes: send final data WITHOUT slot delays, all at once
+        if (!triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
+            int8_t wifiAvgRssi = triAccum.wifiHitCount > 0 ? (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount) : -128;
+            int8_t bleAvgRssi = triAccum.bleHitCount > 0 ? (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount) : -128;
+            
+            String macStr = macFmt6(triAccum.targetMac);
+            
+            if (triAccum.wifiHitCount > 0) {
+                String wifiMsg = myNodeId + ": TARGET_DATA: " + macStr + 
+                                " Hits=" + String(triAccum.wifiHitCount) +
+                                " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
+                if (triAccum.hasGPS) {
+                    wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                            " HDOP=" + String(triAccum.hdop, 1);
+                }
+                sendToSerial1(wifiMsg, false);
+            }
+            
+            if (triAccum.bleHitCount > 0) {
+                String bleMsg = myNodeId + ": TARGET_DATA: " + macStr + 
+                                " Hits=" + String(triAccum.bleHitCount) +
+                                " RSSI:" + String(bleAvgRssi) + " Type:BLE";
+                if (triAccum.hasGPS) {
+                    bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                            " HDOP=" + String(triAccum.hdop, 1);
+                }
+                sendToSerial1(bleMsg, false);
+            }
+            
+            Serial.println("[SCAN CHILD] Final data sent (no delays)");
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
         
         // Initiator: stop triangulation immediately
         if (triangulationInitiator) {
             Serial.println("[SCAN INITIATOR] Scan complete, stopping triangulation");
-            // stopTriangulation();
+            stopTriangulation();
         } else {
             // Tell the kids
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");

@@ -30,6 +30,7 @@ uint32_t triangulationDuration = 0;
 bool triangulationActive = false;
 bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
+DynamicReportingSchedule reportingSchedule;
 
 PathLossCalibration pathLoss = {
     -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
@@ -442,6 +443,11 @@ void startTriangulation(const String &targetMac, int duration) {
         stopTriangulation();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
     
     triangulationNodes.clear();
     nodeSyncStatus.clear();
@@ -453,6 +459,7 @@ void startTriangulation(const String &targetMac, int duration) {
     stopRequested = false;
     triangulationActive = true;
     triangulationInitiator = true;
+    reportingSchedule.reset();
     
     Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
     
@@ -555,33 +562,50 @@ void stopTriangulation() {
         }
     }
 
-    Serial.println("[TRIANGULATE] Waiting up to 40s for all node reports...");
+    Serial.println("[TRIANGULATE] Waiting for all child node reports...");
     uint32_t waitStart = millis();
-    uint32_t stableStart = millis();
-    uint32_t lastCount = triangulationNodes.size();
-    const uint32_t MIN_WAIT = 5000;
-    const uint32_t STABLE_TIME = 3000;
+    uint32_t lastNodeCount = triangulationNodes.size();
+    uint32_t stableCount = 0;
+    const uint32_t MAX_WAIT = 25000;
 
-    while ((millis() - waitStart) < 40000) {
-        uint32_t currentSize = triangulationNodes.size();
-        if (currentSize != lastCount) {
-            Serial.printf("[TRIANGULATE] Nodes collected: %u\n", currentSize);
-            lastCount = currentSize;
-            stableStart = millis();
+    while ((millis() - waitStart) < MAX_WAIT) {
+        uint32_t currentNodeCount = triangulationNodes.size();
+        
+        if (currentNodeCount == lastNodeCount) {
+            stableCount++;
+        } else {
+            Serial.printf("[TRIANGULATE] New node data received: %u nodes\n", currentNodeCount);
+            lastNodeCount = currentNodeCount;
+            stableCount = 0;
         }
         
-        if ((millis() - stableStart) >= STABLE_TIME && (millis() - waitStart) >= MIN_WAIT) {
-            Serial.printf("[TRIANGULATE] Reports stable after %lus. Total nodes: %u\n", 
-                        (millis() - waitStart)/1000, currentSize);
+        if (currentNodeCount > 0 && stableCount >= 30) {
+            Serial.printf("[TRIANGULATE] Node data stable after %lums\n", millis() - waitStart);
             break;
         }
         
-        vTaskDelay(pdMS_TO_TICKS(10)); // tiny yield so async_tcp doesnt starve
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    if ((millis() - waitStart) >= 40000) {
-        Serial.printf("[TRIANGULATE] Wait complete (15s max). Total nodes: %u\n", triangulationNodes.size());
+    if ((millis() - waitStart) >= MAX_WAIT) {
+        Serial.printf("[TRIANGULATE] Wait complete (25s max). Total nodes: %u\n", triangulationNodes.size());
     }
+
+    Serial.println("[TRIANGULATE] Stopping initiator scan task...");
+    stopRequested = true;
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Wait for worker task to actually exit
+    uint32_t taskStopWait = millis();
+    while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    if (workerTaskHandle != nullptr) {
+        Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly, continuing anyway");
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(500));  // Extra buffer before sending final message
     
     String results = calculateTriangulation();
 
@@ -592,11 +616,10 @@ void stopTriangulation() {
         logToSD(logEntry);
     }
 
-    String targetMacStr = macFmt6(triAccum.targetMac);
+    uint32_t totalElapsed = (millis() - triangulationStart) / 1000;
+    String targetMacStr = macFmt6(triangulationTarget);
 
-    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
-                       " Nodes=" + String(triangulationNodes.size());
-
+    // Collect GPS nodes first
     float estLat = 0.0, estLon = 0.0, confidence = 0.0;
     std::vector<TriangulationNode> gpsNodes;
     for (const auto& node : triangulationNodes) {
@@ -605,9 +628,15 @@ void stopTriangulation() {
         }
     }
 
+    // Build message with maps link
+    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
+                    " Nodes=" + String(triangulationNodes.size());
+
     if (gpsNodes.size() >= 3 && performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
         String mapsUrl = "https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
         resultMsg += " " + mapsUrl;
+    } else if (gpsNodes.size() > 0) {
+        resultMsg += " GPS_Nodes=" + String(gpsNodes.size()) + "/3";
     }
     
     uint32_t delayStart = millis();
@@ -640,15 +669,24 @@ void stopTriangulation() {
             dataMsg += " HDOP=" + String(hdop, 1);
         }
         
-        sendToSerial1(dataMsg, false);
+        sendToSerial1(dataMsg, true);
         Serial.printf("[TRIANGULATE] Sent self-detection data: %s\n", dataMsg.c_str());
-    
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    sendToSerial1(resultMsg, false);
+    rateLimiter.flush();
+    Serial1.flush();
+    vTaskDelay(pdMS_TO_TICKS(300));
+
+    Serial.println("[TRIANGULATE] Sending TRIANGULATE_COMPLETE...");
+    bool sent = sendToSerial1(resultMsg, true);
+    Serial.printf("[TRIANGULATE] TRIANGULATE_COMPLETE %s\n", sent ? "SENT" : "FAILED");
+
+    vTaskDelay(pdMS_TO_TICKS(200));
+    Serial1.flush();
 
     triangulationActive = false;
-    triangulationInitiator = false;  // Reset role
+    triangulationInitiator = false;
     triangulationDuration = 0;
     memset(triangulationTarget, 0, 6);
 
@@ -658,12 +696,6 @@ void stopTriangulation() {
     triAccum.bleHitCount = 0;
     triAccum.bleRssiSum = 0.0f;
     triAccum.lastSendTime = 0;
-    
-    // Flush rate limiter to clear any queued state
-    rateLimiter.flush();
-    
-    // Clear Serial1 TX buffer
-    Serial1.flush();
 
     triangulationOrchestratorAssigned = false;
 
