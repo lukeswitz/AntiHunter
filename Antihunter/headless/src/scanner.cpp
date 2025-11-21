@@ -1849,10 +1849,10 @@ uint32_t hashString(const String& str) {
 }
 
 static void sendTriAccumulatedData(const String& nodeId) {
-    if (triangulationInitiator) {
-        Serial.println("[TRIANGULATE INITIATOR] Skipping TARGET_DATA TX");
-        return;
-    }
+    // if (triangulationInitiator) {
+    //     Serial.println("[TRIANGULATE INITIATOR] Skipping TARGET_DATA TX");
+    //     return;
+    // }
 
     if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
     
@@ -2323,7 +2323,7 @@ void listScanTask(void *pv) {
             nextTriResultsUpdate = millis() + 2000;
         }
 
-        if (triangulationActive && !triangulationInitiator) {
+        if (triangulationActive) {
             String myNodeId = getNodeId();
             if (myNodeId.length() == 0) {
                 myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
@@ -2360,7 +2360,7 @@ void listScanTask(void *pv) {
         // Initiator: stop triangulation immediately
         if (triangulationInitiator) {
             Serial.println("[SCAN INITIATOR] Scan complete, stopping triangulation");
-            stopTriangulation();
+            // stopTriangulation();
         } else {
             // Tell the kids
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
