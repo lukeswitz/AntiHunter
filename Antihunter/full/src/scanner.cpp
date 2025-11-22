@@ -2348,11 +2348,15 @@ void listScanTask(void *pv) {
         }
 
         if (triangulationActive) {
-            String myNodeId = getNodeId();
-            if (myNodeId.length() == 0) {
-                myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+            static uint32_t nextTriReportCheck = 0;
+            if ((int32_t)(millis() - nextTriReportCheck) >= 0) {
+                String myNodeId = getNodeId();
+                if (myNodeId.length() == 0) {
+                    myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+                }
+                sendTriAccumulatedData(myNodeId);
+                nextTriReportCheck = millis() + 10000;
             }
-            sendTriAccumulatedData(myNodeId);
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
