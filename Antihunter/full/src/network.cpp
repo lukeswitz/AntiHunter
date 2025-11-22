@@ -2882,62 +2882,67 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (resultsText !== lastResultsText) {
                 lastResultsText = resultsText;
 
-                // Capture expanded state
-                const expandedCards = new Set();
-                const expandedDetails = new Map();
+                // Use requestAnimationFrame to batch DOM updates and prevent blocking
+                requestAnimationFrame(() => {
+                  // Capture expanded state - use more efficient selectors
+                  const expandedCards = new Set();
+                  const expandedDetails = new Map();
 
-                resultsElement.querySelectorAll('[id$="Content"]').forEach(content => {
-                  if (content.style.display !== 'none') {
-                    expandedCards.add(content.id);
-                  }
-                });
-
-                resultsElement.querySelectorAll('details[open]').forEach(details => {
-                  const summary = details.querySelector('summary');
-                  if (summary && summary.textContent) {
-                    const key = summary.textContent.trim();
-                    expandedDetails.set(key, true);
-                  }
-                });
-
-                // Update content
-                resultsElement.innerHTML = parseAndStyleResults(resultsText);
-
-                // Restore expanded cards state
-                expandedCards.forEach(contentId => {
-                  const content = document.getElementById(contentId);
-                  if (content) {
-                    const iconId = contentId.replace('Content', 'Icon');
-                    const icon = document.getElementById(iconId);
-                    content.style.display = 'block';
-                    if (icon) {
-                      icon.style.transform = 'rotate(0deg)';
-                      icon.textContent = '▼';
+                  const contents = resultsElement.querySelectorAll('[id$="Content"]');
+                  for (const content of contents) {
+                    if (content.style.display !== 'none') {
+                      expandedCards.add(content.id);
                     }
                   }
-                });
 
-                // Restore details state and attach event listeners in one pass
-                resultsElement.querySelectorAll('details').forEach(details => {
-                  const summary = details.querySelector('summary');
-                  if (summary) {
-                    const summaryText = summary.textContent.trim();
-                    if (expandedDetails.has(summaryText)) {
-                      details.open = true;
-                      const spans = summary.querySelectorAll('span');
+                  const openDetails = resultsElement.querySelectorAll('details[open]');
+                  for (const details of openDetails) {
+                    const summary = details.querySelector('summary');
+                    if (summary && summary.textContent) {
+                      expandedDetails.set(summary.textContent.trim(), true);
+                    }
+                  }
+
+                  // Update content
+                  resultsElement.innerHTML = parseAndStyleResults(resultsText);
+
+                  // Restore expanded cards state
+                  for (const contentId of expandedCards) {
+                    const content = document.getElementById(contentId);
+                    if (content) {
+                      const iconId = contentId.replace('Content', 'Icon');
+                      const icon = document.getElementById(iconId);
+                      content.style.display = 'block';
+                      if (icon) {
+                        icon.style.transform = 'rotate(0deg)';
+                        icon.textContent = '▼';
+                      }
+                    }
+                  }
+
+                  // Restore details state and attach event listeners in one pass
+                  const allDetails = resultsElement.querySelectorAll('details');
+                  for (const details of allDetails) {
+                    const summary = details.querySelector('summary');
+                    if (summary) {
+                      const summaryText = summary.textContent.trim();
+                      if (expandedDetails.has(summaryText)) {
+                        details.open = true;
+                        const spans = summary.querySelectorAll('span');
+                        const arrow = spans[spans.length - 1];
+                        if (arrow) arrow.style.transform = 'rotate(90deg)';
+                      }
+                    }
+
+                    // Attach toggle event listener
+                    details.addEventListener('toggle', () => {
+                      const spans = details.querySelectorAll('summary span');
                       const arrow = spans[spans.length - 1];
-                      if (arrow) arrow.style.transform = 'rotate(90deg)';
-                    }
+                      if (arrow) {
+                        arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+                      }
+                    });
                   }
-
-                  // Attach toggle event listener
-                  details.addEventListener('toggle', () => {
-                    const spans = details.querySelectorAll('summary span');
-                    const arrow = spans[spans.length - 1];
-                    if (arrow) {
-                      arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
-                    }
-                  });
                 });
               }
             } else if (lastScanningState && !isScanning) {
@@ -3161,7 +3166,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       initTerminal();
       loadBaselineAnomalyConfig();
       loadMeshInterval();
-      setInterval(tick, 2000);
+      setInterval(tick, 3000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
     </script>
   </body>
@@ -3269,8 +3274,7 @@ void startWebServer()
       }
       saveConfiguration();
       currentScanMode = mode;
-      stopRequested = false;
-      delay(100); 
+      stopRequested = false; 
       
       // Ditch out here if triangulating
       if (req->hasParam("triangulate", true) && req->hasParam("targetMac", true)) {
@@ -3493,10 +3497,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         currentScanMode = SCAN_WIFI;  
         stopRequested = false;
         
-        req->send(200, "text/plain", forever ? 
-                  "Drone detection starting (forever)" : 
-                  ("Drone detection starting for " + String(secs) + "s"));
-        delay(100); 
+        req->send(200, "text/plain", forever ?
+                  "Drone detection starting (forever)" :
+                  ("Drone detection starting for " + String(secs) + "s")); 
         
         if (!workerTaskHandle) {
             xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288, 
@@ -3884,7 +3887,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       static String cachedRandResults = "";
       static uint32_t lastRandCalc = 0;
 
-      if (millis() - lastRandCalc >= 2000) {
+      // Increased cache to 5 seconds to reduce mutex contention
+      if (millis() - lastRandCalc >= 5000) {
           cachedRandResults = getRandomizationResults();
           lastRandCalc = millis();
       }

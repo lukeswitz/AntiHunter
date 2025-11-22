@@ -312,36 +312,46 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
 }
 
 String getDroneDetectionResults() {
+    static String cachedResults = "";
+    static unsigned long lastCacheTime = 0;
+
+    // Cache for 3 seconds to reduce performance impact
+    if (millis() - lastCacheTime < 3000 && cachedResults.length() > 0) {
+        return cachedResults;
+    }
+    lastCacheTime = millis();
+
     String results = "Drone Detection Results\n";
     results += "Total detections: " + String(droneDetectionCount) + "\n";
     results += "Unique drones: " + String(detectedDrones.size()) + "\n\n";
-    
+
     for (const auto& entry : detectedDrones) {
         const DroneDetection& d = entry.second;
         results += "MAC: " + entry.first + "\n";
         results += "  UAV ID: " + String(d.uavId) + "\n";
         results += "  RSSI: " + String(d.rssi) + " dBm\n";
-        
+
         if (d.latitude != 0 || d.longitude != 0) {
-            results += "  Location: " + String(d.latitude, 6) + ", " + 
+            results += "  Location: " + String(d.latitude, 6) + ", " +
                       String(d.longitude, 6) + "\n";
             results += "  Altitude: " + String(d.altitudeMsl) + "m\n";
             results += "  Speed: " + String(d.speed) + " m/s\n";
         }
-        
+
         if (d.operatorLat != 0 || d.operatorLon != 0) {
-            results += "  Operator: " + String(d.operatorLat, 6) + ", " + 
+            results += "  Operator: " + String(d.operatorLat, 6) + ", " +
                       String(d.operatorLon, 6) + "\n";
         }
-        
+
         if (strlen(d.description) > 0) {
             results += "  Description: " + String(d.description) + "\n";
         }
-        
+
         uint32_t age = (millis() - d.lastSeen) / 1000;
         results += "  Last seen: " + String(age) + "s ago\n\n";
     }
-    
+
+    cachedResults = results;
     return results;
 }
 
