@@ -747,7 +747,7 @@ String getDiagnostics() {
     static String cachedDiag = "";
     static String cachedSDInfo = "";
     
-    if (millis() - lastDiagTime < 3000 && cachedDiag.length() > 0) {
+    if (millis() - lastDiagTime < 1000 && cachedDiag.length() > 0) {
         return cachedDiag;
     }
     lastDiagTime = millis();

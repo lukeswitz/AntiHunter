@@ -827,6 +827,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let selectedMode = '0';
       let baselineUpdateInterval = null;
       let lastScanningState = false;
+      let lastResultsText = '';
       let meshEnabled = true;
 
       function switchTab(tabName) {
@@ -2797,24 +2798,31 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       async function tick() {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
-        
+
         try {
-          const d = await fetch('/diag');
-          const diagText = await d.text();
+          // Parallelize diag and drone status fetches
+          const [diagResponse, droneResponse] = await Promise.all([
+            fetch('/diag'),
+            fetch('/drone/status').catch(() => null)
+          ]);
+
+          const diagText = await diagResponse.text();
           const isScanning = diagText.includes('Scanning: yes');
           const sections = diagText.split('\n');
-          
-          try {
-            const droneStatus = await fetch('/drone/status');
-            const droneData = await droneStatus.json();
-            if (droneData.enabled) {
-              document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
-              document.getElementById('droneStatus').classList.add('active');
-            } else {
-              document.getElementById('droneStatus').innerText = 'Drone Detection: Idle';
-              document.getElementById('droneStatus').classList.remove('active');
-            }
-          } catch (e) {}
+
+          // Process drone status if available
+          if (droneResponse) {
+            try {
+              const droneData = await droneResponse.json();
+              if (droneData.enabled) {
+                document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
+                document.getElementById('droneStatus').classList.add('active');
+              } else {
+                document.getElementById('droneStatus').innerText = 'Drone Detection: Idle';
+                document.getElementById('droneStatus').classList.remove('active');
+              }
+            } catch (e) {}
+          }
           
           let overview = '';
           let hardware = '';
@@ -2869,53 +2877,60 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (isScanning) {
               const rr = await fetch('/results');
               const resultsText = await rr.text();
-              
-              const currentText = resultsElement.textContent || resultsElement.innerText || '';
-              if (currentText !== resultsText) {
+
+              // Only update DOM if results actually changed
+              if (resultsText !== lastResultsText) {
+                lastResultsText = resultsText;
+
+                // Capture expanded state
                 const expandedCards = new Set();
-                const expandedDetails = new Set();
-                
+                const expandedDetails = new Map();
+
                 resultsElement.querySelectorAll('[id$="Content"]').forEach(content => {
                   if (content.style.display !== 'none') {
                     expandedCards.add(content.id);
                   }
                 });
-                
+
                 resultsElement.querySelectorAll('details[open]').forEach(details => {
                   const summary = details.querySelector('summary');
                   if (summary && summary.textContent) {
-                    expandedDetails.add(summary.textContent.trim());
+                    const key = summary.textContent.trim();
+                    expandedDetails.set(key, true);
                   }
                 });
-                
+
+                // Update content
                 resultsElement.innerHTML = parseAndStyleResults(resultsText);
-                
+
+                // Restore expanded cards state
                 expandedCards.forEach(contentId => {
                   const content = document.getElementById(contentId);
-                  const iconId = contentId.replace('Content', 'Icon');
-                  const icon = document.getElementById(iconId);
-                  
-                  if (content && icon) {
+                  if (content) {
+                    const iconId = contentId.replace('Content', 'Icon');
+                    const icon = document.getElementById(iconId);
                     content.style.display = 'block';
-                    icon.style.transform = 'rotate(0deg)';
-                    icon.textContent = '▼';
+                    if (icon) {
+                      icon.style.transform = 'rotate(0deg)';
+                      icon.textContent = '▼';
+                    }
                   }
                 });
-                
-                expandedDetails.forEach(summaryText => {
-                  const details = Array.from(resultsElement.querySelectorAll('details')).find(d => {
-                    const summary = d.querySelector('summary');
-                    return summary && summary.textContent.trim() === summaryText;
-                  });
-                  if (details) {
-                    details.open = true;
-                    const spans = details.querySelectorAll('summary span');
-                    const arrow = spans[spans.length - 1];
-                    if (arrow) arrow.style.transform = 'rotate(90deg)';
-                  }
-                });
-                
+
+                // Restore details state and attach event listeners in one pass
                 resultsElement.querySelectorAll('details').forEach(details => {
+                  const summary = details.querySelector('summary');
+                  if (summary) {
+                    const summaryText = summary.textContent.trim();
+                    if (expandedDetails.has(summaryText)) {
+                      details.open = true;
+                      const spans = summary.querySelectorAll('span');
+                      const arrow = spans[spans.length - 1];
+                      if (arrow) arrow.style.transform = 'rotate(90deg)';
+                    }
+                  }
+
+                  // Attach toggle event listener
                   details.addEventListener('toggle', () => {
                     const spans = details.querySelectorAll('summary span');
                     const arrow = spans[spans.length - 1];
@@ -2928,6 +2943,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             } else if (lastScanningState && !isScanning) {
               const rr = await fetch('/results');
               const resultsText = await rr.text();
+              lastResultsText = resultsText;
               resultsElement.innerHTML = parseAndStyleResults(resultsText);
             }
           }
