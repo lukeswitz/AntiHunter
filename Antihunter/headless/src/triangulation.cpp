@@ -630,7 +630,7 @@ void stopTriangulation() {
 
     // Build message with maps link
     String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
-                " Nodes=" + String(triangulationNodes.size());
+                " Nodes=" + String(gpsNodes.size());
 
     if (gpsNodes.size() >= 3 && performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
         resultMsg += " https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);

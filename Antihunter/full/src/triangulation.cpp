@@ -636,7 +636,7 @@ void stopTriangulation() {
 
     // Build message with maps link
     String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
-                " Nodes=" + String(triangulationNodes.size());
+                " Nodes=" + String(gpsNodes.size());
 
     if (gpsNodes.size() >= 3 && performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
         resultMsg += " https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
@@ -681,7 +681,6 @@ void stopTriangulation() {
     Serial1.flush();
     vTaskDelay(pdMS_TO_TICKS(300));
 
-    
     bool sent = sendToSerial1(resultMsg, true);
     Serial.printf("[TRIANGULATE] Complete... Message sent: %s\n", resultMsg);
     Serial.printf("[TRIANGULATE] TRIANGULATE_COMPLETE %s\n", sent ? "SENT" : "FAILED");

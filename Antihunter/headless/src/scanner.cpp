@@ -2413,10 +2413,9 @@ void listScanTask(void *pv) {
             vTaskDelay(pdMS_TO_TICKS(200));
         }
         
-        // Initiator: stop triangulation immediately
+       // Initiator: stop triangulation immediately
          if (triangulationInitiator) {
-            Serial.println("[SCAN INITIATOR] Scan complete, stopping own reporting first");
-            triangulationActive = false;
+            Serial.println("[SCAN INITIATOR] Scan complete, calling stopTriangulation()");
             stopRequested = true;
             vTaskDelay(pdMS_TO_TICKS(500));
             stopTriangulation();

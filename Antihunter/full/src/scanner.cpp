@@ -1653,8 +1653,8 @@ static void radioStartWiFi()
         Serial.printf("[RADIO] WiFi init error: %d\n", err);
         return;
     }
-    
-    WiFi.mode(WIFI_MODE_STA);
+
+    WiFi.mode(WIFI_AP_STA);  // Keep AP alive during scanning
     delay(500);
     
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
@@ -2412,8 +2412,7 @@ void listScanTask(void *pv) {
         
         // Initiator: stop triangulation immediately
          if (triangulationInitiator) {
-            Serial.println("[SCAN INITIATOR] Scan complete, stopping own reporting first");
-            triangulationActive = false;
+            Serial.println("[SCAN INITIATOR] Scan complete, calling stopTriangulation()");
             stopRequested = true;
             vTaskDelay(pdMS_TO_TICKS(500));
             stopTriangulation();
