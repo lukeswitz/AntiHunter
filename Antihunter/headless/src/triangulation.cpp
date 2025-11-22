@@ -23,6 +23,7 @@ ClockDiscipline clockDiscipline = {0.0, 0, 0, false};
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
 std::vector<TriangulationNode> triangulationNodes;
+APFinalResult apFinalResult = {false, 0.0, 0.0, 0.0, 0.0, 0, ""};
 String calculateTriangulation();
 uint8_t triangulationTarget[6];
 uint32_t triangulationStart = 0;
@@ -465,7 +466,7 @@ void startTriangulation(const String &targetMac, int duration) {
     
     broadcastTimeSyncRequest();
     vTaskDelay(pdMS_TO_TICKS(2000));
-    
+
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
     sendMeshCommand(cmd);
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -634,8 +635,77 @@ void stopTriangulation() {
 
     if (gpsNodes.size() >= 3 && performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
         resultMsg += " https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+
+        // Broadcast final result to all nodes so everyone sees the same coordinated answer
+        if (triangulationInitiator) {
+            // Calculate uncertainty (same logic as in calculateTriangulation)
+            float avgHDOP = getAverageHDOP(gpsNodes);
+            const float UERE = 4.0;
+            float gpsPositionError = avgHDOP * UERE;
+
+            float totalRssiError = 0.0;
+            float avgDistance = 0.0;
+            for (const auto &node : gpsNodes) {
+                avgDistance += node.distanceEstimate;
+                float nodeRssiError = node.distanceEstimate * (0.25 + (1.0 - node.signalQuality) * 0.30);
+                if (node.isBLE) nodeRssiError *= 1.2;
+                totalRssiError += nodeRssiError * nodeRssiError;
+            }
+            avgDistance /= gpsNodes.size();
+            float rssiDistanceError = sqrt(totalRssiError / gpsNodes.size());
+
+            float geometricError = 0.0;
+            if (gpsNodes.size() == 3) {
+                float x1 = gpsNodes[0].lat, y1 = gpsNodes[0].lon;
+                float x2 = gpsNodes[1].lat, y2 = gpsNodes[1].lon;
+                float x3 = gpsNodes[2].lat, y3 = gpsNodes[2].lon;
+                float area = abs((x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2)) / 2.0);
+                float areaMeters = area * 111000.0 * 111000.0;
+
+                if (areaMeters < 100.0) geometricError = avgDistance * 0.5;
+                else if (areaMeters < 500.0) geometricError = avgDistance * 0.25;
+                else if (areaMeters < 1000.0) geometricError = avgDistance * 0.15;
+                else geometricError = avgDistance * 0.05;
+            } else {
+                geometricError = avgDistance * 0.10 / sqrt(gpsNodes.size() - 2);
+            }
+
+            bool syncVerified = verifyNodeSynchronization(10);
+            float syncError = syncVerified ? 0.0 : (avgDistance * 0.10);
+            float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
+
+            float uncertainty = sqrt(
+                gpsPositionError * gpsPositionError +
+                rssiDistanceError * rssiDistanceError +
+                geometricError * geometricError +
+                syncError * syncError +
+                calibError * calibError
+            );
+            float cep = uncertainty * 0.59;
+
+            String myNodeId = getNodeId();
+            if (myNodeId.length() == 0) myNodeId = "COORDINATOR";
+
+            // Store our own final result
+            apFinalResult.hasResult = true;
+            apFinalResult.latitude = estLat;
+            apFinalResult.longitude = estLon;
+            apFinalResult.confidence = confidence;
+            apFinalResult.uncertainty = cep;
+            apFinalResult.timestamp = millis();
+            apFinalResult.coordinatorNodeId = myNodeId;
+
+            // Broadcast to all nodes (including ourselves via mesh loop-back)
+            String finalMsg = "@ALL TRIANGULATION: MAC=" + targetMacStr +
+                            " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
+                            " CONF=" + String(confidence * 100.0, 1) +
+                            " UNC=" + String(cep, 1) +
+                            " COORD=" + myNodeId;
+            sendMeshCommand(finalMsg);
+            Serial.printf("[TRIANGULATE] Broadcasting final result: %s\n", finalMsg.c_str());
+        }
     }
-    
+
     uint32_t delayStart = millis();
     while (millis() - delayStart < 3000) {
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -729,10 +799,31 @@ String calculateTriangulation() {
     results += "Duration: " + String(triangulationDuration) + "s\n";
     results += "Elapsed: " + String(elapsed) + "s\n";
     results += "Reporting Nodes: " + String(triangulationNodes.size()) + "\n";
-    
+
     // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
     results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n\n";
+
+    // Display AP/Coordinator Final Result prominently if available
+    if (apFinalResult.hasResult) {
+        uint32_t age = (millis() - apFinalResult.timestamp) / 1000;
+        results += "╔════════════════════════════════════════════════╗\n";
+        results += "║       COORDINATOR FINAL RESULT                 ║\n";
+        results += "╚════════════════════════════════════════════════╝\n";
+        results += "Coordinator Node: " + apFinalResult.coordinatorNodeId + "\n";
+        results += "Final Position:\n";
+        results += "  Latitude:  " + String(apFinalResult.latitude, 6) + "\n";
+        results += "  Longitude: " + String(apFinalResult.longitude, 6) + "\n";
+        results += "  Confidence: " + String(apFinalResult.confidence * 100.0, 1) + "%\n";
+        results += "  Uncertainty (CEP68): ±" + String(apFinalResult.uncertainty, 1) + "m\n";
+
+        String mapsUrl = "https://www.google.com/maps?q=" +
+                        String(apFinalResult.latitude, 6) + "," +
+                        String(apFinalResult.longitude, 6);
+        results += "  Maps: " + mapsUrl + "\n";
+        results += "  Age: " + String(age) + "s\n";
+        results += "════════════════════════════════════════════════\n\n";
+    }
     
     // Count GPS-equipped nodes
     int gpsNodeCount = 0;

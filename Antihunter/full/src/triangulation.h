@@ -95,8 +95,19 @@ struct AdaptivePathLoss {
     static constexpr size_t MAX_SAMPLES = 50;
 };
 
+struct APFinalResult {
+    bool hasResult;
+    float latitude;
+    float longitude;
+    float confidence;
+    float uncertainty;
+    uint32_t timestamp;
+    String coordinatorNodeId;
+};
+
 extern AdaptivePathLoss adaptivePathLoss;
 extern std::vector<TriangulationNode> triangulationNodes;
+extern APFinalResult apFinalResult;
 
 const float KALMAN_MEASUREMENT_NOISE = 4.0;
 const uint32_t RSSI_HISTORY_SIZE = 10;
