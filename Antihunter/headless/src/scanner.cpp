@@ -200,7 +200,7 @@ std::map<String, std::vector<uint32_t>> deauthTimings;
 
 // Triangulation
 TriangulationAccumulator triAccum = {0};
-static const uint32_t TRI_SEND_INTERVAL = 3000;
+static const uint32_t TRI_SEND_INTERVAL = 2000;
 
 // External declarations
 extern Preferences prefs;
@@ -1853,6 +1853,14 @@ uint32_t hashString(const String& str) {
 static void sendTriAccumulatedData(const String& nodeId) {
     if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
     
+    if (!triangulationActive) {
+        triAccum.wifiHitCount = 0;
+        triAccum.wifiRssiSum = 0.0f;
+        triAccum.bleHitCount = 0;
+        triAccum.bleRssiSum = 0.0f;
+        return;
+    }
+    
     reportingSchedule.addNode(nodeId);
     
     if (reportingSchedule.cycleStartMs == 0) {
@@ -2402,8 +2410,11 @@ void listScanTask(void *pv) {
         }
         
         // Initiator: stop triangulation immediately
-        if (triangulationInitiator) {
-            Serial.println("[SCAN INITIATOR] Scan complete, stopping triangulation");
+         if (triangulationInitiator) {
+            Serial.println("[SCAN INITIATOR] Scan complete, stopping own reporting first");
+            triangulationActive = false;
+            stopRequested = true;
+            vTaskDelay(pdMS_TO_TICKS(500));
             stopTriangulation();
         } else {
             // Tell the kids
@@ -2422,14 +2433,15 @@ void listScanTask(void *pv) {
                 stopRequested = true;
             }
             
-            // Clean up triangulation state for child
             triangulationActive = false;
             memset(triangulationTarget, 0, 6);
+            memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
             triAccum.wifiHitCount = 0;
             triAccum.wifiRssiSum = 0.0f;
             triAccum.bleHitCount = 0;
             triAccum.bleRssiSum = 0.0f;
             triAccum.lastSendTime = 0;
+            reportingSchedule.reset();
         }
     }
     

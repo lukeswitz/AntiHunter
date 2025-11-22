@@ -171,13 +171,13 @@ struct DynamicReportingSchedule {
         uint8_t numNodes = nodes.size();
         
         if (numNodes <= 3) {
-            slotDurationMs = 5000;
+            slotDurationMs = 2000;
         } else if (numNodes <= 6) {
-            slotDurationMs = 4000;
-        } else if (numNodes <= 10) {
             slotDurationMs = 3000;
+        } else if (numNodes <= 10) {
+            slotDurationMs = 4000;
         } else {
-            slotDurationMs = 2500;
+            slotDurationMs = 1500;
         }
         
         Serial.printf("[SLOTS] Recalculated: %d nodes, %ums/slot, %ums guard\n",
