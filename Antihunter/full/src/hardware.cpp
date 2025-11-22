@@ -744,10 +744,12 @@ bool waitForInitialConfig() {
 String getDiagnostics() {
     static unsigned long lastDiagTime = 0;
     static unsigned long lastSDTime = 0;
+    static unsigned long lastTempTime = 0;
     static String cachedDiag = "";
     static String cachedSDInfo = "";
-    
-    if (millis() - lastDiagTime < 3000 && cachedDiag.length() > 0) {
+    static String cachedTempInfo = "";
+
+    if (millis() - lastDiagTime < 5000 && cachedDiag.length() > 0) {
         return cachedDiag;
     }
     lastDiagTime = millis();
@@ -856,9 +858,14 @@ String getDiagnostics() {
 
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";
 
-    float temp_c = temperatureRead();
-    float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
-    s += "ESP32 Temp: " + String(temp_c, 1) + "C / " + String(temp_f, 1) + "F\n";
+    // Cache temperature reading (hardware call) for 10 seconds
+    if (millis() - lastTempTime > 10000 || cachedTempInfo.length() == 0) {
+        lastTempTime = millis();
+        float temp_c = temperatureRead();
+        float temp_f = (temp_c * 9.0 / 5.0) + 32.0;
+        cachedTempInfo = "ESP32 Temp: " + String(temp_c, 1) + "C / " + String(temp_f, 1) + "F\n";
+    }
+    s += cachedTempInfo;
     
     s += "WiFi Channels: ";
     for (auto c : CHANNELS) {

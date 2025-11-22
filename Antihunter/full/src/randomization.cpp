@@ -1086,12 +1086,21 @@ void resetRandomizationDetection() {
 
 String getRandomizationResults() {
     std::lock_guard<std::mutex> lock(randMutex);
-    
+
     String results = "MAC Randomization Detection Results\n";
     results += "Active Sessions: " + String(activeSessions.size()) + "\n";
     results += "Device Identities: " + String(deviceIdentities.size()) + "\n\n";
-    
+
+    const int MAX_IDENTITIES = 100;
+    int count = 0;
+
     for (const auto& entry : deviceIdentities) {
+        if (count++ >= MAX_IDENTITIES) {
+            results += "... (showing first " + String(MAX_IDENTITIES) + " of " +
+                      String(deviceIdentities.size()) + " identities)\n";
+            break;
+        }
+
         const DeviceIdentity& identity = entry.second;
         
         results += "Track ID: " + String(identity.identityId) + "\n";

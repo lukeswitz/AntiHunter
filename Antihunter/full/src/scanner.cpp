@@ -1087,17 +1087,41 @@ void snifferScanTask(void *pv)
 
 String getSnifferCache()
 {
+    static String cachedResult = "";
+    static unsigned long lastCacheTime = 0;
+
+    if (millis() - lastCacheTime < 5000 && cachedResult.length() > 0) {
+        return cachedResult;
+    }
+    lastCacheTime = millis();
+
     String result = "=== Sniffer Cache ===\n\n";
     result += "WiFi APs: " + String(apCache.size()) + "\n";
+
+    int apCount = 0;
+    const int MAX_ENTRIES = 250;
     for (const auto &entry : apCache)
     {
+        if (apCount++ >= MAX_ENTRIES) {
+            result += "... (showing first " + String(MAX_ENTRIES) + " of " + String(apCache.size()) + ")\n";
+            break;
+        }
         result += entry.first + " : " + entry.second + "\n";
     }
+
     result += "\nBLE Devices: " + String(bleDeviceCache.size()) + "\n";
+
+    int bleCount = 0;
     for (const auto &entry : bleDeviceCache)
     {
+        if (bleCount++ >= MAX_ENTRIES) {
+            result += "... (showing first " + String(MAX_ENTRIES) + " of " + String(bleDeviceCache.size()) + ")\n";
+            break;
+        }
         result += entry.first + " : " + entry.second + "\n";
     }
+
+    cachedResult = result;
     return result;
 }
 
