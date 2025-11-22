@@ -702,7 +702,7 @@ void stopTriangulation() {
             apFinalResult.coordinatorNodeId = myNodeId;
 
             // Broadcast to all nodes (including ourselves via mesh loop-back)
-            String finalMsg = "@ALL TRIANGULATION: MAC=" + targetMacStr +
+            String finalMsg = "@ALL TRIANGULATION_FINAL: MAC=" + targetMacStr +
                             " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
                             " CONF=" + String(confidence * 100.0, 1) +
                             " UNC=" + String(cep, 1) +
