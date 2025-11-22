@@ -4643,7 +4643,7 @@ void processCommand(const String &command, const String &targetId = "")
       sendToSerial1(nodeId + ": TRIANGULATE_RESULTS:NO_DATA", true);
     }
   }
-  else if (command.startsWith("TRIANGULATION:"))
+  else if (command.startsWith("TRIANGULATION_FINAL:"))
   {
     // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3 COORD=NODE_ABC
     String payload = command.substring(14);
@@ -4967,7 +4967,7 @@ void processMeshMessage(const String &message) {
                           sendingNode.c_str());
         }
 
-        if (content.startsWith("TRIANGULATION:")) {
+        if (content.startsWith("TRIANGULATION_FINAL:")) {
             // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3 COORD=NODE_ABC
             String payload = content.substring(15);
 
