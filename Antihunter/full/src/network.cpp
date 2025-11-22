@@ -3192,11 +3192,19 @@ void startWebServer()
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
-      
+
       if (triangulationActive) {
-          results += "\n\n" + calculateTriangulation();
+          static String cachedTriResults = "";
+          static uint32_t lastTriCalc = 0;
+
+          // Only recalculate every 3 seconds to avoid blocking WebUI
+          if (millis() - lastTriCalc >= 3000) {
+              cachedTriResults = calculateTriangulation();
+              lastTriCalc = millis();
+          }
+          results += "\n\n" + cachedTriResults;
       }
-      
+
       r->send(200, "text/plain", results);
   });
 
@@ -3872,8 +3880,16 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/sniffer-cache", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "text/plain", getSnifferCache()); });
 
-  server->on("/randomization-results", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "text/plain", getRandomizationResults());
+    server->on("/randomization-results", HTTP_GET, [](AsyncWebServerRequest *r) {
+      static String cachedRandResults = "";
+      static uint32_t lastRandCalc = 0;
+
+      if (millis() - lastRandCalc >= 2000) {
+          cachedRandResults = getRandomizationResults();
+          lastRandCalc = millis();
+      }
+
+      r->send(200, "text/plain", cachedRandResults);
   });
 
   server->on("/randomization/reset", HTTP_POST, [](AsyncWebServerRequest *r) {
@@ -4023,7 +4039,17 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       req->send(200, "text/plain", "No triangulation data available");
       return;
     }
-    req->send(200, "text/plain", calculateTriangulation());
+
+    static String cachedTriResults = "";
+    static uint32_t lastTriCalc = 0;
+
+    // Only recalculate every 3 seconds to avoid blocking WebUI
+    if (millis() - lastTriCalc >= 3000) {
+      cachedTriResults = calculateTriangulation();
+      lastTriCalc = millis();
+    }
+
+    req->send(200, "text/plain", cachedTriResults);
   });
 
   server->on("/triangulate/calibrate", HTTP_POST, [](AsyncWebServerRequest *req) {
