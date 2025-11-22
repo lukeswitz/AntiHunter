@@ -167,19 +167,22 @@ struct DynamicReportingSchedule {
             slotDurationMs = 0;
             return;
         }
-        
+
         uint8_t numNodes = nodes.size();
-        
-        if (numNodes <= 3) {
-            slotDurationMs = 5000;
+
+        // Each TARGET_DATA message ~100-150 chars, need 2-3s spacing between nodes
+        if (numNodes <= 2) {
+            slotDurationMs = 3000;   // 2 nodes = 6s cycle (safe for mesh)
+        } else if (numNodes <= 3) {
+            slotDurationMs = 3000;   // 3 nodes = 9s cycle
         } else if (numNodes <= 6) {
-            slotDurationMs = 4000;
+            slotDurationMs = 2500;   // 6 nodes = 15s cycle
         } else if (numNodes <= 10) {
-            slotDurationMs = 3000;
+            slotDurationMs = 2000;   // 10 nodes = 20s cycle
         } else {
-            slotDurationMs = 2500;
+            slotDurationMs = 2000;   // scal for more nodes
         }
-        
+
         Serial.printf("[SLOTS] Recalculated: %d nodes, %ums/slot, %ums guard\n",
                      numNodes, slotDurationMs, guardIntervalMs);
     }
