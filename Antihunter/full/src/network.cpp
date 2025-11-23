@@ -4601,13 +4601,10 @@ void processCommand(const String &command, const String &targetId = "")
         memcpy(triangulationTarget, macBytes, 6);
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
-    
-    if (!triangulationActive) {
-        triangulationInitiator = true;
-    } else {
-        triangulationInitiator = false;
-    }
-    
+
+    // Only the node that calls startTriangulation() directly is the initiator
+    triangulationInitiator = false;
+
     triangulationActive = true;
     triangulationStart = millis();
     triangulationDuration = duration;
@@ -4627,9 +4624,7 @@ void processCommand(const String &command, const String &targetId = "")
   {
     Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
-    if (triangulationActive && !triangulationInitiator) {
-        stopTriangulation();
-    }
+    // Child nodes: stop scanning but keep triangulationActive=true to receive TRIANGULATION_FINAL
     sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
@@ -4936,15 +4931,15 @@ void processMeshMessage(const String &message) {
         }
 
         if (content.startsWith("TRIANGULATION_FINAL:")) {
-            // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3 COORD=NODE_ABC
+            // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3
+            // Coordinator node ID is in the message prefix (sendingNode)
             String payload = content.substring(20);
 
             int gpsIdx = payload.indexOf("GPS=");
             int confIdx = payload.indexOf("CONF=");
             int uncIdx = payload.indexOf("UNC=");
-            int coordIdx = payload.indexOf("COORD=");
 
-            if (gpsIdx > 0 && confIdx > 0 && uncIdx > 0 && coordIdx > 0) {
+            if (gpsIdx > 0 && confIdx > 0 && uncIdx > 0) {
                 String gpsStr = payload.substring(gpsIdx + 4, confIdx - 1);
                 int comma = gpsStr.indexOf(',');
                 if (comma > 0) {
@@ -4952,18 +4947,31 @@ void processMeshMessage(const String &message) {
                     apFinalResult.longitude = gpsStr.substring(comma + 1).toFloat();
                 }
 
+                // Find end of UNC value (either space or end of string)
+                int uncEnd = payload.indexOf(' ', uncIdx + 4);
+                if (uncEnd < 0) uncEnd = payload.length();
+
                 apFinalResult.confidence = payload.substring(confIdx + 5, uncIdx - 1).toFloat() / 100.0;
-                apFinalResult.uncertainty = payload.substring(uncIdx + 4, coordIdx - 1).toFloat();
-                apFinalResult.coordinatorNodeId = payload.substring(coordIdx + 6);
+                apFinalResult.uncertainty = payload.substring(uncIdx + 4, uncEnd).toFloat();
+                apFinalResult.coordinatorNodeId = sendingNode;
                 apFinalResult.hasResult = true;
                 apFinalResult.timestamp = millis();
 
-                Serial.printf("[TRIANGULATE] Received AP final result from %s: %.6f,%.6f conf=%.1f%% unc=%.1fm\n",
+                Serial.printf("[TRIANGULATE] Received final result from coordinator %s: %.6f,%.6f conf=%.1f%% unc=%.1fm\n",
                             apFinalResult.coordinatorNodeId.c_str(),
                             apFinalResult.latitude,
                             apFinalResult.longitude,
                             apFinalResult.confidence * 100.0,
                             apFinalResult.uncertainty);
+
+                // Child nodes: clean up triangulation state after receiving final result
+                if (!triangulationInitiator && triangulationActive) {
+                    Serial.println("[TRIANGULATE] Child node received TRIANGULATION_FINAL, cleaning up...");
+                    triangulationActive = false;
+                    triangulationDuration = 0;
+                    memset(triangulationTarget, 0, 6);
+                    triangulationNodes.clear();
+                }
             }
         }
 
