@@ -695,14 +695,13 @@ void stopTriangulation() {
             apFinalResult.timestamp = millis();
             apFinalResult.coordinatorNodeId = myNodeId;
 
-            // Broadcast to all nodes (including ourselves via mesh loop-back)
-            String finalMsg = "@ALL TRIANGULATION_FINAL: MAC=" + targetMacStr +
+            // Send single TRIANGULATION_FINAL message from coordinator only
+            String finalMsg = myNodeId + ": TRIANGULATION_FINAL: MAC=" + targetMacStr +
                             " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
                             " CONF=" + String(confidence * 100.0, 1) +
-                            " UNC=" + String(cep, 1) +
-                            " COORD=" + myNodeId;
-            sendMeshCommand(finalMsg);
-            Serial.printf("[TRIANGULATE] Broadcasting final result: %s\n", finalMsg.c_str());
+                            " UNC=" + String(cep, 1);
+            sendToSerial1(finalMsg, true);
+            Serial.printf("[TRIANGULATE] Sent final result: %s\n", finalMsg.c_str());
         }
     }
 
@@ -746,7 +745,7 @@ void stopTriangulation() {
     vTaskDelay(pdMS_TO_TICKS(300));
 
     Serial.println("[TRIANGULATE] Sending TRIANGULATE_COMPLETE...");
-    bool sent = sendToSerial1(resultMsg, true);
+    bool sent = sendToSerial1(resultMsg, false);
     Serial.printf("[TRIANGULATE] TRIANGULATE_COMPLETE %s\n", sent ? "SENT" : "FAILED");
 
     vTaskDelay(pdMS_TO_TICKS(200));
