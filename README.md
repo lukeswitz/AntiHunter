@@ -510,7 +510,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
 | **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC MAC->MAC Rrssi Cchannel` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
 | **Triangulation Data** | `NODE_ID: TARGET_DATA: MAC Hits=N RSSI:dBm [GPS=lat,lon HDOP=X.XX]` | `NODE_ABC: TARGET_DATA: AA:BB:CC:DD:EE:FF Hits=42 RSSI:-65 GPS=40.7128,-74.0060 HDOP=1.2` |
-| **Triangulation Final Result** | `NODE_ID: TRIANGULATION_FINAL: MAC=mac GPS=lat,lon CONF=conf UNC=unc` | `NODE_ABC: TRIANGULATION_FINAL: MAC=AA:BB:CC:DD:EE:FF GPS=40.712800,-74.006000 CONF=85.5 UNC=12.3` |
+| **Triangulation Final Result** | `NODE_ID: TRIANGULATION_FINAL: MAC=mac GPS=lat,lon CONF=confidence % UNC=uncertainty %` | `NODE_ABC: TRIANGULATION_FINAL: MAC=AA:BB:CC:DD:EE:FF GPS=40.712800,-74.006000 CONF=85.5 UNC=12.3` |
 | **Triangulation Complete** | `NODE_ID: TRIANGULATE_COMPLETE: MAC=AA:BB:CC:DD:EE:FF Nodes=N [https://www.google.com/maps?q=lat,lon]` | `NODE_ABC: TRIANGULATE_COMPLETE: MAC=11:22:33:44:55:66 Nodes=5 https://www.google.com/maps?q=40.712800,-74.006000` |
 
 ### Identification & Randomization Alerts
