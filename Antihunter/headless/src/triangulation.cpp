@@ -624,6 +624,9 @@ void stopTriangulation() {
     float estLat = 0.0, estLon = 0.0, confidence = 0.0;
     std::vector<TriangulationNode> gpsNodes;
     for (const auto& node : triangulationNodes) {
+        Serial.printf("[TRIANGULATE] Node %s: hits=%d RSSI=%d GPS=%s\n",
+                      node.nodeId.c_str(), node.hitCount, node.rssi,
+                      node.hasGPS ? "YES" : "NO");
         if (node.hasGPS) {
             gpsNodes.push_back(node);
         }
@@ -633,11 +636,21 @@ void stopTriangulation() {
     String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
                 " Nodes=" + String(gpsNodes.size());
 
-    if (gpsNodes.size() >= 3 && performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
-        resultMsg += " https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+    Serial.printf("[TRIANGULATE] Total nodes: %u, GPS nodes: %u, Initiator: %s\n",
+                  triangulationNodes.size(), gpsNodes.size(), triangulationInitiator ? "YES" : "NO");
 
-        // Broadcast final result to all nodes so everyone sees the same coordinated answer
-        if (triangulationInitiator) {
+    if (gpsNodes.size() >= 3) {
+        Serial.println("[TRIANGULATE] Sufficient GPS nodes, attempting trilateration...");
+        bool trilaterationSuccess = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence);
+        Serial.printf("[TRIANGULATE] Trilateration %s (confidence=%.1f%%)\n",
+                      trilaterationSuccess ? "SUCCESS" : "FAILED",
+                      confidence * 100.0);
+
+        if (trilaterationSuccess) {
+            resultMsg += " https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+
+            // Broadcast final result to all nodes so everyone sees the same coordinated answer
+            if (triangulationInitiator) {
             // Calculate uncertainty (same logic as in calculateTriangulation)
             float avgHDOP = getAverageHDOP(gpsNodes);
             const float UERE = 4.0;
@@ -702,7 +715,14 @@ void stopTriangulation() {
                             " UNC=" + String(cep, 1);
             sendToSerial1(finalMsg, true);
             Serial.printf("[TRIANGULATE] Sent final result: %s\n", finalMsg.c_str());
+        } else {
+            Serial.println("[TRIANGULATE] Not initiator - TRIANGULATION_FINAL not sent");
         }
+    } else {
+        Serial.println("[TRIANGULATE] Trilateration failed - TRIANGULATION_FINAL not sent");
+    }
+    } else {
+        Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) - TRIANGULATION_FINAL not sent\n", gpsNodes.size());
     }
 
     uint32_t delayStart = millis();
