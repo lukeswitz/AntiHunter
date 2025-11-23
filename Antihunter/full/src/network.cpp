@@ -4646,7 +4646,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("TRIANGULATION_FINAL:"))
   {
     // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3 COORD=NODE_ABC
-    String payload = command.substring(14);
+    String payload = command.substring(20);
 
     int gpsIdx = payload.indexOf("GPS=");
     int confIdx = payload.indexOf("CONF=");
@@ -4969,7 +4969,7 @@ void processMeshMessage(const String &message) {
 
         if (content.startsWith("TRIANGULATION_FINAL:")) {
             // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3 COORD=NODE_ABC
-            String payload = content.substring(15);
+            String payload = content.substring(20);
 
             int gpsIdx = payload.indexOf("GPS=");
             int confIdx = payload.indexOf("CONF=");
