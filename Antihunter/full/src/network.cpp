@@ -4946,15 +4946,13 @@ void processMeshMessage(const String &message) {
         }
 
         if (content.startsWith("TRIANGULATION_FINAL:")) {
-            // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3 COORD=NODE_ABC
             String payload = content.substring(20);
 
             int gpsIdx = payload.indexOf("GPS=");
             int confIdx = payload.indexOf("CONF=");
             int uncIdx = payload.indexOf("UNC=");
-            int coordIdx = payload.indexOf("COORD=");
 
-            if (gpsIdx > 0 && confIdx > 0 && uncIdx > 0 && coordIdx > 0) {
+            if (gpsIdx > 0 && confIdx > 0 && uncIdx > 0) {
                 String gpsStr = payload.substring(gpsIdx + 4, confIdx - 1);
                 int comma = gpsStr.indexOf(',');
                 if (comma > 0) {
@@ -4963,8 +4961,7 @@ void processMeshMessage(const String &message) {
                 }
 
                 apFinalResult.confidence = payload.substring(confIdx + 5, uncIdx - 1).toFloat() / 100.0;
-                apFinalResult.uncertainty = payload.substring(uncIdx + 4, coordIdx - 1).toFloat();
-                apFinalResult.coordinatorNodeId = payload.substring(coordIdx + 6);
+                apFinalResult.uncertainty = payload.substring(uncIdx + 4).toFloat();
                 apFinalResult.hasResult = true;
                 apFinalResult.timestamp = millis();
 
