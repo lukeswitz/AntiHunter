@@ -1767,11 +1767,14 @@ void radioStopSTA() {
 
 void radioStartSTA() {
     Serial.println("[RADIO] Starting STA mode");
-    
+
     // Use AP_STA mode instead of just STA
     WiFi.mode(WIFI_AP_STA);
     delay(100);
-    
+
+    // Set WiFi power save to minimum to maintain AP stability during scans
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+
     // Configure STA for scanning while keeping AP alive
     wifi_country_t ctry = {.schan = 1, .nchan = 12, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);

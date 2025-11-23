@@ -167,13 +167,13 @@ void restart_callback(void* arg) {
 }
 
 void initializeNetwork()
-{ 
+{
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
   Serial.println("Initializing mesh UART...");
   initializeMesh();
 
   Serial.println("Starting AP...");
-  WiFi.mode(WIFI_AP);
+  WiFi.mode(WIFI_AP_STA);
   delay(100);
   
   randomizeMacAddress();
@@ -190,6 +190,16 @@ void initializeNetwork()
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
+
+  // Configure WiFi to preserve AP during scans
+  wifi_config_t conf;
+  esp_wifi_get_config(WIFI_IF_AP, &conf);
+  esp_wifi_set_config(WIFI_IF_AP, &conf);
+
+  // Set WiFi power save to minimum to maintain AP stability during scans
+  esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+
+  Serial.println("[WIFI] AP configured with scan coexistence enabled");
   Serial.println("Starting web server...");
   startWebServer();
 }
