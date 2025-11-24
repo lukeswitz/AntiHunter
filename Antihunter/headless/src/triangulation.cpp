@@ -32,6 +32,9 @@ bool triangulationActive = false;
 bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
 DynamicReportingSchedule reportingSchedule;
+std::vector<TriangulateAckInfo> triangulateAcks;
+String triangulationCoordinator = "";
+uint32_t ackCollectionStart = 0;
 
 PathLossCalibration pathLoss = {
     -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
@@ -461,15 +464,58 @@ void startTriangulation(const String &targetMac, int duration) {
     triangulationActive = true;
     triangulationInitiator = true;
     reportingSchedule.reset();
-    
+
+    // Initialize ACK collection for coordinator election
+    triangulateAcks.clear();
+    ackCollectionStart = millis();
+    triangulationCoordinator = "";
+
     Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
-    
+
     broadcastTimeSyncRequest();
     vTaskDelay(pdMS_TO_TICKS(2000));
 
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
     sendMeshCommand(cmd);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // Wait for ACKs to determine participating nodes
+    Serial.println("[TRIANGULATE] Collecting ACKs from mesh nodes...");
+    vTaskDelay(pdMS_TO_TICKS(2500));
+
+    // Add self to ACK list
+    String myNodeId = getNodeId();
+    if (myNodeId.length() == 0) myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+    TriangulateAckInfo selfAck;
+    selfAck.nodeId = myNodeId;
+    selfAck.ackTimestamp = millis();
+    triangulateAcks.push_back(selfAck);
+
+    // Elect coordinator (alphabetically first node ID)
+    std::sort(triangulateAcks.begin(), triangulateAcks.end(),
+              [](const TriangulateAckInfo &a, const TriangulateAckInfo &b) {
+                  return a.nodeId < b.nodeId;
+              });
+
+    if (triangulateAcks.size() > 0) {
+        triangulationCoordinator = triangulateAcks[0].nodeId;
+        bool isCoordinator = (triangulationCoordinator == myNodeId);
+        triangulationInitiator = isCoordinator;
+
+        Serial.printf("[TRIANGULATE] Collected %d ACKs. Coordinator elected: %s %s\n",
+                     triangulateAcks.size(),
+                     triangulationCoordinator.c_str(),
+                     isCoordinator ? "(THIS NODE)" : "");
+
+        for (const auto& ack : triangulateAcks) {
+            Serial.printf("[TRIANGULATE]   - %s (age: %ums)\n",
+                         ack.nodeId.c_str(),
+                         millis() - ack.ackTimestamp);
+        }
+    } else {
+        Serial.println("[TRIANGULATE] WARNING: No ACKs collected, assuming solo operation");
+        triangulationCoordinator = myNodeId;
+        triangulationInitiator = true;
+    }
     
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(
@@ -714,20 +760,49 @@ void stopTriangulation() {
                             " CONF=" + String(confidence * 100.0, 1) +
                             " UNC=" + String(cep, 1);
             sendToSerial1(finalMsg, true);
-            Serial.printf("[TRIANGULATE] Sent final result: %s\n", finalMsg.c_str());
+            Serial.printf("[TRIANGULATE] Coordinator sent final result: %s\n", finalMsg.c_str());
+
+            // Coordinator: wait to allow nodes to process
+            vTaskDelay(pdMS_TO_TICKS(3000));
         } else {
-            Serial.println("[TRIANGULATE] Not initiator - TRIANGULATION_FINAL not sent");
+            Serial.printf("[TRIANGULATE] Not coordinator (coordinator is %s) - waiting for TRIANGULATION_FINAL\n",
+                         triangulationCoordinator.c_str());
+
+            // Non-coordinator: wait for coordinator's final result
+            uint32_t waitStart = millis();
+            uint32_t maxWait = 8000;  // Wait up to 8 seconds for coordinator's result
+            bool receivedFinal = false;
+
+            while ((millis() - waitStart) < maxWait) {
+                if (apFinalResult.hasResult && apFinalResult.coordinatorNodeId == triangulationCoordinator) {
+                    Serial.printf("[TRIANGULATE] Received final result from coordinator %s: %.6f,%.6f\n",
+                                 triangulationCoordinator.c_str(),
+                                 apFinalResult.latitude,
+                                 apFinalResult.longitude);
+                    receivedFinal = true;
+                    break;
+                }
+                vTaskDelay(pdMS_TO_TICKS(200));
+            }
+
+            if (!receivedFinal) {
+                Serial.printf("[TRIANGULATE] WARNING: Did not receive final result from coordinator after %ums\n",
+                             millis() - waitStart);
+            }
         }
     } else {
-        Serial.println("[TRIANGULATE] Trilateration failed - TRIANGULATION_FINAL not sent");
+        if (triangulationInitiator) {
+            Serial.println("[TRIANGULATE] Trilateration failed - TRIANGULATION_FINAL not sent");
+        } else {
+            Serial.println("[TRIANGULATE] Trilateration failed on non-coordinator");
+        }
     }
     } else {
-        Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) - TRIANGULATION_FINAL not sent\n", gpsNodes.size());
-    }
-
-    uint32_t delayStart = millis();
-    while (millis() - delayStart < 3000) {
-        vTaskDelay(pdMS_TO_TICKS(100));
+        if (triangulationInitiator) {
+            Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) - TRIANGULATION_FINAL not sent\n", gpsNodes.size());
+        } else {
+            Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) on non-coordinator\n", gpsNodes.size());
+        }
     }
 
     String myNodeId = getNodeId();
@@ -783,7 +858,21 @@ void stopTriangulation() {
     triAccum.bleRssiSum = 0.0f;
     triAccum.lastSendTime = 0;
 
+    // Clear AP final result
+    apFinalResult.hasResult = false;
+    apFinalResult.latitude = 0.0;
+    apFinalResult.longitude = 0.0;
+    apFinalResult.confidence = 0.0;
+    apFinalResult.uncertainty = 0.0;
+    apFinalResult.timestamp = 0;
+    apFinalResult.coordinatorNodeId = "";
+
     triangulationOrchestratorAssigned = false;
+
+    // Clear ACK tracking
+    triangulateAcks.clear();
+    triangulationCoordinator = "";
+    ackCollectionStart = 0;
 
     Serial.println("[TRIANGULATE] Stopped, results generated, buffers cleared");
 }
