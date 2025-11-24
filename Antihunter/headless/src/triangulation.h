@@ -260,6 +260,11 @@ struct DynamicReportingSchedule {
 };
 
 extern DynamicReportingSchedule reportingSchedule;
+struct TriangulateAckInfo {
+    String nodeId;
+    uint32_t ackTimestamp;
+};
+
 extern ClockDiscipline clockDiscipline;
 extern PathLossCalibration pathLoss;
 extern std::map<String, uint32_t> nodePropagationDelays;
@@ -269,3 +274,6 @@ extern uint32_t triangulationStart;
 extern uint32_t triangulationDuration;
 extern bool triangulationInitiator;
 extern char triangulationTargetIdentity[10];
+extern std::vector<TriangulateAckInfo> triangulateAcks;
+extern String triangulationCoordinator;
+extern uint32_t ackCollectionStart;

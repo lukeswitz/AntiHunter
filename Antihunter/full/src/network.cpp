@@ -4612,26 +4612,66 @@ void processCommand(const String &command, const String &targetId = "")
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
     
-    if (!triangulationActive) {
-        triangulationInitiator = true;
-    } else {
-        triangulationInitiator = false;
-    }
-    
+    // Initialize as child node - coordinator election happens after ACK collection
+    triangulationInitiator = false;
     triangulationActive = true;
     triangulationStart = millis();
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
-    
+
+    // Initialize ACK tracking for coordinator election
+    triangulateAcks.clear();
+    ackCollectionStart = millis();
+    triangulationCoordinator = "";
+
+    Serial.printf("[TRIANGULATE] Child node started for %s (%ds), awaiting coordinator election\n",
+                  target.c_str(), duration);
+
+    // Send ACK immediately
+    sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + target, true);
+
+    // Wait for ACK collection period (3 seconds)
+    vTaskDelay(pdMS_TO_TICKS(3000));
+
+    // Add self to ACK list
+    TriangulateAckInfo selfAck;
+    selfAck.nodeId = nodeId;
+    selfAck.ackTimestamp = millis();
+    triangulateAcks.push_back(selfAck);
+
+    // Elect coordinator (alphabetically first node ID)
+    std::sort(triangulateAcks.begin(), triangulateAcks.end(),
+              [](const TriangulateAckInfo &a, const TriangulateAckInfo &b) {
+                  return a.nodeId < b.nodeId;
+              });
+
+    if (triangulateAcks.size() > 0) {
+        triangulationCoordinator = triangulateAcks[0].nodeId;
+        bool isCoordinator = (triangulationCoordinator == nodeId);
+        triangulationInitiator = isCoordinator;
+
+        Serial.printf("[TRIANGULATE] Collected %d ACKs. Coordinator elected: %s %s\n",
+                     triangulateAcks.size(),
+                     triangulationCoordinator.c_str(),
+                     isCoordinator ? "(THIS NODE)" : "");
+
+        for (const auto& ack : triangulateAcks) {
+            Serial.printf("[TRIANGULATE]   - %s (age: %ums)\n",
+                         ack.nodeId.c_str(),
+                         millis() - ack.ackTimestamp);
+        }
+    } else {
+        Serial.println("[TRIANGULATE] WARNING: No ACKs collected, assuming solo operation");
+        triangulationCoordinator = nodeId;
+        triangulationInitiator = true;
+    }
+
+    // Now start the scan task
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
                                (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
     }
-    
-    Serial.printf("[TRIANGULATE] %s node started for %s (%ds)\n", 
-                  triangulationInitiator ? "INITIATOR" : "CHILD", target.c_str(), duration);
-    sendToSerial1(nodeId + ": TRIANGULATE_ACK:" + target, true);
   }
   else if (command.startsWith("TRIANGULATE_STOP"))
   {
@@ -4943,6 +4983,26 @@ void processMeshMessage(const String &message) {
         if (content.startsWith("TRIANGULATE_ACK:")) {
             Serial.printf("[TRIANGULATE] Node %s acknowledged triangulation command\n",
                           sendingNode.c_str());
+
+            // Track ACK for coordinator election if within collection window
+            if (ackCollectionStart > 0 && (millis() - ackCollectionStart) < 3000) {
+                bool alreadyTracked = false;
+                for (const auto& ack : triangulateAcks) {
+                    if (ack.nodeId == sendingNode) {
+                        alreadyTracked = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyTracked) {
+                    TriangulateAckInfo newAck;
+                    newAck.nodeId = sendingNode;
+                    newAck.ackTimestamp = millis();
+                    triangulateAcks.push_back(newAck);
+                    Serial.printf("[TRIANGULATE] ACK tracked: %s (%d total)\n",
+                                 sendingNode.c_str(), triangulateAcks.size());
+                }
+            }
         }
 
         if (content.startsWith("TRIANGULATION_FINAL:")) {
@@ -4964,8 +5024,9 @@ void processMeshMessage(const String &message) {
                 apFinalResult.uncertainty = payload.substring(uncIdx + 4).toFloat();
                 apFinalResult.hasResult = true;
                 apFinalResult.timestamp = millis();
+                apFinalResult.coordinatorNodeId = sendingNode;  // Store which node sent the final result
 
-                Serial.printf("[TRIANGULATE] Received AP final result from %s: %.6f,%.6f conf=%.1f%% unc=%.1fm\n",
+                Serial.printf("[TRIANGULATE] Received coordinator final result from %s: %.6f,%.6f conf=%.1f%% unc=%.1fm\n",
                             apFinalResult.coordinatorNodeId.c_str(),
                             apFinalResult.latitude,
                             apFinalResult.longitude,
