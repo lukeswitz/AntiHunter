@@ -1793,149 +1793,128 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function parseTriangulationResults(text) {
-        let html = '';
+        let html = '<div style="font-size:13px;">';
         
-        const targetMatch = text.match(/Target MAC: ([A-F0-9:]+)/);
-        const durationMatch = text.match(/Duration: (\d+)s/);
-        const elapsedMatch = text.match(/Elapsed: (\d+)s/);
-        const nodesMatch = text.match(/Reporting Nodes: (\d+)/);
-        const syncMatch = text.match(/Clock Sync: ([^\n]+)/);
-        
-        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        html += '<div style="font-size:14px;color:var(--acc);margin-bottom:10px;font-weight:bold;">TRIANGULATION RESULTS</div>';
-        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:11px;color:var(--mut);">';
-        if (targetMatch) html += '<span>Target: <strong style="color:var(--acc);">' + targetMatch[1] + '</strong></span>';
-        if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + 's</strong></span>';
-        if (elapsedMatch) html += '<span>Elapsed: <strong style="color:var(--txt);">' + elapsedMatch[1] + 's</strong></span>';
-        if (nodesMatch) html += '<span>Nodes: <strong style="color:var(--txt);">' + nodesMatch[1] + '</strong></span>';
-        html += '</div>';
-        if (syncMatch) {
-          const syncColor = syncMatch[1].includes('VERIFIED') ? 'var(--succ)' : 'var(--warn)';
-          html += '<div style="margin-top:8px;font-size:10px;color:' + syncColor + ';">⏱ ' + syncMatch[1] + '</div>';
-        }
-        html += '</div>';
-        
-        if (text.includes('No Mesh Nodes Responding')) {
-          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;text-align:center;color:var(--dang);">';
-          html += '⚠ No mesh nodes responded to triangulation request';
-          html += '</div>';
-          return html;
-        }
-        
-        if (text.includes('TRIANGULATION IMPOSSIBLE')) {
-          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;color:var(--dang);">';
-          html += '<div style="font-weight:bold;margin-bottom:8px;">⚠ Triangulation Impossible</div>';
-          const reasonMatch = text.match(/node\(s\) reporting, but none have GPS/);
-          if (reasonMatch) {
-            html += '<div style="font-size:12px;">None of the reporting nodes have GPS enabled.</div>';
-            html += '<div style="font-size:11px;margin-top:4px;color:var(--warn);">Enable GPS on at least 3 nodes to enable triangulation.</div>';
-          }
-          html += '</div>';
-          return html;
-        }
-        
-        if (text.includes('Insufficient GPS Nodes')) {
-          const gpsMatch = text.match(/GPS nodes: (\d+)\/3/);
-          const totalMatch = text.match(/Total nodes: (\d+)/);
+        const headerSection = text.split('---')[0];
+        if (headerSection.includes('=== Triangulation Results ===')) {
+          const targetMatch = headerSection.match(/Target MAC: ([A-F0-9:]+)/);
+          const durationMatch = headerSection.match(/Duration: (\d+)s/);
+          const elapsedMatch = headerSection.match(/Elapsed: (\d+)s/);
+          const nodesMatch = headerSection.match(/Reporting Nodes: (\d+)/);
+          const syncMatch = headerSection.match(/Clock Sync: (.+)/);
           
-          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--warn);border-radius:8px;color:var(--warn);">';
-          html += '<div style="font-weight:bold;margin-bottom:8px;">⚠ Insufficient GPS Nodes</div>';
-          if (gpsMatch && totalMatch) {
-            html += '<div style="font-size:12px;">GPS nodes: <strong>' + gpsMatch[1] + '</strong>/3 required</div>';
-            html += '<div style="font-size:12px;margin-top:4px;">Total nodes: <strong>' + totalMatch[1] + '</strong></div>';
-          }
-          html += '</div>';
+          html += '<div style="padding:16px;background:var(--surf);border:2px solid var(--acc);border-radius:12px;margin-bottom:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:12px;letter-spacing:-0.01em;">Triangulation Results</div>';
           
-          const gpsNodesSection = text.split('Current GPS nodes:')[1];
-          if (gpsNodesSection) {
-            html += '<div style="margin-top:12px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-            html += '<div style="font-size:11px;color:var(--mut);margin-bottom:8px;font-weight:bold;">GPS NODES AVAILABLE</div>';
-            const gpsLines = gpsNodesSection.split('\n').filter(l => l.includes('•')).slice(0, 5);
-            gpsLines.forEach(line => {
-              const match = line.match(/• ([^\s]+) @ ([-\d.]+),([-\d.]+)/);
-              if (match) {
-                html += '<div style="padding:6px;margin-bottom:4px;background:var(--surf);border-radius:4px;font-size:10px;color:var(--mut);">';
-                html += '<strong style="color:var(--acc);">' + match[1] + '</strong> @ ' + match[2] + ', ' + match[3];
-                html += '</div>';
-              }
-            });
+          if (targetMatch) {
+            html += '<div style="margin:8px 0;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-family:monospace;color:var(--acc);font-size:13px;font-weight:600;">';
+            html += 'TARGET: ' + targetMatch[1];
             html += '</div>';
           }
-          return html;
+          
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px;">';
+          if (durationMatch && elapsedMatch) {
+            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Duration</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + durationMatch[1] + 's</div>';
+            html += '</div>';
+            
+            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Elapsed</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + elapsedMatch[1] + 's</div>';
+            html += '</div>';
+          }
+          
+          if (nodesMatch) {
+            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Nodes</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + nodesMatch[1] + '</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+          
+          if (syncMatch) {
+            const syncVerified = syncMatch[1].includes('VERIFIED');
+            const syncColor = syncVerified ? 'var(--succ)' : 'var(--warn)';
+            html += '<div style="margin-top:12px;padding:8px;background:var(--bg);border-left:3px solid ' + syncColor + ';border-radius:4px;font-size:11px;color:var(--mut);">';
+            html += '⏱ Clock Sync: ' + syncMatch[1];
+            html += '</div>';
+          }
+          html += '</div>';
         }
         
-        const nodeReportsSection = text.split('--- Node Reports ---')[1]?.split('---')[0];
-        if (nodeReportsSection) {
-          html += '<details style="margin-top:12px;margin-bottom:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:12px;" open>';
-          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:bold;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;">';
-          html += '<span style="display:inline-block;transition:transform 0.2s;">▼</span>NODE REPORTS';
+        const nodeSection = text.split('--- Node Reports ---')[1]?.split('---')[0];
+        if (nodeSection) {
+          html += '<details open style="margin-bottom:16px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:700;user-select:none;list-style:none;display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:14px;">';
+          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>Node Reports';
           html += '</summary>';
-          html += '<div style="margin-top:10px;display:grid;gap:8px;">';
+          html += '<div style="display:grid;gap:12px;">';
           
-          const nodeLines = nodeReportsSection.split('\n').filter(l => l.trim() && l.includes(':') && !l.includes('---'));
+          const nodeLines = nodeSection.split('\n').filter(l => l.trim() && l.includes(':'));
           nodeLines.forEach(line => {
-            const match = line.match(/^([^\s:]+): (.+)/);
-            if (match) {
-              const nodeId = match[1];
-              const data = match[2];
+            const nodeMatch = line.match(/^([^:]+):/);
+            if (nodeMatch) {
+              const nodeId = nodeMatch[1].trim();
               
-              const rssiMatch = data.match(/Filtered=([-\d.]+)dBm/);
-              const hitsMatch = data.match(/Hits=(\d+)/);
-              const signalMatch = data.match(/Signal=([\d.]+)%/);
-              const typeMatch = data.match(/Type=(WiFi|BLE)/);
-              const gpsMatch = data.match(/GPS=([-\d.,]+|NO)/);
-              const distMatch = data.match(/Dist=([\d.]+)m/);
-              const hdopMatch = data.match(/HDOP=([\d.]+)/);
+              const gpsMatch = line.match(/GPS=([-\d.]+),([-\d.]+)/);
+              const hdopMatch = line.match(/HDOP=([\d.]+)/);
+              const isGPS = gpsMatch !== null;
               
-              const isGPS = gpsMatch && gpsMatch[1] !== 'NO';
-              const borderColor = isGPS ? 'var(--succ)' : 'var(--bord)';
+              const rssiMatch = line.match(/Filtered=([-\d.]+)dBm/);
+              const hitsMatch = line.match(/Hits=(\d+)/);
+              const signalMatch = line.match(/Signal=([\d.]+)%/);
+              const distMatch = line.match(/Dist=([\d.]+)m/);
               
-              html += '<div style="background:var(--bg);padding:12px;border:1px solid ' + borderColor + ';border-radius:6px;">';
-              html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
-              html += '<div style="font-family:monospace;font-size:11px;color:' + (isGPS ? 'var(--acc)' : 'var(--mut)') + ';">' + nodeId + (isGPS ? ' ✓' : '') + '</div>';
+              html += '<div style="padding:14px;background:var(--bg);border:1px solid var(--bord);border-radius:8px;transition:all 0.2s;">';
               
-              if (typeMatch) {
-                const color = typeMatch[1] === 'BLE' ? '#d896ff' : '#6ab7ff';
-                html += '<span style="background:var(--bg);color:' + color + ';padding:2px 6px;border-radius:3px;font-size:9px;border:1px solid ' + color + ';">' + typeMatch[1] + '</span>';
+              html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+              html += '<div style="color:var(--txt);font-weight:700;font-size:13px;">' + nodeId + '</div>';
+              if (isGPS) {
+                html += '<div style="background:linear-gradient(135deg,var(--succ) 0%,var(--acc) 100%);color:#fff;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">GPS</div>';
+              } else {
+                html += '<div style="background:var(--surf);color:var(--mut);padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid var(--bord);">NO GPS</div>';
               }
-              
               html += '</div>';
               
-              html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;font-size:10px;">';
+              html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:10px;">';
               if (rssiMatch) {
                 const rssiVal = parseFloat(rssiMatch[1]);
-                const rssiColor = rssiVal >= -50 ? 'var(--succ)' : rssiVal >= -70 ? 'var(--warn)' : 'var(--dang)';
-                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
-                html += '<div style="color:var(--mut);font-size:8px;">RSSI</div>';
-                html += '<div style="color:' + rssiColor + ';font-weight:600;">' + rssiMatch[1] + ' dBm</div>';
+                const rssiColor = rssiVal > -60 ? 'var(--succ)' : rssiVal > -75 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">RSSI</div>';
+                html += '<div style="color:' + rssiColor + ';font-weight:700;font-size:14px;">' + rssiMatch[1] + ' dBm</div>';
                 html += '</div>';
               }
               if (hitsMatch) {
-                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
-                html += '<div style="color:var(--mut);font-size:8px;">HITS</div>';
-                html += '<div style="color:var(--txt);font-weight:600;">' + hitsMatch[1] + '</div>';
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Hits</div>';
+                html += '<div style="color:var(--txt);font-weight:700;font-size:14px;">' + hitsMatch[1] + '</div>';
                 html += '</div>';
               }
               if (signalMatch) {
                 const sigVal = parseFloat(signalMatch[1]);
                 const sigColor = sigVal >= 70 ? 'var(--succ)' : sigVal >= 50 ? 'var(--warn)' : 'var(--dang)';
-                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
-                html += '<div style="color:var(--mut);font-size:8px;">QUALITY</div>';
-                html += '<div style="color:' + sigColor + ';font-weight:600;">' + signalMatch[1] + '%</div>';
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Quality</div>';
+                html += '<div style="color:' + sigColor + ';font-weight:700;font-size:14px;">' + signalMatch[1] + '%</div>';
                 html += '</div>';
               }
               if (distMatch) {
-                html += '<div style="background:var(--surf);padding:6px;border-radius:4px;">';
-                html += '<div style="color:var(--mut);font-size:8px;">DISTANCE</div>';
-                html += '<div style="color:var(--txt);font-weight:600;">' + distMatch[1] + 'm</div>';
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Distance</div>';
+                html += '<div style="color:var(--txt);font-weight:700;font-size:14px;">' + distMatch[1] + 'm</div>';
                 html += '</div>';
               }
               html += '</div>';
               
               if (isGPS) {
-                html += '<div style="margin-top:8px;padding:8px;background:var(--surf);border:1px solid var(--succ);border-radius:4px;font-size:9px;color:var(--acc);">';
-                html += '@ ' + gpsMatch[1];
-                if (hdopMatch) html += ' | HDOP: ' + hdopMatch[1];
+                html += '<div style="margin-top:10px;padding:10px;background:var(--surf);border:1px solid var(--acc);border-radius:6px;font-size:10px;font-family:monospace;">';
+                html += '<span style="color:var(--mut);">Location:</span> ';
+                html += '<span style="color:var(--acc);font-weight:600;">' + gpsMatch[1] + ', ' + gpsMatch[2] + '</span>';
+                if (hdopMatch) {
+                  html += '<span style="color:var(--mut);margin-left:12px;">HDOP: <span style="color:var(--txt);font-weight:600;">' + hdopMatch[1] + '</span></span>';
+                }
                 html += '</div>';
               }
               
@@ -1948,11 +1927,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         
         const validationSection = text.split('--- GPS-RSSI Distance Validation ---')[1]?.split('---')[0];
         if (validationSection) {
-          html += '<details style="margin-bottom:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:12px;">';
-          html += '<summary style="cursor:pointer;color:var(--mut);font-weight:600;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;font-size:12px;">';
+          html += '<details open style="margin-bottom:16px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:700;user-select:none;list-style:none;display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:14px;">';
           html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>GPS-RSSI Validation';
           html += '</summary>';
-          html += '<div style="margin-top:10px;display:grid;gap:6px;">';
+          html += '<div style="display:grid;gap:8px;">';
           
           const valLines = validationSection.split('\n').filter(l => l.trim() && (l.includes('<->') || l.includes('Avg error')));
           valLines.forEach(line => {
@@ -1960,93 +1939,93 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const checkMark = line.includes('✓') ? '✓' : '✗';
               const color = line.includes('✓') ? 'var(--succ)' : 'var(--dang)';
               const cleanLine = line.replace(/✓|✗/g, '').trim();
-              html += '<div style="padding:6px;background:var(--bg);border-left:3px solid ' + color + ';font-size:10px;color:var(--mut);">';
-              html += '<span style="color:' + color + ';font-weight:bold;">' + checkMark + '</span> ' + cleanLine;
+              html += '<div style="padding:10px;background:var(--bg);border-left:3px solid ' + color + ';border-radius:6px;font-size:11px;color:var(--txt);">';
+              html += '<span style="color:' + color + ';font-weight:bold;margin-right:8px;">' + checkMark + '</span>' + cleanLine;
               html += '</div>';
             } else if (line.includes('Avg error')) {
               const errorMatch = line.match(/([\d.]+)%/);
-              let quality = 'POOR';
-              let color = 'var(--dang)';
+              const qualityMatch = line.match(/\(([^)]+)\)/);
               if (errorMatch) {
-                const error = parseFloat(errorMatch[1]);
-                if (error < 25) { quality = 'GOOD'; color = 'var(--succ)'; }
-                else if (error < 50) { quality = 'FAIR'; color = 'var(--warn)'; }
+                const errVal = parseFloat(errorMatch[1]);
+                const errColor = errVal < 25 ? 'var(--succ)' : errVal < 50 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div style="margin-top:8px;padding:14px;background:var(--bg);border:2px solid ' + errColor + ';border-radius:8px;">';
+                html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Average Error</div>';
+                html += '<div style="color:' + errColor + ';font-weight:700;font-size:20px;margin-bottom:4px;">' + errorMatch[1] + '%</div>';
+                if (qualityMatch) {
+                  html += '<div style="color:var(--txt);font-size:12px;font-weight:600;">' + qualityMatch[1] + '</div>';
+                }
+                html += '</div>';
               }
-              html += '<div style="padding:8px;background:var(--bg);border:1px solid ' + color + ';border-radius:4px;margin-top:8px;color:' + color + ';font-weight:600;">';
-              html += line.trim() + ' - <span style="font-style:italic;">' + quality + '</span>';
-              html += '</div>';
             }
           });
           
           html += '</div></details>';
         }
         
-        const trilaterSection = text.split('--- Weighted GPS Trilateration ---')[1]?.split('===')[0];
-        if (trilaterSection && trilaterSection.includes('ESTIMATED POSITION')) {
-          const latMatch = trilaterSection.match(/Latitude:\s*([-\d.]+)/);
-          const lonMatch = trilaterSection.match(/Longitude:\s*([-\d.]+)/);
-          const confMatch = trilaterSection.match(/Confidence:\s*([\d.]+)%/);
-          const cepMatch = trilaterSection.match(/Uncertainty \(CEP68\):\s*±([\d.]+)m/);
-          const uncMatch = trilaterSection.match(/Uncertainty \(95%\):\s*±([\d.]+)m/);
-          const mapsMatch = trilaterSection.match(/(https:\/\/www\.google\.com\/maps[^\s]+)/);
+        const positionSection = text.split('ESTIMATED POSITION:')[1]?.split('===')[0];
+        if (positionSection) {
+          const latMatch = positionSection.match(/Latitude:\s*([-\d.]+)/);
+          const lonMatch = positionSection.match(/Longitude:\s*([-\d.]+)/);
+          const confMatch = positionSection.match(/Confidence:\s*([\d.]+)%/);
+          const uncertaintyMatch = positionSection.match(/Uncertainty.*?±([\d.]+)m/);
+          const methodMatch = positionSection.match(/Method:\s*([^\n]+)/);
           
-          html += '<div style="margin-top:12px;padding:16px;background:var(--bg);border:2px solid var(--succ);border-radius:8px;">';
-          html += '<div style="font-size:14px;color:var(--succ);margin-bottom:12px;font-weight:bold;">✓ POSITION ESTIMATED</div>';
+          html += '<div style="padding:20px;background:var(--surf);border:2px solid var(--acc);border-radius:12px;margin-bottom:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:16px;letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;">';
+          html += '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+          html += 'Position Estimated</div>';
           
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
-          
-          if (latMatch) {
-            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">LATITUDE</div>';
-            html += '<div style="font-family:monospace;font-size:12px;color:var(--acc);">' + latMatch[1] + '</div>';
+          if (latMatch && lonMatch) {
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">';
+            
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Latitude</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:16px;font-family:monospace;">' + latMatch[1] + '</div>';
             html += '</div>';
-          }
-          
-          if (lonMatch) {
-            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">LONGITUDE</div>';
-            html += '<div style="font-family:monospace;font-size:12px;color:var(--acc);">' + lonMatch[1] + '</div>';
+            
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Longitude</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:16px;font-family:monospace;">' + lonMatch[1] + '</div>';
             html += '</div>';
-          }
-          
-          if (confMatch) {
-            const confVal = parseFloat(confMatch[1]);
-            const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
-            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">CONFIDENCE</div>';
-            html += '<div style="font-size:14px;color:' + confColor + ';font-weight:bold;">' + confMatch[1] + '%</div>';
+            
             html += '</div>';
-          }
-          
-          html += '</div>';
-          
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
-          
-          if (cepMatch) {
-            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">CEP68 ±</div>';
-            html += '<div style="font-size:13px;color:var(--warn);font-weight:600;">' + cepMatch[1] + 'm</div>';
+            
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
+            
+            if (confMatch) {
+              const confVal = parseFloat(confMatch[1]);
+              const confColor = confVal >= 70 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
+              html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+              html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Confidence</div>';
+              html += '<div style="color:' + confColor + ';font-weight:700;font-size:18px;">' + confMatch[1] + '%</div>';
+              html += '</div>';
+            }
+            
+            if (uncertaintyMatch) {
+              html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+              html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Uncertainty (CEP68)</div>';
+              html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">±' + uncertaintyMatch[1] + 'm</div>';
+              html += '</div>';
+            }
+            
             html += '</div>';
-          }
-          
-          if (uncMatch) {
-            html += '<div style="background:var(--surf);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:9px;color:var(--mut);margin-bottom:4px;">95% Confidence ±</div>';
-            html += '<div style="font-size:13px;color:var(--warn);font-weight:600;">' + uncMatch[1] + 'm</div>';
-            html += '</div>';
-          }
-          
-          html += '</div>';
-          
-          if (mapsMatch) {
-            html += '<a href="' + mapsMatch[1] + '" target="_blank" style="display:inline-block;background:var(--succ);color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:12px;margin-top:8px;">';
-            html += '@ Open in Google Maps';
+            
+            if (methodMatch) {
+              html += '<div style="padding:10px;background:var(--bg);border-left:3px solid var(--acc);border-radius:4px;font-size:11px;color:var(--mut);margin-bottom:12px;">';
+              html += '<span style="font-weight:600;color:var(--txt);">Method:</span> ' + methodMatch[1];
+              html += '</div>';
+            }
+            
+            const mapsUrl = 'https://www.google.com/maps?q=' + latMatch[1] + ',' + lonMatch[1];
+            html += '<a href="' + mapsUrl + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;background:var(--acc);border:2px solid var(--acc);border-radius:8px;color:#fff;text-decoration:none;font-weight:600;font-size:13px;transition:all 0.2s;box-shadow:var(--glow);">';
+            html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+            html += 'Open in Google Maps';
             html += '</a>';
           }
           
           html += '</div>';
         }
-        
+        html += '</div>';
         return html;
       }
 
