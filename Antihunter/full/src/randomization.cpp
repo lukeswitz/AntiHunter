@@ -1494,7 +1494,7 @@ void randomizationDetectionTask(void *pv) {
                         identityMsg += " Anchor:" + macFmt6(identity.macs[0].bytes.data());
                     }
                     
-                    if (identityMsg.length() < MAX_MESH_SIZE) {
+                    if (identityMsg.length() <= MAX_MESH_SIZE) {
                         if (sendToSerial1(identityMsg, true)) {
                             transmittedIdentities.insert(identityKey);
                             sentThisCycle++;
@@ -1553,7 +1553,7 @@ void randomizationDetectionTask(void *pv) {
                     identityMsg += " Anchor:" + macFmt6(identity.macs[0].bytes.data());
                 }
                 
-                if (identityMsg.length() < MAX_MESH_SIZE) {
+                if (identityMsg.length() <= MAX_MESH_SIZE) {
                     if (sendToSerial1(identityMsg, true)) {
                         transmittedIdentities.insert(identityKey);
                     }

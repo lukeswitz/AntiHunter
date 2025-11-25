@@ -490,7 +490,7 @@ void droneDetectorTask(void *pv)
                                 "," + String(entry.second.operatorLon, 6);
                     }
                     
-                    if (droneMsg.length() < MAX_MESH_SIZE && sendToSerial1(droneMsg, true)) {
+                    if (droneMsg.length() <= MAX_MESH_SIZE && sendToSerial1(droneMsg, true)) {
                         transmittedDrones.insert(droneId);
                         sentThisCycle++;
                         
@@ -546,7 +546,7 @@ void droneDetectorTask(void *pv)
                             "," + String(entry.second.operatorLon, 6);
                 }
                 
-                if (droneMsg.length() < MAX_MESH_SIZE) {
+                if (droneMsg.length() <= MAX_MESH_SIZE) {
                     if (sendToSerial1(droneMsg, true)) {
                         transmittedDrones.insert(droneId);
                     }
