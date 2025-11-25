@@ -4537,12 +4537,11 @@ void processCommand(const String &command, const String &targetId = "")
       uint32_t uptime_hours = uptime_mins / 60;
       char status_msg[240];
       int written = snprintf(status_msg, sizeof(status_msg),
-                            "%s: STATUS: Mode:%s Scan:%s Hits:%d Unique:%d Temp:%.1fC Up:%02d:%02d:%02d",
+                            "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
                             nodeId.c_str(),
                             modeStr.c_str(),
                             scanning ? "ACTIVE" : "IDLE",
                             totalHits,
-                            (int)uniqueMacs.size(),
                             esp_temp,
                             (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
       if (gpsValid && written > 0 && written < MAX_MESH_SIZE)
