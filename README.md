@@ -493,6 +493,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds. **Must send to @ALL** | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@ALL TRIANGULATE_START:T-002F:300` |
 | `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results | `@NODE1 TRIANGULATE_RESULTS` |
+| `ERASE_REQUEST` | None | Requests erase token from device (required for headless/radio-only nodes) | `@AH01 ERASE_REQUEST` |
 | `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
 
@@ -572,7 +573,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Deauth ACK** | `NODE_ID: DEAUTH_ACK:STARTED` | `NODE_ABC: DEAUTH_ACK:STARTED` |
 | **Randomization ACK** | `NODE_ID: RANDOMIZATION_ACK:STARTED` | `NODE_ABC: RANDOMIZATION_ACK:STARTED` |
 | **Baseline ACK** | `NODE_ID: BASELINE_ACK:STARTED` | `NODE_ABC: BASELINE_ACK:STARTED` |
-| **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices:42 Anomalies:3 Phase1:ACTIVE` |
+| **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:INACTIVE/ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices:42 Anomalies:3 Phase1:ACTIVE` |
 | **Triangulation ACK (Success)** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-0001` |
 | **Triangulation ACK (Error)** | `NODE_ID: TRIANGULATE_ACK:INVALID_FORMAT` | `NODE_ABC: TRIANGULATE_ACK:INVALID_FORMAT` |
 | **Triangulation Results Start** | `NODE_ID: TRIANGULATE_RESULTS_START` | `NODE_ABC: TRIANGULATE_RESULTS_START` |
@@ -580,9 +581,11 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Triangulation Results (No Data)** | `NODE_ID: TRIANGULATE_RESULTS:NO_DATA` | `NODE_ABC: TRIANGULATE_RESULTS:NO_DATA` |
 | **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
 | **Stop ACK** | `NODE_ID: STOP_ACK:OK` | `NODE_ABC: STOP_ACK:OK` |
+| **Erase Token (Active Tamper)** | `NODE_ID: ERASE_TOKEN:token Time:Xs` | `NODE_ABC: ERASE_TOKEN:AH_12345678_87654321_00001234 Time:25s` |
+| **Erase Token (No Tamper)** | `NODE_ID: ERASE_TOKEN:NONE` | `NODE_ABC: ERASE_TOKEN:NONE` |
 | **Erase ACK (Complete)** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
 | **Erase ACK (Cancelled)** | `NODE_ID: ERASE_ACK:CANCELLED` | `NODE_ABC: ERASE_ACK:CANCELLED` |
-| **Erase Token** | `NODE_ID: WIPE_TOKEN:token_string` | `NODE_ABC: WIPE_TOKEN:AH_12AB34CD_56EF78GH_1234567890` |
+| **Erase Token (Legacy Web)** | `NODE_ID: WIPE_TOKEN:token_string` | `NODE_ABC: WIPE_TOKEN:AH_12AB34CD_56EF78GH_1234567890` |
 | **Reboot ACK** | `NODE_ID: REBOOT_ACK` | `NODE_ABC: REBOOT_ACK` |
 ---
 
