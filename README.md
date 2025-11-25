@@ -428,6 +428,9 @@ Change SSID and password in RF Settings panel.
 
 AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communication, creating a robust long-range sensor network.
 
+> [!IMPORTANT]
+> Early release, only officially Meshtastic supported devices using v2.6.x firmware is fully supported. 
+
 ### **Key Features**
 - **Extended Range**: LoRa mesh extends detection beyond WiFi/Bluetooth range
 - **Node Coordination**: Distributed scanning and data sharing across nodes
