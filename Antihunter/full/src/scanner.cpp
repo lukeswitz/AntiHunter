@@ -833,7 +833,7 @@ void snifferScanTask(void *pv)
                         deviceMsg += " N:" + ssid.substring(0, 30);
                     }
                     
-                    if (deviceMsg.length() < MAX_MESH_SIZE) {
+                    if (deviceMsg.length() <= MAX_MESH_SIZE) {
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
@@ -869,7 +869,7 @@ void snifferScanTask(void *pv)
                         deviceMsg += " N:" + name.substring(0, 30);
                     }
 
-                    if (deviceMsg.length() < MAX_MESH_SIZE) {
+                    if (deviceMsg.length() <= MAX_MESH_SIZE) {
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
@@ -971,7 +971,7 @@ void snifferScanTask(void *pv)
                 if (entry.second.length() > 0 && entry.second != "[Hidden]") {
                     deviceMsg += " N:" + entry.second.substring(0, 30);
                 }
-                if (deviceMsg.length() < MAX_MESH_SIZE) {
+                if (deviceMsg.length() <= MAX_MESH_SIZE) {
                     if (sendToSerial1(deviceMsg, true)) {
                         transmittedDevices.insert(entry.first);
                     }
@@ -995,7 +995,7 @@ void snifferScanTask(void *pv)
                 if (entry.second.length() > 0 && entry.second != "Unknown") {
                     deviceMsg += " N:" + entry.second.substring(0, 30);
                 }
-                if (deviceMsg.length() < MAX_MESH_SIZE) {
+                if (deviceMsg.length() <= MAX_MESH_SIZE) {
                     if (sendToSerial1(deviceMsg, true)) {
                         transmittedDevices.insert(entry.first);
                     }
@@ -1310,7 +1310,7 @@ void blueTeamTask(void *pv) {
                     attackMsg += " " + srcMac + "->" + dstMac;
                     attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
                     
-                    if (attackMsg.length() < MAX_MESH_SIZE && sendToSerial1(attackMsg, true)) {
+                    if (attackMsg.length() <= MAX_MESH_SIZE && sendToSerial1(attackMsg, true)) {
                         transmittedAttacks.insert(attackKey);
                         sentThisCycle++;
                         
@@ -1400,7 +1400,7 @@ void blueTeamTask(void *pv) {
                 attackMsg += " " + srcMac + "->" + dstMac;
                 attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
                 
-                if (attackMsg.length() < MAX_MESH_SIZE) {
+                if (attackMsg.length() <= MAX_MESH_SIZE) {
                     if (sendToSerial1(attackMsg, true)) {
                         transmittedAttacks.insert(attackKey);
                     }

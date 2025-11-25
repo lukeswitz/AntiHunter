@@ -4234,10 +4234,9 @@ void sendMeshNotification(const Hit &hit) {
         baseMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
     
-    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg) - 1, "%s", baseMsg.c_str());
-    
-    if (msg_len > 0 && msg_len < MAX_MESH_SIZE) {
-        mesh_msg[msg_len] = '\0';
+    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());
+
+    if (msg_len > 0 && msg_len <= sizeof(mesh_msg) - 1) {
         delay(10);
         Serial.printf("[MESH] %s\n", mesh_msg);
         sendToSerial1(String(mesh_msg), false);
@@ -4535,7 +4534,7 @@ void processCommand(const String &command, const String &targetId = "")
       uint32_t uptime_secs = millis() / 1000;
       uint32_t uptime_mins = uptime_secs / 60;
       uint32_t uptime_hours = uptime_mins / 60;
-      char status_msg[240];
+      char status_msg[MAX_MESH_SIZE];
       int written = snprintf(status_msg, sizeof(status_msg),
                             "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
                             nodeId.c_str(),
@@ -4544,7 +4543,7 @@ void processCommand(const String &command, const String &targetId = "")
                             totalHits,
                             esp_temp,
                             (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
-      if (gpsValid && written > 0 && written < MAX_MESH_SIZE)
+      if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)
       {
           float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
           snprintf(status_msg + written, sizeof(status_msg) - written,
@@ -5085,7 +5084,7 @@ void processUSBToMesh() {
         // Only process printable ASCII characters and line endings for mesh
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
-                if (usbBuffer.length() > 5 && usbBuffer.length() <= 240) {  // Mesh 240 char limit
+                if (usbBuffer.length() > 5 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {
@@ -5100,8 +5099,8 @@ void processUSBToMesh() {
         }
         
         // Prevent buffer overflow at mesh limit
-        if (usbBuffer.length() > 240) {
-            Serial.println("[MESH] at 240 chars, clearing");
+        if (usbBuffer.length() > MAX_MESH_SIZE) {
+            Serial.println("[MESH] at 200 chars, clearing");
             usbBuffer = "";
         }
     }
