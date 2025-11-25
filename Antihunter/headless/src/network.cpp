@@ -594,14 +594,97 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command == "ERASE_REQUEST")
   {
-    if (tamperEraseActive && tamperAuthToken.length() > 0) {
-      uint32_t timeLeft = (autoEraseDelay - (millis() - tamperSequenceStart)) / 1000;
-      sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Time:" + String(timeLeft) + "s", true);
-      Serial.printf("[ERASE] Token requested - %us remaining\n", timeLeft);
-    } else {
-      sendToSerial1(nodeId + ": ERASE_TOKEN:NONE", true);
-      Serial.println("[ERASE] No active tamper sequence");
+    // If no token exists, generate one and start tamper sequence
+    if (!tamperEraseActive || tamperAuthToken.length() == 0) {
+      tamperAuthToken = generateEraseToken();
+      tamperEraseActive = true;
+      tamperSequenceStart = millis();
+      Serial.printf("[ERASE] Token auto-generated on request: %s\n", tamperAuthToken.c_str());
     }
+
+    uint32_t timeLeft = (autoEraseDelay - (millis() - tamperSequenceStart)) / 1000;
+    sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Time:" + String(timeLeft) + "s", true);
+    Serial.printf("[ERASE] Token provided - %us remaining\n", timeLeft);
+  }
+  else if (command.startsWith("AUTOERASE_ENABLE"))
+  {
+    // Format: AUTOERASE_ENABLE[:setupDelay:eraseDelay:vibrationsRequired:detectionWindow:cooldown]
+    if (command.length() > 16 && command.charAt(16) == ':') {
+      // Parse parameters
+      String params = command.substring(17);
+      int idx1 = params.indexOf(':');
+      int idx2 = params.indexOf(':', idx1 + 1);
+      int idx3 = params.indexOf(':', idx2 + 1);
+      int idx4 = params.indexOf(':', idx3 + 1);
+
+      if (idx1 > 0 && idx2 > 0 && idx3 > 0 && idx4 > 0) {
+        setupDelay = params.substring(0, idx1).toInt() * 1000;
+        autoEraseDelay = params.substring(idx1 + 1, idx2).toInt() * 1000;
+        vibrationsRequired = params.substring(idx2 + 1, idx3).toInt();
+        detectionWindow = params.substring(idx3 + 1, idx4).toInt() * 1000;
+        autoEraseCooldown = params.substring(idx4 + 1).toInt() * 1000;
+
+        // Validate ranges
+        if (setupDelay < 30000) setupDelay = 30000;
+        if (setupDelay > 600000) setupDelay = 600000;
+        if (autoEraseDelay < 10000) autoEraseDelay = 10000;
+        if (autoEraseDelay > 300000) autoEraseDelay = 300000;
+        if (vibrationsRequired < 2) vibrationsRequired = 2;
+        if (vibrationsRequired > 5) vibrationsRequired = 5;
+        if (detectionWindow < 10000) detectionWindow = 10000;
+        if (detectionWindow > 60000) detectionWindow = 60000;
+        if (autoEraseCooldown < 300000) autoEraseCooldown = 300000;
+        if (autoEraseCooldown > 3600000) autoEraseCooldown = 3600000;
+      }
+    }
+
+    autoEraseEnabled = true;
+    inSetupMode = true;
+    setupStartTime = millis();
+    saveConfiguration();
+
+    String response = nodeId + ": AUTOERASE_ACK:ENABLED Setup:" + String(setupDelay/1000) +
+                      "s Erase:" + String(autoEraseDelay/1000) + "s Vibs:" + String(vibrationsRequired) +
+                      " Window:" + String(detectionWindow/1000) + "s Cooldown:" + String(autoEraseCooldown/1000) + "s";
+    sendToSerial1(response, true);
+    Serial.printf("[AUTOERASE] Enabled - setup mode active for %us\n", setupDelay/1000);
+  }
+  else if (command == "AUTOERASE_DISABLE")
+  {
+    autoEraseEnabled = false;
+    inSetupMode = false;
+    saveConfiguration();
+    sendToSerial1(nodeId + ": AUTOERASE_ACK:DISABLED", true);
+    Serial.println("[AUTOERASE] Disabled");
+  }
+  else if (command == "AUTOERASE_STATUS")
+  {
+    String status = nodeId + ": AUTOERASE_STATUS: ";
+    status += "Enabled:" + String(autoEraseEnabled ? "YES" : "NO");
+
+    if (autoEraseEnabled) {
+      if (inSetupMode) {
+        uint32_t timeLeft = (setupDelay - (millis() - setupStartTime)) / 1000;
+        status += " SetupMode:ACTIVE Activates:" + String(timeLeft) + "s";
+      } else {
+        status += " SetupMode:COMPLETE";
+      }
+
+      if (tamperEraseActive) {
+        uint32_t eraseTime = (autoEraseDelay - (millis() - tamperSequenceStart)) / 1000;
+        status += " TamperActive:YES EraseIn:" + String(eraseTime) + "s";
+      } else {
+        status += " TamperActive:NO";
+      }
+
+      status += " Setup:" + String(setupDelay/1000) + "s";
+      status += " Erase:" + String(autoEraseDelay/1000) + "s";
+      status += " Vibs:" + String(vibrationsRequired);
+      status += " Window:" + String(detectionWindow/1000) + "s";
+      status += " Cooldown:" + String(autoEraseCooldown/1000) + "s";
+    }
+
+    sendToSerial1(status, true);
   }
 }
 
