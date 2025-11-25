@@ -27,6 +27,7 @@ public:
 bool sendToSerial1(const String &message, bool canDelay = true);
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
+extern const int MAX_MESH_SIZE;
 extern SerialRateLimiter rateLimiter;
 extern AsyncWebServer *server;
 extern bool meshEnabled;

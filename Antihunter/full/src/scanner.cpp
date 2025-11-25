@@ -833,11 +833,11 @@ void snifferScanTask(void *pv)
                         deviceMsg += " N:" + ssid.substring(0, 30);
                     }
                     
-                    if (deviceMsg.length() < 230) {
+                    if (deviceMsg.length() < MAX_MESH_SIZE) {
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
-                            
+
                             if (sentThisCycle % 2 == 0) {
                                 delay(1000);
                                 rateLimiter.refillTokens();
@@ -846,16 +846,16 @@ void snifferScanTask(void *pv)
                     }
                 }
             }
-            
+
             for (const auto& entry : bleDeviceCache)
             {
                 String macStr = entry.first;
                 String name = entry.second;
-                
+
                 if (transmittedDevices.find(macStr) == transmittedDevices.end())
                 {
                     String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " B ";
-                    
+
                     int8_t bestRssi = -128;
                     for (const auto& hit : hitsLog) {
                         String hitMac = macFmt6(hit.mac);
@@ -863,13 +863,13 @@ void snifferScanTask(void *pv)
                             bestRssi = hit.rssi;
                         }
                     }
-                    
+
                     deviceMsg += String(bestRssi);
                     if (name.length() > 0 && name != "Unknown") {
                         deviceMsg += " N:" + name.substring(0, 30);
                     }
-                    
-                    if (deviceMsg.length() < 230) {
+
+                    if (deviceMsg.length() < MAX_MESH_SIZE) {
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
@@ -971,14 +971,14 @@ void snifferScanTask(void *pv)
                 if (entry.second.length() > 0 && entry.second != "[Hidden]") {
                     deviceMsg += " N:" + entry.second.substring(0, 30);
                 }
-                if (deviceMsg.length() < 230) {
+                if (deviceMsg.length() < MAX_MESH_SIZE) {
                     if (sendToSerial1(deviceMsg, true)) {
                         transmittedDevices.insert(entry.first);
                     }
                 }
             }
         }
-        
+
         for (const auto& entry : bleDeviceCache)
         {
             if (transmittedDevices.find(entry.first) == transmittedDevices.end())
@@ -995,7 +995,7 @@ void snifferScanTask(void *pv)
                 if (entry.second.length() > 0 && entry.second != "Unknown") {
                     deviceMsg += " N:" + entry.second.substring(0, 30);
                 }
-                if (deviceMsg.length() < 230) {
+                if (deviceMsg.length() < MAX_MESH_SIZE) {
                     if (sendToSerial1(deviceMsg, true)) {
                         transmittedDevices.insert(entry.first);
                     }
@@ -1310,7 +1310,7 @@ void blueTeamTask(void *pv) {
                     attackMsg += " " + srcMac + "->" + dstMac;
                     attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
                     
-                    if (attackMsg.length() < 230 && sendToSerial1(attackMsg, true)) {
+                    if (attackMsg.length() < MAX_MESH_SIZE && sendToSerial1(attackMsg, true)) {
                         transmittedAttacks.insert(attackKey);
                         sentThisCycle++;
                         
@@ -1400,7 +1400,7 @@ void blueTeamTask(void *pv) {
                 attackMsg += " " + srcMac + "->" + dstMac;
                 attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
                 
-                if (attackMsg.length() < 230) {
+                if (attackMsg.length() < MAX_MESH_SIZE) {
                     if (sendToSerial1(attackMsg, true)) {
                         transmittedAttacks.insert(attackKey);
                     }

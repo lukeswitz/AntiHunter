@@ -454,7 +454,7 @@ void baselineDetectionTask(void *pv) {
                     deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
                 }
                 
-                if (deviceMsg.length() < 230) {
+                if (deviceMsg.length() < MAX_MESH_SIZE) {
                     if (sendToSerial1(deviceMsg, true)) {
                         transmittedDevices.insert(macStr);
                         sentThisCycle++;
@@ -656,7 +656,7 @@ void baselineDetectionTask(void *pv) {
                         deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
                     }
                     
-                    if (deviceMsg.length() < 230) {
+                    if (deviceMsg.length() < MAX_MESH_SIZE) {
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
@@ -682,7 +682,7 @@ void baselineDetectionTask(void *pv) {
                         anomalyMsg += " N:" + String(anomaly.name).substring(0, 20);
                     }
                     
-                    if (anomalyMsg.length() < 230) {
+                    if (anomalyMsg.length() < MAX_MESH_SIZE) {
                         if (sendToSerial1(anomalyMsg, true)) {
                             transmittedAnomalies.insert(macStr);
                             sentThisCycle++;
