@@ -280,6 +280,15 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("BASELINE_STATUS"))
   {
     char status_msg[MAX_MESH_SIZE];
+    const char* phase1Status;
+    if (!baselineStats.isScanning) {
+      phase1Status = "INACTIVE";
+    } else if (!baselineStats.phase1Complete) {
+      phase1Status = "ACTIVE";
+    } else {
+      phase1Status = "COMPLETE";
+    }
+
     snprintf(status_msg, sizeof(status_msg),
              "%s: BASELINE_STATUS: Scanning:%s Established:%s Devices:%d Anomalies:%d Phase1:%s",
              nodeId.c_str(),
@@ -287,7 +296,7 @@ void processCommand(const String &command, const String &targetId = "")
              baselineEstablished ? "YES" : "NO",
              baselineDeviceCount,
              anomalyCount,
-             baselineStats.phase1Complete ? "COMPLETE" : "ACTIVE");
+             phase1Status);
     sendToSerial1(String(status_msg), true);
   }
   else if (command.startsWith("DEVICE_SCAN_START:"))
@@ -582,6 +591,17 @@ void processCommand(const String &command, const String &targetId = "")
   {
     cancelTamperErase();
     sendToSerial1(nodeId + ": ERASE_ACK:CANCELLED", true);
+  }
+  else if (command == "ERASE_REQUEST")
+  {
+    if (tamperEraseActive && tamperAuthToken.length() > 0) {
+      uint32_t timeLeft = (autoEraseDelay - (millis() - tamperSequenceStart)) / 1000;
+      sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Time:" + String(timeLeft) + "s", true);
+      Serial.printf("[ERASE] Token requested - %us remaining\n", timeLeft);
+    } else {
+      sendToSerial1(nodeId + ": ERASE_TOKEN:NONE", true);
+      Serial.println("[ERASE] No active tamper sequence");
+    }
   }
 }
 
