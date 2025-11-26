@@ -283,10 +283,9 @@ AntiHunter operates as a distributed sensor network where each node functions in
 ### **Command Center Integration**
 While individual nodes provide standalone capability, the full system power comes from integration with a central command center that:
 - Aggregates detection data from all nodes
-- Performs advanced trilateration calculations
 - Provides real-time mapping and visualization
-- Enables coordinated response operations
-- Maintains historical threat intelligence
+- Enables coordinated/scheduled response operations
+- A lot more... stay tuned, public release soon. 
 
 ---
 
