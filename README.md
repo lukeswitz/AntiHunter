@@ -40,8 +40,6 @@ Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalab
 
 ![image](https://github.com/user-attachments/assets/b3be1602-c651-41d2-9caf-c2e4956d3aff)
 
-# AntiHunter Scanning Capabilities
-
 ## 1. List Scan Mode
 
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
