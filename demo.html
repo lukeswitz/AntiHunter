@@ -1,0 +1,3459 @@
+<!doctype html>
+<html data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AntiHunter Demo</title>
+    <script>
+      // Mock API Layer for Demo
+      (function() {
+        const originalFetch = window.fetch;
+
+        // Mutable state for demo
+        const demoState = {
+          currentResults: `Sniffer scan - Mode: WiFi+BLE Duration: 30s
+WiFi Frames seen: 1247
+BLE Frames seen: 458
+Total hits: 5
+Unique devices: 10
+
+WiFi AA:BB:CC:DD:EE:01 RSSI=-65dBm CH=6 "iPhone-John"
+WiFi 11:22:33:44:55:66 RSSI=-72dBm CH=6 "NETGEAR_Router"
+BLE 02:9F:C2:3D:92:CE RSSI=-68dBm "Galaxy_Buds"
+WiFi FF:EE:DD:CC:BB:AA RSSI=-58dBm CH=11 "TP-Link_5G"
+BLE 12:34:56:78:9A:BC RSSI=-75dBm "Tile_Tracker"
+WiFi DE:AD:BE:EF:CA:FE RSSI=-61dBm CH=6 "Amazon_Echo"
+BLE 01:23:45:67:89:AB RSSI=-70dBm "Apple_Watch"
+WiFi BA:DB:AD:BA:DB:AD RSSI=-55dBm CH=11
+WiFi C0:FF:EE:C0:FF:EE RSSI=-82dBm CH=1 "Xfinity_Hotspot"
+BLE AA:11:BB:22:CC:33 RSSI=-79dBm "Fitbit_Sense"`,
+          lastDetectionMode: 'device-scan',
+          isScanning: false,
+          scanMode: 'WiFi+BLE',
+          taskType: 'none'
+        };
+
+        const mockResponses = {
+          '/node-id': { nodeId: 'DEMO' },
+          '/export': `AA:BB:CC:DD:EE:01
+11:22:33:44:55:66
+FF:EE:DD:CC:BB:AA`,
+          '/allowlist-export': `AA:BB:CC:DD:EE:01
+11:22:33:44:55:66`,
+          '/diag': `=== System Diagnostics ===
+Node ID: DEMO
+Uptime: 03:24:15
+Free Heap: 187,432 bytes
+Temperature: 42.3°C
+
+WiFi Status: Active
+Scan Mode: WiFi+BLE
+Total Hits: 1,247
+
+GPS: VALID
+Latitude: 40.712800
+Longitude: -74.006000
+Satellites: 12
+HDOP: 1.2
+
+SD Card: MOUNTED
+Type: SDHC
+Size: 32 GB
+Free: 29.6 GB`,
+          '/rf-config': {
+            preset: 1,
+            wifiChannelTime: 160,
+            wifiScanInterval: 6000,
+            bleScanInterval: 3000,
+            bleScanDuration: 3000,
+            wifiChannels: '1,6,11',
+            globalRssiThreshold: -90
+          },
+          '/wifi-config': {
+            ssid: 'Antihunter',
+            password: 'antihunt3r123',
+            ip: '192.168.4.1'
+          },
+          '/mesh-interval': { interval: 3000 },
+          '/baseline/config': {
+            enabled: true,
+            rssiThreshold: -90,
+            deltaThresholdDb: 15,
+            scanInterval: 5000
+          },
+          '/baseline/stats': {
+            phase: 2,
+            active: true,
+            baselineDevices: 42,
+            wifiDevices: 28,
+            bleDevices: 14,
+            anomaliesDetected: 3,
+            newDevices: 1,
+            returnedDevices: 1,
+            rssiAnomalies: 1
+          },
+          '/baseline-results': `=== BASELINE ESTABLISHED ===
+Total devices in baseline: 42
+WiFi devices: 28
+BLE devices: 14
+RSSI threshold: -90 dBm
+
+=== BASELINE DEVICES (Cached in RAM) ===
+WiFi AA:BB:CC:DD:EE:01 Avg:-65dBm Min:-75dBm Max:-55dBm Hits:234 CH:6 "iPhone-John"
+WiFi 11:22:33:44:55:66 Avg:-72dBm Min:-82dBm Max:-62dBm Hits:198 CH:6 "NETGEAR_Router"
+WiFi FF:EE:DD:CC:BB:AA Avg:-58dBm Min:-68dBm Max:-48dBm Hits:312 CH:11 "TP-Link_5G"
+BLE 02:9F:C2:3D:92:CE Avg:-68dBm Min:-78dBm Max:-58dBm Hits:156 "Galaxy_Buds"
+BLE 12:34:56:78:9A:BC Avg:-75dBm Min:-85dBm Max:-65dBm Hits:87 "Tile_Tracker"
+WiFi DE:AD:BE:EF:CA:FE Avg:-61dBm Min:-71dBm Max:-51dBm Hits:267 CH:6 "Amazon_Echo"
+
+=== ANOMALIES DETECTED ===
+Total anomalies: 3
+
+WiFi 99:88:77:66:55:44 RSSI:-45dBm CH:11 "UnknownRouter" - New device not in baseline
+WiFi AA:BB:CC:11:22:33 RSSI:-80dBm CH:1 "Xfinity_Hotspot" - Device returned after absence
+WiFi AA:BB:CC:DD:EE:01 RSSI:-42dBm CH:6 "iPhone-John" - RSSI changed significantly (was -65dBm, now -42dBm, delta: +23dBm)`,
+          '/drone/status': {
+            active: true,
+            dronesDetected: 2,
+            lastDetection: Date.now() - 60000
+          },
+          '/erase/status': {
+            state: 'IDLE',
+            pendingErase: false,
+            eraseCount: 0
+          },
+          '/erase/progress': {
+            progress: 0,
+            status: 'idle'
+          },
+          '/config/autoerase': {
+            enabled: true,
+            delay: 30000,
+            cooldown: 300000,
+            vibrationsRequired: 3,
+            detectionWindow: 20000,
+            setupDelay: 120000,
+            inSetupMode: true,
+            setupStartTime: Date.now() - 25000,
+            tamperActive: false
+          },
+          '/mesh-test': 'Mesh connectivity test sent to all nodes',
+          '/stop': 'All operations stopped',
+          '/erase/request': 'Secure erase requested',
+          '/erase/cancel': 'Erase cancelled',
+          '/sniffer-cache': `=== Sniffer Cache ===
+
+WiFi APs: 6
+AA:BB:CC:DD:EE:01 : iPhone-John
+11:22:33:44:55:66 : NETGEAR_Router
+FF:EE:DD:CC:BB:AA : TP-Link_5G
+DE:AD:BE:EF:CA:FE : Amazon_Echo
+BA:DB:AD:BA:DB:AD : [Hidden]
+C0:FF:EE:C0:FF:EE : Xfinity_Hotspot
+
+BLE Devices: 4
+02:9F:C2:3D:92:CE : Galaxy_Buds
+12:34:56:78:9A:BC : Tile_Tracker
+01:23:45:67:89:AB : Apple_Watch
+AA:11:BB:22:CC:33 : Fitbit_Sense`,
+          '/device-scan-results': `Sniffer scan - Mode: WiFi+BLE Duration: 30s
+WiFi Frames seen: 1247
+BLE Frames seen: 458
+Target Hits: 10
+Unique devices: 10
+
+WiFi AA:BB:CC:DD:EE:01 RSSI=-65dBm CH=6 "iPhone-John"
+WiFi 11:22:33:44:55:66 RSSI=-72dBm CH=6 "NETGEAR_Router"
+BLE 02:9F:C2:3D:92:CE RSSI=-68dBm "Galaxy_Buds"
+WiFi FF:EE:DD:CC:BB:AA RSSI=-58dBm CH=11 "TP-Link_5G"
+BLE 12:34:56:78:9A:BC RSSI=-75dBm "Tile_Tracker"
+WiFi DE:AD:BE:EF:CA:FE RSSI=-61dBm CH=6 "Amazon_Echo"
+BLE 01:23:45:67:89:AB RSSI=-70dBm "Apple_Watch"
+WiFi BA:DB:AD:BA:DB:AD RSSI=-55dBm CH=11
+WiFi C0:FF:EE:C0:FF:EE RSSI=-82dBm CH=1 "Xfinity_Hotspot"
+BLE AA:11:BB:22:CC:33 RSSI=-79dBm "Fitbit_Sense"`,
+          '/deauth-results': `Deauth Attack Detection Results
+Duration: 120s
+Deauth frames: 15
+Disassoc frames: 8
+Total attacks: 23
+
+Attack Statistics by Destination:
+AA:BB:CC:DD:EE:01 Total=12 Broadcast=0 Targeted=12 LastRSSI=-45dBm CH=6
+  Sources: 99:88:77:66:55:44 (12 attacks)
+
+[BROADCAST] Total=8 Broadcast=8 Targeted=0 LastRSSI=-42dBm CH=6
+  Sources: 99:88:77:66:55:44 (8 attacks)
+
+11:22:33:44:55:66 Total=3 Broadcast=0 Targeted=3 LastRSSI=-38dBm CH=11
+  Sources: BB:CC:DD:EE:FF:00 (3 attacks)`,
+          '/drone-results': `=== Drone Remote ID Detection Results ===
+Duration: 300s
+Drones Detected: 2
+Total Observations: 45
+
+Drone MAC: AA:11:22:33:44:55
+UAV ID: 1A2B3C4D5E6F7G8H
+Last Seen: 12s ago
+Position: 40.713200, -74.005800
+Altitude: 125.5m AGL
+Speed: 28.3 m/s
+Operator: 40.712900, -74.006100
+RSSI: -52 dBm
+Observations: 28
+
+Drone MAC: BB:22:33:44:55:66
+UAV ID: 9F8E7D6C5B4A3210
+Last Seen: 5s ago
+Position: 40.714100, -74.004200
+Altitude: 85.2m AGL
+Speed: 15.7 m/s
+Operator: 40.713800, -74.004500
+RSSI: -68 dBm
+Observations: 17`,
+          '/randomization-results': `=== MAC Randomization Detection Results ===
+Tracking Window: 3600s
+Active Identities: 3
+Total Observations: 504
+
+Identity: T-0001
+Type: WiFi Device
+Confidence: 92.5%
+Sessions: 8
+Observations: 234
+Avg RSSI: -65 dBm
+Tracked MACs:
+  02:9F:C2:3D:92:CE (14:20:15 - 14:35:42)
+  12:8A:F1:4B:7E:3A (14:35:50 - 14:48:23)
+  03:5C:E7:2D:91:FE (14:48:31 - 15:05:17)
+  22:1D:B3:5F:8C:4E (15:05:25 - Active)
+Fingerprint:
+  Sequence Tracking: YES (8 channels)
+  Interval Consistency: 92%
+  RSSI Consistency: 88%
+Probable Global MAC: AA:BB:CC:DD:EE:01
+
+Identity: T-0002
+Type: BLE Device
+Confidence: 85.3%
+Sessions: 5
+Observations: 178
+Avg RSSI: -72 dBm
+Tracked MACs:
+  A2:3B:C4:5D:6E:7F (14:25:30 - 14:42:15)
+  B3:4C:D5:6E:7F:80 (14:42:23 - 15:01:58)
+  C4:5D:E6:7F:80:91 (15:02:05 - Active)
+Fingerprint:
+  Sequence Tracking: YES (6 channels)
+  Interval Consistency: 87%
+  RSSI Consistency: 82%
+Probable Global MAC: 11:22:33:44:55:66
+
+Identity: T-0003
+Type: WiFi Device
+Confidence: 78.2%
+Sessions: 3
+Observations: 92
+Avg RSSI: -68 dBm
+Tracked MACs:
+  D5:6E:7F:80:91:A2 (14:30:10 - 14:55:33)
+  E6:7F:80:91:A2:B3 (14:55:41 - Active)
+Fingerprint:
+  Sequence Tracking: PARTIAL (4 channels)
+  Interval Consistency: 79%
+  RSSI Consistency: 75%`
+        };
+
+        window.fetch = function(url, options = {}) {
+          const method = options.method || 'GET';
+
+          // Handle POST requests
+          if (method === 'POST') {
+            console.log(`[DEMO] POST ${url}`, options);
+
+            // Handle state-changing operations
+            if (url === '/clear-results') {
+              demoState.currentResults = '';
+              return Promise.resolve(new Response('Results cleared', {
+                status: 200,
+                headers: { 'Content-Type': 'text/plain' }
+              }));
+            }
+
+            if (url === '/scan') {
+              demoState.isScanning = true;
+              demoState.taskType = 'scan';
+              demoState.lastDetectionMode = 'device-scan';
+              demoState.currentResults = `Sniffer scan - Mode: WiFi+BLE Duration: 30s
+WiFi Frames seen: 1247
+BLE Frames seen: 458
+Total hits: 5
+Unique devices: 10
+
+WiFi AA:BB:CC:DD:EE:01 RSSI=-65dBm CH=6 "iPhone-John"
+WiFi 11:22:33:44:55:66 RSSI=-72dBm CH=6 "NETGEAR_Router"
+BLE 02:9F:C2:3D:92:CE RSSI=-68dBm "Galaxy_Buds"
+WiFi FF:EE:DD:CC:BB:AA RSSI=-58dBm CH=11 "TP-Link_5G"
+BLE 12:34:56:78:9A:BC RSSI=-75dBm "Tile_Tracker"
+WiFi DE:AD:BE:EF:CA:FE RSSI=-61dBm CH=6 "Amazon_Echo"
+BLE 01:23:45:67:89:AB RSSI=-70dBm "Apple_Watch"
+WiFi BA:DB:AD:BA:DB:AD RSSI=-55dBm CH=11
+WiFi C0:FF:EE:C0:FF:EE RSSI=-82dBm CH=1 "Xfinity_Hotspot"
+BLE AA:11:BB:22:CC:33 RSSI=-79dBm "Fitbit_Sense"`;
+              return Promise.resolve(new Response('Scan starting for 30s - WiFi+BLE', {
+                status: 200,
+                headers: { 'Content-Type': 'text/plain' }
+              }));
+            }
+
+            if (url === '/sniffer' || url === '/drone') {
+              // Parse form data to get detection mode
+              let detection = 'device-scan';
+
+              if (options.body) {
+                if (options.body instanceof FormData) {
+                  detection = options.body.get('detection') || (url === '/drone' ? 'drone-detection' : 'device-scan');
+                } else if (typeof options.body === 'string') {
+                  const match = options.body.match(/detection=([^&]+)/);
+                  detection = match ? match[1] : 'device-scan';
+                }
+              }
+
+              // Update detection mode if it's drone endpoint
+              if (url === '/drone') {
+                detection = 'drone-detection';
+              }
+
+              demoState.isScanning = true;
+              demoState.taskType = 'sniffer';
+              demoState.lastDetectionMode = detection;
+
+              if (detection === 'baseline') {
+                demoState.currentResults = mockResponses['/baseline-results'];
+              } else if (detection === 'deauth') {
+                demoState.currentResults = mockResponses['/deauth-results'];
+              } else if (detection === 'drone-detection') {
+                demoState.currentResults = mockResponses['/drone-results'];
+              } else if (detection === 'randomization-detection') {
+                demoState.currentResults = mockResponses['/randomization-results'];
+              } else {
+                // device-scan
+                demoState.currentResults = mockResponses['/device-scan-results'];
+              }
+
+              console.log('[DEMO] Detection mode set to:', detection);
+              return Promise.resolve(new Response('Detection started', {
+                status: 200,
+                headers: { 'Content-Type': 'text/plain' }
+              }));
+            }
+
+            if (url === '/stop') {
+              demoState.isScanning = false;
+              demoState.taskType = 'none';
+              return Promise.resolve(new Response('All operations stopped', {
+                status: 200,
+                headers: { 'Content-Type': 'text/plain' }
+              }));
+            }
+
+            if (url === '/baseline/reset') {
+              demoState.currentResults = 'Baseline not yet established\nDevices detected so far: 0';
+              return Promise.resolve(new Response('Baseline data reset', {
+                status: 200,
+                headers: { 'Content-Type': 'text/plain' }
+              }));
+            }
+
+            if (url === '/randomization/reset') {
+              demoState.currentResults = '=== MAC Randomization Detection Results ===\nTracking Window: 0s\nActive Identities: 0\nTotal Observations: 0';
+              return Promise.resolve(new Response('Randomization tracking reset', {
+                status: 200,
+                headers: { 'Content-Type': 'text/plain' }
+              }));
+            }
+
+            if (url === '/randomization/clear-old') {
+              return Promise.resolve(new Response('Old sessions cleared', {
+                status: 200,
+                headers: { 'Content-Type': 'text/plain' }
+              }));
+            }
+
+            // Return appropriate response for other POST requests
+            const responseText = mockResponses[url] || 'Operation completed successfully';
+            return Promise.resolve(new Response(
+              typeof responseText === 'string' ? responseText : JSON.stringify(responseText),
+              {
+                status: 200,
+                headers: { 'Content-Type': typeof responseText === 'string' ? 'text/plain' : 'application/json' }
+              }
+            ));
+          }
+
+          // Handle GET requests
+          console.log(`[DEMO] GET ${url}`);
+
+          // Dynamic /results endpoint
+          if (url === '/results') {
+            return Promise.resolve(new Response(demoState.currentResults, {
+              status: 200,
+              headers: { 'Content-Type': 'text/plain' }
+            }));
+          }
+
+          // Dynamic /diag endpoint
+          if (url === '/diag') {
+            const diagText = `=== System Diagnostics ===
+Node ID: DEMO
+Uptime: 03:24:15
+Free Heap: 187,432 bytes
+Temperature: 42.3°C
+
+WiFi Status: Active
+Scan Mode: ${demoState.scanMode}
+Total Hits: 1,247
+Scanning: ${demoState.isScanning ? 'yes' : 'no'}
+Task Type: ${demoState.taskType}
+
+GPS: Locked
+Latitude: 40.712800
+Longitude: -74.006000
+Satellites: 12
+HDOP: 1.2
+
+SD Card: MOUNTED
+Type: SDHC
+Size: 32 GB
+Free: 29.6 GB`;
+            return Promise.resolve(new Response(diagText, {
+              status: 200,
+              headers: { 'Content-Type': 'text/plain' }
+            }));
+          }
+
+          if (mockResponses[url]) {
+            const response = mockResponses[url];
+            return Promise.resolve(new Response(
+              typeof response === 'string' ? response : JSON.stringify(response),
+              {
+                status: 200,
+                headers: { 'Content-Type': typeof response === 'string' ? 'text/plain' : 'application/json' }
+              }
+            ));
+          }
+
+          // Default response
+          return Promise.resolve(new Response('Demo mode - no real data', {
+            status: 200,
+            headers: { 'Content-Type': 'text/plain' }
+          }));
+        };
+        
+        console.log('[DEMO] Mock API layer loaded - all fetch calls will return dummy data');
+      })();
+    </script>
+    <style>
+      :root{--t:0.2s;--blur:12px}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#f0f4f8 0%,#e8eef3 100%);--surf:rgba(255,255,255,0.85);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(59,130,246,0.15);--bord-focus:rgba(59,130,246,0.4);--txt:#1a202c;--mut:#64748b;--acc:#3b82f6;--acch:#2563eb;--accbg:rgba(59,130,246,0.08);--succ:#10b981;--warn:#f59e0b;--dang:#ef4444;--shad:0 8px 32px rgba(0,0,0,0.08);--shad-hover:0 12px 48px rgba(0,0,0,0.12);--glow:0 0 24px rgba(59,130,246,0.2);--backdrop:blur(12px) saturate(180%)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e14 0%,#0f1419 100%);--surf:rgba(26,31,46,0.7);--surf-hover:rgba(26,31,46,0.9);--bord:rgba(74,144,226,0.25);--bord-focus:rgba(74,144,226,0.5);--txt:#e8f0f7;--mut:#94a3b8;--acc:#4a90e2;--acch:#5b9bd5;--accbg:rgba(74,144,226,0.1);--succ:#10b981;--warn:#ffaa00;--dang:#ff6b35;--shad:0 8px 32px rgba(0,0,0,0.5);--shad-hover:0 12px 48px rgba(0,0,0,0.7);--glow:0 0 32px rgba(74,144,226,0.25),0 0 64px rgba(74,144,226,0.1);--backdrop:blur(16px) saturate(180%)}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{background:var(--bg);background-attachment:fixed;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
+      .header{padding:18px 28px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:18px;box-shadow:var(--shad);flex-wrap:wrap;position:sticky;top:0;z-index:100}
+      h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+      h3{margin:0 0 18px;font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--txt)}
+      .container{max-width:1400px;margin:0 auto;padding:28px}
+      .card{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:1px solid var(--bord);border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:var(--shad);transition:all 0.3s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden}
+      .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,var(--acc) 50%,transparent 100%);opacity:0;transition:opacity 0.3s}
+      .card:hover{box-shadow:var(--shad-hover);border-color:var(--bord-focus);transform:translateY(-2px)}
+      .card:hover::before{opacity:0.6}
+      label{display:block;margin:10px 0 8px;color:var(--mut);font-size:13px;font-weight:600;letter-spacing:0.01em;text-transform:uppercase}
+      input,select,textarea{width:100%;background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);border-radius:8px;color:var(--txt);padding:12px 16px;font:inherit;font-size:14px;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);box-shadow:inset 0 1px 3px rgba(0,0,0,0.05)}
+      input:hover,select:hover,textarea:hover{border-color:var(--bord-focus)}
+      input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 4px var(--accbg),var(--glow);transform:translateY(-1px)}
+      input::placeholder{color:var(--mut);opacity:0.6}
+      select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+      [data-theme="dark"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a90e2' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E")}
+      textarea{min-height:80px;resize:vertical;line-height:1.5}
+      input[type="checkbox"]{width:20px;height:20px;cursor:pointer;position:relative;appearance:none;border:2px solid var(--bord);border-radius:4px;transition:all 0.2s;flex-shrink:0}
+      input[type="checkbox"]:checked{background:var(--acc);border-color:var(--acc);box-shadow:var(--glow)}
+      input[type="checkbox"]:checked::after{content:'✓';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:14px;font-weight:bold}
+      input[type="number"]{-moz-appearance:textfield}
+      input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+      .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:8px;border:2px solid var(--bord);background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--txt);text-decoration:none;cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;white-space:nowrap}
+      .btn::before{content:'';position:absolute;top:50%;left:50%;width:0;height:0;border-radius:50%;background:rgba(255,255,255,0.1);transform:translate(-50%,-50%);transition:width 0.4s,height 0.4s}
+      .btn:hover::before{width:300px;height:300px}
+      .btn:hover{transform:translateY(-2px);box-shadow:var(--shad-hover);border-color:var(--bord-focus)}
+      .btn:active{transform:translateY(0)}
+      .btn.primary{background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);border-color:var(--acc);color:#fff;box-shadow:var(--glow)}
+      .btn.primary:hover{box-shadow:var(--glow),var(--shad-hover);filter:brightness(1.1)}
+      .btn.alt{color:var(--acc);border-color:var(--acc);background:transparent}
+      .btn.danger{background:var(--dang);border-color:var(--dang);color:#fff;box-shadow:0 0 24px rgba(239,68,68,0.3)}
+      .btn.danger:hover{filter:brightness(1.15)}
+      .theme-toggle{width:48px;height:28px;background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--acc);border-radius:14px;cursor:pointer;position:relative;transition:all 0.3s;margin-left:auto;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:var(--glow)}
+      .theme-toggle:hover{transform:scale(1.05);box-shadow:var(--glow),var(--shad)}
+      .theme-toggle svg{width:18px;height:18px;position:absolute;transition:opacity 0.3s,transform 0.3s;stroke:var(--acc);fill:var(--acc)}
+      .theme-toggle .sun{opacity:1;transform:rotate(0deg) scale(1)}
+      .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0);stroke:none}
+      [data-theme="dark"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
+      [data-theme="dark"] .theme-toggle .moon{opacity:1;transform:rotate(0deg) scale(1)}
+      pre{background:rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;font-family:monospace;line-height:1.6}
+      hr{border:0;border-top:1px solid var(--bord);margin:20px 0}
+      .banner{color:var(--dang);border:2px solid var(--dang);padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;background:rgba(239,68,68,0.05);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+      #toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;z-index:9999}
+      .toast{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:2px solid var(--bord);padding:14px 18px;border-radius:8px;box-shadow:var(--shad-hover);opacity:0;transform:translateY(12px);transition:opacity 0.3s,transform 0.3s;font-size:14px;min-width:280px}
+      .toast.show{opacity:1;transform:none}
+      .toast.success{border-color:var(--succ);box-shadow:0 0 24px rgba(16,185,129,0.3)}
+      .toast.error{border-color:var(--dang);box-shadow:0 0 24px rgba(239,68,68,0.3)}
+      .toast.warning{border-color:var(--warn);box-shadow:0 0 24px rgba(245,158,11,0.3)}
+      .status-bar{display:flex;gap:10px;align-items:center;flex-shrink:0}
+      .status-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--mut);transition:all 0.2s;text-transform:uppercase;letter-spacing:0.05em}
+      .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc);box-shadow:var(--glow)}
+      .tab-buttons{display:flex;gap:6px;margin-bottom:18px;background:rgba(0,0,0,0.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:6px;border-radius:10px;border:1px solid var(--bord)}
+      .tab-btn{padding:10px 18px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;flex:1;text-align:center}
+      .tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+      .tab-btn:hover:not(.active){color:var(--acc)}
+      .tab-content{display:none}
+      .tab-content.active{display:block}
+      .stat-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:18px;border-radius:10px;transition:all 0.2s}
+      .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--glow)}
+      .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em}
+      .stat-value{color:var(--txt);font-size:24px;font-weight:800;letter-spacing:-0.02em}
+      .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+      .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:18px;padding:4px 0}
+      .card-header:hover h3{color:var(--acc)}
+      .card-header h3{margin:0;transition:color 0.2s}
+      .collapse-icon{transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);font-size:14px;color:var(--mut)}
+      .collapse-icon.open{transform:rotate(90deg)}
+      .card-body{overflow:hidden;transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1)}
+      .card-body.collapsed{max-height:0!important;margin:0;padding:0}
+      details>summary{list-style:none;cursor:pointer;font-weight:600;color:var(--acc);margin-bottom:12px;font-size:13px;padding:10px 0;transition:all 0.2s;border-radius:6px}
+      details>summary:hover{padding-left:8px;color:var(--acch)}
+      details>summary::-webkit-details-marker{display:none}
+      @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
+      @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
+      @media(max-width:600px){.stat-grid,.diag-grid{grid-template-columns:1fr}.status-item{font-size:11px;padding:6px 10px}input,select,textarea{font-size:13px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}}
+      .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none}
+      [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
+      .theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
+      [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
+      [data-theme="cyber"] .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0)}
+      [data-theme="cyber"] .theme-toggle .terminal{opacity:1;transform:scale(1)}
+    </style>
+    <script>
+      let toggleHistory=[];
+      function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();toggleHistory.push(now);toggleHistory=toggleHistory.filter(time=>now-time<2000);if(t==='cyber'){const n=localStorage.getItem('prevTheme')||'light';e.setAttribute('data-theme',n);localStorage.setItem('theme',n);localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');toggleHistory=[];return}if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){localStorage.setItem('prevTheme',t);e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');localStorage.setItem('cyberMode','1');toggleHistory=[];return}const n='dark'===t?'light':'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
+      (function(){const e=localStorage.getItem('theme');e?document.documentElement.setAttribute('data-theme',e):document.documentElement.setAttribute('data-theme','light')})();
+    </script>
+  </head>
+  <body>
+    <div id="toast"></div>
+    <div class="header">
+      <h1>AntiHunter</h1>
+      <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
+        <div class="status-bar">
+          <div class="status-item" id="modeStatus">WiFi</div>
+          <div class="status-item" id="scanStatus">Idle</div>
+          <div class="status-item" id="gpsStatus">GPS</div>
+          <div class="status-item" id="rtcStatus">RTC</div>
+        </div>
+        <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <svg class="terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+            <polyline points="6 8 10 12 6 16"/>
+            <line x1="12" y1="12" x2="18" y2="12"/>
+          </svg>
+        </div>
+      </div>
+      <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
+    </div>
+    <div class="container">
+
+      <!-- Demo Banner -->
+      <div class="banner" style="background: linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(147,51,234,0.1) 100%); border-color: var(--acc); color: var(--acc); margin-bottom: 20px; text-align: center;">
+        <strong>🎮 DEMO MODE</strong> - All API responses are simulated with dummy data. This is a standalone demo of the AntiHunter interface.
+      </div>
+
+      <!-- Scanning & Targets + Detection Grid -->
+      <div class="grid-2" style="margin-bottom:16px;">
+        
+        <!-- Scanning & Targets -->
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('scanCard')">
+            <h3>Scanning & Targets</h3>
+            <span class="collapse-icon open" id="scanCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="scanCardBody">
+            
+            <!-- Target List -->
+            <details open>
+              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;"><span>▶</span> Target List</summary>
+              <form id="f" method="POST" action="/save">
+                <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="3">AA:BB:CC:DD:EE:01
+11:22:33:44:55:66
+FF:EE:DD:CC:BB:AA</textarea>
+                <div id="targetCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 targets</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn primary" type="submit">Save</button>
+                  <a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
+                </div>
+              </form>
+            </details>
+            
+            <!-- Allowlist -->
+            <details style="margin-top:12px;">
+              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;"><span>▶</span> Allow List</summary>
+              <form id="af" method="POST" action="/allowlist-save">
+                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3">AA:BB:CC:DD:EE:01
+11:22:33:44:55:66</textarea>
+                <div id="allowlistCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 allowlisted</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn primary" type="submit">Save</button>
+                  <a class="btn alt" href="/allowlist-export" download="allowlist.txt" data-ajax="false">Export</a>
+                </div>
+              </form>
+            </details>
+            
+            <!-- Scan Controls -->
+            <form id="s" method="POST" action="/scan">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="font-size:11px;">Mode</label>
+                  <select name="mode">
+                    <option value="0">WiFi</option>
+                    <option value="1">BLE</option>
+                    <option value="2" selected>WiFi+BLE</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11px;">Duration (s)</label>
+                  <input type="number" name="secs" min="0" max="86400" value="60">
+                </div>
+              </div>
+              
+              <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="forever" name="forever" value="1">Forever
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="triangulate" name="triangulate" value="1">Triangulate
+                </label>
+              </div>
+              
+              <div id="triangulateOptions" style="display:none;margin-bottom:8px;">
+                <input type="text" name="targetMac" placeholder="Target MAC">
+              </div>
+              
+              <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Detection & Analysis -->
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detectionCard')">
+            <h3>Detection & Analysis</h3>
+            <span class="collapse-icon open" id="detectionCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detectionCardBody"> <!-- Add this wrapper -->
+            <form id="sniffer" method="POST" action="/sniffer">
+              <label>Method</label>
+              <select name="detection" id="detectionMode">
+                <option value="device-scan">Device Discovery Scan</option>
+                <option value="baseline" selected>Baseline Anomaly Sniffer</option>
+                <option value="randomization-detection">MAC Randomization Analyzer</option>
+                <option value="deauth">Deauthentication Attack Detection</option>
+                <option value="drone-detection">Drone RID Detection (WiFi)</option>
+              </select>
+
+              <div id="randomizationModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="randomizationMode" name="randomizationMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
+              </div>
+              <div id="deviceScanModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="deviceScanMode" name="deviceScanMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
+              </div>
+              <div id="standardDurationControls" style="margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+                  <div>
+                    <label style="font-size:11px;">Duration (s)</label>
+                    <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
+                  </div>
+                  <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
+                    <input type="checkbox" id="forever3" name="forever" value="1">Forever
+                  </label>
+                </div>
+              </div>
+              
+              <div id="baselineConfigControls" style="display:none;margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:11px;">RSSI</label>
+                    <select id="baselineRssiThreshold" name="rssiThreshold">
+                      <option value="-40">-40</option>
+                      <option value="-50">-50</option>
+                      <option value="-60" selected>-60</option>
+                      <option value="-70">-70</option>
+                      <option value="-80">-80</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:11px;">Baseline</label>
+                    <select id="baselineDuration" name="baselineDuration">
+                      <option value="300" selected>5m</option>
+                      <option value="600">10m</option>
+                      <option value="900">15m</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:11px;">RAM Cache (Non-SD defaults to 1500)</label>
+                    <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;">SD Device Storage</label>
+                    <input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
+                  </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:10px;color:var(--muted);" title="Time a device must be unseen before marked as disappeared from baseline">Marked Absent (s)</label>
+                    <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
+                  </div>
+                  <div>
+                    <label style="font-size:10px;color:var(--muted);" title="Window after disappearance during which reappearance triggers an anomaly alert">Seen Reappear (s)</label>
+                    <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
+                  </div>
+                  <div>
+                    <label style="font-size:10px;color:var(--muted);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Variation dB</label>
+                    <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
+                  </div>
+                </div>
+                
+                <label style="font-size:11px;">Monitor (s)</label>
+                <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;color:var(--txt);">
+                  <input type="checkbox" id="foreverBaseline" name="forever" value="1" style="width:auto;margin:0;">
+                  <span>Forever</span>
+                </label>
+                <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #888;border-radius:6px;font-size:11px;margin-bottom:8px;">
+                  <div style="color:#888;">No baseline data</div>
+                </div>
+              </div>
+              
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+                <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
+                <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
+                <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
+                <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
+                <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
+                <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
+              </div>
+             
+            </form>
+          </div>
+        </div>
+      </div>
+      
+    <div class="grid-node-diag" style="margin-bottom:16px;">
+      <div class="card" style="min-width:280px;">
+        <h3>RF Settings</h3>
+        <div class="" id="detectionCardBody">
+          <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px;align-items:center;">
+            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-90" 
+                  oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'">
+            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
+          </div>
+          <p style="font-size:10px;color:var(--muted);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
+          
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+          
+          <select id="rfPreset" onchange="updateRFPresetUI()">
+            <option value="0">Relaxed (Stealthy)</option>
+            <option value="1">Balanced (Default)</option>
+            <option value="2">Aggressive (Fast)</option>
+            <option value="3">Custom</option>
+          </select>
+          
+          <div id="customRFSettings" style="display:none;margin-top:10px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:10px;color:var(--muted);">WiFi Channel Time (ms)</label>
+                <input type="number" id="wifiChannelTime" min="110" max="300" value="120" style="padding:4px;font-size:11px;">
+              </div>
+              <div>
+                <label style="font-size:10px;color:var(--muted);">WiFi Scan Interval (ms)</label>
+                <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:10px;color:var(--muted);">BLE Scan Duration (ms)</label>
+                <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
+              </div>
+              <div>
+                <label style="font-size:10px;color:var(--muted);">BLE Scan Interval (ms)</label>
+                <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
+              </div>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:10px;color:var(--muted);">WiFi Channels</label>
+              <input type="text" id="wifiChannels" placeholder="1..14" value="1..14" style="padding:4px;font-size:11px;">
+            </div>
+          </div>
+        </div>
+        <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
+
+        <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+        <div class="card-header" onclick="toggleCollapse('wifiApCard')" style="cursor:pointer;padding:0;margin-bottom:12px;border:none;background:none;box-shadow:none;">
+            <h4 style="margin:0;font-size:13px;">WiFi Access Point</h4>
+            <span class="collapse-icon" id="wifiApCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="wifiApCardBody" style="max-height:0;">
+            <label style="font-size:11px;">SSID</label>
+            <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
+            
+            <label style="font-size:11px;">Password</label>
+            <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
+            
+            <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
+          </div>
+        </div>
+      
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;">
+          <h3 style="margin:0;">Scan Results</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="font-size:11px;color:var(--muted);">Sort:</label>
+            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;border-radius:6px;font-size:11px;">
+              <option value="default">Default</option>
+              <option value="rssi-desc">RSSI (Strongest)</option>
+              <option value="rssi-asc">RSSI (Weakest)</option>
+              <option value="confidence-desc">Confidence (High)</option>
+              <option value="sessions-desc">Sessions (Most)</option>
+              <option value="lastseen-asc">Last Seen (Recent)</option>
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="type-asc">Type (WiFi/BLE)</option>
+            </select>
+            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;">↕</button>
+            <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
+          </div>
+        </div>
+        <div id="r" style="margin:0;">No scan data yet.</div>
+      </div>
+    </div>
+    
+      
+      <!-- Bottom Grid: Node + Diagnostics -->
+      <div class="grid-node-diag" style="margin-bottom:16px;">
+        
+        <div class="card" style="min-width:280px;">
+          <h3>Node Configuration</h3>
+          <form id="nodeForm" method="POST" action="/node-id" novalidate>
+            <label>Node ID</label>
+            <input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="text-transform:uppercase;">
+            <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
+          </form>
+          
+          <hr>
+          
+          <div style="margin-top:12px;">
+            <label>Mesh Communications</label>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button class="btn" id="meshToggleBtn" onclick="toggleMesh()" style="flex:1;"></button>
+            </div>
+            
+            <div id="meshControls" style="display:none;">
+              <label>Mesh Send Interval (ms)</label>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
+                <button class="btn" onclick="saveMeshInterval()">Save</button>
+              </div>
+              
+              <div style="display:flex;gap:8px;">
+                <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
+                <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <h3>System Diagnostics</h3>
+          <div class="tab-buttons">
+            <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
+            <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
+            <div class="tab-btn" onclick="switchTab('network')">Network</div>
+          </div>
+          
+          <div id="overview" class="tab-content active">
+            <div class="stat-grid">
+              <div class="stat-item">
+                <div class="stat-label">Uptime</div>
+                <div class="stat-value" id="uptime">--:--:--</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">WiFi Frames</div>
+                <div class="stat-value" id="wifiFrames">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">BLE Frames</div>
+                <div class="stat-value" id="bleFrames">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Target Hits</div>
+                <div class="stat-value" id="totalHits">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Unique Devices</div>
+                <div class="stat-value" id="uniqueDevices">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">CPU Temp</div>
+                <div class="stat-value" id="temperature">--C</div>
+              </div>
+            </div>
+          </div>
+          
+         <div id="hardware" class="tab-content">
+            <div id="hardwareDiag">Loading...</div>
+          </div>
+
+          <div id="network" class="tab-content">
+            <div id="networkDiag">Loading...</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Secure Data Destruction -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCollapse('secureDataCard')">
+          <h3>Secure Data Destruction</h3>
+          <span class="collapse-icon" id="secureDataCardIcon">▶</span>
+        </div>
+        <div class="card-body collapsed" id="secureDataCardBody">
+          <div class="banner">WARNING: Permanent data wipe</div>
+          
+          <form id="eraseForm" style="margin-top:12px;">
+            <label>Confirmation Code</label>
+            <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA">
+            
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn danger" type="button" onclick="requestErase()">WIPE</button>
+              <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
+            </div>
+          </form>
+          
+          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:12px;"></div>
+          
+          <div style="margin-top:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-weight:bold;color:var(--accent);">Auto-Erase Configuration</span>
+              <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
+            </div>
+            
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+              <input type="checkbox" id="autoEraseEnabled">
+              <span>Enable auto-erase on tampering</span>
+            </label>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Setup Period</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Grace period after enabling before tamper detection becomes active</label>
+              <select id="setupDelay">
+                <option value="30000">30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000" selected>2 minutes</option>
+                <option value="300000">5 minutes</option>
+                <option value="600000">10 minutes</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Erase Countdown</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time you have to cancel after tamper detection</label>
+              <select id="autoEraseDelay">
+                <option value="10000">10 seconds</option>
+                <option value="30000" selected>30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000">2 minutes</option>
+                <option value="300000">5 minutes</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Trigger Cooldown</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Minimum time before another tamper event can trigger erase</label>
+              <select id="autoEraseCooldown">
+                <option value="60000">1 minute</option>
+                <option value="300000" selected>5 minutes</option>
+                <option value="600000">10 minutes</option>
+                <option value="1800000">30 minutes</option>
+                <option value="3600000">1 hour</option>
+              </select>
+            </div>
+            
+            <div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--bord);border-radius:6px;margin-bottom:16px;">
+              <div style="font-size:10px;font-weight:bold;color:var(--mut);margin-bottom:8px;">ADVANCED SETTINGS</div>
+              
+              <div style="margin-bottom:12px;">
+                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Vibrations Required</label>
+                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Number of vibrations needed within detection window to trigger</label>
+                <select id="vibrationsRequired">
+                  <option value="2">2</option>
+                  <option value="3" selected>3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </div>
+              
+              <div style="margin-bottom:0;">
+                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Detection Window</label>
+                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time window for counting required vibrations</label>
+                <select id="detectionWindow">
+                  <option value="5000">5 seconds</option>
+                  <option value="10000">10 seconds</option>
+                  <option value="20000" selected>20 seconds</option>
+                  <option value="30000">30 seconds</option>
+                  <option value="60000">1 minute</option>
+                </select>
+              </div>
+            </div>
+            
+            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Configuration</button>
+            <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
+          </div>
+        </div>
+      </div>      <!-- 
+      <div id="terminalToggle">TERMINAL</div>
+      <div id="terminalWindow">
+        <div id="terminalHeader">
+          <span id="terminalTitle">SERIAL MONITOR</span>
+          <span id="terminalClose">×</span>
+        </div>
+        <div id="terminalContent"></div>
+      </div>
+      -->
+      
+      <div class="footer">AntiHunter v0.7 | Node: <span id="footerNodeId">--</span></div>
+    
+      <script>
+      let selectedMode = '0';
+      let baselineUpdateInterval = null;
+      let lastScanningState = false;
+      let lastResultsText = '';
+      let meshEnabled = true;
+
+      function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+      }
+
+      async function ajaxForm(form, okMsg) {
+        const fd = new FormData(form);
+        try {
+          const r = await fetch(form.action, {
+            method: 'POST',
+            body: fd
+          });
+          const t = await r.text();
+          toast(okMsg || t);
+        } catch (e) {
+          toast('Error: ' + e.message);
+        }
+      }
+
+      async function load() {
+        try {
+          const r = await fetch('/export');
+          const text = await r.text();
+          document.getElementById('list').value = text;
+          const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+          document.getElementById('targetCount').innerText = lines.length + ' targets';
+          const rr = await fetch('/results');
+          const resultsText = await rr.text();
+          document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
+          loadNodeId();
+          loadRFConfig();
+          loadWiFiConfig();
+          loadMeshStatus();
+          loadMeshInterval();
+        } catch (e) {}
+      }
+
+      async function loadNodeId() {
+        try {
+          const r = await fetch('/node-id');
+          const data = await r.json();
+          document.getElementById('nodeId').value = data.nodeId;
+          document.getElementById('footerNodeId').innerText = data.nodeId;
+        } catch (e) {}
+      }
+      
+      function toggleCollapse(cardId) {
+        const body = document.getElementById(cardId + 'Body');
+        const icon = document.getElementById(cardId + 'Icon');
+        
+        if (!body) return;
+        
+        if (body.classList.contains('collapsed')) {
+          body.classList.remove('collapsed');
+          body.style.maxHeight = body.scrollHeight + 'px';
+          if (icon) icon.classList.add('open');
+        } else {
+          body.style.maxHeight = body.scrollHeight + 'px';
+          setTimeout(() => {
+            body.classList.add('collapsed');
+            body.style.maxHeight = '0';
+          }, 10);
+          if (icon) icon.classList.remove('open');
+        }
+      }
+
+      async function loadRFConfig() {
+          try {
+            const r = await fetch('/rf-config');
+            const cfg = await r.json();
+            document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -90;
+            document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -90) + ' dBm';
+            document.getElementById('rfPreset').value = cfg.preset;
+            document.getElementById('wifiChannelTime').value = cfg.wifiChannelTime;
+            document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
+            document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
+            document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
+            document.getElementById('wifiChannels').value = cfg.wifiChannels || '1..14';
+            
+            // If custom not preset
+            const customDiv = document.getElementById('customRFSettings');
+            if (customDiv) {
+              customDiv.style.display = cfg.preset === 3 ? 'block' : 'none';
+            }
+          } catch(e) {}
+      }
+
+      async function updateRFPresetUI() {
+        const preset = parseInt(document.getElementById('rfPreset').value);
+        const customDiv = document.getElementById('customRFSettings');
+        
+        if (!customDiv) return;
+        
+        customDiv.style.display = preset === 3 ? 'block' : 'none';
+        
+        if (preset >= 0 && preset <= 2) {
+          const fd = new FormData();
+          fd.append('preset', preset);
+          
+          try {
+            await fetch('/rf-config', {method: 'POST', body: fd});
+            await loadRFConfig();
+          } catch(e) {
+            console.error('Failed to apply preset:', e);
+          }
+        }
+      }
+
+      async function loadMeshInterval() {
+        try {
+          const r = await fetch('/mesh-interval');
+          const data = await r.json();
+          document.getElementById('meshInterval').value = data.interval;
+        } catch(e) {
+          console.error('[CONFIG] Failed to load mesh interval:', e);
+        }
+      }
+
+      async function saveMeshInterval() {
+        const interval = document.getElementById('meshInterval').value;
+        if (interval < 1500 || interval > 30000) {
+          toast('Invalid interval: must be 1500-30000ms', 'error');
+          return;
+        }
+        
+        try {
+          const r = await fetch('/mesh-interval', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'interval=' + interval
+          });
+          const data = await r.text();
+          toast(data, 'success');
+        } catch(e) {
+          toast('Failed to save mesh interval', 'error');
+        }
+      }
+
+      async function toggleMesh() {
+        meshEnabled = !meshEnabled;
+        updateMeshUI();
+        
+        try {
+          const r = await fetch('/mesh', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'enabled=' + meshEnabled
+          });
+          const msg = await r.text();
+          toast(msg, 'success');
+        } catch(e) {
+          toast('Failed to update mesh status', 'error');
+          meshEnabled = !meshEnabled;
+          updateMeshUI();
+        }
+      }
+      
+      function updateMeshUI() {
+        const btn = document.getElementById('meshToggleBtn');
+        const controls = document.getElementById('meshControls');
+        
+        if (!btn) return;
+        
+        if (meshEnabled) {
+          btn.textContent = 'Mesh: Enabled';
+          btn.classList.add('primary');
+          btn.style.background = 'var(--succ)';
+          btn.style.borderColor = 'var(--succ)';
+          btn.style.color = '#fff';
+          if (controls) controls.style.display = 'block';
+        } else {
+          btn.textContent = 'Mesh: Disabled';
+          btn.classList.remove('primary');
+          btn.style.background = 'var(--dang)';
+          btn.style.borderColor = 'var(--dang)';
+          btn.style.color = '#fff';
+          if (controls) controls.style.display = 'none';
+        }
+      }
+      
+      async function loadMeshStatus() {
+        try {
+          const r = await fetch('/diag');
+          const text = await r.text();
+          console.log('[MESH] Full diag:', text);
+          meshEnabled = text.includes('Mesh: Enabled');
+          console.log('[MESH] Enabled:', meshEnabled);
+        } catch(e) {
+          console.error('[MESH] Failed to load:', e);
+        }
+        updateMeshUI();
+      }
+
+      async function saveRFConfig() {
+        const preset = parseInt(document.getElementById('rfPreset').value);
+        const threshold = parseInt(document.getElementById('globalRssiSlider').value);
+        const fd = new FormData();
+        
+        fd.append('globalRssiThreshold', threshold);
+        
+        if (preset === 3) {
+          fd.append('wifiChannelTime', document.getElementById('wifiChannelTime').value);
+          fd.append('wifiScanInterval', document.getElementById('wifiScanInterval').value);
+          fd.append('bleScanInterval', document.getElementById('bleScanInterval').value);
+          fd.append('bleScanDuration', document.getElementById('bleScanDuration').value);
+          fd.append('wifiChannels', document.getElementById('wifiChannels').value);
+        } else {
+          fd.append('preset', preset);
+        }
+        
+        try {
+          const r = await fetch('/rf-config', {method: 'POST', body: fd});
+          const msg = await r.text();
+          toast(msg, 'success');
+        } catch(e) {
+          toast('Failed to save RF config', 'error');
+        }
+      }
+
+      async function saveWiFiConfig() {
+        const ssid = document.getElementById('apSsid').value.trim();
+        const pass = document.getElementById('apPass').value;
+        
+        if (ssid.length === 0) {
+          toast('SSID cannot be empty');
+          return;
+        }
+        
+        if (pass.length > 0 && pass.length < 8) {
+          toast('Password must be at least 8 characters');
+          return;
+        }
+        
+        const fd = new FormData();
+        fd.append('ssid', ssid);
+        fd.append('pass', pass);
+        
+        try {
+          const r = await fetch('/wifi-config', {method: 'POST', body: fd});
+          const msg = await r.text();
+          toast(msg);
+        } catch(e) {
+          toast('Error: ' + e.message);
+        }
+      }
+
+      async function loadWiFiConfig() {
+        try {
+          const r = await fetch('/wifi-config');
+          const cfg = await r.json();
+          document.getElementById('apSsid').value = cfg.ssid;
+          document.getElementById('apPass').value = cfg.pass;
+        } catch(e) {}
+      }
+      
+      function toggleCard(cardId) {
+        const card = document.getElementById(cardId);
+        const toggle = document.getElementById(cardId.replace('Card', 'Toggle'));
+        if (card.style.display === 'none') {
+          card.style.display = 'block';
+          toggle.style.transform = 'rotate(0deg)';
+        } else {
+          card.style.display = 'none';
+          toggle.style.transform = 'rotate(-90deg)';
+        }
+      }
+           
+      async function loadBaselineAnomalyConfig() {
+        try {
+          const r = await fetch('/baseline/config');
+          const data = await r.json();
+          if (data.rssiThreshold !== undefined) {
+            document.getElementById('baselineRssiThreshold').value = data.rssiThreshold;
+          }
+          if (data.baselineDuration !== undefined) {
+            document.getElementById('baselineDuration').value = data.baselineDuration;
+          }
+          if (data.ramCacheSize !== undefined) {
+            document.getElementById('baselineRamSize').value = data.ramCacheSize;
+          }
+          if (data.sdMaxDevices !== undefined) {
+            document.getElementById('baselineSdMax').value = data.sdMaxDevices;
+          }
+          if (data.absenceThreshold !== undefined) {
+            document.getElementById('absenceThreshold').value = data.absenceThreshold;
+          }
+          if (data.reappearanceWindow !== undefined) {
+            document.getElementById('reappearanceWindow').value = data.reappearanceWindow;
+          }
+          if (data.rssiChangeDelta !== undefined) {
+            document.getElementById('rssiChangeDelta').value = data.rssiChangeDelta;
+          }
+        } catch(error) {
+          console.error('Error loading baseline config:', error);
+        }
+        
+        try {
+          const r = await fetch('/allowlist-export');
+          const t = await r.text();
+          document.getElementById('wlist').value = t;
+          document.getElementById('allowlistCount').textContent = t.split('\n').filter(x => x.trim()).length + ' entries';
+        } catch(error) {
+          console.error('Error loading allowlist:', error);
+        }
+      }
+
+      async function clearOldIdentities() {
+        if (!confirm('Clear device identities older than 1 hour?')) return;
+        try {
+          const response = await fetch('/randomization/clear-old', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'age=3600'
+          });
+          const data = await response.text();
+          toast(data, 'success');
+        } catch (error) {
+          toast('Error: ' + error, 'error');
+        }
+      }
+
+      async function updateBaselineStatus() {
+        const detectionMode = document.getElementById('detectionMode');
+        if (!detectionMode || detectionMode.value !== 'baseline') {
+          if (baselineUpdateInterval) {
+            clearInterval(baselineUpdateInterval);
+            baselineUpdateInterval = null;
+          }
+          return;
+        }
+        
+        try {
+          const response = await fetch('/baseline/stats');
+          const stats = await response.json();
+          const statusDiv = document.getElementById('baselineStatus');
+          if (!statusDiv) return;
+          let statusHTML = '';
+          let progressHTML = '';
+          if (stats.scanning && !stats.phase1Complete) {
+            // Phase 1: Establishing baseline
+            const progress = Math.min(100, (stats.elapsedTime / stats.totalDuration) * 100);
+            statusHTML = '<div style="color:#00cc66;font-weight:bold;">⬤ Phase 1: Establishing Baseline...</div>';
+            progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:#001a10;border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,#0aff9d);transition:width 0.5s;"></div>' + '</div>' + '</div>';
+          } else if (stats.scanning && stats.phase1Complete) {
+            // Phase 2: Monitoring - add active status indicator
+            statusHTML = '<div style="color:#0aff9d;font-weight:bold;">⬤ Phase 2: Monitoring for Anomalies</div>';
+            // Add elapsed time indicator for Phase 2
+            const monitorTime = Math.floor(stats.elapsedTime / 1000);
+            const monitorMins = Math.floor(monitorTime / 60);
+            const monitorSecs = monitorTime % 60;
+            progressHTML = '<div style="margin-top:10px;color:#00cc66;font-size:11px;">' + 'Active monitoring: ' + monitorMins + 'm ' + monitorSecs + 's' + '</div>';
+          } else if (stats.established) {
+            // Complete
+            statusHTML = '<div style="color:#00cc66;">✓ Baseline Complete</div>';
+          } else {
+            statusHTML = '<div style="color:#888;">No baseline data</div>';
+          }
+          let statsHTML = '';
+          if (stats.scanning) {
+            statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+          }
+          statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
+          const startDetectionBtn = document.getElementById('startDetectionBtn');
+          const detectionMode = document.getElementById('detectionMode')?.value;
+          const cacheBtn = document.getElementById('cacheBtn');
+          const clearOldBtn = document.getElementById('clearOldBtn');
+          
+          if (cacheBtn) cacheBtn.style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
+          if (clearOldBtn) clearOldBtn.style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+          
+           if (detectionMode === 'baseline' && stats.scanning) {
+            startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
+            startDetectionBtn.classList.remove('primary');
+            startDetectionBtn.classList.add('danger');
+            startDetectionBtn.type = 'button';
+            startDetectionBtn.onclick = async function(e) {
+              e.preventDefault();
+              try {
+                const response = await fetch('/stop');
+                const text = await response.text();
+                toast(text);
+                setTimeout(updateBaselineStatus, 500);
+              } catch (error) {
+                console.error('Stop error:', error);
+              }
+            };
+          } else if (detectionMode === 'baseline' && !stats.scanning) {
+            startDetectionBtn.textContent = 'Start Scan';
+            startDetectionBtn.classList.remove('danger');
+            startDetectionBtn.classList.add('primary');
+            startDetectionBtn.type = 'submit';
+            startDetectionBtn.onclick = null;
+          }    
+          // Polling from scan state
+          if (stats.scanning && !baselineUpdateInterval) {
+            baselineUpdateInterval = setInterval(updateBaselineStatus, 1000);
+          } else if (!stats.scanning && baselineUpdateInterval) {
+            clearInterval(baselineUpdateInterval);
+            baselineUpdateInterval = null;
+          }
+        } catch(error) {
+          console.error('Status update error:', error);
+        }
+      }
+
+      // Initial load
+      updateBaselineStatus();
+      // Poll every 2 seconds when not actively scanning
+      setInterval(() => {
+        const detectionMode = document.getElementById('detectionMode');
+        if (detectionMode && detectionMode.value === 'baseline' && !baselineUpdateInterval) {
+          updateBaselineStatus();
+        }
+      }, 2000);
+      
+      async function saveBaselineConfig() {
+        const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
+        const duration = document.getElementById('baselineDuration').value;
+        const ramSize = document.getElementById('baselineRamSize').value;
+        const sdMax = document.getElementById('baselineSdMax').value;
+        
+        try {
+          const response = await fetch('/baseline/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}`
+          });
+          const data = await response.text();
+          toast('Baseline configuration saved', 'success');
+          await updateBaselineStatus();
+        } catch (error) {
+          toast('Error saving config: ' + error, 'error');
+        }
+      }
+      
+      async function resetBaseline() {
+        if (!confirm('Are you sure you want to reset the baseline? This will clear all collected data.')) return;
+        try {
+          const response = await fetch('/baseline/reset', { method: 'POST' });
+          const data = await response.text();
+          toast(data, 'success');
+          await updateBaselineStatus();
+        } catch (error) {
+          toast('Error resetting baseline: ' + error, 'error');
+        }
+      }
+
+      function clearResults() {
+        if (!confirm('Clear scan results?')) return;
+        
+        fetch('/clear-results', { method: 'POST' })
+          .then(r => r.text())
+          .then(() => {
+            document.getElementById('r').innerText = 'No scan data yet.';
+            toast('Results cleared', 'info');
+          })
+          .catch(err => {
+            console.error('Clear failed:', err);
+            toast('Failed to clear results', 'error');
+          });
+      }
+      
+      let currentSort = 'default';
+      let sortReverse = false;
+
+      function applySorting() {
+        currentSort = document.getElementById('sortBy').value;
+        sortResultsDisplay();
+      }
+
+      function toggleSortOrder() {
+        sortReverse = !sortReverse;
+        sortResultsDisplay();
+      }
+
+      function sortResultsDisplay() {
+        const resultsElement = document.getElementById('r');
+        
+        if (currentSort === 'default') {
+          return;
+        }
+        
+        const isRandomization = resultsElement.textContent.includes('MAC RANDOMIZATION DETECTION');
+        const isBaseline = resultsElement.textContent.includes('Baseline');
+        const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
+        const isDrone = resultsElement.textContent.includes('Drone Detection');
+        const isDeviceScan = resultsElement.textContent.includes('Device Discovery');
+        
+        let items = [];
+        const preservedElements = [];
+        
+        if (isRandomization) {
+          Array.from(resultsElement.children).forEach(child => {
+            if (child.tagName === 'DETAILS') {
+              const summary = child.querySelector('summary');
+              if (!summary) {
+                preservedElements.push(child);
+                return;
+              }
+              
+              const macElement = summary.querySelector('[style*="monospace"]');
+              const mac = macElement ? macElement.textContent.trim() : '';
+              
+              const summaryText = summary.textContent;
+              const confidenceMatch = summaryText.match(/(\d+)%/);
+              const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 0;
+              
+              const rssiMatch = summaryText.match(/([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : -999;
+              
+              const detailsContent = child.textContent;
+              const sessionsMatch = detailsContent.match(/SESSIONS\s*(\d+)/);
+              const sessions = sessionsMatch ? parseInt(sessionsMatch[1]) : 0;
+              
+              const lastSeenMatch = detailsContent.match(/LAST SEEN\s*(\d+)s/);
+              const lastSeen = lastSeenMatch ? parseInt(lastSeenMatch[1]) : 999999;
+              
+              const trackIdMatch = detailsContent.match(/TRACK ID\s*([A-Z0-9-]+)/);
+              const trackId = trackIdMatch ? trackIdMatch[1].trim() : '';
+              
+              const deviceType = child.getAttribute('data-type') || '';
+              
+              items.push({
+                element: child,
+                mac, confidence, rssi, sessions, lastSeen, trackId, deviceType,
+                sortKey: currentSort,
+                type: 'randomization'
+              });
+            } else {
+              preservedElements.push(child);
+            }
+          });
+        } else if (isBaseline) {
+          Array.from(resultsElement.children).forEach(child => {
+            const hasBackgroundStyle = child.getAttribute('style')?.includes('background:#000');
+            if (hasBackgroundStyle && child.textContent.match(/[A-F0-9:]{17}/)) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              const nameMatch = child.textContent.match(/Name:\s*"([^"]+)"/);
+              const name = nameMatch ? nameMatch[1] : '';
+              
+              items.push({
+                element: child,
+                mac, rssi, name,
+                sortKey: currentSort,
+                type: 'baseline'
+              });
+            } else {
+              preservedElements.push(child);
+            }
+          });
+        } else if (isDeauth) {
+          Array.from(resultsElement.children).forEach(child => {
+            const hasDeauthBorder = child.getAttribute('style')?.includes('border:1px solid #ff4444');
+            if (hasDeauthBorder) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const totalMatch = child.textContent.match(/Total Attacks[\s\S]*?(\d+)/);
+              const attacks = totalMatch ? parseInt(totalMatch[1]) : 0;
+              
+              const rssiMatch = child.textContent.match(/Signal[\s\S]*?([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              items.push({
+                element: child,
+                mac, attacks, rssi,
+                sortKey: currentSort,
+                type: 'deauth'
+              });
+            } else {
+              preservedElements.push(child);
+            }
+          });
+        } else if (isDrone) {
+          Array.from(resultsElement.children).forEach(child => {
+            const hasDroneBorder = child.getAttribute('style')?.includes('border:1px solid #0aff9d');
+            if (hasDroneBorder) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              items.push({
+                element: child,
+                mac, rssi,
+                sortKey: currentSort,
+                type: 'drone'
+              });
+            } else {
+              preservedElements.push(child);
+            }
+          });
+        } else if (isDeviceScan) {
+          Array.from(resultsElement.children).forEach(child => {
+            if (child.classList.contains('device-card')) {
+              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
+              const mac = macMatch ? macMatch[1] : '';
+              
+              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
+              
+              const nameMatch = child.textContent.match(/Name:\s*([^\n]+)/);
+              const name = nameMatch ? nameMatch[1].trim() : '';
+              
+              const deviceType = child.getAttribute('data-type') || '';
+              
+              items.push({
+                element: child,
+                mac, rssi, name, deviceType,
+                sortKey: currentSort,
+                type: 'device'
+              });
+            } else {
+              preservedElements.push(child);
+            }
+          });
+        }
+        
+        if (items.length === 0) {
+          return;
+        }
+        
+        items.sort((a, b) => {
+          let cmp = 0;
+          
+          switch(currentSort) {
+            case 'rssi-desc':
+              cmp = b.rssi - a.rssi;
+              break;
+            case 'rssi-asc':
+              cmp = a.rssi - b.rssi;
+              break;
+            case 'confidence-desc':
+              cmp = (b.confidence || 0) - (a.confidence || 0);
+              break;
+            case 'sessions-desc':
+              cmp = (b.sessions || 0) - (a.sessions || 0);
+              break;
+            case 'lastseen-asc':
+              cmp = (a.lastSeen || 0) - (b.lastSeen || 0);
+              break;
+            case 'name-asc':
+              cmp = (a.name || a.mac).localeCompare(b.name || b.mac);
+              break;
+            case 'type-asc':
+              cmp = (a.deviceType || '').localeCompare(b.deviceType || '');
+              break;
+            default:
+              cmp = 0;
+          }
+          
+          return sortReverse ? -cmp : cmp;
+        });
+        
+        resultsElement.innerHTML = '';
+        
+        preservedElements.forEach(el => {
+          resultsElement.appendChild(el);
+        });
+        
+        items.forEach(item => {
+          resultsElement.appendChild(item.element);
+        });
+      }
+
+      // Override the parseAndStyleResults to reset sort after reload
+      const originalParseAndStyleResults = window.parseAndStyleResults;
+      window.parseAndStyleResults = function(text) {
+        currentSort = 'default';
+        sortReverse = false;
+        if (document.getElementById('sortBy')) {
+          document.getElementById('sortBy').value = 'default';
+        }
+        return originalParseAndStyleResults.call(this, text);
+      };
+      
+      function updateStatusIndicators(diagText) {
+        const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
+        const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
+        const isScanning = diagText.includes('Scanning: yes');
+        const detectionMode = document.getElementById('detectionMode')?.value;
+        
+        document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
+        document.getElementById('clearOldBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+        document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
+        
+        if (isScanning) {
+            document.getElementById('scanStatus').innerText = 'Active';
+            document.getElementById('scanStatus').classList.add('active');
+            
+            const startScanBtn = document.querySelector('#s button');
+            if (startScanBtn && taskType === 'scan') {
+                startScanBtn.textContent = 'Stop Scanning';
+                startScanBtn.classList.remove('primary');
+                startScanBtn.classList.add('danger');
+                startScanBtn.type = 'button';
+                startScanBtn.onclick = function(e) {
+                    e.preventDefault();
+                    fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                        setTimeout(async () => {
+                            const refreshedDiag = await fetch('/diag').then(r => r.text());
+                            updateStatusIndicators(refreshedDiag);
+                        }, 500);
+                    });
+                };
+            }
+
+            if (taskType === 'triangulate') {
+                const triangulateBtn = document.querySelector('#s button');
+                if (triangulateBtn) {
+                    triangulateBtn.textContent = 'Stop Scan';
+                    triangulateBtn.classList.remove('primary');
+                    triangulateBtn.classList.add('danger');
+                    triangulateBtn.type = 'button';
+                    triangulateBtn.onclick = function(e) {
+                        e.preventDefault();
+                        fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                            setTimeout(async () => {
+                                const refreshedDiag = await fetch('/diag').then(r => r.text());
+                                updateStatusIndicators(refreshedDiag);
+                            }, 500);
+                        });
+                    };
+                }
+            }
+
+            if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam') {
+                const startDetectionBtn = document.getElementById('startDetectionBtn');
+                if (startDetectionBtn) {
+                    startDetectionBtn.textContent = 'Stop Scanning';
+                    startDetectionBtn.classList.remove('primary');
+                    startDetectionBtn.classList.add('danger');
+                    startDetectionBtn.type = 'button';
+                    startDetectionBtn.onclick = function(e) {
+                        e.preventDefault();
+                        fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                            setTimeout(async () => {
+                                const refreshedDiag = await fetch('/diag').then(r => r.text());
+                                updateStatusIndicators(refreshedDiag);
+                            }, 500);
+                        });
+                    };
+                }
+            }
+        } else {
+            document.getElementById('scanStatus').innerText = 'Idle';
+            document.getElementById('scanStatus').classList.remove('active');
+
+            const startScanBtn = document.querySelector('#s button');
+            if (startScanBtn) {
+                startScanBtn.textContent = 'Start Scan';
+                startScanBtn.classList.remove('danger');
+                startScanBtn.classList.add('primary');
+                startScanBtn.type = 'submit';
+                startScanBtn.onclick = null;
+                startScanBtn.style.background = '';
+            }
+
+            const detectionMode = document.getElementById('detectionMode')?.value;
+            if (detectionMode !== 'baseline') {
+                const startDetectionBtn = document.getElementById('startDetectionBtn');
+                if (startDetectionBtn) {
+                    startDetectionBtn.textContent = 'Start Scan';
+                    startDetectionBtn.classList.remove('danger');
+                    startDetectionBtn.classList.add('primary');
+                    startDetectionBtn.type = 'submit';
+                    startDetectionBtn.onclick = null;
+                }
+            }
+        }
+
+        const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
+        if (modeMatch) {
+            document.getElementById('modeStatus').innerText = modeMatch[1];
+        }
+        
+        if (diagText.includes('GPS: Locked')) {
+            document.getElementById('gpsStatus').classList.add('active');
+            document.getElementById('gpsStatus').innerText = 'GPS Lock';
+        } else {
+            document.getElementById('gpsStatus').classList.remove('active');
+            document.getElementById('gpsStatus').innerText = 'GPS';
+        }
+        
+        if (diagText.includes('RTC: Synced')) {
+            document.getElementById('rtcStatus').classList.add('active');
+            document.getElementById('rtcStatus').innerText = 'RTC OK';
+        } else if (diagText.includes('RTC: Not')) {
+            document.getElementById('rtcStatus').classList.remove('active');
+            document.getElementById('rtcStatus').innerText = 'RTC';
+        }
+      }
+        
+      function updateModeStatus() {
+        const scanModeSelect = document.querySelector('#s select[name="mode"]');
+        const detectionModeSelect = document.getElementById('detectionMode');
+        const randomizationModeSelect = document.getElementById('randomizationMode');
+        const deviceScanModeSelect = document.getElementById('deviceScanMode');
+        const modeStatus = document.getElementById('modeStatus');
+        
+        let currentMode = '0';
+        
+        // Check which form is active and visible
+        const detectionMethod = detectionModeSelect?.value;
+        
+        if (detectionMethod === 'randomization-detection' && randomizationModeSelect?.offsetParent !== null) {
+          currentMode = randomizationModeSelect.value;
+        } else if (detectionMethod === 'device-scan' && deviceScanModeSelect?.offsetParent !== null) {
+          currentMode = deviceScanModeSelect.value;
+        } else if (scanModeSelect) {
+          currentMode = scanModeSelect.value;
+        }
+        
+        const modeText = {
+          '0': 'WiFi',
+          '1': 'BLE',
+          '2': 'WiFi+BLE'
+        };
+        
+        if (modeStatus) {
+          modeStatus.innerText = modeText[currentMode] || 'WiFi';
+        }
+      }
+      
+      async function saveAutoEraseConfig() {
+        const enabled = document.getElementById('autoEraseEnabled').checked;
+        const delay = document.getElementById('autoEraseDelay').value;
+        const cooldown = document.getElementById('autoEraseCooldown').value;
+        const vibrationsRequired = document.getElementById('vibrationsRequired').value;
+        const detectionWindow = document.getElementById('detectionWindow').value;
+        const setupDelay = document.getElementById('setupDelay').value;
+        
+        const response = await fetch('/config/autoerase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
+        });
+        const data = await response.text();
+        document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
+        await updateAutoEraseStatus();
+      }
+      
+      async function updateAutoEraseStatus() {
+        const response = await fetch('/config/autoerase');
+        const data = await response.json();
+        if (data.enabled) {
+          if (data.inSetupMode) {
+            document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
+          } else {
+            document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
+          }
+        } else {
+          document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+        }
+      }
+      
+      function updateEraseProgress(message, percentage) {
+        const progressBar = document.getElementById('eraseProgressBar');
+        const progressText = document.getElementById('eraseProgressText');
+        const progressDetails = document.getElementById('eraseProgressDetails');
+        if (progressBar) {
+          progressBar.style.width = percentage + '%';
+        }
+        if (progressText) {
+          progressText.textContent = message;
+        }
+        if (progressDetails) {
+          progressDetails.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+          progressDetails.scrollTop = progressDetails.scrollHeight;
+        }
+      }
+      
+      function pollEraseProgress() {
+        const poll = setInterval(() => {
+          fetch('/erase/progress').then(response => response.json()).then(data => {
+            updateEraseProgress(data.message, data.percentage);
+            if (data.status === 'COMPLETE') {
+              clearInterval(poll);
+              finalizeEraseProcess(true);
+            } else if (data.status === 'ERROR') {
+              clearInterval(poll);
+              finalizeEraseProcess(false, data.error);
+            } else if (data.status === 'CANCELLED') {
+              clearInterval(poll);
+              hideEraseProgressModal();
+              toast('Secure erase cancelled', 'info');
+            }
+          }).catch(error => {
+            clearInterval(poll);
+            finalizeEraseProcess(false, 'Communication error');
+          });
+        }, 1000);
+      }
+      
+      function finalizeEraseProcess(success, error = null) {
+        if (success) {
+          updateEraseProgress('Secure erase completed successfully', 100);
+          toast('All data has been securely destroyed', 'success');
+          setTimeout(() => {
+            hideEraseProgressModal();
+            window.location.reload();
+          }, 3000);
+        } else {
+          updateEraseProgress('Secure erase failed: ' + error, 0);
+          toast('Erase operation failed: ' + error, 'error');
+          setTimeout(() => {
+            hideEraseProgressModal();
+          }, 5000);
+        }
+      }
+      
+      function hideEraseProgressModal() {
+        const modal = document.getElementById('eraseProgressModal');
+        if (modal) {
+          document.body.removeChild(modal);
+        }
+      }
+
+      function parseAndStyleResults(text) {
+        if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
+          return '<div style="color:var(--mut);padding:20px;text-align:center;">No scan data yet.</div>';
+        }
+
+        let html = '';
+
+        if (text.includes('=== Triangulation Results ===') || text.includes('Weighted GPS Trilateration')) {
+          html = parseTriangulationResults(text);
+        } else if(text.includes('MAC Randomization Detection Results')) {
+          html = parseRandomizationResults(text);
+        } else if (text.includes('Baseline not yet established') || text.includes('BASELINE ESTABLISHED')) {
+          html = parseBaselineResults(text);
+        } else if (text.includes('Deauth Detection Results') || text.includes('Deauth Attack Detection Results')) {
+          html = parseDeauthResults(text);
+        } else if (text.includes('Drone Detection Results')) {
+          html = parseDroneResults(text);
+        } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
+          html = parseDeviceScanResults(text);
+        } else {
+          html = '<div style="margin:0;background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:12px;color:var(--txt);font-size:11px;overflow-x:auto;">' + text + '</div>';
+        }
+        
+        return html;
+      }
+
+      function parseTriangulationResults(text) {
+        let html = '<div style="font-size:13px;">';
+        
+        const headerSection = text.split('---')[0];
+        if (headerSection.includes('=== Triangulation Results ===')) {
+          const targetMatch = headerSection.match(/Target MAC: ([A-F0-9:]+)/);
+          const durationMatch = headerSection.match(/Duration: (\d+)s/);
+          const elapsedMatch = headerSection.match(/Elapsed: (\d+)s/);
+          const nodesMatch = headerSection.match(/Reporting Nodes: (\d+)/);
+          const syncMatch = headerSection.match(/Clock Sync: (.+)/);
+          
+          html += '<div style="padding:16px;background:var(--surf);border:2px solid var(--acc);border-radius:12px;margin-bottom:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:12px;letter-spacing:-0.01em;">Triangulation Results</div>';
+          
+          if (targetMatch) {
+            html += '<div style="margin:8px 0;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-family:monospace;color:var(--acc);font-size:13px;font-weight:600;">';
+            html += 'TARGET: ' + targetMatch[1];
+            html += '</div>';
+          }
+          
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px;">';
+          if (durationMatch && elapsedMatch) {
+            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Duration</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + durationMatch[1] + 's</div>';
+            html += '</div>';
+            
+            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Elapsed</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + elapsedMatch[1] + 's</div>';
+            html += '</div>';
+          }
+          
+          if (nodesMatch) {
+            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Nodes</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + nodesMatch[1] + '</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+          
+          if (syncMatch) {
+            const syncVerified = syncMatch[1].includes('VERIFIED');
+            const syncColor = syncVerified ? 'var(--succ)' : 'var(--warn)';
+            html += '<div style="margin-top:12px;padding:8px;background:var(--bg);border-left:3px solid ' + syncColor + ';border-radius:4px;font-size:11px;color:var(--mut);">';
+            html += '⏱ Clock Sync: ' + syncMatch[1];
+            html += '</div>';
+          }
+          html += '</div>';
+        }
+        
+        const nodeSection = text.split('--- Node Reports ---')[1]?.split('---')[0];
+        if (nodeSection) {
+          html += '<details open style="margin-bottom:16px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:700;user-select:none;list-style:none;display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:14px;">';
+          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>Node Reports';
+          html += '</summary>';
+          html += '<div style="display:grid;gap:12px;">';
+          
+          const nodeLines = nodeSection.split('\n').filter(l => l.trim() && l.includes(':'));
+          nodeLines.forEach(line => {
+            const nodeMatch = line.match(/^([^:]+):/);
+            if (nodeMatch) {
+              const nodeId = nodeMatch[1].trim();
+              
+              const gpsMatch = line.match(/GPS=([-\d.]+),([-\d.]+)/);
+              const hdopMatch = line.match(/HDOP=([\d.]+)/);
+              const isGPS = gpsMatch !== null;
+              
+              const rssiMatch = line.match(/Filtered=([-\d.]+)dBm/);
+              const hitsMatch = line.match(/Hits=(\d+)/);
+              const signalMatch = line.match(/Signal=([\d.]+)%/);
+              const distMatch = line.match(/Dist=([\d.]+)m/);
+              
+              html += '<div style="padding:14px;background:var(--bg);border:1px solid var(--bord);border-radius:8px;transition:all 0.2s;">';
+              
+              html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+              html += '<div style="color:var(--txt);font-weight:700;font-size:13px;">' + nodeId + '</div>';
+              if (isGPS) {
+                html += '<div style="background:linear-gradient(135deg,var(--succ) 0%,var(--acc) 100%);color:#fff;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">GPS</div>';
+              } else {
+                html += '<div style="background:var(--surf);color:var(--mut);padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid var(--bord);">NO GPS</div>';
+              }
+              html += '</div>';
+              
+              html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:10px;">';
+              if (rssiMatch) {
+                const rssiVal = parseFloat(rssiMatch[1]);
+                const rssiColor = rssiVal > -60 ? 'var(--succ)' : rssiVal > -75 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">RSSI</div>';
+                html += '<div style="color:' + rssiColor + ';font-weight:700;font-size:14px;">' + rssiMatch[1] + ' dBm</div>';
+                html += '</div>';
+              }
+              if (hitsMatch) {
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Hits</div>';
+                html += '<div style="color:var(--txt);font-weight:700;font-size:14px;">' + hitsMatch[1] + '</div>';
+                html += '</div>';
+              }
+              if (signalMatch) {
+                const sigVal = parseFloat(signalMatch[1]);
+                const sigColor = sigVal >= 70 ? 'var(--succ)' : sigVal >= 50 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Quality</div>';
+                html += '<div style="color:' + sigColor + ';font-weight:700;font-size:14px;">' + signalMatch[1] + '%</div>';
+                html += '</div>';
+              }
+              if (distMatch) {
+                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
+                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Distance</div>';
+                html += '<div style="color:var(--txt);font-weight:700;font-size:14px;">' + distMatch[1] + 'm</div>';
+                html += '</div>';
+              }
+              html += '</div>';
+              
+              if (isGPS) {
+                html += '<div style="margin-top:10px;padding:10px;background:var(--surf);border:1px solid var(--acc);border-radius:6px;font-size:10px;font-family:monospace;">';
+                html += '<span style="color:var(--mut);">Location:</span> ';
+                html += '<span style="color:var(--acc);font-weight:600;">' + gpsMatch[1] + ', ' + gpsMatch[2] + '</span>';
+                if (hdopMatch) {
+                  html += '<span style="color:var(--mut);margin-left:12px;">HDOP: <span style="color:var(--txt);font-weight:600;">' + hdopMatch[1] + '</span></span>';
+                }
+                html += '</div>';
+              }
+              
+              html += '</div>';
+            }
+          });
+          
+          html += '</div></details>';
+        }
+        
+        const validationSection = text.split('--- GPS-RSSI Distance Validation ---')[1]?.split('---')[0];
+        if (validationSection) {
+          html += '<details open style="margin-bottom:16px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:700;user-select:none;list-style:none;display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:14px;">';
+          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>GPS-RSSI Validation';
+          html += '</summary>';
+          html += '<div style="display:grid;gap:8px;">';
+          
+          const valLines = validationSection.split('\n').filter(l => l.trim() && (l.includes('<->') || l.includes('Avg error')));
+          valLines.forEach(line => {
+            if (line.includes('<->')) {
+              const checkMark = line.includes('✓') ? '✓' : '✗';
+              const color = line.includes('✓') ? 'var(--succ)' : 'var(--dang)';
+              const cleanLine = line.replace(/✓|✗/g, '').trim();
+              html += '<div style="padding:10px;background:var(--bg);border-left:3px solid ' + color + ';border-radius:6px;font-size:11px;color:var(--txt);">';
+              html += '<span style="color:' + color + ';font-weight:bold;margin-right:8px;">' + checkMark + '</span>' + cleanLine;
+              html += '</div>';
+            } else if (line.includes('Avg error')) {
+              const errorMatch = line.match(/([\d.]+)%/);
+              const qualityMatch = line.match(/\(([^)]+)\)/);
+              if (errorMatch) {
+                const errVal = parseFloat(errorMatch[1]);
+                const errColor = errVal < 25 ? 'var(--succ)' : errVal < 50 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div style="margin-top:8px;padding:14px;background:var(--bg);border:2px solid ' + errColor + ';border-radius:8px;">';
+                html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Average Error</div>';
+                html += '<div style="color:' + errColor + ';font-weight:700;font-size:20px;margin-bottom:4px;">' + errorMatch[1] + '%</div>';
+                if (qualityMatch) {
+                  html += '<div style="color:var(--txt);font-size:12px;font-weight:600;">' + qualityMatch[1] + '</div>';
+                }
+                html += '</div>';
+              }
+            }
+          });
+          
+          html += '</div></details>';
+        }
+        
+        const positionSection = text.split('ESTIMATED POSITION:')[1]?.split('===')[0];
+        if (positionSection) {
+          const latMatch = positionSection.match(/Latitude:\s*([-\d.]+)/);
+          const lonMatch = positionSection.match(/Longitude:\s*([-\d.]+)/);
+          const confMatch = positionSection.match(/Confidence:\s*([\d.]+)%/);
+          const uncertaintyMatch = positionSection.match(/Uncertainty.*?±([\d.]+)m/);
+          const methodMatch = positionSection.match(/Method:\s*([^\n]+)/);
+          
+          html += '<div style="padding:20px;background:var(--surf);border:2px solid var(--acc);border-radius:12px;margin-bottom:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
+          html += '<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:16px;letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;">';
+          html += '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+          html += 'Position Estimated</div>';
+          
+          if (latMatch && lonMatch) {
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">';
+            
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Latitude</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:16px;font-family:monospace;">' + latMatch[1] + '</div>';
+            html += '</div>';
+            
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Longitude</div>';
+            html += '<div style="color:var(--txt);font-weight:700;font-size:16px;font-family:monospace;">' + lonMatch[1] + '</div>';
+            html += '</div>';
+            
+            html += '</div>';
+            
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
+            
+            if (confMatch) {
+              const confVal = parseFloat(confMatch[1]);
+              const confColor = confVal >= 70 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
+              html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+              html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Confidence</div>';
+              html += '<div style="color:' + confColor + ';font-weight:700;font-size:18px;">' + confMatch[1] + '%</div>';
+              html += '</div>';
+            }
+            
+            if (uncertaintyMatch) {
+              html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
+              html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Uncertainty (CEP68)</div>';
+              html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">±' + uncertaintyMatch[1] + 'm</div>';
+              html += '</div>';
+            }
+            
+            html += '</div>';
+            
+            if (methodMatch) {
+              html += '<div style="padding:10px;background:var(--bg);border-left:3px solid var(--acc);border-radius:4px;font-size:11px;color:var(--mut);margin-bottom:12px;">';
+              html += '<span style="font-weight:600;color:var(--txt);">Method:</span> ' + methodMatch[1];
+              html += '</div>';
+            }
+            
+            const mapsUrl = 'https://www.google.com/maps?q=' + latMatch[1] + ',' + lonMatch[1];
+            html += '<a href="' + mapsUrl + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;background:var(--acc);border:2px solid var(--acc);border-radius:8px;color:#fff;text-decoration:none;font-weight:600;font-size:13px;transition:all 0.2s;box-shadow:var(--glow);">';
+            html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+            html += 'Open in Google Maps';
+            html += '</a>';
+          }
+          
+          html += '</div>';
+        }
+        html += '</div>';
+        return html;
+      }
+
+      function parseRandomizationResults(text) {
+        const identitiesMatch = text.match(/Active Identities: (\d+)/);
+        const observationsMatch = text.match(/Total Observations: (\d+)/);
+        const windowMatch = text.match(/Tracking Window: ([^\n]+)/);
+
+        let html = '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:13px;color:var(--txt);margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">MAC RANDOMIZATION DETECTION</div>';
+        html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);">';
+        if (windowMatch) html += '<span>Window: <strong style="color:var(--txt);">' + windowMatch[1] + '</strong></span>';
+        if (identitiesMatch) html += '<span>Identities: <strong style="color:var(--txt);">' + identitiesMatch[1] + '</strong></span>';
+        if (observationsMatch) html += '<span>Observations: <strong style="color:var(--txt);">' + observationsMatch[1] + '</strong></span>';
+        html += '</div></div>';
+
+        const trackBlocks = text.split(/(?=Identity: T-)/g).filter(b => b.includes('Identity: T-'));
+        console.log('[DEBUG] trackBlocks count:', trackBlocks.length);
+
+        trackBlocks.forEach((block, index) => {
+          const identityMatch = block.match(/Identity:\s*(T-\d+)/);
+          const typeMatch = block.match(/Type:\s*([^\n]+)/);
+          const confMatch = block.match(/Confidence:\s*([\d.]+)%/);
+          const sessionsMatch = block.match(/Sessions:\s*(\d+)/);
+          const observationsMatch = block.match(/Observations:\s*(\d+)/);
+          const avgRssiMatch = block.match(/Avg RSSI:\s*([-\d]+)\s*dBm/);
+          const intervalMatch = block.match(/Interval Consistency:\s*([\d]+)%/);
+          const rssiConsistencyMatch = block.match(/RSSI Consistency:\s*([\d]+)%/);
+          const sequenceTrackingMatch = block.match(/Sequence Tracking:\s*([^\n]+)/);
+          const probableMacMatch = block.match(/Probable Global MAC:\s*([A-F0-9:]+)/);
+
+          // Extract tracked MACs
+          const macsSection = block.match(/Tracked MACs:([^]*?)(?=Fingerprint:|$)/);
+          const trackedMacs = [];
+          if (macsSection) {
+            const macLines = macsSection[1].match(/([A-F0-9:]+)\s*\(([^)]+)\)/g);
+            if (macLines) {
+              macLines.forEach(line => {
+                const macMatch = line.match(/([A-F0-9:]+)\s*\(([^)]+)\)/);
+                if (macMatch) {
+                  trackedMacs.push({ mac: macMatch[1], time: macMatch[2] });
+                }
+              });
+            }
+          }
+
+          if (!identityMatch) return;
+
+          const trackId = identityMatch[1];
+          const anchorMac = trackedMacs.length > 0 ? trackedMacs[0].mac : 'N/A';
+          const macCount = trackedMacs.length.toString();
+          const confidence = confMatch ? confMatch[1] : '0';
+          const sessions = sessionsMatch ? sessionsMatch[1] : '0';
+          const isBLE = typeMatch && typeMatch[1].includes('BLE');
+          const deviceType = isBLE ? 'BLE' : 'WiFi';
+          const avgRssi = avgRssiMatch ? parseInt(avgRssiMatch[1]) : null;
+          
+          html += '<details data-type="' + deviceType + '" style="background:var(--surf);border:1px solid var(--bord);border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bord)\'">';
+          html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
+          html += '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;flex-wrap:wrap;">';
+          html += '<span style="font-family:monospace;font-size:12px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
+          html += '<span style="background:' + (isBLE ? '#4a1a4a' : '#1a2a4a') + ';color:' + (isBLE ? '#d896ff' : '#6ab7ff') + ';padding:2px 8px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + (isBLE ? 'BLE' : 'WiFi') + '</span>';
+          html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
+          html += '</div>';
+          html += '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">';
+          
+          if (avgRssi !== null) {
+            const rssiColor = avgRssi >= -50 ? 'var(--succ)' : avgRssi >= -70 ? 'var(--warn)' : 'var(--dang)';
+            html += '<div style="text-align:right;">';
+            html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">RSSI</div>';
+            html += '<div style="font-size:13px;color:' + rssiColor + ';font-weight:700;white-space:nowrap;">' + avgRssi + '<span style="font-size:9px;margin-left:1px;">dBm</span></div>';
+            html += '</div>';
+          }
+          
+          const confVal = parseInt(confidence);
+          const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
+          html += '<div style="text-align:right;">';
+          html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Confidence</div>';
+          html += '<div style="font-size:13px;color:' + confColor + ';font-weight:700;white-space:nowrap;">' + confidence + '<span style="font-size:9px;">%</span></div>';
+          html += '</div>';
+          
+          html += '<span style="color:var(--mut);font-size:18px;">▶</span>';
+          html += '</div>';
+          html += '</summary>';
+          
+          html += '<div style="padding:0 14px 14px 14px;border-top:1px solid var(--bord);">';
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px;">';
+          
+          html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+          html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">SESSIONS</div>';
+          html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + sessions + '</div>';
+          html += '</div>';
+
+          if (observationsMatch) {
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">OBSERVATIONS</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + observationsMatch[1] + '</div>';
+            html += '</div>';
+          }
+
+          if (rssiConsistencyMatch) {
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">RSSI STABILITY</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + rssiConsistencyMatch[1] + '%</div>';
+            html += '</div>';
+          }
+
+          if (intervalMatch) {
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">INTERVAL CONSISTENCY</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + intervalMatch[1] + '%</div>';
+            html += '</div>';
+          }
+
+          html += '</div>';
+
+          if (sequenceTrackingMatch) {
+            html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">SEQUENCE TRACKING</div>';
+            html += '<div style="font-size:10px;color:var(--txt);">' + sequenceTrackingMatch[1].trim() + '</div>';
+            html += '</div>';
+          }
+
+          if (probableMacMatch) {
+            html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--succ);border-radius:4px;">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">PROBABLE GLOBAL MAC</div>';
+            html += '<div style="font-size:11px;color:var(--acc);font-family:monospace;font-weight:600;">' + probableMacMatch[1] + '</div>';
+            html += '</div>';
+          }
+
+          html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
+          html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">IDENTITY ID</div>';
+          html += '<div style="font-size:11px;color:var(--acc);font-family:monospace;font-weight:600;">' + trackId + '</div>';
+          html += '</div>';
+
+          if (trackedMacs.length > 0) {
+            html += '<details style="margin-top:10px;" open>';
+            html += '<summary style="font-size:9px;color:var(--mut);cursor:pointer;padding:6px 0;list-style:none;user-select:none;">TRACKED MAC ADDRESSES (' + trackedMacs.length + ')</summary>';
+            html += '<div style="display:grid;gap:4px;margin-top:6px;">';
+
+            trackedMacs.forEach((macObj, i) => {
+              const isAnchor = i === 0;
+              const isActive = macObj.time.includes('Active');
+              html += '<div style="background:' + (isAnchor ? 'var(--bg)' : 'var(--surf)') + ';border:1px solid ' + (isAnchor ? 'var(--succ)' : 'var(--bord)') + ';border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isAnchor ? 'var(--acc)' : 'var(--mut)') + ';">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+              html += '<span>' + macObj.mac + '</span>';
+              if (isActive) html += '<span style="font-size:7px;padding:2px 5px;background:var(--succ);border-radius:2px;color:var(--bg);font-weight:600;">ACTIVE</span>';
+              html += '</div>';
+              html += '<div style="font-size:9px;color:var(--mut);">' + macObj.time + '</div>';
+              html += '</div>';
+            });
+
+            html += '</div></details>';
+          }
+          
+          html += '</div>';
+          html += '</details>';
+        });
+        
+        return html;
+      }
+
+      function toggleTrackCollapse(cardId) {
+        const content = document.getElementById(cardId + 'Content');
+        const icon = document.getElementById(cardId + 'Icon');
+        
+        if (content.style.display === 'none') {
+          content.style.display = 'block';
+          icon.style.transform = 'rotate(0deg)';
+          icon.textContent = '▼';
+        } else {
+          content.style.display = 'none';
+          icon.style.transform = 'rotate(-90deg)';
+          icon.textContent = '▶';
+        }
+      }
+
+      function parseBaselineResults(text) {
+        let html = '';
+        
+        const totalMatch = text.match(/Total devices in baseline: (\d+)/);
+        const wifiMatch = text.match(/WiFi devices: (\d+)/);
+        const bleMatch = text.match(/BLE devices: (\d+)/);
+        const rssiThreshMatch = text.match(/RSSI threshold: ([-\d]+) dBm/);
+        const anomalyCountMatch = text.match(/Total anomalies: (\d+)/);
+        
+        if (text.includes('Baseline not yet established')) {
+          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;text-align:center;color:var(--mut);">';
+          html += '<div style="font-size:14px;margin-bottom:8px;">Baseline Not Yet Established</div>';
+          const devicesMatch = text.match(/Devices detected so far: (\d+)/);
+          if (devicesMatch) {
+            html += '<div style="font-size:12px;">Devices detected: <strong style="color:var(--txt);">' + devicesMatch[1] + '</strong></div>';
+          }
+          html += '</div>';
+          return html;
+        }
+        
+        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">Baseline Established</div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;color:var(--mut);">';
+        if (totalMatch) html += '<span>Total: <strong style="color:var(--txt);">' + totalMatch[1] + '</strong></span>';
+        if (wifiMatch) html += '<span>WiFi: <strong style="color:var(--txt);">' + wifiMatch[1] + '</strong></span>';
+        if (bleMatch) html += '<span>BLE: <strong style="color:var(--txt);">' + bleMatch[1] + '</strong></span>';
+        if (rssiThreshMatch) html += '<span>Threshold: <strong style="color:var(--txt);">' + rssiThreshMatch[1] + ' dBm</strong></span>';
+        html += '</div></div>';
+        
+        if (anomalyCountMatch) {
+          html += '<div style="margin-bottom:12px;padding:12px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;">';
+          html += '<div style="font-size:14px;color:var(--dang);font-weight:bold;">⚠ Anomalies Detected: ' + anomalyCountMatch[1] + '</div>';
+          html += '</div>';
+          
+          const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];
+          if (anomalySection) {
+            const anomalyLines = anomalySection.split('\n').filter(l => l.trim() && !l.includes('Total anomalies'));
+            anomalyLines.forEach(line => {
+              const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?\s+-\s+(.+)$/);
+              if (match) {
+                const [_, type, mac, rssi, channel, name, reason] = match;
+                
+                html += '<div style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid var(--warn);margin-bottom:10px;">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
+                html += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + mac + '</div>';
+                html += '<span style="background:var(--warn);color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
+                html += '</div>';
+                html += '<div style="display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:8px;flex-wrap:wrap;">';
+                html += '<span>RSSI: <strong style="color:var(--txt);">' + rssi + ' dBm</strong></span>';
+                if (channel) html += '<span>Channel: <strong style="color:var(--txt);">' + channel + '</strong></span>';
+                if (name) html += '<span>Name: <strong style="color:var(--txt);">' + name + '</strong></span>';
+                html += '</div>';
+                html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;color:var(--warn);font-size:12px;">';
+                html += reason;
+                html += '</div>';
+                html += '</div>';
+              }
+            });
+          }
+        }
+        
+        const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1]?.split('===')[0];
+        if (baselineSection) {
+          html += '<details style="margin-top:14px;">';
+          html += '<summary style="cursor:pointer;color:var(--acc);user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
+          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
+          html += 'Baseline Devices (Cached in RAM)';
+          html += '</summary>';
+          html += '<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;max-height:400px;overflow-y:auto;">';
+          
+          const deviceLines = baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/));
+          deviceLines.forEach(line => {
+            const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:([-\d]+)dBm\s+Max:([-\d]+)dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
+            if (match) {
+              const [_, type, mac, avg, min, max, hits, channel, name] = match;
+              
+              html += '<div style="padding:8px;margin-bottom:6px;background:var(--surf);border-radius:6px;border:1px solid var(--bord);">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px;">';
+              html += '<div>';
+              html += '<div style="font-family:monospace;font-size:12px;color:var(--txt);margin-bottom:3px;">' + mac + '</div>';
+              if (name) html += '<div style="font-size:11px;color:var(--mut);">Name: ' + name + '</div>';
+              html += '</div>';
+              html += '<div style="text-align:right;">';
+              html += '<div style="font-size:11px;color:var(--mut);">Avg: ' + avg + ' dBm</div>';
+              html += '<div style="font-size:10px;color:var(--mut);">' + min + '→' + max + ' dBm</div>';
+              html += '</div>';
+              html += '</div>';
+              html += '<div style="display:flex;gap:12px;font-size:10px;color:var(--mut);margin-top:4px;">';
+              html += '<span>Type: <strong style="color:var(--txt);">' + type + '</strong></span>';
+              html += '<span>Hits: <strong style="color:var(--txt);">' + hits + '</strong></span>';
+              if (channel) html += '<span>CH: <strong style="color:var(--txt);">' + channel + '</strong></span>';
+              html += '</div>';
+              html += '</div>';
+            }
+          });
+          
+          html += '</div>';
+          html += '</details>';
+        }
+        
+        return html;
+      }
+
+      function parseDeauthResults(text) {
+        let html = '';
+        
+        const durationMatch = text.match(/Duration: (.+)/);
+        const deauthMatch = text.match(/Deauth frames: (\d+)/);
+        const disassocMatch = text.match(/Disassoc frames: (\d+)/);
+        const totalMatch = text.match(/Total attacks: (\d+)/);
+        const targetsMatch = text.match(/Targets attacked: (\d+)/);
+        
+        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">⚠ Deauth Attack Detection Results</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);flex-wrap:wrap;">';
+        if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + '</strong></span>';
+        if (deauthMatch) html += '<span>Deauth: <strong style="color:var(--dang);">' + deauthMatch[1] + '</strong></span>';
+        if (disassocMatch) html += '<span>Disassoc: <strong style="color:var(--dang);">' + disassocMatch[1] + '</strong></span>';
+        if (totalMatch) html += '<span>Total: <strong style="color:var(--dang);">' + totalMatch[1] + '</strong></span>';
+        if (targetsMatch) html += '<span>Targets: <strong style="color:var(--txt);">' + targetsMatch[1] + '</strong></span>';
+        html += '</div></div>';
+        
+        if (text.includes('No attacks detected')) {
+          html += '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">No attacks detected</div>';
+          return html;
+        }
+        
+        const lines = text.split('\n');
+        let currentTarget = null;
+        let currentTargetHtml = '';
+        let inSourcesList = false;
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          
+          const targetMatch = line.match(/^([A-F0-9:]+|\[BROADCAST\])\s+Total=(\d+)\s+Broadcast=(\d+)\s+Targeted=(\d+)\s+LastRSSI=([-\d]+)dBm\s+CH=(\d+)/);
+          if (targetMatch) {
+            if (currentTarget) {
+              html += currentTargetHtml + '</div>';
+            }
+            
+            const [_, target, total, broadcast, targeted, rssi, channel] = targetMatch;
+            const isBroadcast = target === '[BROADCAST]';
+            
+            currentTargetHtml = '<div style="background:var(--surf);padding:16px;border-radius:8px;border:1px solid var(--warn);margin-bottom:12px;">';
+            currentTargetHtml += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
+            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + target + '</div>';
+            if (isBroadcast) {
+              currentTargetHtml += '<span style="background:var(--warn);color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
+            }
+            currentTargetHtml += '</div>';
+            
+            currentTargetHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px;font-size:12px;">';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Total Attacks</div>';
+            currentTargetHtml += '<div style="color:var(--dang);font-size:16px;font-weight:bold;">' + total + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Broadcast</div>';
+            currentTargetHtml += '<div style="color:var(--dang);font-size:16px;font-weight:bold;">' + broadcast + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Targeted</div>';
+            currentTargetHtml += '<div style="color:var(--warn);font-size:16px;font-weight:bold;">' + targeted + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Signal / Channel</div>';
+            currentTargetHtml += '<div style="color:var(--txt);font-size:14px;font-weight:bold;">' + rssi + ' dBm / CH' + channel + '</div>';
+            currentTargetHtml += '</div>';
+            currentTargetHtml += '</div>';
+            
+            currentTargetHtml += '<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
+            currentTargetHtml += '<div style="font-size:11px;color:var(--mut);margin-bottom:8px;font-weight:bold;">Attack Sources:</div>';
+            
+            currentTarget = target;
+            inSourcesList = true;
+            continue;
+          }
+          
+          if (inSourcesList && line.trim().startsWith('←')) {
+            const sourceMatch = line.match(/← ([A-F0-9:]+) \((\d+)x\)/);
+            if (sourceMatch) {
+              const [_, source, count] = sourceMatch;
+              currentTargetHtml += '<div style="padding:6px;font-family:monospace;font-size:12px;color:var(--txt);border-bottom:1px solid var(--bord);">';
+              currentTargetHtml += '<span style="color:var(--warn);">←</span> ' + source + ' <span style="color:var(--mut);">(' + count + ' attacks)</span>';
+              currentTargetHtml += '</div>';
+            }
+          }
+          
+          if (inSourcesList && line.trim().startsWith('...')) {
+            const moreMatch = line.match(/\((\d+) more attackers\)/);
+            if (moreMatch) {
+              currentTargetHtml += '<div style="padding:8px;text-align:center;color:var(--mut);font-size:11px;">+ ' + moreMatch[1] + ' more attackers</div>';
+            }
+          }
+          
+          if (line.trim() === '' && currentTarget) {
+            currentTargetHtml += '</div>';
+            html += currentTargetHtml;
+            currentTarget = null;
+            currentTargetHtml = '';
+            inSourcesList = false;
+          }
+        }
+        
+        if (currentTarget) {
+          currentTargetHtml += '</div>';
+          html += currentTargetHtml;
+        }
+        
+        const finalMoreMatch = text.match(/\.\.\. \((\d+) more targets\)/);
+        if (finalMoreMatch) {
+          html += '<div style="padding:12px;text-align:center;color:var(--mut);font-size:12px;border:1px dashed var(--bord);border-radius:6px;">+ ' + finalMoreMatch[1] + ' more targets</div>';
+        }
+        
+        return html;
+      }
+
+      function parseDroneResults(text) {
+        let html = '';
+        
+        const totalMatch = text.match(/Total detections: (\d+)/);
+        const uniqueMatch = text.match(/Unique drones: (\d+)/);
+        
+        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">Drone Detection Results</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);">';
+        if (totalMatch) html += '<span>Total: <strong style="color:var(--txt);">' + totalMatch[1] + '</strong></span>';
+        if (uniqueMatch) html += '<span>Unique: <strong style="color:var(--txt);">' + uniqueMatch[1] + '</strong></span>';
+        html += '</div></div>';
+        
+        const droneBlocks = text.split(/(?=MAC:)/g).filter(b => b.includes('MAC:'));
+        droneBlocks.forEach(block => {
+          const macMatch = block.match(/MAC: ([A-F0-9:]+)/);
+          const uavMatch = block.match(/UAV ID: (.+)/);
+          const rssiMatch = block.match(/RSSI: ([-\d]+) dBm/);
+          const locMatch = block.match(/Location: ([-\d.]+), ([-\d.]+)/);
+          const altMatch = block.match(/Altitude: ([\d.]+)m/);
+          const speedMatch = block.match(/Speed: ([\d.]+) m\/s/);
+          const opLocMatch = block.match(/Operator Location: ([-\d.]+), ([-\d.]+)/);
+          
+          if (!macMatch) return;
+          
+          html += '<div style="background:var(--surf);padding:18px;border-radius:8px;border:1px solid var(--acc);margin-bottom:12px;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
+          html += '<div style="font-family:monospace;font-size:15px;color:var(--acc);">' + macMatch[1] + '</div>';
+          if (rssiMatch) html += '<span style="color:var(--mut);font-size:12px;">RSSI: <strong style="color:var(--txt);">' + rssiMatch[1] + ' dBm</strong></span>';
+          html += '</div>';
+          
+          if (uavMatch) {
+            html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;margin-bottom:8px;font-size:12px;color:var(--acc);">';
+            html += 'UAV ID: <strong>' + uavMatch[1] + '</strong>';
+            html += '</div>';
+          }
+          
+          if (locMatch) {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:var(--mut);margin-top:8px;">';
+            html += '<div>Location: <strong style="color:var(--txt);">' + locMatch[1] + ', ' + locMatch[2] + '</strong></div>';
+            if (altMatch) html += '<div>Altitude: <strong style="color:var(--txt);">' + altMatch[1] + 'm</strong></div>';
+            if (speedMatch) html += '<div>Speed: <strong style="color:var(--txt);">' + speedMatch[1] + ' m/s</strong></div>';
+            html += '</div>';
+          }
+          
+          if (opLocMatch) {
+            html += '<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;color:var(--mut);">';
+            html += 'Operator: <strong style="color:var(--txt);">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>';
+            html += '</div>';
+          }
+          
+          html += '</div>';
+        });
+        
+        return html;
+      }
+
+      function parseDeviceScanResults(text) {
+        let html = '';
+        
+        const modeMatch = text.match(/Mode: ([^\s]+)/);
+        const durationMatch = text.match(/Duration: ([^\n]+)/);
+        const hitsMatch = text.match(/Target Hits: (\d+)/);
+        const uniqueMatch = text.match(/Unique devices: (\d+)/);
+        
+        if (modeMatch || durationMatch || hitsMatch || uniqueMatch) {
+          html += '<div id="deviceScanHeader" style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+          html += '<div style="font-size:14px;color:var(--txt);margin-bottom:8px;font-weight:bold;">Device Discovery Scan Results</div>';
+          html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);flex-wrap:wrap;">';
+          if (modeMatch) html += '<span>Mode: <strong style="color:var(--txt);">' + modeMatch[1] + '</strong></span>';
+          if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + '</strong></span>';
+          if (hitsMatch) html += '<span>Target Hits: <strong style="color:var(--txt);">' + hitsMatch[1] + '</strong></span>';
+          if (uniqueMatch) html += '<span>Unique: <strong style="color:var(--txt);">' + uniqueMatch[1] + '</strong></span>';
+          html += '</div></div>';
+        }
+        
+        const lines = text.split('\n');
+        lines.forEach(line => {
+          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
+          if (!match) return;
+          
+          const type = match[1];
+          const mac = match[2];
+          const rssi = match[3];
+          const channel = match[4] || '';
+          const name = match[5] || 'Unknown';
+          
+          const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
+          const rssiStrength = parseInt(rssi);
+          let rssiColor = 'var(--mut)';
+          if (rssiStrength >= -50) rssiColor = 'var(--succ)';
+          else if (rssiStrength >= -70) rssiColor = 'var(--txt)';
+          
+          html += '<div class="device-card" data-type="' + type + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
+          html += '<div>';
+          html += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + '</div>';
+          html += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
+          html += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
+          html += '</div>';
+          html += '<div style="text-align:right;">';
+          html += '<div style="font-size:12px;color:' + rssiColor + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
+          if (channel) html += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
+        });
+        
+        return html;
+      }
+
+      let terminalWs = null;
+      let terminalVisible = false;
+      let terminalDragging = false;
+      let terminalDragOffset = {x: 0, y: 0};
+
+      function initTerminal() {
+        const toggle = document.getElementById('terminalToggle');
+        const window = document.getElementById('terminalWindow');
+        
+        if (!toggle || !window) {
+          console.log('[TERMINAL] Elements not found, feature disabled');
+          return;
+        }
+        
+        const close = document.getElementById('terminalClose');
+        const header = document.getElementById('terminalHeader');
+        const content = document.getElementById('terminalContent');
+        
+        toggle.addEventListener('click', () => {
+          terminalVisible = !terminalVisible;
+          if (terminalVisible) {
+            window.classList.add('visible');
+            toggle.classList.add('active');
+            connectTerminal();
+          } else {
+            window.classList.remove('visible');
+            toggle.classList.remove('active');
+            if (terminalWs) {
+              terminalWs.close();
+              terminalWs = null;
+            }
+          }
+        });
+        
+        close.addEventListener('click', () => {
+          terminalVisible = false;
+          window.classList.remove('visible');
+          toggle.classList.remove('active');
+          if (terminalWs) {
+            terminalWs.close();
+            terminalWs = null;
+          }
+        });
+        
+        header.addEventListener('mousedown', (e) => {
+          terminalDragging = true;
+          terminalDragOffset.x = e.clientX - window.offsetLeft;
+          terminalDragOffset.y = e.clientY - window.offsetTop;
+          window.style.position = 'fixed';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+          if (!terminalDragging) return;
+          const x = e.clientX - terminalDragOffset.x;
+          const y = e.clientY - terminalDragOffset.y;
+          window.style.left = Math.max(0, Math.min(x, window.innerWidth - window.offsetWidth)) + 'px';
+          window.style.top = Math.max(0, Math.min(y, window.innerHeight - window.offsetHeight)) + 'px';
+          window.style.right = 'auto';
+          window.style.bottom = 'auto';
+        });
+        
+        document.addEventListener('mouseup', () => {
+          terminalDragging = false;
+        });
+      }
+
+      function connectTerminal() {
+        if (terminalWs) return;
+        
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        terminalWs = new WebSocket(protocol + '//' + location.host + '/terminal');
+        
+        terminalWs.onopen = () => {
+          console.log('[TERMINAL] Connected');
+        };
+        
+        terminalWs.onmessage = (event) => {
+          const content = document.getElementById('terminalContent');
+          const line = document.createElement('div');
+          line.className = 'terminal-line';
+          
+          if (event.data.includes('[TX]')) {
+            line.classList.add('tx');
+          } else if (event.data.includes('[RX]')) {
+            line.classList.add('rx');
+          }
+          
+          line.textContent = event.data;
+          content.appendChild(line);
+          
+          while (content.children.length > 500) {
+            content.removeChild(content.firstChild);
+          }
+          
+          content.scrollTop = content.scrollHeight;
+        };
+        
+        terminalWs.onerror = (error) => {
+          console.error('[TERMINAL] Error:', error);
+        };
+        
+        terminalWs.onclose = () => {
+          console.log('[TERMINAL] Disconnected');
+          terminalWs = null;
+          if (terminalVisible) {
+            setTimeout(connectTerminal, 2000);
+          }
+        };
+      }
+
+      function resetRandomizationDetection() {
+        if (!confirm('Reset all randomization detection data?')) return;
+        
+        fetch('/randomization/reset', { method: 'POST' })
+          .then(r => r.text())
+          .then(data => {
+            toast(data, 'success');
+          })
+          .catch(err => toast('Error: ' + err, 'error'));
+      }
+
+      function toast(msg, type = 'info') {
+        const wrap = document.getElementById('toast');
+        const el = document.createElement('div');
+        el.className = `toast toast-${type}`;
+        const typeLabels = {
+          'success': 'SUCCESS',
+          'error': 'ERROR',
+          'warning': 'WARNING',
+          'info': 'INFO'
+        };
+        el.innerHTML = `<div class="toast-content"><div class="toast-title">[${typeLabels[type] || typeLabels.info}]</div><div class="toast-message">${msg}</div></div>`;
+        wrap.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('show'));
+        const duration = type === 'success' ? 10000 : (type === 'error' ? 8000 : 4000);
+        setTimeout(() => {
+          el.classList.remove('show');
+          setTimeout(() => wrap.removeChild(el), 300);
+        }, duration);
+      }
+      
+      function updateAutoEraseStatus() {
+        fetch('/config/autoerase').then(response => response.json()).then(data => {
+          const statusDiv = document.getElementById('autoEraseStatus');
+          let statusText = '';
+          let statusClass = '';
+          if (!data.enabled) {
+            statusText = 'DISABLED - Manual erase only';
+            statusClass = 'status-disabled';
+          } else if (data.inSetupMode) {
+            const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
+            statusText = `SETUP MODE - Activating in ${remaining}s`;
+            statusClass = 'status-setup';
+          } else if (data.tamperActive) {
+            statusText = 'TAMPER DETECTED - Auto-erase in progress';
+            statusClass = 'status-danger';
+          } else {
+            statusText = 'ACTIVE - Monitoring for tampering';
+            statusClass = 'status-active';
+          }
+          statusDiv.textContent = statusText;
+          statusDiv.className = statusClass;
+        }).catch(error => {
+          document.getElementById('autoEraseStatus').textContent = 'Status unavailable';
+        });
+      }
+      
+      async function cancelErase() {
+        const response = await fetch('/erase/cancel', { method: 'POST' });
+        const data = await response.text();
+        document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+      }
+      
+      function pollEraseStatus() {
+        const poll = setInterval(() => {
+          fetch('/erase/status').then(response => response.text()).then(status => {
+            document.getElementById('eraseStatus').innerHTML = '<pre>Status: ' + status + '</pre>';
+            if (status === 'COMPLETED') {
+              clearInterval(poll);
+              // Show persistent success message
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
+              toast('All data has been securely destroyed', 'success');
+              // Clear the form
+              document.getElementById('eraseConfirm').value = '';
+            } else if (status.startsWith('FAILED')) {
+              clearInterval(poll);
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
+              toast('Secure erase failed: ' + status, 'error');
+            }
+          }).catch(error => {
+            clearInterval(poll);
+            toast('Status check failed: ' + error, 'error');
+          });
+        }, 1000); // Check every second for faster feedback
+      }
+      
+      function requestErase() {
+        const confirm = document.getElementById('eraseConfirm').value;
+        if (confirm !== 'WIPE_ALL_DATA') {
+          toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
+          return;
+        }
+        if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
+          return;
+        }
+        toast('Initiating secure erase operation...', 'warning');
+        fetch('/erase/request', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `confirm=${encodeURIComponent(confirm)}`
+        }).then(response => response.text()).then(data => {
+          document.getElementById('eraseStatus').style.display = 'block';
+          document.getElementById('eraseStatus').innerHTML = '<pre>' + data + '</pre>';
+          toast('Secure erase started', 'info');
+          // Start polling for status
+          pollEraseStatus();
+        }).catch(error => {
+          toast('Network error: ' + error, 'error');
+        });
+      }
+
+      function formatDiagnostics(text) {
+        if (!text || text.trim() === '') return '<div style="color:var(--mut);padding:20px;text-align:center;">No data</div>';
+        
+        const lines = text.trim().split('\n');
+        let html = '<div class="stat-grid">';
+        
+        lines.forEach(line => {
+          const parts = line.split(':');
+          if (parts.length >= 2) {
+            const label = parts[0].trim();
+            const value = parts.slice(1).join(':').trim();
+            
+            html += '<div class="stat-item">';
+            html += '<div class="stat-label">' + label + '</div>';
+            html += '<div class="stat-value">' + value + '</div>';
+            html += '</div>';
+          }
+        });
+        
+        html += '</div>';
+        return html;
+      }
+
+      function formatDiagGrid(text,type){
+        if(!text||text.trim()==='')return'<div style="color:var(--mut);text-align:center;padding:20px;">No data</div>';
+        let html='<div class="diag-grid">';
+        const lines=text.trim().split('\n');
+        lines.forEach(line=>{
+          const parts=line.split(':');
+          if(parts.length<2)return;
+          const label=parts[0].trim();
+          const value=parts.slice(1).join(':').trim();
+          html+='<div class="stat-item">';
+          html+='<div class="stat-label">'+label+'</div>';
+          html+='<div class="stat-value" style="font-size:14px;">'+value+'</div>';
+          html+='</div>';
+        });
+        html+='</div>';
+        return html;
+      }
+
+      async function tick() {
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
+
+        try {
+          // Parallelize diag and drone status fetches
+          const [diagResponse, droneResponse] = await Promise.all([
+            fetch('/diag'),
+            fetch('/drone/status').catch(() => null)
+          ]);
+
+          const diagText = await diagResponse.text();
+          const isScanning = diagText.includes('Scanning: yes');
+          const sections = diagText.split('\n');
+
+          // Process drone status if available
+          if (droneResponse) {
+            try {
+              const droneData = await droneResponse.json();
+              if (droneData.enabled) {
+                document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
+                document.getElementById('droneStatus').classList.add('active');
+              } else {
+                document.getElementById('droneStatus').innerText = 'Drone Detection: Idle';
+                document.getElementById('droneStatus').classList.remove('active');
+              }
+            } catch (e) {}
+          }
+          
+          let overview = '';
+          let hardware = '';
+          let network = '';
+          sections.forEach(line => {
+            if (line.includes('WiFi Frames')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('wifiFrames').innerText = match[1];
+            }
+            if (line.includes('BLE Frames')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('bleFrames').innerText = match[1];
+            }
+            if (line.includes('Devices Found')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('totalHits').innerText = match[1];
+            }
+            if (line.includes('Unique devices')) {
+              const match = line.match(/(\d+)/);
+              if (match) document.getElementById('uniqueDevices').innerText = match[1];
+            }
+            if (line.includes('ESP32 Temp')) {
+              const match = line.match(/([\d.]+)C/);
+              if (match) document.getElementById('temperature').innerText = match[1] + 'C';
+            }
+            if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
+              hardware += line + '\n';
+            } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
+              network += line + '\n';
+            } else {
+              overview += line + '\n';
+            }
+          });
+
+          document.getElementById('hardwareDiag').innerHTML=formatDiagGrid(hardware,'hardware');
+          document.getElementById('networkDiag').innerHTML=formatDiagGrid(network,'network');
+          
+          const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
+          if (uptimeMatch) {
+            document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
+          }
+          
+          updateStatusIndicators(diagText);
+          
+          const stopAllBtn = document.getElementById('stopAllBtn');
+          if (stopAllBtn) {
+            stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
+          }
+          
+          const resultsElement = document.getElementById('r');
+          if (resultsElement && !resultsElement.contains(document.activeElement)) {
+            if (isScanning) {
+              const rr = await fetch('/results');
+              const resultsText = await rr.text();
+
+              // Only update DOM if results actually changed
+              if (resultsText !== lastResultsText) {
+                lastResultsText = resultsText;
+
+                // Use requestAnimationFrame to batch DOM updates and prevent blocking
+                requestAnimationFrame(() => {
+                  // Capture expanded state - use more efficient selectors
+                  const expandedCards = new Set();
+                  const expandedDetails = new Map();
+
+                  const contents = resultsElement.querySelectorAll('[id$="Content"]');
+                  for (const content of contents) {
+                    if (content.style.display !== 'none') {
+                      expandedCards.add(content.id);
+                    }
+                  }
+
+                  const openDetails = resultsElement.querySelectorAll('details[open]');
+                  for (const details of openDetails) {
+                    const summary = details.querySelector('summary');
+                    if (summary && summary.textContent) {
+                      expandedDetails.set(summary.textContent.trim(), true);
+                    }
+                  }
+
+                  // Update content
+                  resultsElement.innerHTML = parseAndStyleResults(resultsText);
+
+                  // Restore expanded cards state
+                  for (const contentId of expandedCards) {
+                    const content = document.getElementById(contentId);
+                    if (content) {
+                      const iconId = contentId.replace('Content', 'Icon');
+                      const icon = document.getElementById(iconId);
+                      content.style.display = 'block';
+                      if (icon) {
+                        icon.style.transform = 'rotate(0deg)';
+                        icon.textContent = '▼';
+                      }
+                    }
+                  }
+
+                  // Restore details state and attach event listeners in one pass
+                  const allDetails = resultsElement.querySelectorAll('details');
+                  for (const details of allDetails) {
+                    const summary = details.querySelector('summary');
+                    if (summary) {
+                      const summaryText = summary.textContent.trim();
+                      if (expandedDetails.has(summaryText)) {
+                        details.open = true;
+                        const spans = summary.querySelectorAll('span');
+                        const arrow = spans[spans.length - 1];
+                        if (arrow) arrow.style.transform = 'rotate(90deg)';
+                      }
+                    }
+
+                    // Attach toggle event listener
+                    details.addEventListener('toggle', () => {
+                      const spans = details.querySelectorAll('summary span');
+                      const arrow = spans[spans.length - 1];
+                      if (arrow) {
+                        arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+                      }
+                    });
+                  }
+                });
+              }
+            } else if (lastScanningState && !isScanning) {
+              const rr = await fetch('/results');
+              const resultsText = await rr.text();
+              lastResultsText = resultsText;
+              resultsElement.innerHTML = parseAndStyleResults(resultsText);
+            }
+          }
+          
+          lastScanningState = isScanning;
+        } catch (e) {
+          console.error('Tick error:', e);
+        }
+      }
+      
+      document.getElementById('triangulate').addEventListener('change', e => {
+        document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
+        const secsInput = document.querySelector('input[name="secs"]');
+        if (e.target.checked) {
+          if (parseInt(secsInput.value) < 60) {
+            secsInput.value = 60;
+            toast('Triangulation requires minimum 60 seconds');
+          }
+          secsInput.setAttribute('min', '60');
+        } else {
+          secsInput.setAttribute('min', '0');
+        }
+      });
+
+      document.getElementById('f').addEventListener('submit', e => {
+        e.preventDefault();
+        ajaxForm(e.target, 'Targets saved ✓');
+        setTimeout(load, 500);
+      });
+
+      document.getElementById('af').addEventListener('submit', e => {
+        e.preventDefault();
+        ajaxForm(e.target, 'Allowlist saved ✓');
+        setTimeout(() => {
+          fetch('/allowlist-export').then(r => r.text()).then(t => {
+            document.getElementById('wlist').value = t;
+            document.getElementById('allowlistCount').textContent = t.split('\n').filter(x => x.trim()).length + ' entries';
+          });
+        }, 500);
+      });
+
+      document.getElementById('nodeForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const input = document.getElementById('nodeId');
+        const value = input.value.trim().toUpperCase();
+        input.value = value;
+        
+        if (value === '') {
+            toast('Node ID required: 2-5 alphanumeric characters (examples: AB, A1C, XYZ99)', 'error');
+            return;
+        }
+        
+        if (value.length < 2) {
+            toast('Node ID too short - minimum 2 characters', 'error');
+            return;
+        }
+        
+        if (value.length > 5) {
+            toast('Node ID too long - maximum 5 characters', 'error');
+            return;
+        }
+        
+        if (!/^[A-Z0-9]+$/.test(value)) {
+            toast('Only alphanumeric characters (A-Z, 0-9) allowed', 'error');
+            return;
+        }
+        
+        ajaxForm(e.target, 'Node ID updated');
+        setTimeout(loadNodeId, 500);
+      });
+
+      document.getElementById('s').addEventListener('submit', e => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const submitBtn = e.target.querySelector('button[type="submit"]');
+
+          fetch('/scan', {
+              method: 'POST',
+              body: fd
+          }).then(r => r.text()).then(t => {
+              toast(t);
+              // Update UI immediately
+              document.getElementById('scanStatus').innerText = 'Active';
+              document.getElementById('scanStatus').classList.add('active');
+              document.getElementById('stopAllBtn').style.display = 'inline-block';
+              // Fetch and display results
+              setTimeout(() => {
+                fetch('/results').then(r => r.text()).then(text => {
+                  const resultsEl = document.getElementById('results');
+                  if (resultsEl) {
+                    resultsEl.innerHTML = parseAndStyleResults(text);
+                  }
+                });
+              }, 500);
+          }).catch(err => toast('Error: ' + err.message));
+      });
+
+      document.getElementById('detectionMode').addEventListener('change', function() {
+        const selectedMethod = this.value;
+        const standardControls = document.getElementById('standardDurationControls');
+        const baselineControls = document.getElementById('baselineConfigControls');
+        const randomizationModeControls = document.getElementById('randomizationModeControls');
+        const deviceScanModeControls = document.getElementById('deviceScanModeControls');
+        const cacheBtn = document.getElementById('cacheBtn');
+        const baselineResultsBtn = document.getElementById('baselineResultsBtn');
+        const resetBaselineBtn = document.getElementById('resetBaselineBtn');
+        const clearOldBtn = document.getElementById('clearOldBtn');
+        const resetRandBtn = document.getElementById('resetRandBtn');
+        
+        cacheBtn.style.display = 'none';
+        baselineResultsBtn.style.display = 'none';
+        resetBaselineBtn.style.display = 'none';
+        clearOldBtn.style.display = 'none';
+        resetRandBtn.style.display = 'none';
+        standardControls.style.display = 'none';
+        baselineControls.style.display = 'none';
+        randomizationModeControls.style.display = 'none';
+        deviceScanModeControls.style.display = 'none';
+        
+        if (selectedMethod === 'baseline') {
+          baselineControls.style.display = 'block';
+          baselineResultsBtn.style.display = 'inline-block';
+          resetBaselineBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = true;
+          document.getElementById('baselineMonitorDuration').disabled = false;
+          updateBaselineStatus();
+          
+        } else if (selectedMethod === 'randomization-detection') {
+          standardControls.style.display = 'block';
+          randomizationModeControls.style.display = 'block';
+          clearOldBtn.style.display = 'inline-block';
+          resetRandBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+          
+        } else if (selectedMethod === 'device-scan') {
+          standardControls.style.display = 'block';
+          deviceScanModeControls.style.display = 'block';
+          cacheBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+          
+        } else if (selectedMethod === 'drone-detection') {
+          standardControls.style.display = 'block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+          
+        } else {
+          standardControls.style.display = 'block';
+          cacheBtn.style.display = 'inline-block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+        }
+      });
+
+      document.getElementById('sniffer').addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const detectionMethod = fd.get('detection');
+        let endpoint = '/sniffer';
+
+        if (detectionMethod === 'randomization-detection') {
+            const randMode = document.getElementById('randomizationMode').value;
+            fd.append('randomizationMode', randMode);
+        }   
+        if (detectionMethod === 'drone-detection') {
+          endpoint = '/drone';
+          fd.delete('detection');
+        }
+        if (detectionMethod === 'baseline') {
+          const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
+          const duration = document.getElementById('baselineDuration').value;
+          const ramSize = document.getElementById('baselineRamSize').value;
+          const sdMax = document.getElementById('baselineSdMax').value;
+          const absence = document.getElementById('absenceThreshold').value;
+          const reappear = document.getElementById('reappearanceWindow').value;
+          const rssiDelta = document.getElementById('rssiChangeDelta').value;
+          
+          fetch('/baseline/config', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `rssiThreshold=${rssiThreshold}&baselineDuration=${duration}&ramCacheSize=${ramSize}&sdMaxDevices=${sdMax}&absenceThreshold=${absence}&reappearanceWindow=${reappear}&rssiChangeDelta=${rssiDelta}`
+          }).then(() => {
+            return fetch(endpoint, {
+              method: 'POST',
+              body: fd
+            });
+          }).then(r => r.text()).then(t => {
+            toast(t, 'success');
+            updateBaselineStatus();
+            // Update UI immediately
+            document.getElementById('scanStatus').innerText = 'Active';
+            document.getElementById('scanStatus').classList.add('active');
+            document.getElementById('stopAllBtn').style.display = 'inline-block';
+            // Fetch and display results
+            setTimeout(() => {
+              fetch('/results').then(r => r.text()).then(text => {
+                const resultsEl = document.getElementById('results');
+                if (resultsEl) {
+                  resultsEl.innerHTML = parseAndStyleResults(text);
+                }
+              });
+            }, 500);
+          }).catch(err => toast('Error: ' + err, 'error'));
+        } else {
+          fetch(endpoint, {
+            method: 'POST',
+            body: fd
+          }).then(r => r.text()).then(t => {
+            toast(t, 'success');
+            // Update UI immediately
+            document.getElementById('scanStatus').innerText = 'Active';
+            document.getElementById('scanStatus').classList.add('active');
+            document.getElementById('stopAllBtn').style.display = 'inline-block';
+            // Fetch and display results
+            setTimeout(() => {
+              fetch('/results').then(r => r.text()).then(text => {
+                const resultsEl = document.getElementById('results');
+                if (resultsEl) {
+                  resultsEl.innerHTML = parseAndStyleResults(text);
+                }
+              });
+            }, 500);
+          }).catch(err => toast('Error: ' + err, 'error'));
+        }
+      });
+
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href="/stop"]');
+        if (!a) return;
+        e.preventDefault();
+        fetch('/stop').then(r => r.text()).then(t => {
+          toast(t);
+          // Reset UI
+          document.getElementById('scanStatus').innerText = 'Idle';
+          document.getElementById('scanStatus').classList.remove('active');
+          document.getElementById('stopAllBtn').style.display = 'none';
+          // Refresh diag and update form buttons
+          setTimeout(async () => {
+            const refreshedDiag = await fetch('/diag').then(r => r.text());
+            updateStatusIndicators(refreshedDiag);
+          }, 100);
+        });
+      });
+
+      document.addEventListener('click', e => {
+        const a = e.target.closest('a[href="/mesh-test"]');
+        if (!a) return;
+        e.preventDefault();
+        fetch('/mesh-test').then(r => r.text()).then(t => toast('Mesh test sent'));
+      });
+        
+      // Mode status updates
+      document.querySelector('#s select[name="mode"]')?.addEventListener('change', updateModeStatus);
+      document.getElementById('randomizationMode')?.addEventListener('change', updateModeStatus);
+      document.getElementById('deviceScanMode')?.addEventListener('change', updateModeStatus);
+      document.getElementById('detectionMode')?.addEventListener('change', updateModeStatus);
+
+      function showAutoEraseHelp() {
+        toast('Auto-Erase: 1) Setup period prevents wipe during install 2) Vibration triggers countdown 3) You can cancel 4) Cooldown prevents false triggers', 'info');
+      }
+
+      // Initialize
+      load();
+      initTerminal();
+      loadBaselineAnomalyConfig();
+      loadMeshInterval();
+      setInterval(tick, 3000);
+      document.getElementById('detectionMode').dispatchEvent(new Event('change'));
+    </script>
+  </body>
+</html>
