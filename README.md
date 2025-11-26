@@ -24,10 +24,8 @@
 7. [Getting Started](#getting-started)
    - [Quick Flasher](#quick-flasher)
    - [Development Setup](#development-setup)
-8. [Web Interface](#web-interface)
-9. [Mesh Network Integration](#mesh-network-integration)
-10. [Command Reference](#command-reference)
-11. [API Reference](#api-reference)
+8. [Mesh Command Reference](#mesh-command-reference)
+9. [API Reference](#api-reference)
 
 > [!NOTE]  
 > **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
@@ -38,82 +36,94 @@
 
 Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalable sensor network for real-time threat detection, device mapping, and perimeter security. The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide a digital and physical "tripwire". 
 
-
 ## Primary Detection Modes
 
 ![image](https://github.com/user-attachments/assets/b3be1602-c651-41d2-9caf-c2e4956d3aff)
 
-### 1. **List Scan Mode**
+# AntiHunter Scanning Capabilities
+
+## 1. List Scan Mode
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
+**Features:**
 - **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
 - **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
-- **Global Allowlist**: User configurable, applies to all scans. 
+- **Global Allowlist**: User configurable, applies to all scans
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
-- **Real-time Alerts**: Immediate notifications via web interface,  command center and mesh network. 
+- **Real-time Alerts**: Immediate notifications via web interface, command center and mesh network
 
-### 2. Triangulation/Trilateration  (Distributed)
+---
+
+## 2. Triangulation/Trilateration (Distributed)
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for more advanced trilateration processing.
 
+**Key Capabilities:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
-- **Weighted GPS Trilateration**: - Method: Weighted trilateration + Kalman filtering. Average HDOP, GPS Coordinates, Confidence, Est.Uncertainty (m), Sync Status, GPS Quality. Google Maps link sent over mesh with details
+- **Weighted GPS Trilateration**:
+  - Method: Weighted trilateration + Kalman filtering
+  - Metrics: Average HDOP, GPS Coordinates, Confidence, Est. Uncertainty (m), Sync Status, GPS Quality
+  - Output: Google Maps link sent over mesh with details
 
-**`EXPERIMENTAL T114 SUPPORT:`** small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
+**Experimental T114 Support:**
+> Small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
-   **Optimal Node Placement for RF Triangulation (2.4 GHz)**
-   
-   | Nodes | Geometry | Angular Sep | Urban Spacing | Rural Spacing | Coverage | GDOP | Notes |
-   |-------|----------|-------------|---------------|---------------|----------|------|-------|
-   | 3 | Equilateral Triangle | 120° | 25-35m | 50-70m | 800-1,200 m² | 4-6 | Minimum viable, mobile deployments |
-   | 4 | Square | 90° | 30-40m | 60-85m | 1,200-2,000 m² | 3-5 | Small buildings, perimeters |
-   | 5 | Regular Pentagon | 72° | 35-45m | 75-95m | 2,000-3,200 m² | 2-4 | Medium area coverage |
-   | 6 | Regular Hexagon | 60° | 40-50m | 85-105m | 3,500-4,500 m² | 2-4 | Large perimeter, optimal standard |
-   | 7 | Hexagon + Center | 60° perimeter | 45-55m | 95-115m | 5,000-6,500 m² | 1-3 | Dense/3D, one node at zenith |
-   | 8+ | Octagon/Circle | 45° | 50-65m | 100-130m | 6,500-10,000 m² | 1-3 | Wide area, events |
-   
-   **Range Reference (2.4 GHz)**
-   - **WiFi Urban**: 30-50m | **Rural**: 80-150m LoS
-   - **BLE Urban**: 10-30m | **Rural**: 40-100m LoS  
-   - **Wall Attenuation**: -20 to -30 dB urban, -10 to -15 dB drywall
+### Optimal Node Placement for RF Triangulation (2.4 GHz)
 
-### 3. **Detection & Analysis Sniffers**
-   
-   **A. Device Scanner**
-   - Captures all WiFi and Bluetooth devices in range
-   - Records MAC addresses, SSIDs, signal strength, names and channels
-   - Provides complete 2.4GHz wireless spectrum visibility
-   
-   **B. Baseline Anomaly Detection**
-   - Two-phase scanning: establishes baseline, then monitors for anomalies
-   - Detects new devices, disappeared/reappeared devices, significant RSSI changes
-   - Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). Defaults to 1500 devices if no SD card. 
-   - Persistent storage with automatic tiering, survives reboots
-   - Real-time mesh alerts with GPS coordinates and anomaly reasons
-   - Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
-   
-   **C. Deauthentication Attack Scan**
-   - WiFi deauth/disassoc attack sniffer with frame filtering and real-time detection
-   - Integration with randomization tracking for source identification
-   
-   **D. Drone RID Detection**
-   - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
-   - Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
-   - Detects French drone ID format (OUI 0x6a5c35)
-   - Extracts UAV ID, pilot location, and flight telemetry data
-   - Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
-   
-   **E. MAC Randomization Analyzer**
-   ![384F3718-6308-477C-B882-477FCF25578C_4_5005_c](https://github.com/user-attachments/assets/601def0d-c5f0-4089-ac33-3b59b51eae48)
+| Nodes | Geometry | Angular Sep | Urban Spacing | Rural Spacing | Coverage | GDOP | Notes |
+|-------|----------|-------------|---------------|---------------|----------|------|-------|
+| 3 | Equilateral Triangle | 120° | 25-35m | 50-70m | 800-1,200 m² | 4-6 | Minimum viable, mobile deployments |
+| 4 | Square | 90° | 30-40m | 60-85m | 1,200-2,000 m² | 3-5 | Small buildings, perimeters |
+| 5 | Regular Pentagon | 72° | 35-45m | 75-95m | 2,000-3,200 m² | 2-4 | Medium area coverage |
+| 6 | Regular Hexagon | 60° | 40-50m | 85-105m | 3,500-4,500 m² | 2-4 | Large perimeter, optimal standard |
+| 7 | Hexagon + Center | 60° perimeter | 45-55m | 95-115m | 5,000-6,500 m² | 1-3 | Dense/3D, one node at zenith |
+| 8+ | Octagon/Circle | 45° | 50-65m | 100-130m | 6,500-10,000 m² | 1-3 | Wide area, events |
 
-   **`EXPERIMENTAL FEATURE`**
-   - Traces device identities across randomized MAC addresses using behavioral signatures
-   - IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation
-   - Assigns unique identity IDs (format: `T-XXXX`) with persistent SD storage
-   - Supports up to 30 simultaneous device identities with up to 50 linked MACs each
-   - Dual signature support (full and minimal IE patterns)
-   - Confidence-based linking with threshold adaptation
-   - Detects global MAC leaks and WiFi-BLE device correlation
+### Range Reference (2.4 GHz)
+- **WiFi Urban**: 30-50m | **Rural**: 80-150m LoS
+- **BLE Urban**: 10-30m | **Rural**: 40-100m LoS
+- **Wall Attenuation**: -20 to -30 dB urban, -10 to -15 dB drywall
+
+---
+
+## 3. Detection & Analysis Sniffers
+
+### A. Device Scanner
+- Captures all WiFi and Bluetooth devices in range
+- Records MAC addresses, SSIDs, signal strength, names and channels
+- Provides complete 2.4GHz wireless spectrum visibility
+
+### B. Baseline Anomaly Detection
+- Two-phase scanning: establishes baseline, then monitors for anomalies
+- Detects new devices, disappeared/reappeared devices, significant RSSI changes
+- Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). Defaults to 1500 devices if no SD card.
+- Persistent storage with automatic tiering, survives reboots
+- Real-time mesh alerts with GPS coordinates and anomaly reasons
+- Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
+
+### C. Deauthentication Attack Scan
+- WiFi deauth/disassoc attack sniffer with frame filtering and real-time detection
+- Integration with randomization tracking for source identification
+
+### D. Drone RID Detection
+- Identifies drones broadcasting Remote ID (FAA/EASA compliant)
+- Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames)
+- Detects French drone ID format (OUI 0x6a5c35)
+- Extracts UAV ID, pilot location, and flight telemetry data
+- Sends immediate mesh alerts with drone detection data, logs to SD card and two API endpoints for data
+
+### E. MAC Randomization Analyzer
+
+![MAC Randomization Analyzer](https://github.com/user-attachments/assets/601def0d-c5f0-4089-ac33-3b59b51eae48)
+
+**Experimental Feature**
+- Traces device identities across randomized MAC addresses using behavioral signatures
+- IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation
+- Assigns unique identity IDs (format: `T-XXXX`) with persistent SD storage
+- Supports up to 30 simultaneous device identities with up to 50 linked MACs each
+- Dual signature support (full and minimal IE patterns)
+- Confidence-based linking with threshold adaptation
+- Detects global MAC leaks and WiFi-BLE device correlation
 
 
 ### Use Cases
@@ -197,6 +207,9 @@ Configure auto-erase settings via the web interface:
 ---
 
 ## RF Configuration
+
+<img width="815" height="616" alt="image" src="https://github.com/user-attachments/assets/0463de41-dd3c-4d85-a4c7-bc6ada393488" />
+
 
 AntiHunter provides adjustable RF scan parameters to optimize detection performance for different operational scenarios.
 
@@ -355,7 +368,8 @@ Configuration on flash requires the bootloader and partitions files from `Dist/`
 **Full Firmware:**
 - Connect to `Antihunter` WiFi AP (password: `antihunt3r123`)
 - Access web interface at `http://192.168.4.1`
-- Change SSID and password in RF Settings
+- Configure RF settings, detection modes, and security parameters
+- Change SSID and password in RF Settings panel
 
 **Headless Firmware:**
 - Use serial monitor or mesh commands (see Command Reference section)
@@ -413,23 +427,12 @@ pio run -e AntiHunter-full -t erase -t upload
 
 ---
 
-## Web Interface
-
-Access the AntiHunter web interface after flashing:
-- Connect to `Antihunter` WiFi AP (password: `antihunt3r123`)
-- Navigate to `http://192.168.4.1`
-- Configure RF settings, detection modes, and security parameters
-
-Change SSID and password in RF Settings panel.
-
----
-
 ## Mesh Network Integration
 
 AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communication, creating a robust long-range sensor network.
 
 > [!IMPORTANT]
-> Early release, only officially Meshtastic supported devices using v2.6.x firmware is fully supported. 
+> Early release, please use officially supported Meshtastic devices on v2.6.x firmware to ensure full reliability.
 
 ### **Key Features**
 - **Extended Range**: LoRa mesh extends detection beyond WiFi/Bluetooth range
@@ -440,7 +443,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ### **Hardware Configuration**
 - **Connection**: **Mode: `TEXTMSG`;Speed: 115200 baud;Pins 9 TX / 10 RX for T114 and 19/20 for the Heltec V3**
-- **Protocol**: Standard Meshtastic serial, public and encrypted channels
+- **Protocol**: Standard Meshtastic serial, public and encrypted channels _(protobuf support in development)_
 
 ### **Network Behavior**
 - **Alert Rate Limiting**: 3-second intervals prevent mesh flooding, configurable. 
@@ -449,7 +452,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Targeted Control**: `@AH01` commands address specific node `AH01`
 - **Status Reporting**: Periodic heartbeats and operational status
 
-## Command Reference
+## Mesh Command Reference
 
 ### Node Addressing Format
 - **Specific Node**: `@ABC12 COMMAND` - Targets individual node
