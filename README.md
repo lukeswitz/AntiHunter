@@ -444,9 +444,6 @@ pio run -e AntiHunter-full -t erase -t upload
 
 AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communication, creating a robust long-range sensor network.
 
-> [!IMPORTANT]
-> Early release, please use officially supported Meshtastic devices on v2.6.x firmware to ensure full reliability.
-
 ### **Key Features**
 - **Extended Range**: LoRa mesh extends detection beyond WiFi/Bluetooth range
 - **Node Coordination**: Distributed scanning and data sharing across nodes
