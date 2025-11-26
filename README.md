@@ -43,6 +43,7 @@ Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalab
 # AntiHunter Scanning Capabilities
 
 ## 1. List Scan Mode
+
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
 **Features:**
@@ -55,6 +56,11 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 ---
 
 ## 2. Triangulation/Trilateration (Distributed)
+
+**`Experimental Feature`**
+
+<img width="859" height="899" alt="Screenshot 2025-11-26 at 7 00 25 AM" src="https://github.com/user-attachments/assets/c76bb177-ce4e-42db-aafb-fd360b7f49e2" />
+
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for more advanced trilateration processing.
 
 **Key Capabilities:**
@@ -68,7 +74,7 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 **Experimental T114 Support:**
 > Small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
-### Optimal Node Placement for RF Triangulation (2.4 GHz)
+#### Optimal Node Placement for RF Triangulation (2.4 GHz)
 
 | Nodes | Geometry | Angular Sep | Urban Spacing | Rural Spacing | Coverage | GDOP | Notes |
 |-------|----------|-------------|---------------|---------------|----------|------|-------|
@@ -79,7 +85,7 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 | 7 | Hexagon + Center | 60° perimeter | 45-55m | 95-115m | 5,000-6,500 m² | 1-3 | Dense/3D, one node at zenith |
 | 8+ | Octagon/Circle | 45° | 50-65m | 100-130m | 6,500-10,000 m² | 1-3 | Wide area, events |
 
-### Range Reference (2.4 GHz)
+#### Range Reference (2.4 GHz)
 - **WiFi Urban**: 30-50m | **Rural**: 80-150m LoS
 - **BLE Urban**: 10-30m | **Rural**: 40-100m LoS
 - **Wall Attenuation**: -20 to -30 dB urban, -10 to -15 dB drywall
@@ -92,18 +98,26 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 - Captures all WiFi and Bluetooth devices in range
 - Records MAC addresses, SSIDs, signal strength, names and channels
 - Provides complete 2.4GHz wireless spectrum visibility
+<img width="869" height="454" alt="Screenshot 2025-11-26 at 7 16 57 AM" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
+
 
 ### B. Baseline Anomaly Detection
+
 - Two-phase scanning: establishes baseline, then monitors for anomalies
 - Detects new devices, disappeared/reappeared devices, significant RSSI changes
 - Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices). Defaults to 1500 devices if no SD card.
 - Persistent storage with automatic tiering, survives reboots
 - Real-time mesh alerts with GPS coordinates and anomaly reasons
 - Use cases: distributed "trail cam" for poachers/trespassers, perimeter security, surveillance detection, threat identification
+<img width="870" height="346" alt="Screenshot 2025-11-26 at 7 06 20 AM" src="https://github.com/user-attachments/assets/6204a8e5-418d-49fd-b99c-c1d9c31ee3f2" />
+
 
 ### C. Deauthentication Attack Scan
 - WiFi deauth/disassoc attack sniffer with frame filtering and real-time detection
 - Integration with randomization tracking for source identification
+<img width="858" height="382" alt="Screenshot 2025-11-26 at 7 18 03 AM" src="https://github.com/user-attachments/assets/1b1e77db-a479-4cfd-beae-e13a7187cae4" />
+
+
 
 ### D. Drone RID Detection
 - Identifies drones broadcasting Remote ID (FAA/EASA compliant)
@@ -114,9 +128,8 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 
 ### E. MAC Randomization Analyzer
 
-![MAC Randomization Analyzer](https://github.com/user-attachments/assets/601def0d-c5f0-4089-ac33-3b59b51eae48)
+**`Experimental Feature`**
 
-**Experimental Feature**
 - Traces device identities across randomized MAC addresses using behavioral signatures
 - IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation
 - Assigns unique identity IDs (format: `T-XXXX`) with persistent SD storage
@@ -124,7 +137,9 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 - Dual signature support (full and minimal IE patterns)
 - Confidence-based linking with threshold adaptation
 - Detects global MAC leaks and WiFi-BLE device correlation
+<img width="861" height="721" alt="Screenshot 2025-11-26 at 7 09 06 AM" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" />
 
+---
 
 ### Use Cases
 
