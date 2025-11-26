@@ -176,8 +176,9 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 ### **Real-Time Clock (RTC)**
 - **Module**: DS3231 RTC via I2C
 - **Functionality**: Accurate timekeeping during power outages and GPS synchronization
-- **Features**: Automatic time sync from NTP on flash with fallback to system time and GPS, sync status monitoring & obedience/drift  correction. 
+- **Features**: Automatic time sync from NTP on flash with fallback to system time and GPS, sync status monitoring & obedience/drift  correction.
 - **Web Interface**: Current time display and synchronization status
+- **Time Zone**: All timestamps use UTC (Coordinated Universal Time)
 
 --- 
 
@@ -467,6 +468,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 ## Mesh Command Reference
 
+> [!NOTE]
+> All timestamps in mesh commands and alerts use UTC (Coordinated Universal Time).
+
 ### Node Addressing Format
 - **Specific Node**: `@ABC12 COMMAND` - Targets individual node
 - **All Nodes**: `@ALL COMMAND` - Broadcast to entire network
@@ -612,6 +616,9 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ---
 
 ## API Reference
+
+> [!NOTE]
+> All timestamps in API responses use UTC (Coordinated Universal Time).
 
 ### Core Operations
 | Endpoint | Method | Parameters | Description |
