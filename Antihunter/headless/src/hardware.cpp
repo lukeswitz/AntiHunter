@@ -464,14 +464,30 @@ void loadConfiguration() {
     config.replace(",\n}", "\n}");
     config.replace(",}", "}");
 
+    // Try to fix common corruption issues
+    config.trim();
+    if (config.endsWith(",")) {
+        config = config.substring(0, config.length() - 1);
+    }
+    if (!config.endsWith("}")) {
+        config += "}";
+    }
+
     DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, config);
 
     if (error) {
         Serial.println("Failed to parse config file: " + String(error.c_str()));
-        Serial.println("Deleting corrupted config and creating new one");
+        Serial.println("Backing up corrupt config as config.json.bak");
+        SafeSD::remove("/config.json.bak");
+        File bakFile = SafeSD::open("/config.json.bak", FILE_WRITE);
+        if (bakFile) {
+            bakFile.print(config);
+            bakFile.close();
+        }
         SafeSD::remove("/config.json");
-        saveConfiguration();
+        Serial.println("Corrupt config removed - manual reconfiguration required");
+        Serial.println("Backup saved to config.json.bak for recovery");
         return;
     }
 
