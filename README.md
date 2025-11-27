@@ -284,10 +284,9 @@ AntiHunter operates as a distributed sensor network where each node functions in
 ### **Command Center Integration**
 While individual nodes provide standalone capability, the full system power comes from integration with a central command center that:
 - Aggregates detection data from all nodes
-- Performs advanced trilateration calculations
 - Provides real-time mapping and visualization
-- Enables coordinated response operations
-- Maintains historical threat intelligence
+- Enables coordinated/scheduled response operations
+- A lot more... stay tuned, public release soon. 
 
 ---
 
@@ -444,9 +443,6 @@ pio run -e AntiHunter-full -t erase -t upload
 ## Mesh Network Integration
 
 AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communication, creating a robust long-range sensor network.
-
-> [!IMPORTANT]
-> Early release, please use officially supported Meshtastic devices on v2.6.x firmware to ensure full reliability.
 
 ### **Key Features**
 - **Extended Range**: LoRa mesh extends detection beyond WiFi/Bluetooth range
