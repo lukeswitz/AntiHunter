@@ -834,6 +834,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <div class="footer">AntiHunter v0.7 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
+      let tickRunning = false;
       let selectedMode = '0';
       let baselineUpdateInterval = null;
       let lastScanningState = false;
@@ -863,18 +864,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       async function load() {
         try {
-          const r = await fetch('/export');
-          const text = await r.text();
+          const [exportResp, resultsResp] = await Promise.all([
+            fetch('/export'),
+            fetch('/results')
+          ]);
+          
+          const text = await exportResp.text();
           document.getElementById('list').value = text;
           const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
           document.getElementById('targetCount').innerText = lines.length + ' targets';
-          const rr = await fetch('/results');
-          const resultsText = await rr.text();
+          
+          const resultsText = await resultsResp.text();
           document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
+          
           loadNodeId();
           loadRFConfig();
           loadWiFiConfig();
-          loadMeshStatus();
           loadMeshInterval();
         } catch (e) {}
       }
@@ -983,7 +988,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function toggleMesh() {
         meshEnabled = !meshEnabled;
         updateMeshUI();
-        
         try {
           const r = await fetch('/mesh', {
             method: 'POST',
@@ -1022,16 +1026,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
       
-      async function loadMeshStatus() {
-        try {
-          const r = await fetch('/diag');
-          const text = await r.text();
-          console.log('[MESH] Full diag:', text);
-          meshEnabled = text.includes('Mesh: Enabled');
-          console.log('[MESH] Enabled:', meshEnabled);
-        } catch(e) {
-          console.error('[MESH] Failed to load:', e);
-        }
+      function loadMeshStatus() {
         updateMeshUI();
       }
 
@@ -2786,20 +2781,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       async function tick() {
+        console.log('[TICK] Called at', new Date().toISOString(), 'tickRunning=', tickRunning);
+        if (tickRunning) return;
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
-
+        tickRunning = true;
+        console.log('[TICK] Starting fetch at', new Date().toISOString());
         try {
-          // Parallelize diag and drone status fetches
           const [diagResponse, droneResponse] = await Promise.all([
             fetch('/diag'),
             fetch('/drone/status').catch(() => null)
           ]);
-
+          console.log('[TICK] Fetches completed at', new Date().toISOString());
           const diagText = await diagResponse.text();
+          console.log('[TICK] diagText processed, isScanning=', diagText.includes('Scanning: yes'), 'at', new Date().toISOString());
           const isScanning = diagText.includes('Scanning: yes');
           const sections = diagText.split('\n');
-
-          // Process drone status if available
+          
+          meshEnabled = diagText.includes('Mesh: Enabled');
+          updateMeshUI();
+          
           if (droneResponse) {
             try {
               const droneData = await droneResponse.json();
@@ -2812,7 +2812,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               }
             } catch (e) {}
           }
-          
           let overview = '';
           let hardware = '';
           let network = '';
@@ -2845,45 +2844,33 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               overview += line + '\n';
             }
           });
-
-          document.getElementById('hardwareDiag').innerHTML=formatDiagGrid(hardware,'hardware');
-          document.getElementById('networkDiag').innerHTML=formatDiagGrid(network,'network');
-          
+          document.getElementById('hardwareDiag').innerHTML = formatDiagGrid(hardware, 'hardware');
+          document.getElementById('networkDiag').innerHTML = formatDiagGrid(network, 'network');
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
           }
-          
           updateStatusIndicators(diagText);
-          
           const stopAllBtn = document.getElementById('stopAllBtn');
           if (stopAllBtn) {
             stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
           }
-          
           const resultsElement = document.getElementById('r');
           if (resultsElement && !resultsElement.contains(document.activeElement)) {
             if (isScanning) {
               const rr = await fetch('/results');
               const resultsText = await rr.text();
-
-              // Only update DOM if results actually changed
               if (resultsText !== lastResultsText) {
                 lastResultsText = resultsText;
-
-                // Use requestAnimationFrame to batch DOM updates and prevent blocking
                 requestAnimationFrame(() => {
-                  // Capture expanded state - use more efficient selectors
                   const expandedCards = new Set();
                   const expandedDetails = new Map();
-
                   const contents = resultsElement.querySelectorAll('[id$="Content"]');
                   for (const content of contents) {
                     if (content.style.display !== 'none') {
                       expandedCards.add(content.id);
                     }
                   }
-
                   const openDetails = resultsElement.querySelectorAll('details[open]');
                   for (const details of openDetails) {
                     const summary = details.querySelector('summary');
@@ -2891,11 +2878,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       expandedDetails.set(summary.textContent.trim(), true);
                     }
                   }
-
-                  // Update content
                   resultsElement.innerHTML = parseAndStyleResults(resultsText);
-
-                  // Restore expanded cards state
                   for (const contentId of expandedCards) {
                     const content = document.getElementById(contentId);
                     if (content) {
@@ -2908,8 +2891,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       }
                     }
                   }
-
-                  // Restore details state and attach event listeners in one pass
                   const allDetails = resultsElement.querySelectorAll('details');
                   for (const details of allDetails) {
                     const summary = details.querySelector('summary');
@@ -2922,8 +2903,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                         if (arrow) arrow.style.transform = 'rotate(90deg)';
                       }
                     }
-
-                    // Attach toggle event listener
                     details.addEventListener('toggle', () => {
                       const spans = details.querySelectorAll('summary span');
                       const arrow = spans[spans.length - 1];
@@ -2941,10 +2920,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               resultsElement.innerHTML = parseAndStyleResults(resultsText);
             }
           }
-          
           lastScanningState = isScanning;
         } catch (e) {
           console.error('Tick error:', e);
+        } finally {
+          tickRunning = false;
         }
       }
       
@@ -3048,25 +3028,37 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               submitBtn.style.cursor = 'not-allowed';
           }
 
+          console.log('[SCAN] Form submitted at', new Date().toISOString());
+
           fetch('/scan', {
-              method: 'POST',
-              body: fd
-          }).then(r => r.text()).then(t => {
-              toast(t);
+            method: 'POST',
+            body: fd
+          }).then(r => {
+            console.log('[SCAN] Response received at', new Date().toISOString());
+            return r.text();
+          }).then(t => {
+            console.log('[SCAN] Response text:', t, 'at', new Date().toISOString());
+            toast(t);
+            console.log('[SCAN] Forcing tick() at', new Date().toISOString());
+            setTimeout(() => { 
+              console.log('[SCAN] tick() executing at', new Date().toISOString());
+              tick(); 
+            }, 100);
           }).catch(err => {
-              toast('Error: ' + err.message, 'error');
+            console.error('[SCAN] Error at', new Date().toISOString(), err);
+            toast('Error: ' + err.message, 'error');
           }).finally(() => {
-              // Reset state after short delay
-              setTimeout(() => {
-                  state.inProgress = false;
-                  if (submitBtn) {
-                      submitBtn.disabled = false;
-                      submitBtn.style.opacity = '1';
-                      submitBtn.style.cursor = 'pointer';
-                  }
-              }, 500);
+            setTimeout(() => {
+              state.inProgress = false;
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+                submitBtn.style.cursor = 'pointer';
+              }
+              console.log('[SCAN] State reset at', new Date().toISOString());
+            }, 500);
           });
-      });
+        });
 
       document.getElementById('detectionMode').addEventListener('change', function() {
         const selectedMethod = this.value;
@@ -3132,17 +3124,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const now = Date.now();
         const state = scanDebounce.sniffer;
 
-        // Prevent double-submission
         if (state.inProgress) {
-            toast('Detection/scan already in progress', 'warning');
-            return;
+          toast('Detection/scan already in progress', 'warning');
+          return;
         }
 
-        // Enforce cooldown period
         if (now - state.lastSubmit < state.cooldown) {
-            const remaining = Math.ceil((state.cooldown - (now - state.lastSubmit)) / 1000);
-            toast(`Please wait ${remaining}s before starting another scan`, 'warning');
-            return;
+          const remaining = Math.ceil((state.cooldown - (now - state.lastSubmit)) / 1000);
+          toast(`Please wait ${remaining}s before starting another scan`, 'warning');
+          return;
         }
 
         const fd = new FormData(e.target);
@@ -3150,20 +3140,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const submitBtn = document.getElementById('startDetectionBtn');
         let endpoint = '/sniffer';
 
-        // Mark as in progress
         state.inProgress = true;
         state.lastSubmit = now;
 
-        // Disable button and update UI
         if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.style.opacity = '0.6';
-            submitBtn.style.cursor = 'not-allowed';
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.6';
+          submitBtn.style.cursor = 'not-allowed';
         }
 
         if (detectionMethod === 'randomization-detection') {
-            const randMode = document.getElementById('randomizationMode').value;
-            fd.append('randomizationMode', randMode);
+          const randMode = document.getElementById('randomizationMode').value;
+          fd.append('randomizationMode', randMode);
         }
         if (detectionMethod === 'drone-detection') {
           endpoint = '/drone';
@@ -3171,14 +3159,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
 
         const resetState = () => {
-            setTimeout(() => {
-                state.inProgress = false;
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.style.opacity = '1';
-                    submitBtn.style.cursor = 'pointer';
-                }
-            }, 500);
+          setTimeout(() => {
+            state.inProgress = false;
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.style.opacity = '1';
+              submitBtn.style.cursor = 'pointer';
+            }
+          }, 500);
         };
 
         if (detectionMethod === 'baseline') {
@@ -3203,6 +3191,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             });
           }).then(r => r.text()).then(t => {
             toast(t, 'success');
+            setTimeout(() => { tick(); }, 100);
             updateBaselineStatus();
           }).catch(err => {
             toast('Error: ' + err, 'error');
@@ -3213,6 +3202,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             body: fd
           }).then(r => r.text()).then(t => {
             toast(t, 'success');
+            setTimeout(() => { tick(); }, 100);
           }).catch(err => {
             toast('Error: ' + err, 'error');
           }).finally(resetState);
@@ -3248,7 +3238,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       initTerminal();
       loadBaselineAnomalyConfig();
       loadMeshInterval();
-      setInterval(tick, 3000);
+      setInterval(tick, 2000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
     </script>
   </body>

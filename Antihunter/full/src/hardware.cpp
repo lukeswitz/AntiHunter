@@ -758,6 +758,7 @@ bool waitForInitialConfig() {
 }
 
 String getDiagnostics() {
+    static std::mutex diagMutex;
     static unsigned long lastDiagTime = 0;
     static unsigned long lastSDTime = 0;
     static unsigned long lastTempTime = 0;
@@ -765,15 +766,18 @@ String getDiagnostics() {
     static String cachedSDInfo = "";
     static String cachedTempInfo = "";
 
-    if (millis() - lastDiagTime < 5000 && cachedDiag.length() > 0) {
+    std::lock_guard<std::mutex> lock(diagMutex);
+    
+    if (millis() - lastDiagTime < 1000 && cachedDiag.length() > 0) {
         return cachedDiag;
     }
     lastDiagTime = millis();
     
     String s;
+    s.reserve(1024);
+    
     s += "Scanning: " + String(scanning ? "yes" : "no") + "\n";
     
-    // Task type tracking for the start/stop button
     if (workerTaskHandle) {
         const char* taskName = pcTaskGetName(workerTaskHandle);
         s += "Task Type: " + String(taskName) + "\n";
@@ -783,6 +787,7 @@ String getDiagnostics() {
     } else {
         s += "Task Type: none\n";
     }
+    
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
@@ -795,7 +800,6 @@ String getDiagnostics() {
     snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02lu:%02lu:%02lu", uptime_hours, uptime_minutes, uptime_seconds);
     s += "Up:" + String(uptimeBuffer) + "\n";
     s += "Scan Mode: " + modeStr + "\n";
-    s += String("Scanning: ") + (scanning ? "yes" : "no") + "\n";
     s += "WiFi Frames: " + String((unsigned)framesSeen) + "\n";
     s += "BLE Frames: " + String((unsigned)bleFramesSeen) + "\n";
     s += "Devices Found: " + String(totalHits) + "\n";
@@ -806,6 +810,7 @@ String getDiagnostics() {
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
     s += "Vibration sensor: " + String(lastVibrationTime > 0 ? "Active" : "Standby") + "\n";
+    
     if (lastVibrationTime > 0) {
         unsigned long vibrationTime = lastVibrationTime;
         unsigned long seconds = vibrationTime / 1000;
@@ -823,6 +828,7 @@ String getDiagnostics() {
         
         s += "Last Movement: " + String(timeStr) + " (" + String(agoSeconds) + "s ago)\n";
     }
+    
     s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
     if (sdAvailable) {
         if (millis() - lastSDTime > 30000 || cachedSDInfo.length() == 0) {
@@ -834,20 +840,18 @@ String getDiagnostics() {
             uint64_t usedBytes = SD.usedBytes();
             uint64_t freeBytes = totalBytes - usedBytes;
 
-            uint8_t cardType = SD.cardType();
-            String cardTypeStr = (cardType == CARD_MMC) ? "MMC" :
-                                (cardType == CARD_SD) ? "SDSC" :
-                                (cardType == CARD_SDHC) ? "SDHC" : "UNKNOWN";
-            cachedSDInfo += "SD Free Space: " + String(freeBytes / (1024 * 1024)) + "MB\n";
+            cachedSDInfo = "SD Free Space: " + String(freeBytes / (1024 * 1024)) + "MB\n";
         }
         s += cachedSDInfo;
     }
+    
     s += "GPS: ";
     if (gpsValid) {
         s += "Locked\n";
     } else {
         s += "Waiting for data\n";
     }
+    
     s += "RTC: ";
     if (rtcAvailable) {
         if (rtcSynced) {
@@ -866,6 +870,7 @@ String getDiagnostics() {
     } else {
         s += "Not available\n";
     }
+    
     s += "Drone Detection: " + String(droneDetectionEnabled ? "Active" : "Inactive") + "\n";
     if (droneDetectionEnabled) {
         s += "Drones detected: " + String(droneDetectionCount) + "\n";
@@ -874,7 +879,6 @@ String getDiagnostics() {
 
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";
 
-    // Cache temperature reading (hardware call) for 10 seconds
     if (millis() - lastTempTime > 10000 || cachedTempInfo.length() == 0) {
         lastTempTime = millis();
         float temp_c = temperatureRead();
