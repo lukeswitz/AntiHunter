@@ -3009,17 +3009,63 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         setTimeout(loadNodeId, 500);
       });
 
+      // Debounce state for scan forms
+      const scanDebounce = {
+        listScan: { inProgress: false, lastSubmit: 0, cooldown: 1000 },
+        sniffer: { inProgress: false, lastSubmit: 0, cooldown: 1000 }
+      };
+
       document.getElementById('s').addEventListener('submit', e => {
           e.preventDefault();
+
+          const now = Date.now();
+          const state = scanDebounce.listScan;
+
+          // Prevent double-submission
+          if (state.inProgress) {
+              toast('Scan already in progress', 'warning');
+              return;
+          }
+
+          // Enforce cooldown period
+          if (now - state.lastSubmit < state.cooldown) {
+              const remaining = Math.ceil((state.cooldown - (now - state.lastSubmit)) / 1000);
+              toast(`Please wait ${remaining}s before starting another scan`, 'warning');
+              return;
+          }
+
           const fd = new FormData(e.target);
           const submitBtn = e.target.querySelector('button[type="submit"]');
-          
+
+          // Mark as in progress
+          state.inProgress = true;
+          state.lastSubmit = now;
+
+          // Disable button and update UI
+          if (submitBtn) {
+              submitBtn.disabled = true;
+              submitBtn.style.opacity = '0.6';
+              submitBtn.style.cursor = 'not-allowed';
+          }
+
           fetch('/scan', {
               method: 'POST',
               body: fd
           }).then(r => r.text()).then(t => {
               toast(t);
-          }).catch(err => toast('Error: ' + err.message));
+          }).catch(err => {
+              toast('Error: ' + err.message, 'error');
+          }).finally(() => {
+              // Reset state after short delay
+              setTimeout(() => {
+                  state.inProgress = false;
+                  if (submitBtn) {
+                      submitBtn.disabled = false;
+                      submitBtn.style.opacity = '1';
+                      submitBtn.style.cursor = 'pointer';
+                  }
+              }, 500);
+          });
       });
 
       document.getElementById('detectionMode').addEventListener('change', function() {
@@ -3082,18 +3128,59 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       document.getElementById('sniffer').addEventListener('submit', e => {
         e.preventDefault();
+
+        const now = Date.now();
+        const state = scanDebounce.sniffer;
+
+        // Prevent double-submission
+        if (state.inProgress) {
+            toast('Detection/scan already in progress', 'warning');
+            return;
+        }
+
+        // Enforce cooldown period
+        if (now - state.lastSubmit < state.cooldown) {
+            const remaining = Math.ceil((state.cooldown - (now - state.lastSubmit)) / 1000);
+            toast(`Please wait ${remaining}s before starting another scan`, 'warning');
+            return;
+        }
+
         const fd = new FormData(e.target);
         const detectionMethod = fd.get('detection');
+        const submitBtn = document.getElementById('startDetectionBtn');
         let endpoint = '/sniffer';
+
+        // Mark as in progress
+        state.inProgress = true;
+        state.lastSubmit = now;
+
+        // Disable button and update UI
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.6';
+            submitBtn.style.cursor = 'not-allowed';
+        }
 
         if (detectionMethod === 'randomization-detection') {
             const randMode = document.getElementById('randomizationMode').value;
             fd.append('randomizationMode', randMode);
-        }   
+        }
         if (detectionMethod === 'drone-detection') {
           endpoint = '/drone';
           fd.delete('detection');
         }
+
+        const resetState = () => {
+            setTimeout(() => {
+                state.inProgress = false;
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '1';
+                    submitBtn.style.cursor = 'pointer';
+                }
+            }, 500);
+        };
+
         if (detectionMethod === 'baseline') {
           const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
           const duration = document.getElementById('baselineDuration').value;
@@ -3102,7 +3189,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const absence = document.getElementById('absenceThreshold').value;
           const reappear = document.getElementById('reappearanceWindow').value;
           const rssiDelta = document.getElementById('rssiChangeDelta').value;
-          
+
           fetch('/baseline/config', {
             method: 'POST',
             headers: {
@@ -3117,12 +3204,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }).then(r => r.text()).then(t => {
             toast(t, 'success');
             updateBaselineStatus();
-          }).catch(err => toast('Error: ' + err, 'error'));
+          }).catch(err => {
+            toast('Error: ' + err, 'error');
+          }).finally(resetState);
         } else {
           fetch(endpoint, {
             method: 'POST',
             body: fd
-          }).then(r => r.text()).then(t => toast(t, 'success')).catch(err => toast('Error: ' + err, 'error'));
+          }).then(r => r.text()).then(t => {
+            toast(t, 'success');
+          }).catch(err => {
+            toast('Error: ' + err, 'error');
+          }).finally(resetState);
         }
       });
 
