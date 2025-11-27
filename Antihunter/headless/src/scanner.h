@@ -146,7 +146,6 @@ void blueTeamTask(void *pv);
 String getDeauthReasonText(uint16_t reasonCode);
 
 String getTargetsList();
-String getDiagnostics();
 size_t getTargetCount();
 String getSnifferCache();
 

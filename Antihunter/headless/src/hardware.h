@@ -93,7 +93,6 @@ void initializeSD();
 void initializeGPS();
 
 void checkAndSendVibrationAlert();
-String getDiagnostics();
 String getGPSData();
 void updateGPSLocation();
 void sendStartupStatus();
