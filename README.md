@@ -510,7 +510,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds. **Must send to @ALL** | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@ALL TRIANGULATE_START:T-002F:300` |
 | `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results | `@NODE1 TRIANGULATE_RESULTS` |
-| `ERASE_REQUEST` | None | Requests erase token from device (auto-generates if none exists, starts countdown timer) | `@AH01 ERASE_REQUEST` |
+| `ERASE_REQUEST` | None | Requests erase token from device (auto-generates if none exists, valid for 5 minutes) | `@AH01 ERASE_REQUEST` |
 | `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
 | `AUTOERASE_ENABLE` | `[setupDelay:eraseDelay:vibs:window:cooldown]` (optional, all in seconds) | Enables auto-erase with optional parameters. Defaults: 120s setup, 30s erase, 3 vibs, 20s window, 300s cooldown | `@AH01 AUTOERASE_ENABLE` or `@AH01 AUTOERASE_ENABLE:60:30:3:20:300` |
@@ -601,7 +601,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Triangulation Results (No Data)** | `NODE_ID: TRIANGULATE_RESULTS:NO_DATA` | `NODE_ABC: TRIANGULATE_RESULTS:NO_DATA` |
 | **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
 | **Stop ACK** | `NODE_ID: STOP_ACK:OK` | `NODE_ABC: STOP_ACK:OK` |
-| **Erase Token Response** | `NODE_ID: ERASE_TOKEN:token Time:Xs` | `NODE_ABC: ERASE_TOKEN:AH_12345678_87654321_00001234 Time:300s` |
+| **Erase Token Response** | `NODE_ID: ERASE_TOKEN:token Expires:300s` | `NODE_ABC: ERASE_TOKEN:AH_12345678_87654321_00001234 Expires:300s` |
 | **Erase ACK (Complete)** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
 | **Erase ACK (Cancelled)** | `NODE_ID: ERASE_ACK:CANCELLED` | `NODE_ABC: ERASE_ACK:CANCELLED` |
 | **AutoErase Enabled ACK** | `NODE_ID: AUTOERASE_ACK:ENABLED Setup:Xs Erase:Xs Vibs:N Window:Xs Cooldown:Xs` | `NODE_ABC: AUTOERASE_ACK:ENABLED Setup:120s Erase:30s Vibs:3 Window:20s Cooldown:300s` |

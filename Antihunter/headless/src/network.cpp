@@ -594,17 +594,14 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command == "ERASE_REQUEST")
   {
-    // If no token exists, generate one and start tamper sequence
-    if (!tamperEraseActive || tamperAuthToken.length() == 0) {
+    // Generate token without starting countdown - countdown only starts on ERASE_FORCE
+    if (tamperAuthToken.length() == 0) {
       tamperAuthToken = generateEraseToken();
-      tamperEraseActive = true;
-      tamperSequenceStart = millis();
-      Serial.printf("[ERASE] Token auto-generated on request: %s\n", tamperAuthToken.c_str());
+      Serial.printf("[ERASE] Token generated on request: %s\n", tamperAuthToken.c_str());
     }
 
-    uint32_t timeLeft = (autoEraseDelay - (millis() - tamperSequenceStart)) / 1000;
-    sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Time:" + String(timeLeft) + "s", true);
-    Serial.printf("[ERASE] Token provided - %us remaining\n", timeLeft);
+    sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Expires:300s", true);
+    Serial.printf("[ERASE] Token provided - valid for 5 minutes\n");
   }
   else if (command.startsWith("AUTOERASE_ENABLE"))
   {
