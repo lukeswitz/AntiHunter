@@ -454,16 +454,17 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     memcpy(hit.destMac, payload + 4, 6);
     memcpy(hit.srcMac, payload + 10, 6);
     memcpy(hit.bssid, payload + 16, 6);
-    
-    hit.reasonCode = (ppkt->rx_ctrl.sig_len >= 26) 
-                     ? (payload[24] | (payload[25] << 8)) 
+
+    hit.reasonCode = (ppkt->rx_ctrl.sig_len >= 26)
+                     ? (payload[24] | (payload[25] << 8))
                      : 0;
-    
+
     hit.rssi = ppkt->rx_ctrl.rssi;
     hit.channel = ppkt->rx_ctrl.channel;
     hit.timestamp = millis();
     hit.isDisassoc = isDisassoc;
     hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
+    hit.companyId = 0;
     
     bool isAttack = false;
     
