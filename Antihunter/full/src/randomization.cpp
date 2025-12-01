@@ -976,6 +976,9 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
 
         newIdentity.macs.push_back(MacAddress(session.mac));
         newIdentity.isBLE = isBLE;
+        newIdentity.lastSequenceNum = 0;
+        newIdentity.sequenceValid = false;
+        newIdentity.hasKnownGlobalMac = false;
 
         if(sessionIsMinimal) {
             memcpy(newIdentity.signature.ieFingerprintMinimal, session.fingerprint, sizeof(session.fingerprint));
@@ -1258,6 +1261,9 @@ void randomizationDetectionTask(void *pv) {
                     session.seqNumGaps = 0;
                     session.seqNumWraps = 0;
                     session.hasGlobalMacLeak = false;
+                    session.avgProbeInterval = 0.0f;
+                    session.intervalStdDev = 0.0f;
+                    session.rssiVariance = 0.0f;
                     
                     if (event.payloadLen >= 24) {
                         session.lastSeqNum = extractSequenceNumber(event.payload, event.payloadLen);
@@ -1397,6 +1403,9 @@ void randomizationDetectionTask(void *pv) {
                             session.seqNumGaps = 0;
                             session.seqNumWraps = 0;
                             session.hasGlobalMacLeak = false;
+                            session.avgProbeInterval = 0.0f;
+                            session.intervalStdDev = 0.0f;
+                            session.rssiVariance = 0.0f;
                             
                             extractBLEFingerprint(device, session.fingerprint);
                             memset(&session.ieOrder, 0, sizeof(session.ieOrder));
@@ -1684,8 +1693,7 @@ void loadDeviceIdentities() {
     
     for (uint32_t i = 0; i < count; i++) {
         DeviceIdentity id;
-        memset(&id, 0, sizeof(id));
-        
+
         if (file.read((uint8_t*)&id.identityId, sizeof(id.identityId)) != sizeof(id.identityId)) break;
         
         uint32_t macCount = 0;
