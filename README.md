@@ -9,7 +9,7 @@
 </div>
 
 <div align="center">
-<img width="80%" height="80%" alt="image" src="https://github.com/user-attachments/assets/7fc3f42a-b582-4f67-820f-a0384a410480" />
+<img width="400px" alt="image" src="https://github.com/user-attachments/assets/7fc3f42a-b582-4f67-820f-a0384a410480" />
 </div>
 
 
@@ -32,20 +32,20 @@
 
 ## Overview
 
-**AntiHunter** is a low-cost, open-source distributed perimeter defense system for wireless network security and operational awareness. It enables comprehensive monitoring and protection of wireless environments, transforming spectrum activity into actionable security intelligence for defensive operations.
+**AntiHunter** is a low-cost, open-source distributed perimeter defense system for wireless network security and operational awareness. It enables comprehensive monitoring and protection of wireless environments, transforming spectrum activity into actionable security intelligence.
 
-Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalable sensor network for real-time threat detection, device mapping, and perimeter security. The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide a digital and physical "tripwire". 
+Built on the ESP32-S3 platform with mesh networking, AntiHunter creates a scalable sensor network for real-time threat detection, device mapping, and perimeter security. The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide a digital and physical "tripwire".
 
 ## Primary Detection Modes
 
 ![image](https://github.com/user-attachments/assets/b3be1602-c651-41d2-9caf-c2e4956d3aff)
 
-## 1. List Scan Mode
+## 1. List/Target Scan Mode
 
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (first 3-byte vendor IDs). AntiHunter systematically sweeps designated WiFi channels and BLE frequencies, providing immediate alerts and detailed logging when targets are detected.
 
 **Features:**
-- **Targeted Monitoring**: Track specific devices by MAC address or vendor OUI prefix
+- **Target Monitoring**: Track specific devices by MAC address or vendor OUI prefix
 - **Dual Protocol Scanning**: WiFi-only, BLE-only, or combined WiFi+BLE modes
 - **Global Allowlist**: User configurable, applies to all scans
 - **Logging**: Records RSSI, channel, GPS coordinates, and device names to SD card
@@ -453,7 +453,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 - **Position Reporting**: GPS coordinates included in all relevant alerts
 
 ### **Hardware Configuration**
-- **Connection**: **Mode: `TEXTMSG`;Speed: 115200 baud;Pins 9 TX / 10 RX for T114 and 19/20 for the Heltec V3**
+- **Connection**: **Mode: `TEXTMSG`;Speed: `115200 baud` ;Pins `10 RX / 9 TX` for T114 and `19 RX / 20 TX` for the Heltec V3**
 - **Protocol**: Standard Meshtastic serial, public and encrypted channels _(protobuf support in development)_
 
 ### **Network Behavior**
