@@ -206,7 +206,8 @@ Configure auto-erase settings via the web interface:
 ### Security
 - Auto-erase is **disabled by default** for safety
 - Setup delay prevents accidental triggering during deployment
-- `ERASE_FORCE` requires web-generated authentication tokens that expire in 5 minutes
+- `ERASE_FORCE` requires device-generated authentication tokens that expire in 5 minutes
+- Tokens are device-specific and generated via `ERASE_REQUEST` command on target device
 - Overwrites SD buffer, erases all (including hidden) files and folders
 - Creates a dummy IoT weather device config file for obfuscation 
 
@@ -215,7 +216,7 @@ Configure auto-erase settings via the web interface:
 2. Configure detection thresholds based on deployment environment
 3. Deploy device and walk away during setup period
 4. Monitor mesh alerts for tamper detection events
-5. Use web interface to generate authenticated mesh erase tokens for remote destruction
+5. For remote erase: Send `@NODE ERASE_REQUEST` to generate token, then use received token with `@NODE ERASE_FORCE:<token>`
 
 > **Warning**: Data destruction is permanent and irreversible. Configure thresholds carefully to prevent false triggers.
 ---
@@ -509,7 +510,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds. **Must send to @ALL** | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@ALL TRIANGULATE_START:T-002F:300` |
 | `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results | `@NODE1 TRIANGULATE_RESULTS` |
-| `ERASE_REQUEST` | None | Requests erase token from device (auto-generates if none exists) | `@AH01 ERASE_REQUEST` |
+| `ERASE_REQUEST` | None | Requests erase token from device (auto-generates if none exists, starts countdown timer) | `@AH01 ERASE_REQUEST` |
 | `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
 | `AUTOERASE_ENABLE` | `[setupDelay:eraseDelay:vibs:window:cooldown]` (optional, all in seconds) | Enables auto-erase with optional parameters. Defaults: 120s setup, 30s erase, 3 vibs, 20s window, 300s cooldown | `@AH01 AUTOERASE_ENABLE` or `@AH01 AUTOERASE_ENABLE:60:30:3:20:300` |
@@ -693,12 +694,10 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | Endpoint | Method | Parameters | Description |
 |----------|--------|------------|-------------|
 | `/erase/status` | GET | - | Check erasure status |
-| `/erase/request` | POST | `confirm` (WIPE_ALL_DATA), `reason` (optional) | Request secure erase |
+| `/erase/request` | POST | `confirm` (WIPE_ALL_DATA), `reason` (optional) | Request secure erase (local device only) |
 | `/erase/cancel` | POST | - | Cancel tamper erase sequence |
 | `/secure/status` | GET | - | Tamper detection status |
 | `/secure/abort` | POST | - | Abort tamper sequence |
-| `/secure/destruct` | POST | `confirm` (WIPE_ALL_DATA) | Execute immediate secure wipe |
-| `/secure/generate-token` | POST | `target`, `confirm` (GENERATE_ERASE_TOKEN) | Generate remote erase token |
 | `/config/autoerase` | GET/POST | `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay` | Get/update auto-erase configuration |
 
 ### Hardware & Status

@@ -3641,43 +3641,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
 
-  server->on("/secure/destruct", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-    if (!req->hasParam("confirm", true) || req->getParam("confirm", true)->value() != "WIPE_ALL_DATA") {
-        req->send(400, "text/plain", "Invalid confirmation");
-        return;
-    }
-    
-    tamperAuthToken = generateEraseToken();
-    executeSecureErase("Manual web request");
-    req->send(200, "text/plain", "Secure wipe executed"); });
-
-  server->on("/secure/generate-token", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-    if (!req->hasParam("target", true) || !req->hasParam("confirm", true)) {
-        req->send(400, "text/plain", "Missing target node or confirmation");
-        return;
-    }
-    
-    String target = req->getParam("target", true)->value();
-    String confirm = req->getParam("confirm", true)->value();
-    
-    if (confirm != "GENERATE_ERASE_TOKEN") {
-        req->send(400, "text/plain", "Invalid confirmation");
-        return;
-    }
-    
-    // Use existing generateEraseToken() function
-    String token = generateEraseToken();
-    String command = "@" + target + " ERASE_FORCE:" + token;
-    
-    String response = "Mesh erase command generated:\n\n";
-    response += command + "\n\n";
-    response += "Token expires in 5 minutes\n";
-    response += "Send this exact command via mesh to execute remote erase";
-    
-    req->send(200, "text/plain", response); });
-
   server->on("/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
              {
     String response = "{";
