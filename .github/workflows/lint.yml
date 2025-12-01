@@ -39,20 +39,10 @@ jobs:
         pio pkg install -e AntiHunter-headless
     
     - name: Run cppcheck on AntiHunter-full
-      run: |
-        pio check -e AntiHunter-full \
-          --skip-packages \
-          --severity=high \
-          --flags "cppcheck: --suppress=unusedFunction --suppress=missingIncludeSystem --inline-suppr"
-      continue-on-error: true
-    
+      run: pio check -e AntiHunter-full
+
     - name: Run cppcheck on AntiHunter-headless
-      run: |
-        pio check -e AntiHunter-headless \
-          --skip-packages \
-          --severity=high \
-          --flags "cppcheck: --suppress=unusedFunction --suppress=missingIncludeSystem --inline-suppr"
-      continue-on-error: true
+      run: pio check -e AntiHunter-headless
 
   build-warnings:
     runs-on: ubuntu-latest
