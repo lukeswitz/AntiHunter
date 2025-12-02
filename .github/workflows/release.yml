@@ -4,25 +4,22 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
-    - name: Get latest tag
-      id: get_tag
+
+    - name: Get version from tag
+      id: get_version
       run: |
-        git fetch --tags
-        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-        echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -35,19 +32,22 @@ jobs:
     - name: Build
       run: pio run
     
-    - name: Copy firmware
+    - name: Prepare release artifacts
       run: |
-        cp .pio/build/AntiHunter-full/firmware.bin Dist/antihunter-full-${{ steps.get_tag.outputs.tag }}.bin
-        cp .pio/build/AntiHunter-headless/firmware.bin Dist/antihunter-headless-${{ steps.get_tag.outputs.tag }}.bin
-    
-    - name: Checksums
+        mkdir -p release
+        cp .pio/build/AntiHunter-full/firmware.bin release/antihunter-full-${{ steps.get_version.outputs.version }}.bin
+        cp .pio/build/AntiHunter-headless/firmware.bin release/antihunter-headless-${{ steps.get_version.outputs.version }}.bin
+        cp Dist/bootloader.bin release/
+        cp Dist/partitions.bin release/
+        cp Dist/flashAntihunter.sh release/
+
+    - name: Generate checksums
       run: |
-        cd Dist
-        sha256sum antihunter-*.bin > SHA256SUMS.txt
-    
+        cd release
+        sha256sum *.bin flashAntihunter.sh > SHA256SUMS.txt
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ steps.get_tag.outputs.tag }}
-        files: Dist/*
+        files: release/*
         prerelease: true
