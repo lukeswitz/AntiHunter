@@ -3,8 +3,8 @@ set -e
 
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
-    "AntiHunter Full - v0.6.8 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_9_full.bin"
-    "AntiHunter Headless - v0.6.8 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v06_9_headless.bin"
+    "AntiHunter Full - v0.7.0 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v07_0_full.bin"
+    "AntiHunter Headless - v0.7.0 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/ah_beta_v07_0_headless.bin"
 )
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
