@@ -11,7 +11,8 @@
 <div align="center">
 <img width="500" alt="image" src="https://github.com/user-attachments/assets/da532c1f-9e59-45ff-9ea9-1af17ddea2ec" />
    
-   Standalone firmware, or use in conjunction with the powerful [AntiHunter Command Center ](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+>Standalone firmware, or use in conjunction with the powerful [AntiHunter Command Center ](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+
 </div>
 
 
