@@ -4,120 +4,92 @@ AntiHunter DIGI node firmware is currently in **beta** and has not completed for
 
 ## Supported Versions
 
-| Version        | Supported? | Notes                                                    |
-| -------------- | ---------- | -------------------------------------------------------- |
-| `main`         | ✅         | Actively developed; security fixes land here first       |
-| Release tags   | ⚠️         | Beta snapshots only; update to latest `main`             |
-| Modified builds| ❌         | Out of scope unless reproducible on unmodified firmware  |
+| Version branch    | Supported? | Notes                                                    |
+| ----------------- | ---------- | -------------------------------------------------------- |
+| `main`            | ✅         | Actively developed; security fixes land here first       |
+| Release tags      | ⚠️         | Beta snapshots only; update to latest `main`             |
+| Modified builds   | ❌         | Out of scope unless reproducible on unmodified firmware  |
 
 ## Reporting a Vulnerability
 
-1. **Open a private advisory** at the repository's [Security Advisories](https://github.com/lukeswitz/antihunter/security/advisories) page or message `@lukeswitz` with subject `AHFW SECURITY`
-2. Include: vulnerability description, impact assessment, reproduction steps, commit hash/version tested, hardware configuration
-3. For encrypted communication, request PGP key via GitHub message
-4. Response timeline: acknowledgment within 3 business days, triage within 7 business days
-5. **Do not publicly disclose** until we confirm a fix or mutually agree on disclosure date (minimum 30 days)
+1. **Open a private advisory** at the repository's [Security Advisories](https://github.com/lukeswitz/Antihunter/security/advisories) page or message `@lukeswitz` with subject `AHFW SECURITY REPORT`.
+2. Include: vulnerability description, impact assessment, reproduction steps, commit hash/version tested, hardware configuration.
+3. For encrypted communication, request PGP key via GitHub message.
+4. Response timeline: acknowledgment within **3 business days**, triage within **7 business days**.
+5. **Do not publicly disclose** until we confirm a fix or mutually agree on disclosure date (minimum 30 days).
+
+### What to Include
+
+- Concise description of the issue and potential impact (e.g., unauthorized device control, data disclosure, secure erase bypass).
+- Steps to reproduce or proof of concept.
+- Commit hash or release tag tested.
+- Hardware configuration (ESP32 variant, SD card, sensors).
+- Mesh radio hardware if testing mesh protocol vulnerabilities.
+- Any temporary mitigations observed.
 
 ## Scope
 
-### In Scope
+**In scope:**
 
-**Authentication & Access Control:**
-- WiFi AP password bypass 
-- Unauthorized access to web interface or API endpoints
-- Configuration tampering without authentication
-- Session hijacking or fixation
+- Firmware code in this repository (`*.cpp`, `*.h` files, `platformio.ini`).
+- HTTP API endpoints.
+- Configuration file parsing and validation (`config.json` on SD card).
+- Mesh UART protocol security (Serial1 at 115200 baud).
+- Mesh command injection and authentication bypass.
+- Mesh message spoofing or replay attacks.
+- Compatibility testing with non-standard mesh radios (e.g., older T114 versions, third-party UART devices).
+- Secure erase and tamper detection mechanisms.
+- SD card data storage security.
 
-**Data Exfiltration & Privacy:**
-- Unauthorized access to scan results (MAC addresses, GPS coordinates, device names)
-- SD card data extraction via API endpoints
-- WebSocket terminal data leakage to unauthorized clients
-- GPS coordinates disclosed in unintended contexts
-- Scan logs accessible without proper authorization
+**Out of scope:**
 
-**Injection & Command Execution:**
-- Command injection via mesh UART protocol
-- HTTP parameter injection in API endpoints
-- Configuration file injection (config.json manipulation)
-- Node ID validation bypass leading to command execution
+- Social engineering, phishing, or physical attacks not involving documented interfaces.
+- Findings in third‑party libraries (ESP-IDF, Arduino core, NimBLE, ArduinoJson) - report to upstream projects.
+- Denial-of-service or resource exhaustion attacks.
+- Issues requiring physical hardware modification beyond connecting to documented UART pins.
+- JTAG/SWD debug interface exploitation.
+- Vulnerabilities in forked or modified versions diverging from upstream `main`.
 
-**Mesh Protocol Security:**
-- Spoofing or impersonation of mesh nodes
-- Triangulation data manipulation via mesh
-- Unauthorized scan control via mesh commands
-- Mesh message replay attacks
+If your research affects an upstream dependency, please disclose directly to that project. We appreciate a heads-up so we can track the fix.
 
-**Secure Erase & Tamper Detection:**
-- Bypass of secure erase functionality
-- Tamper detection evasion
-- Data recovery after secure wipe
-- Accelerometer-based detection circumvention
+## Coordinated Disclosure & Safe Harbor
 
-**API Security:**
-- Missing authentication on sensitive endpoints
-- Parameter validation failures
-- Rate limiting bypass
-- CORS policy violations allowing unauthorized access
-
-### Out of Scope
-
-**Network & Physical Attacks:**
-- Denial of Service (DoS) or resource exhaustion attacks
-- RF jamming or physical interference
-- Attacks requiring physical hardware modification
-- JTAG/SWD debug interface exploitation
-- Social engineering or phishing
-
-**Third-Party & Dependencies:**
-- Vulnerabilities in upstream libraries (ESP-IDF, Arduino core, NimBLE, ArduinoJson) - report to upstream projects
-- Issues in OpenDroneID library - report to maintainers
-- Hardware vulnerabilities in ESP32 chipset
-
-**Low-Impact Findings:**
-- Clickjacking on non-sensitive pages
-- Self-XSS requiring extensive user interaction
-- Missing security headers without demonstrable impact
-- Verbose error messages without sensitive data disclosure
-- Outdated libraries without proven exploitability
-- Missing best practices (e.g., CSP headers) without attack vector
-
-**Testing Restrictions:**
-- Attacks requiring root access to connected computers
-- Browser vulnerabilities unrelated to device code
-- Attacks requiring device firmware modification beyond documented upload procedures
-- Testing on production deployments without owner permission
+- Acting in good faith within this policy will not lead to legal action. This includes testing, reporting, and discussing vulnerabilities privately.
+- Avoid accessing, modifying, or destroying user data. If you encounter data owned by others, stop testing immediately and notify us.
+- Limit automated scanning to minimum necessary for verification. Avoid resource exhaustion that could damage SD cards or flash memory.
+- Testing mesh protocol security with various UART devices is permitted and encouraged.
+- Give us reasonable time to remediate (minimum 30 days unless otherwise agreed) before public disclosure.
 
 ## Testing Guidelines
 
-**Access Requirements:**
-- Connect to device AP 
+**Device Access:**
+- Connect to device AP (default gateway: `192.168.4.1`)
 - HTTP API: `http://192.168.4.1`
-- WebSocket terminal: `ws://192.168.4.1/terminal`
-- USB serial
-- Mesh UART: 115200 baud (requires physical GPIO access)
+- USB serial console: 115200 baud
+- Mesh UART (Serial1): 115200 baud on GPIO pins (physical access required)
+
+**Mesh Protocol Testing:**
+- Test with standard T114 mesh radios
+- Test with older/legacy mesh radio firmware versions
+- Test with non-standard UART devices to evaluate command injection
+- Test mesh message authentication and validation
+- Test replay attack resistance
 
 **Safe Harbor:**
-- Use ypur own test devices only
-- Avoid data destruction beyond demonstrating vulnerability
-- Stop testing if you encounter data owned by others
-- Give us 30+ days before public disclosure
+- Use your own test devices only.
+- Avoid data destruction beyond demonstrating vulnerability.
+- Stop testing if you encounter data owned by others.
+- Do not bypass tamper detection unless specifically testing that feature.
+- When testing mesh protocols, use isolated test networks.
 
-## Examples of Valid Reports
+## Credit & Recognition
 
-- Unauthorized access to scan results without authentication
-- Command injection via mesh protocol allowing device takeover
-- GPS coordinate leakage to unauthorized AP clients
-- Bypass of secure erase allowing data recovery
-- Authentication bypass on configuration endpoints
-- MAC address enumeration without authorization
-- Mesh node spoofing enabling false data injection
+We acknowledge security researchers who responsibly disclose issues, subject to your consent and severity of the finding. Let us know if you'd like credit in release notes or advisories.
 
-## Recognition
+## Need Help?
 
-We acknowledge security researchers who responsibly disclose vulnerabilities. Let us know if you'd like credit in release notes or advisories.
+- For policy clarifications, contact via repository owner's GitHub [profile](https://github.com/lukeswitz) or open a draft advisory.
+- For operational questions, consult firmware documentation first.
+- For incidents involving deployed devices, also notify your organization's security contacts - this is open-source firmware and you remain responsible for your device security posture.
 
-## Questions
-
-Contact via repository owner's GitHub profile or open a draft advisory for policy clarification. For operational questions, consult firmware documentation first.
-
-Thank you for helping secure AntiHunter firmware.
+Thank you for helping keep AntiHunter firmware secure for all users.
