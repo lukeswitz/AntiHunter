@@ -1447,9 +1447,9 @@ void calibratePathLoss(const String &targetMac, float knownDistance) {
     CalibParams* params = new CalibParams();
     memcpy(params->macBytes, macBytes, 6);
     params->distance = knownDistance;
-    
+
     // Create calibration task on core 1
-    xTaskCreatePinnedToCore(
+    BaseType_t result = xTaskCreatePinnedToCore(
         calibrationTask,
         "calibrate",
         8192,
@@ -1458,7 +1458,13 @@ void calibratePathLoss(const String &targetMac, float knownDistance) {
         &calibrationTaskHandle,
         1
     );
-    
+
+    if (result != pdPASS) {
+        Serial.println("[CALIB] ERROR: Failed to create calibration task");
+        delete params;
+        return;
+    }
+
     Serial.println("[CALIB] Calibration task started");
 }
 
