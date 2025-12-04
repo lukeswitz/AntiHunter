@@ -1447,9 +1447,10 @@ void deleteAllFiles(const String &dirname) {
                 Serial.println("[WIPE] Failed to remove file: " + fullPath);
             }
         }
-        
+
+        file.close();
         file = root.openNextFile();
     }
-    
+
     root.close();
 }
