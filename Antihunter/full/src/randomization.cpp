@@ -947,7 +947,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, identity.identityId, sizeof(session.linkedIdentityId) - 1);
-        
+        session.linkedIdentityId[sizeof(session.linkedIdentityId) - 1] = '\0';
+
         Serial.printf("[RAND] Linked %s -> %s (score:%.3f dR:%d macs:%d conf:%.2f sig:%s)\n",
                      macStr.c_str(), identity.identityId, bestScore,
                      bestRssiDelta, identity.macs.size(), identity.confidence,
@@ -1036,7 +1037,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, newIdentity.identityId, sizeof(session.linkedIdentityId) - 1);
-        
+        session.linkedIdentityId[sizeof(session.linkedIdentityId) - 1] = '\0';
+
         Serial.printf("[RAND] New %s from %s (n:%d rssi:%d ic:%.2f type:%s sig:%s)\n",
                      newIdentity.identityId, macStr.c_str(), session.probeCount, 
                      sessionAvgRssi, sessionIntervalConsistency, isBLE ? "BLE" : "WiFi",
