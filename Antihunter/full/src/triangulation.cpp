@@ -644,13 +644,24 @@ void stopTriangulation() {
     vTaskDelay(pdMS_TO_TICKS(500));
 
     // Wait for worker task to actually exit
-    uint32_t taskStopWait = millis();
-    while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-
     if (workerTaskHandle != nullptr) {
-        Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly, continuing anyway");
+        TaskHandle_t taskToWait = workerTaskHandle;
+        uint32_t taskStopWait = millis();
+
+        while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
+            if (eTaskGetState(taskToWait) == eDeleted) {
+                workerTaskHandle = nullptr;
+                Serial.println("[TRIANGULATE] Worker task exited cleanly");
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
+        if (workerTaskHandle != nullptr) {
+            vTaskDelete(taskToWait);
+            workerTaskHandle = nullptr;
+            Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly, forced termination");
+        }
     }
 
     vTaskDelay(pdMS_TO_TICKS(500));  // Extra buffer before sending final message
