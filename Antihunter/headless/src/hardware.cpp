@@ -332,6 +332,10 @@ void initializeHardware()
 }
 
 void syncSettingsToNVS() {
+    // Use a static buffer to avoid heap fragmentation
+    static char channelsBuf[128];
+    channelsBuf[0] = '\0';
+
     prefs.putInt("scanMode", currentScanMode);
     prefs.putULong("meshInterval", meshSendInterval);
     prefs.putUInt("blRamSize", getBaselineRamCacheSize());
@@ -353,15 +357,16 @@ void syncSettingsToNVS() {
     prefs.putUInt("wifiInterval", rfConfig.wifiScanInterval);
     prefs.putUInt("bleInterval", rfConfig.bleScanInterval);
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
-    
-    String channelsCSV = "";
-    for (size_t i = 0; i < CHANNELS.size(); i++) {
-        channelsCSV += String(CHANNELS[i]);
-        if (i < CHANNELS.size() - 1) {
-            channelsCSV += ",";
-        }
+
+    int offset = 0;
+    for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
+        offset += snprintf(channelsBuf + offset, sizeof(channelsBuf) - offset,
+                          "%d%s", CHANNELS[i], (i < CHANNELS.size() - 1) ? "," : "");
     }
-    prefs.putString("channels", channelsCSV);
+    prefs.putString("channels", channelsBuf);
+
+    vTaskDelay(pdMS_TO_TICKS(50));
+    Serial.println("[NVS] Settings synced to flash");
 }
 
 void saveConfiguration() {
@@ -371,59 +376,59 @@ void saveConfiguration() {
     }
     lastSaveTime = now;
 
-    syncSettingsToNVS(); 
-    delay(100);
+    syncSettingsToNVS();
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     if (!SafeSD::isAvailable()) {
-        Serial.println("SD card not available, settings saved to NVS only");
+        Serial.println("[CONFIG] Settings saved to NVS only (SD unavailable)");
         return;
     }
-    
+
     File configFile = SafeSD::open("/config.json", FILE_WRITE);
     if (!configFile) {
-        Serial.println("Failed to open config file for writing!");
+        Serial.println("[CONFIG] ERROR: Failed to open config file for writing!");
         return;
     }
-    
-    String channelsCSV = "";
-    for (size_t i = 0; i < CHANNELS.size(); i++) {
-        channelsCSV += String(CHANNELS[i]);
-        if (i < CHANNELS.size() - 1) {
-            channelsCSV += ",";
-        }
+
+    static char channelsBuf[128];
+    int offset = 0;
+    for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
+        offset += snprintf(channelsBuf + offset, sizeof(channelsBuf) - offset,
+                          "%d%s", CHANNELS[i], (i < CHANNELS.size() - 1) ? "," : "");
     }
-    
-    String config = "{\n";
-    config += " \"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
-    config += " \"scanMode\":" + String(currentScanMode) + ",\n";
-    config += " \"channels\":\"" + channelsCSV + "\",\n";
-    config += " \"meshInterval\":" + String(meshSendInterval) + ",\n";
-    config += " \"autoEraseEnabled\":" + String(autoEraseEnabled ? "true" : "false") + ",\n";
-    config += " \"autoEraseDelay\":" + String(autoEraseDelay) + ",\n";
-    config += " \"autoEraseCooldown\":" + String(autoEraseCooldown) + ",\n";
-    config += " \"vibrationsRequired\":" + String(vibrationsRequired) + ",\n";
-    config += " \"detectionWindow\":" + String(detectionWindow) + ",\n";
-    config += " \"setupDelay\":" + String(setupDelay) + ",\n";
-    config += " \"baselineRamSize\":" + String(getBaselineRamCacheSize()) + ",\n";
-    config += " \"baselineSdMax\":" + String(getBaselineSdMaxDevices()) + ",\n";
-    config += " \"baselineRssiThreshold\":" + String(getBaselineRssiThreshold()) + ",\n";
-    config += " \"baselineDuration\":" + String(baselineDuration / 1000) + ",\n";
-    config += " \"absenceThreshold\":" + String(getDeviceAbsenceThreshold() / 1000) + ",\n";
-    config += " \"reappearanceWindow\":" + String(getReappearanceAlertWindow() / 1000) + ",\n";
-    config += " \"rssiChangeDelta\":" + String(getSignificantRssiChange()) + ",\n";
-    config += " \"rfPreset\":" + String(rfConfig.preset) + ",\n";
-    config += " \"wifiChannelTime\":" + String(rfConfig.wifiChannelTime) + ",\n";
-    config += " \"wifiScanInterval\":" + String(rfConfig.wifiScanInterval) + ",\n";
-    config += " \"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",\n";
-    config += " \"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",\n";
-    config += " \"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold) + ",\n";
-    config += " \"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
-    config += "}";
-    
-    configFile.print(config);
+
+    configFile.println("{");
+    configFile.printf(" \"nodeId\":\"%s\",\n", prefs.getString("nodeId", "").c_str());
+    configFile.printf(" \"scanMode\":%d,\n", currentScanMode);
+    configFile.printf(" \"channels\":\"%s\",\n", channelsBuf);
+    configFile.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
+    configFile.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
+    configFile.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
+    configFile.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
+    configFile.printf(" \"vibrationsRequired\":%u,\n", vibrationsRequired);
+    configFile.printf(" \"detectionWindow\":%u,\n", detectionWindow);
+    configFile.printf(" \"setupDelay\":%u,\n", setupDelay);
+    configFile.printf(" \"baselineRamSize\":%u,\n", getBaselineRamCacheSize());
+    configFile.printf(" \"baselineSdMax\":%u,\n", getBaselineSdMaxDevices());
+    configFile.printf(" \"baselineRssiThreshold\":%d,\n", getBaselineRssiThreshold());
+    configFile.printf(" \"baselineDuration\":%u,\n", baselineDuration / 1000);
+    configFile.printf(" \"absenceThreshold\":%u,\n", getDeviceAbsenceThreshold() / 1000);
+    configFile.printf(" \"reappearanceWindow\":%u,\n", getReappearanceAlertWindow() / 1000);
+    configFile.printf(" \"rssiChangeDelta\":%d,\n", getSignificantRssiChange());
+    configFile.printf(" \"rfPreset\":%u,\n", rfConfig.preset);
+    configFile.printf(" \"wifiChannelTime\":%u,\n", rfConfig.wifiChannelTime);
+    configFile.printf(" \"wifiScanInterval\":%u,\n", rfConfig.wifiScanInterval);
+    configFile.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
+    configFile.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
+    configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
+    configFile.printf(" \"targets\":\"%s\"\n", prefs.getString("maclist", "").c_str());
+    configFile.println("}");
+
+    configFile.flush();
     configFile.close();
-    
-    Serial.println("Configuration saved to NVS and SD card");
+
+    Serial.println("[CONFIG] Configuration saved to NVS and SD card");
+    Serial.printf("[CONFIG] autoEraseEnabled=%s\n", autoEraseEnabled ? "ENABLED" : "DISABLED");
 }
 
 void loadConfiguration() {
@@ -962,61 +967,77 @@ void initializeVibrationSensor() {
 void checkAndSendVibrationAlert() {
     if (vibrationDetected) {
         vibrationDetected = false;
-        
-        // Check if we're in setup mode
+
         if (inSetupMode) {
             uint32_t elapsed = millis() - setupStartTime;
             if (elapsed >= setupDelay) {
                 inSetupMode = false;
                 Serial.println("[SETUP] Setup period complete - auto-erase now ACTIVE");
-                
-                String setupMsg = getNodeId() + ": SETUP_COMPLETE: Auto-erase activated";
-                sendToSerial1(setupMsg, false);
+
+                // Use stack buffer to avoid heap fragmentation
+                char setupMsg[128];
+                snprintf(setupMsg, sizeof(setupMsg), "%s: SETUP_COMPLETE: Auto-erase activated",
+                         getNodeId().c_str());
+                sendToSerial1(String(setupMsg), false);
             } else {
                 uint32_t remaining = (setupDelay - elapsed) / 1000;
                 Serial.printf("[SETUP] Setup mode - auto-erase activates in %us\n", remaining);
-                
-                // Send setup status in vibration alert
-                String vibrationMsg = getNodeId() + ": VIBRATION: Movement in setup mode (active in " + String(remaining) + "s)";
-                if (gpsValid) {
-                    vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+
+                // Use stack buffer to avoid heap fragmentation
+                char vibrationMsg[256];
+                int offset = snprintf(vibrationMsg, sizeof(vibrationMsg),
+                                     "%s: VIBRATION: Movement in setup mode (active in %us)",
+                                     getNodeId().c_str(), remaining);
+
+                if (gpsValid && offset > 0 && offset < (int)sizeof(vibrationMsg)) {
+                    snprintf(vibrationMsg + offset, sizeof(vibrationMsg) - offset,
+                            " GPS:%.6f,%.6f", gpsLat, gpsLon);
                 }
-                sendToSerial1(vibrationMsg, true);
+                sendToSerial1(String(vibrationMsg), true);
                 return;
             }
         }
 
-        if (autoEraseEnabled && !tamperEraseActive && 
+        if (autoEraseEnabled && !tamperEraseActive &&
             millis() - lastVibrationTime < 1000 &&
             millis() - lastAutoEraseAttempt > autoEraseCooldown) {
-            
+
             Serial.println("[TAMPER] Device movement detected - auto-erase enabled");
             tamperAuthToken = generateEraseToken();
             initiateTamperErase();
             lastAutoEraseAttempt = millis();
         }
-        
+
         if (millis() - lastVibrationAlert > VIBRATION_ALERT_INTERVAL) {
             lastVibrationAlert = millis();
-            
-            String timestamp = getFormattedTimestamp();
+
+            // Use stack buffers to avoid heap fragmentation
+            char timestamp[32];
+            strncpy(timestamp, getFormattedTimestamp().c_str(), sizeof(timestamp) - 1);
+            timestamp[sizeof(timestamp) - 1] = '\0';
+
             int sensorValue = digitalRead(VIBRATION_PIN);
-            
-            String vibrationMsg = getNodeId() + ": VIBRATION: Movement detected at " + timestamp;
-            
-            if (gpsValid) {
-                vibrationMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+
+            char vibrationMsg[256];
+            int offset = snprintf(vibrationMsg, sizeof(vibrationMsg),
+                                 "%s: VIBRATION: Movement detected at %s",
+                                 getNodeId().c_str(), timestamp);
+
+            if (gpsValid && offset > 0 && offset < (int)sizeof(vibrationMsg)) {
+                offset += snprintf(vibrationMsg + offset, sizeof(vibrationMsg) - offset,
+                                  " GPS:%.6f,%.6f", gpsLat, gpsLon);
             }
-            
-            if (tamperEraseActive) {
+
+            if (tamperEraseActive && offset > 0 && offset < (int)sizeof(vibrationMsg)) {
                 uint32_t timeLeft = (autoEraseDelay - (millis() - tamperSequenceStart)) / 1000;
-                vibrationMsg += " TAMPER_ERASE_IN:" + String(timeLeft) + "s";
+                snprintf(vibrationMsg + offset, sizeof(vibrationMsg) - offset,
+                        " TAMPER_ERASE_IN:%us", timeLeft);
             }
-            
-            Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg.c_str());
-            sendToSerial1(vibrationMsg, true);
+
+            Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg);
+            sendToSerial1(String(vibrationMsg), true);
             logVibrationEvent(sensorValue);
-            
+
         } else {
             Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
         }
