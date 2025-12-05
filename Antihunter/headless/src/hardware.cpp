@@ -926,6 +926,10 @@ void logToSD(const String &data) {
     
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
+        // Flush before checking size to ensure accurate reporting
+        if (logFile) {
+            logFile.flush();
+        }
         File checkFile = SafeSD::open("/antihunter.log", FILE_READ);
         if (checkFile) {
             Serial.printf("[SD] Log file size: %lu bytes\n", checkFile.size());
