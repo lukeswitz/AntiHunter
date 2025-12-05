@@ -814,40 +814,56 @@ String getDiagnostics() {
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
-    s += "Vibration sensor: " + String(lastVibrationTime > 0 ? "Active" : "Standby") + "\n";
-    
     if (lastVibrationTime > 0) {
         unsigned long vibrationTime = lastVibrationTime;
         unsigned long seconds = vibrationTime / 1000;
         unsigned long minutes = seconds / 60;
         unsigned long hours = minutes / 60;
-        
+
         seconds = seconds % 60;
         minutes = minutes % 60;
         hours = hours % 24;
-        
+
         char timeStr[12];
         snprintf(timeStr, sizeof(timeStr), "%02lu:%02lu:%02lu", hours, minutes, seconds);
-        
+
         unsigned long agoSeconds = (millis() - lastVibrationTime) / 1000;
-        
-        s += "Last Movement: " + String(timeStr) + " (" + String(agoSeconds) + "s ago)\n";
+
+        s += "Vibration sensor: Active - Last: " + String(timeStr) + " (" + String(agoSeconds) + "s ago)\n";
+    } else {
+        s += "Vibration sensor: Standby\n";
     }
     
-    s += "SD Card: " + String(sdAvailable ? "Available" : "Not available") + "\n";
     if (sdAvailable) {
         if (millis() - lastSDTime > 30000 || cachedSDInfo.length() == 0) {
             lastSDTime = millis();
             cachedSDInfo = "";
-            
+
             uint64_t cardSize = SD.cardSize() / (1024 * 1024);
             uint64_t totalBytes = SD.totalBytes();
             uint64_t usedBytes = SD.usedBytes();
             uint64_t freeBytes = totalBytes - usedBytes;
 
-            cachedSDInfo = "SD Free Space: " + String(freeBytes / (1024 * 1024)) + "MB\n";
+            // Get log file size
+            uint32_t logSize = 0;
+            File logFile = SafeSD::open("/antihunter.log", FILE_READ);
+            if (logFile) {
+                logSize = logFile.size();
+                logFile.close();
+            }
+
+            cachedSDInfo = "SD Card: " + String(cardSize) + "MB | ";
+            cachedSDInfo += "Used: " + String(usedBytes / (1024 * 1024)) + "MB | ";
+            cachedSDInfo += "Free: " + String(freeBytes / (1024 * 1024)) + "MB | ";
+            if (logSize < 1024) {
+                cachedSDInfo += "Log: " + String(logSize) + " bytes\n";
+            } else {
+                cachedSDInfo += "Log: " + String(logSize / 1024) + "KB\n";
+            }
         }
         s += cachedSDInfo;
+    } else {
+        s += "SD Card: Not available\n";
     }
     
     s += "GPS: ";
@@ -1084,6 +1100,10 @@ void logToSD(const String &data) {
     
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
+        // Flush before checking size to ensure accurate reporting
+        if (logFile) {
+            logFile.flush();
+        }
         File checkFile = SafeSD::open("/antihunter.log", FILE_READ);
         if (checkFile) {
             Serial.printf("[SD] Log file size: %lu bytes\n", checkFile.size());
