@@ -820,7 +820,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
           </div>
         </div>
-      </div>      <!-- 
+      </div>      
+      
+      <!-- 
       <div id="terminalToggle">TERMINAL</div>
       <div id="terminalWindow">
         <div id="terminalHeader">
@@ -1668,36 +1670,46 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       
       async function saveAutoEraseConfig() {
+      try {
         const enabled = document.getElementById('autoEraseEnabled').checked;
         const delay = document.getElementById('autoEraseDelay').value;
         const cooldown = document.getElementById('autoEraseCooldown').value;
         const vibrationsRequired = document.getElementById('vibrationsRequired').value;
         const detectionWindow = document.getElementById('detectionWindow').value;
         const setupDelay = document.getElementById('setupDelay').value;
-        
+
+        console.log('[AUTOERASE] Sending:', {enabled, delay, cooldown, vibrationsRequired, detectionWindow, setupDelay});
+
+        const fd = new FormData();
+        fd.append('enabled', enabled);
+        fd.append('delay', delay);
+        fd.append('cooldown', cooldown);
+        fd.append('vibrationsRequired', vibrationsRequired);
+        fd.append('detectionWindow', detectionWindow);
+        fd.append('setupDelay', setupDelay);
+
         const response = await fetch('/config/autoerase', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `enabled=${enabled}&delay=${delay}&cooldown=${cooldown}&vibrationsRequired=${vibrationsRequired}&detectionWindow=${detectionWindow}&setupDelay=${setupDelay}`
+          body: fd
         });
-        const data = await response.text();
-        document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
-        await updateAutoEraseStatus();
-      }
-      
-      async function updateAutoEraseStatus() {
-        const response = await fetch('/config/autoerase');
-        const data = await response.json();
-        if (data.enabled) {
-          if (data.inSetupMode) {
-            document.getElementById('autoEraseStatus').textContent = 'SETUP MODE - Activating soon...';
-          } else {
-            document.getElementById('autoEraseStatus').textContent = 'ACTIVE - Monitoring for tampering';
-          }
-        } else {
-          document.getElementById('autoEraseStatus').textContent = 'DISABLED - Manual erase only';
+
+        console.log('[AUTOERASE] Response status:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+
+        const data = await response.text();
+        console.log('[AUTOERASE] Success:', data);
+        document.getElementById('autoEraseStatus').textContent = 'Config saved: ' + data;
+        toast('Configuration saved', 'success');
+        updateAutoEraseStatus();
+      } catch (error) {
+        console.error('[AUTOERASE] Error:', error);
+        document.getElementById('autoEraseStatus').textContent = 'ERROR: ' + error.message;
+        toast('Failed to save: ' + error.message, 'error');
       }
+    }
       
       function updateEraseProgress(message, percentage) {
         const progressBar = document.getElementById('eraseProgressBar');
@@ -2662,11 +2674,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const statusDiv = document.getElementById('autoEraseStatus');
           let statusText = '';
           let statusClass = '';
+
+          // Sync checkbox with server state
+          const checkbox = document.getElementById('autoEraseEnabled');
+          if (checkbox) {
+            checkbox.checked = data.enabled;
+          }
+
           if (!data.enabled) {
             statusText = 'DISABLED - Manual erase only';
             statusClass = 'status-disabled';
           } else if (data.inSetupMode) {
-            const remaining = Math.max(0, Math.floor((data.setupDelay - (Date.now() - data.setupStartTime)) / 1000));
+            const elapsed = data.currentTime - data.setupStartTime;
+            const remaining = Math.max(0, Math.floor((data.setupDelay - elapsed) / 1000));
             statusText = `SETUP MODE - Activating in ${remaining}s`;
             statusClass = 'status-setup';
           } else if (data.tamperActive) {
@@ -2781,22 +2801,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       async function tick() {
-        console.log('[TICK] Called at', new Date().toISOString(), 'tickRunning=', tickRunning);
         if (tickRunning) return;
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
         tickRunning = true;
-        console.log('[TICK] Starting fetch at', new Date().toISOString());
         try {
           const [diagResponse, droneResponse] = await Promise.all([
             fetch('/diag'),
             fetch('/drone/status').catch(() => null)
           ]);
-          console.log('[TICK] Fetches completed at', new Date().toISOString());
           const diagText = await diagResponse.text();
-          console.log('[TICK] diagText processed, isScanning=', diagText.includes('Scanning: yes'), 'at', new Date().toISOString());
           const isScanning = diagText.includes('Scanning: yes');
           const sections = diagText.split('\n');
-          
           meshEnabled = diagText.includes('Mesh: Enabled');
           updateMeshUI();
           
@@ -3238,6 +3253,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       initTerminal();
       loadBaselineAnomalyConfig();
       loadMeshInterval();
+      updateAutoEraseStatus();
       setInterval(tick, 2000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
     </script>
@@ -3522,6 +3538,106 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       }
   });
 
+  server->on("/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
+             {
+    String response = "{";
+    response += "\"enabled\":" + String(autoEraseEnabled ? "true" : "false") + ",";
+    response += "\"delay\":" + String(autoEraseDelay) + ",";
+    response += "\"cooldown\":" + String(autoEraseCooldown) + ",";
+    response += "\"vibrationsRequired\":" + String(vibrationsRequired) + ",";
+    response += "\"detectionWindow\":" + String(detectionWindow) + ",";
+    response += "\"setupDelay\":" + String(setupDelay) + ",";
+    response += "\"inSetupMode\":" + String(inSetupMode ? "true" : "false") + ",";
+    response += "\"setupStartTime\":" + String(setupStartTime) + ",";
+    response += "\"currentTime\":" + String(millis()) + ",";
+    response += "\"tamperActive\":" + String(tamperEraseActive ? "true" : "false");
+    response += "}";
+    req->send(200, "application/json", response); });
+
+  server->on("/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+    Serial.println("\n==================== [AUTOERASE] POST HANDLER CALLED ====================");
+    Serial.printf("[AUTOERASE] Total params: %d\n", req->params());
+
+    // Debug all parameters
+    for(int i=0; i<req->params(); i++){
+      const AsyncWebParameter* p = req->getParam(i);
+      Serial.printf("[AUTOERASE] Param[%d]: name='%s' value='%s' isPost=%d\n", i, p->name().c_str(), p->value().c_str(), p->isPost());
+    }
+
+    if (!req->hasParam("enabled", true)) {
+        Serial.println("[AUTOERASE] ERROR: Missing enabled parameter");
+        req->send(400, "text/plain", "Missing enabled parameter");
+        return;
+    }
+    if (!req->hasParam("delay", true)) {
+        Serial.println("[AUTOERASE] ERROR: Missing delay parameter");
+        req->send(400, "text/plain", "Missing delay parameter");
+        return;
+    }
+    if (!req->hasParam("cooldown", true)) {
+        Serial.println("[AUTOERASE] ERROR: Missing cooldown parameter");
+        req->send(400, "text/plain", "Missing cooldown parameter");
+        return;
+    }
+    if (!req->hasParam("vibrationsRequired", true)) {
+        Serial.println("[AUTOERASE] ERROR: Missing vibrationsRequired parameter");
+        req->send(400, "text/plain", "Missing vibrationsRequired parameter");
+        return;
+    }
+    if (!req->hasParam("detectionWindow", true)) {
+        Serial.println("[AUTOERASE] ERROR: Missing detectionWindow parameter");
+        req->send(400, "text/plain", "Missing detectionWindow parameter");
+        return;
+    }
+    if (!req->hasParam("setupDelay", true)) {
+        Serial.println("[AUTOERASE] ERROR: Missing setupDelay parameter");
+        req->send(400, "text/plain", "Missing setupDelay parameter");
+        return;
+    }
+
+    String enabledParam = req->getParam("enabled", true)->value();
+    Serial.printf("[AUTOERASE] Received enabled parameter: '%s'\n", enabledParam.c_str());
+
+    autoEraseEnabled = (enabledParam == "true" || enabledParam == "1" || enabledParam == "on");
+    autoEraseDelay = req->getParam("delay", true)->value().toInt();
+    autoEraseCooldown = req->getParam("cooldown", true)->value().toInt();
+    vibrationsRequired = req->getParam("vibrationsRequired", true)->value().toInt();
+    detectionWindow = req->getParam("detectionWindow", true)->value().toInt();
+    setupDelay = req->getParam("setupDelay", true)->value().toInt();
+
+    Serial.printf("[AUTOERASE] autoEraseEnabled set to: %s\n", autoEraseEnabled ? "TRUE" : "FALSE");
+
+    // Validate ranges
+    autoEraseDelay = max(10000, min(300000, (int)autoEraseDelay));
+    autoEraseCooldown = max(60000, min(3600000, (int)autoEraseCooldown));
+    vibrationsRequired = max(2, min(10, (int)vibrationsRequired));
+    detectionWindow = max(5000, min(120000, (int)detectionWindow));
+    setupDelay = max(30000, min(600000, (int)setupDelay));  // 30s - 10min
+
+    // Start setup mode when auto-erase is enabled
+    if (autoEraseEnabled) {
+        inSetupMode = true;
+        setupStartTime = millis();
+
+        Serial.printf("[SETUP] Setup mode started - auto-erase activates in %us\n", setupDelay/1000);
+
+        String setupMsg = getNodeId() + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
+        sendToSerial1(setupMsg, false);
+    } else {
+        // Clear setup mode and tamper state when disabled
+        inSetupMode = false;
+        setupStartTime = 0;
+        tamperEraseActive = false;
+        tamperSequenceStart = 0;
+
+        Serial.println("[SETUP] Auto-erase disabled - clearing setup mode and tamper state");
+    }
+
+    saveConfiguration();
+    Serial.printf("[AUTOERASE] After save - autoEraseEnabled is: %s\n", autoEraseEnabled ? "TRUE" : "FALSE");
+    req->send(200, "text/plain", "Auto-erase config updated"); });
+
   server->on("/config", HTTP_GET, [](AsyncWebServerRequest *r) {
       extern RFScanConfig rfConfig;
       
@@ -3640,62 +3756,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
              {
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
-
-  server->on("/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
-             {
-    String response = "{";
-    response += "\"enabled\":" + String(autoEraseEnabled ? "true" : "false") + ",";
-    response += "\"delay\":" + String(autoEraseDelay) + ",";
-    response += "\"cooldown\":" + String(autoEraseCooldown) + ",";
-    response += "\"vibrationsRequired\":" + String(vibrationsRequired) + ",";
-    response += "\"detectionWindow\":" + String(detectionWindow) + ",";
-    response += "\"setupDelay\":" + String(setupDelay) + ",";
-    response += "\"inSetupMode\":" + String(inSetupMode ? "true" : "false") + ",";
-    response += "\"setupStartTime\":" + String(setupStartTime) + ",";
-    response += "\"tamperActive\":" + String(tamperEraseActive ? "true" : "false");
-    response += "}";
-    req->send(200, "application/json", response); });
-
-  server->on("/config/autoerase", HTTP_POST, [](AsyncWebServerRequest *req)
-             {
-    if (!req->hasParam("enabled", true) || !req->hasParam("delay", true) || 
-        !req->hasParam("cooldown", true) || !req->hasParam("vibrationsRequired", true) ||
-        !req->hasParam("detectionWindow", true)) {
-        req->send(400, "text/plain", "Missing parameters");
-        return;
-    }
-    if (!req->hasParam("setupDelay", true)) {
-        req->send(400, "text/plain", "Missing setupDelay parameter");
-        return;
-    }
-    
-    autoEraseEnabled = req->getParam("enabled", true)->value() == "true";
-    autoEraseDelay = req->getParam("delay", true)->value().toInt();
-    autoEraseCooldown = req->getParam("cooldown", true)->value().toInt();
-    vibrationsRequired = req->getParam("vibrationsRequired", true)->value().toInt();
-    detectionWindow = req->getParam("detectionWindow", true)->value().toInt();
-    setupDelay = req->getParam("setupDelay", true)->value().toInt();
-    
-    // Validate ranges
-    autoEraseDelay = max(10000, min(300000, (int)autoEraseDelay));
-    autoEraseCooldown = max(60000, min(3600000, (int)autoEraseCooldown));
-    vibrationsRequired = max(2, min(10, (int)vibrationsRequired));
-    detectionWindow = max(5000, min(120000, (int)detectionWindow));
-    setupDelay = max(30000, min(600000, (int)setupDelay));  // 30s - 10min
-    
-    // Start setup mode when auto-erase is enabled
-    if (autoEraseEnabled) {
-        inSetupMode = true;
-        setupStartTime = millis();
-        
-        Serial.printf("[SETUP] Setup mode started - auto-erase activates in %us\n", setupDelay/1000);
-        
-        String setupMsg = getNodeId() + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
-        sendToSerial1(setupMsg, false);
-    }
-    
-    saveConfiguration();
-    req->send(200, "text/plain", "Auto-erase config updated"); });
 
   server->on("/erase/status", HTTP_GET, [](AsyncWebServerRequest *req) {
       String status;
