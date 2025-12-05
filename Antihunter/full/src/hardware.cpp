@@ -1142,6 +1142,23 @@ void initializeVibrationSensor() {
     }
 }
 
+void updateSetupModeStatus() {
+    // Check if setup mode should be automatically completed
+    if (inSetupMode && autoEraseEnabled) {
+        uint32_t elapsed = millis() - setupStartTime;
+        if (elapsed >= setupDelay) {
+            inSetupMode = false;
+            Serial.println("[SETUP] Setup period complete - auto-erase now ACTIVE");
+
+            // Use stack buffer to avoid heap fragmentation
+            char setupMsg[128];
+            snprintf(setupMsg, sizeof(setupMsg), "%s: SETUP_COMPLETE: Auto-erase activated",
+                     getNodeId().c_str());
+            sendToSerial1(String(setupMsg), false);
+        }
+    }
+}
+
 void checkAndSendVibrationAlert() {
     if (vibrationDetected) {
         vibrationDetected = false;

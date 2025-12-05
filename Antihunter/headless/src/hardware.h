@@ -92,6 +92,7 @@ void initializeVibrationSensor();
 void initializeSD();
 void initializeGPS();
 
+void updateSetupModeStatus();
 void checkAndSendVibrationAlert();
 String getGPSData();
 void updateGPSLocation();

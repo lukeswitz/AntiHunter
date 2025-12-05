@@ -656,6 +656,9 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command == "AUTOERASE_STATUS")
   {
+    // Update setup mode status before reporting
+    updateSetupModeStatus();
+
     String status = nodeId + ": AUTOERASE_STATUS: ";
     status += "Enabled:" + String(autoEraseEnabled ? "YES" : "NO");
 

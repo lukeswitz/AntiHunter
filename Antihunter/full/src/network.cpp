@@ -3563,6 +3563,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/config/autoerase", HTTP_GET, [](AsyncWebServerRequest *req)
              {
+    // Update setup mode status before sending response
+    updateSetupModeStatus();
+
     String response = "{";
     response += "\"enabled\":" + String(autoEraseEnabled ? "true" : "false") + ",";
     response += "\"delay\":" + String(autoEraseDelay) + ",";
