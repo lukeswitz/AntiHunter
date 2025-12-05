@@ -640,19 +640,23 @@ void stopTriangulation() {
 
     Serial.println("[TRIANGULATE] Stopping initiator scan task...");
     stopRequested = true;
-    vTaskDelay(pdMS_TO_TICKS(500));
 
-    // Wait for worker task to actually exit
+    // Wait for worker task to actually exit with extended timeout
     uint32_t taskStopWait = millis();
-    while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
-        vTaskDelay(pdMS_TO_TICKS(100));
+    while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 5000) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+        // Feed watchdog to prevent timeout
+        yield();
     }
 
     if (workerTaskHandle != nullptr) {
-        Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly, continuing anyway");
+        Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly after 5s, forcing cleanup");
+        // Force cleanup to prevent watchdog
+        workerTaskHandle = nullptr;
     }
 
-    vTaskDelay(pdMS_TO_TICKS(500));  // Extra buffer before sending final message
+    // Allow system to stabilize before mesh operations
+    vTaskDelay(pdMS_TO_TICKS(1000));
     
     String results = calculateTriangulation();
 
