@@ -31,6 +31,8 @@
    - [Development Setup](#development-setup)
 8. [Mesh Command Reference](#mesh-command-reference)
 9. [API Reference](#api-reference)
+10. [Credits](#credits)
+11. [Terms & Disclaimer](#legal-disclaimer)
 
 > [!NOTE]  
 > **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
