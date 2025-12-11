@@ -4978,21 +4978,22 @@ void processMeshMessage(const String &message) {
                     int rssiIdx = payload.indexOf("RSSI:");
                     int gpsIdx = payload.indexOf("GPS=");
                     int hdopIdx = payload.indexOf("HDOP=");
-                    
+                    int tsIdx = payload.indexOf("TS=");
+
                     if (hitsIdx > 0 && rssiIdx > 0) {
                         int hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
-                        
+
                         int rssiEnd = payload.length();
                         int spaceAfterRssi = payload.indexOf(' ', rssiIdx + 5);
                         if (spaceAfterRssi > 0) rssiEnd = spaceAfterRssi;
-                        
+
                         int rangeIdx = payload.indexOf("Range:", rssiIdx);
                         if (rangeIdx > 0 && rangeIdx < rssiEnd) {
                             rssiEnd = rangeIdx - 1;
                         }
-                        
+
                         int8_t rssi = payload.substring(rssiIdx + 5, rssiEnd).toInt();
-                        
+
                         // Grab device type right from payload
                         bool isBLE = false;
                         int typeIdx = payload.indexOf("Type:");
@@ -5003,10 +5004,10 @@ void processMeshMessage(const String &message) {
                             typeStr.trim();
                             isBLE = (typeStr == "BLE");
                         }
-                        
+
                         float lat = 0.0, lon = 0.0, hdop = 99.9;
                         bool hasGPS = false;
-                        
+
                         if (gpsIdx > 0) {
                             int commaIdx = payload.indexOf(',', gpsIdx);
                             if (commaIdx > 0) {
@@ -5014,11 +5015,20 @@ void processMeshMessage(const String &message) {
                                 int spaceAfterLon = payload.indexOf(' ', commaIdx);
                                 lon = payload.substring(commaIdx + 1, spaceAfterLon > 0 ? spaceAfterLon : payload.length()).toFloat();
                                 hasGPS = true;
-                                
+
                                 if (hdopIdx > 0) {
                                     hdop = payload.substring(hdopIdx + 5).toFloat();
                                 }
                             }
+                        }
+
+                        // Extract detection timestamp
+                        int64_t detectionTimestamp = 0;
+                        if (tsIdx > 0) {
+                            int tsEnd = payload.indexOf(' ', tsIdx + 3);
+                            if (tsEnd < 0) tsEnd = payload.length();
+                            double timestampSec = payload.substring(tsIdx + 3, tsEnd).toDouble();
+                            detectionTimestamp = (int64_t)(timestampSec * 1000000.0);  // Convert to microseconds
                         }
                         
                         bool found = false;
@@ -5032,6 +5042,10 @@ void processMeshMessage(const String &message) {
                                     node.lon = lon;
                                     node.hasGPS = true;
                                     node.hdop = hdop;
+                                }
+                                // Update detection timestamp
+                                if (detectionTimestamp > 0) {
+                                    node.detectionTimestamp = detectionTimestamp;
                                 }
                                 node.distanceEstimate = rssiToDistance(node, !node.isBLE);
                                 found = true;
@@ -5054,6 +5068,7 @@ void processMeshMessage(const String &message) {
                             newNode.hdop = hdop;
                             newNode.isBLE = isBLE;
                             newNode.lastUpdate = millis();
+                            newNode.detectionTimestamp = detectionTimestamp;
                             initNodeKalmanFilter(newNode);
                             updateNodeRSSI(newNode, rssi);
                             newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);

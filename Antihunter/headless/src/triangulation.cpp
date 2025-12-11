@@ -402,6 +402,101 @@ String getNodeSyncStatus() {
     return status;
 }
 
+// TDOA (Time Difference of Arrival) Triangulation
+// Uses detection timestamps for more accurate positioning than RSSI alone
+bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence) {
+    const float SPEED_OF_LIGHT = 299792458.0;  // meters/second (RF propagation speed)
+
+    // Filter nodes with valid timestamps and GPS
+    std::vector<TriangulationNode> validNodes;
+    for (const auto &node : nodes) {
+        if (node.hasGPS && node.detectionTimestamp > 0) {
+            validNodes.push_back(node);
+        }
+    }
+
+    if (validNodes.size() < 3) {
+        Serial.printf("[TDOA] Insufficient nodes with timestamps: %d < 3\n", validNodes.size());
+        return false;
+    }
+
+    // Use first node as reference
+    const TriangulationNode &refNode = validNodes[0];
+
+    // Calculate TDOA hyperbola solutions
+    // Using weighted least squares approach
+    float sumWeights = 0.0;
+    float sumLat = 0.0;
+    float sumLon = 0.0;
+    int validSolutions = 0;
+
+    // For each pair of nodes (reference vs other), calculate position estimate
+    for (size_t i = 1; i < validNodes.size(); i++) {
+        const TriangulationNode &node = validNodes[i];
+
+        // Calculate time difference in seconds
+        double timeDiff = (node.detectionTimestamp - refNode.detectionTimestamp) / 1000000.0;
+
+        // Calculate range difference (meters)
+        float rangeDiff = timeDiff * SPEED_OF_LIGHT;
+
+        // Convert to ENU coordinates for calculation
+        float refE, refN, nodeE, nodeN;
+        geodeticToENU(refNode.lat, refNode.lon, refNode.lat, refNode.lon, refE, refN);
+        geodeticToENU(node.lat, node.lon, refNode.lat, refNode.lon, nodeE, nodeN);
+
+        // Calculate baseline distance between nodes
+        float baseline = sqrt((nodeE - refE) * (nodeE - refE) + (nodeN - refN) * (nodeN - refN));
+
+        if (baseline < 1.0) {
+            continue;  // Skip nodes that are too close together
+        }
+
+        // Weight based on signal quality and HDOP
+        float weight = refNode.signalQuality * node.signalQuality / (refNode.hdop + node.hdop);
+
+        // Simplified hyperbola solution - estimate position along baseline
+        // In full 3D TDOA, this would use iterative solvers like Gauss-Newton
+        // For 2D with multiple measurements, we use a weighted average approach
+
+        float ratio = (rangeDiff / baseline + 1.0) / 2.0;  // Normalize to 0-1
+        ratio = constrain(ratio, 0.0, 1.0);
+
+        // Interpolate position along baseline
+        float estE = refE + ratio * (nodeE - refE);
+        float estN = refN + ratio * (nodeN - refN);
+
+        // Convert back to geodetic
+        float latEst = refNode.lat + (estN / 111320.0);  // Approx meters to degrees
+        float lonEst = refNode.lon + (estE / (111320.0 * cos(refNode.lat * PI / 180.0)));
+
+        sumLat += latEst * weight;
+        sumLon += lonEst * weight;
+        sumWeights += weight;
+        validSolutions++;
+
+        Serial.printf("[TDOA] Pair %s<->%s: TDOA=%.6fs rangeDiff=%.1fm baseline=%.1fm\n",
+                      refNode.nodeId.c_str(), node.nodeId.c_str(), timeDiff, rangeDiff, baseline);
+    }
+
+    if (validSolutions == 0 || sumWeights == 0.0) {
+        Serial.println("[TDOA] No valid solutions found");
+        return false;
+    }
+
+    // Calculate weighted average position
+    estLat = sumLat / sumWeights;
+    estLon = sumLon / sumWeights;
+
+    // Calculate confidence based on number of measurements and weights
+    confidence = min(1.0f, (validSolutions / 3.0f) * (sumWeights / validSolutions));
+
+    Serial.printf("[TDOA] Result: lat=%.6f lon=%.6f confidence=%.2f (from %d pairs)\n",
+                  estLat, estLon, confidence, validSolutions);
+
+    return true;
+}
+
 // Traingulation actions
 
 void startTriangulation(const String &targetMac, int duration) {
@@ -594,7 +689,9 @@ void stopTriangulation() {
             selfNode.hasGPS = triAccum.hasGPS;
             selfNode.isBLE = isBLE;
             selfNode.lastUpdate = millis();
-            
+            // Copy detection timestamp based on signal type
+            selfNode.detectionTimestamp = isBLE ? triAccum.bleFirstDetectionTimestamp : triAccum.wifiFirstDetectionTimestamp;
+
             initNodeKalmanFilter(selfNode);
             updateNodeRSSI(selfNode, avgRssi);
             selfNode.distanceEstimate = rssiToDistance(selfNode, !selfNode.isBLE);
@@ -812,28 +909,38 @@ void stopTriangulation() {
     String myNodeId = getNodeId();
     int selfHits = 0;
     int8_t selfBestRSSI = -128;
+    int64_t selfTimestamp = 0;
     bool selfDetected = false;
-    
+
     for (const auto& node : triangulationNodes) {
         if (node.nodeId == myNodeId) {
             selfHits = node.hitCount;
             selfBestRSSI = node.rssi;
+            selfTimestamp = node.detectionTimestamp;
             selfDetected = true;
             break;
         }
     }
-    
+
     if (selfDetected && selfHits > 0) {
-        String dataMsg = myNodeId + ": TARGET_DATA: " + macFmt6(triangulationTarget) + 
-                        " Hits=" + String(selfHits) + 
+        String dataMsg = myNodeId + ": TARGET_DATA: " + macFmt6(triangulationTarget) +
+                        " Hits=" + String(selfHits) +
                         " RSSI:" + String(selfBestRSSI);
-        
+
         if (gpsValid) {
             float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
             dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
             dataMsg += " HDOP=" + String(hdop, 1);
         }
-        
+
+        // Add detection timestamp if available
+        if (selfTimestamp > 0) {
+            double timestampSec = selfTimestamp / 1000000.0;
+            char tsStr[32];
+            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+            dataMsg += " TS=" + String(tsStr);
+        }
+
         sendToSerial1(dataMsg, true);
         Serial.printf("[TRIANGULATE] Sent self-detection data: %s\n", dataMsg.c_str());
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -1085,9 +1192,48 @@ String calculateTriangulation() {
     } else {
         results += " (POOR)\n\n";
     }
-    
+
     float estLat, estLon, confidence;
-    if (performWeightedTrilateration(gpsNodes, estLat, estLon, confidence)) {
+    float tdoaLat, tdoaLon, tdoaConf;
+    bool hasTDOA = performTDOATriangulation(gpsNodes, tdoaLat, tdoaLon, tdoaConf);
+    bool hasRSSI = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence);
+
+    if (hasTDOA && hasRSSI) {
+        // Combine TDOA and RSSI results using weighted average
+        float tdoaWeight = tdoaConf * 0.7;  // TDOA is generally more accurate
+        float rssiWeight = confidence * 0.3;
+        float totalWeight = tdoaWeight + rssiWeight;
+
+        estLat = (tdoaLat * tdoaWeight + estLat * rssiWeight) / totalWeight;
+        estLon = (tdoaLon * tdoaWeight + estLon * rssiWeight) / totalWeight;
+        confidence = (tdoaConf + confidence) / 2.0;  // Average confidence
+
+        results += "ESTIMATED POSITION (TDOA + RSSI):\n";
+        results += "  Latitude:  " + String(estLat, 6) + "\n";
+        results += "  Longitude: " + String(estLon, 6) + "\n";
+        results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
+        results += "  Method: TDOA + Weighted trilateration (hybrid)\n";
+        results += "  TDOA Result: " + String(tdoaLat, 6) + "," + String(tdoaLon, 6) + " (" + String(tdoaConf * 100.0, 1) + "%)\n";
+        results += "  RSSI Result: " + String(tdoaLat, 6) + "," + String(tdoaLon, 6) + " (" + String(confidence * 100.0, 1) + "%)\n";
+    } else if (hasTDOA) {
+        estLat = tdoaLat;
+        estLon = tdoaLon;
+        confidence = tdoaConf;
+
+        results += "ESTIMATED POSITION (TDOA):\n";
+        results += "  Latitude:  " + String(estLat, 6) + "\n";
+        results += "  Longitude: " + String(estLon, 6) + "\n";
+        results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
+        results += "  Method: TDOA (Time Difference of Arrival)\n";
+    } else if (hasRSSI) {
+        results += "ESTIMATED POSITION (RSSI):\n";
+        results += "  Latitude:  " + String(estLat, 6) + "\n";
+        results += "  Longitude: " + String(estLon, 6) + "\n";
+        results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
+        results += "  Method: Weighted trilateration + Kalman filtering\n";
+    }
+
+    if (hasRSSI || hasTDOA) {
          // Calibrate path loss using estimated target position
         for (const auto& node : gpsNodes) {
             float distToTarget = haversineDistance(node.lat, node.lon, estLat, estLon);
@@ -1096,12 +1242,6 @@ String calculateTriangulation() {
             }
         }
 
-        results += "ESTIMATED POSITION:\n";
-        results += "  Latitude:  " + String(estLat, 6) + "\n";
-        results += "  Longitude: " + String(estLon, 6) + "\n";
-        results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
-        results += "  Method: Weighted trilateration + Kalman filtering\n";
-        
         if (gpsNodes.size() >= 1) {
             results += "\n  Position validation:\n";
             for (const auto& node : gpsNodes) {

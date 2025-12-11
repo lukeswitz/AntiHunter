@@ -38,25 +38,27 @@ struct Allowlist {
 
 struct TriangulationAccumulator {
     uint8_t targetMac[6];
-    
+
     // WiFi tracking
     int wifiHitCount;
     int8_t wifiMaxRssi;
     int8_t wifiMinRssi;
     float wifiRssiSum;
-    
-    // BLE tracking  
+    int64_t wifiFirstDetectionTimestamp;  // Microsecond timestamp of first WiFi detection
+
+    // BLE tracking
     int bleHitCount;
     int8_t bleMaxRssi;
     int8_t bleMinRssi;
     float bleRssiSum;
-    
+    int64_t bleFirstDetectionTimestamp;  // Microsecond timestamp of first BLE detection
+
     // Shared GPS data
     float lat;
     float lon;
     float hdop;
     bool hasGPS;
-    
+
     uint32_t lastSendTime;
     uint32_t windowStartTime;
 };
