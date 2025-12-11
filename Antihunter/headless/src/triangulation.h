@@ -22,6 +22,7 @@ struct TriangulationNode {
     uint32_t hitCount;
     bool hasGPS;
     uint32_t lastUpdate;
+    int64_t detectionTimestamp;  // Microsecond timestamp from GPS-synced RTC
     std::vector<int8_t> rssiHistory;
     std::vector<int8_t> rssiRawWindow;
     KalmanFilterState kalmanFilter;
@@ -123,6 +124,7 @@ float calculateSignalQuality(const TriangulationNode &node);
 void updateNodeRSSI(TriangulationNode &node, int8_t newRssi);
 float rssiToDistance(const TriangulationNode &node, bool isWiFi = true);
 bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence);
+bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence);
 void broadcastTimeSyncRequest();
 void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds);
 bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);

@@ -1855,17 +1855,19 @@ void initializeScanner()
 
 static void resetTriAccumulator(const uint8_t* mac) {
     memcpy(triAccum.targetMac, mac, 6);
-    
+
     triAccum.wifiHitCount = 0;
     triAccum.wifiMaxRssi = -128;
     triAccum.wifiMinRssi = 0;
     triAccum.wifiRssiSum = 0.0f;
-    
+    triAccum.wifiFirstDetectionTimestamp = 0;
+
     triAccum.bleHitCount = 0;
     triAccum.bleMaxRssi = -128;
     triAccum.bleMinRssi = 0;
     triAccum.bleRssiSum = 0.0f;
-    
+    triAccum.bleFirstDetectionTimestamp = 0;
+
     triAccum.lat = 0.0f;
     triAccum.lon = 0.0f;
     triAccum.hdop = 99.9f;
@@ -1918,12 +1920,19 @@ static void sendTriAccumulatedData(const String& nodeId) {
     
     if (triAccum.wifiHitCount > 0) {
         int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-        String wifiMsg = nodeId + ": TARGET_DATA: " + macStr + 
+        String wifiMsg = nodeId + ": TARGET_DATA: " + macStr +
                          " Hits=" + String(triAccum.wifiHitCount) +
                          " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
         if (triAccum.hasGPS) {
             wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                        " HDOP=" + String(triAccum.hdop, 1);
+        }
+        // Add detection timestamp (microseconds)
+        if (triAccum.wifiFirstDetectionTimestamp > 0) {
+            double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
+            char tsStr[32];
+            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+            wifiMsg += " TS=" + String(tsStr);
         }
         if (sendToSerial1(wifiMsg, false)) {
             sentAny = true;
@@ -1932,15 +1941,22 @@ static void sendTriAccumulatedData(const String& nodeId) {
             delay(400);
         }
     }
-    
+
     if (triAccum.bleHitCount > 0) {
         int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-        String bleMsg = nodeId + ": TARGET_DATA: " + macStr + 
+        String bleMsg = nodeId + ": TARGET_DATA: " + macStr +
                         " Hits=" + String(triAccum.bleHitCount) +
                         " RSSI:" + String(bleAvgRssi) + " Type:BLE";
         if (triAccum.hasGPS) {
             bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                       " HDOP=" + String(triAccum.hdop, 1);
+        }
+        // Add detection timestamp (microseconds)
+        if (triAccum.bleFirstDetectionTimestamp > 0) {
+            double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
+            char tsStr[32];
+            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+            bleMsg += " TS=" + String(tsStr);
         }
         if (sendToSerial1(bleMsg, false)) {
             sentAny = true;
@@ -2270,11 +2286,19 @@ void listScanTask(void *pv) {
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
                     // Track WiFi and BLE separately
                     if (h.isBLE) {
+                        // Capture timestamp on first BLE detection
+                        if (triAccum.bleHitCount == 0) {
+                            triAccum.bleFirstDetectionTimestamp = getCorrectedMicroseconds();
+                        }
                         triAccum.bleHitCount++;
                         triAccum.bleRssiSum += (float)h.rssi;
                         if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
                         if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
                     } else {
+                        // Capture timestamp on first WiFi detection
+                        if (triAccum.wifiHitCount == 0) {
+                            triAccum.wifiFirstDetectionTimestamp = getCorrectedMicroseconds();
+                        }
                         triAccum.wifiHitCount++;
                         triAccum.wifiRssiSum += (float)h.rssi;
                         if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
@@ -2430,23 +2454,37 @@ void listScanTask(void *pv) {
             String macStr = macFmt6(triAccum.targetMac);
             
             if (triAccum.wifiHitCount > 0) {
-                String wifiMsg = myNodeId + ": TARGET_DATA: " + macStr + 
+                String wifiMsg = myNodeId + ": TARGET_DATA: " + macStr +
                                 " Hits=" + String(triAccum.wifiHitCount) +
                                 " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
                 if (triAccum.hasGPS) {
                     wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                             " HDOP=" + String(triAccum.hdop, 1);
                 }
+                // Add detection timestamp
+                if (triAccum.wifiFirstDetectionTimestamp > 0) {
+                    double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
+                    char tsStr[32];
+                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                    wifiMsg += " TS=" + String(tsStr);
+                }
                 sendToSerial1(wifiMsg, false);
             }
-            
+
             if (triAccum.bleHitCount > 0) {
-                String bleMsg = myNodeId + ": TARGET_DATA: " + macStr + 
+                String bleMsg = myNodeId + ": TARGET_DATA: " + macStr +
                                 " Hits=" + String(triAccum.bleHitCount) +
-                                " RSSI:" + String(bleAvgRssi) + " Type:BLE";
+                                " RSSI=" + String(bleAvgRssi) + " Type:BLE";
                 if (triAccum.hasGPS) {
                     bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                             " HDOP=" + String(triAccum.hdop, 1);
+                }
+                // Add detection timestamp
+                if (triAccum.bleFirstDetectionTimestamp > 0) {
+                    double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
+                    char tsStr[32];
+                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                    bleMsg += " TS=" + String(tsStr);
                 }
                 sendToSerial1(bleMsg, false);
             }
