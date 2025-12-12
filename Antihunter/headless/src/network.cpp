@@ -559,14 +559,17 @@ void processCommand(const String &command, const String &targetId = "")
     }
   }
   else if (command.startsWith("TRIANGULATE_STOP"))
-  {
-    Serial.println("[MESH] TRIANGULATE_STOP received");
-    stopRequested = true;
-    if (triangulationActive && !triangulationInitiator) {
-        stopTriangulation();
-    }
-    sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
+{
+  Serial.println("[MESH] TRIANGULATE_STOP received");
+  stopRequested = true;
+
+  if (triangulationActive) {
+      markTriangulationStopFromMesh();
+      stopTriangulation();
   }
+
+  sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
+}
   else if (command.startsWith("TRIANGULATE_RESULTS"))
   {
     if (triangulationNodes.size() > 0) {
