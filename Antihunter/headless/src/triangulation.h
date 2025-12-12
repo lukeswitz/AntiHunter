@@ -141,6 +141,7 @@ void addPathLossSample(float rssi, float distance, bool isWiFi);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 void recalculateSlotDuration();
 void initializeCycle(uint32_t startTimeMs);
+void markTriangulationStopFromMesh();
 
 struct NodeReportingInfo {
     String nodeId;
