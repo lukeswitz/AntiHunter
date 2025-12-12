@@ -35,6 +35,7 @@ DynamicReportingSchedule reportingSchedule;
 std::vector<TriangulateAckInfo> triangulateAcks;
 String triangulationCoordinator = "";
 uint32_t ackCollectionStart = 0;
+static volatile bool triStopCameFromMesh = false;
 
 
 PathLossCalibration pathLoss = {
@@ -533,6 +534,10 @@ void startTriangulation(const String &targetMac, int duration) {
     Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
 }
 
+void markTriangulationStopFromMesh() {
+    triStopCameFromMesh = true;
+}
+
 void stopTriangulation() {
     if (!triangulationActive) {
         Serial.println("[TRIANGULATE] Not active, nothing to stop");
@@ -540,7 +545,7 @@ void stopTriangulation() {
     }
     
     // Initiator stop on the child nodes
-    if (triangulationInitiator) {
+    if (triangulationInitiator && !triStopCameFromMesh) {
         String stopCmd = "@ALL TRIANGULATE_STOP";
         sendMeshCommand(stopCmd);
         Serial.println("[TRIANGULATE] Stop broadcast sent to all child nodes");
@@ -885,6 +890,7 @@ void stopTriangulation() {
     apFinalResult.coordinatorNodeId = "";
 
     triangulationOrchestratorAssigned = false;
+    triStopCameFromMesh = false;
 
     // Clear ACK tracking
     triangulateAcks.clear();

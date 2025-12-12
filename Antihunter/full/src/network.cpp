@@ -4795,9 +4795,12 @@ void processCommand(const String &command, const String &targetId = "")
   {
     Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
-    if (triangulationActive && !triangulationInitiator) {
+
+    if (triangulationActive) {
+        markTriangulationStopFromMesh();
         stopTriangulation();
     }
+
     sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
