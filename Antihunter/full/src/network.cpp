@@ -2947,11 +2947,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
         const secsInput = document.querySelector('input[name="secs"]');
         if (e.target.checked) {
-          if (parseInt(secsInput.value) < 60) {
-            secsInput.value = 60;
-            toast('Triangulation requires minimum 60 seconds');
+          if (parseInt(secsInput.value) < 20) {
+            secsInput.value = 20;
+            toast('Triangulation requires minimum 20 seconds');
           }
-          secsInput.setAttribute('min', '60');
+          secsInput.setAttribute('min', '20');
         } else {
           secsInput.setAttribute('min', '0');
         }
@@ -4128,8 +4128,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       String targetMac = req->getParam("mac", true)->value();
       int duration = req->getParam("duration", true)->value().toInt();
       
-      if (duration < 60) {
-        req->send(400, "text/plain", "Error: Triangulation requires minimum 60 seconds duration");
+      if (duration < 20) {
+        req->send(400, "text/plain", "Error: Triangulation requires minimum 20 seconds duration");
         return;
       }
       
