@@ -10,6 +10,7 @@ ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
 CONFIG_MODE=false
 IS_HEADLESS=false
+ERASE_FLASH=false
 
 MONITOR_SPEED=115200
 UPLOAD_SPEED=230400
@@ -23,10 +24,11 @@ Flash firmware to ESP32 devices.
 Options:
   -f, --file FILE    Path to custom .bin file to flash
   -c, --configure    Configure device parameters during flash
+  -e, --erase        Erase flash memory before flashing (optional)
   -h, --help         Display this help message and exit
   -l, --list         List available firmware options and exit
 
-Script always performs full erase and flashes bootloader + partitions + app.
+Script flashes bootloader + partitions + app. Use --erase to perform full flash erase first.
 EOF
 }
 
@@ -177,6 +179,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -c|--configure)
             CONFIG_MODE=true
+            shift
+            ;;
+        -e|--erase)
+            ERASE_FLASH=true
             shift
             ;;
         -h|--help)
@@ -362,16 +368,18 @@ if [ "$CONFIG_MODE" = true ]; then
     collect_configuration
 fi
 
-echo ""
-echo "==================================================="
-echo "Erasing flash memory..."
-echo "==================================================="
-$ESPTOOL_CMD \
-    --chip auto \
-    --port "$ESP32_PORT" \
-    --baud "$UPLOAD_SPEED" \
-    erase-flash
-echo "Flash erase complete."
+if [ "$ERASE_FLASH" = true ]; then
+    echo ""
+    echo "==================================================="
+    echo "Erasing flash memory..."
+    echo "==================================================="
+    $ESPTOOL_CMD \
+        --chip auto \
+        --port "$ESP32_PORT" \
+        --baud "$UPLOAD_SPEED" \
+        erase-flash
+    echo "Flash erase complete."
+fi
 
 echo ""
 echo "Flashing complete firmware (bootloader + partitions + app)..."
