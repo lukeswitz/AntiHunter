@@ -684,7 +684,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ### Triangulation
 | Endpoint | Method | Parameters | Description |
 |----------|--------|------------|-------------|
-| `/triangulate/start` | POST | `mac`, `duration` | Start triangulation for target MAC (≥60 secs) |
+| `/triangulate/start` | POST | `mac`, `duration` | Start triangulation for target MAC (≥20 secs) |
 | `/triangulate/stop` | POST | - | Stop triangulation |
 | `/triangulate/status` | GET | - | Get triangulation status (JSON) |
 | `/triangulate/results` | GET | - | Get triangulation results |

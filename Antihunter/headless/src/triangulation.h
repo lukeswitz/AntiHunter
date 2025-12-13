@@ -118,7 +118,7 @@ void initNodeKalmanFilter(TriangulationNode &node);
 float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement);
 float haversineDistance(float lat1, float lon1, float lat2, float lon2);
 void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east, float &north);
-float calculateGDOP(const std::vector<TriangulationNode> &nodes); // TODO decide if we need 3D
+float calculateGDOP(const std::vector<TriangulationNode> &nodes); // TODO decide if we need 3D and 2D 
 float getAverageHDOP(const std::vector<TriangulationNode> &nodes);
 float calculateSignalQuality(const TriangulationNode &node);
 void updateNodeRSSI(TriangulationNode &node, int8_t newRssi);
@@ -139,8 +139,6 @@ void calibratePathLoss(const String &targetMac, float knownDistance);
 void estimatePathLossParameters(bool isWiFi);
 void addPathLossSample(float rssi, float distance, bool isWiFi);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
-void recalculateSlotDuration();
-void initializeCycle(uint32_t startTimeMs);
 void markTriangulationStopFromMesh();
 
 struct NodeReportingInfo {
