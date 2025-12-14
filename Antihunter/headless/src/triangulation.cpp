@@ -19,7 +19,7 @@ extern bool triangulationOrchestratorAssigned;
 
 // Triang 
 static TaskHandle_t calibrationTaskHandle = nullptr;
-ClockDiscipline clockDiscipline = {0.0, 0, 0, false};
+ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
 std::vector<TriangulationNode> triangulationNodes;
@@ -1282,12 +1282,22 @@ void disciplineRTCFromGPS() {
         if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
             rtc.adjust(gpsTime);
             xSemaphoreGive(rtcMutex);
-            
+
+            // Recalibrate boot-to-epoch offset after large RTC adjustment
+            uint32_t bootMicros = micros();
+            clockDiscipline.bootToEpochOffsetMicros = ((int64_t)gpsEpoch * 1000000LL) - (int64_t)bootMicros;
+            clockDiscipline.offsetCalibrated = true;
             clockDiscipline.disciplineCount = 0;
             clockDiscipline.converged = false;
-            
-            Serial.printf("[DISCIPLINE] Large correction: %ds\n", offset);
+
+            Serial.printf("[DISCIPLINE] Large correction: %ds, offset calibrated\n", offset);
         }
+    } else if (!clockDiscipline.offsetCalibrated) {
+        // Calibrate offset on first GPS sync even if no large adjustment needed
+        uint32_t bootMicros = micros();
+        clockDiscipline.bootToEpochOffsetMicros = ((int64_t)gpsEpoch * 1000000LL) - (int64_t)bootMicros;
+        clockDiscipline.offsetCalibrated = true;
+        Serial.println("[DISCIPLINE] Boot-to-epoch offset calibrated");
     } else if (abs(offset) == 1) {
         if (clockDiscipline.lastDiscipline > 0) {
             uint32_t elapsed = millis() - clockDiscipline.lastDiscipline;
@@ -1312,8 +1322,8 @@ void disciplineRTCFromGPS() {
 
 int64_t getCorrectedMicroseconds() {
     // Get Unix timestamp with microsecond precision for TDoA
-    if (!rtcAvailable || rtcMutex == nullptr) {
-        // Fallback to boot-relative microseconds if no RTC
+    if (!rtcAvailable || rtcMutex == nullptr || !clockDiscipline.offsetCalibrated) {
+        // Fallback to boot-relative microseconds if no RTC or not calibrated
         uint32_t currentMicros = micros();
         if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
             uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
@@ -1323,30 +1333,16 @@ int64_t getCorrectedMicroseconds() {
         return (int64_t)currentMicros;
     }
 
-    // Get RTC Unix timestamp (seconds since epoch)
-    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
-        // Fallback if mutex unavailable
-        return (int64_t)micros();
-    }
+    // Use calibrated boot-to-epoch offset to convert micros() to Unix timestamp
+    uint32_t bootMicros = micros();
+    int64_t unixTimestampMicros = (int64_t)bootMicros + clockDiscipline.bootToEpochOffsetMicros;
 
-    DateTime now = rtc.now();
-    time_t unixSeconds = now.unixtime();
-
-    xSemaphoreGive(rtcMutex);
-
-    // Get microsecond offset within current second
-    uint32_t currentMicros = micros();
-    uint32_t microsInSecond = currentMicros % 1000000;
-
-    // Apply drift correction to microsecond component
+    // Apply drift correction if converged
     if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
         uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
         int64_t correction = (int64_t)(clockDiscipline.driftRate * elapsedMs * 1000.0);
-        microsInSecond = (uint32_t)((int64_t)microsInSecond - (correction % 1000000));
+        unixTimestampMicros -= correction;
     }
-
-    // Combine: Unix seconds (in microseconds) + microsecond offset
-    int64_t unixTimestampMicros = ((int64_t)unixSeconds * 1000000LL) + (int64_t)microsInSecond;
 
     return unixTimestampMicros;
 }
