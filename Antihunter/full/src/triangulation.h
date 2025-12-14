@@ -53,6 +53,8 @@ struct ClockDiscipline {
     uint32_t lastDiscipline;
     uint32_t disciplineCount;
     bool converged;
+    int64_t bootToEpochOffsetMicros;  // Offset from boot micros() to Unix epoch microseconds
+    bool offsetCalibrated;
 };
 
 struct PathLossCalibration {
