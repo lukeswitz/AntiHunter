@@ -1945,7 +1945,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (triAccum.bleHitCount > 0) {
         int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
         String bleMsg = nodeId + ": TARGET_DATA: " + macStr +
-                        " Hits=" + String(triAccum.bleHitCount) +
                         " RSSI:" + String(bleAvgRssi) + " Type:BLE";
         if (triAccum.hasGPS) {
             bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
@@ -2455,7 +2454,6 @@ void listScanTask(void *pv) {
             
             if (triAccum.wifiHitCount > 0) {
                 String wifiMsg = myNodeId + ": TARGET_DATA: " + macStr +
-                                " Hits=" + String(triAccum.wifiHitCount) +
                                 " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
                 if (triAccum.hasGPS) {
                     wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
@@ -2473,13 +2471,11 @@ void listScanTask(void *pv) {
 
             if (triAccum.bleHitCount > 0) {
                 String bleMsg = myNodeId + ": TARGET_DATA: " + macStr +
-                                " Hits=" + String(triAccum.bleHitCount) +
-                                " RSSI=" + String(bleAvgRssi) + " Type:BLE";
+                                " RSSI:" + String(bleAvgRssi) + " Type:BLE";
                 if (triAccum.hasGPS) {
                     bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                             " HDOP=" + String(triAccum.hdop, 1);
                 }
-                // Add detection timestamp
                 if (triAccum.bleFirstDetectionTimestamp > 0) {
                     double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
                     char tsStr[32];
@@ -2514,17 +2510,9 @@ void listScanTask(void *pv) {
             } else {
                 Serial.println("[SCAN CHILD] STOP timeout, forcing cleanup");
                 stopRequested = true;
+                // Call stopTriangulation to properly handle coordinator election and cleanup
+                stopTriangulation();
             }
-            
-            triangulationActive = false;
-            memset(triangulationTarget, 0, 6);
-            memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
-            triAccum.wifiHitCount = 0;
-            triAccum.wifiRssiSum = 0.0f;
-            triAccum.bleHitCount = 0;
-            triAccum.bleRssiSum = 0.0f;
-            triAccum.lastSendTime = 0;
-            reportingSchedule.reset();
         }
     }
     

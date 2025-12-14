@@ -540,7 +540,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Baseline Anomaly - RSSI** | `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:dBm New:dBm Delta:dBm` | `NODE_ABC: ANOMALY-RSSI: WiFi AA:BB:CC:DD:EE:FF Old:-75 New:-45 Delta:30` |
 | **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
 | **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC MAC->MAC Rrssi Cchannel` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
-| **Triangulation Data** | `NODE_ID: TARGET_DATA: MAC Hits=N RSSI:dBm [GPS=lat,lon HDOP=X.XX]` | `NODE_ABC: TARGET_DATA: AA:BB:CC:DD:EE:FF Hits=42 RSSI:-65 GPS=40.7128,-74.0060 HDOP=1.2` |
+| **Triangulation Data** | `NODE_ID: TARGET_DATA: MAC RSSI:dBm Type:WiFi/BLE [GPS=lat,lon HDOP=X.XX] [TS=timestamp]` | `NODE_ABC: TARGET_DATA: AA:BB:CC:DD:EE:FF RSSI:-65 Type:WiFi GPS=40.7128,-74.0060 HDOP=1.2 TS=12.123456` |
 | **Triangulation Final Result** | `NODE_ID: TRIANGULATION_FINAL: MAC=mac GPS=lat,lon CONF=confidence % UNC=uncertainty %` | `NODE_ABC: TRIANGULATION_FINAL: MAC=AA:BB:CC:DD:EE:FF GPS=40.712800,-74.006000 CONF=85.5 UNC=12.3` |
 | **Triangulation Complete** | `NODE_ID: TRIANGULATE_COMPLETE: MAC=AA:BB:CC:DD:EE:FF Nodes=N [https://www.google.com/maps?q=lat,lon]` | `NODE_ABC: TRIANGULATE_COMPLETE: MAC=11:22:33:44:55:66 Nodes=5 https://www.google.com/maps?q=40.712800,-74.006000` |
 
@@ -601,8 +601,6 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Randomization ACK** | `NODE_ID: RANDOMIZATION_ACK:STARTED` | `NODE_ABC: RANDOMIZATION_ACK:STARTED` |
 | **Baseline ACK** | `NODE_ID: BASELINE_ACK:STARTED` | `NODE_ABC: BASELINE_ACK:STARTED` |
 | **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:INACTIVE/ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices:42 Anomalies:3 Phase1:ACTIVE` |
-| **Triangulation ACK (Success)** | `NODE_ID: TRIANGULATE_ACK:TARGET` | `NODE_ABC: TRIANGULATE_ACK:AA:BB:CC:DD:EE:FF` or `NODE_ABC: TRIANGULATE_ACK:T-0001` |
-| **Triangulation ACK (Error)** | `NODE_ID: TRIANGULATE_ACK:INVALID_FORMAT` | `NODE_ABC: TRIANGULATE_ACK:INVALID_FORMAT` |
 | **Triangulation Results Start** | `NODE_ID: TRIANGULATE_RESULTS_START` | `NODE_ABC: TRIANGULATE_RESULTS_START` |
 | **Triangulation Results End** | `NODE_ID: TRIANGULATE_RESULTS_END` | `NODE_ABC: TRIANGULATE_RESULTS_END` |
 | **Triangulation Results (No Data)** | `NODE_ID: TRIANGULATE_RESULTS:NO_DATA` | `NODE_ABC: TRIANGULATE_RESULTS:NO_DATA` |

@@ -36,6 +36,8 @@ std::vector<TriangulateAckInfo> triangulateAcks;
 String triangulationCoordinator = "";
 uint32_t ackCollectionStart = 0;
 static volatile bool triStopCameFromMesh = false;
+static uint32_t lastTriangulationStopTime = 0;
+const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
 
 
 PathLossCalibration pathLoss = {
@@ -86,33 +88,33 @@ float getAverageHDOP(const std::vector<TriangulationNode> &nodes) {
     return totalHDOP / validCount;
 }
 
-// float calculateGDOP(const std::vector<TriangulationNode> &nodes) {
-//     if (nodes.size() < 3) return 999.9;
+float calculateGDOP(const std::vector<TriangulationNode> &nodes) {
+    if (nodes.size() < 3) return 999.9;
     
-//     float minAngle = 180.0;
-//     for (size_t i = 0; i < nodes.size(); i++) {
-//         for (size_t j = i + 1; j < nodes.size(); j++) {
-//             float dx1 = nodes[i].lat;
-//             float dy1 = nodes[i].lon;
-//             float dx2 = nodes[j].lat;
-//             float dy2 = nodes[j].lon;
+    float minAngle = 180.0;
+    for (size_t i = 0; i < nodes.size(); i++) {
+        for (size_t j = i + 1; j < nodes.size(); j++) {
+            float dx1 = nodes[i].lat;
+            float dy1 = nodes[i].lon;
+            float dx2 = nodes[j].lat;
+            float dy2 = nodes[j].lon;
             
-//             float dot = dx1 * dx2 + dy1 * dy2;
-//             float mag1 = sqrt(dx1*dx1 + dy1*dy1);
-//             float mag2 = sqrt(dx2*dx2 + dy2*dy2);
+            float dot = dx1 * dx2 + dy1 * dy2;
+            float mag1 = sqrt(dx1*dx1 + dy1*dy1);
+            float mag2 = sqrt(dx2*dx2 + dy2*dy2);
             
-//             if (mag1 > 0 && mag2 > 0) {
-//                 float angle = acos(dot / (mag1 * mag2)) * 180.0 / M_PI;
-//                 if (angle < minAngle) minAngle = angle;
-//             }
-//         }
-//     }
+            if (mag1 > 0 && mag2 > 0) {
+                float angle = acos(dot / (mag1 * mag2)) * 180.0 / M_PI;
+                if (angle < minAngle) minAngle = angle;
+            }
+        }
+    }
     
-//     if (minAngle < 20.0) return 9.0;
-//     if (minAngle < 30.0) return 5.0;
-//     if (minAngle < 45.0) return 3.0;
-//     return 1.5;
-// }
+    if (minAngle < 20.0) return 9.0;
+    if (minAngle < 30.0) return 5.0;
+    if (minAngle < 45.0) return 3.0;
+    return 1.5;
+}
 
 void initNodeKalmanFilter(TriangulationNode &node) {
     node.kalmanFilter.estimate = (float)node.rssi;
@@ -502,9 +504,18 @@ bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float
 // Traingulation actions
 
 void startTriangulation(const String &targetMac, int duration) {
+    // Debounce check: prevent rapid restarts
+    uint32_t timeSinceLastStop = millis() - lastTriangulationStopTime;
+    if (lastTriangulationStopTime > 0 && timeSinceLastStop < TRIANGULATION_DEBOUNCE_MS) {
+        uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceLastStop) / 1000;
+        Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us before starting again (last stopped %us ago)\n",
+                     remainingWait, timeSinceLastStop / 1000);
+        return;
+    }
+
     uint8_t macBytes[6];
     bool isIdentityId = false;
-    
+
     if (targetMac.startsWith("T-") && targetMac.length() >= 6 && targetMac.length() <= 9) {
         bool validId = true;
         for (size_t i = 2; i < targetMac.length(); i++) {
@@ -513,16 +524,16 @@ void startTriangulation(const String &targetMac, int duration) {
                 break;
             }
         }
-        
+
         if (validId) {
             isIdentityId = true;
             strncpy(triangulationTargetIdentity, targetMac.c_str(), sizeof(triangulationTargetIdentity) - 1);
             triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
-            memset(triangulationTarget, 0, 6);  // Clear MAC bytes when using identity
+            memset(triangulationTarget, 0, 6);
             Serial.printf("[TRIANGULATE] Target is identity ID: %s\n", triangulationTargetIdentity);
         }
     }
-    
+
     if (!isIdentityId) {
         if (!parseMac6(targetMac, macBytes)) {
             Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", targetMac.c_str());
@@ -531,18 +542,33 @@ void startTriangulation(const String &targetMac, int duration) {
         memcpy(triangulationTarget, macBytes, 6);
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
-    
+
+    // Force stop any existing triangulation first
+    if (triangulationActive) {
+        Serial.println("[TRIANGULATE] Already active, forcing full stop first...");
+        stopTriangulation();
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Wait longer for complete cleanup
+    }
+
+    // Ensure worker task is completely stopped
     if (workerTaskHandle) {
         Serial.println("[TRIANGULATE] Stopping existing scan task...");
         stopRequested = true;
-        vTaskDelay(pdMS_TO_TICKS(500));
-        workerTaskHandle = nullptr;
-    }
-    
-    if (triangulationActive) {
-        Serial.println("[TRIANGULATE] Already active, stopping first...");
-        stopTriangulation();
-        vTaskDelay(pdMS_TO_TICKS(100));
+
+        // Wait for task to actually exit
+        uint32_t taskStopWait = millis();
+        while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
+        // Force delete if still running
+        if (workerTaskHandle != nullptr) {
+            Serial.println("[TRIANGULATE] Force deleting stuck worker task");
+            vTaskDelete(workerTaskHandle);
+            workerTaskHandle = nullptr;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(500)); // Additional safety delay
     }
     
     {
@@ -559,15 +585,10 @@ void startTriangulation(const String &targetMac, int duration) {
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
     triangulationActive = true;
-    triangulationInitiator = true;
+    triangulationInitiator = true;  // Initiator is ALWAYS the coordinator
     reportingSchedule.reset();
 
-    // Initialize ACK collection for coordinator election
-    triangulateAcks.clear();
-    ackCollectionStart = millis();
-    triangulationCoordinator = "";
-
-    Serial.printf("[TRIANGULATE] Started for %s (%ds)\n", targetMac.c_str(), duration);
+    Serial.printf("[TRIANGULATE] Initiator started for %s (%ds)\n", targetMac.c_str(), duration);
 
     broadcastTimeSyncRequest();
     vTaskDelay(pdMS_TO_TICKS(2000));
@@ -575,44 +596,8 @@ void startTriangulation(const String &targetMac, int duration) {
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
     sendMeshCommand(cmd);
 
-    // Wait for ACKs to determine participating nodes
-    Serial.println("[TRIANGULATE] Collecting ACKs from mesh nodes...");
-    vTaskDelay(pdMS_TO_TICKS(2500));
-
-    // Add self to ACK list
-    String myNodeId = getNodeId();
-    if (myNodeId.length() == 0) myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
-    TriangulateAckInfo selfAck;
-    selfAck.nodeId = myNodeId;
-    selfAck.ackTimestamp = millis();
-    triangulateAcks.push_back(selfAck);
-
-    // Elect coordinator (alphabetically first node ID)
-    std::sort(triangulateAcks.begin(), triangulateAcks.end(),
-              [](const TriangulateAckInfo &a, const TriangulateAckInfo &b) {
-                  return a.nodeId < b.nodeId;
-              });
-
-    if (triangulateAcks.size() > 0) {
-        triangulationCoordinator = triangulateAcks[0].nodeId;
-        bool isCoordinator = (triangulationCoordinator == myNodeId);
-        triangulationInitiator = isCoordinator;
-
-        Serial.printf("[TRIANGULATE] Collected %d ACKs. Coordinator elected: %s %s\n",
-                     triangulateAcks.size(),
-                     triangulationCoordinator.c_str(),
-                     isCoordinator ? "(THIS NODE)" : "");
-
-        for (const auto& ack : triangulateAcks) {
-            Serial.printf("[TRIANGULATE]   - %s (age: %ums)\n",
-                         ack.nodeId.c_str(),
-                         millis() - ack.ackTimestamp);
-        }
-    } else {
-        Serial.println("[TRIANGULATE] WARNING: No ACKs collected, assuming solo operation");
-        triangulationCoordinator = myNodeId;
-        triangulationInitiator = true;
-    }
+    Serial.println("[TRIANGULATE] Broadcast sent to mesh nodes");
+    vTaskDelay(pdMS_TO_TICKS(1000));
     
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(
@@ -638,28 +623,25 @@ void stopTriangulation() {
         Serial.println("[TRIANGULATE] Not active, nothing to stop");
         return;
     }
-    
-    // Initiator stop on the child nodes
+
     if (triangulationInitiator && !triStopCameFromMesh) {
         String stopCmd = "@ALL TRIANGULATE_STOP";
         sendMeshCommand(stopCmd);
         Serial.println("[TRIANGULATE] Stop broadcast sent to all child nodes");
         vTaskDelay(pdMS_TO_TICKS(700));
     }
-    
+
     uint32_t elapsedMs = millis() - triangulationStart;
     uint32_t elapsedSec = elapsedMs / 1000;
-    
+
     Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, triangulationNodes.size());
 
-    // Add parent's own accumulated data
     if (triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
         String myNodeId = getNodeId();
         if (myNodeId.length() == 0) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
         
-        // Check if self node exists
         bool selfNodeExists = false;
         for (const auto &node : triangulationNodes) {
             if (node.nodeId == myNodeId) {
@@ -670,7 +652,6 @@ void stopTriangulation() {
         }
         
         if (!selfNodeExists) {
-            // Use WiFi data if available, otherwise BLE
             int8_t avgRssi;
             int totalHits;
             bool isBLE;
@@ -695,57 +676,22 @@ void stopTriangulation() {
             selfNode.hasGPS = triAccum.hasGPS;
             selfNode.isBLE = isBLE;
             selfNode.lastUpdate = millis();
-            // Copy detection timestamp based on signal type
             selfNode.detectionTimestamp = isBLE ? triAccum.bleFirstDetectionTimestamp : triAccum.wifiFirstDetectionTimestamp;
-
+            
             initNodeKalmanFilter(selfNode);
             updateNodeRSSI(selfNode, avgRssi);
-            selfNode.distanceEstimate = rssiToDistance(selfNode, !selfNode.isBLE);
+            selfNode.distanceEstimate = rssiToDistance(selfNode, !isBLE);
             
             triangulationNodes.push_back(selfNode);
-            
-            Serial.printf("[TRIANGULATE INITIATOR] Added self: hits=%d avgRSSI=%d Type=%s GPS=%s dist=%.1fm\n",
-                        totalHits, avgRssi,
-                        selfNode.isBLE ? "BLE" : "WiFi",
-                        triAccum.hasGPS ? "YES" : "NO",
-                        selfNode.distanceEstimate);
+            Serial.printf("[TRIANGULATE] Added coordinator self-detection: %d hits, RSSI=%d, type=%s\n",
+                         totalHits, avgRssi, isBLE ? "BLE" : "WiFi");
         }
     }
 
-    Serial.println("[TRIANGULATE] Waiting for all child node reports...");
-    uint32_t waitStart = millis();
-    uint32_t lastNodeCount = triangulationNodes.size();
-    uint32_t stableCount = 0;
-    const uint32_t MAX_WAIT = 25000;
-
-    while ((millis() - waitStart) < MAX_WAIT) {
-        uint32_t currentNodeCount = triangulationNodes.size();
-        
-        if (currentNodeCount == lastNodeCount) {
-            stableCount++;
-        } else {
-            Serial.printf("[TRIANGULATE] New node data received: %u nodes\n", currentNodeCount);
-            lastNodeCount = currentNodeCount;
-            stableCount = 0;
-        }
-        
-        if (currentNodeCount > 0 && stableCount >= 30) {
-            Serial.printf("[TRIANGULATE] Node data stable after %lums\n", millis() - waitStart);
-            break;
-        }
-        
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-
-    if ((millis() - waitStart) >= MAX_WAIT) {
-        Serial.printf("[TRIANGULATE] Wait complete (25s max). Total nodes: %u\n", triangulationNodes.size());
-    }
-
-    Serial.println("[TRIANGULATE] Stopping initiator scan task...");
+    Serial.println("[TRIANGULATE] Stopping scan task...");
     stopRequested = true;
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    // Wait for worker task to actually exit
     if (workerTaskHandle != nullptr) {
         TaskHandle_t taskToWait = workerTaskHandle;
         uint32_t taskStopWait = millis();
@@ -766,7 +712,7 @@ void stopTriangulation() {
         }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(500));  // Extra buffer before sending final message
+    vTaskDelay(pdMS_TO_TICKS(500));
     
     String results = calculateTriangulation();
 
@@ -785,7 +731,6 @@ void stopTriangulation() {
     uint32_t totalElapsed = (millis() - triangulationStart) / 1000;
     String targetMacStr = macFmt6(triangulationTarget);
 
-    // Collect GPS nodes first
     float estLat = 0.0, estLon = 0.0, confidence = 0.0;
     std::vector<TriangulationNode> gpsNodes;
     for (const auto& node : triangulationNodes) {
@@ -797,130 +742,84 @@ void stopTriangulation() {
         }
     }
 
-    // Build message with maps link
     String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
                 " Nodes=" + String(gpsNodes.size());
 
-    Serial.printf("[TRIANGULATE] Total nodes: %u, GPS nodes: %u, Initiator: %s\n",
-                  triangulationNodes.size(), gpsNodes.size(), triangulationInitiator ? "YES" : "NO");
+    Serial.printf("[TRIANGULATE] Total nodes: %u, GPS nodes: %u, Coordinator: %s\n",
+                  triangulationNodes.size(), gpsNodes.size(), 
+                  triangulationInitiator ? "YES" : "NO");
 
     if (gpsNodes.size() >= 3) {
         Serial.println("[TRIANGULATE] Sufficient GPS nodes, attempting trilateration...");
         bool trilaterationSuccess = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence);
         Serial.printf("[TRIANGULATE] Trilateration %s (confidence=%.1f%%)\n",
-                      trilaterationSuccess ? "SUCCESS" : "FAILED",
-                      confidence * 100.0);
+                      trilaterationSuccess ? "SUCCESS" : "FAILED", confidence * 100.0);
 
-        if (trilaterationSuccess) {
-            resultMsg += " https://www.google.com/maps?q=" + String(estLat, 6) + "," + String(estLon, 6);
+        if (trilaterationSuccess && confidence > 0.0) {
+            resultMsg += " GPS=" + String(estLat, 6) + "," + String(estLon, 6);
+            resultMsg += " CONF=" + String(confidence * 100.0, 1);
 
-            // Broadcast final result to all nodes so everyone sees the same coordinated answer
+            String mapsUrl = "https://www.google.com/maps?q=" + 
+                           String(estLat, 6) + "," + String(estLon, 6);
+            resultMsg += " URL=" + mapsUrl;
+
             if (triangulationInitiator) {
-            // Calculate uncertainty
-            float avgHDOP = getAverageHDOP(gpsNodes);
-            const float UERE = 4.0;
-            float gpsPositionError = avgHDOP * UERE;
+                String myNodeId = getNodeId();
+                if (myNodeId.length() == 0) myNodeId = "COORDINATOR";
 
-            float totalRssiError = 0.0;
-            float avgDistance = 0.0;
-            for (const auto &node : gpsNodes) {
-                avgDistance += node.distanceEstimate;
-                float nodeRssiError = node.distanceEstimate * (0.25 + (1.0 - node.signalQuality) * 0.30);
-                if (node.isBLE) nodeRssiError *= 1.2;
-                totalRssiError += nodeRssiError * nodeRssiError;
-            }
-            avgDistance /= gpsNodes.size();
-            float rssiDistanceError = sqrt(totalRssiError / gpsNodes.size());
-
-            float geometricError = 0.0;
-            if (gpsNodes.size() == 3) {
-                float x1 = gpsNodes[0].lat, y1 = gpsNodes[0].lon;
-                float x2 = gpsNodes[1].lat, y2 = gpsNodes[1].lon;
-                float x3 = gpsNodes[2].lat, y3 = gpsNodes[2].lon;
-                float area = abs((x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2)) / 2.0);
-                float areaMeters = area * 111000.0 * 111000.0;
-
-                if (areaMeters < 100.0) geometricError = avgDistance * 0.5;
-                else if (areaMeters < 500.0) geometricError = avgDistance * 0.25;
-                else if (areaMeters < 1000.0) geometricError = avgDistance * 0.15;
-                else geometricError = avgDistance * 0.05;
-            } else {
-                geometricError = avgDistance * 0.10 / sqrt(gpsNodes.size() - 2);
-            }
-
-            bool syncVerified = verifyNodeSynchronization(10);
-            float syncError = syncVerified ? 0.0 : (avgDistance * 0.10);
-            float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
-
-            float uncertainty = sqrt(
-                gpsPositionError * gpsPositionError +
-                rssiDistanceError * rssiDistanceError +
-                geometricError * geometricError +
-                syncError * syncError +
-                calibError * calibError
-            );
-            float cep = uncertainty * 0.59;
-
-            String myNodeId = getNodeId();
-            if (myNodeId.length() == 0) myNodeId = "COORDINATOR";
-
-            // Store our own final result
-            apFinalResult.hasResult = true;
-            apFinalResult.latitude = estLat;
-            apFinalResult.longitude = estLon;
-            apFinalResult.confidence = confidence;
-            apFinalResult.uncertainty = cep;
-            apFinalResult.timestamp = millis();
-            apFinalResult.coordinatorNodeId = myNodeId;
-
-            // Send single TRIANGULATION_FINAL message from coordinator only
-            String finalMsg = myNodeId + ": TRIANGULATION_FINAL: MAC=" + targetMacStr +
-                            " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
-                            " CONF=" + String(confidence * 100.0, 1) +
-                            " UNC=" + String(cep, 1);
-            sendToSerial1(finalMsg, false);
-            Serial.printf("[TRIANGULATE] Coordinator sent final result: %s\n", finalMsg.c_str());
-
-            // Coordinator: wait to allow nodes to process
-            vTaskDelay(pdMS_TO_TICKS(3000));
-        } else {
-            Serial.printf("[TRIANGULATE] Not coordinator (coordinator is %s) - waiting for TRIANGULATION_FINAL\n",
-                         triangulationCoordinator.c_str());
-
-            // Non-coordinator: wait for coordinator's final result
-            uint32_t waitStart = millis();
-            uint32_t maxWait = 8000;  // Wait up to 8 seconds for coordinator's result
-            bool receivedFinal = false;
-
-            while ((millis() - waitStart) < maxWait) {
-                if (apFinalResult.hasResult && apFinalResult.coordinatorNodeId == triangulationCoordinator) {
-                    Serial.printf("[TRIANGULATE] Received final result from coordinator %s: %.6f,%.6f\n",
-                                 triangulationCoordinator.c_str(),
-                                 apFinalResult.latitude,
-                                 apFinalResult.longitude);
-                    receivedFinal = true;
-                    break;
+                float avgDistance = 0.0;
+                int validDistances = 0;
+                for (const auto& node : gpsNodes) {
+                    if (node.distanceEstimate > 0) {
+                        avgDistance += node.distanceEstimate;
+                        validDistances++;
+                    }
                 }
-                vTaskDelay(pdMS_TO_TICKS(200));
-            }
+                if (validDistances > 0) avgDistance /= validDistances;
 
-            if (!receivedFinal) {
-                Serial.printf("[TRIANGULATE] WARNING: Did not receive final result from coordinator after %ums\n",
-                             millis() - waitStart);
+                float avgHDOP = getAverageHDOP(gpsNodes);
+                float gdop = calculateGDOP(gpsNodes);
+
+                float gpsPositionError = avgHDOP * 2.5;
+                float rssiDistanceError = avgDistance * 0.20;
+                float geometricError = gdop * 5.0;
+                float syncError = verifyNodeSynchronization(10) ? 0.0 : (avgDistance * 0.10);
+                float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
+
+                float uncertainty = sqrt(
+                    gpsPositionError * gpsPositionError +
+                    rssiDistanceError * rssiDistanceError +
+                    geometricError * geometricError +
+                    syncError * syncError +
+                    calibError * calibError
+                );
+                float cep = uncertainty * 0.59;
+
+                apFinalResult.hasResult = true;
+                apFinalResult.latitude = estLat;
+                apFinalResult.longitude = estLon;
+                apFinalResult.confidence = confidence;
+                apFinalResult.uncertainty = cep;
+                apFinalResult.timestamp = millis();
+                apFinalResult.coordinatorNodeId = myNodeId;
+
+                String finalMsg = myNodeId + ": TRIANGULATION_FINAL: MAC=" + targetMacStr +
+                                " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
+                                " CONF=" + String(confidence * 100.0, 1) +
+                                " UNC=" + String(cep, 1);
+                sendToSerial1(finalMsg, false);
+                Serial.printf("[TRIANGULATE] Initiator sent final result: %s\n", finalMsg.c_str());
+
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+        } else {
+            if (triangulationInitiator) {
+                Serial.println("[TRIANGULATE] Trilateration failed - TRIANGULATION_FINAL not sent");
             }
         }
-    } else {
-        if (triangulationInitiator) {
-            Serial.println("[TRIANGULATE] Trilateration failed - TRIANGULATION_FINAL not sent");
-        } else {
-            Serial.println("[TRIANGULATE] Trilateration failed on non-coordinator");
-        }
-    }
     } else {
         if (triangulationInitiator) {
             Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) - TRIANGULATION_FINAL not sent\n", gpsNodes.size());
-        } else {
-            Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) on non-coordinator\n", gpsNodes.size());
         }
     }
 
@@ -942,7 +841,6 @@ void stopTriangulation() {
 
     if (selfDetected && selfHits > 0) {
         String dataMsg = myNodeId + ": TARGET_DATA: " + macFmt6(triangulationTarget) +
-                        " Hits=" + String(selfHits) +
                         " RSSI:" + String(selfBestRSSI);
 
         if (gpsValid) {
@@ -951,7 +849,6 @@ void stopTriangulation() {
             dataMsg += " HDOP=" + String(hdop, 1);
         }
 
-        // Add detection timestamp if available
         if (selfTimestamp > 0) {
             double timestampSec = selfTimestamp / 1000000.0;
             char tsStr[32];
@@ -968,26 +865,24 @@ void stopTriangulation() {
     Serial1.flush();
     vTaskDelay(pdMS_TO_TICKS(300));
 
-    bool sent = sendToSerial1(resultMsg, true);
-    Serial.printf("[TRIANGULATE] Complete... Message sent: %s\n", resultMsg);
-    Serial.printf("[TRIANGULATE] TRIANGULATE_COMPLETE %s\n", sent ? "SENT" : "FAILED");
-
-    vTaskDelay(pdMS_TO_TICKS(200));
-    Serial1.flush();
+    if (triangulationInitiator) {
+        bool sent = sendToSerial1(resultMsg, true);
+        Serial.printf("[TRIANGULATE] Initiator sent TRIANGULATE_COMPLETE: %s\n", sent ? "SUCCESS" : "FAILED");
+        vTaskDelay(pdMS_TO_TICKS(200));
+        Serial1.flush();
+    }
 
     triangulationActive = false;
     triangulationInitiator = false;
     triangulationDuration = 0;
     memset(triangulationTarget, 0, 6);
 
-    // Clear accumulated data
     triAccum.wifiHitCount = 0;
     triAccum.wifiRssiSum = 0.0f;
     triAccum.bleHitCount = 0;
     triAccum.bleRssiSum = 0.0f;
     triAccum.lastSendTime = 0;
 
-    // Clear AP final result
     apFinalResult.hasResult = false;
     apFinalResult.latitude = 0.0;
     apFinalResult.longitude = 0.0;
@@ -999,10 +894,8 @@ void stopTriangulation() {
     triangulationOrchestratorAssigned = false;
     triStopCameFromMesh = false;
 
-    // Clear ACK tracking
-    triangulateAcks.clear();
-    triangulationCoordinator = "";
-    ackCollectionStart = 0;
+    // Record stop time for debounce mechanism
+    lastTriangulationStopTime = millis();
 
     Serial.println("[TRIANGULATE] Stopped, results generated, buffers cleared");
 }
@@ -1416,15 +1309,44 @@ void disciplineRTCFromGPS() {
 }
 
 int64_t getCorrectedMicroseconds() {
+    // Get Unix timestamp with microsecond precision for TDoA
+    if (!rtcAvailable || rtcMutex == nullptr) {
+        // Fallback to boot-relative microseconds if no RTC
+        uint32_t currentMicros = micros();
+        if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
+            uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
+            int64_t correction = (int64_t)(clockDiscipline.driftRate * elapsedMs * 1000.0);
+            return (int64_t)currentMicros - correction;
+        }
+        return (int64_t)currentMicros;
+    }
+
+    // Get RTC Unix timestamp (seconds since epoch)
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
+        // Fallback if mutex unavailable
+        return (int64_t)micros();
+    }
+
+    DateTime now = rtc.now();
+    time_t unixSeconds = now.unixtime();
+
+    xSemaphoreGive(rtcMutex);
+
+    // Get microsecond offset within current second
     uint32_t currentMicros = micros();
-    
+    uint32_t microsInSecond = currentMicros % 1000000;
+
+    // Apply drift correction to microsecond component
     if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
         uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
         int64_t correction = (int64_t)(clockDiscipline.driftRate * elapsedMs * 1000.0);
-        return (int64_t)currentMicros - correction;
+        microsInSecond = (uint32_t)((int64_t)microsInSecond - (correction % 1000000));
     }
-    
-    return (int64_t)currentMicros;
+
+    // Combine: Unix seconds (in microseconds) + microsecond offset
+    int64_t unixTimestampMicros = ((int64_t)unixSeconds * 1000000LL) + (int64_t)microsInSecond;
+
+    return unixTimestampMicros;
 }
 
 void calibrationTask(void *parameter) {

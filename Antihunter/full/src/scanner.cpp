@@ -1919,15 +1919,12 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (triAccum.wifiHitCount > 0) {
         int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
         String wifiMsg = nodeId + ": TARGET_DATA: " + macStr +
-                         " Hits=" + String(triAccum.wifiHitCount) +
-                         " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
+                         " RSSI:" + String(wifiAvgRssi);
         if (triAccum.hasGPS) {
             wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                        " HDOP=" + String(triAccum.hdop, 1);
         }
-        // Add detection timestamp (microseconds)
-        if (triAccum.wifiFirstDetectionTimestamp > 0) {
-            // Format as seconds with 6 decimal places for microsecond precision
+        if (triAccum.wifiFirstDetectionTimestamp > 0) { // add microseconds
             double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
             char tsStr[32];
             snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
@@ -1944,15 +1941,13 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (triAccum.bleHitCount > 0) {
         int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
         String bleMsg = nodeId + ": TARGET_DATA: " + macStr +
-                        " Hits=" + String(triAccum.bleHitCount) +
-                        " RSSI:" + String(bleAvgRssi) + " Type:BLE";
+                        " RSSI:" + String(bleAvgRssi);
         if (triAccum.hasGPS) {
             bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                       " HDOP=" + String(triAccum.hdop, 1);
         }
-        // Add detection timestamp (microseconds)
         if (triAccum.bleFirstDetectionTimestamp > 0) {
-            // Format as seconds with 6 decimal places for microsecond precision
+            // microsecond conversion
             double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
             char tsStr[32];
             snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
@@ -2452,8 +2447,7 @@ void listScanTask(void *pv) {
             String macStr = macFmt6(triAccum.targetMac);
             
             if (triAccum.wifiHitCount > 0) {
-                String wifiMsg = myNodeId + ": TARGET_DATA: " + macStr + 
-                                " Hits=" + String(triAccum.wifiHitCount) +
+                String wifiMsg = myNodeId + ": TARGET_DATA: " + macStr +
                                 " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
                 if (triAccum.hasGPS) {
                     wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
@@ -2463,8 +2457,7 @@ void listScanTask(void *pv) {
             }
             
             if (triAccum.bleHitCount > 0) {
-                String bleMsg = myNodeId + ": TARGET_DATA: " + macStr + 
-                                " Hits=" + String(triAccum.bleHitCount) +
+                String bleMsg = myNodeId + ": TARGET_DATA: " + macStr +
                                 " RSSI:" + String(bleAvgRssi) + " Type:BLE";
                 if (triAccum.hasGPS) {
                     bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
@@ -2498,18 +2491,9 @@ void listScanTask(void *pv) {
             } else {
                 Serial.println("[SCAN CHILD] STOP timeout, forcing cleanup");
                 stopRequested = true;
+                // Call stopTriangulation to properly handle coordinator election and cleanup
+                stopTriangulation();
             }
-            
-            // Clean up triangulation state for child
-            triangulationActive = false;
-            memset(triangulationTarget, 0, 6);
-            memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
-            triAccum.wifiHitCount = 0;
-            triAccum.wifiRssiSum = 0.0f;
-            triAccum.bleHitCount = 0;
-            triAccum.bleRssiSum = 0.0f;
-            triAccum.lastSendTime = 0;
-            reportingSchedule.reset();
         }
     }
     
