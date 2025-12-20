@@ -704,8 +704,11 @@ void processMeshMessage(const String &message) {
                     int hdopIdx = payload.indexOf("HDOP=");
                     int tsIdx = payload.indexOf("TS=");
 
-                    if (hitsIdx > 0 && rssiIdx > 0) {
-                        int hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
+                    if (rssiIdx > 0) {
+                        int hits = 1;  // Default if no Hits field present
+                        if (hitsIdx > 0) {
+                            hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
+                        }
 
                         int rssiEnd = payload.length();
                         int spaceAfterRssi = payload.indexOf(' ', rssiIdx + 5);

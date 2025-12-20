@@ -33,8 +33,12 @@ bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
 DynamicReportingSchedule reportingSchedule;
 std::vector<TriangulateAckInfo> triangulateAcks;
+std::vector<String> triangulateReportedNodes;  // Nodes that sent final TARGET_DATA
 String triangulationCoordinator = "";
 uint32_t ackCollectionStart = 0;
+uint32_t stopSentTimestamp = 0;  // When TRIANGULATE_STOP was sent
+bool waitingForFinalReports = false;
+const uint32_t FINAL_REPORT_TIMEOUT_MS = 15000;  // 15 seconds for nodes to report
 static volatile bool triStopCameFromMesh = false;
 static uint32_t lastTriangulationStopTime = 0;
 const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
@@ -547,12 +551,20 @@ void startTriangulation(const String &targetMac, int duration) {
     if (triangulationActive) {
         Serial.println("[TRIANGULATE] Already active, forcing full stop first...");
         stopTriangulation();
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Wait longer for complete cleanup
+        vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for complete cleanup
+
+        // After stop, re-check debounce since stop updates the timestamp
+        uint32_t timeSinceStop = millis() - lastTriangulationStopTime;
+        if (timeSinceStop < TRIANGULATION_DEBOUNCE_MS) {
+            uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceStop) / 1000;
+            Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us after forced stop before starting again\n", remainingWait);
+            return;
+        }
     }
 
     // Ensure worker task is completely stopped
     if (workerTaskHandle) {
-        Serial.println("[TRIANGULATE] Stopping existing scan task...");
+        Serial.println("[TRIANGULATE] WARNING: Worker task still exists, stopping...");
         stopRequested = true;
 
         // Wait for task to actually exit
@@ -561,14 +573,13 @@ void startTriangulation(const String &targetMac, int duration) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        // Force delete if still running
+        // Don't force delete - just clear and log error
         if (workerTaskHandle != nullptr) {
-            Serial.println("[TRIANGULATE] Force deleting stuck worker task");
-            vTaskDelete(workerTaskHandle);
+            Serial.println("[TRIANGULATE] ERROR: Worker task still running, aborting start to prevent corruption");
             workerTaskHandle = nullptr;
+            return;
         }
-
-        vTaskDelay(pdMS_TO_TICKS(500)); // Additional safety delay
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
     
     {
@@ -585,8 +596,15 @@ void startTriangulation(const String &targetMac, int duration) {
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
     triangulationActive = true;
-    triangulationInitiator = true;  // Initiator is ALWAYS the coordinator
+    triangulationInitiator = true;
     reportingSchedule.reset();
+
+    // Clear ACK and report tracking for new session
+    triangulateAcks.clear();
+    triangulateReportedNodes.clear();
+    waitingForFinalReports = false;
+    stopSentTimestamp = 0;
+    ackCollectionStart = millis();
 
     Serial.printf("[TRIANGULATE] Initiator started for %s (%ds)\n", targetMac.c_str(), duration);
 
@@ -625,10 +643,15 @@ void stopTriangulation() {
         return;
     }
 
+    Serial.println("[TRIANGULATE] Stop requested, beginning cleanup...");
+
     if (triangulationInitiator && !triStopCameFromMesh) {
         String stopCmd = "@ALL TRIANGULATE_STOP";
         sendMeshCommand(stopCmd);
-        Serial.println("[TRIANGULATE] Stop broadcast sent to all child nodes");
+        stopSentTimestamp = millis();
+        waitingForFinalReports = true;
+        Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd)\n",
+                     triangulateAcks.size());
         vTaskDelay(pdMS_TO_TICKS(700));
     }
 
@@ -707,14 +730,62 @@ void stopTriangulation() {
         }
 
         if (workerTaskHandle != nullptr) {
-            vTaskDelete(taskToWait);
-            workerTaskHandle = nullptr;
-            Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly, forced termination");
+            Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly, skipping force termination to prevent corruption");
+            workerTaskHandle = nullptr;  // Clear handle but don't force delete
         }
     }
 
     vTaskDelay(pdMS_TO_TICKS(500));
-    
+
+    // OPTIMIZATION: Wait for all ACKed nodes to send final reports (or timeout)
+    // Use shorter delays and limit to prevent watchdog issues
+    if (triangulationInitiator && waitingForFinalReports && triangulateAcks.size() > 0) {
+        Serial.printf("[TRIANGULATE] Waiting for final reports from %d nodes...\n",
+                     triangulateAcks.size());
+
+        const uint32_t REPORT_TIMEOUT_MS = 5000;  // Reduced from 15s to 5s
+        uint32_t waitStart = millis();
+        uint32_t lastProgressLog = 0;
+
+        while ((millis() - stopSentTimestamp) < REPORT_TIMEOUT_MS) {
+            // Count how many nodes have reported
+            int reportedCount = 0;
+            for (const auto& ack : triangulateAcks) {
+                if (ack.reportReceived) reportedCount++;
+            }
+
+            if (reportedCount >= triangulateAcks.size()) {
+                Serial.printf("[TRIANGULATE] All %d nodes reported! Proceeding...\n", reportedCount);
+                break;
+            }
+
+            // Log progress every 2 seconds
+            if (millis() - lastProgressLog > 2000) {
+                Serial.printf("[TRIANGULATE] Waiting... %d/%d nodes reported\n",
+                            reportedCount, triangulateAcks.size());
+                lastProgressLog = millis();
+            }
+
+            // Yield more aggressively to prevent watchdog issues
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
+        // Report final status
+        int finalReportedCount = 0;
+        for (const auto& ack : triangulateAcks) {
+            if (ack.reportReceived) {
+                finalReportedCount++;
+            } else {
+                Serial.printf("[TRIANGULATE] WARNING: Node %s did not report (timed out)\n",
+                            ack.nodeId.c_str());
+            }
+        }
+
+        Serial.printf("[TRIANGULATE] Proceeding with %d/%d node reports\n",
+                     finalReportedCount, triangulateAcks.size());
+        waitingForFinalReports = false;
+    }
+
     String results = calculateTriangulation();
 
     {
@@ -824,6 +895,9 @@ void stopTriangulation() {
         }
     }
 
+    // Coordinator sends its own TARGET_DATA for data aggregation
+    // This is used by external systems to see all detection data
+    // Single source of truth is TRIANGULATION_FINAL (calculated position), not the raw data
     String myNodeId = getNodeId();
     int selfHits = 0;
     int8_t selfBestRSSI = -128;
@@ -874,8 +948,10 @@ void stopTriangulation() {
         Serial1.flush();
     }
 
+    // Clear flags first to prevent any race conditions
     triangulationActive = false;
     triangulationInitiator = false;
+    waitingForFinalReports = false;
     triangulationDuration = 0;
     memset(triangulationTarget, 0, 6);
 
@@ -896,7 +972,12 @@ void stopTriangulation() {
     triangulationOrchestratorAssigned = false;
     triStopCameFromMesh = false;
 
-    // Record stop time for debounce mechanism
+    // Clear ACKs and reports
+    triangulateAcks.clear();
+    triangulateReportedNodes.clear();
+    stopSentTimestamp = 0;
+
+    // Record stop time for debounce mechanism (MUST be last)
     lastTriangulationStopTime = millis();
 
     Serial.println("[TRIANGULATE] Stopped, results generated, buffers cleared");
@@ -1113,6 +1194,11 @@ String calculateTriangulation() {
     bool hasRSSI = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence);
 
     if (hasTDOA && hasRSSI) {
+        // Save original RSSI results before combining
+        float rssiLat = estLat;
+        float rssiLon = estLon;
+        float rssiConf = confidence;
+
         // Combine TDOA and RSSI results using weighted average
         float tdoaWeight = tdoaConf * 0.7;  // TDOA is generally more accurate
         float rssiWeight = confidence * 0.3;
@@ -1128,7 +1214,7 @@ String calculateTriangulation() {
         results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
         results += "  Method: TDOA + Weighted trilateration (hybrid)\n";
         results += "  TDOA Result: " + String(tdoaLat, 6) + "," + String(tdoaLon, 6) + " (" + String(tdoaConf * 100.0, 1) + "%)\n";
-        results += "  RSSI Result: " + String(tdoaLat, 6) + "," + String(tdoaLon, 6) + " (" + String(confidence * 100.0, 1) + "%)\n";
+        results += "  RSSI Result: " + String(rssiLat, 6) + "," + String(rssiLon, 6) + " (" + String(rssiConf * 100.0, 1) + "%)\n";
     } else if (hasTDOA) {
         estLat = tdoaLat;
         estLon = tdoaLon;

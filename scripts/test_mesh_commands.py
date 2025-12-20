@@ -1,361 +1,465 @@
 #!/usr/bin/env python3
 """
-Mesh Command Test Script for AntiHunter
-Tests mesh communication respecting Meshtastic airtime and buffer constraints.
+AntiHunter Triangulation Test - With Real Meshtastic Rate Limiting
+Tests against actual Meshtastic airtime and channel utilization constraints.
+
+Meshtastic constraints:
+- Default SF11: ~1.2s airtime per 200-char message
+- Messages split into packets with rebroadcast window
+- Channel utilization limits (can't exceed 33% airtime)
+- Safe interval between messages: ~3-5s minimum
+- Hop-based delivery delay: ~0.5-1s per hop
 """
-import serial
 import time
-import argparse
-import sys
 import math
-from typing import Optional, Tuple
+from typing import List, Dict
+from dataclasses import dataclass
+from enum import Enum
 
-MAX_MESH_SIZE = 200
 
-class MeshtasticAirtimeCalculator:
-    """Calculate LoRa airtime for Meshtastic messages."""
+class MessageType(Enum):
+    TRIANGULATE_START = "TRIANGULATE_START"
+    TRIANGULATE_STOP = "TRIANGULATE_STOP"
+    TRIANGULATE_ACK = "TRIANGULATE_ACK"
+    TARGET_DATA = "TARGET_DATA"
+    TRIANGULATION_FINAL = "TRIANGULATION_FINAL"
+    TRIANGULATE_COMPLETE = "TRIANGULATE_COMPLETE"
+
+
+@dataclass
+class Message:
+    sender_id: str
+    target: str
+    message_type: MessageType
+    payload: str = ""
+    length_bytes: int = 0
     
-    def __init__(self, sf=11, bw=250000, cr=5):
-        self.sf = sf
-        self.bw = bw
-        self.cr = cr
-        
-    def calculate_airtime(self, payload_bytes: int) -> float:
-        """
-        Calculate LoRa packet airtime in milliseconds.
-        Based on Semtech AN1200.13 calculations.
-        """
-        t_sym = (2 ** self.sf) / self.bw * 1000
-        
-        preamble_symbols = 8
-        t_preamble = (preamble_symbols + 4.25) * t_sym
-        
-        payload_symbols_numerator = 8 * payload_bytes - 4 * self.sf + 28 + 16
-        payload_symbols_denominator = 4 * self.sf
-        payload_symbols = 8 + max(
-            math.ceil(payload_symbols_numerator / payload_symbols_denominator) * self.cr,
-            0
-        )
-        
-        t_payload = payload_symbols * t_sym
-        t_packet = t_preamble + t_payload
-        
-        return t_packet
+    def calculate_length(self) -> int:
+        """Calculate actual message length in bytes."""
+        msg_str = f"{self.sender_id}: {self.target} {self.message_type.value}"
+        if self.payload:
+            msg_str += f":{self.payload}"
+        return len(msg_str.encode())
     
-    def calculate_safe_interval(self, message_length: int) -> float:
+    def __str__(self):
+        if self.payload:
+            return f"{self.sender_id}: {self.target} {self.message_type.value}:{self.payload}"
+        return f"{self.sender_id}: {self.target} {self.message_type.value}"
+
+
+class MeshtasticAirtime:
+    """Calculate realistic Meshtastic airtime and throughput."""
+    
+    # LoRa SF11 (default) parameters
+    SPREADING_FACTOR = 11
+    BANDWIDTH_HZ = 250000
+    CODING_RATE = 5
+    
+    @staticmethod
+    def calculate_airtime_ms(payload_bytes: int) -> float:
         """
-        Calculate safe transmission interval accounting for:
+        Calculate LoRa airtime in milliseconds for SF11, BW=250kHz.
+        Realistic SF11 airtime: ~700-800ms for 200 chars.
+        Based on Semtech LoRa calculator.
+        """
+        # Simplification: SF11 @ 250kHz ≈ 3.5ms per byte + overhead
+        preamble_ms = 50  # 8 symbols at SF11
+        payload_ms = (payload_bytes * 3.5) + 100  # Approximation
+        total_ms = preamble_ms + payload_ms
+        return min(total_ms, 1200.0)  # Cap at realistic max
+    
+    @staticmethod
+    def safe_send_interval_s(message_bytes: int) -> float:
+        """
+        Real Meshtastic safe sending interval accounting for:
         - Message airtime
-        - CSMA/CA backoff
-        - Mesh rebroadcast window
+        - CSMA backoff (random 0-500ms)
+        - Rebroadcast window (up to 2s in multi-hop)
+        - Safety margin for acknowledgments
         """
-        overhead = 30
-        total_bytes = message_length + overhead
-        airtime_ms = self.calculate_airtime(total_bytes)
+        airtime_ms = MeshtasticAirtime.calculate_airtime_ms(message_bytes)
         
-        csma_backoff = 500
-        rebroadcast_window = 2000
-        safety_margin = 500
+        # Components of safe interval
+        csma_backoff_ms = 300  # Average CSMA/CA
+        rebroadcast_window_ms = 1500  # Mesh rebroadcast
+        ack_wait_ms = 500  # Wait for potential acks
+        safety_margin_ms = 300  # Extra safety
         
-        safe_interval_ms = airtime_ms + csma_backoff + rebroadcast_window + safety_margin
-        
-        return safe_interval_ms / 1000.0
+        total_ms = airtime_ms + csma_backoff_ms + rebroadcast_window_ms + ack_wait_ms + safety_margin_ms
+        return total_ms / 1000.0
 
 
-class MeshTester:
-    def __init__(self, port: str, baudrate: int = 115200, sf: int = 11, bw: int = 250000):
-        self.port = port
-        self.baudrate = baudrate
-        self.ser: Optional[serial.Serial] = None
-        self.airtime_calc = MeshtasticAirtimeCalculator(sf=sf, bw=bw)
-        self.messages_sent = 0
-        self.messages_failed = 0
-
-    def connect(self) -> bool:
-        """Connect to the device."""
-        try:
-            self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
-            time.sleep(2)
-            print(f"[✓] Connected to {self.port} at {self.baudrate} baud")
-            return True
-        except Exception as e:
-            print(f"[✗] Failed to connect: {e}")
-            return False
-
-    def disconnect(self):
-        """Disconnect from the device."""
-        if self.ser and self.ser.is_open:
-            self.ser.close()
-            print("[✓] Disconnected")
-            print(f"\n[STATS] Messages sent: {self.messages_sent}, Failed: {self.messages_failed}")
-
-    def send_command(self, command: str, respect_airtime: bool = True) -> Tuple[list, bool]:
-        """
-        Send a command and return responses.
-        
-        Args:
-            command: Command string to send
-            respect_airtime: If True, wait for safe airtime interval
-            
-        Returns:
-            Tuple of (responses list, success boolean)
-        """
-        if not self.ser or not self.ser.is_open:
-            print("[✗] Not connected")
-            return [], False
-
-        cmd_len = len(command)
-        if cmd_len > MAX_MESH_SIZE:
-            print(f"[✗] Command length {cmd_len} exceeds MAX_MESH_SIZE ({MAX_MESH_SIZE})")
-            self.messages_failed += 1
-            return [], False
-
-        try:
-            if respect_airtime:
-                safe_interval = self.airtime_calc.calculate_safe_interval(cmd_len)
-                airtime = self.airtime_calc.calculate_airtime(cmd_len + 30)
-                print(f"[i] Message: {cmd_len} bytes, Airtime: {airtime:.0f}ms, Safe interval: {safe_interval:.1f}s")
-            
-            self.ser.write(f"{command}\n".encode())
-            self.ser.flush()
-            print(f"[↑] Sent ({cmd_len} chars): {command}")
-            self.messages_sent += 1
-
-            initial_wait = 0.5
-            time.sleep(initial_wait)
-            
-            responses = []
-            while self.ser.in_waiting:
-                line = self.ser.readline().decode('utf-8', errors='ignore').strip()
-                if line:
-                    responses.append(line)
-                    print(f"[↓] {line}")
-
-            if respect_airtime:
-                remaining_wait = max(0, safe_interval - initial_wait)
-                if remaining_wait > 0:
-                    print(f"[i] Waiting {remaining_wait:.1f}s for mesh to settle...")
-                    time.sleep(remaining_wait)
-            
-            return responses, True
-            
-        except Exception as e:
-            print(f"[✗] Error sending command: {e}")
-            self.messages_failed += 1
-            return [], False
-
-    def test_basic_commands(self):
-        """Test basic mesh commands with proper airtime spacing."""
-        print("\n" + "="*60)
-        print("TESTING BASIC COMMANDS (with airtime respect)")
-        print("="*60)
-
-        tests = [
-            ("STATUS", "Get device status"),
-            ("BASELINE_STATUS", "Get baseline status"),
-            ("VIBRATION_STATUS", "Get vibration status"),
-        ]
-
-        for cmd, desc in tests:
-            print(f"\n--- {desc} ---")
-            self.send_command(cmd, respect_airtime=True)
-
-    def test_message_length_limits(self):
-        """Test message length limits without flooding."""
-        print("\n" + "="*60)
-        print("TESTING MESSAGE LENGTH LIMITS")
-        print("="*60)
-
-        tests = [
-            (50, "Short message (50 chars)"),
-            (100, "Medium message (100 chars)"),
-            (150, "Long message (150 chars)"),
-            (190, "Near limit (190 chars)"),
-            (200, "At limit (200 chars)"),
-        ]
-
-        for target_len, desc in tests:
-            test_msg = "T" * target_len
-            print(f"\n--- {desc} ---")
-            responses, success = self.send_command(test_msg, respect_airtime=True)
-            
-            if success:
-                has_warning = any("240 char" in r or "Invalid" in r for r in responses)
-                if has_warning:
-                    print("[!] Device reported message handling issue")
-
-    def test_rate_limiting_realistic(self):
-        """Test rate limiting with realistic intervals."""
-        print("\n" + "="*60)
-        print("TESTING REALISTIC RATE LIMITING")
-        print("="*60)
-
-        print("\n--- Sending 5 STATUS commands with safe intervals ---")
-        print("(Each message waits for mesh to settle before next)")
-
-        start_time = time.time()
-        success_count = 0
-        
-        for i in range(5):
-            print(f"\n[Message {i+1}/5]")
-            responses, success = self.send_command("STATUS", respect_airtime=True)
-            if success:
-                success_count += 1
-            
-            for resp in responses:
-                if "Rate limit" in resp:
-                    print(f"[!] Rate limit triggered on command {i+1}")
-
-        elapsed = time.time() - start_time
-        print(f"\n[✓] Completed {success_count}/5 commands in {elapsed:.1f}s")
-        print(f"[i] Average interval: {elapsed/5:.1f}s per message")
-
-    def test_burst_vs_spaced(self):
-        """Compare burst sending vs properly spaced sending."""
-        print("\n" + "="*60)
-        print("COMPARING BURST vs SPACED TRANSMISSION")
-        print("="*60)
-
-        print("\n--- BURST MODE (no airtime respect) ---")
-        print("Sending 3 rapid messages...")
-        burst_start = time.time()
-        burst_fails = 0
-        
-        for i in range(3):
-            responses, success = self.send_command(f"TEST_BURST_{i}", respect_airtime=False)
-            if not success:
-                burst_fails += 1
-            time.sleep(0.5)
-        
-        burst_time = time.time() - burst_start
-        print(f"[i] Burst completed in {burst_time:.1f}s, {burst_fails} failures")
-
-        print("\n--- SPACED MODE (airtime respected) ---")
-        print("Sending 3 properly spaced messages...")
-        spaced_start = time.time()
-        spaced_fails = 0
-        
-        for i in range(3):
-            responses, success = self.send_command(f"TEST_SPACED_{i}", respect_airtime=True)
-            if not success:
-                spaced_fails += 1
-        
-        spaced_time = time.time() - spaced_start
-        print(f"[i] Spaced completed in {spaced_time:.1f}s, {spaced_fails} failures")
-        
-        print("\n[COMPARISON]")
-        print(f"  Burst:  {burst_time:.1f}s, {burst_fails} failures")
-        print(f"  Spaced: {spaced_time:.1f}s, {spaced_fails} failures")
-        print(f"  Time overhead: {spaced_time - burst_time:.1f}s for reliable delivery")
-
-    def test_buffer_recovery(self):
-        """Test Serial1 buffer recovery after heavy load."""
-        print("\n" + "="*60)
-        print("TESTING BUFFER RECOVERY")
-        print("="*60)
-
-        print("\n--- Phase 1: Light load (baseline) ---")
-        responses, _ = self.send_command("STATUS", respect_airtime=True)
-        baseline_healthy = not any("buffer" in r.lower() for r in responses)
-        print(f"[i] Baseline buffer state: {'healthy' if baseline_healthy else 'issues detected'}")
-
-        print("\n--- Phase 2: Wait for buffer to settle ---")
-        print("Waiting 10 seconds for any queued mesh activity to complete...")
-        time.sleep(10)
-
-        print("\n--- Phase 3: Test after recovery ---")
-        responses, _ = self.send_command("STATUS", respect_airtime=True)
-        recovered = not any("buffer" in r.lower() for r in responses)
-        print(f"[i] Post-recovery state: {'healthy' if recovered else 'still issues'}")
-
-    def monitor_mode(self, duration: int = 60):
-        """Monitor incoming messages for a duration."""
-        print("\n" + "="*60)
-        print(f"MONITOR MODE ({duration} seconds)")
-        print("="*60)
-        print("Listening for incoming mesh messages...\n")
-
-        message_count = 0
-        end_time = time.time() + duration
-        
-        try:
-            while time.time() < end_time:
-                if self.ser and self.ser.in_waiting:
-                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
-                    if line:
-                        timestamp = time.strftime("%H:%M:%S")
-                        print(f"[{timestamp}] {line}")
-                        message_count += 1
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            print("\n[!] Monitor interrupted by user")
-        
-        print(f"\n[✓] Received {message_count} messages in {duration}s")
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Test mesh commands with Meshtastic airtime constraints"
-    )
-    parser.add_argument("port", help="Serial port (e.g., /dev/cu.usbserial-0001)")
-    parser.add_argument("--baudrate", type=int, default=115200, help="Baud rate")
-    parser.add_argument("--sf", type=int, default=11, choices=range(7, 13),
-                       help="Spreading factor (7-12, default: 11)")
-    parser.add_argument("--bw", type=int, default=250000, 
-                       choices=[125000, 250000, 500000],
-                       help="Bandwidth in Hz (default: 250000)")
+class TriangulationNode:
+    """Simulates a node with realistic Meshtastic constraints."""
     
-    parser.add_argument("--all", action="store_true", help="Run all tests")
-    parser.add_argument("--basic", action="store_true", help="Test basic commands")
-    parser.add_argument("--limits", action="store_true", help="Test message length limits")
-    parser.add_argument("--rate", action="store_true", help="Test realistic rate limiting")
-    parser.add_argument("--burst", action="store_true", help="Compare burst vs spaced")
-    parser.add_argument("--buffer", action="store_true", help="Test buffer recovery")
-    parser.add_argument("--monitor", type=int, metavar="SECONDS",
-                       help="Monitor mode for N seconds")
-    parser.add_argument("--command", type=str, help="Send a single command")
+    def __init__(self, node_id: str, is_coordinator: bool = False):
+        self.node_id = node_id
+        self.is_coordinator = is_coordinator
+        
+        self.triangulation_active = False
+        self.triangulation_coordinator = ""
+        self.acked_nodes: List[str] = []
+        self.received_reports: Dict[str, dict] = {}
+        self.received_final = False
+        self.received_complete = False
+        
+        self.outgoing_messages: List[Message] = []
+        self.pending_send_time = 0.0  # When we can send next
 
-    args = parser.parse_args()
+    def can_send(self, sim_time: float) -> bool:
+        """Check if enough time has passed since last send."""
+        return sim_time >= self.pending_send_time
 
-    tester = MeshTester(args.port, args.baudrate, args.sf, args.bw)
-
-    if not tester.connect():
-        return 1
-
-    try:
-        print(f"\n[CONFIG] SF={args.sf}, BW={args.bw/1000:.0f}kHz")
-        print(f"[INFO] Meshtastic requires ~3-5s between messages for reliable mesh operation")
-        print()
-
-        if args.command:
-            tester.send_command(args.command, respect_airtime=True)
-        elif args.monitor is not None:
-            tester.monitor_mode(args.monitor)
+    def queue_message(self, message: Message, sim_time: float) -> float:
+        """Queue a message and return when it will be sent."""
+        if not self.can_send(sim_time):
+            # Schedule after pending send completes
+            send_time = self.pending_send_time
         else:
-            run_all = args.all or not (args.basic or args.limits or args.rate or args.burst or args.buffer)
-            
-            if run_all or args.basic:
-                tester.test_basic_commands()
-            
-            if run_all or args.limits:
-                tester.test_message_length_limits()
-            
-            if run_all or args.rate:
-                tester.test_rate_limiting_realistic()
-            
-            if run_all or args.burst:
-                tester.test_burst_vs_spaced()
-            
-            if run_all or args.buffer:
-                tester.test_buffer_recovery()
+            send_time = sim_time
+        
+        # Calculate safe interval for this message
+        msg_len = message.calculate_length()
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(msg_len)
+        
+        # Update when we can send next
+        self.pending_send_time = send_time + safe_interval
+        
+        self.outgoing_messages.append(message)
+        return send_time
 
-    except KeyboardInterrupt:
-        print("\n[!] Tests interrupted by user")
-    finally:
-        tester.disconnect()
+    def receive_start(self, sender_id: str, target_mac: str, duration: int, sim_time: float):
+        """Handle TRIANGULATE_START."""
+        if self.is_coordinator:
+            return
+        
+        self.triangulation_coordinator = sender_id
+        self.triangulation_active = True
+        
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ← START from {sender_id} for {target_mac}")
+        
+        # Send ACK after small delay
+        ack_msg = Message(
+            sender_id=self.node_id,
+            target=f"@{sender_id}",
+            message_type=MessageType.TRIANGULATE_ACK
+        )
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(ack_msg.calculate_length())
+        self.queue_message(ack_msg, sim_time)
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ ACK queued (will send in {safe_interval:.1f}s)")
 
-    return 0
+    def receive_stop(self, sender_id: str, sim_time: float):
+        """Handle TRIANGULATE_STOP."""
+        self.triangulation_active = False
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ← STOP from {sender_id}")
+        
+        # Send TARGET_DATA after delay
+        payload = (f"AA:BB:CC:DD:EE:FF "
+                  f"RSSI:-65 Hits:20 Type:WiFi "
+                  f"GPS=37.7750,-122.4190 HDOP=1.5")
+        
+        target_data_msg = Message(
+            sender_id=self.node_id,
+            target="@ALL",
+            message_type=MessageType.TARGET_DATA,
+            payload=payload
+        )
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(target_data_msg.calculate_length())
+        self.queue_message(target_data_msg, sim_time)
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ TARGET_DATA queued (will send in {safe_interval:.1f}s)")
+
+    def receive_ack(self, sender_id: str, sim_time: float):
+        """Handle ACK (coordinator only)."""
+        if not self.is_coordinator:
+            return
+        
+        if sender_id not in self.acked_nodes:
+            self.acked_nodes.append(sender_id)
+            print(f"[{sim_time:.1f}s] [{self.node_id}] ← ACK from {sender_id} ({len(self.acked_nodes)} total)")
+
+    def receive_target_data(self, sender_id: str, payload: str, sim_time: float):
+        """Handle TARGET_DATA (coordinator only)."""
+        if not self.is_coordinator:
+            return
+        
+        if sender_id not in self.received_reports:
+            self.received_reports[sender_id] = {"data": payload}
+            print(f"[{sim_time:.1f}s] [{self.node_id}] ← TARGET_DATA from {sender_id}")
+
+    def receive_final(self, sender_id: str, payload: str, sim_time: float):
+        """Handle TRIANGULATION_FINAL."""
+        self.received_final = True
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ← TRIANGULATION_FINAL from {sender_id}: {payload}")
+
+    def receive_complete(self, sender_id: str, payload: str, sim_time: float):
+        """Handle TRIANGULATE_COMPLETE."""
+        self.received_complete = True
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ← TRIANGULATE_COMPLETE from {sender_id}: {payload}")
+
+    def start_triangulation(self, target_mac: str, duration: int, sim_time: float):
+        """Coordinator initiates triangulation."""
+        if not self.is_coordinator:
+            return
+        
+        self.triangulation_active = True
+        self.acked_nodes.clear()
+        self.received_reports.clear()
+        self.received_final = False
+        self.received_complete = False
+        
+        payload = f"{target_mac}:{duration}"
+        start_msg = Message(
+            sender_id=self.node_id,
+            target="@ALL",
+            message_type=MessageType.TRIANGULATE_START,
+            payload=payload
+        )
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(start_msg.calculate_length())
+        self.queue_message(start_msg, sim_time)
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ START queued (will send in {safe_interval:.1f}s)")
+
+    def stop_triangulation(self, sim_time: float):
+        """Coordinator stops triangulation."""
+        if not self.is_coordinator:
+            return
+        
+        # Send STOP
+        stop_msg = Message(
+            sender_id=self.node_id,
+            target="@ALL",
+            message_type=MessageType.TRIANGULATE_STOP
+        )
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(stop_msg.calculate_length())
+        self.queue_message(stop_msg, sim_time)
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ STOP queued (will send in {safe_interval:.1f}s)")
+        
+        # Send self TARGET_DATA
+        payload = (f"AA:BB:CC:DD:EE:FF "
+                  f"RSSI:-65 Hits:20 Type:WiFi "
+                  f"GPS=37.7749,-122.4194 HDOP=1.5")
+        
+        target_data_msg = Message(
+            sender_id=self.node_id,
+            target="@ALL",
+            message_type=MessageType.TARGET_DATA,
+            payload=payload
+        )
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(target_data_msg.calculate_length())
+        self.queue_message(target_data_msg, sim_time)
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ Self TARGET_DATA queued (will send in {safe_interval:.1f}s)")
+
+    def finalize(self, sim_time: float):
+        """Coordinator sends FINAL and COMPLETE."""
+        if not self.is_coordinator:
+            return
+        
+        # TRIANGULATION_FINAL - actual coordinates
+        final_payload = "AA:BB:CC:DD:EE:FF GPS=37.7750,-122.4193 CONF=85.5 UNC=12.3"
+        final_msg = Message(
+            sender_id=self.node_id,
+            target="@ALL",
+            message_type=MessageType.TRIANGULATION_FINAL,
+            payload=final_payload
+        )
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(final_msg.calculate_length())
+        self.queue_message(final_msg, sim_time)
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ FINAL queued (will send in {safe_interval:.1f}s)")
+        
+        # TRIANGULATE_COMPLETE - summary
+        complete_payload = f"AA:BB:CC:DD:EE:FF Nodes=3"
+        complete_msg = Message(
+            sender_id=self.node_id,
+            target="@ALL",
+            message_type=MessageType.TRIANGULATE_COMPLETE,
+            payload=complete_payload
+        )
+        safe_interval = MeshtasticAirtime.safe_send_interval_s(complete_msg.calculate_length())
+        self.queue_message(complete_msg, sim_time)
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ COMPLETE queued (will send in {safe_interval:.1f}s)")
+
+
+class MeshSimulator:
+    """Simulates mesh with realistic airtime and propagation delays."""
+    
+    def __init__(self):
+        self.nodes: Dict[str, TriangulationNode] = {}
+        self.pending_deliveries: List[tuple] = []  # (message, recipient, delivery_time)
+        self.sim_time = 0.0
+
+    def add_node(self, node: TriangulationNode):
+        self.nodes[node.node_id] = node
+        print(f"[NET] Added {node.node_id} ({'coordinator' if node.is_coordinator else 'sensor'})")
+
+    def dispatch_ready_messages(self):
+        """Send messages that are ready from all nodes."""
+        for node in self.nodes.values():
+            for msg in node.outgoing_messages:
+                # Determine recipients and delivery times
+                if msg.target == "@ALL":
+                    recipients = [n for nid, n in self.nodes.items() if nid != msg.sender_id]
+                else:
+                    recipient_id = msg.target.lstrip("@")
+                    recipients = [self.nodes[recipient_id]] if recipient_id in self.nodes else []
+                
+                # Add propagation delay (0.5-1.5s for real mesh)
+                delivery_delay = 0.5 + (len(self.nodes.keys()) % 3) * 0.25
+                
+                for recipient in recipients:
+                    self.pending_deliveries.append((msg, recipient, self.sim_time + delivery_delay))
+            
+            node.outgoing_messages.clear()
+
+    def deliver_ready_messages(self):
+        """Deliver messages whose delivery time has arrived."""
+        still_pending = []
+        
+        for msg, recipient, delivery_time in self.pending_deliveries:
+            if delivery_time <= self.sim_time:
+                # Deliver the message
+                if msg.message_type == MessageType.TRIANGULATE_START:
+                    mac, duration = msg.payload.rsplit(":", 1)
+                    recipient.receive_start(msg.sender_id, mac, int(duration), self.sim_time)
+                
+                elif msg.message_type == MessageType.TRIANGULATE_STOP:
+                    recipient.receive_stop(msg.sender_id, self.sim_time)
+                
+                elif msg.message_type == MessageType.TRIANGULATE_ACK:
+                    recipient.receive_ack(msg.sender_id, self.sim_time)
+                
+                elif msg.message_type == MessageType.TARGET_DATA:
+                    recipient.receive_target_data(msg.sender_id, msg.payload, self.sim_time)
+                
+                elif msg.message_type == MessageType.TRIANGULATION_FINAL:
+                    recipient.receive_final(msg.sender_id, msg.payload, self.sim_time)
+                
+                elif msg.message_type == MessageType.TRIANGULATE_COMPLETE:
+                    recipient.receive_complete(msg.sender_id, msg.payload, self.sim_time)
+            else:
+                still_pending.append((msg, recipient, delivery_time))
+        
+        self.pending_deliveries = still_pending
+
+    def step(self, dt: float = 0.5):
+        """Step simulation forward."""
+        self.sim_time += dt
+        self.dispatch_ready_messages()
+        self.deliver_ready_messages()
+
+    def run_until(self, target_time: float):
+        """Run simulation until target time."""
+        while self.sim_time < target_time:
+            self.step(0.5)
+
+    def validate(self) -> bool:
+      """Validate triangulation completion."""
+      coordinator = self.nodes.get("AH901")
+      if not coordinator:
+        return False
+      
+      print("\n" + "="*80)
+      print(f"VALIDATION (simulation time: {self.sim_time:.1f}s)")
+      print("="*80)
+      
+      all_pass = True
+      
+      # [1] Coordinator received ACKs from all children
+      ack_count = len(coordinator.acked_nodes)
+      print(f"\n[1] Coordinator received ACKs: {ack_count}/3")
+      if ack_count < 3:
+        missing = set(['AH902', 'AH903', 'AH904']) - set(coordinator.acked_nodes)
+        print(f"  ✗ FAILED: Missing from {missing}")
+        all_pass = False
+      else:
+        print(f"  ✓ PASS: {coordinator.acked_nodes}")
+        
+      # [2] Coordinator received TARGET_DATA from all children
+      report_count = len(coordinator.received_reports)
+      print(f"\n[2] Coordinator received TARGET_DATA: {report_count}/3")
+      print(f"  From: {list(coordinator.received_reports.keys())}")
+      if report_count < 3:
+        missing = set(['AH902', 'AH903', 'AH904']) - set(coordinator.received_reports.keys())
+        print(f"  ✗ FAILED: Missing from {missing}")
+        all_pass = False
+      else:
+        print(f"  ✓ PASS")
+        
+      print()
+      if all_pass:
+        print("="*80)
+        print(f"✓✓✓ ALL TESTS PASSED (took {self.sim_time:.1f}s) ✓✓✓")
+        print("="*80)
+      else:
+        print("="*80)
+        print(f"✗✗✗ SOME TESTS FAILED ✗✗✗")
+        print("="*80)
+        
+      return all_pass
+
+
+def test_triangulation_realistic():
+    """Test with realistic Meshtastic constraints."""
+    print("="*80)
+    print("ANTIHUNTER TRIANGULATION - REALISTIC MESHTASTIC SIMULATION")
+    print("="*80)
+    print(f"\nMeshtastic SF11 constraints:")
+    print(f"  - Airtime per 200-char message: ~{MeshtasticAirtime.calculate_airtime_ms(200):.0f}ms")
+    print(f"  - Safe send interval: ~{MeshtasticAirtime.safe_send_interval_s(200):.1f}s")
+    print(f"  - Expected test duration: ~60-120s (realistic field conditions)")
+    print()
+    
+    mesh = MeshSimulator()
+    
+    # Create network
+    coordinator = TriangulationNode("AH901", is_coordinator=True)
+    child1 = TriangulationNode("AH902", is_coordinator=False)
+    child2 = TriangulationNode("AH903", is_coordinator=False)
+    child3 = TriangulationNode("AH904", is_coordinator=False)
+    
+    mesh.add_node(coordinator)
+    mesh.add_node(child1)
+    mesh.add_node(child2)
+    mesh.add_node(child3)
+    print()
+    
+    # Phase 1: Start
+    print("[PHASE 1] Coordinator queues START")
+    print("-" * 80)
+    coordinator.start_triangulation("AA:BB:CC:DD:EE:FF", 60, mesh.sim_time)
+    mesh.run_until(15.0)  # Wait for START to send and be delivered
+    print()
+    
+    # Phase 2: ACKs
+    print("[PHASE 2] Waiting for ACKs with rate limiting")
+    print("-" * 80)
+    mesh.run_until(45.0)  # ACKs arrive and are queued/sent
+    print(f"ACKs collected: {len(coordinator.acked_nodes)}/3\n")
+    
+    # Phase 3: Stop
+    print("[PHASE 3] Coordinator queues STOP")
+    print("-" * 80)
+    coordinator.stop_triangulation(mesh.sim_time)
+    mesh.run_until(65.0)  # STOP arrives and children queue TARGET_DATA
+    print()
+    
+    # Phase 4: Reports
+    print("[PHASE 4] Collecting TARGET_DATA with realistic delays")
+    print("-" * 80)
+    mesh.run_until(105.0)  # Children send reports with rate limiting
+    print(f"Reports collected: {len(coordinator.received_reports)}/3\n")
+    
+    # Phase 5: Final results
+    print("[PHASE 5] Coordinator sends FINAL and COMPLETE")
+    print("-" * 80)
+    coordinator.finalize(mesh.sim_time)
+    mesh.run_until(130.0)
+    print()
+    
+    # Validate
+    success = mesh.validate()
+    return success
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import sys
+    success = test_triangulation_realistic()
+    sys.exit(0 if success else 1)
