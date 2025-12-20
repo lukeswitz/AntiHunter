@@ -2439,12 +2439,14 @@ void listScanTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(150));
     }
 
-    if (triangulationActive) {
+    // Send final triangulation data if we have any OR if triangulation is still active
+    // (Child nodes may have received STOP which set triangulationActive=false before scan completed)
+    if ((triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0) || triangulationActive) {
         String myNodeId = getNodeId();
         if (myNodeId.length() == 0) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
-        
+
         // Child nodes: send final data WITHOUT slot delays, all at once
         if (!triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
             int8_t wifiAvgRssi = triAccum.wifiHitCount > 0 ? (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount) : -128;

@@ -268,6 +268,8 @@ extern DynamicReportingSchedule reportingSchedule;
 struct TriangulateAckInfo {
     String nodeId;
     uint32_t ackTimestamp;
+    bool reportReceived;  // Track if node has sent TRIANGULATE_REPORT
+    uint32_t reportTimestamp;
 };
 
 extern ClockDiscipline clockDiscipline;
@@ -280,5 +282,8 @@ extern uint32_t triangulationDuration;
 extern bool triangulationInitiator;
 extern char triangulationTargetIdentity[10];
 extern std::vector<TriangulateAckInfo> triangulateAcks;
+extern std::vector<String> triangulateReportedNodes;
 extern String triangulationCoordinator;
 extern uint32_t ackCollectionStart;
+extern uint32_t stopSentTimestamp;
+extern bool waitingForFinalReports;
