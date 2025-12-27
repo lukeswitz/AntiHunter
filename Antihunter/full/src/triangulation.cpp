@@ -615,7 +615,16 @@ void startTriangulation(const String &targetMac, int duration) {
     sendMeshCommand(cmd);
 
     Serial.println("[TRIANGULATE] Broadcast sent to mesh nodes");
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Broadcast synchronized cycle start time for slot coordination
+    int64_t cycleStartUs = getCorrectedMicroseconds();
+    uint32_t cycleStartMs = (uint32_t)(cycleStartUs / 1000LL);
+    String cycleCmd = "@ALL TRI_CYCLE_START:" + String(cycleStartMs);
+    sendMeshCommand(cycleCmd);
+    Serial.printf("[TRIANGULATE] Cycle start broadcast: %u ms (GPS-synced)\n", cycleStartMs);
+
+    vTaskDelay(pdMS_TO_TICKS(500));
     
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(
@@ -630,6 +639,49 @@ void startTriangulation(const String &targetMac, int duration) {
     }
     
     Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
+}
+
+uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
+    // Calculate adaptive timeout based on node count and measured mesh latency
+    uint32_t timeout = baseTimeoutMs;
+
+    // Factor in number of nodes (more nodes = more potential for delays)
+    uint32_t nodeCount = triangulateAcks.size();
+    if (nodeCount > 0) {
+        timeout += (uint32_t)(nodeCount * perNodeFactor);
+    }
+
+    // Factor in measured mesh propagation delays
+    uint32_t maxPropDelay = 0;
+    uint32_t avgPropDelay = 0;
+    uint32_t delayCount = 0;
+
+    for (const auto& pair : nodePropagationDelays) {
+        uint32_t delay = pair.second;  // Delay in microseconds
+        if (delay < 1000000) {  // Sanity check: ignore delays > 1 second (likely wraparound)
+            if (delay > maxPropDelay) {
+                maxPropDelay = delay;
+            }
+            avgPropDelay += delay;
+            delayCount++;
+        }
+    }
+
+    if (delayCount > 0) {
+        avgPropDelay /= delayCount;
+        // Add 3x worst-case propagation delay (convert from us to ms, multiply by 3 for safety)
+        uint32_t latencyMargin = (maxPropDelay / 1000) * 3;
+        timeout += latencyMargin;
+
+        Serial.printf("[ADAPTIVE_TIMEOUT] Base=%ums, Nodes=%u (+%.0fms), MaxProp=%uus (+%ums), Total=%ums\n",
+                     baseTimeoutMs, nodeCount, nodeCount * perNodeFactor,
+                     maxPropDelay, latencyMargin, timeout);
+    } else {
+        Serial.printf("[ADAPTIVE_TIMEOUT] Base=%ums, Nodes=%u (+%.0fms), No latency data, Total=%ums\n",
+                     baseTimeoutMs, nodeCount, nodeCount * perNodeFactor, timeout);
+    }
+
+    return timeout;
 }
 
 void markTriangulationStopFromMesh() {
@@ -650,12 +702,13 @@ void stopTriangulation() {
         Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd)\n", triangulateAcks.size());
 
         // OPTIMIZATION: Wait for all ACK'd nodes to send final reports
-        // Use shorter timeout and yield more to prevent watchdog issues
+        // Use adaptive timeout based on node count and mesh latency
         if (triangulateAcks.size() > 0) {
             Serial.printf("[TRIANGULATE] Waiting for reports from %d nodes...\n", triangulateAcks.size());
             uint32_t waitStart = millis();
-            const uint32_t REPORT_TIMEOUT = 5000;  // Reduced from 8s to 5s
-            const uint32_t CHECK_INTERVAL = 100;   // Reduced from 200ms to 100ms
+            // Base timeout 3000ms + 1000ms per node + measured mesh latency
+            const uint32_t REPORT_TIMEOUT = calculateAdaptiveTimeout(3000, 1000.0f);
+            const uint32_t CHECK_INTERVAL = 100;   // Check every 100ms
 
             while (millis() - waitStart < REPORT_TIMEOUT) {
                 // Count how many nodes have reported
@@ -681,6 +734,15 @@ void stopTriangulation() {
                 uint32_t elapsed = millis() - waitStart;
                 if (elapsed > 2000 && reportedCount == 0) {
                     Serial.println("[TRIANGULATE] WARNING: No reports yet after 2s");
+                }
+
+                // Check for silent nodes (no heartbeat in > 15 seconds)
+                uint32_t now = millis();
+                for (const auto &ack : triangulateAcks) {
+                    if (!ack.reportReceived && (now - ack.lastHeartbeatTimestamp > 15000)) {
+                        Serial.printf("[TRIANGULATE] WARNING: Node %s silent for %us (no heartbeat)\n",
+                                     ack.nodeId.c_str(), (now - ack.lastHeartbeatTimestamp) / 1000);
+                    }
                 }
 
                 // Yield more aggressively to prevent watchdog issues

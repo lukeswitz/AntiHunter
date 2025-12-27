@@ -4737,7 +4737,10 @@ void processCommand(const String &command, const String &targetId = "")
     stopRequested = false;
 
     Serial.printf("[TRIANGULATE] Child node started scanning for %s (%ds)\n", target.c_str(), duration);
-    
+
+    // Send acknowledgment to coordinator
+    sendToSerial1(nodeId + ": TRI_START_ACK", true);
+
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
                                (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
@@ -4754,6 +4757,16 @@ void processCommand(const String &command, const String &targetId = "")
     }
 
     sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
+  }
+  else if (command.startsWith("TRI_CYCLE_START:"))
+  {
+    // Receive synchronized cycle start time from coordinator for slot coordination
+    String cycleStartStr = command.substring(16);
+    uint32_t cycleStartMs = cycleStartStr.toInt();
+
+    // Initialize the reporting schedule with the coordinator's cycle start time
+    reportingSchedule.cycleStartMs = cycleStartMs;
+    Serial.printf("[MESH] TRI_CYCLE_START received: %u ms (GPS-synced from coordinator)\n", cycleStartMs);
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
   {
@@ -4915,10 +4928,65 @@ void processMeshMessage(const String &message) {
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
     broadcastToTerminal("[RX] " + cleanMessage);
 
+    // Handle TRI_START_ACK from child nodes (coordinator only)
+    if (colonPos > 0 && triangulationInitiator) {
+        String sendingNode = cleanMessage.substring(0, colonPos);
+        String content = cleanMessage.substring(colonPos + 2);
+
+        if (content == "TRI_START_ACK") {
+            Serial.printf("[TRIANGULATE] ACK received from %s\n", sendingNode.c_str());
+            // Track which nodes have acknowledged - add to triangulateAcks if not already present
+            bool found = false;
+            for (auto& ack : triangulateAcks) {
+                if (ack.nodeId == sendingNode) {
+                    found = true;
+                    ack.ackTimestamp = millis();  // Update timestamp
+                    break;
+                }
+            }
+            if (!found) {
+                TriangulateAckInfo newAck;
+                newAck.nodeId = sendingNode;
+                newAck.ackTimestamp = millis();
+                newAck.reportReceived = false;  // Will be set to true when data arrives
+                newAck.reportTimestamp = 0;
+                newAck.lastHeartbeatTimestamp = millis();  // Initial heartbeat
+                triangulateAcks.push_back(newAck);
+                Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
+                             sendingNode.c_str(), triangulateAcks.size());
+            }
+        }
+
+        // Handle TRI_HEARTBEAT from child nodes
+        if (content == "TRI_HEARTBEAT") {
+            // Update last heartbeat timestamp for this node
+            bool found = false;
+            for (auto& ack : triangulateAcks) {
+                if (ack.nodeId == sendingNode) {
+                    found = true;
+                    ack.lastHeartbeatTimestamp = millis();
+                    break;
+                }
+            }
+            // If node not in ack list, add it (shouldn't happen but handle it)
+            if (!found && triangulationActive) {
+                TriangulateAckInfo newAck;
+                newAck.nodeId = sendingNode;
+                newAck.ackTimestamp = millis();
+                newAck.reportReceived = false;
+                newAck.reportTimestamp = 0;
+                newAck.lastHeartbeatTimestamp = millis();
+                triangulateAcks.push_back(newAck);
+                Serial.printf("[TRIANGULATE] Node %s added via heartbeat (%d total nodes)\n",
+                             sendingNode.c_str(), triangulateAcks.size());
+            }
+        }
+    }
+
     if (triangulationActive && colonPos > 0) {
         String sendingNode = cleanMessage.substring(0, colonPos);
         String content = cleanMessage.substring(colonPos + 2);
-        
+
         // TARGET_DATA from child nodes
         if (content.startsWith("TARGET_DATA:")) {
             String payload = content.substring(13);
