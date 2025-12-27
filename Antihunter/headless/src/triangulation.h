@@ -194,7 +194,7 @@ struct DynamicReportingSchedule {
         } else if (numNodes <= 10) {
             slotDurationMs = 2000;   // 10 nodes = 20s cycle
         } else {
-            slotDurationMs = 2000;   // scal for more nodes
+            slotDurationMs = 2000;   // scales for more nodes
         }
 
         Serial.printf("[SLOTS] Recalculated: %d nodes, %ums/slot, %ums guard\n",
@@ -263,10 +263,11 @@ struct DynamicReportingSchedule {
 };
 
 extern DynamicReportingSchedule reportingSchedule;
+
 struct TriangulateAckInfo {
     String nodeId;
     uint32_t ackTimestamp;
-    bool reportReceived;  // Track if node has sent final TRIANGULATE_REPORT
+    bool reportReceived;  // Track if node has sent TRIANGULATE_REPORT
     uint32_t reportTimestamp;
 };
 
