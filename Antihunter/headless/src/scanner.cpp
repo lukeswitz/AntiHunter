@@ -1800,7 +1800,7 @@ void radioStartSTA() {
     delay(100);
 
     // Configure STA for scanning
-    wifi_country_t ctry = {.schan = 1, .nchan = 12, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
+    wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
@@ -1891,14 +1891,21 @@ static void sendTriAccumulatedData(const String& nodeId) {
     }
     
     reportingSchedule.addNode(nodeId);
-    
+
     if (reportingSchedule.cycleStartMs == 0) {
-        reportingSchedule.initializeCycle(millis());
+        // Use GPS-synchronized time instead of local millis() to ensure all nodes agree on slot boundaries
+        int64_t syncedUs = getCorrectedMicroseconds();
+        uint32_t syncedMs = (uint32_t)(syncedUs / 1000LL);
+        reportingSchedule.initializeCycle(syncedMs);
+        Serial.printf("[TRI-SLOT] Initialized cycle start at syncedMs=%u (from GPS-corrected time)\n", syncedMs);
     }
     
+    // Use GPS-synchronized time for consistent slot checking across all nodes
+    int64_t syncedUs = getCorrectedMicroseconds();
+    uint32_t now = (uint32_t)(syncedUs / 1000LL);
+
     uint32_t nextSlot = 0;
-    if (!reportingSchedule.isMySlotActive(nodeId, nextSlot)) {
-        uint32_t now = millis();
+    if (!reportingSchedule.isMySlotActive(nodeId, nextSlot, now)) {
         int32_t waitMs = (int32_t)(nextSlot - now);
         
         if (waitMs > 0 && waitMs < 60000) {
@@ -2078,6 +2085,7 @@ void listScanTask(void *pv) {
     Hit h;
 
     uint32_t nextTriResultsUpdate = millis() + 2000;
+    uint32_t lastHeartbeat = 0;  // For heartbeat during triangulation
 
 
     while ((forever && !stopRequested) ||
@@ -2087,6 +2095,14 @@ void listScanTask(void *pv) {
             Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
                          (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
             nextStatus += 1000;
+        }
+
+        // Send periodic heartbeat during triangulation (child nodes only)
+        if (triangulationActive && !triangulationInitiator && (millis() - lastHeartbeat > 10000)) {
+            String hb = getNodeId() + ": TRI_HEARTBEAT";
+            sendToSerial1(hb, false);
+            lastHeartbeat = millis();
+            Serial.println("[TRIANGULATE] Heartbeat sent to coordinator");
         }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
@@ -2495,11 +2511,28 @@ void listScanTask(void *pv) {
             vTaskDelay(pdMS_TO_TICKS(500));
             stopTriangulation();
         } else {
-            // Tell the kids
+            // Child node: wait for STOP command from coordinator
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
             uint32_t waitStart = millis();
-            const uint32_t STOP_WAIT_TIMEOUT = 5000;
-            
+
+            // Adaptive timeout: Base 5s + estimated mesh latency
+            // Child doesn't know node count, so use generous base timeout
+            uint32_t STOP_WAIT_TIMEOUT = 5000;
+
+            // Add worst-case mesh latency if we have measurements
+            uint32_t maxPropDelay = 0;
+            for (const auto& pair : nodePropagationDelays) {
+                if (pair.second < 1000000 && pair.second > maxPropDelay) {
+                    maxPropDelay = pair.second;
+                }
+            }
+            if (maxPropDelay > 0) {
+                uint32_t latencyMargin = (maxPropDelay / 1000) * 5;  // 5x safety factor
+                STOP_WAIT_TIMEOUT += latencyMargin;
+                Serial.printf("[SCAN CHILD] Adaptive timeout: %ums (base 5s + %ums latency margin)\n",
+                             STOP_WAIT_TIMEOUT, latencyMargin);
+            }
+
             while (!stopRequested && (millis() - waitStart < STOP_WAIT_TIMEOUT)) {
                 vTaskDelay(pdMS_TO_TICKS(100));
             }

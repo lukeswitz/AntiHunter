@@ -201,16 +201,19 @@ struct DynamicReportingSchedule {
                      numNodes, slotDurationMs, guardIntervalMs);
     }
     
-    bool isMySlotActive(const String& nodeId, uint32_t& nextSlotMs) {
+    bool isMySlotActive(const String& nodeId, uint32_t& nextSlotMs, uint32_t now = 0) {
         std::lock_guard<std::mutex> lock(nodeMutex);
         if (nodes.find(nodeId) == nodes.end()) return false;
         if (cycleStartMs == 0) return false;
-        
+
         uint8_t numNodes = nodes.size();
         if (numNodes == 0) return false;
-        
-        uint32_t now = millis();
-        uint32_t elapsed = (now >= cycleStartMs) ? (now - cycleStartMs) : 
+
+        // Use provided GPS-synchronized time if available, otherwise fall back to millis()
+        if (now == 0) {
+            now = millis();
+        }
+        uint32_t elapsed = (now >= cycleStartMs) ? (now - cycleStartMs) :
                           (UINT32_MAX - cycleStartMs + now + 1);
         
         uint32_t cycleMs = slotDurationMs * numNodes;
@@ -269,6 +272,7 @@ struct TriangulateAckInfo {
     uint32_t ackTimestamp;
     bool reportReceived;  // Track if node has sent TRIANGULATE_REPORT
     uint32_t reportTimestamp;
+    uint32_t lastHeartbeatTimestamp;  // Track last heartbeat from child node
 };
 
 extern ClockDiscipline clockDiscipline;
