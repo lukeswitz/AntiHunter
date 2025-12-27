@@ -167,21 +167,20 @@ void setup() {
     delay(10);
     initializeDroneDetector();
     delay(20);
-    initializeNetwork();
-    delay(200);
     initializeSD();
-    delay(500);
 
     if (waitForInitialConfig()) {
-        return;
+        delay(1000);
     }
 
-    loadConfiguration();
     delay(500);
+    loadConfiguration();
 
     Serial.println("Waiting for mesh device stability...");
     delay(15000);
 
+    initializeNetwork();
+    delay(500);
     initializeGPS();
     delay(1000);
     initializeRTC();

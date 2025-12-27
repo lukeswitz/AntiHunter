@@ -396,7 +396,6 @@ static inline bool matchesMac(const uint8_t *mac)
     return false;
 }
 
-
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
@@ -743,7 +742,8 @@ void snifferScanTask(void *pv)
                     const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                     String macStr = device->getAddress().toString().c_str();
                     macStr.toUpperCase();
-                    int8_t rssi = device->getRSSI();    
+                    int8_t rssi = device->getRSSI();
+
                     if (rssi < rfConfig.globalRssiThreshold) {
                         continue;
                     }
@@ -1219,7 +1219,8 @@ void blueTeamTask(void *pv) {
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
 
-    String startMsg = forever ? String("[BLUE] Starting deauth detection (forever)\n")
+    String startMsg = forever ?
+                              String("[BLUE] Starting deauth detection (forever)\n")
                               : String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
     Serial.print(startMsg);
     
@@ -1799,7 +1800,7 @@ void radioStartSTA() {
     // Use AP_STA mode instead of just STA
     WiFi.mode(WIFI_AP_STA);
     delay(100);
-    
+
     // Configure STA for scanning while keeping AP alive
     wifi_country_t ctry = {.schan = 1, .nchan = 12, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
@@ -1859,18 +1860,21 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.wifiMinRssi = 0;
     triAccum.wifiRssiSum = 0.0f;
     triAccum.wifiFirstDetectionTimestamp = 0;
+    triAccum.wifiRssiSamples.clear();
 
     triAccum.bleHitCount = 0;
     triAccum.bleMaxRssi = -128;
     triAccum.bleMinRssi = 0;
     triAccum.bleRssiSum = 0.0f;
     triAccum.bleFirstDetectionTimestamp = 0;
+    triAccum.bleRssiSamples.clear();
 
     triAccum.lat = 0.0f;
     triAccum.lon = 0.0f;
     triAccum.hdop = 99.9f;
     triAccum.hasGPS = false;
     triAccum.lastSendTime = millis();
+    triAccum.finalReportSent = false;
 }
 uint32_t hashString(const String& str) {
     uint32_t hash = 0;
@@ -1886,8 +1890,10 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (!triangulationActive) {
         triAccum.wifiHitCount = 0;
         triAccum.wifiRssiSum = 0.0f;
+        triAccum.wifiRssiSamples.clear();
         triAccum.bleHitCount = 0;
         triAccum.bleRssiSum = 0.0f;
+        triAccum.bleRssiSamples.clear();
         return;
     }
     
@@ -1963,8 +1969,10 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (sentAny) {
         triAccum.wifiHitCount = 0;
         triAccum.wifiRssiSum = 0.0f;
+        triAccum.wifiRssiSamples.clear();
         triAccum.bleHitCount = 0;
         triAccum.bleRssiSum = 0.0f;
+        triAccum.bleRssiSamples.clear();
         triAccum.lastSendTime = millis();
         delay(150);
     }
@@ -2281,6 +2289,7 @@ void listScanTask(void *pv) {
                         }
                         triAccum.bleHitCount++;
                         triAccum.bleRssiSum += (float)h.rssi;
+                        triAccum.bleRssiSamples.push_back(h.rssi);
                         if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
                         if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
                     } else {
@@ -2290,6 +2299,7 @@ void listScanTask(void *pv) {
                         }
                         triAccum.wifiHitCount++;
                         triAccum.wifiRssiSum += (float)h.rssi;
+                        triAccum.wifiRssiSamples.push_back(h.rssi);
                         if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
                         if (h.rssi < triAccum.wifiMinRssi || triAccum.wifiMinRssi == 0) triAccum.wifiMinRssi = h.rssi;
                     }
