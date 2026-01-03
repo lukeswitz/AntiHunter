@@ -1885,45 +1885,19 @@ uint32_t hashString(const String& str) {
 
 static void sendTriAccumulatedData(const String& nodeId) {
     if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
-    
+
     if (!triangulationActive) {
-        triAccum.wifiHitCount = 0;
-        triAccum.wifiRssiSum = 0.0f;
-        triAccum.wifiRssiSamples.clear();
-        triAccum.bleHitCount = 0;
-        triAccum.bleRssiSum = 0.0f;
-        triAccum.bleRssiSamples.clear();
         return;
     }
-    
-    reportingSchedule.addNode(nodeId);
 
-    if (reportingSchedule.cycleStartMs == 0) {
-        // Use GPS-synchronized time instead of local millis() to ensure all nodes agree on slot boundaries
-        int64_t syncedUs = getCorrectedMicroseconds();
-        uint32_t syncedMs = (uint32_t)(syncedUs / 1000LL);
-        reportingSchedule.initializeCycle(syncedMs);
-        Serial.printf("[TRI-SLOT] Initialized cycle start at syncedMs=%u (from GPS-corrected time)\n", syncedMs);
+    // Child nodes: simple rate limiting without slot checking
+    // sendToSerial1 already has built-in rate limiting (200 char per 3s)
+    // Just send once every few seconds and let it queue
+    static uint32_t lastSendAttempt = 0;
+    if (millis() - lastSendAttempt < 3000) {
+        return;  // Rate limit: only attempt send every 3 seconds
     }
-    
-    // Use GPS-synchronized time for consistent slot checking across all nodes
-    int64_t syncedUs = getCorrectedMicroseconds();
-    uint32_t now = (uint32_t)(syncedUs / 1000LL);
-
-    uint32_t nextSlot = 0;
-    if (!reportingSchedule.isMySlotActive(nodeId, nextSlot, now)) {
-        int32_t waitMs = (int32_t)(nextSlot - now);
-        
-        if (waitMs > 0 && waitMs < 60000) {
-            static uint32_t lastLog = 0;
-            if (millis() - lastLog > 2000) {
-                Serial.printf("[TRI-WAIT] Node %s: waiting %dms for slot (next=%u, now=%u)\n", 
-                            nodeId.c_str(), waitMs, nextSlot, now);
-                lastLog = millis();
-            }
-        }
-        return;
-    }
+    lastSendAttempt = millis();
     
     String macStr = macFmt6(triAccum.targetMac);
     bool sentAny = false;
@@ -1931,12 +1905,14 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (triAccum.wifiHitCount > 0) {
         int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
         String wifiMsg = nodeId + ": TARGET_DATA: " + macStr +
-                         " RSSI:" + String(wifiAvgRssi);
+                         " RSSI:" + String(wifiAvgRssi) +
+                         " Hits=" + String(triAccum.wifiHitCount) +
+                         " Type:WiFi";
         if (triAccum.hasGPS) {
             wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                        " HDOP=" + String(triAccum.hdop, 1);
         }
-        if (triAccum.wifiFirstDetectionTimestamp > 0) { // add microseconds
+        if (triAccum.wifiFirstDetectionTimestamp > 0) {
             double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
             char tsStr[32];
             snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
@@ -1949,17 +1925,18 @@ static void sendTriAccumulatedData(const String& nodeId) {
             delay(400);
         }
     }
-    
+
     if (triAccum.bleHitCount > 0) {
         int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
         String bleMsg = nodeId + ": TARGET_DATA: " + macStr +
-                        " RSSI:" + String(bleAvgRssi);
+                        " RSSI:" + String(bleAvgRssi) +
+                        " Hits=" + String(triAccum.bleHitCount) +
+                        " Type:BLE";
         if (triAccum.hasGPS) {
             bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                       " HDOP=" + String(triAccum.hdop, 1);
         }
         if (triAccum.bleFirstDetectionTimestamp > 0) {
-            // microsecond conversion
             double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
             char tsStr[32];
             snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
@@ -1971,14 +1948,10 @@ static void sendTriAccumulatedData(const String& nodeId) {
             Serial.printf("[TRI-SLOT] %s: BLE sent (%d hits)\n", nodeId.c_str(), triAccum.bleHitCount);
         }
     }
-    
+
+    // DO NOT reset accumulator during active triangulation - we need cumulative totals!
+    // The accumulator will be reset when triangulation stops or target changes
     if (sentAny) {
-        triAccum.wifiHitCount = 0;
-        triAccum.wifiRssiSum = 0.0f;
-        triAccum.wifiRssiSamples.clear();
-        triAccum.bleHitCount = 0;
-        triAccum.bleRssiSum = 0.0f;
-        triAccum.bleRssiSamples.clear();
         triAccum.lastSendTime = millis();
         delay(150);
     }
@@ -2086,7 +2059,6 @@ void listScanTask(void *pv) {
     Hit h;
 
     uint32_t nextTriResultsUpdate = millis() + 2000;
-    uint32_t lastHeartbeat = 0;  // For heartbeat during triangulation
 
 
     while ((forever && !stopRequested) ||
@@ -2096,14 +2068,6 @@ void listScanTask(void *pv) {
             Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
                          (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
             nextStatus += 1000;
-        }
-
-        // Send periodic heartbeat during triangulation (child nodes only)
-        if (triangulationActive && !triangulationInitiator && (millis() - lastHeartbeat > 10000)) {
-            String hb = getNodeId() + ": TRI_HEARTBEAT";
-            sendToSerial1(hb, false);
-            lastHeartbeat = millis();
-            Serial.println("[TRIANGULATE] Heartbeat sent to coordinator");
         }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
@@ -2401,8 +2365,8 @@ void listScanTask(void *pv) {
             }
         }
 
-        // Dynamic update to results
-        if (triangulationActive && (int32_t)(millis() - nextTriResultsUpdate) >= 0) {
+        // Dynamic update to results (only while running, stop when stopRequested is set)
+        if (triangulationActive && !stopRequested && (int32_t)(millis() - nextTriResultsUpdate) >= 0) {
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 
@@ -2436,13 +2400,14 @@ void listScanTask(void *pv) {
 
         if (triangulationActive) {
             static uint32_t nextTriReportCheck = 0;
+            // Check periodically - sendTriAccumulatedData has built-in 3s rate limiting
             if ((int32_t)(millis() - nextTriReportCheck) >= 0) {
                 String myNodeId = getNodeId();
                 if (myNodeId.length() == 0) {
                     myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
                 }
                 sendTriAccumulatedData(myNodeId);
-                nextTriReportCheck = millis() + 10000;
+                nextTriReportCheck = millis() + 1000;  // Check every second
             }
         }
 

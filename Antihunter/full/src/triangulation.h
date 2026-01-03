@@ -272,7 +272,6 @@ struct TriangulateAckInfo {
     uint32_t ackTimestamp;
     bool reportReceived;  // Track if node has sent TRIANGULATE_REPORT
     uint32_t reportTimestamp;
-    uint32_t lastHeartbeatTimestamp;  // Track last heartbeat from child node
 };
 
 extern ClockDiscipline clockDiscipline;
