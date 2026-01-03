@@ -719,37 +719,12 @@ void processMeshMessage(const String &message) {
                 newAck.ackTimestamp = millis();
                 newAck.reportReceived = false;  // Will be set to true when data arrives
                 newAck.reportTimestamp = 0;
-                newAck.lastHeartbeatTimestamp = millis();  // Initial heartbeat
                 triangulateAcks.push_back(newAck);
                 Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
                              sendingNode.c_str(), triangulateAcks.size());
             }
         }
 
-        // Handle TRI_HEARTBEAT from child nodes
-        if (content == "TRI_HEARTBEAT") {
-            // Update last heartbeat timestamp for this node
-            bool found = false;
-            for (auto& ack : triangulateAcks) {
-                if (ack.nodeId == sendingNode) {
-                    found = true;
-                    ack.lastHeartbeatTimestamp = millis();
-                    break;
-                }
-            }
-            // If node not in ack list, add it (shouldn't happen but handle it)
-            if (!found && triangulationActive) {
-                TriangulateAckInfo newAck;
-                newAck.nodeId = sendingNode;
-                newAck.ackTimestamp = millis();
-                newAck.reportReceived = false;
-                newAck.reportTimestamp = 0;
-                newAck.lastHeartbeatTimestamp = millis();
-                triangulateAcks.push_back(newAck);
-                Serial.printf("[TRIANGULATE] Node %s added via heartbeat (%d total nodes)\n",
-                             sendingNode.c_str(), triangulateAcks.size());
-            }
-        }
     }
 
     if (triangulationActive && colonPos > 0) {
@@ -871,6 +846,21 @@ void processMeshMessage(const String &message) {
                             Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
                                         sendingNode.c_str(), hits, rssi,
                                         newNode.isBLE ? "BLE" : "WiFi");
+                        }
+
+                        // Mark this node as having reported (coordinator only)
+                        if (triangulationInitiator && waitingForFinalReports) {
+                            for (auto& ack : triangulateAcks) {
+                                if (ack.nodeId == sendingNode) {
+                                    if (!ack.reportReceived) {
+                                        ack.reportReceived = true;
+                                        ack.reportTimestamp = millis();
+                                        Serial.printf("[TRIANGULATE] Node %s marked as reported (%s data)\n",
+                                                     sendingNode.c_str(), isBLE ? "BLE" : "WiFi");
+                                    }
+                                    break;
+                                }
+                            }
                         }
                     }
                 }

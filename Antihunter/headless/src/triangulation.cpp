@@ -586,7 +586,7 @@ void startTriangulation(const String &targetMac, int duration) {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults.clear();
     }
-    
+
     triangulationNodes.clear();
     nodeSyncStatus.clear();
     triangulationNodes.reserve(10);
@@ -816,15 +816,6 @@ void stopTriangulation() {
                 Serial.printf("[TRIANGULATE] Waiting... %d/%d nodes reported\n",
                             reportedCount, triangulateAcks.size());
                 lastProgressLog = millis();
-            }
-
-            // Check for silent nodes (no heartbeat in > 15 seconds)
-            uint32_t now = millis();
-            for (const auto &ack : triangulateAcks) {
-                if (!ack.reportReceived && (now - ack.lastHeartbeatTimestamp > 15000)) {
-                    Serial.printf("[TRIANGULATE] WARNING: Node %s silent for %us (no heartbeat)\n",
-                                 ack.nodeId.c_str(), (now - ack.lastHeartbeatTimestamp) / 1000);
-                }
             }
 
             // Yield more aggressively to prevent watchdog issues

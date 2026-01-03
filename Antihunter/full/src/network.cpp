@@ -3036,11 +3036,34 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           state.inProgress = true;
           state.lastSubmit = now;
 
-          // Disable button and update UI
+          // Check if triangulation mode is selected
+          const isTriangulation = fd.has('triangulate') && fd.get('triangulate') === '1';
+
+          // Immediately update UI to show scanning state for ALL scan types
+          const scanStatusEl = document.getElementById('scanStatus');
+          if (scanStatusEl) {
+              scanStatusEl.innerText = isTriangulation ? 'Triangulating' : 'Scanning';
+              scanStatusEl.classList.add('active');
+          }
+
+          // Update button immediately for all scan types
           if (submitBtn) {
-              submitBtn.disabled = true;
-              submitBtn.style.opacity = '0.6';
-              submitBtn.style.cursor = 'not-allowed';
+              submitBtn.textContent = 'Stop Scan';
+              submitBtn.classList.remove('primary');
+              submitBtn.classList.add('danger');
+              submitBtn.disabled = false;  // Keep enabled so they can stop
+              submitBtn.style.opacity = '1';
+              submitBtn.style.cursor = 'pointer';
+              submitBtn.type = 'button';
+              submitBtn.onclick = function(e) {
+                  e.preventDefault();
+                  fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                      setTimeout(async () => {
+                          const refreshedDiag = await fetch('/diag').then(r => r.text());
+                          updateStatusIndicators(refreshedDiag);
+                      }, 500);
+                  });
+              };
           }
 
           console.log('[SCAN] Form submitted at', new Date().toISOString());
@@ -3065,11 +3088,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }).finally(() => {
             setTimeout(() => {
               state.inProgress = false;
-              if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.style.opacity = '1';
-                submitBtn.style.cursor = 'pointer';
-              }
+              // Don't reset button state - we updated it immediately on click
+              // and tick() will sync it with the actual backend state
               console.log('[SCAN] State reset at', new Date().toISOString());
             }, 500);
           });
@@ -4950,37 +4970,12 @@ void processMeshMessage(const String &message) {
                 newAck.ackTimestamp = millis();
                 newAck.reportReceived = false;  // Will be set to true when data arrives
                 newAck.reportTimestamp = 0;
-                newAck.lastHeartbeatTimestamp = millis();  // Initial heartbeat
                 triangulateAcks.push_back(newAck);
                 Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
                              sendingNode.c_str(), triangulateAcks.size());
             }
         }
 
-        // Handle TRI_HEARTBEAT from child nodes
-        if (content == "TRI_HEARTBEAT") {
-            // Update last heartbeat timestamp for this node
-            bool found = false;
-            for (auto& ack : triangulateAcks) {
-                if (ack.nodeId == sendingNode) {
-                    found = true;
-                    ack.lastHeartbeatTimestamp = millis();
-                    break;
-                }
-            }
-            // If node not in ack list, add it (shouldn't happen but handle it)
-            if (!found && triangulationActive) {
-                TriangulateAckInfo newAck;
-                newAck.nodeId = sendingNode;
-                newAck.ackTimestamp = millis();
-                newAck.reportReceived = false;
-                newAck.reportTimestamp = 0;
-                newAck.lastHeartbeatTimestamp = millis();
-                triangulateAcks.push_back(newAck);
-                Serial.printf("[TRIANGULATE] Node %s added via heartbeat (%d total nodes)\n",
-                             sendingNode.c_str(), triangulateAcks.size());
-            }
-        }
     }
 
     if (triangulationActive && colonPos > 0) {
@@ -5102,6 +5097,21 @@ void processMeshMessage(const String &message) {
                             Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
                                         sendingNode.c_str(), hits, rssi,
                                         newNode.isBLE ? "BLE" : "WiFi");
+                        }
+
+                        // Mark this node as having reported (coordinator only)
+                        if (triangulationInitiator && waitingForFinalReports) {
+                            for (auto& ack : triangulateAcks) {
+                                if (ack.nodeId == sendingNode) {
+                                    if (!ack.reportReceived) {
+                                        ack.reportReceived = true;
+                                        ack.reportTimestamp = millis();
+                                        Serial.printf("[TRIANGULATE] Node %s marked as reported (%s data)\n",
+                                                     sendingNode.c_str(), isBLE ? "BLE" : "WiFi");
+                                    }
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
