@@ -4866,6 +4866,10 @@ void processCommand(const String &command, const String &targetId = "")
                       " Window:" + String(detectionWindow/1000) + "s Cooldown:" + String(autoEraseCooldown/1000) + "s";
     sendToSerial1(response, true);
     Serial.printf("[AUTOERASE] Enabled - setup mode active for %us\n", setupDelay/1000);
+
+    // Send SETUP_MODE alert
+    String setupModeAlert = nodeId + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
+    sendToSerial1(setupModeAlert, false);
   }
   else if (command == "AUTOERASE_DISABLE")
   {
