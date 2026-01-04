@@ -442,8 +442,21 @@ bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float
     for (size_t i = 1; i < validNodes.size(); i++) {
         const TriangulationNode &node = validNodes[i];
 
-        // Calculate time difference in seconds
-        double timeDiff = (node.detectionTimestamp - refNode.detectionTimestamp) / 1000000.0;
+        // Get propagation delays for mesh communication compensation
+        uint32_t refPropDelay = 0;
+        uint32_t nodePropDelay = 0;
+        if (nodePropagationDelays.count(refNode.nodeId) > 0) {
+            refPropDelay = nodePropagationDelays[refNode.nodeId];
+        }
+        if (nodePropagationDelays.count(node.nodeId) > 0) {
+            nodePropDelay = nodePropagationDelays[node.nodeId];
+        }
+
+        // Calculate time difference in seconds, compensating for mesh propagation delays
+        // Subtract propagation delay to get actual signal arrival time at each node
+        int64_t refCorrectedTimestamp = refNode.detectionTimestamp - (int64_t)refPropDelay;
+        int64_t nodeCorrectedTimestamp = node.detectionTimestamp - (int64_t)nodePropDelay;
+        double timeDiff = (nodeCorrectedTimestamp - refCorrectedTimestamp) / 1000000.0;
 
         // Calculate range difference (meters)
         float rangeDiff = timeDiff * SPEED_OF_LIGHT;
@@ -483,8 +496,8 @@ bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float
         sumWeights += weight;
         validSolutions++;
 
-        Serial.printf("[TDOA] Pair %s<->%s: TDOA=%.6fs rangeDiff=%.1fm baseline=%.1fm\n",
-                      refNode.nodeId.c_str(), node.nodeId.c_str(), timeDiff, rangeDiff, baseline);
+        Serial.printf("[TDOA] Pair %s<->%s: TDOA=%.6fs (propDelay: %uus/%uus) rangeDiff=%.1fm baseline=%.1fm\n",
+                      refNode.nodeId.c_str(), node.nodeId.c_str(), timeDiff, refPropDelay, nodePropDelay, rangeDiff, baseline);
     }
 
     if (validSolutions == 0 || sumWeights == 0.0) {
