@@ -752,7 +752,7 @@ void processMeshMessage(const String &message) {
                     int tsIdx = payload.indexOf("TS=");
 
                     if (rssiIdx > 0) {
-                        int hits = 1;  // Default if no Hits field present
+                        int hits = -1;  // -1 means no Hits field present, keep existing value
                         if (hitsIdx > 0) {
                             hits = payload.substring(hitsIdx + 5, payload.indexOf(' ', hitsIdx)).toInt();
                         }
@@ -804,12 +804,15 @@ void processMeshMessage(const String &message) {
                             double timestampSec = payload.substring(tsIdx + 3, tsEnd).toDouble();
                             detectionTimestamp = (int64_t)(timestampSec * 1000000.0);  // Convert to microseconds
                         }
-                        
+
                         bool found = false;
                         for (auto &node : triangulationNodes) {
                             if (node.nodeId == sendingNode) {
                                 updateNodeRSSI(node, rssi);
-                                node.hitCount = hits;
+                                // Only update hitCount if Hits field was present (cumulative updates from node)
+                                if (hits >= 0) {
+                                    node.hitCount = hits;
+                                }
                                 node.isBLE = isBLE;
                                 if (hasGPS) {
                                     node.lat = lat;
@@ -824,20 +827,20 @@ void processMeshMessage(const String &message) {
                                 node.distanceEstimate = rssiToDistance(node, !node.isBLE);
                                 found = true;
                                 Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm Type=%s GPS=%s\n",
-                                            sendingNode.c_str(), hits, rssi,
+                                            sendingNode.c_str(), node.hitCount, rssi,
                                             node.isBLE ? "BLE" : "WiFi",
                                             hasGPS ? "YES" : "NO");
                                 break;
                             }
                         }
-                        
+
                         if (!found) {
                             TriangulationNode newNode;
                             newNode.nodeId = sendingNode;
                             newNode.lat = lat;
                             newNode.lon = lon;
                             newNode.rssi = rssi;
-                            newNode.hitCount = hits;
+                            newNode.hitCount = (hits >= 0) ? hits : 1;  // Default to 1 for new nodes if no Hits field
                             newNode.hasGPS = hasGPS;
                             newNode.hdop = hdop;
                             newNode.isBLE = isBLE;
@@ -1022,6 +1025,45 @@ void processMeshMessage(const String &message) {
                             apFinalResult.longitude,
                             apFinalResult.confidence * 100.0,
                             apFinalResult.uncertainty);
+            }
+        }
+
+        if (content.startsWith("TRIANGULATE_COMPLETE:")) {
+            // Parse and log the complete message with URL
+            String payload = content.substring(21);
+
+            int macIdx = payload.indexOf("MAC=");
+            int nodesIdx = payload.indexOf("Nodes=");
+            int gpsIdx = payload.indexOf("GPS=");
+            int urlIdx = payload.indexOf("URL=");
+
+            if (macIdx >= 0 && nodesIdx > 0) {
+                int nodeCount = 0;
+                int spaceAfterNodes = payload.indexOf(' ', nodesIdx + 6);
+                if (spaceAfterNodes > 0) {
+                    nodeCount = payload.substring(nodesIdx + 6, spaceAfterNodes).toInt();
+                } else {
+                    nodeCount = payload.substring(nodesIdx + 6).toInt();
+                }
+
+                String logMsg = "[TRIANGULATE] Complete from " + sendingNode + ": " + String(nodeCount) + " nodes";
+
+                if (gpsIdx > 0) {
+                    int gpsEnd = payload.length();
+                    if (urlIdx > gpsIdx) {
+                        gpsEnd = payload.indexOf(' ', gpsIdx);
+                        if (gpsEnd < 0 || gpsEnd > urlIdx) gpsEnd = urlIdx - 1;
+                    }
+                    String gpsStr = payload.substring(gpsIdx + 4, gpsEnd);
+                    logMsg += ", GPS=" + gpsStr;
+                }
+
+                if (urlIdx > 0) {
+                    String urlStr = payload.substring(urlIdx + 4);
+                    logMsg += ", URL=" + urlStr;
+                }
+
+                Serial.println(logMsg);
             }
         }
 

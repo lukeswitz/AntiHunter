@@ -586,7 +586,6 @@ void startTriangulation(const String &targetMac, int duration) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        // Don't force delete - just clear and log error
         if (workerTaskHandle != nullptr) {
             Serial.println("[TRIANGULATE] ERROR: Worker task still running, aborting start to prevent corruption");
             workerTaskHandle = nullptr;
@@ -946,7 +945,7 @@ void stopTriangulation() {
                                 " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
                                 " CONF=" + String(confidence * 100.0, 1) +
                                 " UNC=" + String(cep, 1);
-                sendToSerial1(finalMsg, false);
+                sendToSerial1(finalMsg, true);
                 Serial.printf("[TRIANGULATE] Initiator sent final result: %s\n", finalMsg.c_str());
 
                 vTaskDelay(pdMS_TO_TICKS(1000));
@@ -983,6 +982,7 @@ void stopTriangulation() {
 
     if (selfDetected && selfHits > 0) {
         String dataMsg = myNodeId + ": TARGET_DATA: " + macFmt6(triangulationTarget) +
+                        " Hits=" + String(selfHits) +
                         " RSSI:" + String(selfBestRSSI);
 
         if (gpsValid) {
@@ -1004,14 +1004,12 @@ void stopTriangulation() {
     }
 
     rateLimiter.flush();
-    Serial1.flush();
-    vTaskDelay(pdMS_TO_TICKS(300));
+    vTaskDelay(pdMS_TO_TICKS(500));
 
     if (triangulationInitiator) {
         bool sent = sendToSerial1(resultMsg, true);
         Serial.printf("[TRIANGULATE] Initiator sent TRIANGULATE_COMPLETE: %s\n", sent ? "SUCCESS" : "FAILED");
-        vTaskDelay(pdMS_TO_TICKS(200));
-        Serial1.flush();
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 
     // Clear flags first to prevent any race conditions
@@ -1080,7 +1078,16 @@ String calculateTriangulation() {
 
     // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
-    results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n\n";
+    results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n";
+
+    // Add quick maps link at top if we have a final position
+    if (apFinalResult.hasResult) {
+        String quickMapsUrl = "https://www.google.com/maps?q=" +
+                            String(apFinalResult.latitude, 6) + "," +
+                            String(apFinalResult.longitude, 6);
+        results += "Maps Link: " + quickMapsUrl + "\n";
+    }
+    results += "\n";
 
     // Display AP/Coordinator Final Result prominently if available
     if (apFinalResult.hasResult) {
