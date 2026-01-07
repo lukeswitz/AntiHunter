@@ -473,148 +473,35 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ## Mesh Command Reference
 
 > [!NOTE]
-> All timestamps in mesh commands and alerts use UTC (Coordinated Universal Time).
+> All timestamps use UTC. Node addressing: `@ABC COMMAND` for specific node, `@ALL COMMAND` for broadcast. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9).
 
-### Node Addressing Format
-- **Specific Node**: `@ABC12 COMMAND` - Targets individual node
-- **All Nodes**: `@ALL COMMAND` - Broadcast to entire network
-- **Node ID**: 2-5 alphanumeric characters (A-Z, 0-9)
-- **Response**: All responses prefixed with sending Node ID
-
-> [!IMPORTANT]
-> Node IDs must be 2-5 alphanumeric characters (A-Z, 0-9). Valid examples: `AB`, `A1C`, `XYZ99`, `12345`. This format is required for C2 integration
-
-### Command Parameters
-
-| Parameter | Values | Description |
-|-----------|--------|-------------|
-| `mode` | `0`, `1`, `2` | WiFi Only, BLE Only, WiFi+BLE |
-| `secs` | `0-86400` | Duration in seconds (0 or omit for continuous) |
-| `forever` | `1` or present | Run indefinitely |
-| `ch` | `1,6,11` or `1..14` | WiFi channels (CSV or range) |
-| `triangulate` | `1` | Enable multi-node triangulation |
-| `targetMac` | `AA:BB:CC:DD:EE:FF` | Target device MAC address |
-
-
-## **Mesh Commands**
+### Core Commands
 
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
-| `STATUS` | None | Reports system status (mode, scan state, hits, unique MACs, temperature, uptime, GPS, HDOP) | `@ALL STATUS` |
-| `CONFIG_CHANNELS` | `channels` (CSV/range) | Configures WiFi channels | `@AH02 CONFIG_CHANNELS:1,6,11` |
-| `CONFIG_TARGETS` | `macs` (pipe-delimited) | Updates target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
-| `CONFIG_RSSI` | `threshold` (-128 to -10) | Sets RSSI signal strength threshold for detections | `@AH02 CONFIG_RSSI:-65` |
-| `CONFIG_NODEID` | `id` (2-5 alphanumeric) | Updates node identifier (A-Z, 0-9 only) | `@AH02 CONFIG_NODEID:AH03` |
-| `SCAN_START` | `mode:secs:channels[:FOREVER]` | Starts scanning (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
-| `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Starts device discovery scan (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL DEVICE_SCAN_START:2:300` |
-| `DRONE_START` | `secs[:FOREVER]` | Starts drone RID detection (WiFi only, max 86400 secs) | `@ALL DRONE_START:600` |
-| `DEAUTH_START` | `secs[:FOREVER]` | Starts deauthentication attack detection (max 86400 secs) | `@ALL DEAUTH_START:300` |
-| `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | Starts MAC randomization detection (mode: 0=WiFi, 1=BLE, 2=Both) | `@ALL RANDOMIZATION_START:2:600` |
-| `BASELINE_START` | `duration[:FOREVER]` | Initiates baseline environment establishment (max 86400 secs) | `@ALL BASELINE_START:300` |
-| `BASELINE_STATUS` | None | Reports baseline detection status (scanning, established, device count, anomalies) | `@ALL BASELINE_STATUS` |
-| `STOP` | None | Stops all operations | `@ALL STOP` |
-| `VIBRATION_STATUS` | None | Checks tamper sensor status | `@AH02 VIBRATION_STATUS` |
-| `TRIANGULATE_START` | `target:duration` | Initiates triangulation for target MAC (AA:BB:CC:DD:EE:FF) or Identity ID (T-XXXX) with duration in seconds. **Must send to @ALL** | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` or `@ALL TRIANGULATE_START:T-002F:300` |
-| `TRIANGULATE_STOP` | None | Halts ongoing triangulation operation | `@ALL TRIANGULATE_STOP` |
-| `TRIANGULATE_RESULTS` | None | Retrieves calculated triangulation results | `@NODE1 TRIANGULATE_RESULTS` |
-| `ERASE_REQUEST` | None | Requests erase token from device (auto-generates if none exists, valid for 5 minutes) | `@AH01 ERASE_REQUEST` |
-| `ERASE_FORCE` | `token` | Forces emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
-| `ERASE_CANCEL` | None | Cancels ongoing erasure sequence | `@ALL ERASE_CANCEL` |
-| `AUTOERASE_ENABLE` | `[setupDelay:eraseDelay:vibs:window:cooldown]` (optional, all in seconds) | Enables auto-erase with optional parameters. Defaults: 120s setup, 30s erase, 3 vibs, 20s window, 300s cooldown | `@AH01 AUTOERASE_ENABLE` or `@AH01 AUTOERASE_ENABLE:60:30:3:20:300` |
-| `AUTOERASE_DISABLE` | None | Disables auto-erase feature | `@AH01 AUTOERASE_DISABLE` |
-| `AUTOERASE_STATUS` | None | Reports auto-erase configuration and status | `@AH01 AUTOERASE_STATUS` |
+| `STATUS` | None | System status (mode, scan state, hits, temp, uptime, GPS) | `@ALL STATUS` |
+| `CONFIG_TARGETS` | `macs` (pipe-delimited) | Update target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
+| `SCAN_START` | `mode:secs:channels[:FOREVER]` | Start scan (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
+| `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Device discovery scan | `@ALL DEVICE_SCAN_START:2:300` |
+| `BASELINE_START` | `duration[:FOREVER]` | Baseline anomaly detection | `@ALL BASELINE_START:300` |
+| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). Send to @ALL | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
+| `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
+| `STOP` | None | Stop all operations | `@ALL STOP` |
+| `ERASE_REQUEST` | None | Request erase token (valid 5 min) | `@AH01 ERASE_REQUEST` |
+| `ERASE_FORCE` | `token` | Emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
 
----
+### Key Alert Messages
 
-## **Mesh Alert Messages**
+| Alert Type | Format |
+|------------|--------|
+| **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]` |
+| **Baseline Anomaly** | `NODE_ID: ANOMALY-NEW/RETURN/RSSI: TYPE MAC RSSI:dBm [details]` |
+| **Deauth Attack** | `NODE_ID: ATTACK: DEAUTH SRC:MAC DST:MAC RSSI:dBm CH:N` |
+| **Triangulation Data** | `NODE_ID: T_D: MAC RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` |
+| **Triangulation Complete** | `NODE_ID: TRIANGULATE_COMPLETE: MAC=XX:XX:XX:XX:XX:XX Nodes=N [Google Maps link]` |
+| **Tamper Detected** | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
+| **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE/IDLE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 
-### Detection & RF Attack Alerts
-
-| Alert Type | Format | Example |
-|------------|--------|---------|
-| **Target Detected** | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]` | `NODE_ABC: Target: WiFi AA:BB:CC:DD:EE:FF RSSI:-62 Name:Device GPS=40.7128,-74.0060` |
-| **Device Discovered** | `NODE_ID: DEVICE:MAC W/B RSSI [CN] [N:Name]` | `NODE_ABC: DEVICE:AA:BB:CC:DD:EE:FF W -65 C6 N:MyRouter` |
-| **Drone Detected** | `NODE_ID: DRONE: MAC ID:id Rrssi GPS:lat,lon ALT:alt SPD:speed OP:lat,lon` | `NODE_ABC: DRONE: AA:BB:CC:DD:EE:FF ID:1234567890ABCDEF R-65 GPS:40.712800,-74.006000 ALT:123.5 SPD:25.5 OP:40.712800,-74.006000` |
-| **Baseline Anomaly - New** | `NODE_ID: ANOMALY-NEW: TYPE MAC RSSI:dBm [Name:name]` | `NODE_ABC: ANOMALY-NEW: WiFi AA:BB:CC:DD:EE:FF RSSI:-45 Name:Unknown` |
-| **Baseline Anomaly - Return** | `NODE_ID: ANOMALY-RETURN: TYPE MAC RSSI:dBm [Name:name]` | `NODE_ABC: ANOMALY-RETURN: BLE AA:BB:CC:DD:EE:FF RSSI:-55` |
-| **Baseline Anomaly - RSSI** | `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:dBm New:dBm Delta:dBm` | `NODE_ABC: ANOMALY-RSSI: WiFi AA:BB:CC:DD:EE:FF Old:-75 New:-45 Delta:30` |
-| **Deauth Attack (Long)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC [BROADCAST]/[TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N [GPS=lat,lon]` | `NODE_ABC: ATTACK: DEAUTH [TARGETED] SRC:AA:BB:CC:DD:EE:FF DST:11:22:33:44:55:66 RSSI:-45dBm CH:6` |
-| **Deauth Attack (Short)** | `NODE_ID: ATTACK: DEAUTH/DISASSOC MAC->MAC Rrssi Cchannel` | `NODE_ABC: ATTACK: DEAUTH AA:BB:CC:DD:EE:FF->11:22:33:44:55:66 R-45 C6` |
-| **Triangulation Data** | `NODE_ID: TARGET_DATA: MAC RSSI:dBm Type:WiFi/BLE [GPS=lat,lon HDOP=X.XX] [TS=timestamp]` | `NODE_ABC: TARGET_DATA: AA:BB:CC:DD:EE:FF RSSI:-65 Type:WiFi GPS=40.7128,-74.0060 HDOP=1.2 TS=12.123456` |
-| **Triangulation Final Result** | `NODE_ID: TRIANGULATION_FINAL: MAC=mac GPS=lat,lon CONF=confidence % UNC=uncertainty %` | `NODE_ABC: TRIANGULATION_FINAL: MAC=AA:BB:CC:DD:EE:FF GPS=40.712800,-74.006000 CONF=85.5 UNC=12.3` |
-| **Triangulation Complete** | `NODE_ID: TRIANGULATE_COMPLETE: MAC=AA:BB:CC:DD:EE:FF Nodes=N [https://www.google.com/maps?q=lat,lon]` | `NODE_ABC: TRIANGULATE_COMPLETE: MAC=11:22:33:44:55:66 Nodes=5 https://www.google.com/maps?q=40.712800,-74.006000` |
-
-### Identification & Randomization Alerts
-
-| Alert Type | Format | Example |
-|------------|--------|---------|
-| **Randomization Identity** | `NODE_ID: IDENTITY:T-XXXX B/W MACs:N Conf:X.XX Sess:N Anchor:XX:XX:XX:XX:XX:XX` | `AH99: IDENTITY:T-002F W MACs:5 Conf:0.62 Sess:5 Anchor:02:9F:C2:3D:92:CE` |
-| **Randomization Complete** | `NODE_ID: RANDOMIZATION_DONE: Identities=N Sessions=N TX=N PEND=N` | `AH99: RANDOMIZATION_DONE: Identities=14 Sessions=22 TX=14 PEND=0` |
-
-### Tamper, Security & Vibration Alerts
-
-| Alert Type | Format | Example |
-|------------|--------|---------|
-| **Vibration Alert** | `NODE_ID: VIBRATION: Movement detected at HH:MM:SS [GPS:lat,lon] [TAMPER_ERASE_IN:Xs]` | `NODE_ABC: VIBRATION: Movement detected at 12:34:56 GPS:40.7128,-74.0060 TAMPER_ERASE_IN:60s` |
-| **Vibration Setup Mode** | `NODE_ID: VIBRATION: Movement in setup mode (active in Xs) [GPS:lat,lon]` | `NODE_ABC: VIBRATION: Movement in setup mode (active in 45s) GPS:40.7128,-74.0060` |
-| **Setup Mode Active** | `NODE_ID: SETUP_MODE: Auto-erase activates in Xs` | `NODE_ABC: SETUP_MODE: Auto-erase activates in 120s` |
-| **Setup Complete** | `NODE_ID: SETUP_COMPLETE: Auto-erase activated` | `NODE_ABC: SETUP_COMPLETE: Auto-erase activated` |
-| **Tamper Detected** | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` | `NODE_ABC: TAMPER_DETECTED: Auto-erase in 60s GPS:40.7128,-74.0060` |
-| **Tamper Cancelled** | `NODE_ID: TAMPER_CANCELLED` | `NODE_ABC: TAMPER_CANCELLED` |
-| **Erase Executing** | `NODE_ID: ERASE_EXECUTING: reason [GPS:lat,lon]` | `NODE_ABC: ERASE_EXECUTING: Tamper timeout GPS:40.7128,-74.0060` |
-| **Erase Complete** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
-| **Erase Cancelled** | `NODE_ID: ERASE_ACK:CANCELLED` | `NODE_ABC: ERASE_ACK:CANCELLED` |
-
-### Status, Sync & System Commands
-
-| Alert Type | Format | Example |
-|------------|--------|---------|
-| **Startup Status** | `NODE_ID: STARTUP: System initialized GPS:LOCKED/SEARCHING TEMP:XXC` | `NODE_ABC: STARTUP: System initialized GPS:LOCKED TEMP:42.3C` |
-| **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE/IDLE Hits:N Temp:XX.XC/XX.XF Up:HH:MM:SS [GPS=lat,lon HDOP=X.X]` | `NODE_ABC: STATUS: Mode:WiFi+BLE Scan:ACTIVE Hits:142 Temp:42.3C Up:03:24:15 GPS=40.712800,-74.006000 HDOP=1.2` |
-| **Node Heartbeat** | `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]` | `NODE_ABC: Time:2025-10-28_14:32:15 Temp:42.3C GPS:40.7128,-74.0060` |
-| **GPS Locked** | `NODE_ID: GPS: LOCKED Location=lat,lon Satellites:N HDOP:X.XX` | `NODE_ABC: GPS: LOCKED Location=40.7128,-74.0060 Satellites=8 HDOP=1.23` |
-| **GPS Lost** | `NODE_ID: GPS: LOST` | `NODE_ABC: GPS: LOST` |
-| **RTC Sync** | `NODE_ID: RTC_SYNC: GPS/NTP` | `NODE_ABC: RTC_SYNC: GPS` |
-| **Time Sync Request** | `NODE_ID: TIME_SYNC_REQ:epoch:subsec:micros:propDelay` | `NODE_ABC: TIME_SYNC_REQ:1725000000:5000:123456:0` |
-| **Time Sync Response** | `NODE_ID: TIME_SYNC_RESP:epoch:subsec:micros:propDelay` | `NODE_ABC: TIME_SYNC_RESP:1725000000:5000:123456:50` |
-
-### Configuration Acknowledgments
-
-| Alert Type | Format | Example |
-|------------|--------|---------|
-| **Channels Config ACK** | `NODE_ID: CONFIG_ACK:CHANNELS:channels` | `NODE_ABC: CONFIG_ACK:CHANNELS:1,6,11` |
-| **Targets Config ACK** | `NODE_ID: CONFIG_ACK:TARGETS:OK` | `NODE_ABC: CONFIG_ACK:TARGETS:OK` |
-| **RSSI Config ACK (Success)** | `NODE_ID: CONFIG_ACK:RSSI:OK` | `NODE_ABC: CONFIG_ACK:RSSI:OK` |
-| **RSSI Config Error** | `NODE_ID: CONFIG_ACK:RSSI:INVALID_RANGE` | `NODE_ABC: CONFIG_ACK:RSSI:INVALID_RANGE` |
-| **Node ID Config ACK (Success)** | `NODE_ID: CONFIG_ACK:NODE_ID:OK` | `NODE_ABC: CONFIG_ACK:NODE_ID:OK` |
-| **Node ID Config Error (Invalid Chars)** | `NODE_ID: CONFIG_ACK:NODE_ID:INVALID_CHARS` | `NODE_ABC: CONFIG_ACK:NODE_ID:INVALID_CHARS` |
-| **Node ID Config Error (Invalid Length)** | `NODE_ID: CONFIG_ACK:NODE_ID:INVALID_LENGTH` | `NODE_ABC: CONFIG_ACK:NODE_ID:INVALID_LENGTH` |
-
-### Operation Acknowledgments
-
-| Alert Type | Format | Example |
-|------------|--------|---------|
-| **Scan ACK** | `NODE_ID: SCAN_ACK:STARTED` | `NODE_ABC: SCAN_ACK:STARTED` |
-| **Device Scan ACK** | `NODE_ID: DEVICE_SCAN_ACK:STARTED` | `NODE_ABC: DEVICE_SCAN_ACK:STARTED` |
-| **Drone ACK** | `NODE_ID: DRONE_ACK:STARTED` | `NODE_ABC: DRONE_ACK:STARTED` |
-| **Deauth ACK** | `NODE_ID: DEAUTH_ACK:STARTED` | `NODE_ABC: DEAUTH_ACK:STARTED` |
-| **Randomization ACK** | `NODE_ID: RANDOMIZATION_ACK:STARTED` | `NODE_ABC: RANDOMIZATION_ACK:STARTED` |
-| **Baseline ACK** | `NODE_ID: BASELINE_ACK:STARTED` | `NODE_ABC: BASELINE_ACK:STARTED` |
-| **Baseline Status** | `NODE_ID: BASELINE_STATUS: Scanning:YES/NO Established:YES/NO Devices:N Anomalies:N Phase1:INACTIVE/ACTIVE/COMPLETE` | `NODE_ABC: BASELINE_STATUS: Scanning:YES Established:NO Devices:42 Anomalies:3 Phase1:ACTIVE` |
-| **Triangulation Results Start** | `NODE_ID: TRIANGULATE_RESULTS_START` | `NODE_ABC: TRIANGULATE_RESULTS_START` |
-| **Triangulation Results End** | `NODE_ID: TRIANGULATE_RESULTS_END` | `NODE_ABC: TRIANGULATE_RESULTS_END` |
-| **Triangulation Results (No Data)** | `NODE_ID: TRIANGULATE_RESULTS:NO_DATA` | `NODE_ABC: TRIANGULATE_RESULTS:NO_DATA` |
-| **Triangulation Stop ACK** | `NODE_ID: TRIANGULATE_STOP_ACK` | `NODE_ABC: TRIANGULATE_STOP_ACK` |
-| **Stop ACK** | `NODE_ID: STOP_ACK:OK` | `NODE_ABC: STOP_ACK:OK` |
-| **Erase Token Response** | `NODE_ID: ERASE_TOKEN:token Expires:300s` | `NODE_ABC: ERASE_TOKEN:AH_12345678_87654321_00001234 Expires:300s` |
-| **Erase ACK (Complete)** | `NODE_ID: ERASE_ACK:COMPLETE` | `NODE_ABC: ERASE_ACK:COMPLETE` |
-| **Erase ACK (Cancelled)** | `NODE_ID: ERASE_ACK:CANCELLED` | `NODE_ABC: ERASE_ACK:CANCELLED` |
-| **AutoErase Enabled ACK** | `NODE_ID: AUTOERASE_ACK:ENABLED Setup:Xs Erase:Xs Vibs:N Window:Xs Cooldown:Xs` | `NODE_ABC: AUTOERASE_ACK:ENABLED Setup:120s Erase:30s Vibs:3 Window:20s Cooldown:300s` |
-| **AutoErase Disabled ACK** | `NODE_ID: AUTOERASE_ACK:DISABLED` | `NODE_ABC: AUTOERASE_ACK:DISABLED` |
-| **AutoErase Status (Disabled)** | `NODE_ID: AUTOERASE_STATUS: Enabled:NO` | `NODE_ABC: AUTOERASE_STATUS: Enabled:NO` |
-| **AutoErase Status (Active)** | `NODE_ID: AUTOERASE_STATUS: Enabled:YES SetupMode:ACTIVE/COMPLETE TamperActive:YES/NO [EraseIn:Xs] Setup:Xs Erase:Xs Vibs:N Window:Xs Cooldown:Xs` | `NODE_ABC: AUTOERASE_STATUS: Enabled:YES SetupMode:COMPLETE TamperActive:YES EraseIn:25s Setup:120s Erase:30s Vibs:3 Window:20s Cooldown:300s` |
-| **Erase Token (AP FW)** | `NODE_ID: WIPE_TOKEN:token_string` | `NODE_ABC: WIPE_TOKEN:AH_12AB34CD_56EF78GH_1234567890` |
-| **Reboot ACK** | `NODE_ID: REBOOT_ACK` | `NODE_ABC: REBOOT_ACK` |
 ---
 
 ## API Reference
