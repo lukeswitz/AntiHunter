@@ -1890,12 +1890,9 @@ static void sendTriAccumulatedData(const String& nodeId) {
         return;
     }
 
-    // Child nodes: simple rate limiting without slot checking
-    // sendToSerial1 already has built-in rate limiting (200 char per 3s)
-    // Just send once every few seconds and let it queue
     static uint32_t lastSendAttempt = 0;
-    if (millis() - lastSendAttempt < 3000) {
-        return;  // Rate limit: only attempt send every 3 seconds
+    if (millis() - lastSendAttempt < 5000) {
+        return;
     }
     lastSendAttempt = millis();
     
@@ -1918,11 +1915,13 @@ static void sendTriAccumulatedData(const String& nodeId) {
             snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
             wifiMsg += " TS=" + String(tsStr);
         }
-        if (sendToSerial1(wifiMsg, false)) {
+        if (sendToSerial1(wifiMsg, true)) {
             sentAny = true;
             reportingSchedule.markReportReceived(nodeId);
             Serial.printf("[TRI-SLOT] %s: WiFi sent (%d hits)\n", nodeId.c_str(), triAccum.wifiHitCount);
-            delay(400);
+            delay(600);
+        } else {
+            Serial.printf("[TRI-SLOT] %s: WiFi DROPPED by rate limiter\n", nodeId.c_str());
         }
     }
 
@@ -1942,18 +1941,14 @@ static void sendTriAccumulatedData(const String& nodeId) {
             snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
             bleMsg += " TS=" + String(tsStr);
         }
-        if (sendToSerial1(bleMsg, false)) {
+        if (sendToSerial1(bleMsg, true)) {
             sentAny = true;
             reportingSchedule.markReportReceived(nodeId);
             Serial.printf("[TRI-SLOT] %s: BLE sent (%d hits)\n", nodeId.c_str(), triAccum.bleHitCount);
+            delay(600);
+        } else {
+            Serial.printf("[TRI-SLOT] %s: BLE DROPPED by rate limiter\n", nodeId.c_str());
         }
-    }
-
-    // DO NOT reset accumulator during active triangulation - we need cumulative totals!
-    // The accumulator will be reset when triangulation stops or target changes
-    if (sentAny) {
-        triAccum.lastSendTime = millis();
-        delay(150);
     }
 }
 
@@ -2064,11 +2059,11 @@ void listScanTask(void *pv) {
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
 
-        if ((int32_t)(millis() - nextStatus) >= 0) {
-            Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
-                         (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
-            nextStatus += 1000;
-        }
+        // if ((int32_t)(millis() - nextStatus) >= 0) {
+        //     Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
+        //                  (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
+        //     nextStatus += 1000;
+        // }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
@@ -2445,9 +2440,9 @@ void listScanTask(void *pv) {
                     wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                             " HDOP=" + String(triAccum.hdop, 1);
                 }
-                sendToSerial1(wifiMsg, false);
+                sendToSerial1(wifiMsg, true);
             }
-            
+
             if (triAccum.bleHitCount > 0) {
                 String bleMsg = myNodeId + ": TARGET_DATA: " + macStr +
                                 " RSSI:" + String(bleAvgRssi) + " Type:BLE";
@@ -2455,14 +2450,13 @@ void listScanTask(void *pv) {
                     bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                             " HDOP=" + String(triAccum.hdop, 1);
                 }
-                sendToSerial1(bleMsg, false);
+                sendToSerial1(bleMsg, true);
             }
-            
-            Serial.println("[SCAN CHILD] Final data sent (no delays)");
-            vTaskDelay(pdMS_TO_TICKS(200));
+
+            Serial.println("[SCAN CHILD] Final data sent");
+            vTaskDelay(pdMS_TO_TICKS(3000));
         }
-        
-        // Initiator: stop triangulation immediately
+
          if (triangulationInitiator) {
             Serial.println("[SCAN INITIATOR] Scan complete, calling stopTriangulation()");
             stopRequested = true;
@@ -2472,12 +2466,7 @@ void listScanTask(void *pv) {
             // Child node: wait for STOP command from coordinator
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
             uint32_t waitStart = millis();
-
-            // Adaptive timeout: Base 5s + estimated mesh latency
-            // Child doesn't know node count, so use generous base timeout
-            uint32_t STOP_WAIT_TIMEOUT = 5000;
-
-            // Add worst-case mesh latency if we have measurements
+            uint32_t STOP_WAIT_TIMEOUT = 15000;
             uint32_t maxPropDelay = 0;
             for (const auto& pair : nodePropagationDelays) {
                 if (pair.second < 1000000 && pair.second > maxPropDelay) {
@@ -2485,9 +2474,9 @@ void listScanTask(void *pv) {
                 }
             }
             if (maxPropDelay > 0) {
-                uint32_t latencyMargin = (maxPropDelay / 1000) * 5;  // 5x safety factor
+                uint32_t latencyMargin = (maxPropDelay / 1000) * 5;
                 STOP_WAIT_TIMEOUT += latencyMargin;
-                Serial.printf("[SCAN CHILD] Adaptive timeout: %ums (base 5s + %ums latency margin)\n",
+                Serial.printf("[SCAN CHILD] Timeout: %ums (+ %ums mesh latency)\n",
                              STOP_WAIT_TIMEOUT, latencyMargin);
             }
 
