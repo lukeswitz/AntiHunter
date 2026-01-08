@@ -1960,12 +1960,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           nodeLines.forEach(line => {
             const nodeMatch = line.match(/^([^:]+):/);
             if (nodeMatch) {
-              const nodeId = nodeMatch[1].trim();
-
-              const gpsMatch = line.match(/GPS=([-\d.]+),([-\d.]+)/);
-              const hdopMatch = line.match(/HDOP=([\d.]+)/);
-              const isGPS = gpsMatch !== null;
-
               // Support both "Filtered=" (final results) and "RSSI=" (in-progress)
               let rssiMatch = line.match(/Filtered=([-\d.]+)dBm/);
               if (!rssiMatch) {
@@ -1973,6 +1967,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               }
               const hitsMatch = line.match(/Hits=(\d+)/);
               const signalMatch = line.match(/Signal=([\d.]+)%/);
+
+              // Skip lines that don't have node data fields (like header fields: "Target MAC:", "Duration:", etc.)
+              if (!rssiMatch && !hitsMatch && !signalMatch) {
+                return;
+              }
+
+              const nodeId = nodeMatch[1].trim();
+              const gpsMatch = line.match(/GPS=([-\d.]+),([-\d.]+)/);
+              const hdopMatch = line.match(/HDOP=([\d.]+)/);
+              const isGPS = gpsMatch !== null;
               const distMatch = line.match(/Dist=([\d.]+)m/);
               
               html += '<div style="padding:14px;background:var(--bg);border:1px solid var(--bord);border-radius:8px;transition:all 0.2s;">';
@@ -3424,7 +3428,14 @@ void startWebServer()
               cachedTriResults = calculateTriangulation();
               lastTriCalc = millis();
           }
-          results += "\n\n" + cachedTriResults;
+
+          // If results already contains triangulation data, replace it instead of appending
+          // to avoid duplicate "--- Node Reports ---" sections causing parsing issues
+          if (results.indexOf("=== Triangulation Results") >= 0) {
+              results = cachedTriResults;
+          } else {
+              results += "\n\n" + cachedTriResults;
+          }
       }
 
       r->send(200, "text/plain", results);
