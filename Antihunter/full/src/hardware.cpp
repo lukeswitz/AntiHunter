@@ -1,6 +1,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "baseline.h"
+#include "triangulation.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -780,9 +781,10 @@ String getDiagnostics() {
     
     String s;
     s.reserve(1024);
-    
+
     s += "Scanning: " + String(scanning ? "yes" : "no") + "\n";
-    
+    s += "Triangulating: " + String((triangulationActive || triangulationInitiator) ? "yes" : "no") + "\n";
+
     if (workerTaskHandle) {
         const char* taskName = pcTaskGetName(workerTaskHandle);
         s += "Task Type: " + String(taskName) + "\n";

@@ -77,8 +77,11 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 
 bool sendToSerial1(const String &message, bool canDelay) {
     // Priority messages bypass rate limiting
-    bool isPriority = message.indexOf("TRIANGULATE_STOP") >= 0 || 
-                      message.indexOf("STOP_ACK") >= 0;
+    bool isPriority = message.indexOf("TRIANGULATE_STOP") >= 0 ||
+                      message.indexOf("STOP_ACK") >= 0 ||
+                      message.indexOf("TRI_START_ACK") >= 0 ||
+                      message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
+                      message.indexOf("@ALL TRI_CYCLE_START") >= 0;
     
     size_t msgLen = message.length() + 2;
     
@@ -505,8 +508,22 @@ void processCommand(const String &command, const String &targetId = "")
 
     Serial.printf("[TRIANGULATE] Child node started scanning for %s (%ds)\n", target.c_str(), duration);
 
+    // Stagger ACK responses to prevent simultaneous mesh traffic
+    // Use node ID hash to generate unique delay (0-2000ms)
+    uint32_t nodeHash = 0;
+    for (size_t i = 0; i < nodeId.length(); i++) {
+        nodeHash = nodeHash * 31 + nodeId.charAt(i);
+    }
+    uint32_t ackDelay = (nodeHash % 2000);  // 0-2000ms spread
+    Serial.printf("[TRIANGULATE] Staggered ACK delay: %ums\n", ackDelay);
+    vTaskDelay(pdMS_TO_TICKS(ackDelay));
+
+    // Flush rate limiter to ensure ACK can be sent immediately
+    rateLimiter.flush();
+
     // Send acknowledgment to coordinator
     sendToSerial1(nodeId + ": TRI_START_ACK", true);
+    Serial.println("[TRIANGULATE] ACK sent to coordinator");
 
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
@@ -518,22 +535,114 @@ void processCommand(const String &command, const String &targetId = "")
     Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
 
-    if (triangulationActive) {
+    // Child nodes: send final T_D report immediately when STOP is received
+    if (triangulationActive && !triangulationInitiator) {
+        // CRITICAL: Flush rate limiter so final reports aren't dropped/delayed
+        rateLimiter.flush();
+        Serial.println("[MESH] Rate limiter flushed for final reports");
+
+        String myNodeId = getNodeId();
+        if (myNodeId.length() == 0) {
+            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+        }
+
+        if (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0) {
+            String macStr = macFmt6(triAccum.targetMac);
+
+            if (triAccum.wifiHitCount > 0) {
+                int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+                String wifiMsg = myNodeId + ": T_D: " + macStr +
+                                " RSSI:" + String(wifiAvgRssi) +
+                                " Hits=" + String(triAccum.wifiHitCount) +
+                                " Type:WiFi";
+                if (triAccum.hasGPS) {
+                    wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                            " HDOP=" + String(triAccum.hdop, 1);
+                }
+                if (triAccum.wifiFirstDetectionTimestamp > 0) {
+                    double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
+                    char tsStr[32];
+                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                    wifiMsg += " TS=" + String(tsStr);
+                }
+                sendToSerial1(wifiMsg, true);
+                Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
+                             triAccum.wifiHitCount, wifiAvgRssi);
+            }
+
+            if (triAccum.bleHitCount > 0) {
+                int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+                String bleMsg = myNodeId + ": T_D: " + macStr +
+                                " RSSI:" + String(bleAvgRssi) +
+                                " Hits=" + String(triAccum.bleHitCount) +
+                                " Type:BLE";
+                if (triAccum.hasGPS) {
+                    bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                            " HDOP=" + String(triAccum.hdop, 1);
+                }
+                if (triAccum.bleFirstDetectionTimestamp > 0) {
+                    double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
+                    char tsStr[32];
+                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                    bleMsg += " TS=" + String(tsStr);
+                }
+                sendToSerial1(bleMsg, true);
+                Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
+                             triAccum.bleHitCount, bleAvgRssi);
+            }
+        }
+
+        // Mark as stopped and let scanner task exit naturally
         markTriangulationStopFromMesh();
-        stopTriangulation();
+        triangulationActive = false;
+        Serial.println("[TRIANGULATE] Child node marked inactive, scanner will exit");
     }
 
     sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
   }
   else if (command.startsWith("TRI_CYCLE_START:"))
   {
-    // Receive synchronized cycle start time from coordinator for slot coordination
-    String cycleStartStr = command.substring(16);
-    uint32_t cycleStartMs = cycleStartStr.toInt();
+    // Format: TRI_CYCLE_START:timestamp:node1,node2,node3...
+    String params = command.substring(16);
+    int colonPos = params.indexOf(':');
 
-    // Initialize the reporting schedule with the coordinator's cycle start time
-    reportingSchedule.cycleStartMs = cycleStartMs;
-    Serial.printf("[MESH] TRI_CYCLE_START received: %u ms (GPS-synced from coordinator)\n", cycleStartMs);
+    if (colonPos > 0) {
+      // New format with node list
+      uint32_t cycleStartMs = params.substring(0, colonPos).toInt();
+      String nodeListStr = params.substring(colonPos + 1);
+
+      // Clear and rebuild reporting schedule with all nodes in coordinator's order
+      reportingSchedule.reset();
+
+      // Parse comma-separated node list
+      int startIdx = 0;
+      int commaIdx = nodeListStr.indexOf(',');
+
+      while (commaIdx >= 0) {
+        String node = nodeListStr.substring(startIdx, commaIdx);
+        reportingSchedule.addNode(node);
+        startIdx = commaIdx + 1;
+        commaIdx = nodeListStr.indexOf(',', startIdx);
+      }
+
+      // Add last node (after final comma)
+      if (startIdx < nodeListStr.length()) {
+        String node = nodeListStr.substring(startIdx);
+        reportingSchedule.addNode(node);
+      }
+
+      // Initialize cycle start time
+      reportingSchedule.cycleStartMs = cycleStartMs;
+
+      Serial.printf("[MESH] TRI_CYCLE_START received: %u ms, nodes: %s\n",
+                    cycleStartMs, nodeListStr.c_str());
+    } else {
+      // Old format - just timestamp (for backward compatibility)
+      uint32_t cycleStartMs = params.toInt();
+      reportingSchedule.addNode(nodeId);
+      reportingSchedule.cycleStartMs = cycleStartMs;
+      Serial.printf("[MESH] TRI_CYCLE_START received (legacy): %u ms\n", cycleStartMs);
+    }
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
   {
@@ -724,6 +833,10 @@ void processMeshMessage(const String &message) {
                 newAck.reportReceived = false;  // Will be set to true when data arrives
                 newAck.reportTimestamp = 0;
                 triangulateAcks.push_back(newAck);
+
+                // Register node in reporting schedule to assign time slot
+                reportingSchedule.addNode(sendingNode);
+
                 Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
                              sendingNode.c_str(), triangulateAcks.size());
             }
@@ -731,14 +844,16 @@ void processMeshMessage(const String &message) {
 
     }
 
-    if (triangulationActive && colonPos > 0) {
+    // Process T_D messages during active triangulation OR while waiting for final reports
+    if ((triangulationActive || waitingForFinalReports) && colonPos > 0) {
         String sendingNode = cleanMessage.substring(0, colonPos);
         String content = cleanMessage.substring(colonPos + 2);
 
-        // TARGET_DATA from child nodes
-        if (content.startsWith("TARGET_DATA:")) {
-            String payload = content.substring(13);
-            
+        // T_D from child nodes
+        if (content.startsWith("T_D:")) {
+            String payload = content.substring(5);  // Skip "T_D: " entirely
+            Serial.printf("[T_D_DEBUG] Sender=%s Payload='%s'\n", sendingNode.c_str(), payload.c_str());
+
             int macEnd = payload.indexOf(' ');
             if (macEnd > 0) {
                 String reportedMac = payload.substring(0, macEnd);

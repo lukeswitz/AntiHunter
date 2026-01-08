@@ -184,7 +184,7 @@ struct DynamicReportingSchedule {
 
         uint8_t numNodes = nodes.size();
 
-        // Each TARGET_DATA message ~100-150 chars, need 2-3s spacing between nodes
+        // Each T_D message ~100-150 chars, need 2-3s spacing between nodes
         if (numNodes <= 2) {
             slotDurationMs = 3000;   // 2 nodes = 6s cycle (safe for mesh)
         } else if (numNodes <= 3) {
