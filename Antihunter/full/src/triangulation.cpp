@@ -694,10 +694,12 @@ void startTriangulation(const String &targetMac, int duration) {
     broadcastTimeSyncRequest();
     vTaskDelay(pdMS_TO_TICKS(2000));
 
-    String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration);
+    // Include this node's ID as the initiator so mesh nodes know who's coordinating
+    String myNodeId = getNodeId();
+    String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration) + ":" + myNodeId;
     sendMeshCommand(cmd);
 
-    Serial.println("[TRIANGULATE] Broadcast sent to mesh nodes");
+    Serial.printf("[TRIANGULATE] Broadcast sent to mesh nodes (initiator: %s)\n", myNodeId.c_str());
 
     // Create async task to collect ACKs and start scanning (avoids blocking web handler)
     if (!coordinatorSetupTaskHandle) {
