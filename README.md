@@ -484,7 +484,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` | Start scan (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Device discovery scan | `@ALL DEVICE_SCAN_START:2:300` |
 | `BASELINE_START` | `duration[:FOREVER]` | Baseline anomaly detection | `@ALL BASELINE_START:300` |
-| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). Send to @ALL | `@ALL TRIANGULATE_START:AA:BB:CC:DD:EE:FF:300` |
+| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA the initiator. **Via AP:** Web interface automatically broadcasts to all nodes | `@NodeA TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
 | `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
 | `STOP` | None | Stop all operations | `@ALL STOP` |
 | `ERASE_REQUEST` | None | Request erase token (valid 5 min) | `@AH01 ERASE_REQUEST` |

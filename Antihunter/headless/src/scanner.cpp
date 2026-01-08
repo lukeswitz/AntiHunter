@@ -2253,15 +2253,12 @@ void listScanTask(void *pv) {
                 if (myNodeId.length() == 0) {
                     myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
                 }
-                
-                static bool triAccumInitialized = false;
-                if (!triAccumInitialized) {
-                    resetTriAccumulator(triangulationTarget);
-                    triAccumInitialized = true;
-                }
-                
+
+                // Check if we're tracking a different target MAC (or first time)
                 if (memcmp(triAccum.targetMac, triangulationTarget, 6) != 0) {
+                    // Send accumulated data for old target (if any)
                     sendTriAccumulatedData(myNodeId);
+                    // Reset accumulator for new target
                     resetTriAccumulator(triangulationTarget);
                 }
 

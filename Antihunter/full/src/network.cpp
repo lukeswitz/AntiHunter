@@ -30,6 +30,19 @@ const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
 static String nodeId = "";
 bool triangulationOrchestratorAssigned = false;
 
+// Per-MAC deduplication tracking for mesh notifications
+struct MeshTargetState {
+    unsigned long lastSent;
+    int8_t lastRssi;
+    float lastLat;
+    float lastLon;
+    bool hadGPS;
+};
+static std::map<uint64_t, MeshTargetState> meshTargetStates;
+const int RSSI_CHANGE_THRESHOLD = 5;  // dBm
+const float GPS_CHANGE_THRESHOLD = 0.0001;  // ~10 meters
+const unsigned long PER_TARGET_MIN_INTERVAL = 30000;  // 30 seconds per target
+
 // Scanner vars
 extern volatile bool scanning;
 extern volatile int totalHits;
@@ -4518,14 +4531,71 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 // Mesh UART Message Sender
 void sendMeshNotification(const Hit &hit) {
     if (triangulationActive) return;
-    
-    if (!meshEnabled || millis() - lastMeshSend < meshSendInterval) return;
-    lastMeshSend = millis();
-    
+    if (!meshEnabled) return;
+
+    // Convert MAC to uint64_t for map lookup
+    uint64_t macKey = 0;
+    for (int i = 0; i < 6; i++) {
+        macKey = (macKey << 8) | hit.mac[i];
+    }
+
+    unsigned long now = millis();
+    bool shouldSend = false;
+
+    // Check if we've seen this MAC before
+    auto it = meshTargetStates.find(macKey);
+    if (it == meshTargetStates.end()) {
+        // New target - always send
+        shouldSend = true;
+    } else {
+        MeshTargetState &state = it->second;
+
+        // Check if enough time has passed for this specific target
+        if (now - state.lastSent < PER_TARGET_MIN_INTERVAL) {
+            // Not enough time - check if there's a significant change
+            int rssiDelta = abs(hit.rssi - state.lastRssi);
+
+            if (rssiDelta >= RSSI_CHANGE_THRESHOLD) {
+                shouldSend = true;  // Significant RSSI change
+            } else if (gpsValid && state.hadGPS) {
+                float latDelta = abs(gpsLat - state.lastLat);
+                float lonDelta = abs(gpsLon - state.lastLon);
+                if (latDelta >= GPS_CHANGE_THRESHOLD || lonDelta >= GPS_CHANGE_THRESHOLD) {
+                    shouldSend = true;  // Significant GPS movement
+                }
+            } else if (gpsValid && !state.hadGPS) {
+                shouldSend = true;  // GPS just became available
+            }
+        } else {
+            // Enough time has passed - send update
+            shouldSend = true;
+        }
+    }
+
+    if (!shouldSend) {
+        return;  // Skip this notification
+    }
+
+    // Respect global mesh send rate limit
+    if (now - lastMeshSend < meshSendInterval) {
+        return;
+    }
+    lastMeshSend = now;
+
+    // Update the state for this MAC
+    MeshTargetState newState;
+    newState.lastSent = now;
+    newState.lastRssi = hit.rssi;
+    newState.lastLat = gpsValid ? gpsLat : 0.0;
+    newState.lastLon = gpsValid ? gpsLon : 0.0;
+    newState.hadGPS = gpsValid;
+    meshTargetStates[macKey] = newState;
+
+    // Build and send the message
     char mac_str[18];
     snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
              hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-    
+
     String cleanName = "";
     if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0) {
         for (size_t i = 0; i < strlen(hit.name) && i < 32; i++) {
@@ -4535,22 +4605,22 @@ void sendMeshNotification(const Hit &hit) {
             }
         }
     }
-    
+
     char mesh_msg[MAX_MESH_SIZE];
     memset(mesh_msg, 0, sizeof(mesh_msg));
-    
-    String baseMsg = String(nodeId) + ": Target: " + String(mac_str) + 
+
+    String baseMsg = String(nodeId) + ": Target: " + String(mac_str) +
                      " RSSI:" + String(hit.rssi) +
                      " Type:" + (hit.isBLE ? "BLE" : "WiFi");
-    
+
     if (cleanName.length() > 0) {
         baseMsg += " Name:" + cleanName;
     }
-    
+
     if (gpsValid) {
         baseMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
-    
+
     int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());
 
     if (msg_len > 0 && msg_len <= sizeof(mesh_msg) - 1) {
@@ -4885,26 +4955,106 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);
-    int colonPos = params.lastIndexOf(':');
-    String target = params.substring(0, colonPos);
-    int duration = params.substring(colonPos + 1).toInt();
-    
+    String myNodeId = getNodeId();
+
+    // Check if this is a directed message to this specific node
+    // Directed format: @NodeA TRIANGULATE_START:target:duration
+    // Broadcast format: @ALL TRIANGULATE_START:target:duration:initiatorNodeId
+    bool isDirectedToMe = !targetId.isEmpty() && targetId != "ALL" && targetId == myNodeId;
+
+    if (isDirectedToMe) {
+        // This node was directly commanded to start triangulation as initiator
+        // Parse format: TRIANGULATE_START:target:duration
+        // Note: target is a MAC address with colons, so parse from the END
+        int lastColon = params.lastIndexOf(':');
+        if (lastColon < 0) {
+            Serial.println("[TRIANGULATE] Invalid directed command format - no duration");
+            return;
+        }
+
+        String target = params.substring(0, lastColon);
+        int duration = params.substring(lastColon + 1).toInt();
+
+        if (target.length() < 6 || duration <= 0) {
+            Serial.printf("[TRIANGULATE] Invalid parameters - target='%s' duration=%d\n",
+                         target.c_str(), duration);
+            return;
+        }
+
+        Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds)\n",
+                     target.c_str(), duration);
+
+        // Call startTriangulation which will set up as initiator and broadcast to mesh
+        startTriangulation(target, duration);
+        return;
+    }
+
+    // This is a broadcast message - process as participant (or ignore if we're the initiator)
+    // Parse format: TRIANGULATE_START:target:duration[:initiatorNodeId]
+    // Note: target can be a MAC (XX:XX:XX:XX:XX:XX with colons) or identity (T-XXXX)
+
+    String target;
+    int duration;
+    String initiatorNodeId = "";
+    int targetEnd = 0;
+
+    // Determine target length based on format
+    if (params.startsWith("T-")) {
+        // Identity format: T-XXXX
+        targetEnd = params.indexOf(':', 2);  // Find first colon after "T-"
+        if (targetEnd < 0) targetEnd = params.length();
+    } else {
+        // Assume MAC format: XX:XX:XX:XX:XX:XX (17 characters)
+        // MAC has 5 colons, so we need to skip them and find the 6th colon
+        if (params.length() >= 17 && params.charAt(2) == ':' && params.charAt(5) == ':') {
+            targetEnd = 17;
+        } else {
+            // Fallback: try to find first non-MAC colon
+            int colonCount = 0;
+            for (int i = 0; i < params.length(); i++) {
+                if (params.charAt(i) == ':') {
+                    colonCount++;
+                    if (colonCount == 6) {  // 6th colon is the delimiter after MAC
+                        targetEnd = i;
+                        break;
+                    }
+                }
+            }
+            if (targetEnd == 0) {
+                // Couldn't parse, try simple split on first colon
+                targetEnd = params.indexOf(':');
+            }
+        }
+    }
+
+    target = params.substring(0, targetEnd);
+    String remainder = params.substring(targetEnd + 1);
+
+    // Parse duration and optional initiator from remainder
+    int durationDelim = remainder.indexOf(':');
+    if (durationDelim > 0) {
+        duration = remainder.substring(0, durationDelim).toInt();
+        initiatorNodeId = remainder.substring(durationDelim + 1);
+    } else {
+        duration = remainder.toInt();
+    }
+
     bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];
-    
+
     if (!isIdentityId) {
         if (!parseMac6(target, macBytes)) {
             Serial.printf("[TRIANGULATE] Invalid MAC format: %s - ignoring command\n", target.c_str());
             return;
         }
     }
-    
+
     if (workerTaskHandle) {
         stopRequested = true;
         vTaskDelay(pdMS_TO_TICKS(500));
         workerTaskHandle = nullptr;
     }
-    
+
     if (isIdentityId) {
         strncpy(triangulationTargetIdentity, target.c_str(), sizeof(triangulationTargetIdentity) - 1);
         triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
@@ -4913,15 +5063,37 @@ void processCommand(const String &command, const String &targetId = "")
         memcpy(triangulationTarget, macBytes, 6);
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
-    
-    triangulationInitiator = false;  // Child nodes are NEVER initiators
+
+    // Determine if this node is the initiator (from broadcast)
+    bool isInitiator = false;
+    if (initiatorNodeId.length() > 0) {
+        // Initiator explicitly specified in command
+        isInitiator = (myNodeId == initiatorNodeId);
+        Serial.printf("[TRIANGULATE] Broadcast received - Initiator: %s (I am %s: %s)\n",
+                     initiatorNodeId.c_str(),
+                     isInitiator ? "INITIATOR" : "participant",
+                     myNodeId.c_str());
+    } else {
+        // Legacy behavior: no initiator in command means this is a participant
+        Serial.printf("[TRIANGULATE] No initiator specified, acting as participant\n");
+    }
+
+    // If this node is the initiator, it already started via startTriangulation()
+    // Don't re-process the broadcast command to avoid interference
+    if (isInitiator) {
+        Serial.println("[TRIANGULATE] Ignoring broadcast - already running as initiator");
+        return;
+    }
+
+    // Participant node setup
+    triangulationInitiator = false;
     triangulationActive = true;
     triangulationStart = millis();
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
 
-    Serial.printf("[TRIANGULATE] Child node started scanning for %s (%ds)\n", target.c_str(), duration);
+    Serial.printf("[TRIANGULATE] Participant node started scanning for %s (%ds)\n", target.c_str(), duration);
 
     // Stagger ACK responses to prevent simultaneous mesh traffic
     // Use node ID hash to generate unique delay (0-2000ms)
@@ -4961,50 +5133,68 @@ void processCommand(const String &command, const String &targetId = "")
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
 
-        if (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0) {
-            String macStr = macFmt6(triAccum.targetMac);
+        // ALWAYS send a report, even with 0 hits, so initiator knows we're done
+        String macStr = macFmt6(triangulationTarget);  // Use triangulationTarget instead of triAccum.targetMac
+        bool sentReport = false;
 
-            if (triAccum.wifiHitCount > 0) {
-                int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-                String wifiMsg = myNodeId + ": T_D: " + macStr +
-                                " RSSI:" + String(wifiAvgRssi) +
-                                " Hits=" + String(triAccum.wifiHitCount) +
-                                " Type:WiFi";
-                if (triAccum.hasGPS) {
-                    wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
-                            " HDOP=" + String(triAccum.hdop, 1);
-                }
-                if (triAccum.wifiFirstDetectionTimestamp > 0) {
-                    double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
-                    char tsStr[32];
-                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-                    wifiMsg += " TS=" + String(tsStr);
-                }
-                sendToSerial1(wifiMsg, true);
-                Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
-                             triAccum.wifiHitCount, wifiAvgRssi);
+        if (triAccum.wifiHitCount > 0) {
+            int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+            String wifiMsg = myNodeId + ": T_D: " + macStr +
+                            " RSSI:" + String(wifiAvgRssi) +
+                            " Hits=" + String(triAccum.wifiHitCount) +
+                            " Type:WiFi";
+            if (triAccum.hasGPS) {
+                wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                        " HDOP=" + String(triAccum.hdop, 1);
             }
+            if (triAccum.wifiFirstDetectionTimestamp > 0) {
+                double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
+                char tsStr[32];
+                snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                wifiMsg += " TS=" + String(tsStr);
+            }
+            sendToSerial1(wifiMsg, true);
+            Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
+                         triAccum.wifiHitCount, wifiAvgRssi);
+            sentReport = true;
+        }
 
-            if (triAccum.bleHitCount > 0) {
-                int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-                String bleMsg = myNodeId + ": T_D: " + macStr +
-                                " RSSI:" + String(bleAvgRssi) +
-                                " Hits=" + String(triAccum.bleHitCount) +
-                                " Type:BLE";
-                if (triAccum.hasGPS) {
-                    bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
-                            " HDOP=" + String(triAccum.hdop, 1);
-                }
-                if (triAccum.bleFirstDetectionTimestamp > 0) {
-                    double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
-                    char tsStr[32];
-                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-                    bleMsg += " TS=" + String(tsStr);
-                }
-                sendToSerial1(bleMsg, true);
-                Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
-                             triAccum.bleHitCount, bleAvgRssi);
+        if (triAccum.bleHitCount > 0) {
+            int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+            String bleMsg = myNodeId + ": T_D: " + macStr +
+                            " RSSI:" + String(bleAvgRssi) +
+                            " Hits=" + String(triAccum.bleHitCount) +
+                            " Type:BLE";
+            if (triAccum.hasGPS) {
+                bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                        " HDOP=" + String(triAccum.hdop, 1);
             }
+            if (triAccum.bleFirstDetectionTimestamp > 0) {
+                double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
+                char tsStr[32];
+                snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                bleMsg += " TS=" + String(tsStr);
+            }
+            sendToSerial1(bleMsg, true);
+            Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
+                         triAccum.bleHitCount, bleAvgRssi);
+            sentReport = true;
+        }
+
+        // If no hits at all, still send a 0-hit report so initiator knows we're done
+        if (!sentReport) {
+            String noHitMsg = myNodeId + ": T_D: " + macStr +
+                            " RSSI:-128" +
+                            " Hits=0" +
+                            " Type:WiFi";  // Default to WiFi type for 0-hit reports
+            if (gpsValid) {
+                noHitMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                if (gps.hdop.isValid()) {
+                    noHitMsg += " HDOP=" + String(gps.hdop.hdop(), 1);
+                }
+            }
+            sendToSerial1(noHitMsg, true);
+            Serial.println("[TRIANGULATE] Final 0-hit report sent (no detections)");
         }
 
         // Mark as stopped and let scanner task exit naturally
