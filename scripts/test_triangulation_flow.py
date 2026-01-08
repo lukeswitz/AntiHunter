@@ -153,10 +153,10 @@ class TriangulationTest:
             self.acks_received.append((timestamp, node_id))
             print(f"{Color.GREEN}✓ ACK from {node_id} at T+{timestamp:.1f}s{Color.RESET}")
 
-        # Check for TARGET_DATA messages
-        if 'TARGET_DATA:' in line:
-            # Extract node ID from message format "NODE1: TARGET_DATA: ..."
-            match = re.search(r'(\w+): TARGET_DATA:', line)
+        # Check for T_D messages
+        if 'T_D:' in line:
+            # Extract node ID from message format "NODE1: T_D: ..."
+            match = re.search(r'(\w+): T_D:', line)
             if match:
                 node_id = match.group(1)
                 self.target_data_messages.append((timestamp, node_id, line))
@@ -219,9 +219,9 @@ class TriangulationTest:
         return True, f"All nodes synchronized to cycle start: {cycle_times[0]} ms"
 
     def validate_slot_coordination(self) -> Tuple[bool, str]:
-        """Validate that TARGET_DATA messages arrive in proper slot order."""
+        """Validate that T_D messages arrive in proper slot order."""
         if len(self.target_data_messages) < 6:  # Need at least 2 full cycles
-            return False, f"Not enough TARGET_DATA messages ({len(self.target_data_messages)}) - need at least 6 for validation"
+            return False, f"Not enough T_D messages ({len(self.target_data_messages)}) - need at least 6 for validation"
 
         # Group messages by node
         node_messages = defaultdict(list)
@@ -231,7 +231,7 @@ class TriangulationTest:
         # Check if messages from each node are regularly spaced
         num_nodes = len(node_messages)
         if num_nodes == 0:
-            return False, "No TARGET_DATA messages from any nodes"
+            return False, "No T_D messages from any nodes"
 
         # Expected slot duration based on node count
         expected_slot_duration = {
@@ -400,7 +400,7 @@ class TriangulationTest:
         print(f"Data Collected:")
         print(f"  - Cycle start times: {len(self.cycle_start_times)}")
         print(f"  - ACKs received: {len(self.acks_received)}")
-        print(f"  - TARGET_DATA messages: {len(self.target_data_messages)}")
+        print(f"  - T_D messages: {len(self.target_data_messages)}")
         print(f"  - Heartbeats: {sum(len(ts) for ts in self.heartbeats.values())}")
         print(f"  - Silent warnings: {len(self.silent_warnings)}")
 

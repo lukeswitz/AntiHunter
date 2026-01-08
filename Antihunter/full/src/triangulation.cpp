@@ -17,8 +17,9 @@ extern bool gpsValid;
 extern TriangulationAccumulator triAccum;
 extern bool triangulationOrchestratorAssigned;
 
-// Triang 
+// Triang
 static TaskHandle_t calibrationTaskHandle = nullptr;
+static TaskHandle_t coordinatorSetupTaskHandle = nullptr;
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
@@ -520,6 +521,77 @@ bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float
 
 // Traingulation actions
 
+// Task that handles ACK collection and cycle start (runs async to avoid blocking web handler)
+void coordinatorSetupTask(void *parameter) {
+    int duration = (int)(intptr_t)parameter;
+
+    // Wait for child nodes to ACK - give mesh time to relay responses
+    // Children use 0-2s staggered delay + mesh propagation time
+    Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
+    vTaskDelay(pdMS_TO_TICKS(15000));  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
+    Serial.printf("[TRIANGULATE] ACK collection complete: %d nodes responded\n", triangulateAcks.size());
+
+    // Additional buffer before next broadcast
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // Broadcast synchronized cycle start time + node list for slot coordination
+    int64_t cycleStartUs = getCorrectedMicroseconds();
+    uint32_t cycleStartMs = (uint32_t)(cycleStartUs / 1000LL);
+
+    // Build comma-separated list of node IDs (sorted for consistent slot assignment)
+    // Include coordinator itself
+    std::vector<String> nodeList;
+    String coordinatorId = getNodeId();
+    if (coordinatorId.length() > 0) {
+        nodeList.push_back(coordinatorId);
+    }
+    for (const auto& ack : triangulateAcks) {
+        nodeList.push_back(ack.nodeId);
+    }
+    std::sort(nodeList.begin(), nodeList.end());
+
+    // Rebuild coordinator's own reporting schedule with all nodes
+    reportingSchedule.reset();
+    for (const auto& node : nodeList) {
+        reportingSchedule.addNode(node);
+    }
+    reportingSchedule.cycleStartMs = cycleStartMs;
+
+    String nodeListStr = "";
+    for (size_t i = 0; i < nodeList.size(); i++) {
+        if (i > 0) nodeListStr += ",";
+        nodeListStr += nodeList[i];
+    }
+
+    String cycleCmd = "@ALL TRI_CYCLE_START:" + String(cycleStartMs) + ":" + nodeListStr;
+    sendMeshCommand(cycleCmd);
+    Serial.printf("[TRIANGULATE] Cycle start broadcast: %u ms, %d nodes: %s\n",
+                  cycleStartMs, nodeList.size(), nodeListStr.c_str());
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    if (!workerTaskHandle) {
+        xTaskCreatePinnedToCore(
+            listScanTask,
+            "triangulate",
+            8192,
+            (void *)(intptr_t)duration,
+            1,
+            &workerTaskHandle,
+            1
+        );
+    }
+
+    // Set active flag AFTER task is created to prevent UI race condition
+    triangulationActive = true;
+
+    Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
+
+    // Clean up - task deletes itself
+    coordinatorSetupTaskHandle = nullptr;
+    vTaskDelete(NULL);
+}
+
 void startTriangulation(const String &targetMac, int duration) {
     // Debounce check: prevent rapid restarts
     uint32_t timeSinceLastStop = millis() - lastTriangulationStopTime;
@@ -608,7 +680,6 @@ void startTriangulation(const String &targetMac, int duration) {
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
-    triangulationActive = true;
     triangulationInitiator = true;
     reportingSchedule.reset();
 
@@ -627,30 +698,20 @@ void startTriangulation(const String &targetMac, int duration) {
     sendMeshCommand(cmd);
 
     Serial.println("[TRIANGULATE] Broadcast sent to mesh nodes");
-    vTaskDelay(pdMS_TO_TICKS(500));
 
-    // Broadcast synchronized cycle start time for slot coordination
-    int64_t cycleStartUs = getCorrectedMicroseconds();
-    uint32_t cycleStartMs = (uint32_t)(cycleStartUs / 1000LL);
-    String cycleCmd = "@ALL TRI_CYCLE_START:" + String(cycleStartMs);
-    sendMeshCommand(cycleCmd);
-    Serial.printf("[TRIANGULATE] Cycle start broadcast: %u ms (GPS-synced)\n", cycleStartMs);
-
-    vTaskDelay(pdMS_TO_TICKS(500));
-    
-    if (!workerTaskHandle) {
+    // Create async task to collect ACKs and start scanning (avoids blocking web handler)
+    if (!coordinatorSetupTaskHandle) {
         xTaskCreatePinnedToCore(
-            listScanTask, 
-            "triangulate", 
-            8192,
-            (void *)(intptr_t)duration, 
-            1, 
-            &workerTaskHandle, 
+            coordinatorSetupTask,
+            "triCoordSetup",
+            4096,
+            (void *)(intptr_t)duration,
+            2,  // Higher priority than scanner
+            &coordinatorSetupTaskHandle,
             1
         );
+        Serial.println("[TRIANGULATE] Coordinator setup task created (async ACK collection)");
     }
-    
-    Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
 }
 
 uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
@@ -713,14 +774,17 @@ void stopTriangulation() {
         sendMeshCommand(stopCmd);
         Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd)\n", triangulateAcks.size());
 
-        // OPTIMIZATION: Wait for all ACK'd nodes to send final reports
-        // Use adaptive timeout based on node count and mesh latency
+        waitingForFinalReports = true;
+        Serial.println("[TRIANGULATE] Now waiting for final reports from child nodes");
+        Serial.println("[TRIANGULATE] Waiting for late ACKs...");
+        vTaskDelay(pdMS_TO_TICKS(6000));  // Wait 6s for ACKs to arrive
+        Serial.printf("[TRIANGULATE] After ACK wait: %d nodes ACK'd\n", triangulateAcks.size());
+
         if (triangulateAcks.size() > 0) {
             Serial.printf("[TRIANGULATE] Waiting for reports from %d nodes...\n", triangulateAcks.size());
             uint32_t waitStart = millis();
-            // Base timeout 3000ms + 1000ms per node + measured mesh latency
             const uint32_t REPORT_TIMEOUT = calculateAdaptiveTimeout(3000, 1000.0f);
-            const uint32_t CHECK_INTERVAL = 100;   // Check every 100ms
+            const uint32_t CHECK_INTERVAL = 100;
 
             while (millis() - waitStart < REPORT_TIMEOUT) {
                 // Count how many nodes have reported
@@ -745,7 +809,7 @@ void stopTriangulation() {
                 // Check if we're making progress
                 uint32_t elapsed = millis() - waitStart;
                 if (elapsed > 2000 && reportedCount == 0) {
-                    Serial.println("[TRIANGULATE] WARNING: No reports yet after 2s");
+                    Serial.println("[TRIANGULATE] INFO: No reports yet after 2s");
                 }
 
                 // Yield more aggressively to prevent watchdog issues
@@ -851,12 +915,16 @@ void stopTriangulation() {
     }
 
     vTaskDelay(pdMS_TO_TICKS(500));
-    
+
+    Serial.println("[TRIANGULATE] Calculating final results...");
     String results = calculateTriangulation();
+    Serial.printf("[TRIANGULATE] Final results calculated: %d chars\n", results.length());
+    Serial.printf("[TRIANGULATE] Results preview: %.100s...\n", results.c_str());
 
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = results.c_str();
+        Serial.printf("[TRIANGULATE] Final results stored in lastResults (%d chars)\n", antihunter::lastResults.length());
     }
     
     if (sdAvailable) {
@@ -961,7 +1029,7 @@ void stopTriangulation() {
         }
     }
 
-    // Coordinator sends its own TARGET_DATA for data aggregation
+    // Coordinator sends its own T_D for data aggregation
     // This is used by external systems to see all detection data
     // Single source of truth is TRIANGULATION_FINAL (calculated position), not the raw data
     String myNodeId = getNodeId();
@@ -981,7 +1049,7 @@ void stopTriangulation() {
     }
 
     if (selfDetected && selfHits > 0) {
-        String dataMsg = myNodeId + ": TARGET_DATA: " + macFmt6(triangulationTarget) +
+        String dataMsg = myNodeId + ": T_D: " + macFmt6(triangulationTarget) +
                         " Hits=" + String(selfHits) +
                         " RSSI:" + String(selfBestRSSI);
 
@@ -1016,7 +1084,8 @@ void stopTriangulation() {
     triangulationActive = false;
     triangulationInitiator = false;
     triangulationDuration = 0;
-    memset(triangulationTarget, 0, 6);
+    // DON'T clear triangulationTarget here - late messages need it for MAC matching
+    // It will be cleared at the START of the next triangulation
 
     triAccum.wifiHitCount = 0;
     triAccum.wifiRssiSum = 0.0f;
@@ -1110,62 +1179,17 @@ String calculateTriangulation() {
         results += "════════════════════════════════════════════════\n\n";
     }
     
-    // Count GPS-equipped nodes
-    int gpsNodeCount = 0;
-    for (const auto& node : triangulationNodes) {
-        if (node.hasGPS) gpsNodeCount++;
-    }
-    
     // NO NODES RESPONDING :(
     if (triangulationNodes.size() == 0) {
         results += "--- No Mesh Nodes Responding ---\n\n";
         results += "\n=== End Triangulation ===\n";
         return results;
     }
-    
-    // NODES RESPONDING BUT NO GPS
-    if (gpsNodeCount == 0) {
-        results += "--- TRIANGULATION IMPOSSIBLE ---\n\n";
-        results += String(triangulationNodes.size()) + " node(s) reporting, but none have GPS\n\n";
-        results += "Cannot triangulate without position data.\n";
-        results += "Triangulation requires GPS coordinates from nodes.\n\n";
-        
-        results += "\n=== End Triangulation ===\n";
-        return results;
-    }
-    
-    // INSUFFICIENT GPS NODES
-    if (gpsNodeCount < 3) {
-        results += "--- Insufficient GPS Nodes ---\n\n";
-        results += "GPS nodes: " + String(gpsNodeCount) + "/3 required\n";
-        results += "Total nodes: " + String(triangulationNodes.size()) + "\n\n";
-        
-        results += "Cannot triangulate with < 3 GPS positions.\n";
-        results += "Need " + String(3 - gpsNodeCount) + " more GPS-equipped node(s).\n\n";
-        
-        results += "Current GPS nodes:\n";
-        for (const auto& node : triangulationNodes) {
-            if (node.hasGPS) {
-                results += "  • " + node.nodeId + " @ ";
-                results += String(node.lat, 6) + "," + String(node.lon, 6) + "\n";
-            }
-        }
-        
-        results += "\nNon-GPS nodes:\n";
-        for (const auto& node : triangulationNodes) {
-            if (!node.hasGPS) {
-                results += "  • " + node.nodeId + " (enable GPS)\n";
-            }
-        }
-        
-        results += "\n=== End Triangulation ===\n";
-        return results;
-    }
-    
-    // WE HAVE 3+ GPS NODES - DO THINGS!
-    std::vector<TriangulationNode> gpsNodes;
-    
+
+    // Always show Node Reports section - regardless of GPS status
     results += "--- Node Reports ---\n";
+    std::vector<TriangulationNode> gpsNodes;
+    int gpsNodeCount = 0;
     for (const auto& node : triangulationNodes) {
         results += node.nodeId + ": ";
         results += "Filtered=" + String(node.filteredRssi, 1) + "dBm ";
@@ -1188,10 +1212,60 @@ String calculateTriangulation() {
             results += "GPS=NO";
         }
         results += "\n";
+
+        if (node.hasGPS) {
+            gpsNodeCount++;
+        }
     }
     results += "\n";
 
-    // GPS RSSI validation
+    // Check GPS node status and show warnings if needed
+    if (gpsNodeCount == 0) {
+        results += "--- TRIANGULATION IMPOSSIBLE ---\n\n";
+        results += String(triangulationNodes.size()) + " node(s) reporting, but none have GPS\n\n";
+        results += "Cannot triangulate without position data.\n";
+        results += "Triangulation requires GPS coordinates from nodes.\n\n";
+        results += "\n=== End Triangulation ===\n";
+        return results;
+    }
+
+    // Show status message when we don't have enough GPS nodes, but continue processing
+    if (gpsNodeCount < 3) {
+        results += "--- Insufficient GPS Nodes ---\n\n";
+        results += "GPS nodes: " + String(gpsNodeCount) + "/3 required\n";
+        results += "Total nodes: " + String(triangulationNodes.size()) + "\n\n";
+
+        if (gpsNodeCount == 2) {
+            results += "Have 2 GPS nodes - can show GPS-RSSI validation but need 1 more for triangulation.\n\n";
+        } else if (gpsNodeCount == 1) {
+            results += "Have 1 GPS node - need 2 more for triangulation.\n\n";
+        }
+
+        if (gpsNodeCount >= 1) {
+            results += "Current GPS nodes:\n";
+            for (const auto& node : gpsNodes) {
+                results += "  • " + node.nodeId + " @ ";
+                results += String(node.lat, 6) + "," + String(node.lon, 6) + "\n";
+            }
+            results += "\n";
+        }
+
+        results += "Non-GPS nodes:\n";
+        for (const auto& node : triangulationNodes) {
+            if (!node.hasGPS) {
+                results += "  • " + node.nodeId + " (enable GPS)\n";
+            }
+        }
+        results += "\n";
+
+        // If we have < 2 GPS nodes, can't even do GPS-RSSI validation, so return here
+        if (gpsNodeCount < 2) {
+            results += "\n=== End Triangulation ===\n";
+            return results;
+        }
+    }
+
+    // GPS RSSI validation - show even with 2 GPS nodes
     if (gpsNodes.size() >= 2) {
         results += "--- GPS-RSSI Distance Validation ---\n";
         
@@ -1243,7 +1317,15 @@ String calculateTriangulation() {
         }
         results += "\n";
     }
-    
+
+    // If we only have 2 GPS nodes, we can show GPS-RSSI validation but can't triangulate
+    if (gpsNodeCount < 3) {
+        results += "Need 1 more GPS node for full triangulation.\n\n";
+        results += "\n=== End Triangulation ===\n";
+        return results;
+    }
+
+    // WE HAVE 3+ GPS NODES - DO TRIANGULATION!
     results += "--- Weighted GPS Trilateration ---\n";
     results += "Using " + String(gpsNodes.size()) + " GPS-equipped nodes\n";
     

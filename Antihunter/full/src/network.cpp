@@ -122,8 +122,11 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 
 bool sendToSerial1(const String &message, bool canDelay) {
     // Priority messages bypass rate limiting
-    bool isPriority = message.indexOf("TRIANGULATE_STOP") >= 0 || 
-                      message.indexOf("STOP_ACK") >= 0;
+    bool isPriority = message.indexOf("TRIANGULATE_STOP") >= 0 ||
+                      message.indexOf("STOP_ACK") >= 0 ||
+                      message.indexOf("TRI_START_ACK") >= 0 ||
+                      message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
+                      message.indexOf("@ALL TRI_CYCLE_START") >= 0;
     
     size_t msgLen = message.length() + 2;
     
@@ -842,6 +845,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let lastScanningState = false;
       let lastResultsText = '';
       let meshEnabled = true;
+      let lastTriangulationStartTime = 0;  // Track when triangulation scan was started
 
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -1525,14 +1529,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
         const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
         const isScanning = diagText.includes('Scanning: yes');
+        const isTriangulating = diagText.includes('Triangulating: yes');
         const detectionMode = document.getElementById('detectionMode')?.value;
-        
+
         document.getElementById('cacheBtn').style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
         document.getElementById('clearOldBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
         document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
-        
-        if (isScanning) {
-            document.getElementById('scanStatus').innerText = 'Active';
+
+        if (isScanning || isTriangulating) {
+            document.getElementById('scanStatus').innerText = isTriangulating ? 'Triangulating' : 'Active';
             document.getElementById('scanStatus').classList.add('active');
             
             const startScanBtn = document.querySelector('#s button');
@@ -1590,28 +1595,34 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 }
             }
         } else {
-            document.getElementById('scanStatus').innerText = 'Idle';
-            document.getElementById('scanStatus').classList.remove('active');
+            // Don't reset UI if we just started triangulation (give backend time to update status)
+            const timeSinceTriangulationStart = Date.now() - lastTriangulationStartTime;
+            const isWithinGracePeriod = timeSinceTriangulationStart < 5000; // 5 second grace period
 
-            const startScanBtn = document.querySelector('#s button');
-            if (startScanBtn) {
-                startScanBtn.textContent = 'Start Scan';
-                startScanBtn.classList.remove('danger');
-                startScanBtn.classList.add('primary');
-                startScanBtn.type = 'submit';
-                startScanBtn.onclick = null;
-                startScanBtn.style.background = '';
-            }
+            if (!isWithinGracePeriod) {
+                document.getElementById('scanStatus').innerText = 'Idle';
+                document.getElementById('scanStatus').classList.remove('active');
 
-            const detectionMode = document.getElementById('detectionMode')?.value;
-            if (detectionMode !== 'baseline') {
-                const startDetectionBtn = document.getElementById('startDetectionBtn');
-                if (startDetectionBtn) {
-                    startDetectionBtn.textContent = 'Start Scan';
-                    startDetectionBtn.classList.remove('danger');
-                    startDetectionBtn.classList.add('primary');
-                    startDetectionBtn.type = 'submit';
-                    startDetectionBtn.onclick = null;
+                const startScanBtn = document.querySelector('#s button');
+                if (startScanBtn) {
+                    startScanBtn.textContent = 'Start Scan';
+                    startScanBtn.classList.remove('danger');
+                    startScanBtn.classList.add('primary');
+                    startScanBtn.type = 'submit';
+                    startScanBtn.onclick = null;
+                    startScanBtn.style.background = '';
+                }
+
+                const detectionMode = document.getElementById('detectionMode')?.value;
+                if (detectionMode !== 'baseline') {
+                    const startDetectionBtn = document.getElementById('startDetectionBtn');
+                    if (startDetectionBtn) {
+                        startDetectionBtn.textContent = 'Start Scan';
+                        startDetectionBtn.classList.remove('danger');
+                        startDetectionBtn.classList.add('primary');
+                        startDetectionBtn.type = 'submit';
+                        startDetectionBtn.onclick = null;
+                    }
                 }
             }
         }
@@ -1780,7 +1791,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         let html = '';
 
-        if (text.includes('=== Triangulation Results ===') || text.includes('Weighted GPS Trilateration')) {
+        if (text.includes('=== Triangulation Results') || text.includes('Weighted GPS Trilateration')) {
           html = parseTriangulationResults(text);
         } else if(text.includes('MAC Randomization Detection Results')) {
           html = parseRandomizationResults(text);
@@ -1849,7 +1860,94 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           html += '</div>';
         }
-        
+
+        // Check for error/warning states and display them prominently
+        if (text.includes('Insufficient GPS') || (text.includes('GPS nodes:') && text.includes('required'))) {
+          const gpsCountMatch = text.match(/GPS nodes:\s*(\d+)\/(\d+)\s*required/);
+          const totalNodesMatch = text.match(/Total nodes:\s*(\d+)/);
+          html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+          html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Insufficient GPS Nodes</div>';
+          html += '</div>';
+          if (gpsCountMatch) {
+            html += '<div style="color:#78350f;font-size:14px;margin-bottom:8px;">Need ' + gpsCountMatch[2] + ' GPS nodes, but only ' + gpsCountMatch[1] + ' available.</div>';
+            const needed = parseInt(gpsCountMatch[2]) - parseInt(gpsCountMatch[1]);
+            html += '<div style="color:#78350f;font-size:13px;margin-bottom:16px;">Add ' + needed + ' more GPS-equipped node(s) to enable triangulation.</div>';
+          } else {
+            html += '<div style="color:#78350f;font-size:14px;margin-bottom:16px;">At least 3 GPS-equipped nodes are required for triangulation.</div>';
+          }
+
+          // Parse and display current GPS nodes
+          const gpsNodesSection = text.split('Current GPS nodes:')[1]?.split('Non-GPS nodes:')[0];
+          if (gpsNodesSection) {
+            html += '<div style="margin-top:12px;padding:14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;">';
+            html += '<div style="color:#15803d;font-size:12px;font-weight:700;margin-bottom:10px;">GPS-Equipped Nodes</div>';
+            const gpsNodeLines = gpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
+            gpsNodeLines.forEach(line => {
+              const nodeMatch = line.match(/•\s*([^\s@]+)\s*@\s*([-\d.]+),([-\d.]+)/);
+              if (nodeMatch) {
+                html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
+                html += '<div style="color:#15803d;font-weight:700;font-size:12px;margin-bottom:4px;">' + nodeMatch[1] + '</div>';
+                html += '<div style="color:#6b7280;font-family:monospace;font-size:11px;">' + nodeMatch[2] + ', ' + nodeMatch[3] + '</div>';
+                html += '</div>';
+              }
+            });
+            html += '</div>';
+          }
+
+          // Parse and display non-GPS nodes
+          const nonGpsNodesSection = text.split('Non-GPS nodes:')[1]?.split('===')[0];
+          if (nonGpsNodesSection) {
+            html += '<div style="margin-top:12px;padding:14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;">';
+            html += '<div style="color:#991b1b;font-size:12px;font-weight:700;margin-bottom:10px;">Nodes Without GPS</div>';
+            const nonGpsNodeLines = nonGpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
+            nonGpsNodeLines.forEach(line => {
+              const nodeMatch = line.match(/•\s*([^\s(]+)/);
+              if (nodeMatch) {
+                html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
+                html += '<div style="color:#991b1b;font-weight:700;font-size:12px;margin-bottom:2px;">' + nodeMatch[1] + '</div>';
+                html += '<div style="color:#6b7280;font-style:italic;font-size:10px;">GPS disabled or no fix</div>';
+                html += '</div>';
+              }
+            });
+            html += '</div>';
+          }
+
+          html += '</div>';
+        }
+
+        // Show warning banners but continue parsing - don't block other sections
+        if (text.includes('No Mesh Nodes Responding')) {
+          html += '<div style="padding:20px;background:var(--dang-bg,#fee2e2);border:2px solid var(--dang,#ef4444);border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dang,#ef4444)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+          html += '<div style="font-weight:700;font-size:16px;color:#7f1d1d;">No Mesh Nodes Responding</div>';
+          html += '</div>';
+          html += '<div style="color:#7f1d1d;font-size:14px;">No mesh nodes responded to the triangulation request. Check mesh connectivity.</div>';
+          html += '</div>';
+        }
+
+        if (text.includes('TRIANGULATION IMPOSSIBLE') || text.includes('none have GPS')) {
+          html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+          html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Triangulation Impossible</div>';
+          html += '</div>';
+          html += '<div style="color:#78350f;font-size:14px;">Nodes responded but none have GPS coordinates. Enable GPS on at least 3 nodes.</div>';
+          html += '</div>';
+        }
+
+        if (text.includes('Insufficient GPS Nodes')) {
+          html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+          html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Waiting for More GPS Nodes</div>';
+          html += '</div>';
+          html += '<div style="color:#78350f;font-size:14px;">Triangulation requires at least 3 GPS-equipped nodes. Collecting data...</div>';
+          html += '</div>';
+        }
+
         const nodeSection = text.split('--- Node Reports ---')[1]?.split('---')[0];
         if (nodeSection) {
           html += '<details open style="margin-bottom:16px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
@@ -1857,18 +1955,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>Node Reports';
           html += '</summary>';
           html += '<div style="display:grid;gap:12px;">';
-          
+
           const nodeLines = nodeSection.split('\n').filter(l => l.trim() && l.includes(':'));
           nodeLines.forEach(line => {
             const nodeMatch = line.match(/^([^:]+):/);
             if (nodeMatch) {
               const nodeId = nodeMatch[1].trim();
-              
+
               const gpsMatch = line.match(/GPS=([-\d.]+),([-\d.]+)/);
               const hdopMatch = line.match(/HDOP=([\d.]+)/);
               const isGPS = gpsMatch !== null;
-              
-              const rssiMatch = line.match(/Filtered=([-\d.]+)dBm/);
+
+              // Support both "Filtered=" (final results) and "RSSI=" (in-progress)
+              let rssiMatch = line.match(/Filtered=([-\d.]+)dBm/);
+              if (!rssiMatch) {
+                rssiMatch = line.match(/RSSI=([-\d.]+)dBm/);
+              }
               const hitsMatch = line.match(/Hits=(\d+)/);
               const signalMatch = line.match(/Signal=([\d.]+)%/);
               const distMatch = line.match(/Dist=([\d.]+)m/);
@@ -1969,7 +2071,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div></details>';
         }
         
-        const positionSection = text.split('ESTIMATED POSITION:')[1]?.split('===')[0];
+        // Match ESTIMATED POSITION with optional qualifiers like (TDOA), (RSSI), or (TDOA + RSSI)
+        const positionMatch = text.match(/ESTIMATED POSITION[^:]*:([\s\S]*?)(?:===|$)/);
+        const positionSection = positionMatch ? positionMatch[1] : null;
         if (positionSection) {
           const latMatch = positionSection.match(/Latitude:\s*([-\d.]+)/);
           const lonMatch = positionSection.match(/Longitude:\s*([-\d.]+)/);
@@ -3038,6 +3142,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           // Check if triangulation mode is selected
           const isTriangulation = fd.has('triangulate') && fd.get('triangulate') === '1';
+
+          // Track when triangulation was started
+          if (isTriangulation) {
+              lastTriangulationStartTime = now;
+          }
 
           // Immediately update UI to show scanning state for ALL scan types
           const scanStatusEl = document.getElementById('scanStatus');
@@ -4188,8 +4297,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     static String cachedTriResults = "";
     static uint32_t lastTriCalc = 0;
 
-    // Only recalculate every 3 seconds to avoid blocking WebUI
-    if (millis() - lastTriCalc >= 3000) {
+    // Recalculate every 1 second for more responsive updates during active triangulation
+    if (millis() - lastTriCalc >= 1000) {
       cachedTriResults = calculateTriangulation();
       lastTriCalc = millis();
     }
@@ -4803,8 +4912,22 @@ void processCommand(const String &command, const String &targetId = "")
 
     Serial.printf("[TRIANGULATE] Child node started scanning for %s (%ds)\n", target.c_str(), duration);
 
+    // Stagger ACK responses to prevent simultaneous mesh traffic
+    // Use node ID hash to generate unique delay (0-2000ms)
+    uint32_t nodeHash = 0;
+    for (size_t i = 0; i < nodeId.length(); i++) {
+        nodeHash = nodeHash * 31 + nodeId.charAt(i);
+    }
+    uint32_t ackDelay = (nodeHash % 2000);  // 0-2000ms spread
+    Serial.printf("[TRIANGULATE] Staggered ACK delay: %ums\n", ackDelay);
+    vTaskDelay(pdMS_TO_TICKS(ackDelay));
+
+    // Flush rate limiter to ensure ACK can be sent immediately
+    rateLimiter.flush();
+
     // Send acknowledgment to coordinator
     sendToSerial1(nodeId + ": TRI_START_ACK", true);
+    Serial.println("[TRIANGULATE] ACK sent to coordinator");
 
     if (!workerTaskHandle) {
         xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
@@ -4816,22 +4939,114 @@ void processCommand(const String &command, const String &targetId = "")
     Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
 
-    if (triangulationActive) {
+    // Child nodes: send final T_D report immediately when STOP is received
+    if (triangulationActive && !triangulationInitiator) {
+        // CRITICAL: Flush rate limiter so final reports aren't dropped/delayed
+        rateLimiter.flush();
+        Serial.println("[MESH] Rate limiter flushed for final reports");
+
+        String myNodeId = getNodeId();
+        if (myNodeId.length() == 0) {
+            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+        }
+
+        if (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0) {
+            String macStr = macFmt6(triAccum.targetMac);
+
+            if (triAccum.wifiHitCount > 0) {
+                int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+                String wifiMsg = myNodeId + ": T_D: " + macStr +
+                                " RSSI:" + String(wifiAvgRssi) +
+                                " Hits=" + String(triAccum.wifiHitCount) +
+                                " Type:WiFi";
+                if (triAccum.hasGPS) {
+                    wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                            " HDOP=" + String(triAccum.hdop, 1);
+                }
+                if (triAccum.wifiFirstDetectionTimestamp > 0) {
+                    double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
+                    char tsStr[32];
+                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                    wifiMsg += " TS=" + String(tsStr);
+                }
+                sendToSerial1(wifiMsg, true);
+                Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
+                             triAccum.wifiHitCount, wifiAvgRssi);
+            }
+
+            if (triAccum.bleHitCount > 0) {
+                int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+                String bleMsg = myNodeId + ": T_D: " + macStr +
+                                " RSSI:" + String(bleAvgRssi) +
+                                " Hits=" + String(triAccum.bleHitCount) +
+                                " Type:BLE";
+                if (triAccum.hasGPS) {
+                    bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
+                            " HDOP=" + String(triAccum.hdop, 1);
+                }
+                if (triAccum.bleFirstDetectionTimestamp > 0) {
+                    double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
+                    char tsStr[32];
+                    snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
+                    bleMsg += " TS=" + String(tsStr);
+                }
+                sendToSerial1(bleMsg, true);
+                Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
+                             triAccum.bleHitCount, bleAvgRssi);
+            }
+        }
+
+        // Mark as stopped and let scanner task exit naturally
         markTriangulationStopFromMesh();
-        stopTriangulation();
+        triangulationActive = false;
+        Serial.println("[TRIANGULATE] Child node marked inactive, scanner will exit");
     }
 
     sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
   }
   else if (command.startsWith("TRI_CYCLE_START:"))
   {
-    // Receive synchronized cycle start time from coordinator for slot coordination
-    String cycleStartStr = command.substring(16);
-    uint32_t cycleStartMs = cycleStartStr.toInt();
+    // Format: TRI_CYCLE_START:timestamp:node1,node2,node3...
+    String params = command.substring(16);
+    int colonPos = params.indexOf(':');
 
-    // Initialize the reporting schedule with the coordinator's cycle start time
-    reportingSchedule.cycleStartMs = cycleStartMs;
-    Serial.printf("[MESH] TRI_CYCLE_START received: %u ms (GPS-synced from coordinator)\n", cycleStartMs);
+    if (colonPos > 0) {
+      // New format with node list
+      uint32_t cycleStartMs = params.substring(0, colonPos).toInt();
+      String nodeListStr = params.substring(colonPos + 1);
+
+      // Clear and rebuild reporting schedule with all nodes in coordinator's order
+      reportingSchedule.reset();
+
+      // Parse comma-separated node list
+      int startIdx = 0;
+      int commaIdx = nodeListStr.indexOf(',');
+
+      while (commaIdx >= 0) {
+        String node = nodeListStr.substring(startIdx, commaIdx);
+        reportingSchedule.addNode(node);
+        startIdx = commaIdx + 1;
+        commaIdx = nodeListStr.indexOf(',', startIdx);
+      }
+
+      // Add last node (after final comma)
+      if (startIdx < nodeListStr.length()) {
+        String node = nodeListStr.substring(startIdx);
+        reportingSchedule.addNode(node);
+      }
+
+      // Initialize cycle start time
+      reportingSchedule.cycleStartMs = cycleStartMs;
+
+      Serial.printf("[MESH] TRI_CYCLE_START received: %u ms, nodes: %s\n",
+                    cycleStartMs, nodeListStr.c_str());
+    } else {
+      // Old format - just timestamp (for backward compatibility)
+      uint32_t cycleStartMs = params.toInt();
+      reportingSchedule.addNode(nodeId);
+      reportingSchedule.cycleStartMs = cycleStartMs;
+      Serial.printf("[MESH] TRI_CYCLE_START received (legacy): %u ms\n", cycleStartMs);
+    }
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
   {
@@ -5020,6 +5235,10 @@ void processMeshMessage(const String &message) {
                 newAck.reportReceived = false;  // Will be set to true when data arrives
                 newAck.reportTimestamp = 0;
                 triangulateAcks.push_back(newAck);
+
+                // Register node in reporting schedule to assign time slot
+                reportingSchedule.addNode(sendingNode);
+
                 Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
                              sendingNode.c_str(), triangulateAcks.size());
             }
@@ -5027,14 +5246,16 @@ void processMeshMessage(const String &message) {
 
     }
 
-    if (triangulationActive && colonPos > 0) {
+    // Process T_D messages during active triangulation or while waiting for final reports
+    if ((triangulationActive || waitingForFinalReports) && colonPos > 0) {
         String sendingNode = cleanMessage.substring(0, colonPos);
         String content = cleanMessage.substring(colonPos + 2);
 
-        // TARGET_DATA from child nodes
-        if (content.startsWith("TARGET_DATA:")) {
-            String payload = content.substring(13);
-            
+        // T_D from child nodes
+        if (content.startsWith("T_D:")) {
+            String payload = content.substring(5);
+            Serial.printf("[T_D_DEBUG] Sender=%s Payload='%s'\n", sendingNode.c_str(), payload.c_str());
+
             int macEnd = payload.indexOf(' ');
             if (macEnd > 0) {
                 String reportedMac = payload.substring(0, macEnd);

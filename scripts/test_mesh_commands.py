@@ -21,7 +21,7 @@ class MessageType(Enum):
     TRIANGULATE_START = "TRIANGULATE_START"
     TRIANGULATE_STOP = "TRIANGULATE_STOP"
     TRIANGULATE_ACK = "TRIANGULATE_ACK"
-    TARGET_DATA = "TARGET_DATA"
+    T_D = "T_D"
     TRIANGULATION_FINAL = "TRIANGULATION_FINAL"
     TRIANGULATE_COMPLETE = "TRIANGULATE_COMPLETE"
 
@@ -153,7 +153,7 @@ class TriangulationNode:
         self.triangulation_active = False
         print(f"[{sim_time:.1f}s] [{self.node_id}] ← STOP from {sender_id}")
         
-        # Send TARGET_DATA after delay
+        # Send T_D after delay
         payload = (f"AA:BB:CC:DD:EE:FF "
                   f"RSSI:-65 Hits:20 Type:WiFi "
                   f"GPS=37.7750,-122.4190 HDOP=1.5")
@@ -161,12 +161,12 @@ class TriangulationNode:
         target_data_msg = Message(
             sender_id=self.node_id,
             target="@ALL",
-            message_type=MessageType.TARGET_DATA,
+            message_type=MessageType.T_D,
             payload=payload
         )
         safe_interval = MeshtasticAirtime.safe_send_interval_s(target_data_msg.calculate_length())
         self.queue_message(target_data_msg, sim_time)
-        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ TARGET_DATA queued (will send in {safe_interval:.1f}s)")
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ T_D queued (will send in {safe_interval:.1f}s)")
 
     def receive_ack(self, sender_id: str, sim_time: float):
         """Handle ACK (coordinator only)."""
@@ -178,13 +178,13 @@ class TriangulationNode:
             print(f"[{sim_time:.1f}s] [{self.node_id}] ← ACK from {sender_id} ({len(self.acked_nodes)} total)")
 
     def receive_target_data(self, sender_id: str, payload: str, sim_time: float):
-        """Handle TARGET_DATA (coordinator only)."""
+        """Handle T_D (coordinator only)."""
         if not self.is_coordinator:
             return
         
         if sender_id not in self.received_reports:
             self.received_reports[sender_id] = {"data": payload}
-            print(f"[{sim_time:.1f}s] [{self.node_id}] ← TARGET_DATA from {sender_id}")
+            print(f"[{sim_time:.1f}s] [{self.node_id}] ← T_D from {sender_id}")
 
     def receive_final(self, sender_id: str, payload: str, sim_time: float):
         """Handle TRIANGULATION_FINAL."""
@@ -233,7 +233,7 @@ class TriangulationNode:
         self.queue_message(stop_msg, sim_time)
         print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ STOP queued (will send in {safe_interval:.1f}s)")
         
-        # Send self TARGET_DATA
+        # Send self T_D
         payload = (f"AA:BB:CC:DD:EE:FF "
                   f"RSSI:-65 Hits:20 Type:WiFi "
                   f"GPS=37.7749,-122.4194 HDOP=1.5")
@@ -241,12 +241,12 @@ class TriangulationNode:
         target_data_msg = Message(
             sender_id=self.node_id,
             target="@ALL",
-            message_type=MessageType.TARGET_DATA,
+            message_type=MessageType.T_D,
             payload=payload
         )
         safe_interval = MeshtasticAirtime.safe_send_interval_s(target_data_msg.calculate_length())
         self.queue_message(target_data_msg, sim_time)
-        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ Self TARGET_DATA queued (will send in {safe_interval:.1f}s)")
+        print(f"[{sim_time:.1f}s] [{self.node_id}] ↻ Self T_D queued (will send in {safe_interval:.1f}s)")
 
     def finalize(self, sim_time: float):
         """Coordinator sends FINAL and COMPLETE."""
@@ -326,7 +326,7 @@ class MeshSimulator:
                 elif msg.message_type == MessageType.TRIANGULATE_ACK:
                     recipient.receive_ack(msg.sender_id, self.sim_time)
                 
-                elif msg.message_type == MessageType.TARGET_DATA:
+                elif msg.message_type == MessageType.T_D:
                     recipient.receive_target_data(msg.sender_id, msg.payload, self.sim_time)
                 
                 elif msg.message_type == MessageType.TRIANGULATION_FINAL:
@@ -372,9 +372,9 @@ class MeshSimulator:
       else:
         print(f"  ✓ PASS: {coordinator.acked_nodes}")
         
-      # [2] Coordinator received TARGET_DATA from all children
+      # [2] Coordinator received T_D from all children
       report_count = len(coordinator.received_reports)
-      print(f"\n[2] Coordinator received TARGET_DATA: {report_count}/3")
+      print(f"\n[2] Coordinator received T_D: {report_count}/3")
       print(f"  From: {list(coordinator.received_reports.keys())}")
       if report_count < 3:
         missing = set(['AH902', 'AH903', 'AH904']) - set(coordinator.received_reports.keys())
@@ -438,11 +438,11 @@ def test_triangulation_realistic():
     print("[PHASE 3] Coordinator queues STOP")
     print("-" * 80)
     coordinator.stop_triangulation(mesh.sim_time)
-    mesh.run_until(65.0)  # STOP arrives and children queue TARGET_DATA
+    mesh.run_until(65.0)  # STOP arrives and children queue T_D
     print()
     
     # Phase 4: Reports
-    print("[PHASE 4] Collecting TARGET_DATA with realistic delays")
+    print("[PHASE 4] Collecting T_D with realistic delays")
     print("-" * 80)
     mesh.run_until(105.0)  # Children send reports with rate limiting
     print(f"Reports collected: {len(coordinator.received_reports)}/3\n")

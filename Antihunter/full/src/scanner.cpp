@@ -1890,8 +1890,14 @@ static void sendTriAccumulatedData(const String& nodeId) {
         return;
     }
 
+    // Check if we're in our assigned time slot
+    uint32_t nextSlotMs = 0;
+    if (!reportingSchedule.isMySlotActive(nodeId, nextSlotMs)) {
+        return;
+    }
+
     static uint32_t lastSendAttempt = 0;
-    if (millis() - lastSendAttempt < 5000) {
+    if (millis() - lastSendAttempt < 1000) {
         return;
     }
     lastSendAttempt = millis();
@@ -1901,7 +1907,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
     
     if (triAccum.wifiHitCount > 0) {
         int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-        String wifiMsg = nodeId + ": TARGET_DATA: " + macStr +
+        String wifiMsg = nodeId + ": T_D: " + macStr +
                          " RSSI:" + String(wifiAvgRssi) +
                          " Hits=" + String(triAccum.wifiHitCount) +
                          " Type:WiFi";
@@ -1927,7 +1933,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
     if (triAccum.bleHitCount > 0) {
         int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-        String bleMsg = nodeId + ": TARGET_DATA: " + macStr +
+        String bleMsg = nodeId + ": T_D: " + macStr +
                         " RSSI:" + String(bleAvgRssi) +
                         " Hits=" + String(triAccum.bleHitCount) +
                         " Type:BLE";
@@ -2131,6 +2137,9 @@ void listScanTask(void *pv) {
             }
             framesSeen += networksFound;
         }
+
+        extern void processUSBToMesh();
+        processUSBToMesh();
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan &&
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
@@ -2362,16 +2371,17 @@ void listScanTask(void *pv) {
 
         // Dynamic update to results (only while running, stop when stopRequested is set)
         if (triangulationActive && !stopRequested && (int32_t)(millis() - nextTriResultsUpdate) >= 0) {
+            Serial.println("[SCAN] Updating IN PROGRESS triangulation results");
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                
+
                 std::string results = "\n=== Triangulation Results (IN PROGRESS) ===\n";
                 results += "Target MAC: " + std::string(macFmt6(triangulationTarget).c_str()) + "\n";
                 results += "Duration: " + std::to_string(triangulationDuration) + "s\n";
                 results += "Elapsed: " + std::to_string((millis() - triangulationStart) / 1000) + "s\n";
                 results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n\n";
                 results += "--- Node Reports ---\n";
-                
+
                 for (const auto& node : triangulationNodes) {
                     results += std::string(node.nodeId.c_str()) + ": ";
                     results += "RSSI=" + std::to_string((int)node.filteredRssi) + "dBm ";
@@ -2386,9 +2396,10 @@ void listScanTask(void *pv) {
                     }
                     results += "\n";
                 }
-                
+
                 results += "\n=== End Triangulation ===\n";
                 antihunter::lastResults = results;
+                Serial.printf("[SCAN] IN PROGRESS results stored (%d chars)\n", results.length());
             }
             nextTriResultsUpdate = millis() + 2000;
         }
@@ -2418,50 +2429,19 @@ void listScanTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(150));
     }
 
-    // Send final triangulation data if we have any OR if triangulation is still active
-    // (Child nodes may have received STOP which set triangulationActive=false before scan completed)
-    if ((triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0) || triangulationActive) {
-        String myNodeId = getNodeId();
-        if (myNodeId.length() == 0) {
-            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
-        }
-
-        // Child nodes: send final data WITHOUT slot delays, all at once
-        if (!triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
-            int8_t wifiAvgRssi = triAccum.wifiHitCount > 0 ? (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount) : -128;
-            int8_t bleAvgRssi = triAccum.bleHitCount > 0 ? (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount) : -128;
-            
-            String macStr = macFmt6(triAccum.targetMac);
-            
-            if (triAccum.wifiHitCount > 0) {
-                String wifiMsg = myNodeId + ": TARGET_DATA: " + macStr +
-                                " RSSI:" + String(wifiAvgRssi) + " Type:WiFi";
-                if (triAccum.hasGPS) {
-                    wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
-                            " HDOP=" + String(triAccum.hdop, 1);
-                }
-                sendToSerial1(wifiMsg, true);
-            }
-
-            if (triAccum.bleHitCount > 0) {
-                String bleMsg = myNodeId + ": TARGET_DATA: " + macStr +
-                                " RSSI:" + String(bleAvgRssi) + " Type:BLE";
-                if (triAccum.hasGPS) {
-                    bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
-                            " HDOP=" + String(triAccum.hdop, 1);
-                }
-                sendToSerial1(bleMsg, true);
-            }
-
-            Serial.println("[SCAN CHILD] Final data sent");
-            vTaskDelay(pdMS_TO_TICKS(3000));
-        }
-
-         if (triangulationInitiator) {
+    // IMPORTANT: Child nodes should NOT send final data here!
+    // They will send it when they receive TRIANGULATE_STOP command
+    // Only the initiator proceeds to call stopTriangulation()
+    if (triangulationActive) {
+        if (triangulationInitiator) {
             Serial.println("[SCAN INITIATOR] Scan complete, calling stopTriangulation()");
             stopRequested = true;
             vTaskDelay(pdMS_TO_TICKS(500));
             stopTriangulation();
+            // Set scanning = false AFTER stopTriangulation() completes to ensure
+            // web UI gets final results when it detects scanning has stopped
+            scanning = false;
+            lastScanEnd = millis();
         } else {
             // Child node: wait for STOP command from coordinator
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
@@ -2480,105 +2460,105 @@ void listScanTask(void *pv) {
                              STOP_WAIT_TIMEOUT, latencyMargin);
             }
 
+            // Wait for STOP command (which triggers final report send in network.cpp)
             while (!stopRequested && (millis() - waitStart < STOP_WAIT_TIMEOUT)) {
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
-            
+
             if (stopRequested) {
-                Serial.println("[SCAN CHILD] Received STOP command, cleaning up");
+                Serial.println("[SCAN CHILD] Received STOP command, exiting scan task");
             } else {
-                Serial.println("[SCAN CHILD] STOP timeout, forcing cleanup");
+                Serial.println("[SCAN CHILD] STOP timeout, exiting anyway");
                 stopRequested = true;
-                // Call stopTriangulation to properly handle coordinator election and cleanup
-                stopTriangulation();
+                triangulationActive = false;
             }
+            scanning = false;
+            lastScanEnd = millis();
+        }
+    } else {
+        // Not triangulating, normal scan completion
+        scanning = false;
+        lastScanEnd = millis();
+    }
+
+    // Build list scan results
+    std::string results =
+        "List scan - Mode: " + std::string(modeStr.c_str()) +
+        " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n" +
+        "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
+        "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
+        "Target hits: " + std::to_string(totalHits) + "\n\n";
+
+    std::map<String, Hit> hitsMap;
+    for (const auto& targetMacStr : seenTargets) {
+        Hit bestHit;
+        int8_t bestRssi = -128;
+        bool found = false;
+
+        String targetMac = targetMacStr;
+        for (const auto& hit : hitsLog) {
+            String hitMacStrOrig = macFmt6(hit.mac);
+            String hitMacStr = hitMacStrOrig;
+            hitMacStr.toUpperCase();
+            if (hitMacStr == targetMac && hit.rssi > bestRssi) {
+                bestHit = hit;
+                bestRssi = hit.rssi;
+                found = true;
+            }
+        }
+
+        if (found) {
+            hitsMap[targetMac] = bestHit;
         }
     }
-    
-    scanning = false;
-    lastScanEnd = millis();
 
-    {
+    if (hitsMap.empty()) {
+        results += "No targets detected.\n";
+    } else {
+        // Sort hits by RSSI
+        std::vector<Hit> sortedHits;
+        for (const auto& entry : hitsMap) {
+            sortedHits.push_back(entry.second);
+        }
+        std::sort(sortedHits.begin(), sortedHits.end(),
+                  [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+
+        int show = sortedHits.size();
+        if (show > 200) show = 200;
+        for (int i = 0; i < show; i++) {
+            const auto &e = sortedHits[i];
+            results += std::string(e.isBLE ? "BLE " : "WiFi");
+            String macOut = macFmt6(e.mac);
+            results += " " + std::string(macOut.c_str());
+            results += " RSSI=" + std::to_string(e.rssi) + "dBm";
+            if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
+            if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
+                results += " Name=" + std::string(e.name);
+            }
+            results += "\n";
+        }
+        if (static_cast<int>(sortedHits.size()) > show) {
+            results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
+        }
+    }
+
+    // Only update results if not stopped (prevent race with stopTriangulation())
+    if (!stopRequested) {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
-        std::string results =
-            "List scan - Mode: " + std::string(modeStr.c_str()) +
-            " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n" +
-            "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
-            "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
-            "Target hits: " + std::to_string(totalHits) + "\n\n";
+        bool hasTriangulation = (antihunter::lastResults.find("=== Triangulation Results ===") != std::string::npos);
 
-        std::map<String, Hit> hitsMap;
-        for (const auto& targetMacStr : seenTargets) {
-            Hit bestHit;
-            int8_t bestRssi = -128; 
-            bool found = false;
-
-            String targetMac = targetMacStr; 
-            for (const auto& hit : hitsLog) {
-                String hitMacStrOrig = macFmt6(hit.mac);
-                String hitMacStr = hitMacStrOrig;
-                hitMacStr.toUpperCase();
-                if (hitMacStr == targetMac && hit.rssi > bestRssi) {
-                    bestHit = hit;
-                    bestRssi = hit.rssi;
-                    found = true;
-                }
-            }
-
-            if (found) {
-                hitsMap[targetMac] = bestHit;
-            }
-        }
-
-        if (hitsMap.empty()) {
-            results += "No targets detected.\n";
+        if (hasTriangulation) {
+            antihunter::lastResults = results + "\n\n" + antihunter::lastResults;
+        } else if (triangulationNodes.size() > 0) {
+            antihunter::lastResults = antihunter::lastResults + "\n\n=== List Scan Results ===\n" + results;
         } else {
-            // Sort hits by RSSI
-            std::vector<Hit> sortedHits;
-            for (const auto& entry : hitsMap) {
-                sortedHits.push_back(entry.second);
-            }
-            std::sort(sortedHits.begin(), sortedHits.end(),
-                      [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-
-            int show = sortedHits.size();
-            if (show > 200) show = 200;
-            for (int i = 0; i < show; i++) {
-                const auto &e = sortedHits[i];
-                results += std::string(e.isBLE ? "BLE " : "WiFi");
-                String macOut = macFmt6(e.mac);
-                results += " " + std::string(macOut.c_str());
-                results += " RSSI=" + std::to_string(e.rssi) + "dBm";
-                if (!e.isBLE && e.ch > 0) results += " CH=" + std::to_string(e.ch);
-                if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
-                    results += " Name=" + std::string(e.name);
-                }
-                results += "\n";
-            }
-            if (static_cast<int>(sortedHits.size()) > show) {
-                results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
-            }
+            antihunter::lastResults = results;
         }
 
-        // Only update results if not stopped (prevent race with stopTriangulation())
-        if (!stopRequested) {
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-
-            bool hasTriangulation = (antihunter::lastResults.find("=== Triangulation Results ===") != std::string::npos);
-
-            if (hasTriangulation) {
-                antihunter::lastResults = results + "\n\n" + antihunter::lastResults;
-            } else if (triangulationNodes.size() > 0) {
-                antihunter::lastResults = antihunter::lastResults + "\n\n=== List Scan Results ===\n" + results;
-            } else {
-                antihunter::lastResults = results;
-            }
-
-            Serial.printf("[DEBUG] Results stored: %d chars\n", results.length());
-        } else {
-            Serial.println("[DEBUG] Skipping results update - stopRequested (letting stopTriangulation() handle it)");
-        }
+        Serial.printf("[SCAN] List results stored: %d chars\n", results.length());
+    } else {
+        Serial.println("[SCAN] Skipping list results - stopRequested (letting stopTriangulation() handle it)");
     }
 
     if (meshEnabled && !stopRequested) {
