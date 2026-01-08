@@ -1861,61 +1861,61 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div>';
         }
 
-        // Check for error/warning states and display them prominently
-        if (text.includes('Insufficient GPS') || (text.includes('GPS nodes:') && text.includes('required'))) {
-          const gpsCountMatch = text.match(/GPS nodes:\s*(\d+)\/(\d+)\s*required/);
-          const totalNodesMatch = text.match(/Total nodes:\s*(\d+)/);
-          html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
-          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-          html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Insufficient GPS Nodes</div>';
-          html += '</div>';
-          if (gpsCountMatch) {
-            html += '<div style="color:#78350f;font-size:14px;margin-bottom:8px;">Need ' + gpsCountMatch[2] + ' GPS nodes, but only ' + gpsCountMatch[1] + ' available.</div>';
-            const needed = parseInt(gpsCountMatch[2]) - parseInt(gpsCountMatch[1]);
-            html += '<div style="color:#78350f;font-size:13px;margin-bottom:16px;">Add ' + needed + ' more GPS-equipped node(s) to enable triangulation.</div>';
-          } else {
-            html += '<div style="color:#78350f;font-size:14px;margin-bottom:16px;">At least 3 GPS-equipped nodes are required for triangulation.</div>';
-          }
+        // // Check for error/warning states and display them prominently
+        // if (text.includes('Insufficient GPS') || (text.includes('GPS nodes:') && text.includes('required'))) {
+        //   const gpsCountMatch = text.match(/GPS nodes:\s*(\d+)\/(\d+)\s*required/);
+        //   const totalNodesMatch = text.match(/Total nodes:\s*(\d+)/);
+        //   html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
+        //   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+        //   html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+        //   html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Insufficient GPS Nodes</div>';
+        //   html += '</div>';
+        //   if (gpsCountMatch) {
+        //     html += '<div style="color:#78350f;font-size:14px;margin-bottom:8px;">Need ' + gpsCountMatch[2] + ' GPS nodes, but only ' + gpsCountMatch[1] + ' available.</div>';
+        //     const needed = parseInt(gpsCountMatch[2]) - parseInt(gpsCountMatch[1]);
+        //     html += '<div style="color:#78350f;font-size:13px;margin-bottom:16px;">Add ' + needed + ' more GPS-equipped node(s) to enable triangulation.</div>';
+        //   } else {
+        //     html += '<div style="color:#78350f;font-size:14px;margin-bottom:16px;">At least 3 GPS-equipped nodes are required for triangulation.</div>';
+        //   }
 
-          // Parse and display current GPS nodes
-          const gpsNodesSection = text.split('Current GPS nodes:')[1]?.split('Non-GPS nodes:')[0];
-          if (gpsNodesSection) {
-            html += '<div style="margin-top:12px;padding:14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;">';
-            html += '<div style="color:#15803d;font-size:12px;font-weight:700;margin-bottom:10px;">GPS-Equipped Nodes</div>';
-            const gpsNodeLines = gpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
-            gpsNodeLines.forEach(line => {
-              const nodeMatch = line.match(/•\s*([^\s@]+)\s*@\s*([-\d.]+),([-\d.]+)/);
-              if (nodeMatch) {
-                html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
-                html += '<div style="color:#15803d;font-weight:700;font-size:12px;margin-bottom:4px;">' + nodeMatch[1] + '</div>';
-                html += '<div style="color:#6b7280;font-family:monospace;font-size:11px;">' + nodeMatch[2] + ', ' + nodeMatch[3] + '</div>';
-                html += '</div>';
-              }
-            });
-            html += '</div>';
-          }
+        //   // Parse and display current GPS nodes
+        //   const gpsNodesSection = text.split('Current GPS nodes:')[1]?.split('Non-GPS nodes:')[0];
+        //   if (gpsNodesSection) {
+        //     html += '<div style="margin-top:12px;padding:14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;">';
+        //     html += '<div style="color:#15803d;font-size:12px;font-weight:700;margin-bottom:10px;">GPS-Equipped Nodes</div>';
+        //     const gpsNodeLines = gpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
+        //     gpsNodeLines.forEach(line => {
+        //       const nodeMatch = line.match(/•\s*([^\s@]+)\s*@\s*([-\d.]+),([-\d.]+)/);
+        //       if (nodeMatch) {
+        //         html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
+        //         html += '<div style="color:#15803d;font-weight:700;font-size:12px;margin-bottom:4px;">' + nodeMatch[1] + '</div>';
+        //         html += '<div style="color:#6b7280;font-family:monospace;font-size:11px;">' + nodeMatch[2] + ', ' + nodeMatch[3] + '</div>';
+        //         html += '</div>';
+        //       }
+        //     });
+        //     html += '</div>';
+        //   }
 
-          // Parse and display non-GPS nodes
-          const nonGpsNodesSection = text.split('Non-GPS nodes:')[1]?.split('===')[0];
-          if (nonGpsNodesSection) {
-            html += '<div style="margin-top:12px;padding:14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;">';
-            html += '<div style="color:#991b1b;font-size:12px;font-weight:700;margin-bottom:10px;">Nodes Without GPS</div>';
-            const nonGpsNodeLines = nonGpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
-            nonGpsNodeLines.forEach(line => {
-              const nodeMatch = line.match(/•\s*([^\s(]+)/);
-              if (nodeMatch) {
-                html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
-                html += '<div style="color:#991b1b;font-weight:700;font-size:12px;margin-bottom:2px;">' + nodeMatch[1] + '</div>';
-                html += '<div style="color:#6b7280;font-style:italic;font-size:10px;">GPS disabled or no fix</div>';
-                html += '</div>';
-              }
-            });
-            html += '</div>';
-          }
+        //   // Parse and display non-GPS nodes
+        //   const nonGpsNodesSection = text.split('Non-GPS nodes:')[1]?.split('===')[0];
+        //   if (nonGpsNodesSection) {
+        //     html += '<div style="margin-top:12px;padding:14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;">';
+        //     html += '<div style="color:#991b1b;font-size:12px;font-weight:700;margin-bottom:10px;">Nodes Without GPS</div>';
+        //     const nonGpsNodeLines = nonGpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
+        //     nonGpsNodeLines.forEach(line => {
+        //       const nodeMatch = line.match(/•\s*([^\s(]+)/);
+        //       if (nodeMatch) {
+        //         html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
+        //         html += '<div style="color:#991b1b;font-weight:700;font-size:12px;margin-bottom:2px;">' + nodeMatch[1] + '</div>';
+        //         html += '<div style="color:#6b7280;font-style:italic;font-size:10px;">GPS disabled or no fix</div>';
+        //         html += '</div>';
+        //       }
+        //     });
+        //     html += '</div>';
+        //   }
 
-          html += '</div>';
-        }
+        //   html += '</div>';
+        // }
 
         // Show warning banners but continue parsing - don't block other sections
         if (text.includes('No Mesh Nodes Responding')) {
