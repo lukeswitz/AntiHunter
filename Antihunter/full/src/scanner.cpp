@@ -1915,12 +1915,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
             wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                        " HDOP=" + String(triAccum.hdop, 1);
         }
-        if (triAccum.wifiFirstDetectionTimestamp > 0) {
-            double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
-            char tsStr[32];
-            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-            wifiMsg += " TS=" + String(tsStr);
-        }
         if (sendToSerial1(wifiMsg, true)) {
             sentAny = true;
             reportingSchedule.markReportReceived(nodeId);
@@ -1940,12 +1934,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
         if (triAccum.hasGPS) {
             bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                       " HDOP=" + String(triAccum.hdop, 1);
-        }
-        if (triAccum.bleFirstDetectionTimestamp > 0) {
-            double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
-            char tsStr[32];
-            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-            bleMsg += " TS=" + String(tsStr);
         }
         if (sendToSerial1(bleMsg, true)) {
             sentAny = true;
@@ -2425,18 +2413,12 @@ void listScanTask(void *pv) {
 
         vTaskDelay(pdMS_TO_TICKS(150));
     }
-
-    // IMPORTANT: Child nodes should NOT send final data here!
-    // They will send it when they receive TRIANGULATE_STOP command
-    // Only the initiator proceeds to call stopTriangulation()
     if (triangulationActive) {
         if (triangulationInitiator) {
             Serial.println("[SCAN INITIATOR] Scan complete, calling stopTriangulation()");
             stopRequested = true;
             vTaskDelay(pdMS_TO_TICKS(500));
             stopTriangulation();
-            // Set scanning = false AFTER stopTriangulation() completes to ensure
-            // web UI gets final results when it detects scanning has stopped
             scanning = false;
             lastScanEnd = millis();
         } else {

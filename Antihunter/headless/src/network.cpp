@@ -90,11 +90,11 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 
 bool sendToSerial1(const String &message, bool canDelay) {
     // Priority messages bypass rate limiting
-    bool isPriority = message.indexOf("TRIANGULATE_STOP") >= 0 ||
-                      message.indexOf("STOP_ACK") >= 0 ||
+    bool isPriority = message.indexOf("STOP_ACK") >= 0 ||
                       message.indexOf("TRI_START_ACK") >= 0 ||
                       message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
                       message.indexOf("@ALL TRI_CYCLE_START") >= 0;
+                    //   message.indexOf("TRIANGULATE_STOP") >= 0 ||
     
     size_t msgLen = message.length() + 2;
     
@@ -681,12 +681,6 @@ void processCommand(const String &command, const String &targetId = "")
                 wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                         " HDOP=" + String(triAccum.hdop, 1);
             }
-            if (triAccum.wifiFirstDetectionTimestamp > 0) {
-                double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
-                char tsStr[32];
-                snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-                wifiMsg += " TS=" + String(tsStr);
-            }
             sendToSerial1(wifiMsg, true);
             Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
                          triAccum.wifiHitCount, wifiAvgRssi);
@@ -702,12 +696,6 @@ void processCommand(const String &command, const String &targetId = "")
             if (triAccum.hasGPS) {
                 bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                         " HDOP=" + String(triAccum.hdop, 1);
-            }
-            if (triAccum.bleFirstDetectionTimestamp > 0) {
-                double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
-                char tsStr[32];
-                snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-                bleMsg += " TS=" + String(tsStr);
             }
             sendToSerial1(bleMsg, true);
             Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
@@ -1003,7 +991,6 @@ void processMeshMessage(const String &message) {
                     int rssiIdx = payload.indexOf("RSSI:");
                     int gpsIdx = payload.indexOf("GPS=");
                     int hdopIdx = payload.indexOf("HDOP=");
-                    int tsIdx = payload.indexOf("TS=");
 
                     if (rssiIdx > 0) {
                         int hits = -1;  // -1 means no Hits field present, keep existing value
@@ -1050,15 +1037,6 @@ void processMeshMessage(const String &message) {
                             }
                         }
 
-                        // Extract detection timestamp
-                        int64_t detectionTimestamp = 0;
-                        if (tsIdx > 0) {
-                            int tsEnd = payload.indexOf(' ', tsIdx + 3);
-                            if (tsEnd < 0) tsEnd = payload.length();
-                            double timestampSec = payload.substring(tsIdx + 3, tsEnd).toDouble();
-                            detectionTimestamp = (int64_t)(timestampSec * 1000000.0);  // Convert to microseconds
-                        }
-
                         bool found = false;
                         for (auto &node : triangulationNodes) {
                             if (node.nodeId == sendingNode) {
@@ -1073,10 +1051,6 @@ void processMeshMessage(const String &message) {
                                     node.lon = lon;
                                     node.hasGPS = true;
                                     node.hdop = hdop;
-                                }
-                                // Update detection timestamp
-                                if (detectionTimestamp > 0) {
-                                    node.detectionTimestamp = detectionTimestamp;
                                 }
                                 node.distanceEstimate = rssiToDistance(node, !node.isBLE);
                                 found = true;
@@ -1099,7 +1073,6 @@ void processMeshMessage(const String &message) {
                             newNode.hdop = hdop;
                             newNode.isBLE = isBLE;
                             newNode.lastUpdate = millis();
-                            newNode.detectionTimestamp = detectionTimestamp;
                             initNodeKalmanFilter(newNode);
                             updateNodeRSSI(newNode, rssi);
                             newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);

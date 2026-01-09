@@ -66,14 +66,14 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 
 <img width="859" height="899" alt="Screenshot 2025-11-26 at 7 00 25 AM" src="https://github.com/user-attachments/assets/c76bb177-ce4e-42db-aafb-fd360b7f49e2" />
 
-Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates, syncing RTCs for precision. Detection data is aggregated and forwarded over mesh to the AP and command center for more advanced trilateration processing.
+Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded over mesh to the AP and command center for RSSI-based trilateration processing.
 
 **Key Capabilities:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
-- **Weighted GPS Trilateration**:
-  - Method: Weighted trilateration + Kalman filtering
-  - Metrics: Average HDOP, GPS Coordinates, Confidence, Est. Uncertainty (m), Sync Status, GPS Quality
+- **RSSI-Based Trilateration**:
+  - Method: RSSI-based weighted trilateration + Kalman filtering
+  - Metrics: Average HDOP, GPS Coordinates, Confidence, Est. Uncertainty (m), GPS Quality
   - Output: Google Maps link sent over mesh with details
 
 **Experimental T114 Support:**

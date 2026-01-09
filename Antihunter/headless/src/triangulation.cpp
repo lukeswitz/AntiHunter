@@ -411,114 +411,6 @@ String getNodeSyncStatus() {
     return status;
 }
 
-// TDOA (Time Difference of Arrival) Triangulation
-// Uses detection timestamps for more accurate positioning than RSSI alone
-bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence) {
-    const float SPEED_OF_LIGHT = 299792458.0;  // meters/second (RF propagation speed)
-
-    // Filter nodes with valid timestamps and GPS
-    std::vector<TriangulationNode> validNodes;
-    for (const auto &node : nodes) {
-        if (node.hasGPS && node.detectionTimestamp > 0) {
-            validNodes.push_back(node);
-        }
-    }
-
-    if (validNodes.size() < 3) {
-        Serial.printf("[TDOA] Insufficient nodes with timestamps: %d < 3\n", validNodes.size());
-        return false;
-    }
-
-    // Use first node as reference
-    const TriangulationNode &refNode = validNodes[0];
-
-    // Calculate TDOA hyperbola solutions
-    // Using weighted least squares approach
-    float sumWeights = 0.0;
-    float sumLat = 0.0;
-    float sumLon = 0.0;
-    int validSolutions = 0;
-
-    // For each pair of nodes (reference vs other), calculate position estimate
-    for (size_t i = 1; i < validNodes.size(); i++) {
-        const TriangulationNode &node = validNodes[i];
-
-        // Get propagation delays for mesh communication compensation
-        uint32_t refPropDelay = 0;
-        uint32_t nodePropDelay = 0;
-        if (nodePropagationDelays.count(refNode.nodeId) > 0) {
-            refPropDelay = nodePropagationDelays[refNode.nodeId];
-        }
-        if (nodePropagationDelays.count(node.nodeId) > 0) {
-            nodePropDelay = nodePropagationDelays[node.nodeId];
-        }
-
-        // Calculate time difference in seconds, compensating for mesh propagation delays
-        // Subtract propagation delay to get actual signal arrival time at each node
-        int64_t refCorrectedTimestamp = refNode.detectionTimestamp - (int64_t)refPropDelay;
-        int64_t nodeCorrectedTimestamp = node.detectionTimestamp - (int64_t)nodePropDelay;
-        double timeDiff = (nodeCorrectedTimestamp - refCorrectedTimestamp) / 1000000.0;
-
-        // Calculate range difference (meters)
-        float rangeDiff = timeDiff * SPEED_OF_LIGHT;
-
-        // Convert to ENU coordinates for calculation
-        float refE, refN, nodeE, nodeN;
-        geodeticToENU(refNode.lat, refNode.lon, refNode.lat, refNode.lon, refE, refN);
-        geodeticToENU(node.lat, node.lon, refNode.lat, refNode.lon, nodeE, nodeN);
-
-        // Calculate baseline distance between nodes
-        float baseline = sqrt((nodeE - refE) * (nodeE - refE) + (nodeN - refN) * (nodeN - refN));
-
-        if (baseline < 1.0) {
-            continue;  // Skip nodes that are too close together
-        }
-
-        // Weight based on signal quality and HDOP
-        float weight = refNode.signalQuality * node.signalQuality / (refNode.hdop + node.hdop);
-
-        // Simplified hyperbola solution - estimate position along baseline
-        // In full 3D TDOA, this would use iterative solvers like Gauss-Newton
-        // For 2D with multiple measurements, we use a weighted average approach
-
-        float ratio = (rangeDiff / baseline + 1.0) / 2.0;  // Normalize to 0-1
-        ratio = constrain(ratio, 0.0, 1.0);
-
-        // Interpolate position along baseline
-        float estE = refE + ratio * (nodeE - refE);
-        float estN = refN + ratio * (nodeN - refN);
-
-        // Convert back to geodetic
-        float latEst = refNode.lat + (estN / 111320.0);  // Approx meters to degrees
-        float lonEst = refNode.lon + (estE / (111320.0 * cos(refNode.lat * PI / 180.0)));
-
-        sumLat += latEst * weight;
-        sumLon += lonEst * weight;
-        sumWeights += weight;
-        validSolutions++;
-
-        Serial.printf("[TDOA] Pair %s<->%s: TDOA=%.6fs (propDelay: %uus/%uus) rangeDiff=%.1fm baseline=%.1fm\n",
-                      refNode.nodeId.c_str(), node.nodeId.c_str(), timeDiff, refPropDelay, nodePropDelay, rangeDiff, baseline);
-    }
-
-    if (validSolutions == 0 || sumWeights == 0.0) {
-        Serial.println("[TDOA] No valid solutions found");
-        return false;
-    }
-
-    // Calculate weighted average position
-    estLat = sumLat / sumWeights;
-    estLon = sumLon / sumWeights;
-
-    // Calculate confidence based on number of measurements and weights
-    confidence = min(1.0f, (validSolutions / 3.0f) * (sumWeights / validSolutions));
-
-    Serial.printf("[TDOA] Result: lat=%.6f lon=%.6f confidence=%.2f (from %d pairs)\n",
-                  estLat, estLon, confidence, validSolutions);
-
-    return true;
-}
-
 // Traingulation actions
 
 // Task that handles ACK collection and cycle start (runs async to avoid blocking web handler)
@@ -886,8 +778,7 @@ void stopTriangulation() {
             selfNode.hasGPS = triAccum.hasGPS;
             selfNode.isBLE = isBLE;
             selfNode.lastUpdate = millis();
-            selfNode.detectionTimestamp = isBLE ? triAccum.bleFirstDetectionTimestamp : triAccum.wifiFirstDetectionTimestamp;
-            
+
             initNodeKalmanFilter(selfNode);
             updateNodeRSSI(selfNode, avgRssi);
             selfNode.distanceEstimate = rssiToDistance(selfNode, !isBLE);
@@ -1020,7 +911,7 @@ void stopTriangulation() {
                                 " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
                                 " CONF=" + String(confidence * 100.0, 1) +
                                 " UNC=" + String(cep, 1);
-                sendToSerial1(finalMsg, true);
+                sendToSerial1(finalMsg, false);
                 Serial.printf("[TRIANGULATE] Initiator sent final result: %s\n", finalMsg.c_str());
 
                 vTaskDelay(pdMS_TO_TICKS(1000));
@@ -1046,14 +937,12 @@ void stopTriangulation() {
     String myNodeId = getNodeId();
     int selfHits = 0;
     int8_t selfBestRSSI = -128;
-    int64_t selfTimestamp = 0;
     bool selfDetected = false;
 
     for (const auto& node : triangulationNodes) {
         if (node.nodeId == myNodeId) {
             selfHits = node.hitCount;
             selfBestRSSI = node.rssi;
-            selfTimestamp = node.detectionTimestamp;
             selfDetected = true;
             break;
         }
@@ -1068,13 +957,6 @@ void stopTriangulation() {
             float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
             dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
             dataMsg += " HDOP=" + String(hdop, 1);
-        }
-
-        if (selfTimestamp > 0) {
-            double timestampSec = selfTimestamp / 1000000.0;
-            char tsStr[32];
-            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-            dataMsg += " TS=" + String(tsStr);
         }
 
         sendToSerial1(dataMsg, true);
@@ -1353,51 +1235,16 @@ String calculateTriangulation() {
     }
 
     float estLat, estLon, confidence;
-    float tdoaLat, tdoaLon, tdoaConf;
-    bool hasTDOA = performTDOATriangulation(gpsNodes, tdoaLat, tdoaLon, tdoaConf);
     bool hasRSSI = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence);
 
-    if (hasTDOA && hasRSSI) {
-        // Save original RSSI results before combining
-        float rssiLat = estLat;
-        float rssiLon = estLon;
-        float rssiConf = confidence;
-
-        // Combine TDOA and RSSI results using weighted average
-        float tdoaWeight = tdoaConf * 0.7;  // TDOA is generally more accurate
-        float rssiWeight = confidence * 0.3;
-        float totalWeight = tdoaWeight + rssiWeight;
-
-        estLat = (tdoaLat * tdoaWeight + estLat * rssiWeight) / totalWeight;
-        estLon = (tdoaLon * tdoaWeight + estLon * rssiWeight) / totalWeight;
-        confidence = (tdoaConf + confidence) / 2.0;  // Average confidence
-
-        results += "ESTIMATED POSITION (TDOA + RSSI):\n";
-        results += "  Latitude:  " + String(estLat, 6) + "\n";
-        results += "  Longitude: " + String(estLon, 6) + "\n";
-        results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
-        results += "  Method: TDOA + Weighted trilateration (hybrid)\n";
-        results += "  TDOA Result: " + String(tdoaLat, 6) + "," + String(tdoaLon, 6) + " (" + String(tdoaConf * 100.0, 1) + "%)\n";
-        results += "  RSSI Result: " + String(rssiLat, 6) + "," + String(rssiLon, 6) + " (" + String(rssiConf * 100.0, 1) + "%)\n";
-    } else if (hasTDOA) {
-        estLat = tdoaLat;
-        estLon = tdoaLon;
-        confidence = tdoaConf;
-
-        results += "ESTIMATED POSITION (TDOA):\n";
-        results += "  Latitude:  " + String(estLat, 6) + "\n";
-        results += "  Longitude: " + String(estLon, 6) + "\n";
-        results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
-        results += "  Method: TDOA (Time Difference of Arrival)\n";
-    } else if (hasRSSI) {
+    if (hasRSSI) {
         results += "ESTIMATED POSITION (RSSI):\n";
         results += "  Latitude:  " + String(estLat, 6) + "\n";
         results += "  Longitude: " + String(estLon, 6) + "\n";
         results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
         results += "  Method: Weighted trilateration + Kalman filtering\n";
-    }
 
-    if (hasRSSI || hasTDOA) {
+
          // Calibrate path loss using estimated target position
         for (const auto& node : gpsNodes) {
             float distToTarget = haversineDistance(node.lat, node.lon, estLat, estLon);
@@ -1517,61 +1364,66 @@ void disciplineRTCFromGPS() {
     int hour = gps.time.hour();
     int minute = gps.time.minute();
     int second = gps.time.second();
-    
+    int centisecond = gps.time.centisecond();  // 0-99, 10ms precision
+
     if (year < 2020 || year > 2050) return;
     if (month < 1 || month > 12) return;
     if (day < 1 || day > 31) return;
     if (hour > 23 || minute > 59 || second > 59) return;
-    
+
     DateTime gpsTime(year, month, day, hour, minute, second);
     time_t gpsEpoch = gpsTime.unixtime();
-    
+
+    // GPS time with centisecond precision (10ms)
+    int64_t gpsEpochMicros = ((int64_t)gpsEpoch * 1000000LL) + (centisecond * 10000);
+
     int32_t offset = (int32_t)(gpsEpoch - rtcEpoch);
-    
+
     if (abs(offset) > 2) {
         if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
             rtc.adjust(gpsTime);
             xSemaphoreGive(rtcMutex);
 
-            // Recalibrate boot-to-epoch offset after large RTC adjustment
+            // Recalibrate boot-to-epoch offset with centisecond precision
             uint32_t bootMicros = micros();
-            clockDiscipline.bootToEpochOffsetMicros = ((int64_t)gpsEpoch * 1000000LL) - (int64_t)bootMicros;
+            clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
             clockDiscipline.offsetCalibrated = true;
             clockDiscipline.disciplineCount = 0;
             clockDiscipline.converged = false;
 
-            Serial.printf("[DISCIPLINE] Large correction: %ds, offset calibrated\n", offset);
+            Serial.printf("[DISCIPLINE] Large correction: %ds, offset calibrated (cs=%d)\n", offset, centisecond);
         }
     } else if (!clockDiscipline.offsetCalibrated) {
-        // Calibrate offset on first GPS sync even if no large adjustment needed
+        // Calibrate offset on first GPS sync with centisecond precision
         uint32_t bootMicros = micros();
-        clockDiscipline.bootToEpochOffsetMicros = ((int64_t)gpsEpoch * 1000000LL) - (int64_t)bootMicros;
+        clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
         clockDiscipline.offsetCalibrated = true;
-        Serial.println("[DISCIPLINE] Boot-to-epoch offset calibrated");
-    } else if (abs(offset) == 1) {
+        Serial.printf("[DISCIPLINE] Boot-to-epoch offset calibrated (cs=%d)\n", centisecond);
+    } else if (abs(offset) <= 1) {
+        // Small drift - update offset without adjusting RTC
+        uint32_t bootMicros = micros();
+        clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
+
         if (clockDiscipline.lastDiscipline > 0) {
             uint32_t elapsed = millis() - clockDiscipline.lastDiscipline;
-            
-            clockDiscipline.driftRate = (float)offset / (elapsed / 1000.0);
-            clockDiscipline.disciplineCount++;
-            
-            // Serial.printf("[DISCIPLINE] Drift rate: %.6f s/s (%.2f ppm)\n", clockDiscipline.driftRate, clockDiscipline.driftRate * 1e6);
-            
-            if (clockDiscipline.disciplineCount >= 3) {
-                clockDiscipline.converged = true;
+
+            if (abs(offset) == 1) {
+                clockDiscipline.driftRate = (float)offset / (elapsed / 1000.0);
+                clockDiscipline.disciplineCount++;
+
+                if (clockDiscipline.disciplineCount >= 3) {
+                    clockDiscipline.converged = true;
+                }
+            } else {
+                clockDiscipline.disciplineCount++;
             }
         }
         clockDiscipline.lastDiscipline = millis();
-    } else {
-        clockDiscipline.lastDiscipline = millis();
-        if (clockDiscipline.disciplineCount > 0) {
-            clockDiscipline.disciplineCount++;
-        }
     }
 }
 
 int64_t getCorrectedMicroseconds() {
-    // Get Unix timestamp with microsecond precision for TDoA
+    // Get Unix timestamp with microsecond precision for timing synchronization
     if (!rtcAvailable || rtcMutex == nullptr || !clockDiscipline.offsetCalibrated) {
         // Fallback to boot-relative microseconds if no RTC or not calibrated
         uint32_t currentMicros = micros();
