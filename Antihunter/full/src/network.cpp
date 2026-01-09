@@ -165,14 +165,20 @@ bool sendToSerial1(const String &message, bool canDelay) {
         Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
         return false;
     }
-    
+
     Serial1.println(message);
+    Serial.printf("[MESH TX] %s\n", message.c_str());
     broadcastToTerminal("[TX] " + message);
-    
+
+    // For priority messages, ensure they're actually transmitted
+    if (isPriority) {
+        Serial1.flush();
+    }
+
     if (!isPriority) {
         rateLimiter.consume(msgLen);
     }
-    
+
     return true;
 }
 
@@ -4635,7 +4641,7 @@ void initializeMesh() {
     delay(100);
   
     Serial1.setRxBufferSize(2048);
-    Serial1.setTxBufferSize(1024);
+    Serial1.setTxBufferSize(4096);  // Increased from 1024 to prevent truncation
     Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
     Serial1.setTimeout(100);
     
@@ -5715,8 +5721,8 @@ void processMeshMessage(const String &message) {
         }
 
 
-        if (content.startsWith("TRIANGULATION_FINAL:")) {
-            String payload = content.substring(20);
+        if (content.startsWith("T_F:")) {
+            String payload = content.substring(4);
 
             int gpsIdx = payload.indexOf("GPS=");
             int confIdx = payload.indexOf("CONF=");
@@ -5745,9 +5751,9 @@ void processMeshMessage(const String &message) {
             }
         }
 
-        if (content.startsWith("TRIANGULATE_COMPLETE:")) {
+        if (content.startsWith("T_C:")) {
             // Parse and log the complete message with URL
-            String payload = content.substring(21);
+            String payload = content.substring(4);
 
             int macIdx = payload.indexOf("MAC=");
             int nodesIdx = payload.indexOf("Nodes=");

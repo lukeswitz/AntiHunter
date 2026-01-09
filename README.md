@@ -498,7 +498,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | **Baseline Anomaly** | `NODE_ID: ANOMALY-NEW/RETURN/RSSI: TYPE MAC RSSI:dBm [details]` |
 | **Deauth Attack** | `NODE_ID: ATTACK: DEAUTH SRC:MAC DST:MAC RSSI:dBm CH:N` |
 | **Triangulation Data** | `NODE_ID: T_D: MAC RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` |
-| **Triangulation Complete** | `NODE_ID: TRIANGULATE_COMPLETE: MAC=XX:XX:XX:XX:XX:XX Nodes=N [Google Maps link]` |
+| **Triangulation Final** | `NODE_ID: T_F: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3` |
+| **Triangulation Complete** | `NODE_ID: T_C: MAC=XX:XX:XX:XX:XX:XX Nodes=N [Google Maps link]` |
 | **Tamper Detected** | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | **Status Response** | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE/IDLE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 

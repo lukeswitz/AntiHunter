@@ -950,7 +950,7 @@ void stopTriangulation() {
         }
     }
 
-    String resultMsg = getNodeId() + ": TRIANGULATE_COMPLETE: MAC=" + targetMacStr +
+    String resultMsg = getNodeId() + ": T_C: MAC=" + targetMacStr +
                 " Nodes=" + String(gpsNodes.size());
 
     Serial.printf("[TRIANGULATE] Total nodes: %u, GPS nodes: %u, Coordinator: %s\n",
@@ -1011,7 +1011,7 @@ void stopTriangulation() {
                 apFinalResult.timestamp = millis();
                 apFinalResult.coordinatorNodeId = myNodeId;
 
-                String finalMsg = myNodeId + ": TRIANGULATION_FINAL: MAC=" + targetMacStr +
+                String finalMsg = myNodeId + ": T_F: MAC=" + targetMacStr +
                                 " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
                                 " CONF=" + String(confidence * 100.0, 1) +
                                 " UNC=" + String(cep, 1);
@@ -1022,14 +1022,18 @@ void stopTriangulation() {
             }
         } else {
             if (triangulationInitiator) {
-                Serial.println("[TRIANGULATE] Trilateration failed - TRIANGULATION_FINAL not sent");
+                Serial.println("[TRIANGULATE] Trilateration failed - T_F not sent");
             }
         }
     } else {
         if (triangulationInitiator) {
-            Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) - TRIANGULATION_FINAL not sent\n", gpsNodes.size());
+            Serial.printf("[TRIANGULATE] Insufficient GPS nodes (%u < 3) - T_F not sent\n", gpsNodes.size());
         }
     }
+
+    // Flush rate limiter BEFORE sending final results to prevent drops
+    rateLimiter.flush();
+    Serial.println("[TRIANGULATE] Rate limiter flushed for final results");
 
     // Coordinator sends its own T_D for data aggregation
     // This is used by external systems to see all detection data
@@ -1073,12 +1077,11 @@ void stopTriangulation() {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    rateLimiter.flush();
     vTaskDelay(pdMS_TO_TICKS(500));
 
     if (triangulationInitiator) {
         bool sent = sendToSerial1(resultMsg, true);
-        Serial.printf("[TRIANGULATE] Initiator sent TRIANGULATE_COMPLETE: %s\n", sent ? "SUCCESS" : "FAILED");
+        Serial.printf("[TRIANGULATE] Initiator sent T_C: %s\n", sent ? "SUCCESS" : "FAILED");
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 
