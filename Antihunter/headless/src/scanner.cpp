@@ -1911,12 +1911,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
                        " HDOP=" + String(triAccum.hdop, 1);
         }
         // Add detection timestamp (microseconds)
-        if (triAccum.wifiFirstDetectionTimestamp > 0) {
-            double timestampSec = triAccum.wifiFirstDetectionTimestamp / 1000000.0;
-            char tsStr[32];
-            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-            wifiMsg += " TS=" + String(tsStr);
-        }
         if (sendToSerial1(wifiMsg, true)) {
             sentAny = true;
             reportingSchedule.markReportReceived(nodeId);
@@ -1935,13 +1929,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
         if (triAccum.hasGPS) {
             bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
                       " HDOP=" + String(triAccum.hdop, 1);
-        }
-        // Add detection timestamp (microseconds)
-        if (triAccum.bleFirstDetectionTimestamp > 0) {
-            double timestampSec = triAccum.bleFirstDetectionTimestamp / 1000000.0;
-            char tsStr[32];
-            snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
-            bleMsg += " TS=" + String(tsStr);
         }
         if (sendToSerial1(bleMsg, true)) {
             sentAny = true;
