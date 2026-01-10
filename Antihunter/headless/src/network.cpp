@@ -96,7 +96,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
                       message.indexOf("@ALL TRI_CYCLE_START") >= 0 ||
                       message.indexOf("TRIANGULATE_STOP") >= 0 ||
                       message.indexOf(": T_F:") >= 0 ||
-                      message.indexOf(": T_D:") >= 0 ||
                       message.indexOf(": T_C:") >= 0;
 
     size_t msgLen = message.length() + 2;
