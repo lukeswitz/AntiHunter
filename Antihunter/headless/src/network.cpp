@@ -93,31 +93,47 @@ bool sendToSerial1(const String &message, bool canDelay) {
     bool isPriority = message.indexOf("STOP_ACK") >= 0 ||
                       message.indexOf("TRI_START_ACK") >= 0 ||
                       message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
-                      message.indexOf("@ALL TRI_CYCLE_START") >= 0;
-                    //   message.indexOf("TRIANGULATE_STOP") >= 0 ||
-    
+                      message.indexOf("@ALL TRI_CYCLE_START") >= 0 ||
+                      message.indexOf("TRIANGULATE_STOP") >= 0 ||
+                      message.indexOf(": T_F:") >= 0 ||
+                      message.indexOf(": T_D:") >= 0 ||
+                      message.indexOf(": T_C:") >= 0;
+
     size_t msgLen = message.length() + 2;
-    
+
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         if (canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
-            if (wait > 0 && wait < meshSendInterval) { 
+            if (wait > 0 && wait < meshSendInterval) {
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
                 delay(wait);
                 rateLimiter.refillTokens();
             } else {
                 Serial.printf("[MESH] Rate limit: dropping message (wait=%ums too long)\n", wait);
-                return false; 
+                return false;
             }
         } else {
             Serial.printf("[MESH] Rate limit: cannot send without delay\n");
             return false;
         }
     }
-    
-    if (Serial1.availableForWrite() < msgLen) {
-        Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
-        return false;
+
+    // For priority messages, wait for buffer space
+    if (isPriority) {
+        uint32_t waitStart = millis();
+        while (Serial1.availableForWrite() < msgLen) {
+            if (millis() - waitStart > 5000) {
+                Serial.printf("[MESH] Priority message timeout waiting for buffer space\n");
+                return false;
+            }
+            delay(10);
+        }
+    } else {
+        // Non-priority messages fail immediately if buffer full
+        if (Serial1.availableForWrite() < msgLen) {
+            Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
+            return false;
+        }
     }
 
     Serial1.println(message);

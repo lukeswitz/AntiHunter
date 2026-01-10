@@ -138,8 +138,11 @@ bool sendToSerial1(const String &message, bool canDelay) {
     bool isPriority = message.indexOf("STOP_ACK") >= 0 ||
                       message.indexOf("TRI_START_ACK") >= 0 ||
                       message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
-                      message.indexOf("@ALL TRI_CYCLE_START") >= 0;
-                      // message.indexOf("TRIANGULATE_STOP") >= 0 ||
+                      message.indexOf("@ALL TRI_CYCLE_START") >= 0 ||
+                      message.indexOf("TRIANGULATE_STOP") >= 0 ||
+                      message.indexOf(": T_F:") >= 0 ||
+                      message.indexOf(": T_D:") >= 0 ||
+                      message.indexOf(": T_C:") >= 0;
     
     size_t msgLen = message.length() + 2;
     
@@ -161,9 +164,22 @@ bool sendToSerial1(const String &message, bool canDelay) {
         }
     }
     
-    if (Serial1.availableForWrite() < msgLen) {
-        Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
-        return false;
+    // For priority messages, wait for buffer space
+    if (isPriority) {
+        uint32_t waitStart = millis();
+        while (Serial1.availableForWrite() < msgLen) {
+            if (millis() - waitStart > 5000) {
+                Serial.printf("[MESH] Priority message timeout waiting for buffer space\n");
+                return false;
+            }
+            delay(10);
+        }
+    } else {
+        // Non-priority messages fail immediately if buffer full
+        if (Serial1.availableForWrite() < msgLen) {
+            Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
+            return false;
+        }
     }
 
     Serial1.println(message);
@@ -4962,16 +4978,9 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);
     String myNodeId = getNodeId();
-
-    // Check if this is a directed message to this specific node
-    // Directed format: @NodeA TRIANGULATE_START:target:duration
-    // Broadcast format: @ALL TRIANGULATE_START:target:duration:initiatorNodeId
     bool isDirectedToMe = !targetId.isEmpty() && targetId != "ALL" && targetId == myNodeId;
 
     if (isDirectedToMe) {
-        // This node was directly commanded to start triangulation as initiator
-        // Parse format: TRIANGULATE_START:target:duration
-        // Note: target is a MAC address with colons, so parse from the END
         int lastColon = params.lastIndexOf(':');
         if (lastColon < 0) {
             Serial.println("[TRIANGULATE] Invalid directed command format - no duration");
@@ -5006,28 +5015,23 @@ void processCommand(const String &command, const String &targetId = "")
 
     // Determine target length based on format
     if (params.startsWith("T-")) {
-        // Identity format: T-XXXX
-        targetEnd = params.indexOf(':', 2);  // Find first colon after "T-"
+        targetEnd = params.indexOf(':', 2);
         if (targetEnd < 0) targetEnd = params.length();
     } else {
-        // Assume MAC format: XX:XX:XX:XX:XX:XX (17 characters)
-        // MAC has 5 colons, so we need to skip them and find the 6th colon
         if (params.length() >= 17 && params.charAt(2) == ':' && params.charAt(5) == ':') {
             targetEnd = 17;
         } else {
-            // Fallback: try to find first non-MAC colon
             int colonCount = 0;
             for (int i = 0; i < params.length(); i++) {
                 if (params.charAt(i) == ':') {
                     colonCount++;
-                    if (colonCount == 6) {  // 6th colon is the delimiter after MAC
+                    if (colonCount == 6) {
                         targetEnd = i;
                         break;
                     }
                 }
             }
             if (targetEnd == 0) {
-                // Couldn't parse, try simple split on first colon
                 targetEnd = params.indexOf(':');
             }
         }
@@ -5073,19 +5077,15 @@ void processCommand(const String &command, const String &targetId = "")
     // Determine if this node is the initiator (from broadcast)
     bool isInitiator = false;
     if (initiatorNodeId.length() > 0) {
-        // Initiator explicitly specified in command
         isInitiator = (myNodeId == initiatorNodeId);
         Serial.printf("[TRIANGULATE] Broadcast received - Initiator: %s (I am %s: %s)\n",
                      initiatorNodeId.c_str(),
                      isInitiator ? "INITIATOR" : "participant",
                      myNodeId.c_str());
     } else {
-        // Legacy behavior: no initiator in command means this is a participant
         Serial.printf("[TRIANGULATE] No initiator specified, acting as participant\n");
     }
 
-    // If this node is the initiator, it already started via startTriangulation()
-    // Don't re-process the broadcast command to avoid interference
     if (isInitiator) {
         Serial.println("[TRIANGULATE] Ignoring broadcast - already running as initiator");
         return;
@@ -5128,9 +5128,7 @@ void processCommand(const String &command, const String &targetId = "")
     Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
 
-    // Child nodes: send final T_D report immediately when STOP is received
     if (triangulationActive && !triangulationInitiator) {
-        // CRITICAL: Flush rate limiter so final reports aren't dropped/delayed
         rateLimiter.flush();
         Serial.println("[MESH] Rate limiter flushed for final reports");
 
@@ -5139,8 +5137,7 @@ void processCommand(const String &command, const String &targetId = "")
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
 
-        // ALWAYS send a report, even with 0 hits, so initiator knows we're done
-        String macStr = macFmt6(triangulationTarget);  // Use triangulationTarget instead of triAccum.targetMac
+        String macStr = macFmt6(triangulationTarget);
         bool sentReport = false;
 
         if (triAccum.wifiHitCount > 0) {

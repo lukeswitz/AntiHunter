@@ -911,10 +911,10 @@ void stopTriangulation() {
                                 " GPS=" + String(estLat, 6) + "," + String(estLon, 6) +
                                 " CONF=" + String(confidence * 100.0, 1) +
                                 " UNC=" + String(cep, 1);
-                sendToSerial1(finalMsg, false);
+                sendToSerial1(finalMsg, true);
                 Serial.printf("[TRIANGULATE] Initiator sent final result: %s\n", finalMsg.c_str());
 
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                vTaskDelay(pdMS_TO_TICKS(2000));
             }
         } else {
             if (triangulationInitiator) {
@@ -961,15 +961,15 @@ void stopTriangulation() {
 
         sendToSerial1(dataMsg, true);
         Serial.printf("[TRIANGULATE] Sent self-detection data: %s\n", dataMsg.c_str());
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    vTaskDelay(pdMS_TO_TICKS(500));
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     if (triangulationInitiator) {
         bool sent = sendToSerial1(resultMsg, true);
         Serial.printf("[TRIANGULATE] Initiator sent T_C: %s\n", sent ? "SUCCESS" : "FAILED");
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
     // Clear flags first to prevent any race conditions
