@@ -870,7 +870,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       -->
       
-      <div class="footer">AntiHunter v0.7 | Node: <span id="footerNodeId">--</span></div>
+      <div class="footer">AntiHunter v0.8 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
