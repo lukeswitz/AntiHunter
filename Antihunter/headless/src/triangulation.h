@@ -56,11 +56,12 @@ struct ClockDiscipline {
     bool offsetCalibrated;
 };
 
-struct PathLossCalibration {
-    float rssi0_wifi;
-    float rssi0_ble;
-    float n_wifi;
-    float n_ble;
+struct DualSlopePathLoss {
+    float rssi0;
+    float n_near;
+    float n_far;
+    float breakpoint_m;
+    float shadow_std;
     bool calibrated;
 };
 
@@ -275,7 +276,8 @@ struct TriangulateAckInfo {
 };
 
 extern ClockDiscipline clockDiscipline;
-extern PathLossCalibration pathLoss;
+extern DualSlopePathLoss pathLossWiFi;
+extern DualSlopePathLoss pathLossBLE;
 extern std::map<String, uint32_t> nodePropagationDelays;
 extern std::vector<NodeSyncStatus> nodeSyncStatus;
 extern uint8_t triangulationTarget[6];
