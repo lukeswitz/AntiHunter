@@ -68,6 +68,8 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded over mesh to the AP and command center for RSSI-based trilateration processing.
 
+Note: The bill of materials antennas/MCUs will be close. It is tuned for the offical PCB power, so adjustment may be needed in the constants of `triangulation.cpp`
+
 **Key Capabilities:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
