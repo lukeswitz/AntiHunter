@@ -693,18 +693,23 @@ void stopTriangulation() {
         Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd)\n",
                      triangulateAcks.size());
 
-        // Give nodes time to ACK before checking if we should wait for reports
+        // Give nodes time to ACK and send T_D reports
         // ACKs may arrive after STOP is sent due to mesh latency
-        Serial.println("[TRIANGULATE] Waiting for late ACKs...");
-        vTaskDelay(pdMS_TO_TICKS(6000));  // Wait 6s for ACKs to arrive
-        Serial.printf("[TRIANGULATE] After ACK wait: %d nodes ACK'd\n", triangulateAcks.size());
+        // Also allows late T_D from nodes whose ACK was lost to be captured
+        Serial.println("[TRIANGULATE] Waiting for late ACKs and initial T_D reports...");
+        vTaskDelay(pdMS_TO_TICKS(10000));  // Increased from 6s to 10s for mesh reliability
+        Serial.printf("[TRIANGULATE] After initial wait: %d nodes in tracking\n", triangulateAcks.size());
 
         // OPTIMIZATION: Wait for all ACK'd nodes to send final reports
+        // Increased timeout to handle mesh latency and late-arriving T_D from nodes whose ACK was lost
         if (triangulateAcks.size() > 0) {
             Serial.printf("[TRIANGULATE] Waiting for reports from %d nodes...\n", triangulateAcks.size());
             uint32_t waitStart = millis();
-            const uint32_t REPORT_TIMEOUT = calculateAdaptiveTimeout(3000, 1000.0f);
+            const uint32_t REPORT_TIMEOUT = calculateAdaptiveTimeout(8000, 2000.0f);  // Increased from 3000/1000 for mesh reliability
             const uint32_t CHECK_INTERVAL = 100;
+
+            int lastNodeCount = triangulateAcks.size();
+            uint32_t lastNewNodeTime = millis();
 
             while (millis() - waitStart < REPORT_TIMEOUT) {
                 // Count how many nodes have reported
@@ -717,11 +722,27 @@ void stopTriangulation() {
                     }
                 }
 
+                // Check if new nodes were discovered (late T_D from nodes whose ACK was lost)
+                if (totalAcked > lastNodeCount) {
+                    Serial.printf("[TRIANGULATE] New node discovered! Now have %d nodes (was %d)\n",
+                                 totalAcked, lastNodeCount);
+                    lastNodeCount = totalAcked;
+                    lastNewNodeTime = millis();
+                }
+
                 Serial.printf("[TRIANGULATE] Reports: %d/%d (%.0f%%)\n",
                              reportedCount, totalAcked, (reportedCount * 100.0f) / totalAcked);
 
-                // All nodes reported - we can proceed
+                // All nodes reported - but wait a bit longer if we recently discovered new nodes
+                // This gives time for more late T_Ds to arrive
                 if (reportedCount >= totalAcked) {
+                    uint32_t timeSinceNewNode = millis() - lastNewNodeTime;
+                    if (timeSinceNewNode < 3000) {
+                        Serial.printf("[TRIANGULATE] All %d nodes reported, but waiting %ums more for potential late nodes\n",
+                                     reportedCount, 3000 - timeSinceNewNode);
+                        vTaskDelay(pdMS_TO_TICKS(CHECK_INTERVAL));
+                        continue;
+                    }
                     Serial.printf("[TRIANGULATE] All %d nodes reported! Proceeding...\n", reportedCount);
                     break;
                 }
