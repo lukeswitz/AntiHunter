@@ -34,64 +34,44 @@ bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
 DynamicReportingSchedule reportingSchedule;
 std::vector<TriangulateAckInfo> triangulateAcks;
-std::vector<String> triangulateReportedNodes;
+std::vector<String> triangulateReportedNodes;  // Nodes that sent final TRIANGULATE_REPORT
 String triangulationCoordinator = "";
 uint32_t ackCollectionStart = 0;
-uint32_t stopSentTimestamp = 0;
+uint32_t stopSentTimestamp = 0;  // When TRIANGULATE_STOP was sent
 bool waitingForFinalReports = false;
-const uint32_t FINAL_REPORT_TIMEOUT_MS = 15000;
+const uint32_t FINAL_REPORT_TIMEOUT_MS = 15000;  // 15 seconds for nodes to report
 static volatile bool triStopCameFromMesh = false;
 static uint32_t lastTriangulationStopTime = 0;
-const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000;
+const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
 
-DualSlopePathLoss pathLossWiFi = {
-    .rssi0 = -40.0f,
-    .n_near = 2.0f,
-    .n_far = 3.5f,
-    .breakpoint_m = 5.0f,
-    .shadow_std = 4.0f,
-    .calibrated = false
+
+PathLossCalibration pathLoss = {
+    -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
+    -66.0,  // rssi0_ble: BLE @ 1m with ~0dBm tx + 0dBi antenna (no external antenna)
+    3.0,    // n_wifi: indoor environment
+    2.5,    // n_ble: indoor/close-range
+    false
 };
-
-DualSlopePathLoss pathLossBLE = {
-    .rssi0 = -50.0f,
-    .n_near = 2.0f,
-    .n_far = 3.0f,
-    .breakpoint_m = 4.0f,
-    .shadow_std = 3.5f,
-    .calibrated = false
-};
-
 
 // Helpers
 bool isTriangulationActive() {
     return triangulationActive;
 }
 
-// ENTIRE FUNCTION replacement:
 float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
-    const DualSlopePathLoss& model = isWiFi ? pathLossWiFi : pathLossBLE;
-    float rssi = node.filteredRssi;
+    float rssi0 = isWiFi ? adaptivePathLoss.rssi0_wifi : adaptivePathLoss.rssi0_ble;
+    float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
     
-    // Calculate RSSI at breakpoint
-    float rssi_bp = model.rssi0 - 10.0f * model.n_near * log10f(model.breakpoint_m);
+    // Log-distance path loss model: d = 10^((RSSI0 - RSSI)/(10*n))
+    float distance = pow(10.0, (rssi0 - node.filteredRssi) / (10.0 * n));
     
-    float distance;
-    if (rssi > rssi_bp) {
-        // Near-field: standard log-distance
-        distance = powf(10.0f, (model.rssi0 - rssi) / (10.0f * model.n_near));
-    } else {
-        // Far-field: dual-slope
-        float exponent = (rssi_bp - rssi) / (10.0f * model.n_far);
-        distance = model.breakpoint_m * powf(10.0f, exponent);
-    }
-    
-    // Apply signal quality degradation (keep existing logic)
-    float qualityFactor = 1.0f + (1.0f - node.signalQuality) * 0.5f;
+    // Apply signal quality degradation
+    float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
     distance *= qualityFactor;
     
-    // Bounds
-    distance = constrain(distance, 0.1f, 200.0f);
+    // Bounds checking
+    if (distance < 0.1) distance = 0.1;       // Minimum 10cm
+    if (distance > 200.0) distance = 200.0;   // BLE max ~50m, WiFi max ~200m indoors
     
     return distance;
 }
@@ -925,7 +905,7 @@ void stopTriangulation() {
                 float rssiDistanceError = avgDistance * 0.20;
                 float geometricError = gdop * 5.0;
                 float syncError = verifyNodeSynchronization(10) ? 0.0 : (avgDistance * 0.10);
-                float calibError = (pathLossWiFi.calibrated && pathLossBLE.calibrated) ? 0.0 : (avgDistance * 0.15);
+                float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
 
                 float uncertainty = sqrt(
                     gpsPositionError * gpsPositionError +
@@ -1341,7 +1321,7 @@ String calculateTriangulation() {
         }
         
         float syncError = syncVerified ? 0.0 : (avgDistance * 0.10);
-        float calibError = (pathLossWiFi.calibrated && pathLossBLE.calibrated) ? 0.0 : (avgDistance * 0.15);
+        float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
         
         float uncertainty = sqrt(
             gpsPositionError * gpsPositionError +
@@ -1581,19 +1561,16 @@ void calibrationTask(void *parameter) {
         variance /= wifiSamples.size();
         float stdDev = sqrt(variance);
         
-        // Use n_near since calibration typically done at known close distance
-        pathLossWiFi.rssi0 = meanRssi + 10.0 * pathLossWiFi.n_near * log10(knownDistance);
-        pathLossWiFi.shadow_std = stdDev;  // Update shadowing from measurements
-        pathLossWiFi.calibrated = true;
+        // WIP formula for path loss
+        pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance);
         
         Serial.println("[CALIB] WiFi Calibration: SUCCESS");
         Serial.printf("  Distance: %.1f m\n", knownDistance);
         Serial.printf("  Samples: %d\n", wifiSamples.size());
         Serial.printf("  Mean RSSI: %.1f dBm\n", meanRssi);
         Serial.printf("  Std Dev: %.1f dB\n", stdDev);
-        Serial.printf("  Path loss exponent (n_near): %.2f\n", pathLossWiFi.n_near);
-        Serial.printf("  Path loss exponent (n_far): %.2f\n", pathLossWiFi.n_far);
-        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLossWiFi.rssi0);
+        Serial.printf("  Path loss exponent (n): %.2f\n", pathLoss.n_wifi);
+        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLoss.rssi0_wifi);
     }
     
     // BLE calibration
@@ -1612,24 +1589,22 @@ void calibrationTask(void *parameter) {
         variance /= bleSamples.size();
         float stdDev = sqrt(variance);
 
-        pathLossBLE.rssi0 = meanRssi + 10.0 * pathLossBLE.n_near * log10(knownDistance);
-        pathLossBLE.shadow_std = stdDev;
-        pathLossBLE.calibrated = true;
+        pathLoss.rssi0_ble = meanRssi + 10.0 * pathLoss.n_ble * log10(knownDistance);
 
         Serial.println("[CALIB] BLE Calibration: SUCCESS");
         Serial.printf("  Distance: %.1f m\n", knownDistance);
         Serial.printf("  Samples: %d\n", bleSamples.size());
         Serial.printf("  Mean RSSI: %.1f dBm\n", meanRssi);
         Serial.printf("  Std Dev: %.1f dB\n", stdDev);
-        Serial.printf("  Path loss exponent (n_near): %.2f\n", pathLossBLE.n_near);
-        Serial.printf("  Path loss exponent (n_far): %.2f\n", pathLossBLE.n_far);
-        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLossBLE.rssi0);
+        Serial.printf("  Path loss exponent (n): %.2f\n", pathLoss.n_ble);
+        Serial.printf("  Calculated RSSI0 @ 1m: %.1f dBm\n", pathLoss.rssi0_ble);
     } else {
         Serial.printf("[CALIB] BLE Calibration: FAILED\n");
         Serial.printf("  Insufficient samples: %d (need ≥10)\n", bleSamples.size());
     }
     
-    if (pathLossWiFi.calibrated || pathLossBLE.calibrated) {
+    if (wifiSamples.size() >= 10 || bleSamples.size() >= 10) {
+        pathLoss.calibrated = true;
         Serial.println("\n[CALIB] Status: CALIBRATED");
     } else {
         Serial.println("\n[CALIB] Status: FAILED");
