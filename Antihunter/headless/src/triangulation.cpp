@@ -1043,6 +1043,10 @@ void stopTriangulation() {
     triangulateReportedNodes.clear();
     stopSentTimestamp = 0;
 
+    // Clear node data to prevent memory accumulation across sessions
+    triangulationNodes.clear();
+    nodeSyncStatus.clear();
+
     // Record stop time for debounce mechanism (MUST be last)
     lastTriangulationStopTime = millis();
 

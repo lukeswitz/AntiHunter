@@ -305,6 +305,11 @@ void processCommand(const String &command, const String &targetId = "")
       secs = 0;
     if (secs > 86400)
       secs = 86400;
+    // Minimum 60 seconds to prevent rapid cycling and message flooding
+    if (!forever && secs > 0 && secs < 60) {
+      Serial.printf("[MESH] Warning: baseline duration %ds too short, using 60s minimum\n", secs);
+      secs = 60;
+    }
 
     stopRequested = false;
 
