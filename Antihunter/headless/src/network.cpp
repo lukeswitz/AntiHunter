@@ -678,9 +678,7 @@ void processCommand(const String &command, const String &targetId = "")
     Serial.println("[MESH] TRIANGULATE_STOP received");
     stopRequested = true;
 
-    // Child nodes: send final T_D report immediately when STOP is received
     if (triangulationActive && !triangulationInitiator) {
-        // CRITICAL: Flush rate limiter so final reports aren't dropped/delayed
         rateLimiter.flush();
         Serial.println("[MESH] Rate limiter flushed for final reports");
 
@@ -689,8 +687,7 @@ void processCommand(const String &command, const String &targetId = "")
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
 
-        // ALWAYS send a report, even with 0 hits, so initiator knows we're done
-        String macStr = macFmt6(triangulationTarget);  // Use triangulationTarget instead of triAccum.targetMac
+        String macStr = macFmt6(triangulationTarget);
         bool sentReport = false;
 
         if (triAccum.wifiHitCount > 0) {
@@ -741,7 +738,6 @@ void processCommand(const String &command, const String &targetId = "")
             Serial.println("[TRIANGULATE] Final 0-hit report sent (no detections)");
         }
 
-        // Mark as stopped and let scanner task exit naturally
         markTriangulationStopFromMesh();
         triangulationActive = false;
         Serial.println("[TRIANGULATE] Child node marked inactive, scanner will exit");
@@ -756,11 +752,9 @@ void processCommand(const String &command, const String &targetId = "")
     int colonPos = params.indexOf(':');
 
     if (colonPos > 0) {
-      // New format with node list
       uint32_t cycleStartMs = params.substring(0, colonPos).toInt();
       String nodeListStr = params.substring(colonPos + 1);
-
-      // Clear and rebuild reporting schedule with all nodes in coordinator's order
+      
       reportingSchedule.reset();
 
       // Parse comma-separated node list
@@ -831,7 +825,6 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command.startsWith("AUTOERASE_ENABLE"))
   {
-    // Format: AUTOERASE_ENABLE[:setupDelay:eraseDelay:vibrationsRequired:detectionWindow:cooldown]
     if (command.length() > 16 && command.charAt(16) == ':') {
       // Parse parameters
       String params = command.substring(17);
@@ -872,7 +865,6 @@ void processCommand(const String &command, const String &targetId = "")
     sendToSerial1(response, true);
     Serial.printf("[AUTOERASE] Enabled - setup mode active for %us\n", setupDelay/1000);
 
-    // Send SETUP_MODE alert
     String setupModeAlert = nodeId + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
     sendToSerial1(setupModeAlert, false);
   }
@@ -886,7 +878,6 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command == "AUTOERASE_STATUS")
   {
-    // Update setup mode status before reporting
     updateSetupModeStatus();
 
     String status = nodeId + ": AUTOERASE_STATUS: ";
@@ -1063,7 +1054,6 @@ void processMeshMessage(const String &message) {
                         for (auto &node : triangulationNodes) {
                             if (node.nodeId == sendingNode) {
                                 updateNodeRSSI(node, rssi);
-                                // Only update hitCount if Hits field was present (cumulative updates from node)
                                 if (hits >= 0) {
                                     node.hitCount = hits;
                                 }
@@ -1090,7 +1080,7 @@ void processMeshMessage(const String &message) {
                             newNode.lat = lat;
                             newNode.lon = lon;
                             newNode.rssi = rssi;
-                            newNode.hitCount = (hits >= 0) ? hits : 1;  // Default to 1 for new nodes if no Hits field
+                            newNode.hitCount = (hits >= 0) ? hits : 1;
                             newNode.hasGPS = hasGPS;
                             newNode.hdop = hdop;
                             newNode.isBLE = isBLE;
@@ -1104,8 +1094,6 @@ void processMeshMessage(const String &message) {
                                         newNode.isBLE ? "BLE" : "WiFi");
                         }
 
-                        // Mark this node as having reported (coordinator only)
-                        // Also handle late T_D from nodes whose ACK was lost
                         if (triangulationInitiator && (waitingForFinalReports || triangulationActive)) {
                             bool foundInAcks = false;
                             for (auto& ack : triangulateAcks) {
@@ -1121,8 +1109,6 @@ void processMeshMessage(const String &message) {
                                 }
                             }
 
-                            // Node sent T_D but wasn't in our ACK list - their ACK was lost
-                            // Add them to tracking so we wait for their data
                             if (!foundInAcks) {
                                 TriangulateAckInfo lateAck;
                                 lateAck.nodeId = sendingNode;

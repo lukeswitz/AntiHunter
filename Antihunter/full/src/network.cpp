@@ -3459,14 +3459,11 @@ void startWebServer()
           static String cachedTriResults = "";
           static uint32_t lastTriCalc = 0;
 
-          // Only recalculate every 3 seconds to avoid blocking WebUI
-          if (millis() - lastTriCalc >= 3000) {
+          if (millis() - lastTriCalc >= 2000) {
               cachedTriResults = calculateTriangulation();
               lastTriCalc = millis();
           }
 
-          // If results already contains triangulation data, replace it instead of appending
-          // to avoid duplicate "--- Node Reports ---" sections causing parsing issues
           if (results.indexOf("=== Triangulation Results") >= 0) {
               results = cachedTriResults;
           } else {
@@ -4568,23 +4565,19 @@ void sendMeshNotification(const Hit &hit) {
     // Check if we've seen this MAC before
     auto it = meshTargetStates.find(macKey);
     if (it == meshTargetStates.end()) {
-        // New target - always send
         shouldSend = true;
     } else {
         MeshTargetState &state = it->second;
-
-        // Check if enough time has passed for this specific target
         if (now - state.lastSent < PER_TARGET_MIN_INTERVAL) {
-            // Not enough time - check if there's a significant change
             int rssiDelta = abs(hit.rssi - state.lastRssi);
 
             if (rssiDelta >= RSSI_CHANGE_THRESHOLD) {
-                shouldSend = true;  // Significant RSSI change
+                shouldSend = true;
             } else if (gpsValid && state.hadGPS) {
                 float latDelta = abs(gpsLat - state.lastLat);
                 float lonDelta = abs(gpsLon - state.lastLon);
                 if (latDelta >= GPS_CHANGE_THRESHOLD || lonDelta >= GPS_CHANGE_THRESHOLD) {
-                    shouldSend = true;  // Significant GPS movement
+                    shouldSend = true;
                 }
             } else if (gpsValid && !state.hadGPS) {
                 shouldSend = true;  // GPS just became available

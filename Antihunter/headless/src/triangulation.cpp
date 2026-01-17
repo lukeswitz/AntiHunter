@@ -1382,7 +1382,6 @@ String calculateTriangulation() {
         results += "Suggestions:\n";
         results += "  • Reposition nodes (120 degree separation ideal)\n";
         results += "  • Improve with more runtime\n";
-        results += "  • Add more GPS nodes\n";
     }
 
     results += "\n=== End Triangulation ===\n";

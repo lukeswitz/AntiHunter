@@ -65,6 +65,30 @@ uint32_t baselineSdMaxDevices = 50000;
 static unsigned long lastBaselineAnomalyMeshSend = 0;
 const unsigned long BASELINE_ANOMALY_MESH_INTERVAL = 5000;
 
+const uint32_t MESH_SLOT_CYCLE_MS = 15000;
+const uint32_t MESH_NUM_SLOTS = 5;
+const uint32_t MESH_SLOT_DURATION_MS = MESH_SLOT_CYCLE_MS / MESH_NUM_SLOTS;
+static uint32_t meshCycleStartTime = 0;
+
+static uint8_t getNodeSlot() {
+    String nodeId = getNodeId();
+    uint32_t hash = 0;
+    for (size_t i = 0; i < nodeId.length(); i++) {
+        hash = hash * 31 + nodeId.charAt(i);
+    }
+    return hash % MESH_NUM_SLOTS;
+}
+
+static bool isMyMeshSlot() {
+    if (meshCycleStartTime == 0) {
+        meshCycleStartTime = millis();
+    }
+    uint32_t elapsed = millis() - meshCycleStartTime;
+    uint32_t positionInCycle = elapsed % MESH_SLOT_CYCLE_MS;
+    uint8_t currentSlot = positionInCycle / MESH_SLOT_DURATION_MS;
+    return currentSlot == getNodeSlot();
+}
+
 
 // ============ Baseline Detection Implementation ============
 
@@ -432,48 +456,49 @@ void baselineDetectionTask(void *pv) {
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
         
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
-        lastMeshUpdate = millis();
-        uint32_t sentThisCycle = 0;
-        
-        for (const auto& entry : baselineCache) {
-            String macStr = macFmt6(entry.second.mac);
-            
-            if (transmittedDevices.find(macStr) == transmittedDevices.end()) {
-                String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
-                deviceMsg += entry.second.isBLE ? " B " : " W ";
-                deviceMsg += String(entry.second.avgRssi);
-                
-                if (!entry.second.isBLE && entry.second.channel > 0) {
-                    deviceMsg += " C" + String(entry.second.channel);
-                }
-                
-                if (strlen(entry.second.name) > 0 && 
-                    strcmp(entry.second.name, "Unknown") != 0 && 
-                    strcmp(entry.second.name, "[Hidden]") != 0) {
-                    deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
-                }
-                
-                if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                    if (sendToSerial1(deviceMsg, true)) {
-                        transmittedDevices.insert(macStr);
-                        sentThisCycle++;
-                        
-                        if (sentThisCycle % 2 == 0) {
-                            delay(1000);
-                            rateLimiter.refillTokens();
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL && isMyMeshSlot()) {
+            lastMeshUpdate = millis();
+            uint32_t sentThisCycle = 0;
+
+            for (const auto& entry : baselineCache) {
+                if (!isMyMeshSlot()) break;
+                String macStr = macFmt6(entry.second.mac);
+
+                if (transmittedDevices.find(macStr) == transmittedDevices.end()) {
+                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
+                    deviceMsg += entry.second.isBLE ? " B " : " W ";
+                    deviceMsg += String(entry.second.avgRssi);
+
+                    if (!entry.second.isBLE && entry.second.channel > 0) {
+                        deviceMsg += " C" + String(entry.second.channel);
+                    }
+
+                    if (strlen(entry.second.name) > 0 &&
+                        strcmp(entry.second.name, "Unknown") != 0 &&
+                        strcmp(entry.second.name, "[Hidden]") != 0) {
+                        deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
+                    }
+
+                    if (deviceMsg.length() <= MAX_MESH_SIZE) {
+                        if (sendToSerial1(deviceMsg, true)) {
+                            transmittedDevices.insert(macStr);
+                            sentThisCycle++;
+
+                            if (sentThisCycle % 2 == 0) {
+                                delay(500);
+                                rateLimiter.refillTokens();
+                            }
                         }
                     }
                 }
             }
         }
-    }
-        
+
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
             lastCleanup = millis();
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
@@ -634,61 +659,63 @@ void baselineDetectionTask(void *pv) {
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
         
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL && isMyMeshSlot()) {
             lastMeshUpdate = millis();
             uint32_t sentThisCycle = 0;
-            
+
             for (const auto& entry : baselineCache) {
+                if (!isMyMeshSlot()) break;
                 String macStr = macFmt6(entry.second.mac);
-                
+
                 if (transmittedDevices.find(macStr) == transmittedDevices.end()) {
                     String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
                     deviceMsg += entry.second.isBLE ? " B " : " W ";
                     deviceMsg += String(entry.second.avgRssi);
-                    
+
                     if (!entry.second.isBLE && entry.second.channel > 0) {
                         deviceMsg += " C" + String(entry.second.channel);
                     }
-                    
-                    if (strlen(entry.second.name) > 0 && 
-                        strcmp(entry.second.name, "Unknown") != 0 && 
+
+                    if (strlen(entry.second.name) > 0 &&
+                        strcmp(entry.second.name, "Unknown") != 0 &&
                         strcmp(entry.second.name, "[Hidden]") != 0) {
                         deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
                     }
-                    
+
                     if (deviceMsg.length() <= MAX_MESH_SIZE) {
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
-                            
+
                             if (sentThisCycle % 2 == 0) {
-                                delay(1000);
+                                delay(500);
                                 rateLimiter.refillTokens();
                             }
                         }
                     }
                 }
             }
-            
+
             for (const auto& anomaly : anomalyLog) {
+                if (!isMyMeshSlot()) break;
                 String macStr = macFmt6(anomaly.mac);
-                
+
                 if (transmittedAnomalies.find(macStr) == transmittedAnomalies.end()) {
                     String anomalyMsg = getNodeId() + ": ANOMALY: " + String(anomaly.isBLE ? "BLE " : "WiFi ") + macStr;
                     anomalyMsg += " RSSI:" + String(anomaly.rssi);
                     anomalyMsg += " " + anomaly.reason;
-                    
+
                     if (strlen(anomaly.name) > 0 && strcmp(anomaly.name, "Unknown") != 0) {
                         anomalyMsg += " N:" + String(anomaly.name).substring(0, 20);
                     }
-                    
+
                     if (anomalyMsg.length() <= MAX_MESH_SIZE) {
                         if (sendToSerial1(anomalyMsg, true)) {
                             transmittedAnomalies.insert(macStr);
                             sentThisCycle++;
-                            
+
                             if (sentThisCycle % 2 == 0) {
-                                delay(1000);
+                                delay(500);
                                 rateLimiter.refillTokens();
                             }
                         }
@@ -696,7 +723,7 @@ void baselineDetectionTask(void *pv) {
                 }
             }
         }
-        
+
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
             lastCleanup = millis();
@@ -1262,7 +1289,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         Serial.println(alert);
         logToSD(alert);
 
-        if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+        if (meshEnabled && isMyMeshSlot() && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
             lastBaselineAnomalyMeshSend = millis();
             String meshAlert = getNodeId() + ": ANOMALY-NEW: " + String(isBLE ? "BLE " : "WiFi ") + macStr;
             meshAlert += " RSSI:" + String(rssi);
@@ -1271,10 +1298,10 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             }
             sendToSerial1(meshAlert, false);
         }
-        
+
         return;
     }
-    
+
     if (history.disappearedAt > 0) {
         uint32_t absentTime = now - history.disappearedAt;
         if (absentTime <= reappearanceAlertWindow) {
@@ -1287,22 +1314,22 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.isBLE = isBLE;
             hit.timestamp = now;
             hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
-            
+
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             anomalyLog.push_back(hit);
             anomalyCount++;
-            
+
             String alert = "[ANOMALY] RETURNED: " + macStr;
             alert += " was absent " + String(absentTime / 1000) + "s";
             alert += " RSSI:" + String(rssi) + "dBm";
             if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
                 alert += " Name:" + String(name);
             }
-            
+
             Serial.println(alert);
             logToSD(alert);
 
-            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+            if (meshEnabled && isMyMeshSlot() && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
                 lastBaselineAnomalyMeshSend = millis();
                 String meshAlert = getNodeId() + ": ANOMALY-RETURN: " + String(isBLE ? "BLE " : "WiFi ") + macStr;
                 meshAlert += " RSSI:" + String(rssi) + "dBm";
@@ -1312,13 +1339,13 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 sendToSerial1(meshAlert, false);
             }
         }
-        
+
         history.disappearedAt = 0;
     }
-    
+
     if (abs(rssi - history.lastRssi) >= significantRssiChange) {
         history.significantChanges++;
-        
+
         if (history.significantChanges >= 3) {
             AnomalyHit hit;
             memcpy(hit.mac, mac, 6);
@@ -1329,18 +1356,18 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.isBLE = isBLE;
             hit.timestamp = now;
             hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
-            
+
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             anomalyLog.push_back(hit);
             anomalyCount++;
-            
+
             String alert = "[ANOMALY] RSSI-CHANGE: " + macStr;
             alert += " " + String(history.lastRssi) + "dBm -> " + String(rssi) + "dBm";
-            
+
             Serial.println(alert);
             logToSD(alert);
 
-            if (meshEnabled && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
+            if (meshEnabled && isMyMeshSlot() && millis() - lastBaselineAnomalyMeshSend > BASELINE_ANOMALY_MESH_INTERVAL) {
                 lastBaselineAnomalyMeshSend = millis();
                 int delta = abs(rssi - history.lastRssi);
                 String meshAlert = getNodeId() + ": ANOMALY-RSSI: " + String(isBLE ? "BLE " : "WiFi ") + macStr;
