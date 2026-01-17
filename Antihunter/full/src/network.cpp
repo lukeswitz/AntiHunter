@@ -135,13 +135,15 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 
 bool sendToSerial1(const String &message, bool canDelay) {
     // Priority messages bypass rate limiting
+    // T_D is critical during triangulation - must not be dropped
     bool isPriority = message.indexOf("STOP_ACK") >= 0 ||
                       message.indexOf("TRI_START_ACK") >= 0 ||
                       message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
                       message.indexOf("@ALL TRI_CYCLE_START") >= 0 ||
                       message.indexOf("TRIANGULATE_STOP") >= 0 ||
                       message.indexOf(": T_F:") >= 0 ||
-                      message.indexOf(": T_C:") >= 0;
+                      message.indexOf(": T_C:") >= 0 ||
+                      message.indexOf(": T_D:") >= 0;
     
     size_t msgLen = message.length() + 2;
     
@@ -5556,9 +5558,12 @@ void processMeshMessage(const String &message) {
                         }
 
                         // Mark this node as having reported (coordinator only)
-                        if (triangulationInitiator && waitingForFinalReports) {
+                        // Also handle late T_D from nodes whose ACK was lost
+                        if (triangulationInitiator && (waitingForFinalReports || triangulationActive)) {
+                            bool foundInAcks = false;
                             for (auto& ack : triangulateAcks) {
                                 if (ack.nodeId == sendingNode) {
+                                    foundInAcks = true;
                                     if (!ack.reportReceived) {
                                         ack.reportReceived = true;
                                         ack.reportTimestamp = millis();
@@ -5567,6 +5572,23 @@ void processMeshMessage(const String &message) {
                                     }
                                     break;
                                 }
+                            }
+
+                            // Node sent T_D but wasn't in our ACK list - their ACK was lost
+                            // Add them to tracking so we wait for their data
+                            if (!foundInAcks) {
+                                TriangulateAckInfo lateAck;
+                                lateAck.nodeId = sendingNode;
+                                lateAck.ackTimestamp = millis();
+                                lateAck.reportReceived = true;  // Already have their report
+                                lateAck.reportTimestamp = millis();
+                                triangulateAcks.push_back(lateAck);
+
+                                // Also add to reporting schedule
+                                reportingSchedule.addNode(sendingNode);
+
+                                Serial.printf("[TRIANGULATE] Late T_D from node %s (ACK was lost) - added to tracking (%d total nodes)\n",
+                                             sendingNode.c_str(), triangulateAcks.size());
                             }
                         }
                     }
