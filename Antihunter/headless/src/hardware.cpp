@@ -621,7 +621,13 @@ void loadConfiguration() {
     }
     
     if (doc.containsKey("baselineDuration")) {
-        baselineDuration = doc["baselineDuration"].as<uint32_t>() * 1000;
+        uint32_t duration = doc["baselineDuration"].as<uint32_t>() * 1000;
+        // Minimum 60 seconds to prevent rapid cycling and message flooding
+        if (duration < 60000) {
+            Serial.println("[CONFIG] Warning: baselineDuration too short, using 60s minimum");
+            duration = 60000;
+        }
+        baselineDuration = duration;
         prefs.putUInt("blDuration", baselineDuration);
     }
     
