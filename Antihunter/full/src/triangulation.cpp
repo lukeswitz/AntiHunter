@@ -46,8 +46,8 @@ const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
 
 
 PathLossCalibration pathLoss = {
-    -30.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
-    -66.0,  // rssi0_ble: BLE @ 1m with ~0dBm tx + 0dBi antenna (no external antenna)
+    -20.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
+    -56.0,  // rssi0_ble: BLE @ 1m with ~0dBm tx + 0dBi antenna (no external antenna)
     3.0,    // n_wifi: indoor environment
     2.5,    // n_ble: indoor/close-range
     false
