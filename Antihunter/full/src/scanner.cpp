@@ -80,6 +80,30 @@ RFScanConfig rfConfig = {
     .globalRssiThreshold = -90
 };
 
+const uint32_t SCAN_MESH_SLOT_CYCLE_MS = 15000;
+const uint32_t SCAN_MESH_NUM_SLOTS = 5;
+const uint32_t SCAN_MESH_SLOT_DURATION_MS = SCAN_MESH_SLOT_CYCLE_MS / SCAN_MESH_NUM_SLOTS;
+static uint32_t scanMeshCycleStartTime = 0;
+
+static uint8_t getScanNodeSlot() {
+    String nodeId = getNodeId();
+    uint32_t hash = 0;
+    for (size_t i = 0; i < nodeId.length(); i++) {
+        hash = hash * 31 + nodeId.charAt(i);
+    }
+    return hash % SCAN_MESH_NUM_SLOTS;
+}
+
+static bool isMyScanMeshSlot() {
+    if (scanMeshCycleStartTime == 0) {
+        scanMeshCycleStartTime = millis();
+    }
+    uint32_t elapsed = millis() - scanMeshCycleStartTime;
+    uint32_t positionInCycle = elapsed % SCAN_MESH_SLOT_CYCLE_MS;
+    uint8_t currentSlot = positionInCycle / SCAN_MESH_SLOT_DURATION_MS;
+    return currentSlot == getScanNodeSlot();
+}
+
 void setRFPreset(uint8_t preset) {
     switch(preset) {
         case 0:
@@ -804,20 +828,21 @@ void snifferScanTask(void *pv)
             }
         }
 
-       if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL && isMyScanMeshSlot())
         {
             lastMeshUpdate = millis();
             uint32_t sentThisCycle = 0;
-            
+
             for (const auto& entry : apCache)
             {
+                if (!isMyScanMeshSlot()) break;
                 String macStr = entry.first;
                 String ssid = entry.second;
-                
+
                 if (transmittedDevices.find(macStr) == transmittedDevices.end())
                 {
                     String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " W ";
-                    
+
                     int8_t bestRssi = -128;
                     uint8_t bestCh = 0;
                     for (const auto& hit : hitsLog) {
@@ -827,20 +852,20 @@ void snifferScanTask(void *pv)
                             bestCh = hit.ch;
                         }
                     }
-                    
+
                     deviceMsg += String(bestRssi);
                     if (bestCh > 0) deviceMsg += " C" + String(bestCh);
                     if (ssid.length() > 0 && ssid != "[Hidden]") {
                         deviceMsg += " N:" + ssid.substring(0, 30);
                     }
-                    
+
                     if (deviceMsg.length() <= MAX_MESH_SIZE) {
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
 
                             if (sentThisCycle % 2 == 0) {
-                                delay(1000);
+                                delay(500);
                                 rateLimiter.refillTokens();
                             }
                         }
@@ -850,6 +875,7 @@ void snifferScanTask(void *pv)
 
             for (const auto& entry : bleDeviceCache)
             {
+                if (!isMyScanMeshSlot()) break;
                 String macStr = entry.first;
                 String name = entry.second;
 
@@ -874,9 +900,9 @@ void snifferScanTask(void *pv)
                         if (sendToSerial1(deviceMsg, true)) {
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
-                            
+
                             if (sentThisCycle % 2 == 0) {
-                                delay(1000);
+                                delay(500);
                                 rateLimiter.refillTokens();
                             }
                         }
@@ -946,15 +972,26 @@ void snifferScanTask(void *pv)
     {
         uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
         uint32_t devicesBeforeFinal = transmittedDevices.size();
-        
+
         Serial.printf("[SNIFFER] Scan complete - transmitting final batch\n");
         Serial.printf("[SNIFFER] Already sent: %d/%d devices\n", devicesBeforeFinal, totalExpectedDevices);
-        
+
+        uint32_t waitStart = millis();
+        while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
         rateLimiter.flush();
         delay(100);
-        
+
         for (const auto& entry : apCache)
         {
+            if (!isMyScanMeshSlot()) {
+                waitStart = millis();
+                while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+            }
             if (transmittedDevices.find(entry.first) == transmittedDevices.end())
             {
                 String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
@@ -982,6 +1019,12 @@ void snifferScanTask(void *pv)
 
         for (const auto& entry : bleDeviceCache)
         {
+            if (!isMyScanMeshSlot()) {
+                waitStart = millis();
+                while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+            }
             if (transmittedDevices.find(entry.first) == transmittedDevices.end())
             {
                 String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
@@ -1003,13 +1046,13 @@ void snifferScanTask(void *pv)
                 }
             }
         }
-        
+
         Serial1.flush();
         delay(100);
-        
+
         uint32_t finalTransmitted = transmittedDevices.size();
         uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
-        
+
         Serial.printf("[SNIFFER] Final transmission complete: %d/%d devices sent, %d pending\n",
                      finalTransmitted, totalExpectedDevices, finalRemaining);
     }
@@ -1062,17 +1105,22 @@ void snifferScanTask(void *pv)
         uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
         uint32_t finalTransmitted = transmittedDevices.size();
         uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
-        
+
+        uint32_t waitStart = millis();
+        while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
         String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
-                        " B=" + String(bleDeviceCache.size()) + 
+                        " B=" + String(bleDeviceCache.size()) +
                         " U=" + String(uniqueMacs.size()) +
                         " H=" + String(totalHits) +
                         " TX=" + String(finalTransmitted) +
                         " PEND=" + String(finalRemaining);
-        
+
         sendToSerial1(summary, true);
         Serial.println("[SNIFFER] Scan complete summary transmitted");
-        
+
         if (finalRemaining > 0) {
             Serial.printf("[SNIFFER] WARNING: %d devices not transmitted\n", finalRemaining);
         }
@@ -2564,6 +2612,12 @@ void listScanTask(void *pv) {
 
     if (pBLEScan && pBLEScan->isScanning()) {
         pBLEScan->stop();
+    }
+
+    // Clean up macQueue to prevent memory leak
+    if (macQueue) {
+        vQueueDelete(macQueue);
+        macQueue = nullptr;
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
