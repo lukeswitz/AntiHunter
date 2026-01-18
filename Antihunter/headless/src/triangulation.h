@@ -56,6 +56,29 @@ struct ClockDiscipline {
     bool offsetCalibrated;
 };
 
+enum RFEnvironment : uint8_t {
+    RF_ENV_OPEN_SKY = 0,
+    RF_ENV_SUBURBAN = 1,
+    RF_ENV_INDOOR = 2,
+    RF_ENV_INDOOR_DENSE = 3,
+    RF_ENV_INDUSTRIAL = 4
+};
+
+struct RFEnvironmentPreset {
+    float n_wifi;
+    float n_ble;
+    float rssi0_wifi;
+    float rssi0_ble;
+};
+
+static const RFEnvironmentPreset RF_PRESETS[] = {
+    { 2.0f, 2.0f, -20.0f, -56.0f },
+    { 2.7f, 2.4f, -20.0f, -56.0f },
+    { 3.0f, 2.5f, -20.0f, -56.0f },
+    { 4.0f, 3.5f, -20.0f, -56.0f },
+    { 5.0f, 4.5f, -20.0f, -56.0f }
+};
+
 struct PathLossCalibration {
     float rssi0_wifi;
     float rssi0_ble;
@@ -63,6 +86,10 @@ struct PathLossCalibration {
     float n_ble;
     bool calibrated;
 };
+
+extern RFEnvironment currentRFEnvironment;
+void setRFEnvironment(RFEnvironment env);
+RFEnvironment getRFEnvironment();
 
 struct PathLossSample {
     float rssi;

@@ -586,14 +586,23 @@ void processCommand(const String &command, const String &targetId = "")
     target = params.substring(0, targetEnd);
     String remainder = params.substring(targetEnd + 1);
 
-    // Parse duration and optional initiator from remainder
     int durationDelim = remainder.indexOf(':');
+    uint8_t rfEnv = RF_ENV_INDOOR;
     if (durationDelim > 0) {
         duration = remainder.substring(0, durationDelim).toInt();
-        initiatorNodeId = remainder.substring(durationDelim + 1);
+        String afterDuration = remainder.substring(durationDelim + 1);
+        int envDelim = afterDuration.lastIndexOf(':');
+        if (envDelim > 0) {
+            initiatorNodeId = afterDuration.substring(0, envDelim);
+            rfEnv = afterDuration.substring(envDelim + 1).toInt();
+            if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+        } else {
+            initiatorNodeId = afterDuration;
+        }
     } else {
         duration = remainder.toInt();
     }
+    setRFEnvironment((RFEnvironment)rfEnv);
 
     bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];
