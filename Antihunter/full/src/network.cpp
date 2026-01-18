@@ -464,6 +464,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               
               <div id="triangulateOptions" style="display:none;margin-bottom:8px;">
                 <input type="text" name="targetMac" placeholder="Target MAC">
+                <label style="font-size:11px;margin-top:8px;">RF Environment</label>
+                <select name="rfEnv" id="rfEnvSelect">
+                  <option value="0">Open Sky</option>
+                  <option value="1">Suburban</option>
+                  <option value="2" selected>Indoor</option>
+                  <option value="3">Indoor Dense</option>
+                  <option value="4">Industrial</option>
+                </select>
               </div>
               
               <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
@@ -3537,12 +3545,17 @@ void startWebServer()
       currentScanMode = mode;
       stopRequested = false; 
       
-      // Ditch out here if triangulating
       if (req->hasParam("triangulate", true) && req->hasParam("targetMac", true)) {
           String targetMac = req->getParam("targetMac", true)->value();
+          uint8_t rfEnv = RF_ENV_INDOOR;
+          if (req->hasParam("rfEnv", true)) {
+              rfEnv = req->getParam("rfEnv", true)->value().toInt();
+              if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+          }
+          setRFEnvironment((RFEnvironment)rfEnv);
           startTriangulation(targetMac, secs);
           String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-          req->send(200, "text/plain", "Triangulation starting for " + String(secs) + "s - " + modeStr);
+          req->send(200, "text/plain", "Triangulation starting for " + String(secs) + "s - " + modeStr + " (env=" + String(rfEnv) + ")");
           return;
       }
       
@@ -5039,14 +5052,23 @@ void processCommand(const String &command, const String &targetId = "")
     target = params.substring(0, targetEnd);
     String remainder = params.substring(targetEnd + 1);
 
-    // Parse duration and optional initiator from remainder
     int durationDelim = remainder.indexOf(':');
+    uint8_t rfEnv = RF_ENV_INDOOR;
     if (durationDelim > 0) {
         duration = remainder.substring(0, durationDelim).toInt();
-        initiatorNodeId = remainder.substring(durationDelim + 1);
+        String afterDuration = remainder.substring(durationDelim + 1);
+        int envDelim = afterDuration.lastIndexOf(':');
+        if (envDelim > 0) {
+            initiatorNodeId = afterDuration.substring(0, envDelim);
+            rfEnv = afterDuration.substring(envDelim + 1).toInt();
+            if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+        } else {
+            initiatorNodeId = afterDuration;
+        }
     } else {
         duration = remainder.toInt();
     }
+    setRFEnvironment((RFEnvironment)rfEnv);
 
     bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];

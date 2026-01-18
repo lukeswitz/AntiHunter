@@ -45,13 +45,35 @@ static uint32_t lastTriangulationStopTime = 0;
 const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
 
 
+RFEnvironment currentRFEnvironment = RF_ENV_INDOOR;
+
 PathLossCalibration pathLoss = {
-    -20.0,  // rssi0_wifi: WiFi @ 1m with 20dBm tx + 3dBi antenna = 23dBm EIRP → -30dBm @ 1m
-    -56.0,  // rssi0_ble: BLE @ 1m with ~0dBm tx + 0dBi antenna (no external antenna)
-    3.0,    // n_wifi: indoor environment
-    2.5,    // n_ble: indoor/close-range
+    -20.0,
+    -56.0,
+    3.0,
+    2.5,
     false
 };
+
+void setRFEnvironment(RFEnvironment env) {
+    if (env > RF_ENV_INDUSTRIAL) env = RF_ENV_INDOOR;
+    currentRFEnvironment = env;
+    const RFEnvironmentPreset& preset = RF_PRESETS[env];
+    pathLoss.n_wifi = preset.n_wifi;
+    pathLoss.n_ble = preset.n_ble;
+    pathLoss.rssi0_wifi = preset.rssi0_wifi;
+    pathLoss.rssi0_ble = preset.rssi0_ble;
+    adaptivePathLoss.n_wifi = preset.n_wifi;
+    adaptivePathLoss.n_ble = preset.n_ble;
+    adaptivePathLoss.rssi0_wifi = preset.rssi0_wifi;
+    adaptivePathLoss.rssi0_ble = preset.rssi0_ble;
+    Serial.printf("[TRIANGULATE] RF environment set to %d (n_wifi=%.1f, n_ble=%.1f)\n",
+                  env, preset.n_wifi, preset.n_ble);
+}
+
+RFEnvironment getRFEnvironment() {
+    return currentRFEnvironment;
+}
 
 // Helpers
 bool isTriangulationActive() {
@@ -586,9 +608,8 @@ void startTriangulation(const String &targetMac, int duration) {
     broadcastTimeSyncRequest();
     vTaskDelay(pdMS_TO_TICKS(2000));
 
-    // Include this node's ID as the initiator so mesh nodes know who's coordinating
     String myNodeId = getNodeId();
-    String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration) + ":" + myNodeId;
+    String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration) + ":" + myNodeId + ":" + String(currentRFEnvironment);
     sendMeshCommand(cmd);
 
     Serial.printf("[TRIANGULATE] Broadcast sent to mesh nodes (initiator: %s)\n", myNodeId.c_str());
