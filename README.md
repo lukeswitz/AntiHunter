@@ -503,7 +503,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Device discovery scan | `@ALL DEVICE_SCAN_START:2:300` |
 | `BASELINE_START` | `duration[:FOREVER]` | Baseline anomaly detection (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | Get baseline scan status | `@ALL BASELINE_STATUS` |
-| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA the initiator | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
+| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA initiator. **rfEnv** (via API): 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
 | `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
 | `STOP` | None | Stop all operations | `@ALL STOP` |
 | `ERASE_REQUEST` | None | Request erase token (valid 5 min) | `@AH01 ERASE_REQUEST` |
@@ -589,7 +589,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 ### Triangulation
 | Endpoint | Method | Parameters | Description |
 |----------|--------|------------|-------------|
-| `/triangulate/start` | POST | `mac`, `duration` | Start triangulation for target MAC (≥20 secs) |
+| `/triangulate/start` | POST | `mac`, `duration`, `rfEnv` | Start triangulation for target MAC (≥20 secs). `rfEnv`: 0=OpenSky, 1=Suburban, 2=Indoor (default), 3=IndoorDense, 4=Industrial |
 | `/triangulate/stop` | POST | - | Stop triangulation |
 | `/triangulate/status` | GET | - | Get triangulation status (JSON) |
 | `/triangulate/results` | GET | - | Get triangulation results |
