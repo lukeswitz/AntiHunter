@@ -4310,23 +4310,31 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         req->send(400, "text/plain", "Missing mac or duration parameter");
         return;
       }
-      
+
       String targetMac = req->getParam("mac", true)->value();
       int duration = req->getParam("duration", true)->value().toInt();
-      
+
       if (duration < 20) {
         req->send(400, "text/plain", "Error: Triangulation requires minimum 20 seconds duration");
         return;
       }
-      
+
       uint8_t macBytes[6];
       if (!parseMac6(targetMac, macBytes)) {
         req->send(400, "text/plain", "Error: Invalid MAC address format");
         return;
       }
-      
+
+      // Set RF environment if specified (0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial)
+      uint8_t rfEnv = RF_ENV_INDOOR;
+      if (req->hasParam("rfEnv", true)) {
+          rfEnv = req->getParam("rfEnv", true)->value().toInt();
+          if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+      }
+      setRFEnvironment((RFEnvironment)rfEnv);
+
       startTriangulation(targetMac, duration);
-      req->send(200, "text/plain", "Triangulation started for " + targetMac + " (" + String(duration) + "s)");
+      req->send(200, "text/plain", "Triangulation started for " + targetMac + " (" + String(duration) + "s, env=" + String(rfEnv) + ")");
   });
 
   server->on("/triangulate/stop", HTTP_POST, [](AsyncWebServerRequest *req) {
