@@ -95,6 +95,20 @@ Triangulation coordinates multiple AntiHunter nodes across a mesh network to ach
 - **BLE Urban**: 10-30m | **Rural**: 40-100m LoS
 - **Wall Attenuation**: -20 to -30 dB urban, -10 to -15 dB drywall
 
+#### RF Environment Calibration (5 dBi Antenna)
+
+Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
+
+| Environment | WiFi n | BLE n | WiFi RSSI₀ | BLE RSSI₀ | Use Case |
+|-------------|--------|-------|------------|-----------|----------|
+| Open Sky | 2.0 | 2.3 | -25 dBm | -45 dBm | Clear LOS, minimal obstruction |
+| Suburban | 2.7 | 3.0 | -28 dBm | -50 dBm | Light foliage, scattered buildings |
+| Indoor | 3.2 | 3.6 | -30 dBm | -54 dBm | Typical indoor, some walls |
+| Indoor Dense | 4.0 | 4.4 | -32 dBm | -57 dBm | Office spaces, many partitions |
+| Industrial | 4.8 | 5.2 | -35 dBm | -60 dBm | Heavy obstruction, machinery |
+
+> **Note**: Values calibrated for 5 dBi RX antenna gain. BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
+
 ---
 
 ## 3. Detection & Analysis Sniffers
@@ -480,11 +494,14 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
 | `STATUS` | None | System status (mode, scan state, hits, temp, uptime, GPS) | `@ALL STATUS` |
-| `CONFIG_TARGETS` | `macs` (pipe-delimited) | Update target watchlist | `@ALL CONFIG_TARGETS:AA:BB:CC\|DD:EE:FF` |
-| `SCAN_START` | `mode:secs:channels[:FOREVER]` | Start scan (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..14` |
+| `CONFIG_TARGETS` | `macs` (pipe-delimited) | Update target watchlist (full MAC or OUI prefix) | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33:44:55:66` |
+| `CONFIG_NODEID` | `id` (2-5 alphanumeric) | Set node identifier | `@AH01 CONFIG_NODEID:AH02` |
+| `CONFIG_RSSI` | `threshold` (-128 to -10) | Set global RSSI threshold | `@ALL CONFIG_RSSI:-80` |
+| `SCAN_START` | `mode:secs:channels[:FOREVER]` | Start scan (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1,6,11` |
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Device discovery scan | `@ALL DEVICE_SCAN_START:2:300` |
-| `BASELINE_START` | `duration[:FOREVER]` | Baseline anomaly detection | `@ALL BASELINE_START:300` |
-| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA the initiator. **Via AP:** Web interface automatically broadcasts to all nodes | `@NodeA TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
+| `BASELINE_START` | `duration[:FOREVER]` | Baseline anomaly detection (min 60s) | `@ALL BASELINE_START:300` |
+| `BASELINE_STATUS` | None | Get baseline scan status | `@ALL BASELINE_STATUS` |
+| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA the initiator | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
 | `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
 | `STOP` | None | Stop all operations | `@ALL STOP` |
 | `ERASE_REQUEST` | None | Request erase token (valid 5 min) | `@AH01 ERASE_REQUEST` |
