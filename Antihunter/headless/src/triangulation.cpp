@@ -691,18 +691,17 @@ void stopTriangulation() {
         sendMeshCommand(stopCmd);
         stopSentTimestamp = millis();
         waitingForFinalReports = true;
-        Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd)\n",
+        
+        for (auto &ack : triangulateAcks) {
+            ack.reportReceived = false;
+            ack.reportTimestamp = 0;
+        }
+
+        Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd), reset report flags\n",
                      triangulateAcks.size());
-
-        // Give nodes time to ACK and send T_D reports
-        // ACKs may arrive after STOP is sent due to mesh latency
-        // Also allows late T_D from nodes whose ACK was lost to be captured
         Serial.println("[TRIANGULATE] Waiting for late ACKs and initial T_D reports...");
-        vTaskDelay(pdMS_TO_TICKS(10000));  // Increased from 6s to 10s for mesh reliability
+        vTaskDelay(pdMS_TO_TICKS(10000));
         Serial.printf("[TRIANGULATE] After initial wait: %d nodes in tracking\n", triangulateAcks.size());
-
-        // OPTIMIZATION: Wait for all ACK'd nodes to send final reports
-        // Increased timeout to handle mesh latency and late-arriving T_D from nodes whose ACK was lost
         if (triangulateAcks.size() > 0) {
             Serial.printf("[TRIANGULATE] Waiting for reports from %d nodes...\n", triangulateAcks.size());
             uint32_t waitStart = millis();
@@ -770,6 +769,10 @@ void stopTriangulation() {
 
             Serial.printf("[TRIANGULATE] Wait complete: %d/%d nodes reported\n",
                          finalReported, triangulateAcks.size());
+
+            // Grace period to process any final in-flight T_D messages (e.g., BLE after WiFi)
+            Serial.println("[TRIANGULATE] Grace period for final T_D messages...");
+            vTaskDelay(pdMS_TO_TICKS(2000));
         } else {
             Serial.println("[TRIANGULATE] No ACKs received - no child nodes participated");
             vTaskDelay(pdMS_TO_TICKS(700));
