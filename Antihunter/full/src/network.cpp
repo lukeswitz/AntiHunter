@@ -5001,14 +5001,44 @@ void processCommand(const String &command, const String &targetId = "")
     bool isDirectedToMe = !targetId.isEmpty() && targetId != "ALL" && targetId == myNodeId;
 
     if (isDirectedToMe) {
-        int lastColon = params.lastIndexOf(':');
-        if (lastColon < 0) {
-            Serial.println("[TRIANGULATE] Invalid directed command format - no duration");
-            return;
+        // Parse format: TRIANGULATE_START:target:duration[:rfEnv]
+        // Note: target can be MAC (XX:XX:XX:XX:XX:XX) or identity (T-XXXX)
+
+        String target;
+        int duration;
+        uint8_t rfEnv = RF_ENV_INDOOR;
+        int targetEnd = 0;
+
+        // Determine target length based on format
+        if (params.startsWith("T-")) {
+            // Identity format: T-XXXX:duration[:rfEnv]
+            targetEnd = params.indexOf(':', 2);
+            if (targetEnd < 0) {
+                Serial.println("[TRIANGULATE] Invalid directed command format - no duration");
+                return;
+            }
+        } else {
+            // MAC format: XX:XX:XX:XX:XX:XX:duration[:rfEnv] (MAC is 17 chars)
+            if (params.length() >= 17 && params.charAt(2) == ':' && params.charAt(5) == ':') {
+                targetEnd = 17;
+            } else {
+                Serial.println("[TRIANGULATE] Invalid directed command format - bad MAC");
+                return;
+            }
         }
 
-        String target = params.substring(0, lastColon);
-        int duration = params.substring(lastColon + 1).toInt();
+        target = params.substring(0, targetEnd);
+        String remainder = params.substring(targetEnd + 1);  // After target:
+
+        // Parse duration and optional rfEnv from remainder
+        int envDelim = remainder.indexOf(':');
+        if (envDelim > 0) {
+            duration = remainder.substring(0, envDelim).toInt();
+            rfEnv = remainder.substring(envDelim + 1).toInt();
+            if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+        } else {
+            duration = remainder.toInt();
+        }
 
         if (target.length() < 6 || duration <= 0) {
             Serial.printf("[TRIANGULATE] Invalid parameters - target='%s' duration=%d\n",
@@ -5016,8 +5046,10 @@ void processCommand(const String &command, const String &targetId = "")
             return;
         }
 
-        Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds)\n",
-                     target.c_str(), duration);
+        setRFEnvironment((RFEnvironment)rfEnv);
+
+        Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds, rfEnv=%d)\n",
+                     target.c_str(), duration, rfEnv);
 
         // Call startTriangulation which will set up as initiator and broadcast to mesh
         startTriangulation(target, duration);
