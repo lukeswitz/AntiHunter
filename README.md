@@ -68,6 +68,8 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (firs
 
 Triangulation coordinates multiple AntiHunter nodes across a mesh network to achieve precise location tracking of target devices. Each node simultaneously scans for the specified target, recording signal strength (RSSI) and GPS coordinates. Detection data is aggregated and forwarded over mesh to the AP and command center for RSSI-based trilateration processing.
 
+Note: The bill of materials antennas/MCUs will be close. It is tuned for the offical PCB power, so adjustment may be needed in the constants of `triangulation.cpp`
+
 **Key Capabilities:**
 - **Multi-node Coordination**: Distributed scanning across mesh network nodes
 - **GPS Integration**: Each node contributes location data for accurate positioning
@@ -341,8 +343,8 @@ _PCBs and kits are in final production. Tindie link coming soon_
 - 1x KSD9700 Normally Open Thermal Wire Sensor (30-40°C)
 - 6x JST 2.54 2-Pin Terminals _(2.0 JST can be used in place)_
 - 2x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm length)
-- 2x 8dBi Antenna 2.4GHz (for WiFi/BLE)
-- 2x 8dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
+- 1x 8dBi Antenna 2.4GHz (for WiFi/BLE)
+- 1x 8dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
 - 1x 30mm 5V Fan
 - 1x 3 Pin Mini On/Off Switch 
 
