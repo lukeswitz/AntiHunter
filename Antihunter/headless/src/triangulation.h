@@ -71,12 +71,16 @@ struct RFEnvironmentPreset {
     float rssi0_ble;
 };
 
+// RF Environment Presets calibrated for 5 dBi RX antenna
+// { n_wifi, n_ble, rssi0_wifi (dBm @ 1m), rssi0_ble (dBm @ 1m) }
+// WiFi: ESP32 ~20dBm TX, 5dBi RX gain, ~40dB FSPL @ 1m
+// BLE: Targets typically 0-4dBm TX, 5dBi RX gain, higher multipath loss
 static const RFEnvironmentPreset RF_PRESETS[] = {
-    { 2.0f, 2.0f, -20.0f, -56.0f },
-    { 2.7f, 2.4f, -20.0f, -56.0f },
-    { 3.0f, 2.5f, -20.0f, -56.0f },
-    { 4.0f, 3.5f, -20.0f, -56.0f },
-    { 5.0f, 4.5f, -20.0f, -56.0f }
+    { 2.0f, 2.3f, -25.0f, -45.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
+    { 2.7f, 3.0f, -28.0f, -50.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
+    { 3.2f, 3.6f, -30.0f, -54.0f },   // RF_ENV_INDOOR: typical indoor, some walls
+    { 4.0f, 4.4f, -32.0f, -57.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
+    { 4.8f, 5.2f, -35.0f, -60.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
 };
 
 struct PathLossCalibration {
@@ -114,11 +118,11 @@ struct AdaptivePathLoss {
     bool ble_calibrated;
     uint32_t lastUpdate;
     
-    // Default/fallback values
-    static constexpr float DEFAULT_RSSI0_WIFI = -30.0;
-    static constexpr float DEFAULT_RSSI0_BLE = -66.0;
-    static constexpr float DEFAULT_N_WIFI = 3.0;
-    static constexpr float DEFAULT_N_BLE = 3.5;
+    // Default/fallback values (calibrated for 5 dBi RX antenna, indoor environment)
+    static constexpr float DEFAULT_RSSI0_WIFI = -30.0;   // WiFi RSSI at 1m indoor
+    static constexpr float DEFAULT_RSSI0_BLE = -54.0;    // BLE RSSI at 1m indoor
+    static constexpr float DEFAULT_N_WIFI = 3.2;         // WiFi path loss exponent indoor
+    static constexpr float DEFAULT_N_BLE = 3.6;          // BLE path loss exponent indoor
     
     static constexpr size_t MIN_SAMPLES = 5;
     static constexpr size_t MAX_SAMPLES = 50;
