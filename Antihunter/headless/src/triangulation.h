@@ -71,16 +71,16 @@ struct RFEnvironmentPreset {
     float rssi0_ble;
 };
 
-// RF Environment Presets calibrated for 5 dBi RX antenna
+// RF Environment Presets calibrated for 8 dBi RX antenna
 // { n_wifi, n_ble, rssi0_wifi (dBm @ 1m), rssi0_ble (dBm @ 1m) }
-// WiFi: ESP32 ~20dBm TX, 5dBi RX gain, ~40dB FSPL @ 1m
-// BLE: Targets typically 0-4dBm TX, 5dBi RX gain, higher multipath loss
+// WiFi: ESP32 ~20dBm TX, 8dBi RX gain, ~40dB FSPL @ 1m
+// BLE: Many devices use low TX power (-8 to -12dBm) for battery saving, not 0-4dBm
 static const RFEnvironmentPreset RF_PRESETS[] = {
-    { 2.0f, 2.3f, -25.0f, -45.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
-    { 2.7f, 3.0f, -28.0f, -50.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
-    { 3.2f, 3.6f, -30.0f, -54.0f },   // RF_ENV_INDOOR: typical indoor, some walls
-    { 4.0f, 4.4f, -32.0f, -57.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
-    { 4.8f, 5.2f, -35.0f, -60.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
+    { 2.0f, 2.3f, -22.0f, -52.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
+    { 2.7f, 3.0f, -25.0f, -57.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
+    { 3.2f, 3.6f, -27.0f, -62.0f },   // RF_ENV_INDOOR: typical indoor, some walls
+    { 4.0f, 4.4f, -29.0f, -65.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
+    { 4.8f, 5.2f, -32.0f, -69.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
 };
 
 struct PathLossCalibration {
@@ -118,9 +118,9 @@ struct AdaptivePathLoss {
     bool ble_calibrated;
     uint32_t lastUpdate;
     
-    // Default/fallback values (calibrated for 5 dBi RX antenna, indoor environment)
-    static constexpr float DEFAULT_RSSI0_WIFI = -30.0;   // WiFi RSSI at 1m indoor
-    static constexpr float DEFAULT_RSSI0_BLE = -54.0;    // BLE RSSI at 1m indoor
+    // Default/fallback values (calibrated for 8 dBi RX antenna, indoor environment)
+    static constexpr float DEFAULT_RSSI0_WIFI = -27.0;   // WiFi RSSI at 1m indoor (8dBi antenna)
+    static constexpr float DEFAULT_RSSI0_BLE = -62.0;    // BLE RSSI at 1m indoor (8dBi antenna, low-power BLE)
     static constexpr float DEFAULT_N_WIFI = 3.2;         // WiFi path loss exponent indoor
     static constexpr float DEFAULT_N_BLE = 3.6;          // BLE path loss exponent indoor
     

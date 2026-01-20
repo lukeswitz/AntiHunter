@@ -46,10 +46,10 @@ const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
 
 RFEnvironment currentRFEnvironment = RF_ENV_INDOOR;
 
-// Path loss defaults calibrated for 5 dBi RX antenna, indoor environment
+// Path loss defaults calibrated for 8 dBi RX antenna, indoor environment
 PathLossCalibration pathLoss = {
-    -30.0,   // rssi0_wifi (dBm @ 1m)
-    -54.0,   // rssi0_ble (dBm @ 1m)
+    -27.0,   // rssi0_wifi (dBm @ 1m, 8dBi antenna)
+    -62.0,   // rssi0_ble (dBm @ 1m, 8dBi antenna, low-power BLE)
     3.2,     // n_wifi (path loss exponent)
     3.6,     // n_ble (path loss exponent)
     false    // calibrated flag
@@ -1744,10 +1744,10 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
 }
 
 
-// Adaptive path loss calibrated for 5 dBi RX antenna, indoor environment default
+// Adaptive path loss calibrated for 8 dBi RX antenna, indoor environment default
 AdaptivePathLoss adaptivePathLoss = {
-    -30.0,                             // rssi0_wifi (dBm @ 1m indoor)
-    -54.0,                             // rssi0_ble (dBm @ 1m indoor)
+    -27.0,                             // rssi0_wifi (dBm @ 1m, 8dBi antenna)
+    -62.0,                             // rssi0_ble (dBm @ 1m, 8dBi antenna, low-power BLE)
     3.2,                               // n_wifi (indoor path loss exponent)
     3.6,                               // n_ble (indoor path loss exponent)
     std::vector<PathLossSample>(),     // wifiSamples
