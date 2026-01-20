@@ -496,18 +496,48 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
 | `STATUS` | None | System status (mode, scan state, hits, temp, uptime, GPS) | `@ALL STATUS` |
+| `STOP` | None | Stop all operations | `@ALL STOP` |
+
+### Configuration Commands
+
+| Command | Parameters | Description | Example |
+|---------|------------|-------------|---------|
 | `CONFIG_TARGETS` | `macs` (pipe-delimited) | Update target watchlist (full MAC or OUI prefix) | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33:44:55:66` |
 | `CONFIG_NODEID` | `id` (2-5 alphanumeric) | Set node identifier | `@AH01 CONFIG_NODEID:AH02` |
 | `CONFIG_RSSI` | `threshold` (-128 to -10) | Set global RSSI threshold | `@ALL CONFIG_RSSI:-80` |
-| `SCAN_START` | `mode:secs:channels[:FOREVER]` | Start scan (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1,6,11` |
-| `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Device discovery scan | `@ALL DEVICE_SCAN_START:2:300` |
+| `CONFIG_CHANNELS` | `channels` (comma-separated) | Update WiFi scan channels | `@ALL CONFIG_CHANNELS:1,6,11` |
+
+### Scanning Commands
+
+| Command | Parameters | Description | Example |
+|---------|------------|-------------|---------|
+| `SCAN_START` | `mode:secs:channels[:FOREVER]` | Start target scan (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1,6,11` |
+| `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Device discovery scan (0=WiFi, 1=BLE, 2=Both) | `@ALL DEVICE_SCAN_START:2:300` |
 | `BASELINE_START` | `duration[:FOREVER]` | Baseline anomaly detection (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | Get baseline scan status | `@ALL BASELINE_STATUS` |
-| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA initiator. **rfEnv** (via API): 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
+| `DRONE_START` | `secs[:FOREVER]` | Start drone RID detection | `@ALL DRONE_START:300` |
+| `DEAUTH_START` | `secs[:FOREVER]` | Start deauth attack detection | `@ALL DEAUTH_START:300` |
+| `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | Start randomization detection (0=WiFi, 1=BLE, 2=Both) | `@ALL RANDOMIZATION_START:2:300` |
+
+### Triangulation Commands
+
+| Command | Parameters | Description | Example |
+|---------|------------|-------------|---------|
+| `TRIANGULATE_START` | `target:duration[:rfEnv]` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA initiator. rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
 | `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
-| `STOP` | None | Stop all operations | `@ALL STOP` |
+| `TRIANGULATE_RESULTS` | None | Request triangulation results from initiator | `@AH01 TRIANGULATE_RESULTS` |
+
+### Security Commands
+
+| Command | Parameters | Description | Example |
+|---------|------------|-------------|---------|
 | `ERASE_REQUEST` | None | Request erase token (valid 5 min) | `@AH01 ERASE_REQUEST` |
 | `ERASE_FORCE` | `token` | Emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
+| `ERASE_CANCEL` | None | Cancel tamper erase countdown | `@AH01 ERASE_CANCEL` |
+| `AUTOERASE_ENABLE` | `[setup:erase:vibs:window:cooldown]` | Enable auto-erase (all times in seconds) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
+| `AUTOERASE_DISABLE` | None | Disable auto-erase | `@AH01 AUTOERASE_DISABLE` |
+| `AUTOERASE_STATUS` | None | Get auto-erase configuration status | `@AH01 AUTOERASE_STATUS` |
+| `VIBRATION_STATUS` | None | Get vibration sensor status | `@AH01 VIBRATION_STATUS` |
 
 ### Key Alert Messages
 
