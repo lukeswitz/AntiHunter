@@ -547,20 +547,20 @@ void startTriangulation(const String &targetMac, int duration) {
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
 
-    // Force stop any existing triangulation first
-    if (triangulationActive) {
-        Serial.println("[TRIANGULATE] Already active, forcing full stop first...");
-        stopTriangulation();
-        vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for complete cleanup
+    // // Force stop any existing triangulation first
+    // if (triangulationActive) {
+    //     Serial.println("[TRIANGULATE] Already active, forcing full stop first...");
+    //     stopTriangulation();
+    //     vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for complete cleanup
 
-        // After stop, re-check debounce since stop updates the timestamp
-        uint32_t timeSinceStop = millis() - lastTriangulationStopTime;
-        if (timeSinceStop < TRIANGULATION_DEBOUNCE_MS) {
-            uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceStop) / 1000;
-            Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us after forced stop before starting again\n", remainingWait);
-            return;
-        }
-    }
+    //     // After stop, re-check debounce since stop updates the timestamp
+    //     uint32_t timeSinceStop = millis() - lastTriangulationStopTime;
+    //     if (timeSinceStop < TRIANGULATION_DEBOUNCE_MS) {
+    //         uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceStop) / 1000;
+    //         Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us after forced stop before starting again\n", remainingWait);
+    //         return;
+    //     }
+    // }
 
     if (workerTaskHandle) {
         Serial.println("[TRIANGULATE] WARNING: Worker task still exists, stopping...");
@@ -643,8 +643,8 @@ uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
     uint32_t delayCount = 0;
 
     for (const auto& pair : nodePropagationDelays) {
-        uint32_t delay = pair.second;  // Delay in microseconds
-        if (delay < 1000000) {  // Sanity check: ignore delays > 1 second (likely wraparound)
+        uint32_t delay = pair.second;
+        if (delay < 1000000) {
             if (delay > maxPropDelay) {
                 maxPropDelay = delay;
             }
@@ -655,7 +655,6 @@ uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
 
     if (delayCount > 0) {
         avgPropDelay /= delayCount;
-        // Add 3x worst-case propagation delay (convert from us to ms, multiply by 3 for safety)
         uint32_t latencyMargin = (maxPropDelay / 1000) * 3;
         timeout += latencyMargin;
 
