@@ -523,7 +523,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
-| `TRIANGULATE_START` | `target:duration[:rfEnv]` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA initiator. rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
+| `TRIANGULATE_START` | `target:duration:rfEnv` | Triangulate target MAC or Identity (T-XXXX). Direct to node makes it initiator. rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2` |
 | `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | Request triangulation results from initiator | `@AH01 TRIANGULATE_RESULTS` |
 
@@ -534,7 +534,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `ERASE_REQUEST` | None | Request erase token (valid 5 min) | `@AH01 ERASE_REQUEST` |
 | `ERASE_FORCE` | `token` | Emergency data erasure with auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
 | `ERASE_CANCEL` | None | Cancel tamper erase countdown | `@AH01 ERASE_CANCEL` |
-| `AUTOERASE_ENABLE` | `[setup:erase:vibs:window:cooldown]` | Enable auto-erase (all times in seconds) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
+| `AUTOERASE_ENABLE` | `setup:erase:vibs:window:cooldown` | Enable auto-erase. Params: setup delay, erase delay, vibrations required, detection window, cooldown (all seconds except vibs count) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
 | `AUTOERASE_DISABLE` | None | Disable auto-erase | `@AH01 AUTOERASE_DISABLE` |
 | `AUTOERASE_STATUS` | None | Get auto-erase configuration status | `@AH01 AUTOERASE_STATUS` |
 | `VIBRATION_STATUS` | None | Get vibration sensor status | `@AH01 VIBRATION_STATUS` |
