@@ -109,7 +109,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 | Indoor Dense | 4.0 | 4.4 | -32 dBm | -57 dBm | Office spaces, many partitions |
 | Industrial | 4.8 | 5.2 | -35 dBm | -60 dBm | Heavy obstruction, machinery |
 
-> **Note**: Values calibrated for 5 dBi RX antenna gain. BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
+> **Note**: Values calibrated for 5-8 dBi RX antenna gain. BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
 
 ---
 
