@@ -109,7 +109,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 | Indoor Dense | 4.0 | 4.4 | -32 dBm | -57 dBm | Office spaces, many partitions |
 | Industrial | 4.8 | 5.2 | -35 dBm | -60 dBm | Heavy obstruction, machinery |
 
-> **Note**: Values calibrated for 5 dBi RX antenna gain. BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
+> **Note**: Values calibrated for 5-8 dBi RX antenna gain. BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
 
 ---
 
@@ -503,7 +503,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | Device discovery scan | `@ALL DEVICE_SCAN_START:2:300` |
 | `BASELINE_START` | `duration[:FOREVER]` | Baseline anomaly detection (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | Get baseline scan status | `@ALL BASELINE_STATUS` |
-| `TRIANGULATE_START` | `target:duration` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration` makes NodeA initiator. **rfEnv** (via API): 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60` |
+| `TRIANGULATE_START` | `target:duration:rfEnv` | Triangulate target MAC or Identity ID (T-XXXX). **Direct to node:** `@NodeA TRIANGULATE_START:target:duration:rfEnv` makes NodeA initiator. **rfEnv** (via API): 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2` |
 | `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
 | `STOP` | None | Stop all operations | `@ALL STOP` |
 | `ERASE_REQUEST` | None | Request erase token (valid 5 min) | `@AH01 ERASE_REQUEST` |
