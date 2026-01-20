@@ -3709,21 +3709,14 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
       stopRequested = true;
-      
+
       // Stop triangulation if active
       if (triangulationActive) {
           stopTriangulation();
       }
-      
-      if (workerTaskHandle) {
-          workerTaskHandle = nullptr;
-      }
-      if (blueTeamTaskHandle) {
-          blueTeamTaskHandle = nullptr;
-      }
-      
+
       scanning = false;
-      
+
       req->send(200, "text/plain", "Scan stopped");
   });
 
@@ -5122,8 +5115,9 @@ void processCommand(const String &command, const String &targetId = "")
 
     if (workerTaskHandle) {
         stopRequested = true;
-        vTaskDelay(pdMS_TO_TICKS(500));
-        workerTaskHandle = nullptr;
+        while (workerTaskHandle) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
     }
 
     if (isIdentityId) {

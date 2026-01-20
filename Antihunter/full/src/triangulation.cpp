@@ -562,20 +562,17 @@ void startTriangulation(const String &targetMac, int duration) {
         }
     }
 
-    // Ensure worker task is completely stopped
     if (workerTaskHandle) {
         Serial.println("[TRIANGULATE] WARNING: Worker task still exists, stopping...");
         stopRequested = true;
 
-        // Wait for task to actually exit
         uint32_t taskStopWait = millis();
         while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
         if (workerTaskHandle != nullptr) {
-            Serial.println("[TRIANGULATE] ERROR: Worker task still running, aborting start to prevent corruption");
-            workerTaskHandle = nullptr;
+            Serial.println("[TRIANGULATE] ERROR: Worker task still running after 3s, aborting start");
             return;
         }
         vTaskDelay(pdMS_TO_TICKS(500));
@@ -852,8 +849,7 @@ void stopTriangulation() {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
         if (workerTaskHandle != nullptr) {
-            Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit cleanly, skipping force termination to prevent corruption");
-            workerTaskHandle = nullptr;
+            Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit within 3s, will exit on its own");
         }
     }
 
