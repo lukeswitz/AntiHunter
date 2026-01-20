@@ -547,20 +547,20 @@ void startTriangulation(const String &targetMac, int duration) {
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
 
-    // Force stop any existing triangulation first
-    if (triangulationActive) {
-        Serial.println("[TRIANGULATE] Already active, forcing full stop first...");
-        stopTriangulation();
-        vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for complete cleanup
+    // // Force stop any existing triangulation first
+    // if (triangulationActive) {
+    //     Serial.println("[TRIANGULATE] Already active, forcing full stop first...");
+    //     stopTriangulation();
+    //     vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for complete cleanup
 
-        // After stop, re-check debounce since stop updates the timestamp
-        uint32_t timeSinceStop = millis() - lastTriangulationStopTime;
-        if (timeSinceStop < TRIANGULATION_DEBOUNCE_MS) {
-            uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceStop) / 1000;
-            Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us after forced stop before starting again\n", remainingWait);
-            return;
-        }
-    }
+    //     // After stop, re-check debounce since stop updates the timestamp
+    //     uint32_t timeSinceStop = millis() - lastTriangulationStopTime;
+    //     if (timeSinceStop < TRIANGULATION_DEBOUNCE_MS) {
+    //         uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceStop) / 1000;
+    //         Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us after forced stop before starting again\n", remainingWait);
+    //         return;
+    //     }
+    // }
 
     if (workerTaskHandle) {
         Serial.println("[TRIANGULATE] WARNING: Worker task still exists, stopping...");

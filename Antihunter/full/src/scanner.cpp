@@ -2569,7 +2569,6 @@ void listScanTask(void *pv) {
         }
     }
 
-    // Only update results if not stopped (prevent race with stopTriangulation())
     if (!stopRequested) {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
