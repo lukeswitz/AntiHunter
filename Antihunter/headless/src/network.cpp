@@ -646,8 +646,10 @@ void processCommand(const String &command, const String &targetId = "")
 
     if (workerTaskHandle) {
         stopRequested = true;
-        vTaskDelay(pdMS_TO_TICKS(500));
-        workerTaskHandle = nullptr;
+        // Wait for task to exit naturally - it sets workerTaskHandle = nullptr on exit
+        while (workerTaskHandle) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
     }
 
     if (isIdentityId) {
