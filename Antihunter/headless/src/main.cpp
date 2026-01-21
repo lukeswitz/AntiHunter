@@ -17,7 +17,6 @@ ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = {1, 6, 11};
 volatile bool stopRequested = false;
 
-unsigned long lastNodeIdSend = 0;
 unsigned long lastRTCUpdate = 0;
 
 TaskHandle_t workerTaskHandle = nullptr;

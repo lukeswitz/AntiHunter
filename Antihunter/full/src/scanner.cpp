@@ -35,7 +35,6 @@ extern Preferences prefs;
 static std::vector<Target> targets;
 QueueHandle_t macQueue = nullptr;
 std::set<String> uniqueMacs;
-std::set<String> seenDevices;
 std::map<String, uint32_t> deviceLastSeen;
 const uint32_t DEDUPE_WINDOW = 30000;
 std::vector<Hit> hitsLog;
@@ -45,8 +44,6 @@ uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
 static std::map<String, String> apCache;
 static std::map<String, String> bleDeviceCache;
-static unsigned long lastSnifferScan = 0;
-const unsigned long SNIFFER_SCAN_INTERVAL = 10000;
 
 // BLE 
 NimBLEScan *pBLEScan;
@@ -241,10 +238,6 @@ volatile uint32_t deauthCount = 0;
 volatile uint32_t disassocCount = 0;
 bool deauthDetectionEnabled = false;
 QueueHandle_t deauthQueue = nullptr;
-volatile uint32_t req_frames = 0;
-volatile uint32_t resp_frames = 0; 
-volatile uint32_t bleAnomalyCount = 0;
-QueueHandle_t bleAnomalyQueue = nullptr;
 
 // Deauth Detection
 std::map<String, uint32_t> deauthSourceCounts;
@@ -453,24 +446,6 @@ static void hopTimerCb(void *)
     static size_t idx = 0;
     idx = (idx + 1) % CHANNELS.size();
     esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
-}
-
-static int periodFromRSSI(int8_t rssi)
-{
-    const int rMin = -90, rMax = -30, pMin = 120, pMax = 1000;
-    int r = clampi(rssi, rMin, rMax);
-    float a = float(r - rMin) / float(rMax - rMin);
-    int period = (int)(pMax - a * (pMax - pMin));
-    return period;
-}
-
-static int freqFromRSSI(int8_t rssi)
-{
-    const int rMin = -90, rMax = -30, fMin = 2000, fMax = 4500;
-    int r = clampi(rssi, rMin, rMax);
-    float a = float(r - rMin) / float(rMax - rMin);
-    int f = (int)(fMin + a * (fMax - fMin));
-    return f;
 }
 
 // Deauth type
