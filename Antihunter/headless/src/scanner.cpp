@@ -83,6 +83,8 @@ RFScanConfig rfConfig = {
 const uint32_t SCAN_MESH_SLOT_CYCLE_MS = 15000;
 const uint32_t SCAN_MESH_NUM_SLOTS = 5;
 const uint32_t SCAN_MESH_SLOT_DURATION_MS = SCAN_MESH_SLOT_CYCLE_MS / SCAN_MESH_NUM_SLOTS;
+const uint32_t SLOT_GUARD_MS = 200;  // Guard time at slot boundaries
+const uint32_t INTER_MESSAGE_DELAY_MS = 50;  // Minimum delay between mesh messages
 static uint32_t scanMeshCycleStartTime = 0;
 
 static uint8_t getScanNodeSlot() {
@@ -94,6 +96,25 @@ static uint8_t getScanNodeSlot() {
     return hash % SCAN_MESH_NUM_SLOTS;
 }
 
+// Returns remaining milliseconds in current slot, or 0 if not in our slot
+static uint32_t getTimeRemainingInSlot() {
+    if (scanMeshCycleStartTime == 0) {
+        scanMeshCycleStartTime = millis();
+    }
+    uint32_t elapsed = millis() - scanMeshCycleStartTime;
+    uint32_t positionInCycle = elapsed % SCAN_MESH_SLOT_CYCLE_MS;
+    uint8_t currentSlot = positionInCycle / SCAN_MESH_SLOT_DURATION_MS;
+
+    if (currentSlot != getScanNodeSlot()) {
+        return 0;  // Not our slot
+    }
+
+    uint32_t slotStart = currentSlot * SCAN_MESH_SLOT_DURATION_MS;
+    uint32_t slotEnd = slotStart + SCAN_MESH_SLOT_DURATION_MS;
+    uint32_t remaining = slotEnd - positionInCycle;
+    return remaining;
+}
+
 static bool isMyScanMeshSlot() {
     if (scanMeshCycleStartTime == 0) {
         scanMeshCycleStartTime = millis();
@@ -102,6 +123,12 @@ static bool isMyScanMeshSlot() {
     uint32_t positionInCycle = elapsed % SCAN_MESH_SLOT_CYCLE_MS;
     uint8_t currentSlot = positionInCycle / SCAN_MESH_SLOT_DURATION_MS;
     return currentSlot == getScanNodeSlot();
+}
+
+// Check if safe to send (in slot with sufficient guard time remaining)
+static bool canSendInSlot() {
+    uint32_t remaining = getTimeRemainingInSlot();
+    return remaining > SLOT_GUARD_MS;
 }
 
 void setRFPreset(uint8_t preset) {
@@ -829,14 +856,15 @@ void snifferScanTask(void *pv)
             }
         }
 
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL && isMyScanMeshSlot())
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL && canSendInSlot())
         {
             lastMeshUpdate = millis();
             uint32_t sentThisCycle = 0;
 
             for (const auto& entry : apCache)
             {
-                if (!isMyScanMeshSlot()) break;
+                // Check we have enough time remaining in slot with guard margin
+                if (!canSendInSlot()) break;
                 String macStr = entry.first;
                 String ssid = entry.second;
 
@@ -865,8 +893,8 @@ void snifferScanTask(void *pv)
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
 
-                            if (sentThisCycle % 2 == 0) {
-                                delay(500);
+                            // Refill tokens periodically to maintain throughput
+                            if (sentThisCycle % 3 == 0) {
                                 rateLimiter.refillTokens();
                             }
                         }
@@ -876,7 +904,8 @@ void snifferScanTask(void *pv)
 
             for (const auto& entry : bleDeviceCache)
             {
-                if (!isMyScanMeshSlot()) break;
+                // Check we have enough time remaining in slot with guard margin
+                if (!canSendInSlot()) break;
                 String macStr = entry.first;
                 String name = entry.second;
 
@@ -902,8 +931,8 @@ void snifferScanTask(void *pv)
                             transmittedDevices.insert(macStr);
                             sentThisCycle++;
 
-                            if (sentThisCycle % 2 == 0) {
-                                delay(500);
+                            // Refill tokens periodically to maintain throughput
+                            if (sentThisCycle % 3 == 0) {
                                 rateLimiter.refillTokens();
                             }
                         }
@@ -977,21 +1006,29 @@ void snifferScanTask(void *pv)
         Serial.printf("[SNIFFER] Scan complete - transmitting final batch\n");
         Serial.printf("[SNIFFER] Already sent: %d/%d devices\n", devicesBeforeFinal, totalExpectedDevices);
 
-        uint32_t waitStart = millis();
-        while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        // Helper lambda to wait for our slot with guard time
+        auto waitForSlot = []() {
+            uint32_t waitStart = millis();
+            while (!canSendInSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+            // Small delay after entering slot to let bus settle
+            if (canSendInSlot()) {
+                delay(100);
+            }
+        };
 
+        // Wait for our slot before starting
+        waitForSlot();
         rateLimiter.flush();
-        delay(100);
 
         for (const auto& entry : apCache)
         {
-            if (!isMyScanMeshSlot()) {
-                waitStart = millis();
-                while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
-                    vTaskDelay(pdMS_TO_TICKS(100));
-                }
+            // If slot time is running low, wait for next slot
+            if (!canSendInSlot()) {
+                Serial.println("[SNIFFER] Slot boundary - waiting for next slot");
+                waitForSlot();
+                rateLimiter.flush();
             }
             if (transmittedDevices.find(entry.first) == transmittedDevices.end())
             {
@@ -1020,11 +1057,11 @@ void snifferScanTask(void *pv)
 
         for (const auto& entry : bleDeviceCache)
         {
-            if (!isMyScanMeshSlot()) {
-                waitStart = millis();
-                while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
-                    vTaskDelay(pdMS_TO_TICKS(100));
-                }
+            // If slot time is running low, wait for next slot
+            if (!canSendInSlot()) {
+                Serial.println("[SNIFFER] Slot boundary - waiting for next slot");
+                waitForSlot();
+                rateLimiter.flush();
             }
             if (transmittedDevices.find(entry.first) == transmittedDevices.end())
             {
@@ -1048,6 +1085,7 @@ void snifferScanTask(void *pv)
             }
         }
 
+        // Ensure all data is transmitted before continuing
         Serial1.flush();
         delay(100);
 
@@ -1107,9 +1145,10 @@ void snifferScanTask(void *pv)
         uint32_t finalTransmitted = transmittedDevices.size();
         uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
 
+        // Wait for our slot with guard time before sending summary
         uint32_t waitStart = millis();
-        while (!isMyScanMeshSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
-            vTaskDelay(pdMS_TO_TICKS(100));
+        while (!canSendInSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
 
         String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
