@@ -140,10 +140,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
     Serial1.println(message);
     Serial.printf("[MESH TX] %s\n", message.c_str());
 
-    // For priority messages, ensure they're actually transmitted
-    if (isPriority) {
-        Serial1.flush();
-    }
+    Serial1.flush();
+    delay(50);
 
     if (!isPriority) {
         rateLimiter.consume(msgLen);
