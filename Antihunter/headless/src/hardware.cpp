@@ -12,6 +12,9 @@
 #include <Wire.h>
 #include "esp_wifi.h"
 #include "nvs_flash.h"
+#include "esp_pm.h"
+#include "esp_sleep.h"
+#include "esp_bt.h"
 
 extern Preferences prefs;
 extern ScanMode currentScanMode;
@@ -70,6 +73,11 @@ uint32_t vibrationsRequired = 3;
 uint32_t detectionWindow = 20000;
 String eraseStatus = "INACTIVE";
 bool eraseInProgress = false;
+
+// Battery Saver Mode
+bool batterySaverEnabled = false;
+uint32_t batterySaverHeartbeatInterval = 300000;  // 5 minutes default
+uint32_t lastBatterySaverHeartbeat = 0;
 
 // SD & HW Init
 
@@ -1501,4 +1509,159 @@ void deleteAllFiles(const String &dirname) {
     }
 
     root.close();
+}
+
+// Battery Saver Mode Implementation
+
+void enterBatterySaver(uint32_t heartbeatIntervalMs) {
+    if (batterySaverEnabled) {
+        Serial.println("[BATTERY_SAVER] Already enabled");
+        return;
+    }
+
+    Serial.println("[BATTERY_SAVER] Entering battery saver mode...");
+
+    // Validate and set heartbeat interval (minimum 60 seconds, maximum 30 minutes)
+    if (heartbeatIntervalMs < 60000) heartbeatIntervalMs = 60000;
+    if (heartbeatIntervalMs > 1800000) heartbeatIntervalMs = 1800000;
+    batterySaverHeartbeatInterval = heartbeatIntervalMs;
+
+    // Stop any active scanning tasks
+    extern volatile bool stopRequested;
+    extern TaskHandle_t workerTaskHandle;
+    extern TaskHandle_t blueTeamTaskHandle;
+
+    stopRequested = true;
+
+    // Wait for tasks to stop
+    uint32_t waitStart = millis();
+    while ((workerTaskHandle || blueTeamTaskHandle) && (millis() - waitStart < 5000)) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    // Disable WiFi promiscuous mode
+    esp_wifi_set_promiscuous(false);
+
+    // Stop WiFi (but keep mesh UART active)
+    esp_wifi_stop();
+    Serial.println("[BATTERY_SAVER] WiFi stopped");
+
+    // Disable BLE controller
+    esp_bt_controller_disable();
+    Serial.println("[BATTERY_SAVER] BLE disabled");
+
+    // Reduce CPU frequency to 80MHz for power saving
+    esp_pm_config_t pm_config = {
+        .max_freq_mhz = 80,
+        .min_freq_mhz = 80,
+        .light_sleep_enable = true
+    };
+    esp_err_t err = esp_pm_configure(&pm_config);
+    if (err == ESP_OK) {
+        Serial.println("[BATTERY_SAVER] CPU frequency reduced to 80MHz");
+    } else {
+        Serial.printf("[BATTERY_SAVER] Failed to configure PM: %s\n", esp_err_to_name(err));
+    }
+
+    batterySaverEnabled = true;
+    lastBatterySaverHeartbeat = 0;  // Send heartbeat immediately
+
+    // Send notification to mesh
+    String msg = getNodeId() + ": BATTERY_SAVER: ENABLED Interval:" + String(heartbeatIntervalMs / 60000) + "min";
+    sendToSerial1(msg, true);
+
+    Serial.printf("[BATTERY_SAVER] Mode enabled, heartbeat every %lu minutes\n", heartbeatIntervalMs / 60000);
+    logToSD("Battery saver mode enabled");
+}
+
+void exitBatterySaver() {
+    if (!batterySaverEnabled) {
+        Serial.println("[BATTERY_SAVER] Already disabled");
+        return;
+    }
+
+    Serial.println("[BATTERY_SAVER] Exiting battery saver mode...");
+
+    // Restore CPU frequency to 240MHz
+    esp_pm_config_t pm_config = {
+        .max_freq_mhz = 240,
+        .min_freq_mhz = 80,
+        .light_sleep_enable = false
+    };
+    esp_err_t err = esp_pm_configure(&pm_config);
+    if (err == ESP_OK) {
+        Serial.println("[BATTERY_SAVER] CPU frequency restored to 240MHz");
+    } else {
+        Serial.printf("[BATTERY_SAVER] Failed to configure PM: %s\n", esp_err_to_name(err));
+    }
+
+    // Re-enable BLE controller
+    esp_bt_controller_enable(ESP_BT_MODE_BLE);
+    Serial.println("[BATTERY_SAVER] BLE re-enabled");
+
+    // Restart WiFi
+    WiFi.mode(WIFI_MODE_STA);
+    Serial.println("[BATTERY_SAVER] WiFi restarted");
+
+    batterySaverEnabled = false;
+
+    // Send notification to mesh
+    String msg = getNodeId() + ": BATTERY_SAVER: DISABLED";
+    sendToSerial1(msg, true);
+
+    Serial.println("[BATTERY_SAVER] Mode disabled, normal operation resumed");
+    logToSD("Battery saver mode disabled");
+}
+
+void sendBatterySaverHeartbeat() {
+    if (!batterySaverEnabled) return;
+
+    uint32_t now = millis();
+    if (now - lastBatterySaverHeartbeat < batterySaverHeartbeatInterval) return;
+
+    lastBatterySaverHeartbeat = now;
+
+    float temp_c = temperatureRead();
+
+    // Build heartbeat message
+    String heartbeat = getNodeId() + ": HEARTBEAT: Temp:" + String((int)temp_c) + "C";
+
+    // Add GPS if available
+    if (gpsValid) {
+        heartbeat += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+    } else {
+        heartbeat += " GPS:N/A";
+    }
+
+    heartbeat += " Battery:SAVER";
+
+    sendToSerial1(heartbeat, true);
+    Serial.printf("[BATTERY_SAVER] Heartbeat sent: %s\n", heartbeat.c_str());
+}
+
+String getBatterySaverStatus() {
+    String status = getNodeId() + ": BATTERY_SAVER_STATUS: ";
+    status += "Enabled:" + String(batterySaverEnabled ? "YES" : "NO");
+
+    if (batterySaverEnabled) {
+        status += " Interval:" + String(batterySaverHeartbeatInterval / 60000) + "min";
+
+        uint32_t nextHeartbeat = 0;
+        if (lastBatterySaverHeartbeat > 0) {
+            uint32_t elapsed = millis() - lastBatterySaverHeartbeat;
+            if (elapsed < batterySaverHeartbeatInterval) {
+                nextHeartbeat = (batterySaverHeartbeatInterval - elapsed) / 1000;
+            }
+        }
+        status += " NextHB:" + String(nextHeartbeat) + "s";
+    }
+
+    float temp_c = temperatureRead();
+    status += " Temp:" + String((int)temp_c) + "C";
+
+    if (gpsValid) {
+        status += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+    }
+
+    return status;
 }
