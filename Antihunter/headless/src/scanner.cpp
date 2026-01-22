@@ -2131,7 +2131,8 @@ void listScanTask(void *pv) {
                     bssid.toUpperCase();
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
-                    if (rssi < rfConfig.globalRssiThreshold) {
+                    // Skip RSSI threshold during triangulation - we want ALL measurements
+                    if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
                         continue;
                     }
                     uint8_t ch = WiFi.channel(i);
@@ -2202,7 +2203,8 @@ void listScanTask(void *pv) {
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                 int8_t rssi = device->getRSSI();
 
-                if (rssi < rfConfig.globalRssiThreshold) {
+                // Skip RSSI threshold during triangulation - we want ALL measurements
+                if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
                     continue;
                 }
 

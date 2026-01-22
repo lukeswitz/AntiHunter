@@ -190,27 +190,35 @@ float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement) {
 
 float calculateSignalQuality(const TriangulationNode &node) {
     if (node.rssiHistory.size() < 3) {
-        return 0.5;
+        // Even with few samples, factor in hit count for initial quality estimate
+        float hitFactor = min(1.0f, (float)node.hitCount / 15.0f);
+        return 0.3f + (hitFactor * 0.2f);  // Range 0.3-0.5 based on hits
     }
-    
+
     float variance = 0.0;
     float mean = 0.0;
     for (int8_t rssi : node.rssiHistory) {
         mean += rssi;
     }
     mean /= node.rssiHistory.size();
-    
+
     for (int8_t rssi : node.rssiHistory) {
         float diff = rssi - mean;
         variance += diff * diff;
     }
     variance /= node.rssiHistory.size();
-    
+
     float stability = 1.0 / (1.0 + sqrt(variance));
     float strength = (node.filteredRssi + 100.0) / 100.0;
     strength = constrain(strength, 0.0, 1.0);
-    
-    return (stability * 0.6 + strength * 0.4);
+
+    // Hit count factor: more detections = higher confidence in this node's data
+    // Saturates at ~15 hits (typical good detection count during scan)
+    float hitFactor = min(1.0f, (float)node.hitCount / 15.0f);
+
+    // Weight: 40% stability, 30% signal strength, 30% hit count
+    // Node with strongest signal AND most hits gets highest weight
+    return (stability * 0.4f + strength * 0.3f + hitFactor * 0.3f);
 }
 
 bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, 
@@ -443,11 +451,51 @@ void coordinatorSetupTask(void *parameter) {
     // Wait for child nodes to ACK - give mesh time to relay responses
     // Children use 0-2s staggered delay + mesh propagation time
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "TRIANGULATING: Waiting for mesh nodes to respond...";
+    }
     vTaskDelay(pdMS_TO_TICKS(15000));  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
-    Serial.printf("[TRIANGULATE] ACK collection complete: %d nodes responded\n", triangulateAcks.size());
+
+    // Count total nodes: coordinator + ACK'd children
+    int totalNodes = 1 + triangulateAcks.size();  // 1 = coordinator
+    Serial.printf("[TRIANGULATE] ACK collection complete: %d child nodes responded (%d total)\n",
+                  triangulateAcks.size(), totalNodes);
+
+    // Require minimum 3 nodes for meaningful trilateration
+    if (totalNodes < 3) {
+        Serial.printf("[TRIANGULATE] ABORTED: Only %d nodes available, need at least 3 for triangulation\n", totalNodes);
+
+        // Store error in lastResults so UI can show it
+        {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = "TRIANGULATION FAILED: Only " + String(totalNodes) +
+                                      " node(s) responded. Need at least 3 nodes for triangulation.\n"
+                                      "Ensure other nodes are powered on and in mesh range.";
+        }
+
+        // Broadcast stop to any nodes that did ACK
+        if (triangulateAcks.size() > 0) {
+            String stopCmd = "@ALL TRIANGULATE_STOP";
+            sendMeshCommand(stopCmd);
+        }
+
+        // Clean up state
+        triangulationActive = false;
+        triangulationInitiator = false;
+        triangulateAcks.clear();
+        coordinatorSetupTaskHandle = nullptr;
+        vTaskDelete(NULL);
+        return;  // Won't reach here but makes intent clear
+    }
 
     // Additional buffer before next broadcast
     vTaskDelay(pdMS_TO_TICKS(1000));
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "TRIANGULATING: " + String(totalNodes) + " nodes ready, starting scan...";
+    }
 
     // Broadcast synchronized cycle start time + node list for slot coordination
     int64_t cycleStartUs = getCorrectedMicroseconds();
@@ -580,7 +628,7 @@ void startTriangulation(const String &targetMac, int duration) {
     
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
+        antihunter::lastResults = "TRIANGULATING: Synchronizing time with mesh nodes...";
     }
 
     triangulationNodes.clear();
@@ -694,6 +742,12 @@ void stopTriangulation() {
 
         Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd), reset report flags\n", triangulateAcks.size());
 
+        {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = "TRIANGULATING: Scan complete, collecting final reports from " +
+                                      String(triangulateAcks.size()) + " nodes...";
+        }
+
         // Give nodes time to ACK and send T_D reports
         Serial.println("[TRIANGULATE] Waiting for late ACKs and initial T_D reports...");
         vTaskDelay(pdMS_TO_TICKS(10000));  // Increased from 6s to 10s for mesh reliability
@@ -728,6 +782,15 @@ void stopTriangulation() {
 
                 Serial.printf("[TRIANGULATE] Reports: %d/%d (%.0f%%)\n",
                              reportedCount, totalAcked, (reportedCount * 100.0f) / totalAcked);
+
+                // Update UI with collection progress (every ~1s to avoid excessive updates)
+                static uint32_t lastUIUpdate = 0;
+                if (millis() - lastUIUpdate > 1000) {
+                    std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                    antihunter::lastResults = "TRIANGULATING: Collecting reports... " +
+                                              String(reportedCount) + "/" + String(totalAcked + 1) + " nodes";
+                    lastUIUpdate = millis();
+                }
 
                 // All nodes reported - but wait a bit longer if we recently discovered new nodes
                 // This gives time for more late T_Ds to arrive
@@ -836,23 +899,27 @@ void stopTriangulation() {
     vTaskDelay(pdMS_TO_TICKS(500));
 
     if (workerTaskHandle != nullptr) {
-        TaskHandle_t taskToWait = workerTaskHandle;
         uint32_t taskStopWait = millis();
 
+        // Wait for task to set workerTaskHandle = nullptr before deleting itself
+        // Do NOT call eTaskGetState() - the handle becomes invalid after vTaskDelete
+        // and calling it on a deleted task is undefined behavior (crash risk)
         while (workerTaskHandle != nullptr && (millis() - taskStopWait) < 3000) {
-            if (eTaskGetState(taskToWait) == eDeleted) {
-                workerTaskHandle = nullptr;
-                Serial.println("[TRIANGULATE] Worker task exited cleanly");
-                break;
-            }
             vTaskDelay(pdMS_TO_TICKS(100));
         }
-        if (workerTaskHandle != nullptr) {
+        if (workerTaskHandle == nullptr) {
+            Serial.println("[TRIANGULATE] Worker task exited cleanly");
+        } else {
             Serial.println("[TRIANGULATE] WARNING: Worker task didn't exit within 3s, will exit on its own");
         }
     }
 
     vTaskDelay(pdMS_TO_TICKS(500));
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "TRIANGULATING: Calculating target position...";
+    }
 
     Serial.println("[TRIANGULATE] Calculating final results...");
     String results = calculateTriangulation();
