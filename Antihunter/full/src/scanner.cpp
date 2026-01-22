@@ -2132,7 +2132,8 @@ void listScanTask(void *pv) {
                     bssid.toUpperCase();
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
-                    if (rssi < rfConfig.globalRssiThreshold) {
+                    // Skip RSSI threshold during triangulation - we want ALL measurements
+                    if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
                         continue;
                     }
 
@@ -2202,8 +2203,9 @@ void listScanTask(void *pv) {
                 String macStr = macStrOrig;
                 macStr.toUpperCase();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
-                int8_t rssi = device->getRSSI();    
-                if (rssi < rfConfig.globalRssiThreshold) {
+                int8_t rssi = device->getRSSI();
+                // Skip RSSI threshold during triangulation - we want ALL measurements
+                if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
                     continue;
                 }
                 uint32_t now = millis();
@@ -2422,10 +2424,15 @@ void listScanTask(void *pv) {
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
-                std::string results = "\n=== Triangulation Results (IN PROGRESS) ===\n";
+                uint32_t elapsedSec = (millis() - triangulationStart) / 1000;
+                uint32_t remainingSec = (elapsedSec < triangulationDuration) ? (triangulationDuration - elapsedSec) : 0;
+
+                std::string results = "TRIANGULATING: Scanning... " + std::to_string(elapsedSec) + "s elapsed, " +
+                                      std::to_string(remainingSec) + "s remaining\n\n";
+                results += "=== Triangulation Results (IN PROGRESS) ===\n";
                 results += "Target MAC: " + std::string(macFmt6(triangulationTarget).c_str()) + "\n";
                 results += "Duration: " + std::to_string(triangulationDuration) + "s\n";
-                results += "Elapsed: " + std::to_string((millis() - triangulationStart) / 1000) + "s\n";
+                results += "Elapsed: " + std::to_string(elapsedSec) + "s\n";
                 results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n\n";
                 results += "--- Node Reports ---\n";
 
