@@ -469,9 +469,9 @@ void coordinatorSetupTask(void *parameter) {
         // Store error in lastResults so UI can show it
         {
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = "TRIANGULATION FAILED: Only " + String(totalNodes) +
+            antihunter::lastResults = ("TRIANGULATION FAILED: Only " + String(totalNodes) +
                                       " node(s) responded. Need at least 3 nodes for triangulation.\n"
-                                      "Ensure other nodes are powered on and in mesh range.";
+                                      "Ensure other nodes are powered on and in mesh range.").c_str();
         }
 
         // Broadcast stop to any nodes that did ACK
@@ -494,7 +494,7 @@ void coordinatorSetupTask(void *parameter) {
 
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = "TRIANGULATING: " + String(totalNodes) + " nodes ready, starting scan...";
+        antihunter::lastResults = ("TRIANGULATING: " + String(totalNodes) + " nodes ready, starting scan...").c_str();
     }
 
     // Broadcast synchronized cycle start time + node list for slot coordination
@@ -744,8 +744,8 @@ void stopTriangulation() {
 
         {
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = "TRIANGULATING: Scan complete, collecting final reports from " +
-                                      String(triangulateAcks.size()) + " nodes...";
+            antihunter::lastResults = ("TRIANGULATING: Scan complete, collecting final reports from " +
+                                      String(triangulateAcks.size()) + " nodes...").c_str();
         }
 
         // Give nodes time to ACK and send T_D reports
@@ -787,8 +787,8 @@ void stopTriangulation() {
                 static uint32_t lastUIUpdate = 0;
                 if (millis() - lastUIUpdate > 1000) {
                     std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                    antihunter::lastResults = "TRIANGULATING: Collecting reports... " +
-                                              String(reportedCount) + "/" + String(totalAcked + 1) + " nodes";
+                    antihunter::lastResults = ("TRIANGULATING: Collecting reports... " +
+                                              String(reportedCount) + "/" + String(totalAcked + 1) + " nodes").c_str();
                     lastUIUpdate = millis();
                 }
 
