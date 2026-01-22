@@ -209,8 +209,9 @@ void setup() {
 
 void loop() {
     static unsigned long lastSaveSend = 0;
+    static unsigned long lastGPSPollBatterySaver = 0;
 
-     // Handle serial time setting
+    // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
         String cmd = Serial.readStringUntil('\n');
         cmd.trim();
@@ -222,7 +223,35 @@ void loop() {
             }
         }
     }
-    
+
+    // Battery saver mode - minimal operations
+    if (batterySaverEnabled) {
+        // Process mesh UART RX (always active)
+        // Note: uartForwardTask handles this on Core 1
+
+        // Send periodic heartbeats
+        sendBatterySaverHeartbeat();
+
+        // Reduced GPS polling - once per minute in battery saver mode
+        if (millis() - lastGPSPollBatterySaver > 60000) {
+            updateGPSLocation();
+            lastGPSPollBatterySaver = millis();
+        }
+
+        // Check vibration alerts (security feature, keep active)
+        checkAndSendVibrationAlert();
+
+        // Tamper detection still active
+        if (tamperEraseActive) {
+            checkTamperTimeout();
+        }
+
+        // Longer delay in battery saver mode for power saving
+        delay(500);
+        return;
+    }
+
+    // Normal operation mode
     if (millis() - lastSaveSend > 600000) {
       saveConfiguration();
       sendNodeIdUpdate();
@@ -243,5 +272,5 @@ void loop() {
     processUSBToMesh();
     checkAndSendVibrationAlert();
 
-  delay(100);
+    delay(100);
 }

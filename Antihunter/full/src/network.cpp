@@ -864,10 +864,41 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Configuration</button>
             <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
           </div>
+
+          <!-- Battery Saver Mode -->
+          <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bord);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-weight:bold;color:var(--accent);">Battery Saver Mode</span>
+              <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showBatterySaverHelp()" title="Click for help">?</span>
+            </div>
+
+            <p style="font-size:11px;color:#888;margin-bottom:12px;">
+              Reduces power consumption by disabling WiFi/BLE scanning, lowering CPU frequency to 80MHz, and sending only periodic heartbeats. Mesh UART remains active for receiving commands.
+            </p>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Heartbeat Interval</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
+              <select id="batterySaverInterval">
+                <option value="1">1 minute</option>
+                <option value="2">2 minutes</option>
+                <option value="5" selected>5 minutes</option>
+                <option value="10">10 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+              </select>
+            </div>
+
+            <div style="display:flex;gap:8px;">
+              <button class="btn primary" type="button" onclick="enableBatterySaver()" style="flex:1;">Enable Battery Saver</button>
+              <button class="btn alt" type="button" onclick="disableBatterySaver()" style="flex:1;">Disable</button>
+            </div>
+            <div id="batterySaverStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;background:rgba(0,0,0,0.2);">INACTIVE</div>
+          </div>
         </div>
-      </div>      
-      
-      <!-- 
+      </div>
+
+      <!--
       <div id="terminalToggle">TERMINAL</div>
       <div id="terminalWindow">
         <div id="terminalHeader">
@@ -3423,8 +3454,54 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         toast('Auto-Erase: 1) Setup period prevents wipe during install 2) Vibration triggers countdown 3) You can cancel 4) Cooldown prevents false triggers', 'info');
       }
 
+      // Battery Saver Functions
+      async function enableBatterySaver() {
+        const interval = document.getElementById('batterySaverInterval').value;
+        try {
+          const r = await fetch('/battery-saver?action=start&interval=' + interval);
+          const t = await r.text();
+          toast('Battery saver enabled with ' + interval + ' min heartbeat');
+          updateBatterySaverStatus();
+        } catch(e) {
+          toast('Error: ' + e.message);
+        }
+      }
+
+      async function disableBatterySaver() {
+        try {
+          const r = await fetch('/battery-saver?action=stop');
+          const t = await r.text();
+          toast('Battery saver disabled');
+          updateBatterySaverStatus();
+        } catch(e) {
+          toast('Error: ' + e.message);
+        }
+      }
+
+      async function updateBatterySaverStatus() {
+        try {
+          const r = await fetch('/battery-saver?action=status');
+          const data = await r.json();
+          const el = document.getElementById('batterySaverStatus');
+          if (data.enabled) {
+            el.style.background = 'rgba(0,200,100,0.2)';
+            el.style.color = '#00c864';
+            el.innerHTML = 'ACTIVE - Heartbeat every ' + data.interval + ' min | Next: ' + data.nextHeartbeat + 's';
+          } else {
+            el.style.background = 'rgba(0,0,0,0.2)';
+            el.style.color = '#888';
+            el.innerHTML = 'INACTIVE';
+          }
+        } catch(e) {}
+      }
+
+      function showBatterySaverHelp() {
+        toast('Battery Saver: Disables WiFi/BLE scanning, reduces CPU to 80MHz, sends periodic heartbeats. Mesh UART stays active to receive commands like BATTERY_SAVER_STOP.', 'info');
+      }
+
       // Initialize
       load();
+      setInterval(updateBatterySaverStatus, 5000);
       initTerminal();
       loadBaselineAnomalyConfig();
       loadMeshInterval();
@@ -4020,6 +4097,35 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
              {
     cancelTamperErase();
     req->send(200, "text/plain", "Cancelled"); });
+
+  // Battery Saver endpoint
+  server->on("/battery-saver", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String action = req->hasParam("action") ? req->getParam("action")->value() : "status";
+
+    if (action == "start") {
+      uint32_t intervalMinutes = req->hasParam("interval") ? req->getParam("interval")->value().toInt() : 5;
+      if (intervalMinutes < 1) intervalMinutes = 1;
+      if (intervalMinutes > 30) intervalMinutes = 30;
+      enterBatterySaver(intervalMinutes * 60000);
+      req->send(200, "text/plain", "Battery saver enabled");
+    } else if (action == "stop") {
+      exitBatterySaver();
+      req->send(200, "text/plain", "Battery saver disabled");
+    } else {
+      // status
+      String json = "{\"enabled\":" + String(batterySaverEnabled ? "true" : "false");
+      json += ",\"interval\":" + String(batterySaverHeartbeatInterval / 60000);
+      uint32_t nextHB = 0;
+      if (batterySaverEnabled && lastBatterySaverHeartbeat > 0) {
+        uint32_t elapsed = millis() - lastBatterySaverHeartbeat;
+        if (elapsed < batterySaverHeartbeatInterval) {
+          nextHB = (batterySaverHeartbeatInterval - elapsed) / 1000;
+        }
+      }
+      json += ",\"nextHeartbeat\":" + String(nextHB) + "}";
+      req->send(200, "application/json", json);
+    }
+  });
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
         String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
@@ -5418,11 +5524,41 @@ void processCommand(const String &command, const String &targetId = "")
 
     sendToSerial1(status, true);
   }
+  else if (command.startsWith("BATTERY_SAVER_START"))
+  {
+    uint32_t intervalMinutes = 5;  // Default 5 minutes
+
+    // Parse optional interval: BATTERY_SAVER_START:10 (for 10 minutes)
+    if (command.length() > 19 && command.charAt(19) == ':') {
+      intervalMinutes = command.substring(20).toInt();
+      if (intervalMinutes < 1) intervalMinutes = 1;
+      if (intervalMinutes > 30) intervalMinutes = 30;
+    }
+
+    uint32_t intervalMs = intervalMinutes * 60000;
+    enterBatterySaver(intervalMs);
+    sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STARTED Interval:" + String(intervalMinutes) + "min", true);
+    Serial.printf("[MESH] Battery saver started with %u minute heartbeat\n", intervalMinutes);
+    broadcastToTerminal("[BATTERY_SAVER] Started with " + String(intervalMinutes) + " minute heartbeat");
+  }
+  else if (command == "BATTERY_SAVER_STOP")
+  {
+    exitBatterySaver();
+    sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STOPPED", true);
+    Serial.println("[MESH] Battery saver stopped");
+    broadcastToTerminal("[BATTERY_SAVER] Stopped");
+  }
+  else if (command == "BATTERY_SAVER_STATUS")
+  {
+    String status = getBatterySaverStatus();
+    sendToSerial1(status, true);
+    broadcastToTerminal(status);
+  }
 }
 
 void sendMeshCommand(const String &command) {
     if (!meshEnabled) return;
-    
+
     bool sent = sendToSerial1(command, true);
     if (sent) {
         Serial.printf("[MESH] Command sent: %s\n", command.c_str());

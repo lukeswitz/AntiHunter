@@ -122,6 +122,11 @@ extern bool inSetupMode;
 extern String eraseStatus;
 extern bool eraseInProgress;
 
+// Battery Saver Mode
+extern bool batterySaverEnabled;
+extern uint32_t batterySaverHeartbeatInterval;
+extern uint32_t lastBatterySaverHeartbeat;
+
 bool initiateTamperErase();
 void cancelTamperErase();
 bool checkTamperTimeout();
@@ -131,3 +136,9 @@ bool executeSecureErase(const String &reason);
 String generateEraseToken();
 bool validateEraseToken(const String &token);
 void broadcastToTerminal(const String &message);
+
+// Battery Saver Functions
+void enterBatterySaver(uint32_t heartbeatIntervalMs = 300000);
+void exitBatterySaver();
+void sendBatterySaverHeartbeat();
+String getBatterySaverStatus();

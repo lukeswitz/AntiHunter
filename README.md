@@ -539,6 +539,29 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `AUTOERASE_STATUS` | None | Get auto-erase configuration status | `@AH01 AUTOERASE_STATUS` |
 | `VIBRATION_STATUS` | None | Get vibration sensor status | `@AH01 VIBRATION_STATUS` |
 
+### Battery Saver Commands
+
+| Command | Parameters | Description | Example |
+|---------|------------|-------------|---------|
+| `BATTERY_SAVER_START` | `interval_minutes` (optional, 1-30, default 5) | Enter battery saver mode. Disables WiFi/BLE scanning, reduces CPU to 80MHz, enables light sleep. Mesh UART stays active. Sends periodic heartbeats. | `@AH01 BATTERY_SAVER_START:10` |
+| `BATTERY_SAVER_STOP` | None | Exit battery saver mode. Restores CPU to 240MHz, re-enables WiFi and BLE, resumes normal operation. | `@AH01 BATTERY_SAVER_STOP` |
+| `BATTERY_SAVER_STATUS` | None | Get battery saver status (enabled, interval, next heartbeat time) | `@AH01 BATTERY_SAVER_STATUS` |
+
+**Battery Saver Heartbeat Format:**
+```
+NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
+```
+
+**What Battery Saver Mode Does:**
+- Stops all WiFi/BLE scanning tasks
+- Disables WiFi promiscuous mode and stops WiFi radio
+- Disables BLE controller
+- Reduces CPU frequency from 240MHz to 80MHz
+- Enables ESP32 automatic light sleep between operations
+- Reduces GPS polling to once per minute
+- Keeps mesh UART (Serial1) active to receive commands
+- Sends periodic heartbeat messages with temperature and GPS
+
 ### Key Alert Messages
 
 | Alert Type | Format |
@@ -641,6 +664,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 | `/secure/status` | GET | - | Tamper detection status |
 | `/secure/abort` | POST | - | Abort tamper sequence |
 | `/config/autoerase` | GET/POST | `enabled`, `delay`, `cooldown`, `vibrationsRequired`, `detectionWindow`, `setupDelay` | Get/update auto-erase configuration |
+| `/battery-saver` | GET | `action` (start/stop/status), `interval` (minutes, for start) | Battery saver mode control. Returns JSON status with enabled, interval, nextHeartbeat. |
 
 ### Hardware & Status
 | Endpoint | Method | Parameters | Description |

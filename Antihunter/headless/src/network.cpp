@@ -946,6 +946,33 @@ void processCommand(const String &command, const String &targetId = "")
 
     sendToSerial1(status, true);
   }
+  else if (command.startsWith("BATTERY_SAVER_START"))
+  {
+    uint32_t intervalMinutes = 5;  // Default 5 minutes
+
+    // Parse optional interval: BATTERY_SAVER_START:10 (for 10 minutes)
+    if (command.length() > 19 && command.charAt(19) == ':') {
+      intervalMinutes = command.substring(20).toInt();
+      if (intervalMinutes < 1) intervalMinutes = 1;
+      if (intervalMinutes > 30) intervalMinutes = 30;
+    }
+
+    uint32_t intervalMs = intervalMinutes * 60000;
+    enterBatterySaver(intervalMs);
+    sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STARTED Interval:" + String(intervalMinutes) + "min", true);
+    Serial.printf("[MESH] Battery saver started with %u minute heartbeat\n", intervalMinutes);
+  }
+  else if (command == "BATTERY_SAVER_STOP")
+  {
+    exitBatterySaver();
+    sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STOPPED", true);
+    Serial.println("[MESH] Battery saver stopped");
+  }
+  else if (command == "BATTERY_SAVER_STATUS")
+  {
+    String status = getBatterySaverStatus();
+    sendToSerial1(status, true);
+  }
 }
 
 void sendMeshCommand(const String &command) {
