@@ -24,6 +24,7 @@ ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
 std::vector<TriangulationNode> triangulationNodes;
+std::mutex triangulationMutex;  // Protects triangulationNodes and triangulateAcks
 APFinalResult apFinalResult = {false, 0.0, 0.0, 0.0, 0.0, 0, ""};
 String calculateTriangulation();
 uint8_t triangulationTarget[6];
@@ -631,10 +632,13 @@ void startTriangulation(const String &targetMac, int duration) {
         antihunter::lastResults = "TRIANGULATING: Synchronizing time with mesh nodes...";
     }
 
-    triangulationNodes.clear();
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        triangulationNodes.clear();
+        triangulateAcks.clear();  // Clear ACK list for new triangulation
+        triangulationNodes.reserve(10);
+    }
     nodeSyncStatus.clear();
-    triangulateAcks.clear();  // Clear ACK list for new triangulation
-    triangulationNodes.reserve(10);
     nodeSyncStatus.reserve(10);
     triangulationStart = millis();
     triangulationDuration = duration;
@@ -734,41 +738,50 @@ void stopTriangulation() {
         sendMeshCommand(stopCmd);
         stopSentTimestamp = millis();
         waitingForFinalReports = true;
-        // Without this, periodic T_D during scanning causes premature trilateration
-        for (auto &ack : triangulateAcks) {
-            ack.reportReceived = false;
-            ack.reportTimestamp = 0;
+        {
+            std::lock_guard<std::mutex> lock(triangulationMutex);
+            for (auto &ack : triangulateAcks) {
+                ack.reportReceived = false;
+                ack.reportTimestamp = 0;
+            }
+            Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd), reset report flags\n", triangulateAcks.size());
         }
-
-        Serial.printf("[TRIANGULATE] Stop broadcast sent to all child nodes (%d ACK'd), reset report flags\n", triangulateAcks.size());
 
         {
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            std::lock_guard<std::mutex> triLock(triangulationMutex);
             antihunter::lastResults = ("TRIANGULATING: Scan complete, collecting final reports from " +
                                       String(triangulateAcks.size()) + " nodes...").c_str();
         }
 
-        // Give nodes time to ACK and send T_D reports
         Serial.println("[TRIANGULATE] Waiting for late ACKs and initial T_D reports...");
-        vTaskDelay(pdMS_TO_TICKS(10000));  // Increased from 6s to 10s for mesh reliability
-        Serial.printf("[TRIANGULATE] After initial wait: %d nodes in tracking\n", triangulateAcks.size());
-        if (triangulateAcks.size() > 0) {
-            Serial.printf("[TRIANGULATE] Waiting for reports from %d nodes...\n", triangulateAcks.size());
+        vTaskDelay(pdMS_TO_TICKS(10000));
+
+        int initialNodeCount = 0;
+        {
+            std::lock_guard<std::mutex> lock(triangulationMutex);
+            initialNodeCount = triangulateAcks.size();
+        }
+        Serial.printf("[TRIANGULATE] After initial wait: %d nodes in tracking\n", initialNodeCount);
+        if (initialNodeCount > 0) {
+            Serial.printf("[TRIANGULATE] Waiting for reports from %d nodes...\n", initialNodeCount);
             uint32_t waitStart = millis();
             const uint32_t REPORT_TIMEOUT = calculateAdaptiveTimeout(8000, 2000.0f);  // Increased from 3000/1000 for mesh reliability
             const uint32_t CHECK_INTERVAL = 100;
 
-            int lastNodeCount = triangulateAcks.size();
+            int lastNodeCount = initialNodeCount;
             uint32_t lastNewNodeTime = millis();
 
             while (millis() - waitStart < REPORT_TIMEOUT) {
-                // Count how many nodes have reported
                 int reportedCount = 0;
-                int totalAcked = triangulateAcks.size();
-
-                for (const auto &ack : triangulateAcks) {
-                    if (ack.reportReceived) {
-                        reportedCount++;
+                int totalAcked = 0;
+                {
+                    std::lock_guard<std::mutex> lock(triangulationMutex);
+                    totalAcked = triangulateAcks.size();
+                    for (const auto &ack : triangulateAcks) {
+                        if (ack.reportReceived) {
+                            reportedCount++;
+                        }
                     }
                 }
 
@@ -849,48 +862,51 @@ void stopTriangulation() {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
         
-        bool selfNodeExists = false;
-        for (const auto &node : triangulationNodes) {
-            if (node.nodeId == myNodeId) {
-                selfNodeExists = true;
-                Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", node.hitCount);
-                break;
+        {
+            std::lock_guard<std::mutex> lock(triangulationMutex);
+            bool selfNodeExists = false;
+            for (const auto &node : triangulationNodes) {
+                if (node.nodeId == myNodeId) {
+                    selfNodeExists = true;
+                    Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", node.hitCount);
+                    break;
+                }
             }
-        }
-        
-        if (!selfNodeExists) {
-            int8_t avgRssi;
-            int totalHits;
-            bool isBLE;
-            
-            if (triAccum.wifiHitCount > 0) {
-                avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-                totalHits = triAccum.wifiHitCount;
-                isBLE = false;
-            } else {
-                avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-                totalHits = triAccum.bleHitCount;
-                isBLE = true;
-            }
-            
-            TriangulationNode selfNode;
-            selfNode.nodeId = myNodeId;
-            selfNode.lat = triAccum.lat;
-            selfNode.lon = triAccum.lon;
-            selfNode.hdop = triAccum.hdop;
-            selfNode.rssi = avgRssi;
-            selfNode.hitCount = totalHits;
-            selfNode.hasGPS = triAccum.hasGPS;
-            selfNode.isBLE = isBLE;
-            selfNode.lastUpdate = millis();
 
-            initNodeKalmanFilter(selfNode);
-            updateNodeRSSI(selfNode, avgRssi);
-            selfNode.distanceEstimate = rssiToDistance(selfNode, !isBLE);
-            
-            triangulationNodes.push_back(selfNode);
-            Serial.printf("[TRIANGULATE] Added coordinator self-detection: %d hits, RSSI=%d, type=%s\n",
-                         totalHits, avgRssi, isBLE ? "BLE" : "WiFi");
+            if (!selfNodeExists) {
+                int8_t avgRssi;
+                int totalHits;
+                bool isBLE;
+
+                if (triAccum.wifiHitCount > 0) {
+                    avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+                    totalHits = triAccum.wifiHitCount;
+                    isBLE = false;
+                } else {
+                    avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+                    totalHits = triAccum.bleHitCount;
+                    isBLE = true;
+                }
+
+                TriangulationNode selfNode;
+                selfNode.nodeId = myNodeId;
+                selfNode.lat = triAccum.lat;
+                selfNode.lon = triAccum.lon;
+                selfNode.hdop = triAccum.hdop;
+                selfNode.rssi = avgRssi;
+                selfNode.hitCount = totalHits;
+                selfNode.hasGPS = triAccum.hasGPS;
+                selfNode.isBLE = isBLE;
+                selfNode.lastUpdate = millis();
+
+                initNodeKalmanFilter(selfNode);
+                updateNodeRSSI(selfNode, avgRssi);
+                selfNode.distanceEstimate = rssiToDistance(selfNode, !isBLE);
+
+                triangulationNodes.push_back(selfNode);
+                Serial.printf("[TRIANGULATE] Added coordinator self-detection: %d hits, RSSI=%d, type=%s\n",
+                             totalHits, avgRssi, isBLE ? "BLE" : "WiFi");
+            }
         }
     }
 
@@ -970,7 +986,7 @@ void stopTriangulation() {
             resultMsg += " GPS=" + String(estLat, 6) + "," + String(estLon, 6);
             resultMsg += " CONF=" + String(confidence * 100.0, 1);
 
-            String mapsUrl = "google.com/maps?q=" + 
+            String mapsUrl = "https://www.google.com/maps?q=" +
                            String(estLat, 6) + "," + String(estLon, 6);
             resultMsg += " URL=" + mapsUrl;
 
@@ -1074,12 +1090,9 @@ void stopTriangulation() {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    // Clear flags first to prevent any race conditions
     triangulationActive = false;
     triangulationInitiator = false;
     triangulationDuration = 0;
-    // DON'T clear triangulationTarget here - late messages need it for MAC matching
-    // It will be cleared at the START of the next triangulation
 
     triAccum.wifiHitCount = 0;
     triAccum.wifiRssiSum = 0.0f;
@@ -1098,15 +1111,14 @@ void stopTriangulation() {
     triangulationOrchestratorAssigned = false;
     triStopCameFromMesh = false;
 
-    // Clear ACKs and reports
-    triangulateAcks.clear();
-    triangulateReportedNodes.clear();
-
-    // Clear node data to prevent memory accumulation across sessions
-    triangulationNodes.clear();
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        triangulateAcks.clear();
+        triangulateReportedNodes.clear();
+        triangulationNodes.clear();
+    }
     nodeSyncStatus.clear();
 
-    // Record stop time for debounce mechanism (MUST be last)
     lastTriangulationStopTime = millis();
 
     Serial.println("[TRIANGULATE] Stopped, results generated, buffers cleared");

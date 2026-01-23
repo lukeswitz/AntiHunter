@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include <map>
 #include <vector>
+#include <mutex>
 
 struct KalmanFilterState {
     float estimate;
@@ -141,6 +142,7 @@ struct APFinalResult {
 
 extern AdaptivePathLoss adaptivePathLoss;
 extern std::vector<TriangulationNode> triangulationNodes;
+extern std::mutex triangulationMutex;  // Protects triangulationNodes and triangulateAcks
 extern APFinalResult apFinalResult;
 
 const float KALMAN_MEASUREMENT_NOISE = 4.0;
