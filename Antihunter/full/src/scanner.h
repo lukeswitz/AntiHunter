@@ -150,6 +150,21 @@ void baselineDetectionTask(void *pv);
 void blueTeamTask(void *pv);
 String getDeauthReasonText(uint16_t reasonCode);
 
+// Radio control functions
+void radioStartSTA();       // Promiscuous mode for sniffer
+void radioStopSTA();
+void radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
+void radioStopListScan();
+void radioStartBLE();
+void radioStopBLE();
+
+// Safe queue functions (mutex protected)
+void initMacQueueMutex();
+bool safeMacQueueSend(const Hit* hit, TickType_t timeout);
+bool safeMacQueueReceive(Hit* hit, TickType_t timeout);
+void safeMacQueueDelete();
+bool safeMacQueueCreate(size_t queueSize);
+
 String getTargetsList();
 String getDiagnostics();
 size_t getTargetCount();
