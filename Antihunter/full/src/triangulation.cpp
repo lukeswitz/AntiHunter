@@ -48,10 +48,10 @@ const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
 
 RFEnvironment currentRFEnvironment = RF_ENV_INDOOR;
 
-// Path loss defaults calibrated for 8 dBi RX antenna, indoor environment
+// Path loss defaults calibrated for 8 dBi RX antenna, indoor 
 PathLossCalibration pathLoss = {
-    -27.0,   // rssi0_wifi (dBm @ 1m, 8dBi antenna)
-    -47.0,   // rssi0_ble (dBm @ 1m, most devices TX 0 to -8dBm)
+    -28.0,   // rssi0_wifi (dBm @ 1m, measured avg: -28.3)
+    -47.0,   // rssi0_ble (dBm @ 1m, measured avg: -47.2)
     3.2,     // n_wifi (path loss exponent)
     3.0,     // n_ble (path loss exponent, research shows 2.0-4.0 indoors)
     false    // calibrated flag
