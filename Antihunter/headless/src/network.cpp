@@ -706,11 +706,7 @@ void processCommand(const String &command, const String &targetId = "")
     // Send acknowledgment to coordinator
     sendToSerial1(nodeId + ": TRI_START_ACK", true);
     Serial.println("[TRIANGULATE] ACK sent to coordinator");
-
-    if (!workerTaskHandle) {
-        xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
-                               (void *)(intptr_t)duration, 1, &workerTaskHandle, 1);
-    }
+    Serial.println("[TRIANGULATE] Waiting for TRI_CYCLE_START before scanning...");
   }
   else if (command == "TRIANGULATE_STOP")
   {
@@ -824,6 +820,13 @@ void processCommand(const String &command, const String &targetId = "")
       reportingSchedule.addNode(nodeId);
       reportingSchedule.cycleStartMs = cycleStartMs;
       Serial.printf("[MESH] TRI_CYCLE_START received (legacy): %u ms\n", cycleStartMs);
+    }
+
+    // Participant nodes: now start scanning (coordinator handles its own scan task creation)
+    if (triangulationActive && !triangulationInitiator && !workerTaskHandle) {
+      Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
+      xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
+                             (void *)(intptr_t)triangulationDuration, 1, &workerTaskHandle, 1);
     }
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
