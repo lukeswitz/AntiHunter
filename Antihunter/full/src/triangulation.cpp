@@ -51,7 +51,7 @@ RFEnvironment currentRFEnvironment = RF_ENV_INDOOR;
 // Path loss defaults calibrated for 8 dBi RX antenna, indoor environment
 PathLossCalibration pathLoss = {
     -27.0,   // rssi0_wifi (dBm @ 1m, 8dBi antenna)
-    -67.0,   // rssi0_ble (dBm @ 1m, most devices TX 0 to -8dBm)
+    -47.0,   // rssi0_ble (dBm @ 1m, most devices TX 0 to -8dBm)
     3.2,     // n_wifi (path loss exponent)
     3.0,     // n_ble (path loss exponent, research shows 2.0-4.0 indoors)
     false    // calibrated flag

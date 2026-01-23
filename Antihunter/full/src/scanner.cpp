@@ -1742,7 +1742,7 @@ static void radioStartWiFi()
         return;
     }
 
-    WiFi.mode(WIFI_AP_STA);  // Keep AP alive during scanning
+    WiFi.mode(WIFI_AP_STA);  // Keep AP alive during scanning - TODO investigate other ways
     delay(500);
     
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
@@ -1828,76 +1828,199 @@ void radioStartBLE()
 }
 
 
-void radioStopSTA() {
-    Serial.println("[RADIO] Stopping STA mode");
-    
-    esp_wifi_set_promiscuous(false);
-    esp_wifi_set_promiscuous_rx_cb(NULL);
-    delay(50);
-    
-    if (hopTimer) {
-        esp_timer_stop(hopTimer);
-        delay(50);
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-        delay(50);
-    }
-    
-    if (pBLEScan) {
-        pBLEScan->stop();
-        delay(100);
-        BLEDevice::deinit(false);
-        pBLEScan = nullptr;
-        delay(100);
-    }
+// Mutex for macQueue access - prevents race conditions during cleanup
+static SemaphoreHandle_t macQueueMutex = nullptr;
 
-    WiFi.mode(WIFI_AP_STA);
-    delay(200);
+void initMacQueueMutex() {
+    if (macQueueMutex == nullptr) {
+        macQueueMutex = xSemaphoreCreateMutex();
+    }
 }
 
-void radioStartSTA() {
-    Serial.println("[RADIO] Starting STA mode");
-    
-    // Use AP_STA mode instead of just STA
+// Safe queue send with mutex protection
+bool safeMacQueueSend(const Hit* hit, TickType_t timeout) {
+    if (macQueueMutex == nullptr || macQueue == nullptr) return false;
+    if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    bool result = false;
+    if (macQueue != nullptr) {
+        result = (xQueueSend(macQueue, hit, timeout) == pdTRUE);
+    }
+    xSemaphoreGive(macQueueMutex);
+    return result;
+}
+
+// Safe queue receive with mutex protection
+bool safeMacQueueReceive(Hit* hit, TickType_t timeout) {
+    if (macQueueMutex == nullptr || macQueue == nullptr) return false;
+    if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    bool result = false;
+    if (macQueue != nullptr) {
+        result = (xQueueReceive(macQueue, hit, timeout) == pdTRUE);
+    }
+    xSemaphoreGive(macQueueMutex);
+    return result;
+}
+
+// Safe queue delete with mutex protection
+void safeMacQueueDelete() {
+    if (macQueueMutex == nullptr) return;
+    if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (macQueue != nullptr) {
+            vQueueDelete(macQueue);
+            macQueue = nullptr;
+        }
+        xSemaphoreGive(macQueueMutex);
+    }
+}
+
+// Safe queue create with mutex protection
+bool safeMacQueueCreate(size_t queueSize) {
+    initMacQueueMutex();
+    if (macQueueMutex == nullptr) return false;
+    if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (macQueue != nullptr) {
+            vQueueDelete(macQueue);
+            macQueue = nullptr;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+        macQueue = xQueueCreate(queueSize, sizeof(Hit));
+        xSemaphoreGive(macQueueMutex);
+        return (macQueue != nullptr);
+    }
+    return false;
+}
+
+void radioStopSTA() {
+    Serial.println("[RADIO] Stopping STA mode");
+
+    // Stop promiscuous mode first (if active)
+    esp_wifi_set_promiscuous(false);
+    esp_wifi_set_promiscuous_rx_cb(NULL);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // Stop channel hopping timer
+    if (hopTimer) {
+        esp_timer_stop(hopTimer);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        esp_timer_delete(hopTimer);
+        hopTimer = nullptr;
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    // Stop BLE if active - do this BEFORE WiFi mode change
+    if (pBLEScan) {
+        pBLEScan->stop();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        BLEDevice::deinit(false);
+        pBLEScan = nullptr;
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    // Reset WiFi to AP_STA mode
     WiFi.mode(WIFI_AP_STA);
-    delay(100);
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    Serial.println("[RADIO] STA mode stopped");
+}
+
+// Start promiscuous/sniffer mode (for snifferScanTask)
+void radioStartSTA() {
+    Serial.println("[RADIO] Starting STA mode (promiscuous)");
+
+    // Use AP_STA mode
+    WiFi.mode(WIFI_AP_STA);
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     // Configure STA for scanning while keeping AP alive
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
-    
+
     // Start promiscuous on STA interface
     wifi_promiscuous_filter_t filter = {};
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
     esp_wifi_set_promiscuous_filter(&filter);
     esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
     esp_wifi_set_promiscuous(true);
-    
+
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
     esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
-    
+
     // Setup channel hopping
     if (hopTimer) {
         esp_timer_stop(hopTimer);
         esp_timer_delete(hopTimer);
         hopTimer = nullptr;
     }
-    
+
     const esp_timer_create_args_t targs = {
-        .callback = &hopTimerCb, 
-        .arg = nullptr, 
-        .dispatch_method = ESP_TIMER_TASK, 
+        .callback = &hopTimerCb,
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
         .name = "hop"
     };
     esp_timer_create(&targs, &hopTimer);
     esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
-    
+
     // Start BLE if needed from a scan call
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
         radioStartBLE();
     }
+}
+
+// Start list scan mode - NO promiscuous mode, uses WiFi.scanNetworks()
+// This avoids IPC task stack overflow by not running promiscuous + scanNetworks together
+void radioStartListScan() {
+    Serial.println("[RADIO] Starting list scan mode (non-promiscuous)");
+
+    // Ensure promiscuous mode is OFF - critical to avoid IPC stack overflow
+    esp_wifi_set_promiscuous(false);
+    esp_wifi_set_promiscuous_rx_cb(NULL);
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    // Stop any existing channel hopping
+    if (hopTimer) {
+        esp_timer_stop(hopTimer);
+        esp_timer_delete(hopTimer);
+        hopTimer = nullptr;
+    }
+
+    // Use AP_STA mode
+    WiFi.mode(WIFI_AP_STA);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // Configure country for scanning
+    wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
+    memcpy(ctry.cc, COUNTRY, 2);
+    ctry.cc[2] = 0;
+    esp_wifi_set_country(&ctry);
+
+    Serial.println("[RADIO] List scan mode ready (WiFi.scanNetworks will be used)");
+}
+
+// Stop list scan mode
+void radioStopListScan() {
+    Serial.println("[RADIO] Stopping list scan mode");
+
+    // Clean up any pending scan
+    WiFi.scanDelete();
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    // Stop BLE if active
+    if (pBLEScan) {
+        pBLEScan->stop();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        BLEDevice::deinit(false);
+        pBLEScan = nullptr;
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    // Reset WiFi to AP_STA mode
+    WiFi.mode(WIFI_AP_STA);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    Serial.println("[RADIO] List scan mode stopped");
 }
 
 void initializeScanner()
@@ -2027,15 +2150,9 @@ void listScanTask(void *pv) {
                   modeStr.c_str());
 
     stopRequested = false;
-    
-    if (macQueue) {
-        vQueueDelete(macQueue);
-        macQueue = nullptr;
-        vTaskDelay(pdMS_TO_TICKS(50));
-    }
-    
-    macQueue = xQueueCreate(512, sizeof(Hit));
-    if (!macQueue) {
+
+    // Use safe queue creation with mutex protection
+    if (!safeMacQueueCreate(512)) {
         Serial.println("[SCAN] ERROR: Failed to create macQueue");
         workerTaskHandle = nullptr;
         vTaskDelete(nullptr);
@@ -2093,9 +2210,17 @@ void listScanTask(void *pv) {
 
     vTaskDelay(pdMS_TO_TICKS(200));
 
+    // Use list scan mode (non-promiscuous) to avoid IPC stack overflow
+    // WiFi.scanNetworks() and promiscuous mode cannot run together safely
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        radioStartSTA();
+        radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
         vTaskDelay(pdMS_TO_TICKS(200));
+
+        // Start BLE separately if needed (SCAN_BOTH mode)
+        if (currentScanMode == SCAN_BOTH) {
+            radioStartBLE();
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
     } else if (currentScanMode == SCAN_BLE) {
         vTaskDelay(pdMS_TO_TICKS(100));
         radioStartBLE();
@@ -2176,10 +2301,8 @@ void listScanTask(void *pv) {
                     wh.isBLE = false;
 
                     if (isMatch) {
-                        if (macQueue) {
-                            if (xQueueSend(macQueue, &wh, pdMS_TO_TICKS(10)) != pdTRUE) {
-                                Serial.printf("[SCAN] Queue full for target %s\n", origBssid.c_str());
-                            }
+                        if (!safeMacQueueSend(&wh, pdMS_TO_TICKS(10))) {
+                            Serial.printf("[SCAN] Queue full/unavailable for target %s\n", origBssid.c_str());
                         }
                     } else {
                         hitsLog.push_back(wh);
@@ -2240,10 +2363,8 @@ void listScanTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    if (macQueue) {
-                        if (xQueueSend(macQueue, &bh, pdMS_TO_TICKS(10)) != pdTRUE) {
-                            Serial.printf("[SCAN] Queue full for target %s\n", macStrOrig.c_str());
-                        }
+                    if (!safeMacQueueSend(&bh, pdMS_TO_TICKS(10))) {
+                        Serial.printf("[SCAN] Queue full/unavailable for target %s\n", macStrOrig.c_str());
                     }
                 } else {
                     Hit bh;
@@ -2263,7 +2384,7 @@ void listScanTask(void *pv) {
             bleFramesSeen += scanResults.getCount();
         }
 
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE) {
+        while (safeMacQueueReceive(&h, 0)) {
             String macStrOrig = macFmt6(h.mac);
             String macStr = macStrOrig;
             macStr.toUpperCase();
@@ -2633,18 +2754,12 @@ void listScanTask(void *pv) {
         }
     }
     
-    radioStopSTA();
-    delay(500);
+    // Use list scan stop (handles BLE cleanup internally)
+    radioStopListScan();
+    vTaskDelay(pdMS_TO_TICKS(500));
 
-    if (pBLEScan && pBLEScan->isScanning()) {
-        pBLEScan->stop();
-    }
-
-    // Clean up macQueue to prevent memory leak
-    if (macQueue) {
-        vQueueDelete(macQueue);
-        macQueue = nullptr;
-    }
+    // Clean up macQueue using safe function to prevent race conditions
+    safeMacQueueDelete();
 
     vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;

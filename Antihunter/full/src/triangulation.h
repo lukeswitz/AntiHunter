@@ -120,12 +120,6 @@ struct AdaptivePathLoss {
     bool ble_calibrated;
     uint32_t lastUpdate;
     
-    // Default/fallback values (calibrated for 8 dBi RX antenna, indoor environment)
-    static constexpr float DEFAULT_RSSI0_WIFI = -27.0;   // WiFi RSSI at 1m indoor (8dBi antenna)
-    static constexpr float DEFAULT_RSSI0_BLE = -67.0;    // BLE RSSI at 1m indoor (most devices TX 0 to -8dBm)
-    static constexpr float DEFAULT_N_WIFI = 3.2;         // WiFi path loss exponent indoor
-    static constexpr float DEFAULT_N_BLE = 3.0;          // BLE path loss exponent indoor (research: 2.0-4.0)
-    
     static constexpr size_t MIN_SAMPLES = 5;
     static constexpr size_t MAX_SAMPLES = 50;
 };
