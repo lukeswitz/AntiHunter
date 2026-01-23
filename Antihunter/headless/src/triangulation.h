@@ -74,13 +74,14 @@ struct RFEnvironmentPreset {
 // RF Environment Presets calibrated for 8 dBi RX antenna
 // { n_wifi, n_ble, rssi0_wifi (dBm @ 1m), rssi0_ble (dBm @ 1m) }
 // WiFi: ESP32 ~20dBm TX, 8dBi RX gain, ~40dB FSPL @ 1m
-// BLE: Many devices use low TX power (-8 to -12dBm) for battery saving, not 0-4dBm
+// BLE: Most phones/wearables TX at 0 to -8dBm (not +4dBm), giving -63 to -71dBm @ 1m
+// BLE n typically 2.0-4.0 indoors (Google/Apple Exposure Notifications research)
 static const RFEnvironmentPreset RF_PRESETS[] = {
-    { 2.0f, 2.3f, -22.0f, -52.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
-    { 2.7f, 3.0f, -25.0f, -57.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
-    { 3.2f, 3.6f, -27.0f, -62.0f },   // RF_ENV_INDOOR: typical indoor, some walls
-    { 4.0f, 4.4f, -29.0f, -65.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
-    { 4.8f, 5.2f, -32.0f, -69.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
+    { 2.0f, 2.0f, -22.0f, -59.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
+    { 2.7f, 2.5f, -25.0f, -63.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
+    { 3.2f, 3.0f, -27.0f, -67.0f },   // RF_ENV_INDOOR: typical indoor, some walls
+    { 4.0f, 3.5f, -29.0f, -71.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
+    { 4.8f, 4.0f, -32.0f, -75.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
 };
 
 struct PathLossCalibration {
@@ -120,9 +121,9 @@ struct AdaptivePathLoss {
     
     // Default/fallback values (calibrated for 8 dBi RX antenna, indoor environment)
     static constexpr float DEFAULT_RSSI0_WIFI = -27.0;   // WiFi RSSI at 1m indoor (8dBi antenna)
-    static constexpr float DEFAULT_RSSI0_BLE = -62.0;    // BLE RSSI at 1m indoor (8dBi antenna, low-power BLE)
+    static constexpr float DEFAULT_RSSI0_BLE = -67.0;    // BLE RSSI at 1m indoor (most devices TX 0 to -8dBm)
     static constexpr float DEFAULT_N_WIFI = 3.2;         // WiFi path loss exponent indoor
-    static constexpr float DEFAULT_N_BLE = 3.6;          // BLE path loss exponent indoor
+    static constexpr float DEFAULT_N_BLE = 3.0;          // BLE path loss exponent indoor (research: 2.0-4.0)
     
     static constexpr size_t MIN_SAMPLES = 5;
     static constexpr size_t MAX_SAMPLES = 50;
