@@ -1023,28 +1023,30 @@ void processMeshMessage(const String &message) {
 
         if (content == "TRI_START_ACK") {
             Serial.printf("[TRIANGULATE] ACK received from %s\n", sendingNode.c_str());
-            // Track which nodes have acknowledged - add to triangulateAcks if not already present
-            bool found = false;
-            for (auto& ack : triangulateAcks) {
-                if (ack.nodeId == sendingNode) {
-                    found = true;
-                    ack.ackTimestamp = millis();  // Update timestamp
-                    break;
+            {
+                std::lock_guard<std::mutex> lock(triangulationMutex);
+                bool found = false;
+                for (auto& ack : triangulateAcks) {
+                    if (ack.nodeId == sendingNode) {
+                        found = true;
+                        ack.ackTimestamp = millis();  // Update timestamp
+                        break;
+                    }
                 }
-            }
-            if (!found) {
-                TriangulateAckInfo newAck;
-                newAck.nodeId = sendingNode;
-                newAck.ackTimestamp = millis();
-                newAck.reportReceived = false;  // Will be set to true when data arrives
-                newAck.reportTimestamp = 0;
-                triangulateAcks.push_back(newAck);
+                if (!found) {
+                    TriangulateAckInfo newAck;
+                    newAck.nodeId = sendingNode;
+                    newAck.ackTimestamp = millis();
+                    newAck.reportReceived = false;  // Will be set to true when data arrives
+                    newAck.reportTimestamp = 0;
+                    triangulateAcks.push_back(newAck);
 
-                // Register node in reporting schedule to assign time slot
-                reportingSchedule.addNode(sendingNode);
+                    // Register node in reporting schedule to assign time slot
+                    reportingSchedule.addNode(sendingNode);
 
-                Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
-                             sendingNode.c_str(), triangulateAcks.size());
+                    Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
+                                 sendingNode.c_str(), triangulateAcks.size());
+                }
             }
         }
 
@@ -1116,78 +1118,82 @@ void processMeshMessage(const String &message) {
                             }
                         }
 
-                        bool found = false;
-                        for (auto &node : triangulationNodes) {
-                            if (node.nodeId == sendingNode) {
-                                updateNodeRSSI(node, rssi);
-                                if (hits >= 0) {
-                                    node.hitCount = hits;
-                                }
-                                node.isBLE = isBLE;
-                                if (hasGPS) {
-                                    node.lat = lat;
-                                    node.lon = lon;
-                                    node.hasGPS = true;
-                                    node.hdop = hdop;
-                                }
-                                node.distanceEstimate = rssiToDistance(node, !node.isBLE);
-                                found = true;
-                                Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm Type=%s GPS=%s\n",
-                                            sendingNode.c_str(), node.hitCount, rssi,
-                                            node.isBLE ? "BLE" : "WiFi",
-                                            hasGPS ? "YES" : "NO");
-                                break;
-                            }
-                        }
+                        {
+                            std::lock_guard<std::mutex> lock(triangulationMutex);
 
-                        if (!found) {
-                            TriangulationNode newNode;
-                            newNode.nodeId = sendingNode;
-                            newNode.lat = lat;
-                            newNode.lon = lon;
-                            newNode.rssi = rssi;
-                            newNode.hitCount = (hits >= 0) ? hits : 1;
-                            newNode.hasGPS = hasGPS;
-                            newNode.hdop = hdop;
-                            newNode.isBLE = isBLE;
-                            newNode.lastUpdate = millis();
-                            initNodeKalmanFilter(newNode);
-                            updateNodeRSSI(newNode, rssi);
-                            newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
-                            triangulationNodes.push_back(newNode);
-                            Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
-                                        sendingNode.c_str(), hits, rssi,
-                                        newNode.isBLE ? "BLE" : "WiFi");
-                        }
-
-                        if (triangulationInitiator && (waitingForFinalReports || triangulationActive)) {
-                            bool foundInAcks = false;
-                            for (auto& ack : triangulateAcks) {
-                                if (ack.nodeId == sendingNode) {
-                                    foundInAcks = true;
-                                    if (!ack.reportReceived) {
-                                        ack.reportReceived = true;
-                                        ack.reportTimestamp = millis();
-                                        Serial.printf("[TRIANGULATE] Node %s marked as reported (%s data)\n",
-                                                     sendingNode.c_str(), isBLE ? "BLE" : "WiFi");
+                            bool found = false;
+                            for (auto &node : triangulationNodes) {
+                                if (node.nodeId == sendingNode) {
+                                    updateNodeRSSI(node, rssi);
+                                    if (hits >= 0) {
+                                        node.hitCount = hits;
                                     }
+                                    node.isBLE = isBLE;
+                                    if (hasGPS) {
+                                        node.lat = lat;
+                                        node.lon = lon;
+                                        node.hasGPS = true;
+                                        node.hdop = hdop;
+                                    }
+                                    node.distanceEstimate = rssiToDistance(node, !node.isBLE);
+                                    found = true;
+                                    Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm Type=%s GPS=%s\n",
+                                                sendingNode.c_str(), node.hitCount, rssi,
+                                                node.isBLE ? "BLE" : "WiFi",
+                                                hasGPS ? "YES" : "NO");
                                     break;
                                 }
                             }
 
-                            if (!foundInAcks) {
-                                TriangulateAckInfo lateAck;
-                                lateAck.nodeId = sendingNode;
-                                lateAck.ackTimestamp = millis();
-                                lateAck.reportReceived = true;  // Already have their report
-                                lateAck.reportTimestamp = millis();
-                                triangulateAcks.push_back(lateAck);
+                            if (!found) {
+                                TriangulationNode newNode;
+                                newNode.nodeId = sendingNode;
+                                newNode.lat = lat;
+                                newNode.lon = lon;
+                                newNode.rssi = rssi;
+                                newNode.hitCount = (hits >= 0) ? hits : 1;
+                                newNode.hasGPS = hasGPS;
+                                newNode.hdop = hdop;
+                                newNode.isBLE = isBLE;
+                                newNode.lastUpdate = millis();
+                                initNodeKalmanFilter(newNode);
+                                updateNodeRSSI(newNode, rssi);
+                                newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
+                                triangulationNodes.push_back(newNode);
+                                Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
+                                            sendingNode.c_str(), hits, rssi,
+                                            newNode.isBLE ? "BLE" : "WiFi");
+                            }
 
-                                // Also add to reporting schedule
-                                reportingSchedule.addNode(sendingNode);
+                            if (triangulationInitiator && (waitingForFinalReports || triangulationActive)) {
+                                bool foundInAcks = false;
+                                for (auto& ack : triangulateAcks) {
+                                    if (ack.nodeId == sendingNode) {
+                                        foundInAcks = true;
+                                        if (!ack.reportReceived) {
+                                            ack.reportReceived = true;
+                                            ack.reportTimestamp = millis();
+                                            Serial.printf("[TRIANGULATE] Node %s marked as reported (%s data)\n",
+                                                         sendingNode.c_str(), isBLE ? "BLE" : "WiFi");
+                                        }
+                                        break;
+                                    }
+                                }
 
-                                Serial.printf("[TRIANGULATE] Late T_D from node %s (ACK was lost) - added to tracking (%d total nodes)\n",
-                                             sendingNode.c_str(), triangulateAcks.size());
+                                if (!foundInAcks) {
+                                    TriangulateAckInfo lateAck;
+                                    lateAck.nodeId = sendingNode;
+                                    lateAck.ackTimestamp = millis();
+                                    lateAck.reportReceived = true;  // Already have their report
+                                    lateAck.reportTimestamp = millis();
+                                    triangulateAcks.push_back(lateAck);
+
+                                    // Also add to reporting schedule
+                                    reportingSchedule.addNode(sendingNode);
+
+                                    Serial.printf("[TRIANGULATE] Late T_D from node %s (ACK was lost) - added to tracking (%d total nodes)\n",
+                                                 sendingNode.c_str(), triangulateAcks.size());
+                                }
                             }
                         }
                     }

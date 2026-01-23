@@ -2055,31 +2055,34 @@ void listScanTask(void *pv) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
         }
 
-        // Check if initiator already exists
-        bool selfNodeExists = false;
-        for (auto& node : triangulationNodes) {
-            if (node.nodeId == myNodeId) {
-                selfNodeExists = true;
-                Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
-                break;
+        // Check if initiator already exists (mutex protected)
+        {
+            std::lock_guard<std::mutex> lock(triangulationMutex);
+            bool selfNodeExists = false;
+            for (auto& node : triangulationNodes) {
+                if (node.nodeId == myNodeId) {
+                    selfNodeExists = true;
+                    Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
+                    break;
+                }
             }
-        }
 
-        if (!selfNodeExists) {
-            TriangulationNode selfNode;
-            selfNode.nodeId = myNodeId;
-            selfNode.lat = gpsValid ? gpsLat : 0.0;
-            selfNode.lon = gpsValid ? gpsLon : 0.0;
-            selfNode.hdop = gpsValid && gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-            selfNode.rssi = -128;
-            selfNode.hitCount = 0;
-            selfNode.hasGPS = gpsValid;
-            selfNode.isBLE = false;
-            selfNode.lastUpdate = millis();
-            initNodeKalmanFilter(selfNode);
-            triangulationNodes.push_back(selfNode);
+            if (!selfNodeExists) {
+                TriangulationNode selfNode;
+                selfNode.nodeId = myNodeId;
+                selfNode.lat = gpsValid ? gpsLat : 0.0;
+                selfNode.lon = gpsValid ? gpsLon : 0.0;
+                selfNode.hdop = gpsValid && gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
+                selfNode.rssi = -128;
+                selfNode.hitCount = 0;
+                selfNode.hasGPS = gpsValid;
+                selfNode.isBLE = false;
+                selfNode.lastUpdate = millis();
+                initNodeKalmanFilter(selfNode);
+                triangulationNodes.push_back(selfNode);
 
-            Serial.printf("[TRIANGULATE] Initiator registered: %s\n", myNodeId.c_str());
+                Serial.printf("[TRIANGULATE] Initiator registered: %s\n", myNodeId.c_str());
+            }
         }
     }
 
@@ -2363,49 +2366,52 @@ void listScanTask(void *pv) {
                         } else {
                             continue; // No data, skip
                         }
-                        
-                        bool selfNodeFound = false;
-                        for (auto &node : triangulationNodes) {
-                            if (node.nodeId == myNodeId) {
-                                updateNodeRSSI(node, avgRssi);
-                                node.hitCount = totalHits;
-                                node.isBLE = isBLE;
-                                if (triAccum.hasGPS) {
-                                    node.lat = triAccum.lat;
-                                    node.lon = triAccum.lon;
-                                    node.hdop = triAccum.hdop;
-                                    node.hasGPS = true;
+
+                        {
+                            std::lock_guard<std::mutex> lock(triangulationMutex);
+                            bool selfNodeFound = false;
+                            for (auto &node : triangulationNodes) {
+                                if (node.nodeId == myNodeId) {
+                                    updateNodeRSSI(node, avgRssi);
+                                    node.hitCount = totalHits;
+                                    node.isBLE = isBLE;
+                                    if (triAccum.hasGPS) {
+                                        node.lat = triAccum.lat;
+                                        node.lon = triAccum.lon;
+                                        node.hdop = triAccum.hdop;
+                                        node.hasGPS = true;
+                                    }
+                                    node.distanceEstimate = rssiToDistance(node, !node.isBLE);
+                                    node.lastUpdate = millis();
+                                    selfNodeFound = true;
+                                    break;
                                 }
-                                node.distanceEstimate = rssiToDistance(node, !node.isBLE);
-                                node.lastUpdate = millis();
-                                selfNodeFound = true;
-                                break;
                             }
-                        }
-                        
-                        if (!selfNodeFound) {
-                            TriangulationNode selfNode;
-                            selfNode.nodeId = myNodeId;
-                            selfNode.lat = triAccum.hasGPS ? triAccum.lat : 0.0;
-                            selfNode.lon = triAccum.hasGPS ? triAccum.lon : 0.0;
-                            selfNode.hdop = triAccum.hasGPS ? triAccum.hdop : 99.9;
-                            selfNode.rssi = avgRssi;
-                            selfNode.hitCount = totalHits;
-                            selfNode.hasGPS = triAccum.hasGPS;
-                            selfNode.isBLE = isBLE;
-                            selfNode.lastUpdate = millis();
-                            
-                            initNodeKalmanFilter(selfNode);
-                            updateNodeRSSI(selfNode, avgRssi);
-                            selfNode.distanceEstimate = rssiToDistance(selfNode, !selfNode.isBLE);
-                            
-                            triangulationNodes.push_back(selfNode);
-                            
-                            Serial.printf("[TRIANGULATE SELF] Added: hits=%d avgRSSI=%d Type=%s dist=%.1fm GPS=%s\n",
-                                        totalHits, avgRssi,
-                                        selfNode.isBLE ? "BLE" : "WiFi",
-                                        selfNode.distanceEstimate,
-                                        triAccum.hasGPS ? "YES" : "NO");
+
+                            if (!selfNodeFound) {
+                                TriangulationNode selfNode;
+                                selfNode.nodeId = myNodeId;
+                                selfNode.lat = triAccum.hasGPS ? triAccum.lat : 0.0;
+                                selfNode.lon = triAccum.hasGPS ? triAccum.lon : 0.0;
+                                selfNode.hdop = triAccum.hasGPS ? triAccum.hdop : 99.9;
+                                selfNode.rssi = avgRssi;
+                                selfNode.hitCount = totalHits;
+                                selfNode.hasGPS = triAccum.hasGPS;
+                                selfNode.isBLE = isBLE;
+                                selfNode.lastUpdate = millis();
+
+                                initNodeKalmanFilter(selfNode);
+                                updateNodeRSSI(selfNode, avgRssi);
+                                selfNode.distanceEstimate = rssiToDistance(selfNode, !selfNode.isBLE);
+
+                                triangulationNodes.push_back(selfNode);
+
+                                Serial.printf("[TRIANGULATE SELF] Added: hits=%d avgRSSI=%d Type=%s dist=%.1fm GPS=%s\n",
+                                            totalHits, avgRssi,
+                                            selfNode.isBLE ? "BLE" : "WiFi",
+                                            selfNode.distanceEstimate,
+                                            triAccum.hasGPS ? "YES" : "NO");
+                            }
                         }
                     }
                 }
@@ -2481,10 +2487,10 @@ void listScanTask(void *pv) {
             scanning = false;
             lastScanEnd = millis();
         } else {
-            // Child node: wait for STOP command from coordinator
+            // Need to wait: coordinator_setup_delay + mesh_latency + buffer = ~25-30s
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
             uint32_t waitStart = millis();
-            uint32_t STOP_WAIT_TIMEOUT = 15000;
+            uint32_t STOP_WAIT_TIMEOUT = 30000;
             uint32_t maxPropDelay = 0;
             for (const auto& pair : nodePropagationDelays) {
                 if (pair.second < 1000000 && pair.second > maxPropDelay) {

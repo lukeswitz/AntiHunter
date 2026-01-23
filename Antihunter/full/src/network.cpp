@@ -5606,27 +5606,30 @@ void processMeshMessage(const String &message) {
         if (content == "TRI_START_ACK") {
             Serial.printf("[TRIANGULATE] ACK received from %s\n", sendingNode.c_str());
             // Track which nodes have acknowledged - add to triangulateAcks if not already present
-            bool found = false;
-            for (auto& ack : triangulateAcks) {
-                if (ack.nodeId == sendingNode) {
-                    found = true;
-                    ack.ackTimestamp = millis();  // Update timestamp
-                    break;
+            {
+                std::lock_guard<std::mutex> lock(triangulationMutex);
+                bool found = false;
+                for (auto& ack : triangulateAcks) {
+                    if (ack.nodeId == sendingNode) {
+                        found = true;
+                        ack.ackTimestamp = millis();  // Update timestamp
+                        break;
+                    }
                 }
-            }
-            if (!found) {
-                TriangulateAckInfo newAck;
-                newAck.nodeId = sendingNode;
-                newAck.ackTimestamp = millis();
-                newAck.reportReceived = false;  // Will be set to true when data arrives
-                newAck.reportTimestamp = 0;
-                triangulateAcks.push_back(newAck);
+                if (!found) {
+                    TriangulateAckInfo newAck;
+                    newAck.nodeId = sendingNode;
+                    newAck.ackTimestamp = millis();
+                    newAck.reportReceived = false;  // Will be set to true when data arrives
+                    newAck.reportTimestamp = 0;
+                    triangulateAcks.push_back(newAck);
 
-                // Register node in reporting schedule to assign time slot
-                reportingSchedule.addNode(sendingNode);
+                    // Register node in reporting schedule to assign time slot
+                    reportingSchedule.addNode(sendingNode);
 
-                Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
-                             sendingNode.c_str(), triangulateAcks.size());
+                    Serial.printf("[TRIANGULATE] Node %s added to ACK tracking (%d total nodes)\n",
+                                 sendingNode.c_str(), triangulateAcks.size());
+                }
             }
         }
 
@@ -5698,10 +5701,11 @@ void processMeshMessage(const String &message) {
                             }
                         }
 
-                      
+                        {
+                            std::lock_guard<std::mutex> lock(triangulationMutex);
 
-                        bool found = false;
-                        for (auto &node : triangulationNodes) {
+                            bool found = false;
+                            for (auto &node : triangulationNodes) {
                             if (node.nodeId == sendingNode) {
                                 updateNodeRSSI(node, rssi);
                                 // Only update hitCount if Hits field was present (cumulative updates from node)
@@ -5782,8 +5786,9 @@ void processMeshMessage(const String &message) {
                     }
                 }
             }
-            return;  // Message processed
+            return;
         }
+      }
 
       if (content.startsWith("Target:")) {
             int macStart = content.indexOf(' ', 7) + 1;
