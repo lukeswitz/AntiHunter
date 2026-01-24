@@ -39,23 +39,18 @@ struct Allowlist {
 struct TriangulationAccumulator {
     uint8_t targetMac[6];
 
-    // WiFi tracking
     int wifiHitCount;
     int8_t wifiMaxRssi;
     int8_t wifiMinRssi;
     float wifiRssiSum;
-    int64_t wifiFirstDetectionTimestamp;  // Microsecond timestamp of first WiFi detection
-    std::vector<int8_t> wifiRssiSamples;  // All RSSI samples for onboard processing
+    int64_t wifiFirstDetectionTimestamp;
 
-    // BLE tracking
     int bleHitCount;
     int8_t bleMaxRssi;
     int8_t bleMinRssi;
     float bleRssiSum;
-    int64_t bleFirstDetectionTimestamp;  // Microsecond timestamp of first BLE detection
-    std::vector<int8_t> bleRssiSamples;  // All RSSI samples for onboard processing
+    int64_t bleFirstDetectionTimestamp;
 
-    // Shared GPS data
     float lat;
     float lon;
     float hdop;
@@ -63,7 +58,7 @@ struct TriangulationAccumulator {
 
     uint32_t lastSendTime;
     uint32_t windowStartTime;
-    bool finalReportSent;  // Track if we've sent the final comprehensive report
+    bool finalReportSent;
 };
 
 struct DeauthHit {
