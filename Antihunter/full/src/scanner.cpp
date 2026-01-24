@@ -721,7 +721,9 @@ void snifferScanTask(void *pv)
                         h.name[sizeof(h.name) - 1] = '\0';
                         h.isBLE = false;
 
-                        hitsLog.push_back(h);
+                        if (hitsLog.size() < MAX_LOG_SIZE) {
+                            hitsLog.push_back(h);
+                        }
 
                         if (matchesMac(bssidBytes)) {
                             totalHits = totalHits + 1;
@@ -802,8 +804,10 @@ void snifferScanTask(void *pv)
                             strncpy(h.name, cleanName.c_str(), sizeof(h.name) - 1);
                             h.name[sizeof(h.name) - 1] = '\0';
                             h.isBLE = true;
-                            hitsLog.push_back(h);
-                            
+                            if (hitsLog.size() < MAX_LOG_SIZE) {
+                                hitsLog.push_back(h);
+                            }
+
                             String logEntry = "BLE Device: " + macStr + " Name: " + cleanName +
                                             " RSSI: " + String(device->getRSSI()) + "dBm";
 
@@ -2044,14 +2048,12 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.wifiMinRssi = 0;
     triAccum.wifiRssiSum = 0.0f;
     triAccum.wifiFirstDetectionTimestamp = 0;
-    triAccum.wifiRssiSamples.clear();
 
     triAccum.bleHitCount = 0;
     triAccum.bleMaxRssi = -128;
     triAccum.bleMinRssi = 0;
     triAccum.bleRssiSum = 0.0f;
     triAccum.bleFirstDetectionTimestamp = 0;
-    triAccum.bleRssiSamples.clear();
 
     triAccum.lat = 0.0f;
     triAccum.lon = 0.0f;
@@ -2072,20 +2074,41 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
 
     if (!triangulationActive) {
+        triAccum.wifiHitCount = 0;
+        triAccum.wifiRssiSum = 0.0f;
+        triAccum.bleHitCount = 0;
+        triAccum.bleRssiSum = 0.0f;
         return;
     }
 
-    // Check if we're in our assigned time slot
-    uint32_t nextSlotMs = 0;
-    if (!reportingSchedule.isMySlotActive(nodeId, nextSlotMs)) {
-        return;
+    reportingSchedule.addNode(nodeId);
+
+    if (reportingSchedule.cycleStartMs == 0) {
+        // Use GPS-synchronized time instead of local millis() to ensure all nodes agree on slot boundaries
+        int64_t syncedUs = getCorrectedMicroseconds();
+        uint32_t syncedMs = (uint32_t)(syncedUs / 1000LL);
+        reportingSchedule.initializeCycle(syncedMs);
+        Serial.printf("[TRI-SLOT] Initialized cycle start at syncedMs=%u (from GPS-corrected time)\n", syncedMs);
     }
 
-    static uint32_t lastSendAttempt = 0;
-    if (millis() - lastSendAttempt < 1000) {
+    // Use GPS-synchronized time for consistent slot checking across all nodes
+    int64_t syncedUs = getCorrectedMicroseconds();
+    uint32_t now = (uint32_t)(syncedUs / 1000LL);
+
+    uint32_t nextSlot = 0;
+    if (!reportingSchedule.isMySlotActive(nodeId, nextSlot, now)) {
+        int32_t waitMs = (int32_t)(nextSlot - now);
+
+        if (waitMs > 0 && waitMs < 60000) {
+            static uint32_t lastLog = 0;
+            if (millis() - lastLog > 2000) {
+                Serial.printf("[TRI-WAIT] Node %s: waiting %dms for slot (next=%u, now=%u)\n",
+                            nodeId.c_str(), waitMs, nextSlot, now);
+                lastLog = millis();
+            }
+        }
         return;
     }
-    lastSendAttempt = millis();
     
     String macStr = macFmt6(triAccum.targetMac);
     bool sentAny = false;
@@ -2128,6 +2151,15 @@ static void sendTriAccumulatedData(const String& nodeId) {
         } else {
             Serial.printf("[TRI-SLOT] %s: BLE DROPPED by rate limiter\n", nodeId.c_str());
         }
+    }
+
+    if (sentAny) {
+        triAccum.wifiHitCount = 0;
+        triAccum.wifiRssiSum = 0.0f;
+        triAccum.bleHitCount = 0;
+        triAccum.bleRssiSum = 0.0f;
+        triAccum.lastSendTime = millis();
+        delay(150);
     }
 }
 
@@ -2305,7 +2337,9 @@ void listScanTask(void *pv) {
                             Serial.printf("[SCAN] Queue full/unavailable for target %s\n", origBssid.c_str());
                         }
                     } else {
-                        hitsLog.push_back(wh);
+                        if (hitsLog.size() < MAX_LOG_SIZE) {
+                            hitsLog.push_back(wh);
+                        }
                         deviceLastSeen[bssid] = now;
                     }
                 }
@@ -2375,7 +2409,9 @@ void listScanTask(void *pv) {
                         strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                         bh.name[sizeof(bh.name) - 1] = '\0';
                         bh.isBLE = true;
-                        hitsLog.push_back(bh);
+                        if (hitsLog.size() < MAX_LOG_SIZE) {
+                            hitsLog.push_back(bh);
+                        }
                         deviceLastSeen[macStr] = now;
                     }
                 }
@@ -2400,7 +2436,9 @@ void listScanTask(void *pv) {
 
             deviceLastSeen[macStr] = now;
             uniqueMacs.insert(macStr);
-            hitsLog.push_back(h);
+            if (hitsLog.size() < MAX_LOG_SIZE) {
+                hitsLog.push_back(h);
+            }
 
             if (seenTargets.find(macStr) == seenTargets.end()) {
                 seenTargets.insert(macStr);
@@ -2438,23 +2476,19 @@ void listScanTask(void *pv) {
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
                     // Track WiFi and BLE separately
                     if (h.isBLE) {
-                        // Capture timestamp on first BLE detection
                         if (triAccum.bleHitCount == 0) {
                             triAccum.bleFirstDetectionTimestamp = getCorrectedMicroseconds();
                         }
                         triAccum.bleHitCount++;
                         triAccum.bleRssiSum += (float)h.rssi;
-                        triAccum.bleRssiSamples.push_back(h.rssi);
                         if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
                         if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
                     } else {
-                        // Capture timestamp on first WiFi detection
                         if (triAccum.wifiHitCount == 0) {
                             triAccum.wifiFirstDetectionTimestamp = getCorrectedMicroseconds();
                         }
                         triAccum.wifiHitCount++;
                         triAccum.wifiRssiSum += (float)h.rssi;
-                        triAccum.wifiRssiSamples.push_back(h.rssi);
                         if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
                         if (h.rssi < triAccum.wifiMinRssi || triAccum.wifiMinRssi == 0) triAccum.wifiMinRssi = h.rssi;
                     }

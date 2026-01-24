@@ -450,45 +450,17 @@ void coordinatorSetupTask(void *parameter) {
     int duration = (int)(intptr_t)parameter;
 
     // Wait for child nodes to ACK - give mesh time to relay responses
-    // Children use 0-2s staggered delay + mesh propagation time
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = "TRIANGULATING: Waiting for mesh nodes to respond...";
     }
-    vTaskDelay(pdMS_TO_TICKS(15000));  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
+    vTaskDelay(pdMS_TO_TICKS(15000));
 
     // Count total nodes: coordinator + ACK'd children
     int totalNodes = 1 + triangulateAcks.size();  // 1 = coordinator
     Serial.printf("[TRIANGULATE] ACK collection complete: %d child nodes responded (%d total)\n",
                   triangulateAcks.size(), totalNodes);
-
-    // Require minimum 3 nodes for meaningful trilateration
-    if (totalNodes < 3) {
-        Serial.printf("[TRIANGULATE] ABORTED: Only %d nodes available, need at least 3 for triangulation\n", totalNodes);
-
-        // Store error in lastResults so UI can show it
-        {
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = ("TRIANGULATION FAILED: Only " + String(totalNodes) +
-                                      " node(s) responded. Need at least 3 nodes for triangulation.\n"
-                                      "Ensure other nodes are powered on and in mesh range.").c_str();
-        }
-
-        // Broadcast stop to any nodes that did ACK
-        if (triangulateAcks.size() > 0) {
-            String stopCmd = "@ALL TRIANGULATE_STOP";
-            sendMeshCommand(stopCmd);
-        }
-
-        // Clean up state
-        triangulationActive = false;
-        triangulationInitiator = false;
-        triangulateAcks.clear();
-        coordinatorSetupTaskHandle = nullptr;
-        vTaskDelete(NULL);
-        return;  // Won't reach here but makes intent clear
-    }
 
     // Additional buffer before next broadcast
     vTaskDelay(pdMS_TO_TICKS(1000));

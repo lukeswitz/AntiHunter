@@ -460,33 +460,6 @@ void coordinatorSetupTask(void *parameter) {
     Serial.printf("[TRIANGULATE] ACK collection complete: %d child nodes responded (%d total)\n",
                   triangulateAcks.size(), totalNodes);
 
-    // Require minimum 3 nodes for meaningful trilateration
-    if (totalNodes < 3) {
-        Serial.printf("[TRIANGULATE] ABORTED: Only %d nodes available, need at least 3 for triangulation\n", totalNodes);
-
-        // Store error in lastResults so UI can show it
-        {
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = ("TRIANGULATION FAILED: Only " + String(totalNodes) +
-                                      " node(s) responded. Need at least 3 nodes for triangulation.\n"
-                                      "Ensure other nodes are powered on and in mesh range.").c_str();
-        }
-
-        // Broadcast stop to any nodes that did ACK
-        if (triangulateAcks.size() > 0) {
-            String stopCmd = "@ALL TRIANGULATE_STOP";
-            sendMeshCommand(stopCmd);
-        }
-
-        // Clean up state
-        triangulationActive = false;
-        triangulationInitiator = false;
-        triangulateAcks.clear();
-        coordinatorSetupTaskHandle = nullptr;
-        vTaskDelete(NULL);
-        return;  // Won't reach here but makes intent clear
-    }
-
     // Additional buffer before next broadcast
     vTaskDelay(pdMS_TO_TICKS(1000));
 
