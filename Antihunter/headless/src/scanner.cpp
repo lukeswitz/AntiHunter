@@ -2088,7 +2088,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
         Serial.printf("[TRI-MIXED] WARNING: Device %s has BOTH WiFi (%d) and BLE (%d) hits!\n",
                      macStr.c_str(), triAccum.wifiHitCount, triAccum.bleHitCount);
 
-        // Keep only the type with more hits, clear the other
         if (triAccum.wifiHitCount >= triAccum.bleHitCount) {
             Serial.printf("[TRI-MIXED] Keeping WiFi, clearing BLE hits\n");
             triAccum.bleHitCount = 0;
@@ -2501,17 +2500,14 @@ void listScanTask(void *pv) {
                                      macStr.c_str(), h.isBLE ? "BLE" : "WiFi",
                                      h.rssi, h.ch, h.name);
 
-                        // Detect type conflicts: if we already have WiFi hits and now get BLE, or vice versa
                         if (h.isBLE && triAccum.wifiHitCount > 0 && triAccum.bleHitCount == 0) {
                             Serial.printf("[TRI-CONFLICT] WARNING: Device %s switching from WiFi to BLE! Ignoring BLE detection.\n",
                                          macStr.c_str());
-                            // Skip this BLE hit to prevent type confusion
                             goto skip_accumulation_headless;
                         }
                         if (!h.isBLE && triAccum.bleHitCount > 0 && triAccum.wifiHitCount == 0) {
                             Serial.printf("[TRI-CONFLICT] WARNING: Device %s switching from BLE to WiFi! Ignoring WiFi detection.\n",
                                          macStr.c_str());
-                            // Skip this WiFi hit to prevent type confusion
                             goto skip_accumulation_headless;
                         }
 
@@ -2533,14 +2529,15 @@ void listScanTask(void *pv) {
                             if (h.rssi < triAccum.wifiMinRssi || triAccum.wifiMinRssi == 0) triAccum.wifiMinRssi = h.rssi;
                         }
 
-                        skip_accumulation_headless:
-
                         if (gpsValid) {
                             triAccum.lat = gpsLat;
                             triAccum.lon = gpsLon;
                             triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
                             triAccum.hasGPS = true;
                         }
+
+                        skip_accumulation_headless:
+                        (void)0;
                     }
 
                     if (triangulationInitiator) {
@@ -2661,16 +2658,15 @@ void listScanTask(void *pv) {
             nextTriResultsUpdate = millis() + 2000;
         }
 
-        if (triangulationActive) {
+        if (triangulationActive && !stopRequested) {
             static uint32_t nextTriReportCheck = 0;
-            // Check periodically - sendTriAccumulatedData has built-in 3s rate limiting
             if ((int32_t)(millis() - nextTriReportCheck) >= 0) {
                 String myNodeId = getNodeId();
                 if (myNodeId.length() == 0) {
                     myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
                 }
                 sendTriAccumulatedData(myNodeId);
-                nextTriReportCheck = millis() + 1000;  // Check every second
+                nextTriReportCheck = millis() + 1000;
             }
         }
 

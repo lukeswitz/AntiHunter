@@ -1616,6 +1616,11 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
+    extern bool triangulationActive;
+    if (triangulationActive) {
+        return;
+    }
+
     uint32_t now = millis();
     if (now - lastBatterySaverHeartbeat < batterySaverHeartbeatInterval) return;
 

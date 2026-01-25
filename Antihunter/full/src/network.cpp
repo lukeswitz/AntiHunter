@@ -134,16 +134,29 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 }
 
 bool sendToSerial1(const String &message, bool canDelay) {
+    // Define triangulation-critical messages
+    bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
+                                  message.indexOf("TRI_START_ACK") >= 0 ||
+                                  message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
+                                  message.indexOf("@ALL TRI_CYCLE_START") >= 0 ||
+                                  message.indexOf("TRIANGULATE_STOP") >= 0 ||
+                                  message.indexOf(": T_F:") >= 0 ||
+                                  message.indexOf(": T_C:") >= 0 ||
+                                  message.indexOf(": T_D:") >= 0;
+
+    if (triangulationActive && !isTriangulationMessage) {
+        static uint32_t lastBlockLog = 0;
+        if (millis() - lastBlockLog > 10000) {
+            Serial.printf("[MESH-BLOCK] Dropping non-triangulation message during active scan: %s\n",
+                         message.substring(0, 50).c_str());
+            lastBlockLog = millis();
+        }
+        return false;
+    }
+
     // Priority messages bypass rate limiting
     // T_D is critical during triangulation - must not be dropped
-    bool isPriority = message.indexOf("STOP_ACK") >= 0 ||
-                      message.indexOf("TRI_START_ACK") >= 0 ||
-                      message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
-                      message.indexOf("@ALL TRI_CYCLE_START") >= 0 ||
-                      message.indexOf("TRIANGULATE_STOP") >= 0 ||
-                      message.indexOf(": T_F:") >= 0 ||
-                      message.indexOf(": T_C:") >= 0 ||
-                      message.indexOf(": T_D:") >= 0;
+    bool isPriority = isTriangulationMessage;
     
     size_t msgLen = message.length() + 2;
     
@@ -4701,13 +4714,13 @@ void sendMeshNotification(const Hit &hit) {
                 shouldSend = true;  // GPS just became available
             }
         } else {
-            // Enough time has passed - send update
             shouldSend = true;
         }
     }
 
+    // Wait our turn
     if (!shouldSend) {
-        return;  // Skip this notification
+      return;
     }
 
     // Respect global mesh send rate limit
@@ -5310,7 +5323,6 @@ void processCommand(const String &command, const String &targetId = "")
                 Serial.printf("[TRI-FINAL-MIXED] WARNING: Device %s has BOTH WiFi (%d) and BLE (%d) hits!\n",
                              macStr.c_str(), triAccum.wifiHitCount, triAccum.bleHitCount);
 
-                // Keep only the type with more hits
                 if (triAccum.wifiHitCount >= triAccum.bleHitCount) {
                     Serial.printf("[TRI-FINAL-MIXED] Keeping WiFi, clearing BLE\n");
                     triAccum.bleHitCount = 0;
