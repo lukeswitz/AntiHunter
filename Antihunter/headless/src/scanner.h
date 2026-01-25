@@ -39,28 +39,24 @@ struct Allowlist {
 struct TriangulationAccumulator {
     uint8_t targetMac[6];
 
-    // WiFi tracking
     int wifiHitCount;
     int8_t wifiMaxRssi;
     int8_t wifiMinRssi;
     float wifiRssiSum;
-    int64_t wifiFirstDetectionTimestamp;  // Microsecond timestamp of first WiFi detection
+    int64_t wifiFirstDetectionTimestamp;
 
-    // BLE tracking
     int bleHitCount;
     int8_t bleMaxRssi;
     int8_t bleMinRssi;
     float bleRssiSum;
-    int64_t bleFirstDetectionTimestamp;  // Microsecond timestamp of first BLE detection
+    int64_t bleFirstDetectionTimestamp;
 
-    // Shared GPS data
     float lat;
     float lon;
     float hdop;
     bool hasGPS;
 
     uint32_t lastSendTime;
-    uint32_t windowStartTime;
 };
 
 struct DeauthHit {
@@ -133,6 +129,7 @@ extern bool triangulationActive;
 
 // Triangulation
 extern TriangulationAccumulator triAccum;
+extern std::mutex triAccumMutex;
 extern bool droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 extern QueueHandle_t macQueue;

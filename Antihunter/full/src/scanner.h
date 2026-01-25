@@ -57,8 +57,6 @@ struct TriangulationAccumulator {
     bool hasGPS;
 
     uint32_t lastSendTime;
-    uint32_t windowStartTime;
-    bool finalReportSent;
 };
 
 struct DeauthHit {
@@ -131,6 +129,7 @@ extern bool triangulationActive;
 
 // Triangulation
 extern TriangulationAccumulator triAccum;
+extern std::mutex triAccumMutex;
 extern bool droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 extern QueueHandle_t macQueue;
