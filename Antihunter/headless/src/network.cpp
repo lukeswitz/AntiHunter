@@ -725,35 +725,55 @@ void processCommand(const String &command, const String &targetId = "")
         String macStr = macFmt6(triangulationTarget);
         bool sentReport = false;
 
-        if (triAccum.wifiHitCount > 0) {
-            int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+        int wifiHitCount, bleHitCount;
+        int8_t wifiAvgRssi = -128, bleAvgRssi = -128;
+        float lat, lon, hdop;
+        bool hasGPS;
+
+        {
+            extern std::mutex triAccumMutex;
+            std::lock_guard<std::mutex> lock(triAccumMutex);
+            wifiHitCount = triAccum.wifiHitCount;
+            bleHitCount = triAccum.bleHitCount;
+            if (wifiHitCount > 0) {
+                wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+            }
+            if (bleHitCount > 0) {
+                bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+            }
+            lat = triAccum.lat;
+            lon = triAccum.lon;
+            hdop = triAccum.hdop;
+            hasGPS = triAccum.hasGPS;
+        }
+
+        if (wifiHitCount > 0) {
             String wifiMsg = myNodeId + ": T_D: " + macStr +
                             " RSSI:" + String(wifiAvgRssi) +
-                            " Hits=" + String(triAccum.wifiHitCount) +
+                            " Hits=" + String(wifiHitCount) +
                             " Type:WiFi";
-            if (triAccum.hasGPS) {
-                wifiMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
-                        " HDOP=" + String(triAccum.hdop, 1);
+            if (hasGPS) {
+                wifiMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
+                        " HDOP=" + String(hdop, 1);
             }
             sendToSerial1(wifiMsg, true);
             Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
-                         triAccum.wifiHitCount, wifiAvgRssi);
+                         wifiHitCount, wifiAvgRssi);
             sentReport = true;
         }
 
-        if (triAccum.bleHitCount > 0) {
-            int8_t bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+        if (bleHitCount > 0) {
             String bleMsg = myNodeId + ": T_D: " + macStr +
                             " RSSI:" + String(bleAvgRssi) +
-                            " Hits=" + String(triAccum.bleHitCount) +
+                            " Hits=" + String(bleHitCount) +
                             " Type:BLE";
-            if (triAccum.hasGPS) {
-                bleMsg += " GPS=" + String(triAccum.lat, 6) + "," + String(triAccum.lon, 6) +
-                        " HDOP=" + String(triAccum.hdop, 1);
+            if (hasGPS) {
+                bleMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
+                        " HDOP=" + String(hdop, 1);
             }
             sendToSerial1(bleMsg, true);
             Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
-                         triAccum.bleHitCount, bleAvgRssi);
+                         bleHitCount, bleAvgRssi);
             sentReport = true;
         }
 

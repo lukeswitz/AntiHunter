@@ -246,6 +246,7 @@ std::map<String, std::vector<uint32_t>> deauthTimings;
 
 // Triangulation
 TriangulationAccumulator triAccum = {0};
+std::mutex triAccumMutex;
 static const uint32_t TRI_SEND_INTERVAL = 2000;
 
 // External declarations
@@ -2039,6 +2040,7 @@ void initializeScanner()
 }
 
 static void resetTriAccumulator(const uint8_t* mac) {
+    std::lock_guard<std::mutex> lock(triAccumMutex);
     memcpy(triAccum.targetMac, mac, 6);
 
     triAccum.wifiHitCount = 0;
@@ -2068,6 +2070,8 @@ uint32_t hashString(const String& str) {
 }
 
 static void sendTriAccumulatedData(const String& nodeId) {
+    std::lock_guard<std::mutex> lock(triAccumMutex);
+
     if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
 
     if (!triangulationActive) {
@@ -2149,10 +2153,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
     }
 
     if (sentAny) {
-        triAccum.wifiHitCount = 0;
-        triAccum.wifiRssiSum = 0.0f;
-        triAccum.bleHitCount = 0;
-        triAccum.bleRssiSum = 0.0f;
         triAccum.lastSendTime = millis();
         delay(150);
     }
@@ -2456,62 +2456,76 @@ void listScanTask(void *pv) {
                     myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
                 }
 
-                // Check if we're tracking a different target MAC (or first time)
-                if (memcmp(triAccum.targetMac, triangulationTarget, 6) != 0) {
-                    // Send accumulated data for old target (if any)
+                bool needsReset = false;
+                {
+                    std::lock_guard<std::mutex> lock(triAccumMutex);
+                    needsReset = (memcmp(triAccum.targetMac, triangulationTarget, 6) != 0);
+                }
+
+                if (needsReset) {
                     sendTriAccumulatedData(myNodeId);
-                    // Reset accumulator for new target
                     resetTriAccumulator(triangulationTarget);
                 }
 
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
-                    // Track WiFi and BLE separately
-                    if (h.isBLE) {
-                        if (triAccum.bleHitCount == 0) {
-                            triAccum.bleFirstDetectionTimestamp = getCorrectedMicroseconds();
+                    {
+                        std::lock_guard<std::mutex> lock(triAccumMutex);
+                        if (h.isBLE) {
+                            if (triAccum.bleHitCount == 0) {
+                                triAccum.bleFirstDetectionTimestamp = getCorrectedMicroseconds();
+                            }
+                            triAccum.bleHitCount++;
+                            triAccum.bleRssiSum += (float)h.rssi;
+                            if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
+                            if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
+                        } else {
+                            if (triAccum.wifiHitCount == 0) {
+                                triAccum.wifiFirstDetectionTimestamp = getCorrectedMicroseconds();
+                            }
+                            triAccum.wifiHitCount++;
+                            triAccum.wifiRssiSum += (float)h.rssi;
+                            if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
+                            if (h.rssi < triAccum.wifiMinRssi || triAccum.wifiMinRssi == 0) triAccum.wifiMinRssi = h.rssi;
                         }
-                        triAccum.bleHitCount++;
-                        triAccum.bleRssiSum += (float)h.rssi;
-                        if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
-                        if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
-                    } else {
-                        if (triAccum.wifiHitCount == 0) {
-                            triAccum.wifiFirstDetectionTimestamp = getCorrectedMicroseconds();
+
+                        if (gpsValid) {
+                            triAccum.lat = gpsLat;
+                            triAccum.lon = gpsLon;
+                            triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
+                            triAccum.hasGPS = true;
                         }
-                        triAccum.wifiHitCount++;
-                        triAccum.wifiRssiSum += (float)h.rssi;
-                        if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
-                        if (h.rssi < triAccum.wifiMinRssi || triAccum.wifiMinRssi == 0) triAccum.wifiMinRssi = h.rssi;
                     }
-                    
-                    if (gpsValid) {
-                        triAccum.lat = gpsLat;
-                        triAccum.lon = gpsLon;
-                        triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
-                        triAccum.hasGPS = true;
-                    }
-                    
+
                     if (triangulationInitiator) {
                         String myNodeId = getNodeId();
                         if (myNodeId.length() == 0) {
                             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
                         }
-                        
-                        // Calculate average for whichever protocol has data
+
                         int8_t avgRssi;
                         int totalHits;
                         bool isBLE;
-                        
-                        if (triAccum.wifiHitCount > 0) {
-                            avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-                            totalHits = triAccum.wifiHitCount;
-                            isBLE = false;
-                        } else if (triAccum.bleHitCount > 0) {
-                            avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-                            totalHits = triAccum.bleHitCount;
-                            isBLE = true;
-                        } else {
-                            continue; // No data, skip
+                        float lat, lon, hdop;
+                        bool hasGPS;
+
+                        {
+                            std::lock_guard<std::mutex> lock(triAccumMutex);
+                            if (triAccum.wifiHitCount > 0) {
+                                avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+                                totalHits = triAccum.wifiHitCount;
+                                isBLE = false;
+                            } else if (triAccum.bleHitCount > 0) {
+                                avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+                                totalHits = triAccum.bleHitCount;
+                                isBLE = true;
+                            } else {
+                                continue;
+                            }
+
+                            lat = triAccum.lat;
+                            lon = triAccum.lon;
+                            hdop = triAccum.hdop;
+                            hasGPS = triAccum.hasGPS;
                         }
 
                         {
@@ -2522,10 +2536,10 @@ void listScanTask(void *pv) {
                                     updateNodeRSSI(node, avgRssi);
                                     node.hitCount = totalHits;
                                     node.isBLE = isBLE;
-                                    if (triAccum.hasGPS) {
-                                        node.lat = triAccum.lat;
-                                        node.lon = triAccum.lon;
-                                        node.hdop = triAccum.hdop;
+                                    if (hasGPS) {
+                                        node.lat = lat;
+                                        node.lon = lon;
+                                        node.hdop = hdop;
                                         node.hasGPS = true;
                                     }
                                     node.distanceEstimate = rssiToDistance(node, !node.isBLE);
@@ -2538,12 +2552,12 @@ void listScanTask(void *pv) {
                             if (!selfNodeFound) {
                                 TriangulationNode selfNode;
                                 selfNode.nodeId = myNodeId;
-                                selfNode.lat = triAccum.hasGPS ? triAccum.lat : 0.0;
-                                selfNode.lon = triAccum.hasGPS ? triAccum.lon : 0.0;
-                                selfNode.hdop = triAccum.hasGPS ? triAccum.hdop : 99.9;
+                                selfNode.lat = hasGPS ? lat : 0.0;
+                                selfNode.lon = hasGPS ? lon : 0.0;
+                                selfNode.hdop = hasGPS ? hdop : 99.9;
                                 selfNode.rssi = avgRssi;
                                 selfNode.hitCount = totalHits;
-                                selfNode.hasGPS = triAccum.hasGPS;
+                                selfNode.hasGPS = hasGPS;
                                 selfNode.isBLE = isBLE;
                                 selfNode.lastUpdate = millis();
 
@@ -2557,7 +2571,7 @@ void listScanTask(void *pv) {
                                             totalHits, avgRssi,
                                             selfNode.isBLE ? "BLE" : "WiFi",
                                             selfNode.distanceEstimate,
-                                            triAccum.hasGPS ? "YES" : "NO");
+                                            hasGPS ? "YES" : "NO");
                             }
                         }
                     }

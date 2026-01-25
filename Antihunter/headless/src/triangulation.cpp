@@ -807,7 +807,35 @@ void stopTriangulation() {
 
     Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, triangulationNodes.size());
 
-    if (triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0)) {
+    bool hasData = false;
+    int8_t avgRssi;
+    int totalHits;
+    bool isBLE;
+    float lat, lon, hdop;
+    bool hasGPS;
+
+    {
+        extern std::mutex triAccumMutex;
+        std::lock_guard<std::mutex> lock(triAccumMutex);
+        hasData = triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0);
+        if (hasData) {
+            if (triAccum.wifiHitCount > 0) {
+                avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+                totalHits = triAccum.wifiHitCount;
+                isBLE = false;
+            } else {
+                avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+                totalHits = triAccum.bleHitCount;
+                isBLE = true;
+            }
+            lat = triAccum.lat;
+            lon = triAccum.lon;
+            hdop = triAccum.hdop;
+            hasGPS = triAccum.hasGPS;
+        }
+    }
+
+    if (hasData) {
         String myNodeId = getNodeId();
         if (myNodeId.length() == 0) {
             myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
@@ -825,28 +853,14 @@ void stopTriangulation() {
             }
 
             if (!selfNodeExists) {
-                int8_t avgRssi;
-                int totalHits;
-                bool isBLE;
-
-                if (triAccum.wifiHitCount > 0) {
-                    avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-                    totalHits = triAccum.wifiHitCount;
-                    isBLE = false;
-                } else {
-                    avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-                    totalHits = triAccum.bleHitCount;
-                    isBLE = true;
-                }
-
                 TriangulationNode selfNode;
                 selfNode.nodeId = myNodeId;
-                selfNode.lat = triAccum.lat;
-                selfNode.lon = triAccum.lon;
-                selfNode.hdop = triAccum.hdop;
+                selfNode.lat = lat;
+                selfNode.lon = lon;
+                selfNode.hdop = hdop;
                 selfNode.rssi = avgRssi;
                 selfNode.hitCount = totalHits;
-                selfNode.hasGPS = triAccum.hasGPS;
+                selfNode.hasGPS = hasGPS;
                 selfNode.isBLE = isBLE;
                 selfNode.lastUpdate = millis();
 
@@ -1045,11 +1059,11 @@ void stopTriangulation() {
     triangulationInitiator = false;
     triangulationDuration = 0;
 
-    triAccum.wifiHitCount = 0;
-    triAccum.wifiRssiSum = 0.0f;
-    triAccum.bleHitCount = 0;
-    triAccum.bleRssiSum = 0.0f;
-    triAccum.lastSendTime = 0;
+    {
+        extern std::mutex triAccumMutex;
+        std::lock_guard<std::mutex> lock(triAccumMutex);
+        memset(&triAccum, 0, sizeof(triAccum));
+    }
 
     apFinalResult.hasResult = false;
     apFinalResult.latitude = 0.0;
@@ -1069,6 +1083,7 @@ void stopTriangulation() {
         triangulationNodes.clear();
     }
     nodeSyncStatus.clear();
+    nodePropagationDelays.clear();
 
     lastTriangulationStopTime = millis();
 
@@ -1746,8 +1761,13 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
     if (propagationDelay > 100000) {
         propagationDelay = rxMicros + (0xFFFFFFFF - senderTxMicros);
     }
-    
+
     nodePropagationDelays[senderId] = propagationDelay;
+    const size_t MAX_PROP_DELAY_ENTRIES = 100;
+    if (nodePropagationDelays.size() > MAX_PROP_DELAY_ENTRIES) {
+        auto oldest = nodePropagationDelays.begin();
+        nodePropagationDelays.erase(oldest);
+    }
     
     Serial.printf("[SYNC] %s: prop_delay=%luus offset=%dms\n", 
                   senderId.c_str(), propagationDelay, (int)(myTime - senderTime));
