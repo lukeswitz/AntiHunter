@@ -78,9 +78,6 @@ RFEnvironment getRFEnvironment() {
 }
 
 // Helpers
-bool isTriangulationActive() {
-    return triangulationActive;
-}
 
 float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     float rssi0 = isWiFi ? adaptivePathLoss.rssi0_wifi : adaptivePathLoss.rssi0_ble;
