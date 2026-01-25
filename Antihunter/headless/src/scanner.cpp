@@ -2082,6 +2082,30 @@ static void sendTriAccumulatedData(const String& nodeId) {
         return;
     }
 
+    // Fix dual-radio devices showing as both types in triangulation
+    if (triAccum.wifiHitCount > 0 && triAccum.bleHitCount > 0) {
+        String macStr = macFmt6(triAccum.targetMac);
+        Serial.printf("[TRI-MIXED] WARNING: Device %s has BOTH WiFi (%d) and BLE (%d) hits!\n",
+                     macStr.c_str(), triAccum.wifiHitCount, triAccum.bleHitCount);
+
+        // Keep only the type with more hits, clear the other
+        if (triAccum.wifiHitCount >= triAccum.bleHitCount) {
+            Serial.printf("[TRI-MIXED] Keeping WiFi, clearing BLE hits\n");
+            triAccum.bleHitCount = 0;
+            triAccum.bleRssiSum = 0.0f;
+            triAccum.bleMaxRssi = -128;
+            triAccum.bleMinRssi = 0;
+            triAccum.bleFirstDetectionTimestamp = 0;
+        } else {
+            Serial.printf("[TRI-MIXED] Keeping BLE, clearing WiFi hits\n");
+            triAccum.wifiHitCount = 0;
+            triAccum.wifiRssiSum = 0.0f;
+            triAccum.wifiMaxRssi = -128;
+            triAccum.wifiMinRssi = 0;
+            triAccum.wifiFirstDetectionTimestamp = 0;
+        }
+    }
+
     reportingSchedule.addNode(nodeId);
 
     if (reportingSchedule.cycleStartMs == 0) {
@@ -2470,6 +2494,27 @@ void listScanTask(void *pv) {
                 if (memcmp(h.mac, triangulationTarget, 6) == 0) {
                     {
                         std::lock_guard<std::mutex> lock(triAccumMutex);
+
+                        // Debug logging to track type mismatches
+                        String macStr = macFmt6(h.mac);
+                        Serial.printf("[TRI-HIT] MAC=%s Type=%s RSSI=%d CH=%d Name=%s\n",
+                                     macStr.c_str(), h.isBLE ? "BLE" : "WiFi",
+                                     h.rssi, h.ch, h.name);
+
+                        // Detect type conflicts: if we already have WiFi hits and now get BLE, or vice versa
+                        if (h.isBLE && triAccum.wifiHitCount > 0 && triAccum.bleHitCount == 0) {
+                            Serial.printf("[TRI-CONFLICT] WARNING: Device %s switching from WiFi to BLE! Ignoring BLE detection.\n",
+                                         macStr.c_str());
+                            // Skip this BLE hit to prevent type confusion
+                            goto skip_accumulation_headless;
+                        }
+                        if (!h.isBLE && triAccum.bleHitCount > 0 && triAccum.wifiHitCount == 0) {
+                            Serial.printf("[TRI-CONFLICT] WARNING: Device %s switching from BLE to WiFi! Ignoring WiFi detection.\n",
+                                         macStr.c_str());
+                            // Skip this WiFi hit to prevent type confusion
+                            goto skip_accumulation_headless;
+                        }
+
                         if (h.isBLE) {
                             if (triAccum.bleHitCount == 0) {
                                 triAccum.bleFirstDetectionTimestamp = getCorrectedMicroseconds();
@@ -2487,6 +2532,8 @@ void listScanTask(void *pv) {
                             if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
                             if (h.rssi < triAccum.wifiMinRssi || triAccum.wifiMinRssi == 0) triAccum.wifiMinRssi = h.rssi;
                         }
+
+                        skip_accumulation_headless:
 
                         if (gpsValid) {
                             triAccum.lat = gpsLat;
