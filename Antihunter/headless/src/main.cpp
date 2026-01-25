@@ -241,13 +241,13 @@ void loop() {
     }
 
     // Normal operation mode
-    if (millis() - lastSaveSend > 600000 && !isTriangulationActive) {
+    if (millis() - lastSaveSend > 600000 && !triangulationActive) {
         saveConfiguration();
         sendNodeIdUpdate();
         lastSaveSend = millis();
     }
 
-    if (millis() - lastRTCUpdate > 1000 && !isTriangulationActive) {
+    if (millis() - lastRTCUpdate > 1000 && !triangulationActive) {
         updateRTCTime();
         updateGPSLocation();
         disciplineRTCFromGPS();

@@ -162,7 +162,6 @@ String getNodeSyncStatus();
 String calculateTriangulation();
 void stopTriangulation();
 void startTriangulation(const String &targetMac, int duration);
-bool isTriangulationActive();
 void disciplineRTCFromGPS();
 int64_t getCorrectedMicroseconds();
 void calibratePathLoss(const String &targetMac, float knownDistance);
