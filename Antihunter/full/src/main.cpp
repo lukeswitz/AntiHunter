@@ -137,8 +137,10 @@ void sendNodeIdUpdate() {
         nodeMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
 
-    Serial.println(nodeMsg);
-    sendToSerial1(nodeMsg, true);
+    if (!triangulationActive){
+        Serial.println(nodeMsg);
+        sendToSerial1(nodeMsg, true);
+    }
 }
 
 void randomizeMacAddress() {
@@ -226,10 +228,7 @@ void loop() {
 
     // Battery saver mode - minimal operations
     if (batterySaverEnabled) {
-        // Process mesh UART RX (always active)
-        // Note: uartForwardTask handles this on Core 1
 
-        // Send periodic heartbeats
         sendBatterySaverHeartbeat();
 
         // Reduced GPS polling - once per minute in battery saver mode
@@ -246,19 +245,18 @@ void loop() {
             checkTamperTimeout();
         }
 
-        // Longer delay in battery saver mode for power saving
         delay(500);
         return;
     }
 
     // Normal operation mode
-    if (millis() - lastSaveSend > 600000) {
-      saveConfiguration();
-      sendNodeIdUpdate();
-      lastSaveSend = millis();
+    if (millis() - lastSaveSend > 600000 && !isTriangulationActive) {
+        saveConfiguration();
+        sendNodeIdUpdate();
+        lastSaveSend = millis();
     }
 
-    if (millis() - lastRTCUpdate > 1000) {
+    if (millis() - lastRTCUpdate > 1000 && !isTriangulationActive) {
         updateRTCTime();
         updateGPSLocation();
         disciplineRTCFromGPS();

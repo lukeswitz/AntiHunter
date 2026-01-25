@@ -1798,6 +1798,11 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
+    extern bool triangulationActive;
+    if (triangulationActive) {
+        return;  // Silently skip heartbeat to avoid mesh pollution
+    }
+
     uint32_t now = millis();
     if (now - lastBatterySaverHeartbeat < batterySaverHeartbeatInterval) return;
 
