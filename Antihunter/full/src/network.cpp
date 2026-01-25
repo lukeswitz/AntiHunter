@@ -5304,6 +5304,24 @@ void processCommand(const String &command, const String &targetId = "")
         {
             extern std::mutex triAccumMutex;
             std::lock_guard<std::mutex> lock(triAccumMutex);
+
+            // Fix for dual-radio devices showing as two types
+            if (triAccum.wifiHitCount > 0 && triAccum.bleHitCount > 0) {
+                Serial.printf("[TRI-FINAL-MIXED] WARNING: Device %s has BOTH WiFi (%d) and BLE (%d) hits!\n",
+                             macStr.c_str(), triAccum.wifiHitCount, triAccum.bleHitCount);
+
+                // Keep only the type with more hits
+                if (triAccum.wifiHitCount >= triAccum.bleHitCount) {
+                    Serial.printf("[TRI-FINAL-MIXED] Keeping WiFi, clearing BLE\n");
+                    triAccum.bleHitCount = 0;
+                    triAccum.bleRssiSum = 0.0f;
+                } else {
+                    Serial.printf("[TRI-FINAL-MIXED] Keeping BLE, clearing WiFi\n");
+                    triAccum.wifiHitCount = 0;
+                    triAccum.wifiRssiSum = 0.0f;
+                }
+            }
+
             wifiHitCount = triAccum.wifiHitCount;
             bleHitCount = triAccum.bleHitCount;
             if (wifiHitCount > 0) {
