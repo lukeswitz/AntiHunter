@@ -247,10 +247,12 @@ void loop() {
         lastSaveSend = millis();
     }
 
-    if (millis() - lastRTCUpdate > 1000 && !triangulationActive) {
-        updateRTCTime();
+    if (millis() - lastRTCUpdate > 1000) {
+        if (!triangulationActive) {
+            updateRTCTime();
+            disciplineRTCFromGPS();
+        }
         updateGPSLocation();
-        disciplineRTCFromGPS();
         lastRTCUpdate = millis();
     }
 
