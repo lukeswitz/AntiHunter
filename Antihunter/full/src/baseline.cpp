@@ -305,10 +305,24 @@ void baselineDetectionTask(void *pv) {
 
     if (anomalyQueue) vQueueDelete(anomalyQueue);
     anomalyQueue = xQueueCreate(256, sizeof(AnomalyHit));
-    
+    if (!anomalyQueue) {
+        Serial.println("[BASELINE] FATAL: anomalyQueue creation failed");
+        scanning = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
     if (macQueue) vQueueDelete(macQueue);
     macQueue = xQueueCreate(512, sizeof(Hit));
-    
+    if (!macQueue) {
+        Serial.println("[BASELINE] FATAL: macQueue creation failed");
+        vQueueDelete(anomalyQueue);
+        anomalyQueue = nullptr;
+        scanning = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
     std::set<String> transmittedDevices;
     std::set<String> transmittedAnomalies;
     

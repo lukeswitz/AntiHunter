@@ -21,10 +21,14 @@ extern bool triangulationOrchestratorAssigned;
 static TaskHandle_t calibrationTaskHandle = nullptr;
 static TaskHandle_t coordinatorSetupTaskHandle = nullptr;
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
+const size_t MAX_TRIANGULATION_NODES = 15;
+const size_t MAX_SYNC_STATUS = 15;
+const size_t MAX_ACK_INFO = 20;
+
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
 std::vector<TriangulationNode> triangulationNodes;
-std::mutex triangulationMutex;  // Protects triangulationNodes and triangulateAcks
+std::mutex triangulationMutex;
 APFinalResult apFinalResult = {false, 0.0, 0.0, 0.0, 0.0, 0, ""};
 String calculateTriangulation();
 uint8_t triangulationTarget[6];
@@ -393,7 +397,7 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
         }
     }
     
-    if (!found) {
+    if (!found && nodeSyncStatus.size() < MAX_SYNC_STATUS) {
         NodeSyncStatus newSync;
         newSync.nodeId = nodeId;
         newSync.rtcTimestamp = timestamp;
@@ -849,7 +853,7 @@ void stopTriangulation() {
                 }
             }
 
-            if (!selfNodeExists) {
+            if (!selfNodeExists && triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
                 TriangulationNode selfNode;
                 selfNode.nodeId = myNodeId;
                 selfNode.lat = lat;

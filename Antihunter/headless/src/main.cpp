@@ -202,6 +202,7 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastGPSPollBatterySaver = 0;
+    static unsigned long lastHeapCheck = 0;
 
     // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
@@ -262,6 +263,14 @@ void loop() {
 
     processUSBToMesh();
     checkAndSendVibrationAlert();
+
+    if (millis() - lastHeapCheck > 30000) {
+        uint32_t freeHeap = ESP.getFreeHeap();
+        if (freeHeap < 50000) {
+            Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
+        }
+        lastHeapCheck = millis();
+    }
 
     delay(100);
 }

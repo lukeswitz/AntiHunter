@@ -30,7 +30,6 @@ void radioStopSTA();
 void radioStartBLE();
 void radioStopBLE();
 
-// Scanner state variables
 extern Preferences prefs;
 static std::vector<Target> targets;
 QueueHandle_t macQueue = nullptr;
@@ -44,6 +43,11 @@ uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
 static std::map<String, String> apCache;
 static std::map<String, String> bleDeviceCache;
+
+static portMUX_TYPE rfConfigMux = portMUX_INITIALIZER_UNLOCKED;
+
+const size_t MAX_AP_CACHE = 200;
+const size_t MAX_BLE_CACHE = 200;
 
 // BLE 
 NimBLEScan *pBLEScan;
@@ -462,7 +466,7 @@ String getDeauthReasonText(uint16_t reasonCode) {
 
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
-    if (!ppkt || ppkt->rx_ctrl.sig_len < 26) return;
+    if (!ppkt || ppkt->rx_ctrl.sig_len < 28) return;
     
     const uint8_t *payload = ppkt->payload;
     
@@ -481,10 +485,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     memcpy(hit.destMac, payload + 4, 6);
     memcpy(hit.srcMac, payload + 10, 6);
     memcpy(hit.bssid, payload + 16, 6);
-
-    hit.reasonCode = (ppkt->rx_ctrl.sig_len >= 26)
-                     ? (payload[24] | (payload[25] << 8))
-                     : 0;
+    hit.reasonCode = (payload[24] | (payload[25] << 8));
 
     hit.rssi = ppkt->rx_ctrl.rssi;
     hit.channel = ppkt->rx_ctrl.channel;
@@ -711,7 +712,9 @@ void snifferScanTask(void *pv)
 
                     if (apCache.find(bssid) == apCache.end())
                     {
-                        apCache[bssid] = ssid;
+                        if (apCache.size() < MAX_AP_CACHE) {
+                            apCache[bssid] = ssid;
+                        }
                         uniqueMacs.insert(bssid);
 
                         Hit h;
@@ -763,7 +766,7 @@ void snifferScanTask(void *pv)
 
             if (bleScan)
             {
-                NimBLEScanResults scanResults = bleScan->getResults(2000, false);
+                NimBLEScanResults scanResults = bleScan->getResults(500, false);
                 if (stopRequested) break;
 
                 for (int i = 0; i < scanResults.getCount(); i++)
@@ -791,8 +794,10 @@ void snifferScanTask(void *pv)
                         }
                         if (cleanName.length() == 0)
                             cleanName = "Unknown";
-                        
-                        bleDeviceCache[macStr] = cleanName;
+
+                        if (bleDeviceCache.size() < MAX_BLE_CACHE) {
+                            bleDeviceCache[macStr] = cleanName;
+                        }
                         uniqueMacs.insert(macStr);
                         
                         uint8_t mac[6];
@@ -1304,9 +1309,15 @@ void blueTeamTask(void *pv) {
     if (deauthQueue) {
         vQueueDelete(deauthQueue);
     }
-    
+
     deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
-    
+    if (!deauthQueue) {
+        Serial.println("[BLUE] FATAL: Queue creation failed");
+        scanning = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
     std::set<String> transmittedAttacks;
     
     {
@@ -1534,10 +1545,15 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length) {
 static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
-    
+
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
-    if (!triangulationActive && ppkt->rx_ctrl.rssi < rfConfig.globalRssiThreshold) {
+    int8_t rssiThreshold;
+    portENTER_CRITICAL_ISR(&rfConfigMux);
+    rssiThreshold = rfConfig.globalRssiThreshold;
+    portEXIT_CRITICAL_ISR(&rfConfigMux);
+
+    if (!triangulationActive && ppkt->rx_ctrl.rssi < rssiThreshold) {
         return;
     }
 
@@ -2376,7 +2392,7 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan &&
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
             lastBLEScan = millis();
-            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(500, false);
             if (stopRequested) break;
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
