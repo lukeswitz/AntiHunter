@@ -17,7 +17,6 @@
 </div>
 
 
-
 ## Table of Contents
 
 1. [Firmware Overview](#overview)
@@ -36,6 +35,8 @@
 
 > [!NOTE]  
 > **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
+
+Featured in the [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 ## Overview
 
