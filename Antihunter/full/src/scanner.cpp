@@ -738,7 +738,10 @@ void snifferScanTask(void *pv)
 
                         if (gpsValid)
                         {
-                            logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                                logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                                xSemaphoreGive(gpsMutex);
+                            }
                         }
 
                         Serial.println("[SNIFFER] " + logEntry);
@@ -819,7 +822,10 @@ void snifferScanTask(void *pv)
 
                             if (gpsValid)
                             {
-                                logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                                    logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                                    xSemaphoreGive(gpsMutex);
+                                }
                             }
 
                             Serial.println("[SNIFFER] " + logEntry);
@@ -1367,7 +1373,10 @@ void blueTeamTask(void *pv) {
             if (meshEnabled && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String meshAlert = getNodeId() + ": ATTACK: " + alert;
                 if (gpsValid) {
-                    meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                    if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                        meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                        xSemaphoreGive(gpsMutex);
+                    }
                 }
                 if (sendToSerial1(meshAlert, false)) {
                     transmittedAttacks.insert(attackKey);
@@ -2262,8 +2271,14 @@ void listScanTask(void *pv) {
             if (!selfNodeExists) {
                 TriangulationNode selfNode;
                 selfNode.nodeId = myNodeId;
-                selfNode.lat = gpsValid ? gpsLat : 0.0;
-                selfNode.lon = gpsValid ? gpsLon : 0.0;
+                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    selfNode.lat = gpsValid ? gpsLat : 0.0;
+                    selfNode.lon = gpsValid ? gpsLon : 0.0;
+                    xSemaphoreGive(gpsMutex);
+                } else {
+                    selfNode.lat = 0.0;
+                    selfNode.lon = 0.0;
+                }
                 selfNode.hdop = gpsValid && gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
                 selfNode.rssi = -128;
                 selfNode.hitCount = 0;
@@ -2490,7 +2505,10 @@ void listScanTask(void *pv) {
                 logEntry += " Name=" + String(h.name);
             }
             if (gpsValid) {
-                logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                    xSemaphoreGive(gpsMutex);
+                }
             }
 
             Serial.printf("[HIT] %s\n", logEntry.c_str());
@@ -2553,8 +2571,14 @@ void listScanTask(void *pv) {
                         }
 
                         if (gpsValid) {
-                            triAccum.lat = gpsLat;
-                            triAccum.lon = gpsLon;
+                            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                                triAccum.lat = gpsLat;
+                                triAccum.lon = gpsLon;
+                                xSemaphoreGive(gpsMutex);
+                            } else {
+                                triAccum.lat = 0.0;
+                                triAccum.lon = 0.0;
+                            }
                             triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
                             triAccum.hasGPS = true;
                         }

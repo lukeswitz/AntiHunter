@@ -2,6 +2,7 @@
 #include "scanner.h"
 #include "hardware.h"
 #include <math.h>
+#include <atomic>
 #include <NimBLEDevice.h>
 #include <NimBLEScan.h>
 #include <NimBLEAdvertisedDevice.h>
@@ -34,7 +35,7 @@ String calculateTriangulation();
 uint8_t triangulationTarget[6];
 uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
-bool triangulationActive = false;
+std::atomic<bool> triangulationActive(false);
 bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
 DynamicReportingSchedule reportingSchedule;
@@ -232,10 +233,10 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
               [](const TriangulationNode &a, const TriangulationNode &b) {
                   return a.signalQuality > b.signalQuality;
               });
-    
-    // float gdop = calculateGDOP(sortedNodes);
-    // if (gdop > 6.0) return false;
-    
+
+    float gdop = calculateGDOP(sortedNodes);
+    if (gdop > 6.0) return false;
+
     float avgHDOP = getAverageHDOP(sortedNodes);
     if (avgHDOP > 15.0) return false;
     
@@ -1060,7 +1061,10 @@ void stopTriangulation() {
 
         if (gpsValid) {
             float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-            dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                xSemaphoreGive(gpsMutex);
+            }
             dataMsg += " HDOP=" + String(hdop, 1);
         }
 
