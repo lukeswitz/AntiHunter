@@ -44,13 +44,13 @@ const float GPS_CHANGE_THRESHOLD = 0.0001;  // ~10 meters
 const unsigned long PER_TARGET_MIN_INTERVAL = 30000;  // 30 seconds per target
 
 // Scanner vars
-extern volatile bool scanning;
-extern volatile int totalHits;
+extern std::atomic<bool> scanning;
+extern std::atomic<int> totalHits;
 extern std::set<String> uniqueMacs;
 
 // Module refs
 extern Preferences prefs;
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
@@ -5102,8 +5102,8 @@ void processCommand(const String &command, const String &targetId = "")
                             "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
                             nodeId.c_str(),
                             modeStr.c_str(),
-                            scanning ? "ACTIVE" : "IDLE",
-                            totalHits,
+                            scanning.load() ? "ACTIVE" : "IDLE",
+                            totalHits.load(),
                             esp_temp,
                             (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
       if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)

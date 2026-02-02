@@ -46,10 +46,10 @@ unsigned long lastVibrationAlert = 0;
 const unsigned long VIBRATION_ALERT_INTERVAL = 3000; 
 
 // Diagnostics & Config
-extern volatile bool scanning;
-extern volatile int totalHits;
-extern volatile uint32_t framesSeen;
-extern volatile uint32_t bleFramesSeen;
+extern std::atomic<bool> scanning;
+extern std::atomic<int> totalHits;
+extern std::atomic<uint32_t> framesSeen;
+extern std::atomic<uint32_t> bleFramesSeen;
 extern std::set<String> uniqueMacs;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
@@ -1713,7 +1713,7 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     batterySaverHeartbeatInterval = heartbeatIntervalMs;
 
     // Stop any active scanning tasks
-    extern volatile bool stopRequested;
+    extern std::atomic<bool> stopRequested;
     extern TaskHandle_t workerTaskHandle;
     extern TaskHandle_t blueTeamTaskHandle;
 
@@ -1806,8 +1806,8 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
-    extern bool triangulationActive;
-    if (triangulationActive) {
+    extern std::atomic<bool> triangulationActive;
+    if (triangulationActive.load()) {
         return;  // Silently skip heartbeat to avoid mesh pollution
     }
 

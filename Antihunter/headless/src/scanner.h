@@ -116,8 +116,8 @@ extern std::map<String, uint32_t> deauthSourceCounts;
 extern std::map<String, uint32_t> deauthTargetCounts;
 extern std::map<String, std::vector<uint32_t>> deauthTimings;
 extern std::vector<DeauthHit> deauthLog;
-extern volatile uint32_t deauthCount;
-extern volatile uint32_t disassocCount;
+extern std::atomic<uint32_t> deauthCount;
+extern std::atomic<uint32_t> disassocCount;
 extern bool deauthDetectionEnabled;
 extern QueueHandle_t deauthQueue;
 

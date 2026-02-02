@@ -16,11 +16,11 @@
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern Preferences prefs;
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
-extern volatile bool scanning;
-extern volatile uint32_t framesSeen;
-extern volatile uint32_t bleFramesSeen;
+extern std::atomic<bool> scanning;
+extern std::atomic<uint32_t> framesSeen;
+extern std::atomic<uint32_t> bleFramesSeen;
 extern QueueHandle_t macQueue;
 extern TaskHandle_t workerTaskHandle;
 extern bool sdAvailable;
@@ -406,7 +406,7 @@ void baselineDetectionTask(void *pv) {
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Establishing... Devices:%d WiFi:%u BLE:%u Heap:%u\n",
-                        baselineDeviceCount, framesSeen, bleFramesSeen, ESP.getFreeHeap());
+                        baselineDeviceCount, framesSeen.load(), bleFramesSeen.load(), ESP.getFreeHeap());
             nextStatus += 5000;
         }
 
