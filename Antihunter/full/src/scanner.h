@@ -4,6 +4,7 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <atomic>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "randomization.h"
@@ -125,7 +126,7 @@ extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
-extern bool triangulationActive;
+extern std::atomic<bool> triangulationActive;
 
 // Triangulation
 extern TriangulationAccumulator triAccum;

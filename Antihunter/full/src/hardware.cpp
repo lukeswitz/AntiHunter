@@ -20,6 +20,7 @@
 extern Preferences prefs;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
+extern void disciplineRTCFromGPS();
 
 // GPS
 TinyGPSPlus gps;
@@ -28,6 +29,7 @@ bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
+SemaphoreHandle_t gpsMutex = nullptr;
 
 // RTC
 RTC_DS3231 rtc;
@@ -957,11 +959,11 @@ void initializeSD()
 void initializeGPS() {
     Serial.println("Initializing GPS…");
 
-    // Grow buffer and start UART
     GPS.setRxBufferSize(2048);
     GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 
-    // Give it a moment to start spitting characters
+    gpsMutex = xSemaphoreCreateMutex();
+
     delay(500);
     unsigned long start = millis();
     bool sawSentence = false;
@@ -1030,11 +1032,14 @@ void updateGPSLocation() {
             lastDataTime = millis();
 
             bool nowLocked = gps.location.isValid();
-            
+
             if (nowLocked) {
-                gpsLat = gps.location.lat();
-                gpsLon = gps.location.lng();
-                gpsValid = true;
+                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    gpsLat = gps.location.lat();
+                    gpsLon = gps.location.lng();
+                    gpsValid = true;
+                    xSemaphoreGive(gpsMutex);
+                }
                 lastGPSData = "Lat: " + String(gpsLat, 6)
                             + ", Lon: " + String(gpsLon, 6)
                             + " (" + String((millis() - lastDataTime) / 1000) 
@@ -1370,10 +1375,10 @@ void syncRTCFromGPS() {
     
     DateTime gpsTime(year, month, day, hour, minute, second);
     DateTime rtcTime = rtc.now();
-    
+
     int timeDiff = abs((int)(gpsTime.unixtime() - rtcTime.unixtime()));
-    
-    if (timeDiff > 2 || !rtcSynced) {
+
+    if (timeDiff > 1 || !rtcSynced) {
         rtc.adjust(gpsTime);
         rtcSynced = true;
         lastRTCSync = millis();
@@ -1416,7 +1421,10 @@ void updateRTCTime() {
     rtcTimeString = String(buffer);
     
     xSemaphoreGive(rtcMutex);
-    
+
+    if (gpsValid && gps.time.isValid()) {
+        disciplineRTCFromGPS();
+    }
     if (gpsValid && !rtcSynced) {
         syncRTCFromGPS();
     }

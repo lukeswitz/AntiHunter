@@ -68,6 +68,7 @@ static bool terminalClientsConnected = false;
 
 // T114 handling
 SerialRateLimiter rateLimiter;
+SemaphoreHandle_t serial1Mutex = nullptr;
 SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
 
 bool SerialRateLimiter::canSend(size_t messageLength) {
@@ -134,7 +135,10 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 }
 
 bool sendToSerial1(const String &message, bool canDelay) {
-    // Define triangulation-critical messages
+    if (serial1Mutex == nullptr) {
+        return false;
+    }
+
     bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
                                   message.indexOf("TRI_START_ACK") >= 0 ||
                                   message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
@@ -154,44 +158,52 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
-    // Priority messages bypass rate limiting
-    // T_D is critical during triangulation - must not be dropped
     bool isPriority = isTriangulationMessage;
-    
     size_t msgLen = message.length() + 2;
-    
+
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         if (canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
-            if (wait > 0 && wait < meshSendInterval) { 
+            if (wait > 0 && wait < meshSendInterval) {
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
                 broadcastToTerminal("[MESH] Rate limit: waiting..");
                 delay(wait);
                 rateLimiter.refillTokens();
             } else {
                 Serial.printf("[MESH] Rate limit: dropping message (wait=%ums too long)\n", wait);
-                return false; 
+                return false;
             }
         } else {
             Serial.printf("[MESH] Rate limit: cannot send without delay\n");
             return false;
         }
     }
-    
-    // For priority messages, wait for buffer space
+
+    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(100);
+    if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
+        Serial.printf("[MESH] Mutex timeout\n");
+        return false;
+    }
+
     if (isPriority) {
         uint32_t waitStart = millis();
         while (Serial1.availableForWrite() < msgLen) {
             if (millis() - waitStart > 5000) {
                 Serial.printf("[MESH] Priority message timeout waiting for buffer space\n");
+                xSemaphoreGive(serial1Mutex);
                 return false;
             }
+            xSemaphoreGive(serial1Mutex);
             delay(10);
+            if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
+                Serial.printf("[MESH] Mutex timeout on retry\n");
+                return false;
+            }
         }
     } else {
-        // Non-priority messages fail immediately if buffer full
         if (Serial1.availableForWrite() < msgLen) {
             Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
+            xSemaphoreGive(serial1Mutex);
             return false;
         }
     }
@@ -202,6 +214,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     Serial1.flush();
     delay(50);
+
+    xSemaphoreGive(serial1Mutex);
 
     if (!isPriority) {
         rateLimiter.consume(msgLen);
@@ -4780,19 +4794,20 @@ void sendMeshNotification(const Hit &hit) {
 void initializeMesh() {
     Serial1.end();
     delay(100);
-  
+
     Serial1.setRxBufferSize(2048);
-    Serial1.setTxBufferSize(4096);  // Increased from 1024 to prevent truncation
+    Serial1.setTxBufferSize(4096);
     Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
     Serial1.setTimeout(100);
-    
-    // Clear any garbage data
+
     delay(100);
     while (Serial1.available()) {
         Serial1.read();
     }
-    
+
     delay(500);
+
+    serial1Mutex = xSemaphoreCreateMutex();
 
     Serial.println("[MESH] UART initialized");
     Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);

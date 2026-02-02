@@ -246,7 +246,7 @@ void loop() {
             checkTamperTimeout();
         }
 
-        delay(500);
+        vTaskDelay(pdMS_TO_TICKS(500));
         return;
     }
 
@@ -281,5 +281,5 @@ void loop() {
         lastHeapCheck = millis();
     }
 
-    delay(100);
+    vTaskDelay(pdMS_TO_TICKS(100));
 }
