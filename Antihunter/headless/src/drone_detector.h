@@ -36,7 +36,7 @@ struct DroneDetection {
 
 extern std::map<String, DroneDetection> detectedDrones;
 extern std::vector<String> droneEventLog;
-extern volatile uint32_t droneDetectionCount;
+extern std::atomic<uint32_t> droneDetectionCount;
 extern bool droneDetectionEnabled;
 extern QueueHandle_t droneQueue;
 

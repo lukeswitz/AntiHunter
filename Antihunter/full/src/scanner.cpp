@@ -8,6 +8,7 @@
 #include <algorithm>
 #include "randomization.h"
 #include <string>
+#include <atomic>
 #include <mutex>
 #include "scanner.h"
 #include "hardware.h"
@@ -58,10 +59,10 @@ uint32_t WIFI_SCAN_INTERVAL = 4000;
 uint32_t BLE_SCAN_INTERVAL = 2000;
 
 // Scanner status variables
-volatile bool scanning = false;
-volatile int totalHits = 0;
-volatile uint32_t framesSeen = 0;
-volatile uint32_t bleFramesSeen = 0;
+std::atomic<bool> scanning(false);
+std::atomic<int> totalHits(0);
+std::atomic<uint32_t> framesSeen(0);
+std::atomic<uint32_t> bleFramesSeen(0);
 
 std::map<String, DeviceHistory> deviceHistory;
 uint32_t deviceAbsenceThreshold = 120000;
@@ -238,8 +239,8 @@ void loadRFConfigFromPrefs() {
 
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
-volatile uint32_t deauthCount = 0;
-volatile uint32_t disassocCount = 0;
+std::atomic<uint32_t> deauthCount(0);
+std::atomic<uint32_t> disassocCount(0);
 bool deauthDetectionEnabled = false;
 QueueHandle_t deauthQueue = nullptr;
 
@@ -255,7 +256,7 @@ static const uint32_t TRI_SEND_INTERVAL = 2000;
 
 // External declarations
 extern Preferences prefs;
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t blueTeamTaskHandle;
@@ -972,7 +973,7 @@ void snifferScanTask(void *pv)
         }
 
         Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
-                      apCache.size(), bleDeviceCache.size(), uniqueMacs.size(), totalHits);
+                      apCache.size(), bleDeviceCache.size(), uniqueMacs.size(), totalHits.load());
 
         vTaskDelay(pdMS_TO_TICKS(200));
     }
@@ -1075,8 +1076,10 @@ void snifferScanTask(void *pv)
             }
         }
 
-        // Ensure all data is transmitted before continuing
-        Serial1.flush();
+        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            Serial1.flush();
+            xSemaphoreGive(serial1Mutex);
+        }
         delay(100);
 
         uint32_t finalTransmitted = transmittedDevices.size();
@@ -1413,8 +1416,8 @@ void blueTeamTask(void *pv) {
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
-            Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n", 
-                         deauthCount, disassocCount, (unsigned)deauthLog.size());
+            Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n",
+                         deauthCount.load(), disassocCount.load(), (unsigned)deauthLog.size());
             nextStatus += 5000;
         }
         
@@ -1496,10 +1499,13 @@ void blueTeamTask(void *pv) {
                 }
             }
         }
-        
-        Serial1.flush();
+
+        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            Serial1.flush();
+            xSemaphoreGive(serial1Mutex);
+        }
         delay(100);
-        
+
         uint32_t totalAttacks = deauthLog.size();
         uint32_t finalTransmitted = transmittedAttacks.size();
         uint32_t finalRemaining = totalAttacks - finalTransmitted;

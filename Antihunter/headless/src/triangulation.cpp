@@ -10,7 +10,7 @@
 
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern TinyGPSPlus gps;
 extern float gpsLat, gpsLon;
@@ -215,8 +215,6 @@ float calculateSignalQuality(const TriangulationNode &node) {
     float strength = (node.filteredRssi + 100.0) / 100.0;
     strength = constrain(strength, 0.0, 1.0);
 
-    // Hit count factor: more detections = higher confidence in this node's data
-    // Saturates at ~15 hits (typical good detection count during scan)
     float hitFactor = min(1.0f, (float)node.hitCount / 15.0f);
 
     // Weight: 40% stability, 30% signal strength, 30% hit count
@@ -235,7 +233,7 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
               });
 
     float gdop = calculateGDOP(sortedNodes);
-    if (gdop > 6.0) return false;
+    // if (gdop > 6.0) return false;
 
     float avgHDOP = getAverageHDOP(sortedNodes);
     if (avgHDOP > 15.0) return false;

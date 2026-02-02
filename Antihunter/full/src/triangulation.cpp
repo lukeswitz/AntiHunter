@@ -10,7 +10,7 @@
 
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern TinyGPSPlus gps;
 extern float gpsLat, gpsLon;
@@ -235,7 +235,7 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
               });
 
     float gdop = calculateGDOP(sortedNodes);
-    if (gdop > 6.0) return false;
+    // if (gdop > 6.0) return false;
 
     float avgHDOP = getAverageHDOP(sortedNodes);
     if (avgHDOP > 15.0) return false;

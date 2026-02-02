@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <atomic>
 #include "drone_detector.h"
 #include "hardware.h"
 #include "network.h"
@@ -15,14 +16,14 @@ const uint32_t DRONE_STALE_TIME = 300000;
 std::map<String, DroneDetection> detectedDrones;
 std::set<String> transmittedDrones;
 std::vector<String> droneEventLog;
-volatile uint32_t droneDetectionCount = 0;
+std::atomic<uint32_t> droneDetectionCount(0);
 bool droneDetectionEnabled = false;
 QueueHandle_t droneQueue = nullptr;
 
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern void radioStartSTA();
 extern void radioStopSTA();
-extern volatile bool scanning; 
+extern std::atomic<bool> scanning; 
 
 static unsigned long lastDroneLog = 0;
 const unsigned long DRONE_LOG_INTERVAL = 1000;
@@ -514,8 +515,8 @@ void droneDetectorTask(void *pv)
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
-            Serial.printf("[DRONE] Detected:%u Unique:%u Frames:%u\n", 
-                         droneDetectionCount, (unsigned)detectedDrones.size(), localFramesSeen);
+            Serial.printf("[DRONE] Detected:%u Unique:%u Frames:%u\n",
+                         droneDetectionCount.load(), (unsigned)detectedDrones.size(), localFramesSeen);
             nextStatus += 5000;
         }
         
@@ -563,8 +564,11 @@ void droneDetectorTask(void *pv)
                 }
             }
         }
-        
-        Serial1.flush();
+
+        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            Serial1.flush();
+            xSemaphoreGive(serial1Mutex);
+        }
         delay(100);
         
         uint32_t totalDrones = detectedDrones.size();
@@ -594,7 +598,7 @@ void droneDetectorTask(void *pv)
     }
 
     Serial.printf("[DRONE] Complete: %u drones detected, %u unique\n",
-                  droneDetectionCount, (unsigned)detectedDrones.size());
+                  droneDetectionCount.load(), (unsigned)detectedDrones.size());
 
     vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;

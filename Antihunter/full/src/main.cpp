@@ -15,7 +15,7 @@
 Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = {1, 6, 11};
-volatile bool stopRequested = false;
+std::atomic<bool> stopRequested(false);
 
 unsigned long lastRTCUpdate = 0;
 
@@ -27,13 +27,15 @@ std::mutex antihunter::lastResultsMutex;
 
 void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
-  
+
   for (;;) {
-    while (Serial1.available()) {
-      uint32_t rxMicros = micros();
-      
-      char c = Serial1.read();
-      Serial.write(c);
+    if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+      while (Serial1.available()) {
+        uint32_t rxMicros = micros();
+
+        char c = Serial1.read();
+        xSemaphoreGive(serial1Mutex);
+        Serial.write(c);
       
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
@@ -61,8 +63,16 @@ void uartForwardTask(void *parameter) {
           meshBuffer = "";
         }
       }
+
+      if (serial1Mutex != nullptr) {
+        xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(10));
+      }
     }
-    delay(2);
+    if (serial1Mutex != nullptr) {
+      xSemaphoreGive(serial1Mutex);
+    }
+    }
+    vTaskDelay(pdMS_TO_TICKS(2));
   }
 }
 
