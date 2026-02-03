@@ -82,21 +82,8 @@ Note: The bill of materials antennas/MCUs will be close. It is tuned for the off
 **Experimental T114 Support:**
 > Small buffer and slow speed causes some latency. Using a Heltec v3 is recommended but not required.
 
-#### Optimal Node Placement for RF Triangulation (2.4 GHz)
-
-| Nodes | Geometry | Angular Sep | Urban Spacing | Rural Spacing | Coverage | GDOP | Notes |
-|-------|----------|-------------|---------------|---------------|----------|------|-------|
-| 3 | Equilateral Triangle | 120° | 25-35m | 50-70m | 800-1,200 m² | 4-6 | Minimum viable, mobile deployments |
-| 4 | Square | 90° | 30-40m | 60-85m | 1,200-2,000 m² | 3-5 | Small buildings, perimeters |
-| 5 | Regular Pentagon | 72° | 35-45m | 75-95m | 2,000-3,200 m² | 2-4 | Medium area coverage |
-| 6 | Regular Hexagon | 60° | 40-50m | 85-105m | 3,500-4,500 m² | 2-4 | Large perimeter, optimal standard |
-| 7 | Hexagon + Center | 60° perimeter | 45-55m | 95-115m | 5,000-6,500 m² | 1-3 | Dense/3D, one node at zenith |
-| 8+ | Octagon/Circle | 45° | 50-65m | 100-130m | 6,500-10,000 m² | 1-3 | Wide area, events |
-
-#### Range Reference (2.4 GHz)
-- **WiFi Urban**: 30-50m | **Rural**: 80-150m LoS
-- **BLE Urban**: 10-30m | **Rural**: 40-100m LoS
-- **Wall Attenuation**: -20 to -30 dB urban, -10 to -15 dB drywall
+#### Passive Detection Range (ESP32 + 5 dBi Antenna)
+- **Note**: Ranges assume passive scanning. Active transmission/bidirectional links achieve greater distances.
 
 #### RF Environment Calibration (5 dBi Antenna)
 
@@ -112,6 +99,13 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 > **Note**: Values calibrated for 5-8 dBi RX antenna gain. BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
 
+#### Distance Tuning (Target-Specific Adjustment)
+
+Fine-tune calculated distances for specific targets using multiplier values (0.1x - 5.0x):
+- **Values < 1.0**: Target appears closer (increase sensitivity) - e.g., 0.5x = 2x closer
+- **Values > 1.0**: Target appears farther (reduce false positives) - e.g., 2.0x = 2x farther
+- **Default**: 1.0x (no adjustment)
+- **Bounds**: WiFi max 50m, BLE max 30m (after multiplier applied)
 ---
 
 ## 3. Detection & Analysis Sniffers
@@ -524,7 +518,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART serial communi
 
 | Command | Parameters | Description | Example |
 |---------|------------|-------------|---------|
-| `TRIANGULATE_START` | `target:duration:rfEnv` | Triangulate target MAC or Identity (T-XXXX). Direct to node makes it initiator. rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2` |
+| `TRIANGULATE_START` | `target:duration[:rfEnv[:wifiPwr:blePwr]]` | Triangulate target MAC or Identity (T-XXXX). Direct to node makes it initiator. rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor (default), 3=IndoorDense, 4=Industrial. Optional wifiPwr/blePwr: distance multipliers 0.1-5.0 (default 1.0) | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.5:0.8` |
 | `TRIANGULATE_STOP` | None | Stop triangulation | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | Request triangulation results from initiator | `@AH01 TRIANGULATE_RESULTS` |
 
@@ -643,7 +637,7 @@ NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
 ### Triangulation
 | Endpoint | Method | Parameters | Description |
 |----------|--------|------------|-------------|
-| `/triangulate/start` | POST | `mac`, `duration`, `rfEnv` | Start triangulation for target MAC (≥20 secs). `rfEnv`: 0=OpenSky, 1=Suburban, 2=Indoor (default), 3=IndoorDense, 4=Industrial |
+| `/triangulate/start` | POST | `mac`, `duration`, `rfEnv`, `wifiPwr` (optional), `blePwr` (optional) | Start triangulation for target MAC (≥20 secs). `rfEnv`: 0=OpenSky, 1=Suburban, 2=Indoor (default), 3=IndoorDense, 4=Industrial. `wifiPwr`/`blePwr`: distance multipliers 0.1-5.0 (default 1.0) |
 | `/triangulate/stop` | POST | - | Stop triangulation |
 | `/triangulate/status` | GET | - | Get triangulation status (JSON) |
 | `/triangulate/results` | GET | - | Get triangulation results |
