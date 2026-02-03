@@ -8,6 +8,7 @@
 #include <algorithm>
 #include "randomization.h"
 #include <string>
+#include <atomic>
 #include <mutex>
 #include "scanner.h"
 #include "hardware.h"
@@ -30,7 +31,6 @@ void radioStopSTA();
 void radioStartBLE();
 void radioStopBLE();
 
-// Scanner state variables
 extern Preferences prefs;
 static std::vector<Target> targets;
 QueueHandle_t macQueue = nullptr;
@@ -45,6 +45,11 @@ bool lastScanForever = false;
 static std::map<String, String> apCache;
 static std::map<String, String> bleDeviceCache;
 
+static portMUX_TYPE rfConfigMux = portMUX_INITIALIZER_UNLOCKED;
+
+const size_t MAX_AP_CACHE = 200;
+const size_t MAX_BLE_CACHE = 200;
+
 // BLE 
 NimBLEScan *pBLEScan;
 static void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
@@ -54,10 +59,10 @@ uint32_t WIFI_SCAN_INTERVAL = 4000;
 uint32_t BLE_SCAN_INTERVAL = 2000;
 
 // Scanner status variables
-volatile bool scanning = false;
-volatile int totalHits = 0;
-volatile uint32_t framesSeen = 0;
-volatile uint32_t bleFramesSeen = 0;
+std::atomic<bool> scanning(false);
+std::atomic<int> totalHits(0);
+std::atomic<uint32_t> framesSeen(0);
+std::atomic<uint32_t> bleFramesSeen(0);
 
 std::map<String, DeviceHistory> deviceHistory;
 uint32_t deviceAbsenceThreshold = 120000;
@@ -234,8 +239,8 @@ void loadRFConfigFromPrefs() {
 
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
-volatile uint32_t deauthCount = 0;
-volatile uint32_t disassocCount = 0;
+std::atomic<uint32_t> deauthCount(0);
+std::atomic<uint32_t> disassocCount(0);
 bool deauthDetectionEnabled = false;
 QueueHandle_t deauthQueue = nullptr;
 
@@ -251,7 +256,7 @@ static const uint32_t TRI_SEND_INTERVAL = 2000;
 
 // External declarations
 extern Preferences prefs;
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t blueTeamTaskHandle;
@@ -462,7 +467,7 @@ String getDeauthReasonText(uint16_t reasonCode) {
 
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
-    if (!ppkt || ppkt->rx_ctrl.sig_len < 26) return;
+    if (!ppkt || ppkt->rx_ctrl.sig_len < 28) return;
     
     const uint8_t *payload = ppkt->payload;
     
@@ -481,10 +486,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     memcpy(hit.destMac, payload + 4, 6);
     memcpy(hit.srcMac, payload + 10, 6);
     memcpy(hit.bssid, payload + 16, 6);
-
-    hit.reasonCode = (ppkt->rx_ctrl.sig_len >= 26)
-                     ? (payload[24] | (payload[25] << 8))
-                     : 0;
+    hit.reasonCode = (payload[24] | (payload[25] << 8));
 
     hit.rssi = ppkt->rx_ctrl.rssi;
     hit.channel = ppkt->rx_ctrl.channel;
@@ -712,7 +714,9 @@ void snifferScanTask(void *pv)
 
                     if (apCache.find(bssid) == apCache.end())
                     {
-                        apCache[bssid] = ssid;
+                        if (apCache.size() < MAX_AP_CACHE) {
+                            apCache[bssid] = ssid;
+                        }
                         uniqueMacs.insert(bssid);
 
                         Hit h;
@@ -736,7 +740,10 @@ void snifferScanTask(void *pv)
 
                         if (gpsValid)
                         {
-                            logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                                logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                                xSemaphoreGive(gpsMutex);
+                            }
                         }
 
                         Serial.println("[SNIFFER] " + logEntry);
@@ -764,7 +771,7 @@ void snifferScanTask(void *pv)
 
             if (bleScan)
             {
-                NimBLEScanResults scanResults = bleScan->getResults(2000, false);
+                NimBLEScanResults scanResults = bleScan->getResults(500, false);
                 if (stopRequested) break;
 
                 for (int i = 0; i < scanResults.getCount(); i++)
@@ -792,8 +799,10 @@ void snifferScanTask(void *pv)
                         }
                         if (cleanName.length() == 0)
                             cleanName = "Unknown";
-                        
-                        bleDeviceCache[macStr] = cleanName;
+
+                        if (bleDeviceCache.size() < MAX_BLE_CACHE) {
+                            bleDeviceCache[macStr] = cleanName;
+                        }
                         uniqueMacs.insert(macStr);
                         
                         uint8_t mac[6];
@@ -815,7 +824,10 @@ void snifferScanTask(void *pv)
 
                             if (gpsValid)
                             {
-                                logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                                    logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                                    xSemaphoreGive(gpsMutex);
+                                }
                             }
 
                             Serial.println("[SNIFFER] " + logEntry);
@@ -962,7 +974,7 @@ void snifferScanTask(void *pv)
         }
 
         Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
-                      apCache.size(), bleDeviceCache.size(), uniqueMacs.size(), totalHits);
+                      apCache.size(), bleDeviceCache.size(), uniqueMacs.size(), totalHits.load());
 
         vTaskDelay(pdMS_TO_TICKS(200));
     }
@@ -1065,8 +1077,10 @@ void snifferScanTask(void *pv)
             }
         }
 
-        // Ensure all data is transmitted before continuing
-        Serial1.flush();
+        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            Serial1.flush();
+            xSemaphoreGive(serial1Mutex);
+        }
         delay(100);
 
         uint32_t finalTransmitted = transmittedDevices.size();
@@ -1302,9 +1316,15 @@ void blueTeamTask(void *pv) {
     if (deauthQueue) {
         vQueueDelete(deauthQueue);
     }
-    
+
     deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
-    
+    if (!deauthQueue) {
+        Serial.println("[BLUE] FATAL: Queue creation failed");
+        scanning = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
     std::set<String> transmittedAttacks;
     
     {
@@ -1354,7 +1374,10 @@ void blueTeamTask(void *pv) {
             if (meshEnabled && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String meshAlert = getNodeId() + ": ATTACK: " + alert;
                 if (gpsValid) {
-                    meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                    if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                        meshAlert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                        xSemaphoreGive(gpsMutex);
+                    }
                 }
                 if (sendToSerial1(meshAlert, false)) {
                     transmittedAttacks.insert(attackKey);
@@ -1391,13 +1414,13 @@ void blueTeamTask(void *pv) {
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
-            Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n", 
-                         deauthCount, disassocCount, (unsigned)deauthLog.size());
+            Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n",
+                         deauthCount.load(), disassocCount.load(), (unsigned)deauthLog.size());
             nextStatus += 5000;
         }
-        
+
         if ((int32_t)(millis() - lastResultsUpdate) >= 0) {
-            std::string results = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
+            std::string results = buildDeauthResults(forever, duration, deauthCount.load(), disassocCount.load(), deauthLog);
             
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -1448,7 +1471,7 @@ void blueTeamTask(void *pv) {
 
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
+        antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount.load(), disassocCount.load(), deauthLog);
     }
 
     if (meshEnabled && !stopRequested) {
@@ -1474,10 +1497,13 @@ void blueTeamTask(void *pv) {
                 }
             }
         }
-        
-        Serial1.flush();
+
+        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            Serial1.flush();
+            xSemaphoreGive(serial1Mutex);
+        }
         delay(100);
-        
+
         uint32_t totalAttacks = deauthLog.size();
         uint32_t finalTransmitted = transmittedAttacks.size();
         uint32_t finalRemaining = totalAttacks - finalTransmitted;
@@ -1532,10 +1558,15 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length) {
 static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
-    
+
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
-    if (!triangulationActive && ppkt->rx_ctrl.rssi < rfConfig.globalRssiThreshold) {
+    int8_t rssiThreshold;
+    portENTER_CRITICAL_ISR(&rfConfigMux);
+    rssiThreshold = rfConfig.globalRssiThreshold;
+    portEXIT_CRITICAL_ISR(&rfConfigMux);
+
+    if (!triangulationActive && ppkt->rx_ctrl.rssi < rssiThreshold) {
         return;
     }
 
@@ -2047,13 +2078,11 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.wifiMaxRssi = -128;
     triAccum.wifiMinRssi = 0;
     triAccum.wifiRssiSum = 0.0f;
-    triAccum.wifiFirstDetectionTimestamp = 0;
 
     triAccum.bleHitCount = 0;
     triAccum.bleMaxRssi = -128;
     triAccum.bleMinRssi = 0;
     triAccum.bleRssiSum = 0.0f;
-    triAccum.bleFirstDetectionTimestamp = 0;
 
     triAccum.lat = 0.0f;
     triAccum.lon = 0.0f;
@@ -2094,14 +2123,12 @@ static void sendTriAccumulatedData(const String& nodeId) {
             triAccum.bleRssiSum = 0.0f;
             triAccum.bleMaxRssi = -128;
             triAccum.bleMinRssi = 0;
-            triAccum.bleFirstDetectionTimestamp = 0;
         } else {
             Serial.printf("[TRI-MIXED] Keeping BLE, clearing WiFi hits\n");
             triAccum.wifiHitCount = 0;
             triAccum.wifiRssiSum = 0.0f;
             triAccum.wifiMaxRssi = -128;
             triAccum.wifiMinRssi = 0;
-            triAccum.wifiFirstDetectionTimestamp = 0;
         }
     }
 
@@ -2243,8 +2270,14 @@ void listScanTask(void *pv) {
             if (!selfNodeExists) {
                 TriangulationNode selfNode;
                 selfNode.nodeId = myNodeId;
-                selfNode.lat = gpsValid ? gpsLat : 0.0;
-                selfNode.lon = gpsValid ? gpsLon : 0.0;
+                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    selfNode.lat = gpsValid ? gpsLat : 0.0;
+                    selfNode.lon = gpsValid ? gpsLon : 0.0;
+                    xSemaphoreGive(gpsMutex);
+                } else {
+                    selfNode.lat = 0.0;
+                    selfNode.lon = 0.0;
+                }
                 selfNode.hdop = gpsValid && gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
                 selfNode.rssi = -128;
                 selfNode.hitCount = 0;
@@ -2287,11 +2320,12 @@ void listScanTask(void *pv) {
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
 
-        // if ((int32_t)(millis() - nextStatus) >= 0) {
-        //     Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
-        //                  (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
-        //     nextStatus += 1000;
-        // }
+        static uint32_t lastTimeSyncBroadcast = 0;
+        if (triangulationActive && triangulationInitiator &&
+            (millis() - lastTimeSyncBroadcast) > 30000) {
+            broadcastTimeSyncRequest();
+            lastTimeSyncBroadcast = millis();
+        }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
@@ -2366,7 +2400,7 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan &&
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
             lastBLEScan = millis();
-            NimBLEScanResults scanResults = pBLEScan->getResults(2000, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(500, false);
             if (stopRequested) break;
             for (int i = 0; i < scanResults.getCount(); i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
@@ -2466,7 +2500,10 @@ void listScanTask(void *pv) {
                 logEntry += " Name=" + String(h.name);
             }
             if (gpsValid) {
-                logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    logEntry += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                    xSemaphoreGive(gpsMutex);
+                }
             }
 
             Serial.printf("[HIT] %s\n", logEntry.c_str());
@@ -2512,17 +2549,11 @@ void listScanTask(void *pv) {
                         }
 
                         if (h.isBLE) {
-                            if (triAccum.bleHitCount == 0) {
-                                triAccum.bleFirstDetectionTimestamp = getCorrectedMicroseconds();
-                            }
                             triAccum.bleHitCount++;
                             triAccum.bleRssiSum += (float)h.rssi;
                             if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
                             if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
                         } else {
-                            if (triAccum.wifiHitCount == 0) {
-                                triAccum.wifiFirstDetectionTimestamp = getCorrectedMicroseconds();
-                            }
                             triAccum.wifiHitCount++;
                             triAccum.wifiRssiSum += (float)h.rssi;
                             if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;
@@ -2530,8 +2561,14 @@ void listScanTask(void *pv) {
                         }
 
                         if (gpsValid) {
-                            triAccum.lat = gpsLat;
-                            triAccum.lon = gpsLon;
+                            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                                triAccum.lat = gpsLat;
+                                triAccum.lon = gpsLon;
+                                xSemaphoreGive(gpsMutex);
+                            } else {
+                                triAccum.lat = 0.0;
+                                triAccum.lon = 0.0;
+                            }
                             triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
                             triAccum.hasGPS = true;
                         }

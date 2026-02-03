@@ -80,6 +80,7 @@ bool setRTCTimeFromEpoch(time_t epoch);
 extern bool sdAvailable;
 extern bool gpsValid;
 extern float gpsLat, gpsLon;
+extern SemaphoreHandle_t gpsMutex;
 extern String lastGPSData;
 extern HardwareSerial GPS;
 extern TinyGPSPlus gps;

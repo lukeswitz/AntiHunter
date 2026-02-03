@@ -16,11 +16,11 @@
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern Preferences prefs;
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
-extern volatile bool scanning;
-extern volatile uint32_t framesSeen;
-extern volatile uint32_t bleFramesSeen;
+extern std::atomic<bool> scanning;
+extern std::atomic<uint32_t> framesSeen;
+extern std::atomic<uint32_t> bleFramesSeen;
 extern QueueHandle_t macQueue;
 extern TaskHandle_t workerTaskHandle;
 extern bool sdAvailable;
@@ -52,6 +52,14 @@ bool baselineEstablished = false;
 uint32_t baselineStartTime = 0;
 uint32_t baselineDuration = 300000;
 std::map<String, BaselineDevice> baselineCache;
+
+struct LRUNode {
+    String key;
+    uint32_t lastSeen;
+};
+std::list<LRUNode> lruList;
+std::map<String, std::list<LRUNode>::iterator> lruMap;
+
 uint32_t totalDevicesOnSD = 0;
 uint32_t lastSDFlush = 0;
 bool sdBaselineInitialized = false;
@@ -64,6 +72,8 @@ uint32_t baselineRamCacheSize = 400;
 uint32_t baselineSdMaxDevices = 50000;
 static unsigned long lastBaselineAnomalyMeshSend = 0;
 const unsigned long BASELINE_ANOMALY_MESH_INTERVAL = 5000;
+const uint32_t MIN_FLUSH_INTERVAL = 60000;
+const uint32_t MIN_DIRTY_COUNT = 50;
 
 const uint32_t MESH_SLOT_CYCLE_MS = 15000;
 const uint32_t MESH_NUM_SLOTS = 5;
@@ -147,22 +157,18 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         
         if (baselineCache.size() >= effectiveLimit) {
             if (sdAvailable && sdBaselineInitialized) {
-                String oldestKey;
-                uint32_t oldestTime = UINT32_MAX;
-                
-                for (const auto& entry : baselineCache) {
-                    if (entry.second.lastSeen < oldestTime) {
-                        oldestTime = entry.second.lastSeen;
-                        oldestKey = entry.first;
-                    }
-                }
-                
-                if (oldestKey.length() > 0) {
+                if (!lruList.empty()) {
+                    auto& oldest = lruList.front();
+                    String oldestKey = oldest.key;
+
                     auto& oldestDevice = baselineCache[oldestKey];
                     if (oldestDevice.dirtyFlag) {
                         writeBaselineDeviceToSD(oldestDevice);
                     }
+
                     baselineCache.erase(oldestKey);
+                    lruMap.erase(oldestKey);
+                    lruList.pop_front();
                 }
             } else {
                 if (baselineCache.size() % 100 == 0) {
@@ -187,8 +193,15 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         dev.hitCount = 1;
         dev.checksum = 0;
         dev.dirtyFlag = true;
-        
+
         baselineCache[macStr] = dev;
+
+        LRUNode node;
+        node.key = macStr;
+        node.lastSeen = now;
+        lruList.push_back(node);
+        lruMap[macStr] = --lruList.end();
+
         baselineDeviceCount++;
     } else {
         BaselineDevice &dev = baselineCache[macStr];
@@ -198,6 +211,16 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         dev.lastSeen = now;
         dev.hitCount++;
         dev.dirtyFlag = true;
+
+        auto lruIt = lruMap.find(macStr);
+        if (lruIt != lruMap.end()) {
+            lruList.erase(lruIt->second);
+            LRUNode node;
+            node.key = macStr;
+            node.lastSeen = now;
+            lruList.push_back(node);
+            lruMap[macStr] = --lruList.end();
+        }
         
         if (strlen(name) > 0 && strcmp(name, "Unknown") != 0 && strcmp(name, "WiFi") != 0) {
             strncpy(dev.name, name, sizeof(dev.name) - 1);
@@ -278,6 +301,13 @@ void updateBaselineStats() {
     baselineStats.bleHits = bleFramesSeen;
 }
 
+uint32_t calculateOptimalCacheSize() {
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < 30000) return 100;
+    if (freeHeap < 50000) return 200;
+    if (freeHeap < 100000) return 300;
+    return 400;
+}
 
 void baselineDetectionTask(void *pv) {
     int duration = (int)(intptr_t)pv;
@@ -305,10 +335,24 @@ void baselineDetectionTask(void *pv) {
 
     if (anomalyQueue) vQueueDelete(anomalyQueue);
     anomalyQueue = xQueueCreate(256, sizeof(AnomalyHit));
-    
+    if (!anomalyQueue) {
+        Serial.println("[BASELINE] FATAL: anomalyQueue creation failed");
+        scanning = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
     if (macQueue) vQueueDelete(macQueue);
     macQueue = xQueueCreate(512, sizeof(Hit));
-    
+    if (!macQueue) {
+        Serial.println("[BASELINE] FATAL: macQueue creation failed");
+        vQueueDelete(anomalyQueue);
+        anomalyQueue = nullptr;
+        scanning = false;
+        vTaskDelete(NULL);
+        return;
+    }
+
     std::set<String> transmittedDevices;
     std::set<String> transmittedAnomalies;
     
@@ -340,6 +384,7 @@ void baselineDetectionTask(void *pv) {
     uint32_t phaseStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t nextStatsUpdate = millis() + 1000;
+    uint32_t nextCacheSizeCheck = millis() + 30000;
     uint32_t lastCleanup = millis();
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
@@ -361,8 +406,27 @@ void baselineDetectionTask(void *pv) {
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Establishing... Devices:%d WiFi:%u BLE:%u Heap:%u\n",
-                        baselineDeviceCount, framesSeen, bleFramesSeen, ESP.getFreeHeap());
+                        baselineDeviceCount, framesSeen.load(), bleFramesSeen.load(), ESP.getFreeHeap());
             nextStatus += 5000;
+        }
+
+        if ((int32_t)(millis() - nextCacheSizeCheck) >= 0) {
+            uint32_t newLimit = calculateOptimalCacheSize();
+            if (newLimit < baselineRamCacheSize && baselineCache.size() > newLimit) {
+                while (baselineCache.size() > newLimit && !lruList.empty()) {
+                    auto& oldest = lruList.front();
+                    String oldestKey = oldest.key;
+                    auto& oldestDevice = baselineCache[oldestKey];
+                    if (oldestDevice.dirtyFlag) {
+                        writeBaselineDeviceToSD(oldestDevice);
+                    }
+                    baselineCache.erase(oldestKey);
+                    lruMap.erase(oldestKey);
+                    lruList.pop_front();
+                }
+            }
+            baselineRamCacheSize = newLimit;
+            nextCacheSizeCheck += 30000;
         }
 
         if (stopRequested) {
@@ -497,6 +561,21 @@ void baselineDetectionTask(void *pv) {
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
             lastCleanup = millis();
+
+            uint32_t dirtyCount = 0;
+            for (const auto& entry : baselineCache) {
+                if (entry.second.dirtyFlag) dirtyCount++;
+            }
+
+            if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
+                for (auto& entry : baselineCache) {
+                    if (entry.second.dirtyFlag) {
+                        writeBaselineDeviceToSD(entry.second);
+                        entry.second.dirtyFlag = false;
+                    }
+                }
+                lastSDFlush = millis();
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -1283,7 +1362,10 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             alert += " Name:" + String(name);
         }
         if (gpsValid) {
-            alert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                alert += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                xSemaphoreGive(gpsMutex);
+            }
         }
         
         Serial.println(alert);

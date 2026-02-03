@@ -44,13 +44,13 @@ const float GPS_CHANGE_THRESHOLD = 0.0001;  // ~10 meters
 const unsigned long PER_TARGET_MIN_INTERVAL = 30000;  // 30 seconds per target
 
 // Scanner vars
-extern volatile bool scanning;
-extern volatile int totalHits;
+extern std::atomic<bool> scanning;
+extern std::atomic<int> totalHits;
 extern std::set<String> uniqueMacs;
 
 // Module refs
 extern Preferences prefs;
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
@@ -68,6 +68,7 @@ static bool terminalClientsConnected = false;
 
 // T114 handling
 SerialRateLimiter rateLimiter;
+SemaphoreHandle_t serial1Mutex = nullptr;
 SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
 
 bool SerialRateLimiter::canSend(size_t messageLength) {
@@ -134,7 +135,10 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 }
 
 bool sendToSerial1(const String &message, bool canDelay) {
-    // Define triangulation-critical messages
+    if (serial1Mutex == nullptr) {
+        return false;
+    }
+
     bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
                                   message.indexOf("TRI_START_ACK") >= 0 ||
                                   message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
@@ -154,44 +158,52 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
-    // Priority messages bypass rate limiting
-    // T_D is critical during triangulation - must not be dropped
     bool isPriority = isTriangulationMessage;
-    
     size_t msgLen = message.length() + 2;
-    
+
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         if (canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
-            if (wait > 0 && wait < meshSendInterval) { 
+            if (wait > 0 && wait < meshSendInterval) {
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
                 broadcastToTerminal("[MESH] Rate limit: waiting..");
                 delay(wait);
                 rateLimiter.refillTokens();
             } else {
                 Serial.printf("[MESH] Rate limit: dropping message (wait=%ums too long)\n", wait);
-                return false; 
+                return false;
             }
         } else {
             Serial.printf("[MESH] Rate limit: cannot send without delay\n");
             return false;
         }
     }
-    
-    // For priority messages, wait for buffer space
+
+    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(100);
+    if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
+        Serial.printf("[MESH] Mutex timeout\n");
+        return false;
+    }
+
     if (isPriority) {
         uint32_t waitStart = millis();
         while (Serial1.availableForWrite() < msgLen) {
             if (millis() - waitStart > 5000) {
                 Serial.printf("[MESH] Priority message timeout waiting for buffer space\n");
+                xSemaphoreGive(serial1Mutex);
                 return false;
             }
+            xSemaphoreGive(serial1Mutex);
             delay(10);
+            if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
+                Serial.printf("[MESH] Mutex timeout on retry\n");
+                return false;
+            }
         }
     } else {
-        // Non-priority messages fail immediately if buffer full
         if (Serial1.availableForWrite() < msgLen) {
             Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
+            xSemaphoreGive(serial1Mutex);
             return false;
         }
     }
@@ -202,6 +214,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     Serial1.flush();
     delay(50);
+
+    xSemaphoreGive(serial1Mutex);
 
     if (!isPriority) {
         rateLimiter.consume(msgLen);
@@ -483,6 +497,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="3">Indoor Dense</option>
                   <option value="4">Industrial</option>
                 </select>
+
+                <label style="font-size:11px;margin-top:12px;display:block;">Distance Tuning</label>
+                <div style="margin-bottom:6px;">
+                  <label style="font-size:10px;color:var(--muted);">WiFi: <span id="wifiPwrDisplay">1.0x</span></label>
+                  <input type="range" name="wifiPwr" id="wifiPwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                        oninput="document.getElementById('wifiPwrDisplay').innerText = this.value + 'x'"
+                        style="width:100%;">
+                </div>
+                <div style="margin-bottom:4px;">
+                  <label style="font-size:10px;color:var(--muted);">BLE: <span id="blePwrDisplay">1.0x</span></label>
+                  <input type="range" name="blePwr" id="blePwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                        oninput="document.getElementById('blePwrDisplay').innerText = this.value + 'x'"
+                        style="width:100%;">
+                </div>
+                <p style="font-size:9px;color:var(--muted);margin:4px 0 0 0;"><1.0 closer | >1.0 farther</p>
               </div>
               
               <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
@@ -619,9 +648,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
           </div>
           <p style="font-size:10px;color:var(--muted);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
-          
+
           <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
-          
+
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy)</option>
             <option value="1">Balanced (Default)</option>
@@ -3641,9 +3670,35 @@ void startWebServer()
               if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
           }
           setRFEnvironment((RFEnvironment)rfEnv);
+
+          distanceTuning.wifi_multiplier = 1.0f;
+          distanceTuning.ble_multiplier = 1.0f;
+          distanceTuning.enabled = false;
+
+          if (req->hasParam("wifiPwr", true)) {
+              float wifiPwr = req->getParam("wifiPwr", true)->value().toFloat();
+              if (wifiPwr >= 0.1f && wifiPwr <= 5.0f) {
+                  distanceTuning.wifi_multiplier = wifiPwr;
+                  distanceTuning.enabled = true;
+              }
+          }
+
+          if (req->hasParam("blePwr", true)) {
+              float blePwr = req->getParam("blePwr", true)->value().toFloat();
+              if (blePwr >= 0.1f && blePwr <= 5.0f) {
+                  distanceTuning.ble_multiplier = blePwr;
+                  distanceTuning.enabled = true;
+              }
+          }
+
           startTriangulation(targetMac, secs);
           String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-          req->send(200, "text/plain", "Triangulation starting for " + String(secs) + "s - " + modeStr + " (env=" + String(rfEnv) + ")");
+          String response = "Triangulation starting for " + String(secs) + "s - " + modeStr + " (env=" + String(rfEnv);
+          if (distanceTuning.enabled) {
+              response += ", WiFi=" + String(distanceTuning.wifi_multiplier, 1) + "x, BLE=" + String(distanceTuning.ble_multiplier, 1) + "x";
+          }
+          response += ")";
+          req->send(200, "text/plain", response);
           return;
       }
       
@@ -4443,8 +4498,34 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       }
       setRFEnvironment((RFEnvironment)rfEnv);
 
+      distanceTuning.wifi_multiplier = 1.0f;
+      distanceTuning.ble_multiplier = 1.0f;
+      distanceTuning.enabled = false;
+
+      if (req->hasParam("wifiPwr", true)) {
+          float wifiPwr = req->getParam("wifiPwr", true)->value().toFloat();
+          if (wifiPwr >= 0.1f && wifiPwr <= 5.0f) {
+              distanceTuning.wifi_multiplier = wifiPwr;
+              distanceTuning.enabled = true;
+          }
+      }
+
+      if (req->hasParam("blePwr", true)) {
+          float blePwr = req->getParam("blePwr", true)->value().toFloat();
+          if (blePwr >= 0.1f && blePwr <= 5.0f) {
+              distanceTuning.ble_multiplier = blePwr;
+              distanceTuning.enabled = true;
+          }
+      }
+
       startTriangulation(targetMac, duration);
-      req->send(200, "text/plain", "Triangulation started for " + targetMac + " (" + String(duration) + "s, env=" + String(rfEnv) + ")");
+
+      String response = "Triangulation started for " + targetMac + " (" + String(duration) + "s, env=" + String(rfEnv);
+      if (distanceTuning.enabled) {
+          response += ", WiFi=" + String(distanceTuning.wifi_multiplier, 2) + "x, BLE=" + String(distanceTuning.ble_multiplier, 2) + "x";
+      }
+      response += ")";
+      req->send(200, "text/plain", response);
   });
 
   server->on("/triangulate/stop", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -4780,19 +4861,20 @@ void sendMeshNotification(const Hit &hit) {
 void initializeMesh() {
     Serial1.end();
     delay(100);
-  
+
     Serial1.setRxBufferSize(2048);
-    Serial1.setTxBufferSize(4096);  // Increased from 1024 to prevent truncation
+    Serial1.setTxBufferSize(4096);
     Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
     Serial1.setTimeout(100);
-    
-    // Clear any garbage data
+
     delay(100);
     while (Serial1.available()) {
         Serial1.read();
     }
-    
+
     delay(500);
+
+    serial1Mutex = xSemaphoreCreateMutex();
 
     Serial.println("[MESH] UART initialized");
     Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
@@ -5087,8 +5169,8 @@ void processCommand(const String &command, const String &targetId = "")
                             "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
                             nodeId.c_str(),
                             modeStr.c_str(),
-                            scanning ? "ACTIVE" : "IDLE",
-                            totalHits,
+                            scanning.load() ? "ACTIVE" : "IDLE",
+                            totalHits.load(),
                             esp_temp,
                             (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
       if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)
@@ -5140,12 +5222,33 @@ void processCommand(const String &command, const String &targetId = "")
         target = params.substring(0, targetEnd);
         String remainder = params.substring(targetEnd + 1);  // After target:
 
-        // Parse duration and optional rfEnv from remainder
+        float wifiPwr = 1.0f;
+        float blePwr = 1.0f;
+
         int envDelim = remainder.indexOf(':');
         if (envDelim > 0) {
             duration = remainder.substring(0, envDelim).toInt();
-            rfEnv = remainder.substring(envDelim + 1).toInt();
+            String afterDuration = remainder.substring(envDelim + 1);
+
+            int pwrDelim = afterDuration.indexOf(':');
+            if (pwrDelim > 0) {
+                rfEnv = afterDuration.substring(0, pwrDelim).toInt();
+                String afterRfEnv = afterDuration.substring(pwrDelim + 1);
+
+                int blePwrDelim = afterRfEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterRfEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterRfEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterRfEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterDuration.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             duration = remainder.toInt();
         }
@@ -5157,6 +5260,10 @@ void processCommand(const String &command, const String &targetId = "")
         }
 
         setRFEnvironment((RFEnvironment)rfEnv);
+
+        distanceTuning.wifi_multiplier = wifiPwr;
+        distanceTuning.ble_multiplier = blePwr;
+        distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
         Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds, rfEnv=%d)\n",
                      target.c_str(), duration, rfEnv);
@@ -5204,21 +5311,49 @@ void processCommand(const String &command, const String &targetId = "")
 
     int durationDelim = remainder.indexOf(':');
     uint8_t rfEnv = RF_ENV_INDOOR;
+    float wifiPwr = 1.0f;
+    float blePwr = 1.0f;
+
     if (durationDelim > 0) {
         duration = remainder.substring(0, durationDelim).toInt();
         String afterDuration = remainder.substring(durationDelim + 1);
-        int envDelim = afterDuration.lastIndexOf(':');
-        if (envDelim > 0) {
-            initiatorNodeId = afterDuration.substring(0, envDelim);
-            rfEnv = afterDuration.substring(envDelim + 1).toInt();
+
+        int initiatorDelim = afterDuration.indexOf(':');
+        if (initiatorDelim > 0) {
+            initiatorNodeId = afterDuration.substring(0, initiatorDelim);
+            String afterInitiator = afterDuration.substring(initiatorDelim + 1);
+
+            int envDelim = afterInitiator.indexOf(':');
+            if (envDelim > 0) {
+                rfEnv = afterInitiator.substring(0, envDelim).toInt();
+                String afterEnv = afterInitiator.substring(envDelim + 1);
+
+                int blePwrDelim = afterEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterInitiator.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             initiatorNodeId = afterDuration;
         }
     } else {
         duration = remainder.toInt();
     }
+
     setRFEnvironment((RFEnvironment)rfEnv);
+
+    distanceTuning.wifi_multiplier = wifiPwr;
+    distanceTuning.ble_multiplier = blePwr;
+    distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
     bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];
@@ -5312,7 +5447,6 @@ void processCommand(const String &command, const String &targetId = "")
         int8_t wifiAvgRssi = -128, bleAvgRssi = -128;
         float lat, lon, hdop;
         bool hasGPS;
-        int64_t wifiFirstDetectionTimestamp, bleFirstDetectionTimestamp;
 
         {
             extern std::mutex triAccumMutex;
@@ -5346,8 +5480,6 @@ void processCommand(const String &command, const String &targetId = "")
             lon = triAccum.lon;
             hdop = triAccum.hdop;
             hasGPS = triAccum.hasGPS;
-            wifiFirstDetectionTimestamp = triAccum.wifiFirstDetectionTimestamp;
-            bleFirstDetectionTimestamp = triAccum.bleFirstDetectionTimestamp;
         }
 
         if (wifiHitCount > 0) {
@@ -5358,11 +5490,6 @@ void processCommand(const String &command, const String &targetId = "")
             if (hasGPS) {
                 wifiMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
                         " HDOP=" + String(hdop, 1);
-            }
-            if (wifiFirstDetectionTimestamp > 0) {
-                double timestampSec = wifiFirstDetectionTimestamp / 1000000.0;
-                char tsStr[32];
-                snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
             }
             sendToSerial1(wifiMsg, true);
             Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",

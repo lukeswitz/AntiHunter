@@ -4,6 +4,7 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <atomic>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "randomization.h"
@@ -43,13 +44,11 @@ struct TriangulationAccumulator {
     int8_t wifiMaxRssi;
     int8_t wifiMinRssi;
     float wifiRssiSum;
-    int64_t wifiFirstDetectionTimestamp;
 
     int bleHitCount;
     int8_t bleMaxRssi;
     int8_t bleMinRssi;
     float bleRssiSum;
-    int64_t bleFirstDetectionTimestamp;
 
     float lat;
     float lon;
@@ -115,8 +114,8 @@ extern std::map<String, uint32_t> deauthSourceCounts;
 extern std::map<String, uint32_t> deauthTargetCounts;
 extern std::map<String, std::vector<uint32_t>> deauthTimings;
 extern std::vector<DeauthHit> deauthLog;
-extern volatile uint32_t deauthCount;
-extern volatile uint32_t disassocCount;
+extern std::atomic<uint32_t> deauthCount;
+extern std::atomic<uint32_t> disassocCount;
 extern bool deauthDetectionEnabled;
 extern QueueHandle_t deauthQueue;
 
@@ -125,7 +124,7 @@ extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
-extern bool triangulationActive;
+extern std::atomic<bool> triangulationActive;
 
 // Triangulation
 extern TriangulationAccumulator triAccum;

@@ -26,14 +26,14 @@ std::map<String, DeviceIdentity> deviceIdentities;
 uint32_t identityIdCounter = 0;
 QueueHandle_t probeRequestQueue = nullptr;
 
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern TaskHandle_t workerTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void radioStartSTA();
 extern void radioStopSTA();
-extern volatile bool scanning;
+extern std::atomic<bool> scanning;
 extern void radioStartBLE();
 extern void radioStopBLE();
 
@@ -1553,8 +1553,11 @@ void randomizationDetectionTask(void *pv) {
                 }
             }
         }
-        
-        Serial1.flush();
+
+        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            Serial1.flush();
+            xSemaphoreGive(serial1Mutex);
+        }
         delay(100);
         
         uint32_t totalIdentities = deviceIdentities.size();
