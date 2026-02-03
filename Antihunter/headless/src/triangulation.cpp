@@ -2,6 +2,7 @@
 #include "scanner.h"
 #include "hardware.h"
 #include <math.h>
+#include <atomic>
 #include <NimBLEDevice.h>
 #include <NimBLEScan.h>
 #include <NimBLEAdvertisedDevice.h>
@@ -9,7 +10,7 @@
 
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern TinyGPSPlus gps;
 extern float gpsLat, gpsLon;
@@ -21,16 +22,20 @@ extern bool triangulationOrchestratorAssigned;
 static TaskHandle_t calibrationTaskHandle = nullptr;
 static TaskHandle_t coordinatorSetupTaskHandle = nullptr;
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
+const size_t MAX_TRIANGULATION_NODES = 15;
+const size_t MAX_SYNC_STATUS = 15;
+const size_t MAX_ACK_INFO = 20;
+
 std::map<String, uint32_t> nodePropagationDelays;
 std::vector<NodeSyncStatus> nodeSyncStatus;
 std::vector<TriangulationNode> triangulationNodes;
-std::mutex triangulationMutex;  // Protects triangulationNodes and triangulateAcks
+std::mutex triangulationMutex;
 APFinalResult apFinalResult = {false, 0.0, 0.0, 0.0, 0.0, 0, ""};
 String calculateTriangulation();
 uint8_t triangulationTarget[6];
 uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
-bool triangulationActive = false;
+std::atomic<bool> triangulationActive(false);
 bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
 DynamicReportingSchedule reportingSchedule;
@@ -56,6 +61,11 @@ PathLossCalibration pathLoss = {
     false    // calibrated flag
 };
 
+DistanceTuning distanceTuning = {
+    1.0f,
+    1.0f,
+    false
+};
 
 void setRFEnvironment(RFEnvironment env) {
     if (env > RF_ENV_INDUSTRIAL) env = RF_ENV_INDOOR;
@@ -89,11 +99,19 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     // Apply signal quality degradation
     float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
     distance *= qualityFactor;
-    
-    // Bounds checking
-    if (distance < 0.1) distance = 0.1;       // Minimum 10cm
-    if (distance > 200.0) distance = 200.0;   // BLE max ~50m, WiFi max ~200m indoors
-    
+
+    if (distanceTuning.enabled) {
+        float multiplier = isWiFi ? distanceTuning.wifi_multiplier : distanceTuning.ble_multiplier;
+        distance *= multiplier;
+    }
+
+    if (distance < 0.1) distance = 0.1;
+    if (isWiFi) {
+        if (distance > 50.0) distance = 50.0;
+    } else {
+        if (distance > 30.0) distance = 30.0;
+    }
+
     return distance;
 }
 
@@ -210,8 +228,6 @@ float calculateSignalQuality(const TriangulationNode &node) {
     float strength = (node.filteredRssi + 100.0) / 100.0;
     strength = constrain(strength, 0.0, 1.0);
 
-    // Hit count factor: more detections = higher confidence in this node's data
-    // Saturates at ~15 hits (typical good detection count during scan)
     float hitFactor = min(1.0f, (float)node.hitCount / 15.0f);
 
     // Weight: 40% stability, 30% signal strength, 30% hit count
@@ -228,11 +244,10 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
               [](const TriangulationNode &a, const TriangulationNode &b) {
                   return a.signalQuality > b.signalQuality;
               });
-    
-    // This would bail on it if too low quality... 
-    // float gdop = calculateGDOP(sortedNodes);
+
+    float gdop = calculateGDOP(sortedNodes);
     // if (gdop > 6.0) return false;
-    
+
     float avgHDOP = getAverageHDOP(sortedNodes);
     if (avgHDOP > 15.0) return false;
     
@@ -393,7 +408,7 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
         }
     }
     
-    if (!found) {
+    if (!found && nodeSyncStatus.size() < MAX_SYNC_STATUS) {
         NodeSyncStatus newSync;
         newSync.nodeId = nodeId;
         newSync.rtcTimestamp = timestamp;
@@ -622,6 +637,9 @@ void startTriangulation(const String &targetMac, int duration) {
 
     String myNodeId = getNodeId();
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration) + ":" + myNodeId + ":" + String(currentRFEnvironment);
+    if (distanceTuning.enabled) {
+        cmd += ":" + String(distanceTuning.wifi_multiplier, 2) + ":" + String(distanceTuning.ble_multiplier, 2);
+    }
     sendMeshCommand(cmd);
 
     Serial.printf("[TRIANGULATE] Broadcast sent to mesh nodes (initiator: %s)\n", myNodeId.c_str());
@@ -849,7 +867,7 @@ void stopTriangulation() {
                 }
             }
 
-            if (!selfNodeExists) {
+            if (!selfNodeExists && triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
                 TriangulationNode selfNode;
                 selfNode.nodeId = myNodeId;
                 selfNode.lat = lat;
@@ -967,7 +985,11 @@ void stopTriangulation() {
                 float gpsPositionError = avgHDOP * 2.5;
                 float rssiDistanceError = avgDistance * 0.20;
                 float geometricError = gdop * 5.0;
-                float syncError = verifyNodeSynchronization(10) ? 0.0 : (avgDistance * 0.10);
+                float maxOffsetMs = 0;
+                for (const auto &sync : nodeSyncStatus) {
+                    if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
+                }
+                float syncError = (maxOffsetMs / 1000.0) * avgDistance * 0.3;
                 float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
 
                 float uncertainty = sqrt(
@@ -1035,7 +1057,10 @@ void stopTriangulation() {
 
         if (gpsValid) {
             float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-            dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                dataMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                xSemaphoreGive(gpsMutex);
+            }
             dataMsg += " HDOP=" + String(hdop, 1);
         }
 
@@ -1121,6 +1146,18 @@ String calculateTriangulation() {
     // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
     results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n";
+
+    float maxOffsetMs = 0;
+    for (const auto &sync : nodeSyncStatus) {
+        if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
+    }
+    if (clockDiscipline.offsetCalibrated) {
+        results += "Clock Quality:\n";
+        results += "  Drift: " + String(clockDiscipline.driftRate * 1e6, 2) + " ppm\n";
+        results += "  Converged: " + String(clockDiscipline.converged ? "YES" : "NO") + "\n";
+        results += "  Disciplines: " + String(clockDiscipline.disciplineCount) + "\n";
+        results += "  Max node offset: " + String(maxOffsetMs, 1) + " ms\n";
+    }
 
     // Add quick maps link at top if we have a final position
     if (apFinalResult.hasResult) {
@@ -1385,7 +1422,11 @@ String calculateTriangulation() {
             geometricError = avgDistance * 0.10 / sqrt(gpsNodes.size() - 2);
         }
         
-        float syncError = syncVerified ? 0.0 : (avgDistance * 0.10);
+        float maxOffsetMs = 0;
+        for (const auto &sync : nodeSyncStatus) {
+            if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
+        }
+        float syncError = (maxOffsetMs / 1000.0) * avgDistance * 0.3;
         float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
         
         float uncertainty = sqrt(

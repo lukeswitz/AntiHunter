@@ -15,7 +15,7 @@
 Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = {1, 6, 11};
-volatile bool stopRequested = false;
+std::atomic<bool> stopRequested(false);
 
 unsigned long lastRTCUpdate = 0;
 
@@ -27,13 +27,15 @@ std::mutex antihunter::lastResultsMutex;
 
 void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
-  
+
   for (;;) {
-    while (Serial1.available()) {
-      uint32_t rxMicros = micros();
-      
-      char c = Serial1.read();
-      Serial.write(c);
+    if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+      while (Serial1.available()) {
+        uint32_t rxMicros = micros();
+
+        char c = Serial1.read();
+        xSemaphoreGive(serial1Mutex);
+        Serial.write(c);
       
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
@@ -61,8 +63,16 @@ void uartForwardTask(void *parameter) {
           meshBuffer = "";
         }
       }
+
+      if (serial1Mutex != nullptr) {
+        xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(10));
+      }
     }
-    delay(2);
+    if (serial1Mutex != nullptr) {
+      xSemaphoreGive(serial1Mutex);
+    }
+    }
+    vTaskDelay(pdMS_TO_TICKS(2));
   }
 }
 
@@ -212,6 +222,7 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastGPSPollBatterySaver = 0;
+    static unsigned long lastHeapCheck = 0;
 
     // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
@@ -245,7 +256,7 @@ void loop() {
             checkTamperTimeout();
         }
 
-        delay(500);
+        vTaskDelay(pdMS_TO_TICKS(500));
         return;
     }
 
@@ -272,5 +283,13 @@ void loop() {
     processUSBToMesh();
     checkAndSendVibrationAlert();
 
-    delay(100);
+    if (millis() - lastHeapCheck > 30000) {
+        uint32_t freeHeap = ESP.getFreeHeap();
+        if (freeHeap < 50000) {
+            Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
+        }
+        lastHeapCheck = millis();
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
 }

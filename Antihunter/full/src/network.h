@@ -29,6 +29,7 @@ enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
 extern const int MAX_MESH_SIZE;
 extern SerialRateLimiter rateLimiter;
+extern SemaphoreHandle_t serial1Mutex;
 extern AsyncWebServer *server;
 extern bool meshEnabled;
 

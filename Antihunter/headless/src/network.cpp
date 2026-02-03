@@ -34,14 +34,14 @@ const float GPS_CHANGE_THRESHOLD = 0.0001;  // ~10 meters
 const unsigned long PER_TARGET_MIN_INTERVAL = 30000;  // 30 seconds per target
 
 // Scanner vars
-extern volatile bool scanning;
-extern volatile int totalHits;
+extern std::atomic<bool> scanning;
+extern std::atomic<int> totalHits;
 extern std::set<String> uniqueMacs;
 bool triangulationOrchestratorAssigned = false;
 
 // Module refs
 extern Preferences prefs;
-extern volatile bool stopRequested;
+extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern TaskHandle_t workerTaskHandle;
@@ -53,6 +53,7 @@ extern void randomizeMacAddress();
 
 // Mesh serial processing
 SerialRateLimiter rateLimiter;
+SemaphoreHandle_t serial1Mutex = nullptr;
 SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
 
 bool SerialRateLimiter::canSend(size_t messageLength) {
@@ -89,6 +90,10 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 }
 
 bool sendToSerial1(const String &message, bool canDelay) {
+    if (serial1Mutex == nullptr) {
+        return false;
+    }
+
     bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
                                   message.indexOf("TRI_START_ACK") >= 0 ||
                                   message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
@@ -109,7 +114,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
     }
 
     bool isPriority = isTriangulationMessage;
-
     size_t msgLen = message.length() + 2;
 
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
@@ -129,20 +133,31 @@ bool sendToSerial1(const String &message, bool canDelay) {
         }
     }
 
-    // For priority messages, wait for buffer space
+    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(100);
+    if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
+        Serial.printf("[MESH] Mutex timeout\n");
+        return false;
+    }
+
     if (isPriority) {
         uint32_t waitStart = millis();
         while (Serial1.availableForWrite() < msgLen) {
             if (millis() - waitStart > 5000) {
                 Serial.printf("[MESH] Priority message timeout waiting for buffer space\n");
+                xSemaphoreGive(serial1Mutex);
                 return false;
             }
+            xSemaphoreGive(serial1Mutex);
             delay(10);
+            if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
+                Serial.printf("[MESH] Mutex timeout on retry\n");
+                return false;
+            }
         }
     } else {
-        // Non-priority messages fail immediately if buffer full
         if (Serial1.availableForWrite() < msgLen) {
             Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
+            xSemaphoreGive(serial1Mutex);
             return false;
         }
     }
@@ -152,6 +167,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     Serial1.flush();
     delay(50);
+
+    xSemaphoreGive(serial1Mutex);
 
     if (!isPriority) {
         rateLimiter.consume(msgLen);
@@ -192,19 +209,20 @@ unsigned long getMeshSendInterval() {
 void initializeMesh() {
     Serial1.end();
     delay(100);
-  
+
     Serial1.setRxBufferSize(2048);
-    Serial1.setTxBufferSize(4096);  // Increased from 1024 to prevent truncation
+    Serial1.setTxBufferSize(4096);
     Serial1.begin(115200, SERIAL_8N1, MESH_RX_PIN, MESH_TX_PIN);
     Serial1.setTimeout(100);
-    
-    // Clear any garbage data
+
     delay(100);
     while (Serial1.available()) {
         Serial1.read();
     }
-    
+
     delay(500);
+
+    serial1Mutex = xSemaphoreCreateMutex();
 
     Serial.println("[MESH] UART initialized");
     Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
@@ -499,8 +517,8 @@ void processCommand(const String &command, const String &targetId = "")
                             "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
                             nodeId.c_str(),
                             modeStr.c_str(),
-                            scanning ? "ACTIVE" : "IDLE",
-                            totalHits,
+                            scanning.load() ? "ACTIVE" : "IDLE",
+                            totalHits.load(),
                             esp_temp,
                             (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
         if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)
@@ -557,12 +575,33 @@ void processCommand(const String &command, const String &targetId = "")
         target = params.substring(0, targetEnd);
         String remainder = params.substring(targetEnd + 1);  // After target:
 
-        // Parse duration and optional rfEnv from remainder
+        float wifiPwr = 1.0f;
+        float blePwr = 1.0f;
+
         int envDelim = remainder.indexOf(':');
         if (envDelim > 0) {
             duration = remainder.substring(0, envDelim).toInt();
-            rfEnv = remainder.substring(envDelim + 1).toInt();
+            String afterDuration = remainder.substring(envDelim + 1);
+
+            int pwrDelim = afterDuration.indexOf(':');
+            if (pwrDelim > 0) {
+                rfEnv = afterDuration.substring(0, pwrDelim).toInt();
+                String afterRfEnv = afterDuration.substring(pwrDelim + 1);
+
+                int blePwrDelim = afterRfEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterRfEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterRfEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterRfEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterDuration.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             duration = remainder.toInt();
         }
@@ -574,6 +613,10 @@ void processCommand(const String &command, const String &targetId = "")
         }
 
         setRFEnvironment((RFEnvironment)rfEnv);
+
+        distanceTuning.wifi_multiplier = wifiPwr;
+        distanceTuning.ble_multiplier = blePwr;
+        distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
         Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds, rfEnv=%d)\n",
                      target.c_str(), duration, rfEnv);
@@ -626,21 +669,49 @@ void processCommand(const String &command, const String &targetId = "")
 
     int durationDelim = remainder.indexOf(':');
     uint8_t rfEnv = RF_ENV_INDOOR;
+    float wifiPwr = 1.0f;
+    float blePwr = 1.0f;
+
     if (durationDelim > 0) {
         duration = remainder.substring(0, durationDelim).toInt();
         String afterDuration = remainder.substring(durationDelim + 1);
-        int envDelim = afterDuration.lastIndexOf(':');
-        if (envDelim > 0) {
-            initiatorNodeId = afterDuration.substring(0, envDelim);
-            rfEnv = afterDuration.substring(envDelim + 1).toInt();
+
+        int initiatorDelim = afterDuration.indexOf(':');
+        if (initiatorDelim > 0) {
+            initiatorNodeId = afterDuration.substring(0, initiatorDelim);
+            String afterInitiator = afterDuration.substring(initiatorDelim + 1);
+
+            int envDelim = afterInitiator.indexOf(':');
+            if (envDelim > 0) {
+                rfEnv = afterInitiator.substring(0, envDelim).toInt();
+                String afterEnv = afterInitiator.substring(envDelim + 1);
+
+                int blePwrDelim = afterEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterInitiator.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             initiatorNodeId = afterDuration;
         }
     } else {
         duration = remainder.toInt();
     }
+
     setRFEnvironment((RFEnvironment)rfEnv);
+
+    distanceTuning.wifi_multiplier = wifiPwr;
+    distanceTuning.ble_multiplier = blePwr;
+    distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
     bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];

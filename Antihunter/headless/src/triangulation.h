@@ -23,7 +23,6 @@ struct TriangulationNode {
     uint32_t hitCount;
     bool hasGPS;
     uint32_t lastUpdate;
-    int64_t detectionTimestamp;  // Microsecond timestamp from GPS-synced RTC
     std::vector<int8_t> rssiHistory;
     std::vector<int8_t> rssiRawWindow;
     KalmanFilterState kalmanFilter;
@@ -72,17 +71,18 @@ struct RFEnvironmentPreset {
     float rssi0_ble;
 };
 
-// RF Environment Presets calibrated for 8 dBi RX antenna
+// RF Environment Presets calibrated for 5 dBi RX antenna (empirically verified 2026-02)
 // { n_wifi, n_ble, rssi0_wifi (dBm @ 1m), rssi0_ble (dBm @ 1m) }
-// WiFi: ESP32 ~20dBm TX, 8dBi RX gain, ~40dB FSPL @ 1m
-// BLE: Most phones/wearables TX at 0 to -8dBm (not +4dBm), giving -63 to -71dBm @ 1m
-// BLE n typically 2.0-4.0 indoors (Google/Apple Exposure Notifications research)
+// WiFi: ESP32 ~20dBm TX, 5dBi RX gain, ~40dB FSPL @ 1m
+// BLE: Most phones/wearables TX at 0 to -8dBm (not +4dBm), giving -62 to -69dBm @ 1m
+// BLE n typically 2.0-4.0 indoors, measurements suggest 2.5-3.0 more common
+// Calibration based on XIAO ESP32S3 measurements with antenna gain extrapolation
 static const RFEnvironmentPreset RF_PRESETS[] = {
-    { 2.0f, 2.0f, -22.0f, -59.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
-    { 2.7f, 2.5f, -25.0f, -63.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
-    { 3.2f, 3.0f, -27.0f, -67.0f },   // RF_ENV_INDOOR: typical indoor, some walls
-    { 4.0f, 3.5f, -29.0f, -71.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
-    { 4.8f, 4.0f, -32.0f, -75.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
+    { 2.0f, 2.0f, -23.0f, -60.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
+    { 2.7f, 2.5f, -24.0f, -62.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
+    { 3.2f, 2.9f, -25.0f, -65.0f },   // RF_ENV_INDOOR: typical indoor, some walls
+    { 4.0f, 3.5f, -27.0f, -69.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
+    { 4.8f, 4.0f, -30.0f, -73.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
 };
 
 struct PathLossCalibration {
@@ -93,7 +93,14 @@ struct PathLossCalibration {
     bool calibrated;
 };
 
+struct DistanceTuning {
+    float wifi_multiplier;
+    float ble_multiplier;
+    bool enabled;
+};
+
 extern RFEnvironment currentRFEnvironment;
+extern DistanceTuning distanceTuning;
 void setRFEnvironment(RFEnvironment env);
 RFEnvironment getRFEnvironment();
 
@@ -154,7 +161,6 @@ float calculateSignalQuality(const TriangulationNode &node);
 void updateNodeRSSI(TriangulationNode &node, int8_t newRssi);
 float rssiToDistance(const TriangulationNode &node, bool isWiFi = true);
 bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence);
-bool performTDOATriangulation(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence);
 void broadcastTimeSyncRequest();
 void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds);
 bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);
@@ -299,7 +305,6 @@ struct TriangulateAckInfo {
     uint32_t ackTimestamp;
     bool reportReceived;  // Track if node has sent TRIANGULATE_REPORT
     uint32_t reportTimestamp;
-    uint32_t lastHeartbeatTimestamp;  // Track last heartbeat from child node
 };
 
 extern ClockDiscipline clockDiscipline;

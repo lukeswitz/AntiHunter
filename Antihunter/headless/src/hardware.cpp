@@ -19,6 +19,7 @@
 extern Preferences prefs;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
+extern void disciplineRTCFromGPS();
 
 // GPS
 TinyGPSPlus gps;
@@ -27,6 +28,7 @@ bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
+SemaphoreHandle_t gpsMutex = nullptr;
 
 // RTC
 RTC_DS3231 rtc;
@@ -43,10 +45,10 @@ unsigned long lastVibrationAlert = 0;
 const unsigned long VIBRATION_ALERT_INTERVAL = 3000; 
 
 // Diagnostics & Config
-extern volatile bool scanning;
-extern volatile int totalHits;
-extern volatile uint32_t framesSeen;
-extern volatile uint32_t bleFramesSeen;
+extern std::atomic<bool> scanning;
+extern std::atomic<int> totalHits;
+extern std::atomic<uint32_t> framesSeen;
+extern std::atomic<uint32_t> bleFramesSeen;
 extern std::set<String> uniqueMacs;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
@@ -781,11 +783,11 @@ void initializeSD()
 void initializeGPS() {
     Serial.println("Initializing GPS…");
 
-    // Grow buffer and start UART
     GPS.setRxBufferSize(2048);
     GPS.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 
-    // Give it a moment to start spitting characters
+    gpsMutex = xSemaphoreCreateMutex();
+
     delay(500);
     unsigned long start = millis();
     bool sawSentence = false;
@@ -854,11 +856,14 @@ void updateGPSLocation() {
             lastDataTime = millis();
 
             bool nowLocked = gps.location.isValid();
-            
+
             if (nowLocked) {
-                gpsLat = gps.location.lat();
-                gpsLon = gps.location.lng();
-                gpsValid = true;
+                if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    gpsLat = gps.location.lat();
+                    gpsLon = gps.location.lng();
+                    gpsValid = true;
+                    xSemaphoreGive(gpsMutex);
+                }
                 lastGPSData = "Lat: " + String(gpsLat, 6)
                             + ", Lon: " + String(gpsLon, 6)
                             + " (" + String((millis() - lastDataTime) / 1000) 
@@ -1194,10 +1199,10 @@ void syncRTCFromGPS() {
     
     DateTime gpsTime(year, month, day, hour, minute, second);
     DateTime rtcTime = rtc.now();
-    
+
     int timeDiff = abs((int)(gpsTime.unixtime() - rtcTime.unixtime()));
-    
-    if (timeDiff > 2 || !rtcSynced) {
+
+    if (timeDiff > 1 || !rtcSynced) {
         rtc.adjust(gpsTime);
         rtcSynced = true;
         lastRTCSync = millis();
@@ -1240,7 +1245,10 @@ void updateRTCTime() {
     rtcTimeString = String(buffer);
     
     xSemaphoreGive(rtcMutex);
-    
+
+    if (gpsValid && gps.time.isValid()) {
+        disciplineRTCFromGPS();
+    }
     if (gpsValid && !rtcSynced) {
         syncRTCFromGPS();
     }
@@ -1527,7 +1535,7 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     batterySaverHeartbeatInterval = heartbeatIntervalMs;
 
     // Stop any active scanning tasks
-    extern volatile bool stopRequested;
+    extern std::atomic<bool> stopRequested;
     extern TaskHandle_t workerTaskHandle;
     extern TaskHandle_t blueTeamTaskHandle;
 
@@ -1616,8 +1624,8 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
-    extern bool triangulationActive;
-    if (triangulationActive) {
+    extern std::atomic<bool> triangulationActive;
+    if (triangulationActive.load()) {
         return;
     }
 
