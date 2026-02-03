@@ -91,13 +91,13 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 | Environment | WiFi n | BLE n | WiFi RSSI₀ | BLE RSSI₀ | Use Case |
 |-------------|--------|-------|------------|-----------|----------|
-| Open Sky | 2.0 | 2.3 | -25 dBm | -45 dBm | Clear LOS, minimal obstruction |
-| Suburban | 2.7 | 3.0 | -28 dBm | -50 dBm | Light foliage, scattered buildings |
-| Indoor | 3.2 | 3.6 | -30 dBm | -54 dBm | Typical indoor, some walls |
-| Indoor Dense | 4.0 | 4.4 | -32 dBm | -57 dBm | Office spaces, many partitions |
-| Industrial | 4.8 | 5.2 | -35 dBm | -60 dBm | Heavy obstruction, machinery |
+| Open Sky | 2.0 | 2.0 | -23 dBm | -60 dBm | Clear LOS, minimal obstruction |
+| Suburban | 2.7 | 2.5 | -24 dBm | -62 dBm | Light foliage, scattered buildings |
+| Indoor | 3.2 | 2.9 | -25 dBm | -65 dBm | Typical indoor, some walls |
+| Indoor Dense | 4.0 | 3.5 | -27 dBm | -69 dBm | Office spaces, many partitions |
+| Industrial | 4.8 | 4.0 | -30 dBm | -73 dBm | Heavy obstruction, machinery |
 
-> **Note**: Values calibrated for 5-8 dBi RX antenna gain. BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
+> **Note**: Values calibrated for 5 dBi RX antenna gain with empirical verification from ESP32-S3 measurements (Feb 2026). Conservative calibration approach - adaptive system will fine-tune for higher-gain antennas (up to 8 dBi). BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
 
 #### Distance Tuning (Target-Specific Adjustment)
 
