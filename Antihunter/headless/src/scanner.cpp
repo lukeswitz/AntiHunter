@@ -2078,13 +2078,11 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.wifiMaxRssi = -128;
     triAccum.wifiMinRssi = 0;
     triAccum.wifiRssiSum = 0.0f;
-    triAccum.wifiFirstDetectionTimestamp = 0;
 
     triAccum.bleHitCount = 0;
     triAccum.bleMaxRssi = -128;
     triAccum.bleMinRssi = 0;
     triAccum.bleRssiSum = 0.0f;
-    triAccum.bleFirstDetectionTimestamp = 0;
 
     triAccum.lat = 0.0f;
     triAccum.lon = 0.0f;
@@ -2125,14 +2123,12 @@ static void sendTriAccumulatedData(const String& nodeId) {
             triAccum.bleRssiSum = 0.0f;
             triAccum.bleMaxRssi = -128;
             triAccum.bleMinRssi = 0;
-            triAccum.bleFirstDetectionTimestamp = 0;
         } else {
             Serial.printf("[TRI-MIXED] Keeping BLE, clearing WiFi hits\n");
             triAccum.wifiHitCount = 0;
             triAccum.wifiRssiSum = 0.0f;
             triAccum.wifiMaxRssi = -128;
             triAccum.wifiMinRssi = 0;
-            triAccum.wifiFirstDetectionTimestamp = 0;
         }
     }
 
@@ -2324,11 +2320,12 @@ void listScanTask(void *pv) {
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
 
-        // if ((int32_t)(millis() - nextStatus) >= 0) {
-        //     Serial.printf("Status: Tracking %d devices... WiFi frames=%u BLE frames=%u\n",
-        //                  (int)uniqueMacs.size(), (unsigned)framesSeen, (unsigned)bleFramesSeen);
-        //     nextStatus += 1000;
-        // }
+        static uint32_t lastTimeSyncBroadcast = 0;
+        if (triangulationActive && triangulationInitiator &&
+            (millis() - lastTimeSyncBroadcast) > 30000) {
+            broadcastTimeSyncRequest();
+            lastTimeSyncBroadcast = millis();
+        }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
@@ -2552,17 +2549,11 @@ void listScanTask(void *pv) {
                         }
 
                         if (h.isBLE) {
-                            if (triAccum.bleHitCount == 0) {
-                                triAccum.bleFirstDetectionTimestamp = getCorrectedMicroseconds();
-                            }
                             triAccum.bleHitCount++;
                             triAccum.bleRssiSum += (float)h.rssi;
                             if (h.rssi > triAccum.bleMaxRssi) triAccum.bleMaxRssi = h.rssi;
                             if (h.rssi < triAccum.bleMinRssi || triAccum.bleMinRssi == 0) triAccum.bleMinRssi = h.rssi;
                         } else {
-                            if (triAccum.wifiHitCount == 0) {
-                                triAccum.wifiFirstDetectionTimestamp = getCorrectedMicroseconds();
-                            }
                             triAccum.wifiHitCount++;
                             triAccum.wifiRssiSum += (float)h.rssi;
                             if (h.rssi > triAccum.wifiMaxRssi) triAccum.wifiMaxRssi = h.rssi;

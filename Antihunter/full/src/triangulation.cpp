@@ -998,7 +998,11 @@ void stopTriangulation() {
                 float gpsPositionError = avgHDOP * 2.5;
                 float rssiDistanceError = avgDistance * 0.20;
                 float geometricError = gdop * 5.0;
-                float syncError = verifyNodeSynchronization(10) ? 0.0 : (avgDistance * 0.10);
+                float maxOffsetMs = 0;
+                for (const auto &sync : nodeSyncStatus) {
+                    if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
+                }
+                float syncError = (maxOffsetMs / 1000.0) * avgDistance * 0.3;
                 float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
 
                 float uncertainty = sqrt(
@@ -1150,6 +1154,18 @@ String calculateTriangulation() {
     // Check clock sync status
     bool syncVerified = verifyNodeSynchronization(10);
     results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n";
+
+    float maxOffsetMs = 0;
+    for (const auto &sync : nodeSyncStatus) {
+        if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
+    }
+    if (clockDiscipline.offsetCalibrated) {
+        results += "Clock Quality:\n";
+        results += "  Drift: " + String(clockDiscipline.driftRate * 1e6, 2) + " ppm\n";
+        results += "  Converged: " + String(clockDiscipline.converged ? "YES" : "NO") + "\n";
+        results += "  Disciplines: " + String(clockDiscipline.disciplineCount) + "\n";
+        results += "  Max node offset: " + String(maxOffsetMs, 1) + " ms\n";
+    }
 
     // Add quick maps link at top if we have a final position
     if (apFinalResult.hasResult) {
@@ -1414,7 +1430,11 @@ String calculateTriangulation() {
             geometricError = avgDistance * 0.10 / sqrt(gpsNodes.size() - 2);
         }
         
-        float syncError = syncVerified ? 0.0 : (avgDistance * 0.10);
+        float maxOffsetMs = 0;
+        for (const auto &sync : nodeSyncStatus) {
+            if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
+        }
+        float syncError = (maxOffsetMs / 1000.0) * avgDistance * 0.3;
         float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
         
         float uncertainty = sqrt(

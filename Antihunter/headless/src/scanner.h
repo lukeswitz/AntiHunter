@@ -44,13 +44,11 @@ struct TriangulationAccumulator {
     int8_t wifiMaxRssi;
     int8_t wifiMinRssi;
     float wifiRssiSum;
-    int64_t wifiFirstDetectionTimestamp;
 
     int bleHitCount;
     int8_t bleMaxRssi;
     int8_t bleMinRssi;
     float bleRssiSum;
-    int64_t bleFirstDetectionTimestamp;
 
     float lat;
     float lon;

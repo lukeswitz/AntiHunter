@@ -5327,7 +5327,6 @@ void processCommand(const String &command, const String &targetId = "")
         int8_t wifiAvgRssi = -128, bleAvgRssi = -128;
         float lat, lon, hdop;
         bool hasGPS;
-        int64_t wifiFirstDetectionTimestamp, bleFirstDetectionTimestamp;
 
         {
             extern std::mutex triAccumMutex;
@@ -5361,8 +5360,6 @@ void processCommand(const String &command, const String &targetId = "")
             lon = triAccum.lon;
             hdop = triAccum.hdop;
             hasGPS = triAccum.hasGPS;
-            wifiFirstDetectionTimestamp = triAccum.wifiFirstDetectionTimestamp;
-            bleFirstDetectionTimestamp = triAccum.bleFirstDetectionTimestamp;
         }
 
         if (wifiHitCount > 0) {
@@ -5373,11 +5370,6 @@ void processCommand(const String &command, const String &targetId = "")
             if (hasGPS) {
                 wifiMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
                         " HDOP=" + String(hdop, 1);
-            }
-            if (wifiFirstDetectionTimestamp > 0) {
-                double timestampSec = wifiFirstDetectionTimestamp / 1000000.0;
-                char tsStr[32];
-                snprintf(tsStr, sizeof(tsStr), "%.6f", timestampSec);
             }
             sendToSerial1(wifiMsg, true);
             Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
