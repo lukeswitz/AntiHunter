@@ -575,12 +575,33 @@ void processCommand(const String &command, const String &targetId = "")
         target = params.substring(0, targetEnd);
         String remainder = params.substring(targetEnd + 1);  // After target:
 
-        // Parse duration and optional rfEnv from remainder
+        float wifiPwr = 1.0f;
+        float blePwr = 1.0f;
+
         int envDelim = remainder.indexOf(':');
         if (envDelim > 0) {
             duration = remainder.substring(0, envDelim).toInt();
-            rfEnv = remainder.substring(envDelim + 1).toInt();
+            String afterDuration = remainder.substring(envDelim + 1);
+
+            int pwrDelim = afterDuration.indexOf(':');
+            if (pwrDelim > 0) {
+                rfEnv = afterDuration.substring(0, pwrDelim).toInt();
+                String afterRfEnv = afterDuration.substring(pwrDelim + 1);
+
+                int blePwrDelim = afterRfEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterRfEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterRfEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterRfEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterDuration.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             duration = remainder.toInt();
         }
@@ -592,6 +613,10 @@ void processCommand(const String &command, const String &targetId = "")
         }
 
         setRFEnvironment((RFEnvironment)rfEnv);
+
+        distanceTuning.wifi_multiplier = wifiPwr;
+        distanceTuning.ble_multiplier = blePwr;
+        distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
         Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds, rfEnv=%d)\n",
                      target.c_str(), duration, rfEnv);
@@ -644,21 +669,49 @@ void processCommand(const String &command, const String &targetId = "")
 
     int durationDelim = remainder.indexOf(':');
     uint8_t rfEnv = RF_ENV_INDOOR;
+    float wifiPwr = 1.0f;
+    float blePwr = 1.0f;
+
     if (durationDelim > 0) {
         duration = remainder.substring(0, durationDelim).toInt();
         String afterDuration = remainder.substring(durationDelim + 1);
-        int envDelim = afterDuration.lastIndexOf(':');
-        if (envDelim > 0) {
-            initiatorNodeId = afterDuration.substring(0, envDelim);
-            rfEnv = afterDuration.substring(envDelim + 1).toInt();
+
+        int initiatorDelim = afterDuration.indexOf(':');
+        if (initiatorDelim > 0) {
+            initiatorNodeId = afterDuration.substring(0, initiatorDelim);
+            String afterInitiator = afterDuration.substring(initiatorDelim + 1);
+
+            int envDelim = afterInitiator.indexOf(':');
+            if (envDelim > 0) {
+                rfEnv = afterInitiator.substring(0, envDelim).toInt();
+                String afterEnv = afterInitiator.substring(envDelim + 1);
+
+                int blePwrDelim = afterEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterInitiator.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             initiatorNodeId = afterDuration;
         }
     } else {
         duration = remainder.toInt();
     }
+
     setRFEnvironment((RFEnvironment)rfEnv);
+
+    distanceTuning.wifi_multiplier = wifiPwr;
+    distanceTuning.ble_multiplier = blePwr;
+    distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
     bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];

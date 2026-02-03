@@ -62,6 +62,12 @@ PathLossCalibration pathLoss = {
     false    // calibrated flag
 };
 
+DistanceTuning distanceTuning = {
+    1.0f,
+    1.0f,
+    false
+};
+
 void setRFEnvironment(RFEnvironment env) {
     if (env > RF_ENV_INDUSTRIAL) env = RF_ENV_INDOOR;
     currentRFEnvironment = env;
@@ -94,11 +100,19 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     // Apply signal quality degradation
     float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
     distance *= qualityFactor;
-    
-    // Bounds checking
-    if (distance < 0.1) distance = 0.1;       // Minimum 10cm
-    if (distance > 200.0) distance = 200.0;   // BLE max ~50m, WiFi max ~200m indoors
-    
+
+    if (distanceTuning.enabled) {
+        float multiplier = isWiFi ? distanceTuning.wifi_multiplier : distanceTuning.ble_multiplier;
+        distance *= multiplier;
+    }
+
+    if (distance < 0.1) distance = 0.1;
+    if (isWiFi) {
+        if (distance > 50.0) distance = 50.0;
+    } else {
+        if (distance > 30.0) distance = 30.0;
+    }
+
     return distance;
 }
 
@@ -634,6 +648,9 @@ void startTriangulation(const String &targetMac, int duration) {
 
     String myNodeId = getNodeId();
     String cmd = "@ALL TRIANGULATE_START:" + targetMac + ":" + String(duration) + ":" + myNodeId + ":" + String(currentRFEnvironment);
+    if (distanceTuning.enabled) {
+        cmd += ":" + String(distanceTuning.wifi_multiplier, 2) + ":" + String(distanceTuning.ble_multiplier, 2);
+    }
     sendMeshCommand(cmd);
 
     Serial.printf("[TRIANGULATE] Broadcast sent to mesh nodes (initiator: %s)\n", myNodeId.c_str());

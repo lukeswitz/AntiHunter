@@ -92,7 +92,14 @@ struct PathLossCalibration {
     bool calibrated;
 };
 
+struct DistanceTuning {
+    float wifi_multiplier;
+    float ble_multiplier;
+    bool enabled;
+};
+
 extern RFEnvironment currentRFEnvironment;
+extern DistanceTuning distanceTuning;
 void setRFEnvironment(RFEnvironment env);
 RFEnvironment getRFEnvironment();
 

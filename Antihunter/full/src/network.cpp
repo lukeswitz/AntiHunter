@@ -497,6 +497,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="3">Indoor Dense</option>
                   <option value="4">Industrial</option>
                 </select>
+
+                <label style="font-size:11px;margin-top:12px;display:block;">Distance Tuning</label>
+                <div style="margin-bottom:6px;">
+                  <label style="font-size:10px;color:var(--muted);">WiFi: <span id="wifiPwrDisplay">1.0x</span></label>
+                  <input type="range" name="wifiPwr" id="wifiPwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                        oninput="document.getElementById('wifiPwrDisplay').innerText = this.value + 'x'"
+                        style="width:100%;">
+                </div>
+                <div style="margin-bottom:4px;">
+                  <label style="font-size:10px;color:var(--muted);">BLE: <span id="blePwrDisplay">1.0x</span></label>
+                  <input type="range" name="blePwr" id="blePwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                        oninput="document.getElementById('blePwrDisplay').innerText = this.value + 'x'"
+                        style="width:100%;">
+                </div>
+                <p style="font-size:9px;color:var(--muted);margin:4px 0 0 0;"><1.0 closer | >1.0 farther</p>
               </div>
               
               <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
@@ -633,9 +648,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
           </div>
           <p style="font-size:10px;color:var(--muted);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
-          
+
           <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
-          
+
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy)</option>
             <option value="1">Balanced (Default)</option>
@@ -3655,9 +3670,35 @@ void startWebServer()
               if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
           }
           setRFEnvironment((RFEnvironment)rfEnv);
+
+          distanceTuning.wifi_multiplier = 1.0f;
+          distanceTuning.ble_multiplier = 1.0f;
+          distanceTuning.enabled = false;
+
+          if (req->hasParam("wifiPwr", true)) {
+              float wifiPwr = req->getParam("wifiPwr", true)->value().toFloat();
+              if (wifiPwr >= 0.1f && wifiPwr <= 5.0f) {
+                  distanceTuning.wifi_multiplier = wifiPwr;
+                  distanceTuning.enabled = true;
+              }
+          }
+
+          if (req->hasParam("blePwr", true)) {
+              float blePwr = req->getParam("blePwr", true)->value().toFloat();
+              if (blePwr >= 0.1f && blePwr <= 5.0f) {
+                  distanceTuning.ble_multiplier = blePwr;
+                  distanceTuning.enabled = true;
+              }
+          }
+
           startTriangulation(targetMac, secs);
           String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-          req->send(200, "text/plain", "Triangulation starting for " + String(secs) + "s - " + modeStr + " (env=" + String(rfEnv) + ")");
+          String response = "Triangulation starting for " + String(secs) + "s - " + modeStr + " (env=" + String(rfEnv);
+          if (distanceTuning.enabled) {
+              response += ", WiFi=" + String(distanceTuning.wifi_multiplier, 1) + "x, BLE=" + String(distanceTuning.ble_multiplier, 1) + "x";
+          }
+          response += ")";
+          req->send(200, "text/plain", response);
           return;
       }
       
@@ -4457,8 +4498,34 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       }
       setRFEnvironment((RFEnvironment)rfEnv);
 
+      distanceTuning.wifi_multiplier = 1.0f;
+      distanceTuning.ble_multiplier = 1.0f;
+      distanceTuning.enabled = false;
+
+      if (req->hasParam("wifiPwr", true)) {
+          float wifiPwr = req->getParam("wifiPwr", true)->value().toFloat();
+          if (wifiPwr >= 0.1f && wifiPwr <= 5.0f) {
+              distanceTuning.wifi_multiplier = wifiPwr;
+              distanceTuning.enabled = true;
+          }
+      }
+
+      if (req->hasParam("blePwr", true)) {
+          float blePwr = req->getParam("blePwr", true)->value().toFloat();
+          if (blePwr >= 0.1f && blePwr <= 5.0f) {
+              distanceTuning.ble_multiplier = blePwr;
+              distanceTuning.enabled = true;
+          }
+      }
+
       startTriangulation(targetMac, duration);
-      req->send(200, "text/plain", "Triangulation started for " + targetMac + " (" + String(duration) + "s, env=" + String(rfEnv) + ")");
+
+      String response = "Triangulation started for " + targetMac + " (" + String(duration) + "s, env=" + String(rfEnv);
+      if (distanceTuning.enabled) {
+          response += ", WiFi=" + String(distanceTuning.wifi_multiplier, 2) + "x, BLE=" + String(distanceTuning.ble_multiplier, 2) + "x";
+      }
+      response += ")";
+      req->send(200, "text/plain", response);
   });
 
   server->on("/triangulate/stop", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -5155,12 +5222,33 @@ void processCommand(const String &command, const String &targetId = "")
         target = params.substring(0, targetEnd);
         String remainder = params.substring(targetEnd + 1);  // After target:
 
-        // Parse duration and optional rfEnv from remainder
+        float wifiPwr = 1.0f;
+        float blePwr = 1.0f;
+
         int envDelim = remainder.indexOf(':');
         if (envDelim > 0) {
             duration = remainder.substring(0, envDelim).toInt();
-            rfEnv = remainder.substring(envDelim + 1).toInt();
+            String afterDuration = remainder.substring(envDelim + 1);
+
+            int pwrDelim = afterDuration.indexOf(':');
+            if (pwrDelim > 0) {
+                rfEnv = afterDuration.substring(0, pwrDelim).toInt();
+                String afterRfEnv = afterDuration.substring(pwrDelim + 1);
+
+                int blePwrDelim = afterRfEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterRfEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterRfEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterRfEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterDuration.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             duration = remainder.toInt();
         }
@@ -5172,6 +5260,10 @@ void processCommand(const String &command, const String &targetId = "")
         }
 
         setRFEnvironment((RFEnvironment)rfEnv);
+
+        distanceTuning.wifi_multiplier = wifiPwr;
+        distanceTuning.ble_multiplier = blePwr;
+        distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
         Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds, rfEnv=%d)\n",
                      target.c_str(), duration, rfEnv);
@@ -5219,21 +5311,49 @@ void processCommand(const String &command, const String &targetId = "")
 
     int durationDelim = remainder.indexOf(':');
     uint8_t rfEnv = RF_ENV_INDOOR;
+    float wifiPwr = 1.0f;
+    float blePwr = 1.0f;
+
     if (durationDelim > 0) {
         duration = remainder.substring(0, durationDelim).toInt();
         String afterDuration = remainder.substring(durationDelim + 1);
-        int envDelim = afterDuration.lastIndexOf(':');
-        if (envDelim > 0) {
-            initiatorNodeId = afterDuration.substring(0, envDelim);
-            rfEnv = afterDuration.substring(envDelim + 1).toInt();
+
+        int initiatorDelim = afterDuration.indexOf(':');
+        if (initiatorDelim > 0) {
+            initiatorNodeId = afterDuration.substring(0, initiatorDelim);
+            String afterInitiator = afterDuration.substring(initiatorDelim + 1);
+
+            int envDelim = afterInitiator.indexOf(':');
+            if (envDelim > 0) {
+                rfEnv = afterInitiator.substring(0, envDelim).toInt();
+                String afterEnv = afterInitiator.substring(envDelim + 1);
+
+                int blePwrDelim = afterEnv.indexOf(':');
+                if (blePwrDelim > 0) {
+                    wifiPwr = afterEnv.substring(0, blePwrDelim).toFloat();
+                    blePwr = afterEnv.substring(blePwrDelim + 1).toFloat();
+                } else {
+                    wifiPwr = afterEnv.toFloat();
+                }
+            } else {
+                rfEnv = afterInitiator.toInt();
+            }
+
             if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+            if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+            if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
         } else {
             initiatorNodeId = afterDuration;
         }
     } else {
         duration = remainder.toInt();
     }
+
     setRFEnvironment((RFEnvironment)rfEnv);
+
+    distanceTuning.wifi_multiplier = wifiPwr;
+    distanceTuning.ble_multiplier = blePwr;
+    distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
 
     bool isIdentityId = target.startsWith("T-");
     uint8_t macBytes[6];
