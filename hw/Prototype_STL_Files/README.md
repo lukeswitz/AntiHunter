@@ -1,8 +1,27 @@
 # Enclosure Prototypes 
 
-
 ## 1.  Field Deployment Cases
 Credit @TheRealSirHaxAlot
+
+### AH Case v2
+External GPS, UPS board/DIY 2S 18650 
+
+<img width="50%" alt="image" src="https://github.com/user-attachments/assets/045aff39-647b-4c53-8cc7-ba1090e88eb0"/>
+
+<img width="50%" alt="image" src="https://github.com/user-attachments/assets/b0c9ac4d-9f8d-4eb8-9bfc-be8936aa8ebe"/>
+
+- Vertical design is more compact & thermally efficient 
+- Accommodates UPS board or 2S 18650
+- Use without rear power case for dev/compact form
+- USBC, GPS SMA and housing TPU seals
+- Front lid with open/closed fan options
+- Base accepts 1/4"-20 UNC heat-set inserts
+- M3 heat-set inserts for assembly
+- 2x 15mm standoffs 
+
+
+### Can Design
+10x and 2x18650 Power
 
 <img width="50%" alt="image" src="https://github.com/user-attachments/assets/aca6b72a-1571-48c0-a57b-332a085478da"/>
 
@@ -10,28 +29,10 @@ Credit @TheRealSirHaxAlot
 - Variations for full battery (10x 18650) and 2S (2x 18650)
 - Spacer mod for legacy design
 - Base accepts 1/4"-20 UNC heat-set inserts
+- TPU gasket seal
 
-**File list**
-```
-2Sbatteryholder.stl
-CAN.stl
-CANbottom.stl
-CANcomplete.stl
-CANslimEdition.stl
-CANspacerMOD.stl
-LID.stl
-LID_USBC.stl
-LIDwGPS.stl
-LIDwGPSwUSBC.stl
-```
 
-### TPU Gasket
-- Seal for field case lid & body
-```
-Gasket.stl
-```
-
-## 2. Development Puck Case
+## 2. Puck Case
 
 Credit @nitekry
 
@@ -41,13 +42,6 @@ Credit @nitekry
 - Vented lid and snap fit design
 - Base accepts 1/4"-20 UNC heat-set inserts
 - SMA bulkheds recessed in lid
-
-```
-puck_top.stl
-puck_body.stl
-puck_bottom.stl
-```
-
 
 
 
