@@ -10,9 +10,10 @@ External GPS, UPS board/DIY 2S 18650
 
 <img width="50%" alt="image" src="https://github.com/user-attachments/assets/b0c9ac4d-9f8d-4eb8-9bfc-be8936aa8ebe"/>
 
-- Vertical design is more compact & thermally efficient 
-- Accommodates UPS board or 2S 18650
+- Accommodates UPS board with fast/side charger options
 - Use without rear power case for dev/compact form
+- Radar mod extension for AH RADAR Node
+- TPU seals for housing and GPS antenna
 - USBC, GPS SMA and housing TPU seals
 - Front lid with open/closed fan options
 - Base accepts 1/4"-20 UNC heat-set inserts
