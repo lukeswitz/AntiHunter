@@ -3406,10 +3406,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         state.inProgress = true;
         state.lastSubmit = now;
 
+        const scanStatusEl = document.getElementById('scanStatus');
+        if (scanStatusEl) {
+            scanStatusEl.innerText = 'Scanning';
+            scanStatusEl.classList.add('active');
+        }
+
         if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.style.opacity = '0.6';
-          submitBtn.style.cursor = 'not-allowed';
+            submitBtn.textContent = 'Stop Scanning';
+            submitBtn.classList.remove('primary');
+            submitBtn.classList.add('danger');
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+            submitBtn.type = 'button';
+            submitBtn.onclick = function(e) {
+                e.preventDefault();
+                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
+                    setTimeout(async () => {
+                        const refreshedDiag = await fetch('/diag').then(r => r.text());
+                        updateStatusIndicators(refreshedDiag);
+                    }, 500);
+                });
+            };
         }
 
         if (detectionMethod === 'randomization-detection') {
@@ -3424,11 +3443,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const resetState = () => {
           setTimeout(() => {
             state.inProgress = false;
-            if (submitBtn) {
-              submitBtn.disabled = false;
-              submitBtn.style.opacity = '1';
-              submitBtn.style.cursor = 'pointer';
-            }
           }, 500);
         };
 
