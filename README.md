@@ -12,7 +12,13 @@
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 </p>
 
->DIGI Detection Node 2.4Ghz WiFi/BLE firmware. Standalone or for use in conjunction with the [AntiHunter Command Center ](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+
+> [!NOTE]  
+> **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
+> >DIGI Detection Node 2.4Ghz WiFi/BLE firmware. Standalone or for use in conjunction with the [AntiHunter Command Center ](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+
+
+
 
 </div>
 
@@ -33,10 +39,17 @@
 10. [Credits](#credits)
 11. [Terms & Disclaimer](#legal-disclaimer)
 
-> [!NOTE]  
-> **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
+#### Project Updates:
 
-Featured in the [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+- `Jan. 29 2026`: **Featured in** the [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+
+
+
+ - `Feb. 02 2026`: **AntiHunter is now live on Tindie!**
+   - A detailed, illustrated [assembly guide](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) is now available in the `hw` folder.
+   - The DIGI node will be available first. You can find the AntiHunter store here:
+  
+    <a href="https://www.tindie.com/stores/teamantihunter/?ref=offsite_badges&utm_source=sellers_teamantihunter&utm_medium=badges&utm_campaign=badge_medium"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
 
 ## Overview
 
@@ -311,11 +324,17 @@ While individual nodes provide standalone capability, the full system power come
 
 ## Hardware Requirements
 
-_PCBs and kits are in final production. Tindie link coming soon_
-![807BFBDE-0DD4-4504-823A-820551452662_1_105_c](https://github.com/user-attachments/assets/8dae424f-10ad-4f19-a3f3-a07061e7633f)
+<a href="https://www.tindie.com/stores/teamantihunter/?ref=offsite_badges&utm_source=sellers_teamantihunter&utm_medium=badges&utm_campaign=badge_medium"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
+
+**AntiHunter is now on Tindie!**
+_We will begin rolling out the node lineup starting with the DIGI model._
+
 
 ### Enclosure STL Files
 - Find them in the hw folder [here](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
+
+### Assembly Manual PDF
+- A complete guide to assembling an AntiHunter DIGI node can be found in the hw folder [here](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 > [!IMPORTANT]
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability that may disable or damage components.
