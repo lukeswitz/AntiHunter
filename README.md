@@ -12,16 +12,12 @@
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 </p>
 
-
 > [!NOTE]  
 > **Early Release** - This is an alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
-> >DIGI Detection Node 2.4Ghz WiFi/BLE firmware. Standalone or for use in conjunction with the [AntiHunter Command Center ](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
-
-
-
-
+> 
+> DIGI Detection Node 2.4Ghz WiFi/BLE firmware. Standalone or for use in conjunction with the [AntiHunter Command Center ](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+    
 </div>
-
 
 ## Table of Contents
 
@@ -39,17 +35,13 @@
 10. [Credits](#credits)
 11. [Terms & Disclaimer](#legal-disclaimer)
 
+<a href="https://www.tindie.com/stores/teamantihunter/?ref=offsite_badges&utm_source=sellers_teamantihunter&utm_medium=badges&utm_campaign=badge_medium"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
+
 #### Project Updates:
 
 - `Jan. 29 2026`: **Featured in** the [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
-
-
-
- - `Feb. 02 2026`: **AntiHunter is now live on Tindie!**
-   - A detailed, illustrated [assembly guide](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) is now available in the `hw` folder.
-   - The DIGI node will be available first. You can find the AntiHunter store here:
-  
-    <a href="https://www.tindie.com/stores/teamantihunter/?ref=offsite_badges&utm_source=sellers_teamantihunter&utm_medium=badges&utm_campaign=badge_medium"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
+- `Feb. 02 2026`: **AntiHunter is live on Tindie:** Stock will be added on a rolling basis.
+- `Feb. 01 2026`: A detailed, illustrated [assembly guide](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) is now available for the DIGINODE
 
 ## Overview
 
