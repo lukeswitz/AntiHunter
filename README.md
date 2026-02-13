@@ -350,9 +350,16 @@ cd AntiHunter
 ```
 
 ```bash
+# List connected devices
 pio device list
+
+# Flash full firmware
 pio run -e AntiHunter-full -t upload
+
+# Flash headless firmware
 pio run -e AntiHunter-headless -t upload
+
+# Monitor serial output
 pio device monitor -e AntiHunter-full
 
 # Clean deployment (erase + upload)
