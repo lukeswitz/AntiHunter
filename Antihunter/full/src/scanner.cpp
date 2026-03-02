@@ -2217,14 +2217,13 @@ void listScanTask(void *pv) {
     int secs = (int)(intptr_t)pv;
     bool forever = (secs <= 0);
 
-    // Clear old results
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
-    }
-
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                      (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "Target scan starting...\nMode: " + std::string(modeStr.c_str()) + "\n";
+    }
 
     Serial.printf("[SCAN] List scan %s (%s)...\n",
                   forever ? "(forever)" : String(String("for ") + secs + " seconds").c_str(),
@@ -2324,7 +2323,7 @@ void listScanTask(void *pv) {
     Hit h;
 
     uint32_t nextTriResultsUpdate = millis() + 2000;
-
+    uint32_t lastListProgressUpdate = millis() + 1000;
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
@@ -2728,6 +2727,41 @@ void listScanTask(void *pv) {
                 pBLEScan->clearResults();
                 lastBLEScan = millis();
             }
+        }
+
+        if (!triangulationActive && (int32_t)(millis() - lastListProgressUpdate) >= 0) {
+            std::string pr = "Target scan (IN PROGRESS)\nElapsed: ";
+            pr += std::to_string((millis() - lastScanStart) / 1000) + "s";
+            if (!forever && secs > 0) {
+                int32_t rem = secs - (int32_t)((millis() - lastScanStart) / 1000);
+                if (rem > 0) pr += " / " + std::to_string(secs) + "s (" + std::to_string(rem) + "s left)";
+            }
+            pr += "\nTarget hits: " + std::to_string(totalHits.load());
+            pr += "\nWiFi frames: " + std::to_string(framesSeen.load());
+            pr += "\nBLE frames: " + std::to_string(bleFramesSeen.load()) + "\n\n";
+
+            std::vector<Hit> snap = hitsLog;
+            std::sort(snap.begin(), snap.end(), [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+            int shown = 0;
+            for (const auto& sh : snap) {
+                if (shown++ >= 50) break;
+                char mb[18];
+                snprintf(mb, sizeof(mb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
+                pr += std::string(sh.isBLE ? "BLE " : "WiFi") + " " + mb;
+                pr += " RSSI=" + std::to_string(sh.rssi) + "dBm";
+                if (!sh.isBLE && sh.ch > 0) pr += " CH=" + std::to_string(sh.ch);
+                if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
+                    pr += " " + std::string(sh.name);
+                pr += "\n";
+            }
+            if (snap.size() > 50) pr += "... (" + std::to_string(snap.size() - 50) + " more)\n";
+
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = pr;
+            }
+            lastListProgressUpdate = millis() + 2000;
         }
 
         vTaskDelay(pdMS_TO_TICKS(150));

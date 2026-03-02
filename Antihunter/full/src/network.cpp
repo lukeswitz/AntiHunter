@@ -8,6 +8,7 @@
 #include <AsyncWebSocket.h>
 #include <RTClib.h>
 #include <esp_timer.h>
+#include <deque>
 
 extern "C"
 {
@@ -62,7 +63,7 @@ extern void randomizeMacAddress();
 
 // WebSocket for terminal
 AsyncWebSocket ws("/terminal");
-static std::vector<String> terminalBuffer;
+static std::deque<String> terminalBuffer;
 static const size_t TERMINAL_BUFFER_SIZE = 500;
 static bool terminalClientsConnected = false;
 
@@ -113,7 +114,7 @@ void broadcastToTerminal(const String &message) {
     
     terminalBuffer.push_back(timestamped);
     if (terminalBuffer.size() > TERMINAL_BUFFER_SIZE) {
-        terminalBuffer.erase(terminalBuffer.begin());
+        terminalBuffer.pop_front();
     }
 }
 
@@ -960,7 +961,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let lastScanningState = false;
       let lastResultsText = '';
       let meshEnabled = true;
-      let lastTriangulationStartTime = 0;  // Track when triangulation scan was started
+      let lastScanStartTime = 0;
 
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -1710,9 +1711,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 }
             }
         } else {
-            // Don't reset UI if we just started triangulation (give backend time to update status)
-            const timeSinceTriangulationStart = Date.now() - lastTriangulationStartTime;
-            const isWithinGracePeriod = timeSinceTriangulationStart < 5000; // 5 second grace period
+            const isWithinGracePeriod = (Date.now() - lastScanStartTime) < 3000;
 
             if (!isWithinGracePeriod) {
                 document.getElementById('scanStatus').innerText = 'Idle';
@@ -3028,9 +3027,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
         tickRunning = true;
         try {
-          const [diagResponse, droneResponse] = await Promise.all([
+          const [diagResponse, droneResponse, resultsResponse] = await Promise.all([
             fetch('/diag'),
-            fetch('/drone/status').catch(() => null)
+            fetch('/drone/status').catch(() => null),
+            fetch('/results').catch(() => null)
           ]);
           const diagText = await diagResponse.text();
           const isScanning = diagText.includes('Scanning: yes');
@@ -3095,67 +3095,65 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           const resultsElement = document.getElementById('r');
           if (resultsElement && !resultsElement.contains(document.activeElement)) {
-            if (isScanning) {
-              const rr = await fetch('/results');
-              const resultsText = await rr.text();
+            if ((isScanning || (lastScanningState && !isScanning)) && resultsResponse) {
+              const resultsText = await resultsResponse.text();
               if (resultsText !== lastResultsText) {
                 lastResultsText = resultsText;
-                requestAnimationFrame(() => {
-                  const expandedCards = new Set();
-                  const expandedDetails = new Map();
-                  const contents = resultsElement.querySelectorAll('[id$="Content"]');
-                  for (const content of contents) {
-                    if (content.style.display !== 'none') {
-                      expandedCards.add(content.id);
-                    }
-                  }
-                  const openDetails = resultsElement.querySelectorAll('details[open]');
-                  for (const details of openDetails) {
-                    const summary = details.querySelector('summary');
-                    if (summary && summary.textContent) {
-                      expandedDetails.set(summary.textContent.trim(), true);
-                    }
-                  }
-                  resultsElement.innerHTML = parseAndStyleResults(resultsText);
-                  for (const contentId of expandedCards) {
-                    const content = document.getElementById(contentId);
-                    if (content) {
-                      const iconId = contentId.replace('Content', 'Icon');
-                      const icon = document.getElementById(iconId);
-                      content.style.display = 'block';
-                      if (icon) {
-                        icon.style.transform = 'rotate(0deg)';
-                        icon.textContent = '▼';
+                if (isScanning) {
+                  requestAnimationFrame(() => {
+                    const expandedCards = new Set();
+                    const expandedDetails = new Map();
+                    const contents = resultsElement.querySelectorAll('[id$="Content"]');
+                    for (const content of contents) {
+                      if (content.style.display !== 'none') {
+                        expandedCards.add(content.id);
                       }
                     }
-                  }
-                  const allDetails = resultsElement.querySelectorAll('details');
-                  for (const details of allDetails) {
-                    const summary = details.querySelector('summary');
-                    if (summary) {
-                      const summaryText = summary.textContent.trim();
-                      if (expandedDetails.has(summaryText)) {
-                        details.open = true;
-                        const spans = summary.querySelectorAll('span');
+                    const openDetails = resultsElement.querySelectorAll('details[open]');
+                    for (const details of openDetails) {
+                      const summary = details.querySelector('summary');
+                      if (summary && summary.textContent) {
+                        expandedDetails.set(summary.textContent.trim(), true);
+                      }
+                    }
+                    resultsElement.innerHTML = parseAndStyleResults(resultsText);
+                    for (const contentId of expandedCards) {
+                      const content = document.getElementById(contentId);
+                      if (content) {
+                        const iconId = contentId.replace('Content', 'Icon');
+                        const icon = document.getElementById(iconId);
+                        content.style.display = 'block';
+                        if (icon) {
+                          icon.style.transform = 'rotate(0deg)';
+                          icon.textContent = '▼';
+                        }
+                      }
+                    }
+                    const allDetails = resultsElement.querySelectorAll('details');
+                    for (const details of allDetails) {
+                      const summary = details.querySelector('summary');
+                      if (summary) {
+                        const summaryText = summary.textContent.trim();
+                        if (expandedDetails.has(summaryText)) {
+                          details.open = true;
+                          const spans = summary.querySelectorAll('span');
+                          const arrow = spans[spans.length - 1];
+                          if (arrow) arrow.style.transform = 'rotate(90deg)';
+                        }
+                      }
+                      details.addEventListener('toggle', () => {
+                        const spans = details.querySelectorAll('summary span');
                         const arrow = spans[spans.length - 1];
-                        if (arrow) arrow.style.transform = 'rotate(90deg)';
-                      }
+                        if (arrow) {
+                          arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+                        }
+                      });
                     }
-                    details.addEventListener('toggle', () => {
-                      const spans = details.querySelectorAll('summary span');
-                      const arrow = spans[spans.length - 1];
-                      if (arrow) {
-                        arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
-                      }
-                    });
-                  }
-                });
+                  });
+                } else {
+                  resultsElement.innerHTML = parseAndStyleResults(resultsText);
+                }
               }
-            } else if (lastScanningState && !isScanning) {
-              const rr = await fetch('/results');
-              const resultsText = await rr.text();
-              lastResultsText = resultsText;
-              resultsElement.innerHTML = parseAndStyleResults(resultsText);
             }
           }
           lastScanningState = isScanning;
@@ -3262,10 +3260,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           // Check if triangulation mode is selected
           const isTriangulation = fd.has('triangulate') && fd.get('triangulate') === '1';
 
-          // Track when triangulation was started
-          if (isTriangulation) {
-              lastTriangulationStartTime = now;
-          }
+          lastScanStartTime = now;
 
           // Immediately update UI to show scanning state for ALL scan types
           const scanStatusEl = document.getElementById('scanStatus');
@@ -3294,7 +3289,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               };
           }
 
-          console.log('[SCAN] Form submitted at', new Date().toISOString());
+          const resultsElScan = document.getElementById('r');
+          if (resultsElScan && !resultsElScan.contains(document.activeElement)) {
+              lastResultsText = '';
+              const modeVal = parseInt(document.querySelector('#s select[name="mode"]')?.value ?? '2');
+              const modeLabel = ['WiFi', 'BLE', 'WiFi+BLE'][modeVal] ?? 'WiFi+BLE';
+              resultsElScan.innerHTML = parseAndStyleResults('Target scan starting...\nMode: ' + modeLabel + '\n');
+          }
 
           fetch('/scan', {
             method: 'POST',
@@ -3405,6 +3406,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         state.inProgress = true;
         state.lastSubmit = now;
+        lastScanStartTime = now;
 
         const scanStatusEl = document.getElementById('scanStatus');
         if (scanStatusEl) {
@@ -3445,6 +3447,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             state.inProgress = false;
           }, 500);
         };
+
+        const resultsElSniffer = document.getElementById('r');
+        if (resultsElSniffer && !resultsElSniffer.contains(document.activeElement)) {
+            lastResultsText = '';
+            resultsElSniffer.innerHTML = parseAndStyleResults('Scan starting...\n');
+        }
 
         if (detectionMethod === 'baseline') {
           const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
@@ -3720,6 +3728,7 @@ void startWebServer()
       req->send(200, "text/plain", forever ? ("Scan starting (forever) - " + modeStr) : ("Scan starting for " + String(secs) + "s - " + modeStr));
       
       if (!workerTaskHandle) {
+          scanning = true;
           xTaskCreatePinnedToCore(listScanTask, "scan", 8192, (void*)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
       }
   });
@@ -4222,9 +4231,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             req->send(200, "text/plain", forever ? "Deauth detection starting (forever)" : ("Deauth detection starting for " + String(secs) + "s"));
             
             if (!blueTeamTaskHandle) {
+                scanning = true;
                 xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, (void*)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
             }
-            
+
         } else if (detection == "baseline") {
             currentScanMode = SCAN_BOTH;
             if (secs < 0) secs = 0;
@@ -4236,8 +4246,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                     ("Baseline detection starting for " + String(secs) + "s"));
             
             if (!workerTaskHandle) {
-                xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288, 
-                                    (void*)(intptr_t)(forever ? 0 : secs), 
+                scanning = true;
+                xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
+                                    (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);
             }
             
@@ -4264,6 +4275,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                     ("Randomization detection starting for " + String(secs) + "s - " + modeStr));
             
             if (!workerTaskHandle) {
+                scanning = true;
                 xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
                                     (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);
@@ -4292,8 +4304,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                     ("Device scan starting for " + String(secs) + "s - " + modeStr));
             
             if (!workerTaskHandle) {
-                xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288, 
-                                    (void*)(intptr_t)(forever ? 0 : secs), 
+                scanning = true;
+                xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
+                                    (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);
             }
             
@@ -4308,6 +4321,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                     ("Drone detection starting for " + String(secs) + "s"));
             
             if (!workerTaskHandle) {
+                scanning = true;
                 xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
                                     (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);

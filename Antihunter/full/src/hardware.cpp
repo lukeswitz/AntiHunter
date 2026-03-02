@@ -790,7 +790,7 @@ String getDiagnostics() {
 
     std::lock_guard<std::mutex> lock(diagMutex);
     
-    if (millis() - lastDiagTime < 1000 && cachedDiag.length() > 0) {
+    if (millis() - lastDiagTime < 500 && cachedDiag.length() > 0) {
         return cachedDiag;
     }
     lastDiagTime = millis();
