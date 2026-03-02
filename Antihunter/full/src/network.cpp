@@ -908,36 +908,42 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
           </div>
 
-          <!-- Battery Saver Mode -->
-          <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--bord);">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-              <span style="font-weight:bold;color:var(--accent);">Battery Saver Mode</span>
-              <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showBatterySaverHelp()" title="Click for help">?</span>
-            </div>
+        </div>
+      </div>
 
-            <p style="font-size:11px;color:#888;margin-bottom:12px;">
-              Reduces power consumption by disabling WiFi/BLE scanning, lowering CPU frequency to 80MHz, and sending only periodic heartbeats. Mesh UART remains active for receiving commands.
-            </p>
-
-            <div style="margin-bottom:16px;">
-              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Heartbeat Interval</label>
-              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
-              <select id="batterySaverInterval">
-                <option value="1">1 minute</option>
-                <option value="2">2 minutes</option>
-                <option value="5" selected>5 minutes</option>
-                <option value="10">10 minutes</option>
-                <option value="15">15 minutes</option>
-                <option value="30">30 minutes</option>
-              </select>
-            </div>
-
-            <div style="display:flex;gap:8px;">
-              <button class="btn primary" type="button" onclick="enableBatterySaver()" style="flex:1;">Enable Battery Saver</button>
-              <button class="btn alt" type="button" onclick="disableBatterySaver()" style="flex:1;">Disable</button>
-            </div>
-            <div id="batterySaverStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;background:rgba(0,0,0,0.2);">INACTIVE</div>
+      <!-- Battery Saver Mode -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCollapse('batterySaverCard')">
+          <h3>Battery Saver Mode</h3>
+          <span class="collapse-icon" id="batterySaverCardIcon">&#9654;</span>
+        </div>
+        <div class="card-body collapsed" id="batterySaverCardBody">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showBatterySaverHelp()" title="Click for help">?</span>
           </div>
+
+          <p style="font-size:11px;color:#888;margin-bottom:12px;">
+            Reduces power consumption by stopping WiFi/BLE scanning, lowering CPU frequency, and sending only periodic heartbeats. WiFi AP and web UI remain active. Mesh UART remains active for receiving commands.
+          </p>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Heartbeat Interval</label>
+            <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
+            <select id="batterySaverInterval">
+              <option value="1">1 minute</option>
+              <option value="2">2 minutes</option>
+              <option value="5" selected>5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+            </select>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn primary" type="button" onclick="enableBatterySaver()" style="flex:1;">Enable Battery Saver</button>
+            <button class="btn alt" type="button" onclick="disableBatterySaver()" style="flex:1;">Disable</button>
+          </div>
+          <div id="batterySaverStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;background:rgba(0,0,0,0.2);">INACTIVE</div>
         </div>
       </div>
 
