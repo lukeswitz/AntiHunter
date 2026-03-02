@@ -1728,10 +1728,6 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     // Disable WiFi promiscuous mode
     esp_wifi_set_promiscuous(false);
 
-    // Stop WiFi (but keep mesh UART active)
-    esp_wifi_stop();
-    Serial.println("[BATTERY_SAVER] WiFi stopped");
-
     // Disable BLE controller
     esp_bt_controller_disable();
     Serial.println("[BATTERY_SAVER] BLE disabled");
@@ -1787,10 +1783,6 @@ void exitBatterySaver() {
     // Re-enable BLE controller
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     Serial.println("[BATTERY_SAVER] BLE re-enabled");
-
-    // Restart WiFi
-    WiFi.mode(WIFI_MODE_STA);
-    Serial.println("[BATTERY_SAVER] WiFi restarted");
 
     batterySaverEnabled = false;
 
