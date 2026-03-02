@@ -438,10 +438,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <!-- Target List -->
             <details open>
-              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;"><span>▶</span> Target List</summary>
+              <summary style="cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;"><span>▶</span> Target List</summary>
               <form id="f" method="POST" action="/save">
                 <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="3"></textarea>
-                <div id="targetCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 targets</div>
+                <div id="targetCount" style="margin:4px 0 8px;color:var(--mut);font-size:11px;">0 targets</div>
                 <div style="display:flex;gap:8px;">
                   <button class="btn primary" type="submit">Save</button>
                   <a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
@@ -451,10 +451,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <!-- Allowlist -->
             <details style="margin-top:12px;">
-              <summary style="cursor:pointer;font-weight:bold;color:var(--accent);margin-bottom:8px;"><span>▶</span> Allow List</summary>
+              <summary style="cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;"><span>▶</span> Allow List</summary>
               <form id="af" method="POST" action="/allowlist-save">
                 <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
-                <div id="allowlistCount" style="margin:4px 0 8px;color:var(--muted);font-size:11px;">0 allowlisted</div>
+                <div id="allowlistCount" style="margin:4px 0 8px;color:var(--mut);font-size:11px;">0 allowlisted</div>
                 <div style="display:flex;gap:8px;">
                   <button class="btn primary" type="submit">Save</button>
                   <a class="btn alt" href="/allowlist-export" download="allowlist.txt" data-ajax="false">Export</a>
@@ -501,18 +501,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
                 <label style="font-size:11px;margin-top:12px;display:block;">Distance Tuning</label>
                 <div style="margin-bottom:6px;">
-                  <label style="font-size:10px;color:var(--muted);">WiFi: <span id="wifiPwrDisplay">1.0x</span></label>
+                  <label style="font-size:10px;color:var(--mut);">WiFi: <span id="wifiPwrDisplay">1.0x</span></label>
                   <input type="range" name="wifiPwr" id="wifiPwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
                         oninput="document.getElementById('wifiPwrDisplay').innerText = this.value + 'x'"
                         style="width:100%;">
                 </div>
                 <div style="margin-bottom:4px;">
-                  <label style="font-size:10px;color:var(--muted);">BLE: <span id="blePwrDisplay">1.0x</span></label>
+                  <label style="font-size:10px;color:var(--mut);">BLE: <span id="blePwrDisplay">1.0x</span></label>
                   <input type="range" name="blePwr" id="blePwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
                         oninput="document.getElementById('blePwrDisplay').innerText = this.value + 'x'"
                         style="width:100%;">
                 </div>
-                <p style="font-size:9px;color:var(--muted);margin:4px 0 0 0;"><1.0 closer | >1.0 farther</p>
+                <p style="font-size:9px;color:var(--mut);margin:4px 0 0 0;"><1.0 closer | >1.0 farther</p>
               </div>
               
               <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
@@ -600,15 +600,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
                   <div>
-                    <label style="font-size:10px;color:var(--muted);" title="Time a device must be unseen before marked as disappeared from baseline">Marked Absent (s)</label>
+                    <label style="font-size:10px;color:var(--mut);" title="Time a device must be unseen before marked as disappeared from baseline">Marked Absent (s)</label>
                     <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
                   </div>
                   <div>
-                    <label style="font-size:10px;color:var(--muted);" title="Window after disappearance during which reappearance triggers an anomaly alert">Seen Reappear (s)</label>
+                    <label style="font-size:10px;color:var(--mut);" title="Window after disappearance during which reappearance triggers an anomaly alert">Seen Reappear (s)</label>
                     <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
                   </div>
                   <div>
-                    <label style="font-size:10px;color:var(--muted);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Variation dB</label>
+                    <label style="font-size:10px;color:var(--mut);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Variation dB</label>
                     <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
                   </div>
                 </div>
@@ -619,8 +619,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <input type="checkbox" id="foreverBaseline" name="forever" value="1" style="width:auto;margin:0;">
                   <span>Forever</span>
                 </label>
-                <div id="baselineStatus" style="padding:8px;background:var(--card);border:1px solid #888;border-radius:6px;font-size:11px;margin-bottom:8px;">
-                  <div style="color:#888;">No baseline data</div>
+                <div id="baselineStatus" style="padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:11px;margin-bottom:8px;">
+                  <div style="color:var(--mut);">No baseline data</div>
                 </div>
               </div>
               
@@ -648,9 +648,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'">
             <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
           </div>
-          <p style="font-size:10px;color:var(--muted);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
+          <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
 
-          <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
 
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy)</option>
@@ -662,33 +662,33 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div id="customRFSettings" style="display:none;margin-top:10px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
-                <label style="font-size:10px;color:var(--muted);">WiFi Channel Time (ms)</label>
+                <label style="font-size:10px;color:var(--mut);">WiFi Channel Time (ms)</label>
                 <input type="number" id="wifiChannelTime" min="110" max="300" value="120" style="padding:4px;font-size:11px;">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--muted);">WiFi Scan Interval (ms)</label>
+                <label style="font-size:10px;color:var(--mut);">WiFi Scan Interval (ms)</label>
                 <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
-                <label style="font-size:10px;color:var(--muted);">BLE Scan Duration (ms)</label>
+                <label style="font-size:10px;color:var(--mut);">BLE Scan Duration (ms)</label>
                 <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
               </div>
               <div>
-                <label style="font-size:10px;color:var(--muted);">BLE Scan Interval (ms)</label>
+                <label style="font-size:10px;color:var(--mut);">BLE Scan Interval (ms)</label>
                 <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
               </div>
             </div>
             <div style="margin-bottom:8px;">
-              <label style="font-size:10px;color:var(--muted);">WiFi Channels</label>
+              <label style="font-size:10px;color:var(--mut);">WiFi Channels</label>
               <input type="text" id="wifiChannels" placeholder="1..14" value="1..14" style="padding:4px;font-size:11px;">
             </div>
           </div>
         </div>
         <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
 
-        <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+        <hr style="margin:16px 0;border:none;border-top:1px solid var(--bord);">
         <div class="card-header" onclick="toggleCollapse('wifiApCard')" style="cursor:pointer;padding:0;margin-bottom:12px;border:none;background:none;box-shadow:none;">
             <h4 style="margin:0;font-size:13px;">WiFi Access Point</h4>
             <span class="collapse-icon" id="wifiApCardIcon">▶</span>
@@ -708,7 +708,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;">
           <h3 style="margin:0;">Scan Results</h3>
           <div style="display:flex;gap:8px;align-items:center;">
-            <label style="font-size:11px;color:var(--muted);">Sort:</label>
+            <label style="font-size:11px;color:var(--mut);">Sort:</label>
             <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;border-radius:6px;font-size:11px;">
               <option value="default">Default</option>
               <option value="rssi-desc">RSSI (Strongest)</option>
@@ -828,11 +828,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
           </form>
           
-          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--card);border:1px solid #003b24;border-radius:6px;font-size:12px;"></div>
+          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
           
           <div style="margin-top:16px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-              <span style="font-weight:bold;color:var(--accent);">Auto-Erase Configuration</span>
+              <span style="font-weight:bold;color:var(--acc);">Auto-Erase Configuration</span>
               <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
             </div>
             
@@ -1306,25 +1306,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (stats.scanning && !stats.phase1Complete) {
             // Phase 1: Establishing baseline
             const progress = Math.min(100, (stats.elapsedTime / stats.totalDuration) * 100);
-            statusHTML = '<div style="color:#00cc66;font-weight:bold;">⬤ Phase 1: Establishing Baseline...</div>';
-            progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:#001a10;border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,#0aff9d);transition:width 0.5s;"></div>' + '</div>' + '</div>';
+            statusHTML = '<div style="color:var(--succ);font-weight:bold;">⬤ Phase 1: Establishing Baseline...</div>';
+            progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:var(--bord);border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,var(--succ),var(--acc));transition:width 0.5s;"></div>' + '</div>' + '</div>';
           } else if (stats.scanning && stats.phase1Complete) {
             // Phase 2: Monitoring - add active status indicator
-            statusHTML = '<div style="color:#0aff9d;font-weight:bold;">⬤ Phase 2: Monitoring for Anomalies</div>';
+            statusHTML = '<div style="color:var(--acc);font-weight:bold;">⬤ Phase 2: Monitoring for Anomalies</div>';
             // Add elapsed time indicator for Phase 2
             const monitorTime = Math.floor(stats.elapsedTime / 1000);
             const monitorMins = Math.floor(monitorTime / 60);
             const monitorSecs = monitorTime % 60;
-            progressHTML = '<div style="margin-top:10px;color:#00cc66;font-size:11px;">' + 'Active monitoring: ' + monitorMins + 'm ' + monitorSecs + 's' + '</div>';
+            progressHTML = '<div style="margin-top:10px;color:var(--succ);font-size:11px;">' + 'Active monitoring: ' + monitorMins + 'm ' + monitorSecs + 's' + '</div>';
           } else if (stats.established) {
             // Complete
-            statusHTML = '<div style="color:#00cc66;">✓ Baseline Complete</div>';
+            statusHTML = '<div style="color:var(--succ);">✓ Baseline Complete</div>';
           } else {
-            statusHTML = '<div style="color:#888;">No baseline data</div>';
+            statusHTML = '<div style="color:var(--mut);">No baseline data</div>';
           }
           let statsHTML = '';
           if (stats.scanning) {
-            statsHTML = '<div style="margin-top:12px;padding:10px;background:#000;border:1px solid #003b24;border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--muted);">WiFi Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">BLE Devices</div>' + '<div style="color:var(--fg);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--muted);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Total Devices</div>' + '<div style="color:var(--accent);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--muted);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? '#ff6666' : 'var(--fg)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+            statsHTML = '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--mut);">WiFi Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">BLE Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Total Devices</div>' + '<div style="color:var(--acc);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? 'var(--dang)' : 'var(--txt)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
           }
           statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
           const startDetectionBtn = document.getElementById('startDetectionBtn');
