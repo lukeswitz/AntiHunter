@@ -990,6 +990,10 @@ void snifferScanTask(void *pv)
     scanning = false;
     lastScanEnd = millis();
 
+    // Stop radio before mesh batch — scan data is in cache, radio not needed for UART mesh TX
+    radioStopSTA();
+    delay(500);
+
     if (meshEnabled)
     {
         uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
