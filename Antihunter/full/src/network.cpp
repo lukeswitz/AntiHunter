@@ -1742,6 +1742,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 startScanBtn.type = 'button';
                 startScanBtn.onclick = function(e) {
                     e.preventDefault();
+                    lastScanStartTime = 0;
                     fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
                         setTimeout(async () => {
                             const refreshedDiag = await fetch('/diag').then(r => r.text());
@@ -1760,6 +1761,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     triangulateBtn.type = 'button';
                     triangulateBtn.onclick = function(e) {
                         e.preventDefault();
+                        lastScanStartTime = 0;
                         fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
                             setTimeout(async () => {
                                 const refreshedDiag = await fetch('/diag').then(r => r.text());
@@ -1779,6 +1781,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     startDetectionBtn.type = 'button';
                     startDetectionBtn.onclick = function(e) {
                         e.preventDefault();
+                        lastScanStartTime = 0;
                         fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
                             setTimeout(async () => {
                                 const refreshedDiag = await fetch('/diag').then(r => r.text());
@@ -3358,6 +3361,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               submitBtn.type = 'button';
               submitBtn.onclick = function(e) {
                   e.preventDefault();
+                  lastScanStartTime = 0;
                   fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
                       setTimeout(async () => {
                           const refreshedDiag = await fetch('/diag').then(r => r.text());
@@ -3502,6 +3506,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             submitBtn.type = 'button';
             submitBtn.onclick = function(e) {
                 e.preventDefault();
+                lastScanStartTime = 0;
                 fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
                     setTimeout(async () => {
                         const refreshedDiag = await fetch('/diag').then(r => r.text());

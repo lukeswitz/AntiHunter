@@ -989,6 +989,10 @@ void snifferScanTask(void *pv)
     scanning = false;
     lastScanEnd = millis();
 
+    // Stop radio before mesh batch — scan data is in cache, radio not needed for UART mesh TX
+    radioStopSTA();
+    delay(500);
+
     if (meshEnabled)
     {
         uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
@@ -1158,9 +1162,6 @@ void snifferScanTask(void *pv)
             Serial.printf("[SNIFFER] WARNING: %d devices not transmitted\n", finalRemaining);
         }
     }
-
-    radioStopSTA();
-    delay(500);
 
     vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;
