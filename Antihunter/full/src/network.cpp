@@ -721,6 +721,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </select>
             <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;">↕</button>
             <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
+            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="padding:6px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;"></button>
           </div>
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
@@ -967,6 +968,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let lastScanningState = false;
       let lastResultsText = '';
       let meshEnabled = true;
+      let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
 
       function switchTab(tabName) {
@@ -1110,6 +1112,43 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast(data, 'success');
         } catch(e) {
           toast('Failed to save mesh interval', 'error');
+        }
+      }
+
+      function togglePrivacy() {
+        privacyMode = !privacyMode;
+        localStorage.setItem('privacyMode', privacyMode ? '1' : '0');
+        updatePrivacyBtn();
+        const resultsElement = document.getElementById('r');
+        if (privacyMode) {
+          if (resultsElement && lastResultsText) {
+            resultsElement.innerHTML = parseAndStyleResults(lastResultsText);
+          }
+          applyPrivacyToElement(document.body);
+          document.querySelectorAll('textarea').forEach(ta => {
+            ta.value = ta.value.replace(/\b([A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi, 'XX:XX:XX:XX:XX:XX');
+          });
+        } else {
+          if (resultsElement && lastResultsText) {
+            resultsElement.innerHTML = parseAndStyleResults(lastResultsText);
+          }
+          load();
+        }
+      }
+
+      function updatePrivacyBtn() {
+        const btn = document.getElementById('privacyBtn');
+        if (!btn) return;
+        if (privacyMode) {
+          btn.textContent = 'Privacy: ON';
+          btn.style.background = 'var(--succ)';
+          btn.style.borderColor = 'var(--succ)';
+          btn.style.color = '#fff';
+        } else {
+          btn.textContent = 'Privacy: OFF';
+          btn.style.background = 'var(--dang)';
+          btn.style.borderColor = 'var(--dang)';
+          btn.style.color = '#fff';
         }
       }
 
@@ -1435,6 +1474,34 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         sortResultsDisplay();
       }
 
+      function applyPrivacyToElement(el) {
+        // Replace MAC addresses in all text nodes
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+        const textNodes = [];
+        while (walker.nextNode()) textNodes.push(walker.currentNode);
+        textNodes.forEach(node => {
+          node.nodeValue = node.nodeValue.replace(
+            /\b([A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi,
+            'XX:XX:XX:XX:XX:XX'
+          );
+        });
+
+        // Replace device names — <strong> whose parent div starts with "Name:"
+        el.querySelectorAll('strong').forEach(strong => {
+          if (strong.parentElement?.textContent.startsWith('Name:')) {
+            strong.textContent = 'REDACTED';
+          }
+        });
+
+        // Replace GPS coordinates — leaf divs containing only a float with 4+ decimals
+        el.querySelectorAll('div').forEach(div => {
+          if (div.children.length === 0 &&
+              /^-?\d{1,3}\.\d{4,}$/.test(div.textContent.trim())) {
+            div.textContent = 'REDACTED';
+          }
+        });
+      }
+
       function toggleSortOrder() {
         sortReverse = !sortReverse;
         sortResultsDisplay();
@@ -1644,7 +1711,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (document.getElementById('sortBy')) {
           document.getElementById('sortBy').value = 'default';
         }
-        return originalParseAndStyleResults.call(this, text);
+        const html = originalParseAndStyleResults.call(this, text);
+        if (!privacyMode) return html;
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        applyPrivacyToElement(temp);
+        return temp.innerHTML;
       };
       
       function updateStatusIndicators(diagText) {
@@ -3571,6 +3643,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       // Initialize
       load();
+      updatePrivacyBtn();
       setInterval(updateBatterySaverStatus, 5000);
       initTerminal();
       loadBaselineAnomalyConfig();
