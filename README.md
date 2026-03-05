@@ -266,12 +266,12 @@ AntiHunter operates as a distributed sensor network. Nodes function independentl
 - **GPS, SDHC, Vibration, and RTC modules**
 
 <details>
-<summary>Full Bill of Materials (Single PCB)</summary>
+<summary>Bill of Materials</summary>
 
 - 1x Seeed Studio XIAO ESP32-S3
-- 1x Heltec WiFi LoRa 32 V3.2 (T114 also compatible, V3.2 preferred)
+- 1x Heltec WiFi LoRa 32 V3.2 (T114 also compatible, v3.2 preferred)
 - 1x ATGM336H GPS Module
-- 1x Micro SD SDHC TF Card Adapter Reader Module (SPI)
+- 1x Micro SD SDHC TF Card Adapter Reader Module
 - 1x SD Card (FAT32, 16GB recommended)
 - 1x SW-420 Vibration Sensor
 - 1x DS3231 Real Time Clock Module
@@ -283,6 +283,8 @@ AntiHunter operates as a distributed sensor network. Nodes function independentl
 - 1x GNSS Helix Antenna (L1/L5)
 - 1x 30mm 5V Fan
 - 1x 3 Pin Mini On/Off Switch
+- 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply:
+    - 2S 18650 Charger Module DC-DC Step Up Booster Converter. Module dimensions: 88x41x22mm
 
 </details>
 
