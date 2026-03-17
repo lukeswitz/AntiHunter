@@ -13,9 +13,11 @@
 </p>
 
 > [!NOTE]
-> **Early Release** - Alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
->
 > DIGI Detection Node 2.4GHz WiFi/BLE firmware. Standalone or for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+> 
+> **Early Release** - Beta version. Potential stability issues and unexpected behavior.
+>
+
 
 ## Table of Contents
 
