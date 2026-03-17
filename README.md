@@ -268,23 +268,38 @@ AntiHunter operates as a distributed sensor network. Nodes function independentl
 <details>
 <summary>Bill of Materials</summary>
 
+CORE COMPONENTS
 - 1x Seeed Studio XIAO ESP32-S3
-- 1x Heltec WiFi LoRa 32 V3.2 (T114 also compatible, v3.2 preferred)
+- 1x Heltec WiFi LoRa 32 V3.2 (T114 also compatible, V3.2 preferred)
 - 1x ATGM336H GPS Module
 - 1x Micro SD SDHC TF Card Adapter Reader Module
 - 1x SD Card (FAT32, 16GB recommended)
 - 1x SW-420 Vibration Sensor
 - 1x DS3231 Real Time Clock Module
 - 1x KSD9700 Normally Open Thermal Wire Sensor (30-40C)
-- 6x JST 2.54 2-Pin Terminals (2.0 JST also works)
+
+CONNECTORS & FASTENERS
+- 6x JST 2.54 2-Pin Terminals (2.0mm JST also fits)
+- 14x M3 Mounting Inserts
+- 2x M3x15mm Brass Standoffs
+- 1x 1/4" Tripod Insert
+- 1x JST Power Male Cable (for switch to board connection)
+- 8x M3 Flat Top Screws (for enclosure)
+
+ANTENNA & CABLING
 - 3x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm)
 - 1x 6dBi Antenna 2.4GHz (WiFi/BLE)
 - 1x 6dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
 - 1x GNSS Helix Antenna (L1/L5)
-- 1x 30mm 5V Fan
-- 1x 3 Pin Mini On/Off Switch
-- 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply:
-    - 2S 18650 Charger Module DC-DC Step Up Booster Converter. Module dimensions: 88x41x22mm
+
+POWER & THERMAL
+- 1x 30mm 5V Fan - JST (2.0mm JST also fits)
+- 1x 3-Pin Mini On/Off Switch
+- 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply
+  (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88x41x22mm)
+
+ENCLOSURE
+- 1x Weatherproof Enclosure (3D printable STLs in repo)
 
 </details>
 
