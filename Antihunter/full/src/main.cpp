@@ -29,18 +29,25 @@ void uartForwardTask(void *parameter) {
   static String meshBuffer = "";
 
   for (;;) {
+    String rxChunk = "";
+    uint32_t lastRxMicros = 0;
     if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
       while (Serial1.available()) {
-        uint32_t rxMicros = micros();
+        rxChunk += (char)Serial1.read();
+        lastRxMicros = micros();
+        if (rxChunk.length() > 256) break;
+      }
+      xSemaphoreGive(serial1Mutex);
+    }
 
-        char c = Serial1.read();
-        xSemaphoreGive(serial1Mutex);
-        Serial.write(c);
-      
+    for (size_t i = 0; i < rxChunk.length(); i++) {
+      char c = rxChunk[i];
+      Serial.write(c);
+
       if (c == '\n' || c == '\r') {
         if (meshBuffer.length() > 0) {
           Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
-          
+
           String toProcess = meshBuffer;
           String senderId = "";
           int colonPos = meshBuffer.indexOf(": ");
@@ -48,13 +55,13 @@ void uartForwardTask(void *parameter) {
             senderId = meshBuffer.substring(0, colonPos);
             toProcess = meshBuffer.substring(colonPos + 2);
           }
-          
+
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
-            processMeshTimeSyncWithDelay(senderId, toProcess, rxMicros);
+            processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
           } else {
             processMeshMessage(toProcess);
           }
-          
+
           meshBuffer = "";
         }
       } else {
@@ -63,14 +70,6 @@ void uartForwardTask(void *parameter) {
           meshBuffer = "";
         }
       }
-
-      if (serial1Mutex != nullptr) {
-        xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(10));
-      }
-    }
-    if (serial1Mutex != nullptr) {
-      xSemaphoreGive(serial1Mutex);
-    }
     }
     vTaskDelay(pdMS_TO_TICKS(2));
   }
