@@ -1564,6 +1564,10 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
 
+    if (ppkt->rx_ctrl.sig_len < 24) {
+        return;
+    }
+
     int8_t rssiThreshold;
     portENTER_CRITICAL_ISR(&rfConfigMux);
     rssiThreshold = rfConfig.globalRssiThreshold;
@@ -1627,8 +1631,6 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     detectDeauthFrame(ppkt);
     framesSeen = framesSeen + 1;
-    if (!ppkt || ppkt->rx_ctrl.sig_len < 24)
-        return;
 
     const uint8_t *p = ppkt->payload;
     uint16_t fc = u16(p);
