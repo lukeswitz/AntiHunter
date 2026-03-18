@@ -5,17 +5,21 @@
 [![CodeQL](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql)
 [![Pre-release](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?include_prereleases&label=pre-release&color=orange)](https://github.com/lukeswitz/AntiHunter/releases)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
-
 </div>
 
 <p align="center">
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
+
+  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+  
 </p>
 
 > [!NOTE]
-> **Early Release** - Alpha version. Expect stability issues, breaking changes, and unexpected behavior. Hardware requirements and features are rapidly evolving.
+> Standalone or for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+> 
+> **Early Release** - Beta version. Potential stability issues and unexpected behavior may exist in the process. 
 >
-> DIGI Detection Node 2.4GHz WiFi/BLE firmware. Standalone or for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+
 
 ## Table of Contents
 
@@ -36,8 +40,8 @@
 
 #### Project Updates
 
-- `Feb. 02 2026`: **AntiHunter is live on Tindie.** Stock added on a rolling basis.
-- `Feb. 01 2026`: Illustrated [assembly guide](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) now available for the DIGINODE.
+- `Feb 02 2026`: **AntiHunter is live on Tindie.** Stock added on a rolling basis.
+- `Feb 01 2026`: Illustrated [assembly guide](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) now available for the DIGINODE.
 - `Jan. 29 2026`: Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).
 
 ## Overview
@@ -66,6 +70,11 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-by
 
 <img width="859" height="899" alt="Triangulation diagram" src="https://github.com/user-attachments/assets/c76bb177-ce4e-42db-aafb-fd360b7f49e2" />
 
+> [!TIP]
+> Target RSSI above -80 will produce more accurate results.
+
+> Exact triangulation is not possible; though this has tested surprisingly well for budget hardware. 
+
 Coordinates multiple nodes across a mesh network for precise location tracking. Each node simultaneously scans for a target, recording RSSI and GPS coordinates. Data is aggregated and forwarded over mesh for RSSI-based trilateration processing.
 
 - Multi-node coordination across mesh network
@@ -73,8 +82,6 @@ Coordinates multiple nodes across a mesh network for precise location tracking. 
 - RSSI-based weighted trilateration with Kalman filtering
 - Outputs: Average HDOP, GPS coordinates, confidence, estimated uncertainty (m), GPS quality
 - Google Maps link sent over mesh with details
-
-> The BOM antennas/MCUs are calibrated for the official PCB. Adjustment may be needed in `triangulation.cpp` constants.
 
 > **Experimental T114 Support:** Small buffer and slow speed causes latency. Heltec v3 recommended.
 
@@ -95,7 +102,6 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 | Indoor Dense | 4.0 | 3.5 | -27 dBm | -69 dBm | Office spaces, many partitions |
 | Industrial | 4.8 | 4.0 | -30 dBm | -73 dBm | Heavy obstruction, machinery |
 
-> Values calibrated for 5 dBi RX antenna gain with empirical verification from ESP32-S3 measurements (Feb 2026). Conservative calibration -- adaptive system fine-tunes for higher-gain antennas (up to 8 dBi). BLE has higher path loss exponent due to lower TX power and increased multipath susceptibility. Auto-calibration refines values during triangulation operations.
 
 #### Distance Tuning (Target-Specific)
 
@@ -103,7 +109,6 @@ Fine-tune calculated distances per target using multipliers (0.1x - 5.0x):
 - **< 1.0**: Target appears closer (increase sensitivity) -- e.g., 0.5x = 2x closer
 - **> 1.0**: Target appears farther (reduce false positives) -- e.g., 2.0x = 2x farther
 - **Default**: 1.0x (no adjustment)
-- **Bounds**: WiFi max 50m, BLE max 30m (after multiplier)
 
 </details>
 
@@ -113,9 +118,15 @@ Fine-tune calculated distances per target using multipliers (0.1x - 5.0x):
 
 Captures all WiFi and Bluetooth devices in range. Records MAC addresses, SSIDs, signal strength, names, and channels for complete 2.4GHz spectrum visibility.
 
+> [!TIP]
+> Use the Privacy button at the top of the results pane if sharing screenshots
+
 <img width="869" height="454" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
 
 #### B. Baseline Anomaly Detection
+
+> [!TIP]
+> A longer initial scan will produce more reliable detection behavior 
 
 Two-phase scanning: establishes baseline, then monitors for anomalies (new devices, disappearances, reappearances, significant RSSI changes). Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices, defaults to 1500 without SD). Persistent storage with automatic tiering survives reboots.
 
@@ -133,7 +144,7 @@ WiFi deauth/disassoc attack sniffer with frame filtering, real-time detection, a
 
 Identifies drones broadcasting Remote ID (FAA/EASA compliant). Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames), French drone ID format (OUI 0x6a5c35). Extracts UAV ID, pilot location, and flight telemetry. Sends immediate mesh alerts and logs to SD card and two API endpoints.
 
-#### E. MAC Randomization Analyzer
+#### E. MAC Randomization Correlation 
 
 **`Experimental`**
 
@@ -232,7 +243,8 @@ Configure via web interface at `http://192.168.4.1` or API endpoints. All settin
 - **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Lower captures distant signals; higher focuses on nearby. Triangulation is exempt.
 - **WiFi Channels**: Comma-separated (1,6,11) or range (1..14). Default: 1,6,11.
 
-Lower intervals = faster detection, higher power. Higher intervals = reduced power, may miss brief transmissions. Adjust based on deployment environment, power budget, and regulatory constraints.
+> [!TIP]
+>Lower intervals = faster detection, higher power. Higher intervals = reduced power, may miss brief transmissions.
 
 </details>
 
@@ -246,15 +258,11 @@ AntiHunter operates as a distributed sensor network. Nodes function independentl
 
 **Workflow:** Local detection -> Target identification -> Data collection (RSSI, GPS, timestamp) -> Mesh broadcast -> Command center aggregation
 
-**Command Center Integration:** Aggregates data from all nodes, provides real-time mapping and visualization, enables coordinated response operations. Public release coming soon.
+**[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) Integration:** Aggregates data from all nodes, provides real-time mapping and visualization, enables coordinated response operations.
 
 ---
 
 ## Hardware Requirements
-
-- Enclosure STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
-- Assembly manual: [PDF](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
-
 
 > [!IMPORTANT]
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability that may disable or damage components.
@@ -299,7 +307,12 @@ POWER & THERMAL
   (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88x41x22mm)
 
 ENCLOSURE
-- 1x Weatherproof Enclosure (3D printable STLs in repo)
+- 1x Weatherproof Enclosure (3D printable)
+
+  - Enclosure STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
+
+- Assembly manual: [PDF](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
+
 
 </details>
 
@@ -400,10 +413,12 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART, creating a lo
 
 ## Mesh Command Reference
 
-> [!NOTE]
-> All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9).
+- All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9) no spaces
 
 ### Core Commands
+
+> [!TIP]
+> Use `@ALL` to send command to all nodes. Replace `ALL` with a node id for singular commands.  
 
 | Command | Description | Example |
 |---------|-------------|---------|
