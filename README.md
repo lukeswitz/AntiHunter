@@ -293,6 +293,7 @@ CONNECTORS & FASTENERS
 - 1x 1/4" Tripod Insert
 - 1x JST Power Male Cable (for switch to board connection)
 - 8x M3 Flat Top Screws (for enclosure)
+- 6x M3 Screws (for PCB and power board)
 
 ANTENNA & CABLING
 - 3x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm)
