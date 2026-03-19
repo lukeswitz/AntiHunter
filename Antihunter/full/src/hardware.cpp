@@ -30,6 +30,7 @@ String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
 SemaphoreHandle_t gpsMutex = nullptr;
+extern bool hbEnabled;
 
 // RTC
 RTC_DS3231 rtc;
@@ -370,6 +371,7 @@ void syncSettingsToNVS() {
     prefs.putUInt("wifiInterval", rfConfig.wifiScanInterval);
     prefs.putUInt("bleInterval", rfConfig.bleScanInterval);
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
+    prefs.putBool("hbEnabled", hbEnabled);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -436,6 +438,7 @@ void saveConfiguration() {
     configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
     configFile.printf(" \"targets\":\"%s\",\n", prefs.getString("maclist", "").c_str());
     configFile.printf(" \"apSsid\":\"%s\",\n", prefs.getString("apSsid", AP_SSID).c_str());
+    configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
     configFile.printf(" \"apPass\":\"%s\"\n", prefs.getString("apPass", AP_PASS).c_str());
     configFile.println("}");
 
@@ -464,9 +467,10 @@ void loadConfiguration() {
         setSignificantRssiChange(prefs.getInt("rssiChange", 20));
         setBaselineRssiThreshold(prefs.getInt("blRssi", -70));
         baselineDuration = prefs.getUInt("blDuration", 300000);
+        hbEnabled = prefs.getBool("hbEnabled", false);
         return;
     }
-    
+
     if (!SafeSD::exists("/config.json")) {
         Serial.println("No config file found on SD card, using NVS defaults");
         return;
@@ -678,6 +682,11 @@ void loadConfiguration() {
         prefs.putInt("rssiChange", delta);
     }
 
+    if (doc.containsKey("hbEnabled")) {
+        hbEnabled = doc["hbEnabled"].as<bool>();
+        prefs.putBool("hbEnabled", hbEnabled);
+    }
+
     Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
@@ -832,6 +841,7 @@ String getDiagnostics() {
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
+    s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + "\n";
     if (lastVibrationTime > 0) {
         unsigned long vibrationTime = lastVibrationTime;
         unsigned long seconds = vibrationTime / 1000;

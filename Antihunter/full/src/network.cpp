@@ -25,6 +25,7 @@ static String customApSsid = "";
 static String customApPass = "";
 const int MAX_RETRIES = 10;
 bool meshEnabled = true;
+bool hbEnabled = false;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char/3s in sequence
@@ -749,6 +750,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             
             <div id="meshControls" style="display:none;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <input type="checkbox" id="hbEnabledCb" onchange="toggleHb()" style="width:20px;height:20px;">
+                <label style="margin:0;font-size:13px;cursor:pointer;" for="hbEnabledCb">Status Heartbeat</label>
+              </div>
               <label>Mesh Send Interval (ms)</label>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
                 <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
@@ -968,6 +973,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let lastScanningState = false;
       let lastResultsText = '';
       let meshEnabled = true;
+      let hbEnabled = true;
       let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
 
@@ -1193,6 +1199,28 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
       
+      function updateHbUI() {
+        const cb = document.getElementById('hbEnabledCb');
+        if (cb) cb.checked = hbEnabled;
+      }
+
+      async function toggleHb() {
+        hbEnabled = document.getElementById('hbEnabledCb').checked;
+        try {
+          const r = await fetch('/mesh-hb', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'enabled=' + hbEnabled
+          });
+          const msg = await r.text();
+          toast(msg, 'success');
+        } catch(e) {
+          toast('Failed to update heartbeat', 'error');
+          hbEnabled = !hbEnabled;
+          updateHbUI();
+        }
+      }
+
       function loadMeshStatus() {
         updateMeshUI();
       }
@@ -3118,6 +3146,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const sections = diagText.split('\n');
           meshEnabled = diagText.includes('Mesh: Enabled');
           updateMeshUI();
+          hbEnabled = diagText.includes('Heartbeat: Enabled');
+          updateHbUI();
           
           if (droneResponse) {
             try {
@@ -4171,6 +4201,16 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             meshEnabled = req->getParam("enabled", true)->value() == "true";
             Serial.printf("[MESH] %s\n", meshEnabled ? "Enabled" : "Disabled");
             req->send(200, "text/plain", meshEnabled ? "Mesh enabled" : "Mesh disabled");
+        } else {
+            req->send(400, "text/plain", "Missing enabled parameter");
+        } });
+
+  server->on("/mesh-hb", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (req->hasParam("enabled", true)) {
+            hbEnabled = req->getParam("enabled", true)->value() == "true";
+            prefs.putBool("hbEnabled", hbEnabled);
+            req->send(200, "text/plain", hbEnabled ? "Heartbeat enabled" : "Heartbeat disabled");
         } else {
             req->send(400, "text/plain", "Missing enabled parameter");
         } });
@@ -5848,6 +5888,20 @@ void processCommand(const String &command, const String &targetId = "")
     String status = getBatterySaverStatus();
     sendToSerial1(status, true);
     broadcastToTerminal(status);
+  }
+  else if (command == "HB_ON")
+  {
+    hbEnabled = true;
+    prefs.putBool("hbEnabled", true);
+    sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
+    broadcastToTerminal("[HB] Status heartbeat enabled");
+  }
+  else if (command == "HB_OFF")
+  {
+    hbEnabled = false;
+    prefs.putBool("hbEnabled", false);
+    sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
+    broadcastToTerminal("[HB] Status heartbeat disabled");
   }
 }
 
