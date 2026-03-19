@@ -219,6 +219,7 @@ void setup() {
 
 void loop() {
     static unsigned long lastSaveSend = 0;
+    static unsigned long lastHbSend = 0;
     static unsigned long lastGPSPollBatterySaver = 0;
     static unsigned long lastHeapCheck = 0;
 
@@ -261,8 +262,12 @@ void loop() {
     // Normal operation mode
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {
         saveConfiguration();
-        sendNodeIdUpdate();
         lastSaveSend = millis();
+    }
+
+    if (millis() - lastHbSend > hbInterval && !triangulationActive) {
+        sendNodeIdUpdate();
+        lastHbSend = millis();
     }
 
     if (millis() - lastRTCUpdate > 1000) {

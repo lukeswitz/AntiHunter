@@ -31,6 +31,7 @@ float gpsLat = 0.0, gpsLon = 0.0;
 bool gpsValid = false;
 SemaphoreHandle_t gpsMutex = nullptr;
 extern bool hbEnabled;
+extern uint32_t hbInterval;
 
 // RTC
 RTC_DS3231 rtc;
@@ -372,6 +373,7 @@ void syncSettingsToNVS() {
     prefs.putUInt("bleInterval", rfConfig.bleScanInterval);
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
     prefs.putBool("hbEnabled", hbEnabled);
+    prefs.putUInt("hbInterval", hbInterval);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -439,6 +441,7 @@ void saveConfiguration() {
     configFile.printf(" \"targets\":\"%s\",\n", prefs.getString("maclist", "").c_str());
     configFile.printf(" \"apSsid\":\"%s\",\n", prefs.getString("apSsid", AP_SSID).c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
+    configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
     configFile.printf(" \"apPass\":\"%s\"\n", prefs.getString("apPass", AP_PASS).c_str());
     configFile.println("}");
 
@@ -468,6 +471,7 @@ void loadConfiguration() {
         setBaselineRssiThreshold(prefs.getInt("blRssi", -70));
         baselineDuration = prefs.getUInt("blDuration", 300000);
         hbEnabled = prefs.getBool("hbEnabled", false);
+        hbInterval = prefs.getUInt("hbInterval", 600000);
         return;
     }
 
@@ -687,6 +691,14 @@ void loadConfiguration() {
         prefs.putBool("hbEnabled", hbEnabled);
     }
 
+    if (doc.containsKey("hbInterval")) {
+        uint32_t minutes = doc["hbInterval"].as<uint32_t>();
+        if (minutes < 1) minutes = 1;
+        if (minutes > 60) minutes = 60;
+        hbInterval = minutes * 60000;
+        prefs.putUInt("hbInterval", hbInterval);
+    }
+
     Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
@@ -841,7 +853,7 @@ String getDiagnostics() {
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
-    s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + "\n";
+    s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + " " + String(hbInterval / 60000) + "min\n";
     if (lastVibrationTime > 0) {
         unsigned long vibrationTime = lastVibrationTime;
         unsigned long seconds = vibrationTime / 1000;

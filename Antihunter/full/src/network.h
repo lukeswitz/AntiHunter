@@ -33,6 +33,7 @@ extern SemaphoreHandle_t serial1Mutex;
 extern AsyncWebServer *server;
 extern bool meshEnabled;
 extern bool hbEnabled;
+extern uint32_t hbInterval;
 
 #ifndef AP_SSID
 #define AP_SSID "Antihunter"

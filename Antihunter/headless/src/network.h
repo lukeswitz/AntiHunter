@@ -31,6 +31,7 @@ extern SerialRateLimiter rateLimiter;
 extern SemaphoreHandle_t serial1Mutex;
 extern bool meshEnabled;
 extern bool hbEnabled;
+extern uint32_t hbInterval;
 
 // Mesh communication
 void initializeNetwork();

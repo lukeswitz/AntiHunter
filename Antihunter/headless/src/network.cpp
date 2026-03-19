@@ -16,6 +16,7 @@ extern "C"
 // LoRa RF Config
 bool meshEnabled = true;
 bool hbEnabled = false;
+uint32_t hbInterval = 600000;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
@@ -1099,13 +1100,25 @@ void processCommand(const String &command, const String &targetId = "")
   {
     hbEnabled = true;
     prefs.putBool("hbEnabled", true);
+    Serial.println("[HB] Status heartbeat ENABLED");
     sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
   }
   else if (command == "HB_OFF")
   {
     hbEnabled = false;
     prefs.putBool("hbEnabled", false);
+    Serial.println("[HB] Status heartbeat DISABLED");
     sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
+  }
+  else if (command.startsWith("HB_INTERVAL:"))
+  {
+    uint32_t minutes = command.substring(12).toInt();
+    if (minutes < 1) minutes = 1;
+    if (minutes > 60) minutes = 60;
+    hbInterval = minutes * 60000;
+    prefs.putUInt("hbInterval", hbInterval);
+    Serial.printf("[HB] Interval set to %u min\n", minutes);
+    sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
   }
 }
 
