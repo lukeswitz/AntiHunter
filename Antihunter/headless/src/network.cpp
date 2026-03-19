@@ -15,6 +15,7 @@ extern "C"
 
 // LoRa RF Config
 bool meshEnabled = true;
+bool hbEnabled = false;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
@@ -1093,6 +1094,18 @@ void processCommand(const String &command, const String &targetId = "")
   {
     String status = getBatterySaverStatus();
     sendToSerial1(status, true);
+  }
+  else if (command == "HB_ON")
+  {
+    hbEnabled = true;
+    prefs.putBool("hbEnabled", true);
+    sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
+  }
+  else if (command == "HB_OFF")
+  {
+    hbEnabled = false;
+    prefs.putBool("hbEnabled", false);
+    sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
   }
 }
 

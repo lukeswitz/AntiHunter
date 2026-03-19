@@ -30,6 +30,7 @@ extern const int MAX_MESH_SIZE;
 extern SerialRateLimiter rateLimiter;
 extern SemaphoreHandle_t serial1Mutex;
 extern bool meshEnabled;
+extern bool hbEnabled;
 
 // Mesh communication
 void initializeNetwork();

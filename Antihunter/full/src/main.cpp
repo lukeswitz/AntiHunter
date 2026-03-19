@@ -145,9 +145,9 @@ void sendNodeIdUpdate() {
         nodeMsg += " GPS:" + String(gpsLat, 6) + "," + String(gpsLon, 6);
     }
 
-    if (!triangulationActive){
+    if (!triangulationActive) {
         Serial.println(nodeMsg);
-        sendToSerial1(nodeMsg, true);
+        if (hbEnabled) sendToSerial1(nodeMsg, true);
     }
 }
 
