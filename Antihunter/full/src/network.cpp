@@ -26,6 +26,7 @@ static String customApPass = "";
 const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 bool hbEnabled = false;
+uint32_t hbInterval = 600000;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char/3s in sequence
@@ -750,9 +751,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             
             <div id="meshControls" style="display:none;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                 <input type="checkbox" id="hbEnabledCb" onchange="toggleHb()" style="width:20px;height:20px;">
                 <label style="margin:0;font-size:13px;cursor:pointer;" for="hbEnabledCb">Status Heartbeat</label>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                <input type="number" id="hbIntervalInput" min="1" max="60" step="1" value="10" style="flex:1;">
+                <label style="margin:0;font-size:12px;color:var(--mut);white-space:nowrap;">min interval</label>
+                <button class="btn" onclick="saveHbInterval()">Save</button>
               </div>
               <label>Mesh Send Interval (ms)</label>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
@@ -1219,6 +1225,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           hbEnabled = !hbEnabled;
           updateHbUI();
         }
+      }
+
+      async function saveHbInterval() {
+        const minutes = parseInt(document.getElementById('hbIntervalInput').value);
+        if (isNaN(minutes) || minutes < 1 || minutes > 60) { toast('Interval must be 1–60 min', 'error'); return; }
+        try {
+          const r = await fetch('/mesh-hb-interval', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'interval=' + minutes
+          });
+          toast(await r.text(), 'success');
+        } catch(e) { toast('Failed to set interval', 'error'); }
       }
 
       function loadMeshStatus() {
@@ -3146,7 +3165,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const sections = diagText.split('\n');
           meshEnabled = diagText.includes('Mesh: Enabled');
           updateMeshUI();
+          const hbMatch = diagText.match(/Heartbeat: \w+ (\d+)min/);
           hbEnabled = diagText.includes('Heartbeat: Enabled');
+          if (hbMatch) { const inp = document.getElementById('hbIntervalInput'); if (inp) inp.value = hbMatch[1]; }
           updateHbUI();
           
           if (droneResponse) {
@@ -4210,9 +4231,24 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         if (req->hasParam("enabled", true)) {
             hbEnabled = req->getParam("enabled", true)->value() == "true";
             prefs.putBool("hbEnabled", hbEnabled);
+            Serial.printf("[HB] Status heartbeat %s\n", hbEnabled ? "ENABLED" : "DISABLED");
             req->send(200, "text/plain", hbEnabled ? "Heartbeat enabled" : "Heartbeat disabled");
         } else {
             req->send(400, "text/plain", "Missing enabled parameter");
+        } });
+
+  server->on("/mesh-hb-interval", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (req->hasParam("interval", true)) {
+            uint32_t minutes = req->getParam("interval", true)->value().toInt();
+            if (minutes < 1) minutes = 1;
+            if (minutes > 60) minutes = 60;
+            hbInterval = minutes * 60000;
+            prefs.putUInt("hbInterval", hbInterval);
+            Serial.printf("[HB] Interval set to %u min\n", minutes);
+            req->send(200, "text/plain", "Heartbeat interval set to " + String(minutes) + " min");
+        } else {
+            req->send(400, "text/plain", "Missing interval parameter");
         } });
 
   server->on("/mesh-test", HTTP_GET, [](AsyncWebServerRequest *r)
@@ -5902,6 +5938,16 @@ void processCommand(const String &command, const String &targetId = "")
     prefs.putBool("hbEnabled", false);
     sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
     broadcastToTerminal("[HB] Status heartbeat disabled");
+  }
+  else if (command.startsWith("HB_INTERVAL:"))
+  {
+    uint32_t minutes = command.substring(12).toInt();
+    if (minutes < 1) minutes = 1;
+    if (minutes > 60) minutes = 60;
+    hbInterval = minutes * 60000;
+    prefs.putUInt("hbInterval", hbInterval);
+    sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
+    broadcastToTerminal("[HB] Interval set to " + String(minutes) + " min");
   }
 }
 
