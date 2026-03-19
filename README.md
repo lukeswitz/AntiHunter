@@ -18,7 +18,7 @@
 > Standalone or for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 > 
 > **Early Release** - Beta version. Potential stability issues and unexpected behavior may exist in the process. 
->
+
 
 
 ## Table of Contents
@@ -36,12 +36,9 @@
 11. [Credits](#credits)
 12. [Disclaimer](#legal-disclaimer)
 
-<a href="https://www.tindie.com/stores/teamantihunter/?ref=offsite_badges&utm_source=sellers_teamantihunter&utm_medium=badges&utm_campaign=badge_medium"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
 
-#### Project Updates
+#### News
 
-- `Feb 02 2026`: **AntiHunter is live on Tindie.** Stock added on a rolling basis.
-- `Feb 01 2026`: Illustrated [assembly guide](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf) now available for the DIGINODE.
 - `Jan. 29 2026`: Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).
 
 ## Overview
@@ -49,6 +46,8 @@
 **AntiHunter** is a low-cost, open-source distributed perimeter defense system for wireless network security and operational awareness. Built on ESP32-S3 with mesh networking, it creates a scalable sensor network for real-time threat detection, device mapping, and perimeter security.
 
 The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide a digital and physical "tripwire", transforming spectrum activity into actionable security intelligence.
+
+<a href="https://www.tindie.com/stores/teamantihunter/"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
 
 ## Primary Detection Modes
 
@@ -72,8 +71,6 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-by
 
 > [!TIP]
 > Target RSSI above -80 will produce more accurate results.
-
-> Exact triangulation is not possible; though this has tested surprisingly well for budget hardware. 
 
 Coordinates multiple nodes across a mesh network for precise location tracking. Each node simultaneously scans for a target, recording RSSI and GPS coordinates. Data is aggregated and forwarded over mesh for RSSI-based trilateration processing.
 
@@ -118,8 +115,6 @@ Fine-tune calculated distances per target using multipliers (0.1x - 5.0x):
 
 Captures all WiFi and Bluetooth devices in range. Records MAC addresses, SSIDs, signal strength, names, and channels for complete 2.4GHz spectrum visibility.
 
-> [!TIP]
-> Use the Privacy button at the top of the results pane if sharing screenshots
 
 <img width="869" height="454" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
 
@@ -147,6 +142,9 @@ Identifies drones broadcasting Remote ID (FAA/EASA compliant). Supports ODID/AST
 #### E. MAC Randomization Correlation 
 
 **`Experimental`**
+
+> [!TIP]
+> Use the Privacy button at the top of the results pane if sharing screenshots
 
 Traces device identities across randomized MAC addresses using behavioral signatures: IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation. Assigns unique identity IDs (`T-XXXX`) with persistent SD storage.
 
@@ -266,6 +264,8 @@ AntiHunter operates as a distributed sensor network. Nodes function independentl
 
 > [!IMPORTANT]
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability that may disable or damage components.
+
+- Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ### Core Components
 
