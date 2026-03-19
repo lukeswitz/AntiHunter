@@ -491,6 +491,26 @@ NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
 </details>
 
 <details>
+<summary>Status Heartbeat Commands</summary>
+
+Periodic status messages (`Time`, `Temp`, GPS) broadcast over mesh. **Disabled by default.**
+
+| Command | Parameters | Example |
+|---------|------------|---------|
+| `HB_ON` | None | `@AH01 HB_ON` |
+| `HB_OFF` | None | `@AH01 HB_OFF` |
+| `HB_INTERVAL` | `minutes` (1-60) | `@AH01 HB_INTERVAL:10` |
+
+ACK format: `NODE_ID: HB_ACK:ENABLED|DISABLED` or `NODE_ID: HB_ACK:INTERVAL Xmin`
+
+Status heartbeat format:
+```
+NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
+```
+
+</details>
+
+<details>
 <summary>Alert Message Formats</summary>
 
 | Alert Type | Format |
@@ -630,6 +650,8 @@ NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
 | `/drone/status` | GET | Drone detection status (JSON) |
 | `/mesh` | POST | Enable/disable mesh networking |
 | `/mesh-test` | GET | Test mesh connectivity |
+| `/mesh-hb` | POST | Enable/disable status heartbeat (`enabled=true\|false`) |
+| `/mesh-hb-interval` | POST | Set heartbeat interval in minutes (`interval=1-60`) |
 
 </details>
 
