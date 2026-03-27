@@ -288,7 +288,7 @@ CORE COMPONENTS
 
 CONNECTORS & FASTENERS
 - 6x JST 2.54 2-Pin Terminals (2.0mm JST also fits)
-- 14x M3 Mounting Inserts
+- 10x M3 Mounting Inserts
 - 2x M3x15mm Brass Standoffs
 - 1x 1/4" Tripod Insert
 - 1x JST Power Male Cable (for switch to board connection)
