@@ -4231,6 +4231,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         if (req->hasParam("enabled", true)) {
             hbEnabled = req->getParam("enabled", true)->value() == "true";
             prefs.putBool("hbEnabled", hbEnabled);
+            saveConfiguration();
             Serial.printf("[HB] Status heartbeat %s\n", hbEnabled ? "ENABLED" : "DISABLED");
             req->send(200, "text/plain", hbEnabled ? "Heartbeat enabled" : "Heartbeat disabled");
         } else {
@@ -4245,6 +4246,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             if (minutes > 60) minutes = 60;
             hbInterval = minutes * 60000;
             prefs.putUInt("hbInterval", hbInterval);
+            saveConfiguration();
             Serial.printf("[HB] Interval set to %u min\n", minutes);
             req->send(200, "text/plain", "Heartbeat interval set to " + String(minutes) + " min");
         } else {
