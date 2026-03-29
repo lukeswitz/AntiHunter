@@ -670,6 +670,13 @@ void snifferScanTask(void *pv)
     lastScanSecs = duration;
     lastScanForever = forever;
 
+    // Clear previous scan placehodler state
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
+                                  " (IN PROGRESS)\nTarget Hits: 0\nStarting...\n";
+    }
+
     int networksFound = 0;
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
@@ -677,7 +684,7 @@ void snifferScanTask(void *pv)
     const unsigned long BLE_SCAN_INTERVAL = 2000;
     const unsigned long WIFI_SCAN_INTERVAL = 4000;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
-    unsigned long nextResultsUpdate = millis() + 5000;
+    unsigned long nextResultsUpdate = millis() + 2000;
     
     std::set<String> transmittedDevices;
 
@@ -1946,7 +1953,7 @@ void radioStopSTA() {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    // Stop BLE if active - do this BEFORE WiFi mode change
+    // Stop BLE if active
     if (pBLEScan) {
         pBLEScan->stop();
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -1955,9 +1962,9 @@ void radioStopSTA() {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    // Reset WiFi to AP_STA mode
-    WiFi.mode(WIFI_AP_STA);
-    vTaskDelay(pdMS_TO_TICKS(200));
+    // Restore AP channel 
+    esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    vTaskDelay(pdMS_TO_TICKS(50));
 
     Serial.println("[RADIO] STA mode stopped");
 }
