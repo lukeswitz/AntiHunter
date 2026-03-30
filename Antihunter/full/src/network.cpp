@@ -532,9 +532,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <form id="sniffer" method="POST" action="/sniffer">
               <label>Method</label>
               <select name="detection" id="detectionMode">
-                <option value="device-scan">Device Discovery Scan</option>
+                <option value="device-scan">Device Discovery</option>
                 <option value="baseline" selected>Baseline Anomaly Sniffer</option>
-                <option value="randomization-detection">MAC Randomization Analyzer</option>
+                <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
               </select>
@@ -720,8 +720,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <option value="lastseen-asc">Last Seen (Recent)</option>
               <option value="name-asc">Name (A-Z)</option>
               <option value="type-asc">Type (WiFi/BLE)</option>
+              <option value="channel-asc">Channel (Low-High)</option>
             </select>
-            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;">↕</button>
+            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;line-height:1;" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
             <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
             <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="padding:6px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;"></button>
           </div>
@@ -979,7 +980,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let lastScanningState = false;
       let lastResultsText = '';
       let meshEnabled = true;
-      let hbEnabled = true;
+      let hbEnabled = false;
       let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
 
@@ -1690,10 +1691,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const name = nameMatch ? nameMatch[1].trim() : '';
               
               const deviceType = child.getAttribute('data-type') || '';
-              
+              const channel = parseInt(child.getAttribute('data-channel') || '0', 10);
+
               items.push({
                 element: child,
-                mac, rssi, name, deviceType,
+                mac, rssi, name, deviceType, channel,
                 sortKey: currentSort,
                 type: 'device'
               });
@@ -1731,6 +1733,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               break;
             case 'type-asc':
               cmp = (a.deviceType || '').localeCompare(b.deviceType || '');
+              break;
+            case 'channel-asc':
+              cmp = (a.channel || 0) - (b.channel || 0);
               break;
             default:
               cmp = 0;
@@ -2389,148 +2394,191 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function parseRandomizationResults(text) {
         const headerMatch = text.match(/Active Sessions: (\d+)/);
         const identitiesMatch = text.match(/Device Identities: (\d+)/);
-        
+
         let html = '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
         html += '<div style="font-size:13px;color:var(--txt);margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">MAC RANDOMIZATION DETECTION</div>';
         html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);">';
         if (headerMatch) html += '<span>Sessions: <strong style="color:var(--txt);">' + headerMatch[1] + '</strong></span>';
         if (identitiesMatch) html += '<span>Identities: <strong style="color:var(--txt);">' + identitiesMatch[1] + '</strong></span>';
         html += '</div></div>';
-        
+
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
-        
-        trackBlocks.forEach((block, index) => {
-          const trackMatch = block.match(/Track ID:\s*([^\n]+)/);
-          const typeMatch = block.match(/Type:\s*([^\n]+)/);
-          const macsMatch = block.match(/MACs linked: (\d+)/);
-          const confMatch = block.match(/Confidence: ([\d.]+)/);
-          const sessionsMatch = block.match(/Sessions: (\d+)/);
-          const intervalMatch = block.match(/Interval consistency: ([\d.]+)/);
-          const rssiMatch = block.match(/RSSI consistency: ([\d.]+)/);
-          const channelsMatch = block.match(/Channels: (\d+)/);
-          const channelSeqMatch = block.match(/Channel sequence: (.+)/);
-          const anchorMacMatch = block.match(/Anchor MAC: ([A-F0-9:]+)/);
-          const lastSeenMatch = block.match(/Last seen: (\d+)s ago/);
-          const macsListMatch = block.match(/MACs: (.+)/);
-          
-          if (!trackMatch || !anchorMacMatch) return;
-          
-          const trackId = trackMatch[1];
-          const anchorMac = anchorMacMatch[1];
+
+        trackBlocks.forEach((block) => {
+          const trackMatch       = block.match(/Track ID:\s*([^\n]+)/);
+          const typeMatch        = block.match(/Type:\s*([^\n]+)/);
+          const nameMatch        = block.match(/Name:\s*([^\n]+)/);
+          const ssidMatch        = block.match(/SSID:\s*([^\n]+)/);
+          const rssiMatch        = block.match(/RSSI: avg ([-\d]+) dBm\s+min ([-\d]+)\s+max ([-\d]+)/);
+          const channelMatch     = block.match(/Channel:\s*(\d+)/);
+          const probesMatch      = block.match(/Probes:\s*(\d+)/);
+          const macsMatch        = block.match(/MACs linked:\s*(\d+)/);
+          const confMatch        = block.match(/Confidence:\s*([\d.]+)/);
+          const sessionsMatch    = block.match(/Sessions:\s*(\d+)/);
+          const intervalConMatch = block.match(/Interval consistency:\s*([\d.]+)/);
+          const rssiConMatch     = block.match(/RSSI consistency:\s*([\d.]+)/);
+          const channelsMatch    = block.match(/Channels:\s*(\d+)/);
+          const channelSeqMatch  = block.match(/Channel sequence:\s*(.+)/);
+          const seqTrackMatch    = block.match(/Sequence tracking:\s*(.+)/);
+          const firstSeenMatch   = block.match(/First seen:\s*(\d+)s ago/);
+          const lastSeenMatch    = block.match(/Last seen:\s*(\d+)s ago/);
+          const realMacMatch     = block.match(/Real MAC:\s*([A-F0-9:]+)/);
+          const vendorMatch      = block.match(/Vendor:\s*([^\n]+)/);
+          const mfrDataMatch     = block.match(/Mfr data:\s*([^\n]+)/);
+          const macsListMatch    = block.match(/MACs:\s*(.+)/);
+
+          if (!trackMatch) return;
+
+          const trackId  = trackMatch[1].trim();
+          const isBLE    = typeMatch && typeMatch[1].trim() === 'BLE';
+          const deviceType = isBLE ? 'BLE' : 'WiFi';
           const macCount = macsMatch ? macsMatch[1] : '0';
           const confidence = confMatch ? (parseFloat(confMatch[1]) * 100).toFixed(0) : '0';
-          const sessions = sessionsMatch ? sessionsMatch[1] : '0';
-          const isBLE = typeMatch && typeMatch[1] === 'BLE Device';
-          const deviceType = isBLE ? 'BLE' : 'WiFi';
-          
-          const rssiList = macsListMatch ? macsListMatch[1].match(/([-\d]+)dBm/g) : null;
-          let avgRssi = null;
-          if (rssiList && rssiList.length > 0) {
-            const rssiValues = rssiList.map(r => parseInt(r.match(/([-\d]+)/)[1]));
-            avgRssi = Math.round(rssiValues.reduce((a, b) => a + b, 0) / rssiValues.length);
-          }
-          
+
+          const anchorMacMatch = block.match(/Anchor MAC:\s*([A-F0-9:]+)/);
+          const anchorMac = anchorMacMatch ? anchorMacMatch[1] : (macsListMatch ? macsListMatch[1].split(',')[0].trim() : '');
+
+          const avgRssi = rssiMatch ? parseInt(rssiMatch[1]) : null;
+          const rssiColor = avgRssi !== null
+            ? (avgRssi >= -50 ? 'var(--succ)' : avgRssi >= -70 ? 'var(--warn)' : 'var(--dang)')
+            : 'var(--mut)';
+
+          const confVal = parseInt(confidence);
+          const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
+
           html += '<details data-type="' + deviceType + '" style="background:var(--surf);border:1px solid var(--bord);border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bord)\'">';
           html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
-          html += '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;flex-wrap:wrap;">';
-          html += '<span style="font-family:monospace;font-size:12px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
-          html += '<span style="background:' + (isBLE ? '#4a1a4a' : '#1a2a4a') + ';color:' + (isBLE ? '#d896ff' : '#6ab7ff') + ';padding:2px 8px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + (isBLE ? 'BLE' : 'WiFi') + '</span>';
+          html += '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">';
+          if (anchorMac) html += '<span style="font-family:monospace;font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
+          html += '<span style="background:' + (isBLE ? '#4a1a4a' : '#1a2a4a') + ';color:' + (isBLE ? '#d896ff' : '#6ab7ff') + ';padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + deviceType + '</span>';
+          if (nameMatch) html += '<span style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
+          if (ssidMatch) html += '<span style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
+          if (vendorMatch) html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + vendorMatch[1].trim() + '</span>';
           html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
           html += '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">';
-          
           if (avgRssi !== null) {
-            const rssiColor = avgRssi >= -50 ? 'var(--succ)' : avgRssi >= -70 ? 'var(--warn)' : 'var(--dang)';
             html += '<div style="text-align:right;">';
-            html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">RSSI</div>';
-            html += '<div style="font-size:13px;color:' + rssiColor + ';font-weight:700;white-space:nowrap;">' + avgRssi + '<span style="font-size:9px;margin-left:1px;">dBm</span></div>';
+            html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;">RSSI</div>';
+            html += '<div style="font-size:13px;color:' + rssiColor + ';font-weight:700;">' + avgRssi + '<span style="font-size:9px;margin-left:1px;">dBm</span></div>';
             html += '</div>';
           }
-          
-          const confVal = parseInt(confidence);
-          const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
           html += '<div style="text-align:right;">';
-          html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Confidence</div>';
-          html += '<div style="font-size:13px;color:' + confColor + ';font-weight:700;white-space:nowrap;">' + confidence + '<span style="font-size:9px;">%</span></div>';
+          html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;">Conf</div>';
+          html += '<div style="font-size:13px;color:' + confColor + ';font-weight:700;">' + confidence + '<span style="font-size:9px;">%</span></div>';
           html += '</div>';
-          
           html += '<span style="color:var(--mut);font-size:18px;">▶</span>';
-          html += '</div>';
-          html += '</summary>';
-          
+          html += '</div></summary>';
+
           html += '<div style="padding:0 14px 14px 14px;border-top:1px solid var(--bord);">';
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px;">';
-          
-          html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-          html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">SESSIONS</div>';
-          html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + sessions + '</div>';
-          html += '</div>';
-          
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:12px;">';
+
+          if (sessionsMatch) {
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">SESSIONS</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + sessionsMatch[1] + '</div>';
+            html += '</div>';
+          }
+          if (probesMatch) {
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">PROBES</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + probesMatch[1] + '</div>';
+            html += '</div>';
+          }
+          if (channelMatch) {
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">CHANNEL</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + channelMatch[1] + '</div>';
+            html += '</div>';
+          }
           if (rssiMatch) {
-            const rssiConPct = (parseFloat(rssiMatch[1]) * 100).toFixed(0);
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">RSSI min/avg/max</div>';
+            html += '<div style="font-size:11px;color:' + rssiColor + ';font-weight:600;">' + rssiMatch[2] + ' / ' + rssiMatch[1] + ' / ' + rssiMatch[3] + ' dBm</div>';
+            html += '</div>';
+          }
+          if (lastSeenMatch) {
+            const seenTxt = firstSeenMatch ? firstSeenMatch[1] + 's ago &rarr; ' + lastSeenMatch[1] + 's ago' : lastSeenMatch[1] + 's ago';
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">SEEN</div>';
+            html += '<div style="font-size:10px;color:var(--txt);font-weight:600;">' + seenTxt + '</div>';
+            html += '</div>';
+          }
+          if (intervalConMatch) {
+            const pct = (parseFloat(intervalConMatch[1]) * 100).toFixed(0);
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">INTERVAL CONSISTENCY</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + pct + '%</div>';
+            html += '</div>';
+          }
+          if (rssiConMatch) {
+            const pct = (parseFloat(rssiConMatch[1]) * 100).toFixed(0);
             html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
             html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">RSSI STABILITY</div>';
-            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + rssiConPct + '%</div>';
+            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + pct + '%</div>';
             html += '</div>';
           }
-          
           if (channelsMatch) {
             html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">CHANNELS</div>';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">UNIQUE CHANNELS</div>';
             html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + channelsMatch[1] + '</div>';
             html += '</div>';
           }
-          
-          if (lastSeenMatch) {
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">LAST SEEN</div>';
-            html += '<div style="font-size:11px;color:var(--txt);font-weight:600;">' + lastSeenMatch[1] + 's</div>';
+          if (realMacMatch) {
+            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--dang);">';
+            html += '<div style="font-size:8px;color:var(--dang);margin-bottom:3px;">REAL MAC LEAKED</div>';
+            html += '<div style="font-size:10px;color:var(--dang);font-family:monospace;font-weight:600;">' + realMacMatch[1] + '</div>';
             html += '</div>';
           }
-          
           html += '</div>';
-          
+
           if (channelSeqMatch) {
             html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
             html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">CHANNEL SEQUENCE</div>';
             html += '<div style="font-size:10px;color:var(--txt);font-family:monospace;">' + channelSeqMatch[1].trim() + '</div>';
             html += '</div>';
           }
-          
+          if (seqTrackMatch) {
+            html += '<div style="margin-top:6px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">SEQUENCE TRACKING</div>';
+            html += '<div style="font-size:10px;color:var(--txt);font-family:monospace;">' + seqTrackMatch[1].trim() + '</div>';
+            html += '</div>';
+          }
+          if (vendorMatch || mfrDataMatch) {
+            html += '<div style="margin-top:6px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">MANUFACTURER</div>';
+            if (vendorMatch) html += '<div style="font-size:11px;color:var(--txt);font-weight:600;">' + vendorMatch[1].trim() + '</div>';
+            if (mfrDataMatch) html += '<div style="font-size:9px;color:var(--mut);font-family:monospace;margin-top:2px;">' + mfrDataMatch[1].trim() + '</div>';
+            html += '</div>';
+          }
+
           html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--succ);border-radius:4px;">';
           html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">TRACK ID</div>';
           html += '<div style="font-size:11px;color:var(--acc);font-family:monospace;font-weight:600;">' + trackId + '</div>';
           html += '</div>';
-          
+
           if (macsListMatch) {
             const macsList = macsListMatch[1];
             const moreMatch = macsList.match(/\(\+(\d+) more\)/);
-            const cleanMacsList = macsList.replace(/\s*\(\+\d+ more\)/, '');
-            const macs = cleanMacsList.split(',').map(m => m.trim()).filter(m => m.length > 0);
-            
+            const cleanMacs = macsList.replace(/\s*\(\+\d+ more\)/, '');
+            const macs = cleanMacs.split(',').map(m => m.trim()).filter(m => m.length > 0);
             html += '<details style="margin-top:10px;" open>';
             html += '<summary style="font-size:9px;color:var(--mut);cursor:pointer;padding:6px 0;list-style:none;user-select:none;">MAC ADDRESSES (' + (moreMatch ? macCount : macs.length) + ')</summary>';
             html += '<div style="display:grid;gap:4px;margin-top:6px;">';
-            
-            macs.forEach((mac, i) => {
-              const isAnchor = mac.includes(anchorMac);
-              html += '<div style="background:' + (isAnchor ? 'var(--bg)' : 'var(--surf)') + ';border:1px solid:' + (isAnchor ? 'var(--succ)' : 'var(--bord)') + ';border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isAnchor ? 'var(--acc)' : 'var(--mut)') + ';display:flex;justify-content:space-between;align-items:center;">';
-              html += '<span>' + mac.split(' ')[0] + '</span>';
-              if (isAnchor) html += '<span style="font-size:7px;padding:2px 5px;background:var(--bg);border:1px solid var(--succ);border-radius:2px;color:var(--succ);font-weight:600;">ANCHOR</span>';
+            macs.forEach((mac) => {
+              const isFirst = mac === anchorMac;
+              html += '<div style="background:var(--surf);border:1px solid var(--bord);border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isFirst ? 'var(--acc)' : 'var(--mut)') + ';display:flex;justify-content:space-between;align-items:center;">';
+              html += '<span>' + mac + '</span>';
+              if (isFirst) html += '<span style="font-size:7px;padding:2px 5px;background:var(--bg);border:1px solid var(--succ);border-radius:2px;color:var(--succ);font-weight:600;">ANCHOR</span>';
               html += '</div>';
             });
-            
-            if (moreMatch) {
-              html += '<div style="padding:6px;text-align:center;color:var(--mut);font-size:10px;font-style:italic;">+ ' + moreMatch[1] + ' more</div>';
-            }
-            
+            if (moreMatch) html += '<div style="padding:6px;text-align:center;color:var(--mut);font-size:10px;font-style:italic;">+ ' + moreMatch[1] + ' more</div>';
             html += '</div></details>';
           }
-          
-          html += '</div>';
-          html += '</details>';
+
+          html += '</div></details>';
         });
-        
+
         return html;
       }
 
@@ -2860,7 +2908,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (rssiStrength >= -50) rssiColor = 'var(--succ)';
           else if (rssiStrength >= -70) rssiColor = 'var(--txt)';
           
-          html += '<div class="device-card" data-type="' + type + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+          html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
           html += '<div>';
           html += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + '</div>';
@@ -4231,6 +4279,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         if (req->hasParam("enabled", true)) {
             hbEnabled = req->getParam("enabled", true)->value() == "true";
             prefs.putBool("hbEnabled", hbEnabled);
+            lastSaveTime = 0;
             saveConfiguration();
             Serial.printf("[HB] Status heartbeat %s\n", hbEnabled ? "ENABLED" : "DISABLED");
             req->send(200, "text/plain", hbEnabled ? "Heartbeat enabled" : "Heartbeat disabled");
@@ -4438,6 +4487,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             
             if (!workerTaskHandle) {
                 scanning = true;
+                {
+                    std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                    antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
+                }
                 xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
                                     (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);
@@ -5931,6 +5984,8 @@ void processCommand(const String &command, const String &targetId = "")
   {
     hbEnabled = true;
     prefs.putBool("hbEnabled", true);
+    lastSaveTime = 0;
+    saveConfiguration();
     sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
     broadcastToTerminal("[HB] Status heartbeat enabled");
   }
@@ -5938,6 +5993,8 @@ void processCommand(const String &command, const String &targetId = "")
   {
     hbEnabled = false;
     prefs.putBool("hbEnabled", false);
+    lastSaveTime = 0;
+    saveConfiguration();
     sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
     broadcastToTerminal("[HB] Status heartbeat disabled");
   }
