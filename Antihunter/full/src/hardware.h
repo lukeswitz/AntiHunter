@@ -103,6 +103,7 @@ void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
 void parseChannelsCSV(const String &csv);
 void saveTargetsList(const String &txt);
+extern unsigned long lastSaveTime;
 void saveConfiguration();
 void loadConfiguration();
 void syncSettingsToNVS();
