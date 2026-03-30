@@ -944,7 +944,32 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         
         identity.signature.channelBitmap |= session.channelMask;
         identity.lastSeen = now;
-        
+        identity.probeCount += session.probeCount;
+        if (identity.primaryChannel == 0 && session.primaryChannel != 0) {
+            identity.primaryChannel = session.primaryChannel;
+        }
+        if (identity.probedSSID[0] == '\0' && session.probedSSID[0] != '\0') {
+            strncpy(identity.probedSSID, session.probedSSID, sizeof(identity.probedSSID) - 1);
+            identity.probedSSID[sizeof(identity.probedSSID) - 1] = '\0';
+        }
+        if (identity.deviceName[0] == '\0' && session.deviceName[0] != '\0') {
+            strncpy(identity.deviceName, session.deviceName, sizeof(identity.deviceName) - 1);
+            identity.deviceName[sizeof(identity.deviceName) - 1] = '\0';
+        }
+        if (identity.mfrDataLen == 0 && session.mfrDataLen > 0) {
+            identity.mfrDataLen = session.mfrDataLen;
+            memcpy(identity.mfrData, session.mfrData, session.mfrDataLen);
+        }
+        {
+            int16_t sum = 0; int8_t mn = identity.rssiMin, mx = identity.rssiMax;
+            size_t cnt = session.rssiReadings.size();
+            if (cnt > 0) {
+                for (auto r : session.rssiReadings) { sum += r; if (r < mn) mn = r; if (r > mx) mx = r; }
+                identity.rssiMin = mn; identity.rssiMax = mx;
+                identity.rssiAvg = (int8_t)((identity.rssiAvg + (int8_t)(sum / (int16_t)cnt)) / 2);
+            }
+        }
+
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, identity.identityId, sizeof(session.linkedIdentityId) - 1);
         session.linkedIdentityId[sizeof(session.linkedIdentityId) - 1] = '\0';
@@ -977,6 +1002,26 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
 
         newIdentity.macs.push_back(MacAddress(session.mac));
         newIdentity.isBLE = isBLE;
+        strncpy(newIdentity.deviceName, session.deviceName, sizeof(newIdentity.deviceName) - 1);
+        newIdentity.deviceName[sizeof(newIdentity.deviceName) - 1] = '\0';
+        strncpy(newIdentity.probedSSID, session.probedSSID, sizeof(newIdentity.probedSSID) - 1);
+        newIdentity.probedSSID[sizeof(newIdentity.probedSSID) - 1] = '\0';
+        newIdentity.mfrDataLen = session.mfrDataLen;
+        if (session.mfrDataLen > 0) memcpy(newIdentity.mfrData, session.mfrData, session.mfrDataLen);
+        newIdentity.primaryChannel = session.primaryChannel;
+        newIdentity.probeCount = session.probeCount;
+        {
+            int16_t sum = 0;
+            int8_t mn = 0, mx = 0;
+            size_t cnt = session.rssiReadings.size();
+            if (cnt > 0) {
+                mn = mx = session.rssiReadings[0];
+                for (auto r : session.rssiReadings) { sum += r; if (r < mn) mn = r; if (r > mx) mx = r; }
+            }
+            newIdentity.rssiAvg = cnt > 0 ? (int8_t)(sum / (int16_t)cnt) : session.rssiMin;
+            newIdentity.rssiMin = cnt > 0 ? mn : session.rssiMin;
+            newIdentity.rssiMax = cnt > 0 ? mx : session.rssiMax;
+        }
         newIdentity.lastSequenceNum = 0;
         newIdentity.sequenceValid = false;
         newIdentity.hasKnownGlobalMac = false;
@@ -1109,7 +1154,30 @@ String getRandomizationResults() {
         const DeviceIdentity& identity = entry.second;
         
         results += "Track ID: " + String(identity.identityId) + "\n";
-        results += "  Type: " + String(identity.isBLE ? "BLE Device" : "WiFi Device") + "\n";
+        results += "  Type: " + String(identity.isBLE ? "BLE" : "WiFi") + "\n";
+        if (identity.deviceName[0] != '\0') {
+            results += "  Name: " + String(identity.deviceName) + "\n";
+        }
+        if (!identity.isBLE && identity.probedSSID[0] != '\0') {
+            results += "  SSID: " + String(identity.probedSSID) + "\n";
+        }
+        if (identity.isBLE && identity.mfrDataLen >= 2) {
+            uint16_t cid = (uint16_t)identity.mfrData[0] | ((uint16_t)identity.mfrData[1] << 8);
+            results += "  Vendor CID: 0x" + String(cid, HEX) + "\n";
+            String hex;
+            for (uint8_t b = 0; b < identity.mfrDataLen; b++) {
+                if (identity.mfrData[b] < 0x10) hex += "0";
+                hex += String(identity.mfrData[b], HEX);
+                if (b < identity.mfrDataLen - 1) hex += ":";
+            }
+            results += "  Mfr data: " + hex + "\n";
+        }
+        results += "  RSSI: avg " + String(identity.rssiAvg) + " dBm  min " +
+                   String(identity.rssiMin) + "  max " + String(identity.rssiMax) + "\n";
+        if (identity.primaryChannel > 0) {
+            results += "  Channel: " + String(identity.primaryChannel) + "\n";
+        }
+        results += "  Probes: " + String(identity.probeCount) + "\n";
         results += "  MACs linked: " + String(identity.macs.size()) + "\n";
         results += "  Confidence: " + String(identity.confidence, 2) + "\n";
         results += "  Sessions: " + String(identity.observedSessions) + "\n";
@@ -1121,30 +1189,34 @@ String getRandomizationResults() {
         results += "  Interval consistency: " + String(identity.signature.intervalConsistency, 2) + "\n";
         results += "  RSSI consistency: " + String(identity.signature.rssiConsistency, 2) + "\n";
         results += "  Channels: " + String(countChannels(identity.signature.channelBitmap)) + "\n";
-        
+
         if (identity.signature.channelSeqLength > 0) {
             results += "  Channel sequence: ";
             for (uint8_t i = 0; i < min((uint8_t)8, identity.signature.channelSeqLength); i++) {
                 results += String(identity.signature.channelSequence[i]);
                 if (i < min((uint8_t)8, identity.signature.channelSeqLength) - 1) results += ",";
             }
-            if (identity.signature.channelSeqLength > 8) {
-                results += "...";
-            }
+            if (identity.signature.channelSeqLength > 8) results += "...";
             results += "\n";
         }
-        
+
         if (identity.sequenceValid) {
             results += "  Sequence tracking: Active (last:" + String(identity.lastSequenceNum) + ")\n";
         }
-        
+
+        uint32_t firstAge = (millis() - identity.firstSeen) / 1000;
+        uint32_t lastAge  = (millis() - identity.lastSeen)  / 1000;
+        results += "  First seen: " + String(firstAge) + "s ago\n";
+        results += "  Last seen: "  + String(lastAge)  + "s ago\n";
+
+        if (identity.hasKnownGlobalMac) {
+            results += "  Real MAC: " + macFmt6(identity.knownGlobalMac) + "\n";
+        }
+
         if (identity.macs.size() > 0) {
             results += "  Anchor MAC: " + macFmt6(identity.macs[0].bytes.data()) + "\n";
         }
-        
-        uint32_t age = (millis() - identity.lastSeen) / 1000;
-        results += "  Last seen: " + String(age) + "s ago\n";
-        
+
         results += "  MACs: ";
         for (size_t i = 0; i < min((size_t)5, identity.macs.size()); i++) {
             results += macFmt6(identity.macs[i].bytes.data());
@@ -1266,15 +1338,23 @@ void randomizationDetectionTask(void *pv) {
                     session.avgProbeInterval = 0.0f;
                     session.intervalStdDev = 0.0f;
                     session.rssiVariance = 0.0f;
-                    
+                    session.deviceName[0] = '\0';
+                    session.probedSSID[0] = '\0';
+                    session.mfrDataLen = 0;
+
                     if (event.payloadLen >= 24) {
                         session.lastSeqNum = extractSequenceNumber(event.payload, event.payloadLen);
                         session.seqNumValid = true;
-                        
+
                         const uint8_t *ieStart = event.payload + 24;
                         uint16_t ieLength = event.payloadLen - 24;
                         extractIEFingerprint(ieStart, ieLength, session.fingerprint);
                         extractIEOrderSignature(ieStart, ieLength, session.ieOrder);
+
+                        if (ieLength >= 2 && ieStart[0] == 0 && ieStart[1] > 0 && ieStart[1] <= 32) {
+                            memcpy(session.probedSSID, ieStart + 2, ieStart[1]);
+                            session.probedSSID[ieStart[1]] = '\0';
+                        }
                     } else {
                         session.lastSeqNum = 0;
                         session.seqNumValid = false;
@@ -1411,7 +1491,20 @@ void randomizationDetectionTask(void *pv) {
                             
                             extractBLEFingerprint(device, session.fingerprint);
                             memset(&session.ieOrder, 0, sizeof(session.ieOrder));
-                            
+                            {
+                                const std::string& bname = device->getName();
+                                strncpy(session.deviceName, bname.c_str(), sizeof(session.deviceName) - 1);
+                                session.deviceName[sizeof(session.deviceName) - 1] = '\0';
+                            }
+                            session.probedSSID[0] = '\0';
+                            {
+                                std::string mfr = device->getManufacturerData();
+                                session.mfrDataLen = (uint8_t)min((int)mfr.size(), 8);
+                                if (session.mfrDataLen > 0) {
+                                    memcpy(session.mfrData, mfr.data(), session.mfrDataLen);
+                                }
+                            }
+
                             activeSessions[macStr] = session;
                             Serial.printf("[RAND] BLE session %s rssi:%d\n", macStr.c_str(), rssi);
                             
@@ -1596,11 +1689,10 @@ void randomizationDetectionTask(void *pv) {
     }
     
     randomizationDetectionEnabled = false;
-    scanning = false;
 
     radioStopSTA();
     delay(100);
-    
+
     Serial.println("[RAND] Processing all remaining sessions...");
     {
         std::lock_guard<std::mutex> lock(randMutex);
@@ -1612,11 +1704,13 @@ void randomizationDetectionTask(void *pv) {
     }
 
     saveDeviceIdentities();
-    
+
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = getRandomizationResults().c_str();
     }
+
+    scanning = false;
     
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
