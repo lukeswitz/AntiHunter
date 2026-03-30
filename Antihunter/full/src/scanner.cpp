@@ -967,7 +967,7 @@ void snifferScanTask(void *pv)
                 results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
                 if (!hit.isBLE && hit.ch > 0) results += " CH=" + std::to_string(hit.ch);
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
-                    results += " Name=" + std::string(hit.name);
+                    results += " \"" + std::string(hit.name) + "\"";
                 }
                 results += "\n";
             }
@@ -1000,9 +1000,65 @@ void snifferScanTask(void *pv)
     radioStopSTA();
     delay(500);
 
+    // Write final results immediately so UI shows them while mesh TX runs
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+
+        std::string results =
+            "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
+            " Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n" +
+            "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
+            "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
+            "Total hits: " + std::to_string(totalHits) + "\n" +
+            "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
+
+        std::vector<Hit> sortedHits = hitsLog;
+        std::sort(sortedHits.begin(), sortedHits.end(),
+                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
+
+        int shown = 0;
+        for (const auto& hit : sortedHits) {
+            if (shown++ >= 100) break;
+
+            results += (hit.isBLE ? "BLE  " : "WiFi ");
+            results += macFmt6(hit.mac).c_str();
+            results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+
+            if (!hit.isBLE && hit.ch > 0) {
+                results += " CH=" + std::to_string(hit.ch);
+            }
+
+            if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0 && strcmp(hit.name, "Unknown") != 0) {
+                results += " \"";
+                results += hit.name;
+                results += "\"";
+            }
+
+            results += "\n";
+        }
+
+        if (sortedHits.size() > 100) {
+            results += "... (" + std::to_string(sortedHits.size() - 100) + " more)\n";
+        }
+
+        antihunter::lastResults = results;
+    }
+
+    // Move scan data to locals so the scanner handle can be released immediately,
+    // allowing new scans to start while this task finishes mesh TX.
+    std::map<String, String> meshApCache = std::move(apCache);
+    std::map<String, String> meshBleCache = std::move(bleDeviceCache);
+    std::vector<Hit> meshHitsLog = std::move(hitsLog);
+    uint32_t meshApCount = meshApCache.size();
+    uint32_t meshBleCount = meshBleCache.size();
+    uint32_t meshUniqueCount = uniqueMacs.size();
+    uint32_t meshTotalHits = totalHits.load();
+
+    workerTaskHandle = nullptr;
+
     if (meshEnabled)
     {
-        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t totalExpectedDevices = meshApCount + meshBleCount;
         uint32_t devicesBeforeFinal = transmittedDevices.size();
 
         Serial.printf("[SNIFFER] Scan complete - transmitting final batch\n");
@@ -1024,7 +1080,7 @@ void snifferScanTask(void *pv)
         waitForSlot();
         rateLimiter.flush();
 
-        for (const auto& entry : apCache)
+        for (const auto& entry : meshApCache)
         {
             // If slot time is running low, wait for next slot
             if (!canSendInSlot()) {
@@ -1037,7 +1093,7 @@ void snifferScanTask(void *pv)
                 String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
                 int8_t bestRssi = -128;
                 uint8_t bestCh = 0;
-                for (const auto& hit : hitsLog) {
+                for (const auto& hit : meshHitsLog) {
                     String hitMac = macFmt6(hit.mac);
                     if (hitMac == entry.first && hit.rssi > bestRssi) {
                         bestRssi = hit.rssi;
@@ -1057,7 +1113,7 @@ void snifferScanTask(void *pv)
             }
         }
 
-        for (const auto& entry : bleDeviceCache)
+        for (const auto& entry : meshBleCache)
         {
             // If slot time is running low, wait for next slot
             if (!canSendInSlot()) {
@@ -1069,7 +1125,7 @@ void snifferScanTask(void *pv)
             {
                 String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
                 int8_t bestRssi = -128;
-                for (const auto& hit : hitsLog) {
+                for (const auto& hit : meshHitsLog) {
                     String hitMac = macFmt6(hit.mac);
                     if (hitMac == entry.first && hit.isBLE && hit.rssi > bestRssi) {
                         bestRssi = hit.rssi;
@@ -1100,52 +1156,9 @@ void snifferScanTask(void *pv)
                      finalTransmitted, totalExpectedDevices, finalRemaining);
     }
 
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        
-        std::string results = 
-            "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
-            " Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n" +
-            "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
-            "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
-            "Total hits: " + std::to_string(totalHits) + "\n" +
-            "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
-        
-        std::vector<Hit> sortedHits = hitsLog;
-        std::sort(sortedHits.begin(), sortedHits.end(), 
-                [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
-
-        int shown = 0;
-        for (const auto& hit : sortedHits) {
-            if (shown++ >= 100) break;
-            
-            results += (hit.isBLE ? "BLE  " : "WiFi ");
-            results += macFmt6(hit.mac).c_str();
-            results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
-            
-            if (!hit.isBLE && hit.ch > 0) {
-                results += " CH=" + std::to_string(hit.ch);
-            }
-            
-            if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0 && strcmp(hit.name, "Unknown") != 0) {
-                results += " \"";
-                results += hit.name;
-                results += "\"";
-            }
-            
-            results += "\n";
-        }
-        
-        if (sortedHits.size() > 100) {
-            results += "... (" + std::to_string(sortedHits.size() - 100) + " more)\n";
-        }
-
-        antihunter::lastResults = results;
-    }
-    
     if (meshEnabled && !stopRequested)
     {
-        uint32_t totalExpectedDevices = apCache.size() + bleDeviceCache.size();
+        uint32_t totalExpectedDevices = meshApCount + meshBleCount;
         uint32_t finalTransmitted = transmittedDevices.size();
         uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
 
@@ -1155,10 +1168,10 @@ void snifferScanTask(void *pv)
             vTaskDelay(pdMS_TO_TICKS(50));
         }
 
-        String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
-                        " B=" + String(bleDeviceCache.size()) +
-                        " U=" + String(uniqueMacs.size()) +
-                        " H=" + String(totalHits) +
+        String summary = getNodeId() + ": SCAN_DONE: W=" + String(meshApCount) +
+                        " B=" + String(meshBleCount) +
+                        " U=" + String(meshUniqueCount) +
+                        " H=" + String(meshTotalHits) +
                         " TX=" + String(finalTransmitted) +
                         " PEND=" + String(finalRemaining);
 
@@ -1171,7 +1184,6 @@ void snifferScanTask(void *pv)
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
 
