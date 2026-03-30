@@ -97,6 +97,11 @@ struct ProbeSession {
     
     bool hasGlobalMacLeak;
     uint8_t globalMacLeaked[6];
+
+    char deviceName[32];
+    char probedSSID[33];
+    uint8_t mfrData[8];
+    uint8_t mfrDataLen;
 };
 
 struct DeviceIdentity {
@@ -116,6 +121,15 @@ struct DeviceIdentity {
     uint8_t knownGlobalMac[6];
     
     bool isBLE;
+    char deviceName[32];
+    char probedSSID[33];
+    int8_t rssiAvg;
+    int8_t rssiMin;
+    int8_t rssiMax;
+    uint8_t primaryChannel;
+    uint32_t probeCount;
+    uint8_t mfrData[8];
+    uint8_t mfrDataLen;
 };
 
 const uint32_t SESSION_START_THRESHOLD = 3000;
