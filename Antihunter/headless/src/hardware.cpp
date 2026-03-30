@@ -444,7 +444,7 @@ void saveConfiguration() {
     configFile.close();
 
     Serial.println("[CONFIG] Configuration saved to NVS and SD card");
-    Serial.printf("[CONFIG] autoEraseEnabled=%s\n", autoEraseEnabled ? "ENABLED" : "DISABLED");
+    Serial.printf("[CONFIG] hbEnabled=%s\n", hbEnabled ? "ENABLED" : "DISABLED");
 }
 
 void loadConfiguration() {

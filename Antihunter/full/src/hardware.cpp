@@ -60,7 +60,7 @@ extern size_t getTargetCount();
 extern TaskHandle_t blueTeamTaskHandle;
 uint32_t SafeSD::lastCheckTime = 0;
 bool SafeSD::lastCheckResult = false;
-static unsigned long lastSaveTime = 0;
+unsigned long lastSaveTime = 0;
 const unsigned long SAVE_DEBOUNCE_MS = 2000;
 
 // Tamper Detection Erase
@@ -449,7 +449,7 @@ void saveConfiguration() {
     configFile.close();
 
     Serial.println("[CONFIG] Configuration saved to NVS and SD card");
-    Serial.printf("[CONFIG] autoEraseEnabled=%s\n", autoEraseEnabled ? "ENABLED" : "DISABLED");
+    Serial.printf("[CONFIG] hbEnabled=%s\n", hbEnabled ? "ENABLED" : "DISABLED");
 }
 
 void loadConfiguration() {
