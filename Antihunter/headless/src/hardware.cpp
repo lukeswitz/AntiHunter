@@ -856,6 +856,7 @@ void sendGPSLockStatus(bool locked) {
     String gpsMsg = getNodeId() + ": GPS: ";
     gpsMsg += (locked ? "LOCKED" : "LOST");
     if (locked) {
+        gpsMsg += " Location=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
         gpsMsg += " Satellites:" + String(gps.satellites.isValid() ? gps.satellites.value() : 0);
         gpsMsg += " HDOP:" + String(gps.hdop.isValid() ? gps.hdop.hdop() : 99.9, 2);
     }
