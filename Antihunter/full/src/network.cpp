@@ -2606,37 +2606,40 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const anomalyCountMatch = text.match(/Total anomalies: (\d+)/);
         
         if (text.includes('Baseline not yet established')) {
-          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;color:var(--mut);">';
-          html += '<div style="font-size:14px;margin-bottom:10px;color:var(--txt);font-weight:bold;">Phase 1: Establishing Baseline</div>';
-          const devicesMatch = text.match(/Devices detected so far: (\d+)/);
-          const elapsedMatch = text.match(/Elapsed: (\d+)s \/ (\d+)s/);
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;margin-bottom:12px;">';
-          if (devicesMatch) html += '<span>Devices seen: <strong style="color:var(--txt);">' + devicesMatch[1] + '</strong></span>';
-          if (elapsedMatch) html += '<span>Time: <strong style="color:var(--txt);">' + elapsedMatch[1] + 's / ' + elapsedMatch[2] + 's</strong></span>';
-          html += '</div>';
-          if (elapsedMatch) {
-            const pct = Math.min(100, Math.round(parseInt(elapsedMatch[1]) / parseInt(elapsedMatch[2]) * 100));
-            html += '<div style="background:var(--bord);border-radius:4px;height:6px;">';
-            html += '<div style="width:' + pct + '%;background:var(--acc);height:6px;border-radius:4px;transition:width 0.5s;"></div>';
-            html += '</div>';
-            html += '<div style="font-size:11px;margin-top:6px;text-align:right;">' + pct + '% complete</div>';
+          const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1];
+          const deviceLines = baselineSection
+            ? baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/))
+            : [];
+          if (deviceLines.length === 0) {
+            html += '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">Cataloguing devices...</div>';
+            return html;
           }
+          html += '<div style="padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;max-height:70vh;overflow-y:auto;">';
+          deviceLines.forEach(line => {
+            const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:([-\d]+)dBm\s+Max:([-\d]+)dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
+            if (match) {
+              const [_, type, mac, avg, min, max, hits, channel, name] = match;
+              html += '<div style="padding:6px 8px;margin-bottom:4px;background:var(--surf);border-radius:4px;border:1px solid var(--bord);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">';
+              html += '<div>';
+              html += '<span style="font-family:monospace;font-size:12px;color:var(--txt);">' + mac + '</span>';
+              if (name) html += '<span style="font-size:10px;color:var(--mut);margin-left:8px;">' + name + '</span>';
+              html += '</div>';
+              html += '<div style="display:flex;gap:10px;font-size:10px;color:var(--mut);">';
+              html += '<span style="color:' + (type === 'BLE' ? 'var(--acc)' : 'var(--succ)') + ';">' + type + '</span>';
+              html += '<span>' + avg + ' dBm</span>';
+              if (channel) html += '<span>CH ' + channel + '</span>';
+              html += '<span>' + hits + ' hits</span>';
+              html += '</div>';
+              html += '</div>';
+            }
+          });
           html += '</div>';
           return html;
         }
         
-        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">Baseline Established</div>';
-        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;color:var(--mut);">';
-        if (totalMatch) html += '<span>Total: <strong style="color:var(--txt);">' + totalMatch[1] + '</strong></span>';
-        if (wifiMatch) html += '<span>WiFi: <strong style="color:var(--txt);">' + wifiMatch[1] + '</strong></span>';
-        if (bleMatch) html += '<span>BLE: <strong style="color:var(--txt);">' + bleMatch[1] + '</strong></span>';
-        if (rssiThreshMatch) html += '<span>Threshold: <strong style="color:var(--txt);">' + rssiThreshMatch[1] + ' dBm</strong></span>';
-        html += '</div></div>';
-        
-        if (anomalyCountMatch) {
+        if (anomalyCountMatch && parseInt(anomalyCountMatch[1]) > 0) {
           html += '<div style="margin-bottom:12px;padding:12px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;">';
-          html += '<div style="font-size:14px;color:var(--dang);font-weight:bold;">⚠ Anomalies Detected: ' + anomalyCountMatch[1] + '</div>';
+          html += '<div style="font-size:14px;color:var(--dang);font-weight:bold;">Anomalies: ' + anomalyCountMatch[1] + '</div>';
           html += '</div>';
           
           const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];

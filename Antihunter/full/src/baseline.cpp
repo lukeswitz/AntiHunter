@@ -284,6 +284,23 @@ String getBaselineResults() {
             uint32_t total = baselineDuration / 1000;
             results += "Elapsed: " + String(elapsed) + "s / " + String(total) + "s\n";
         }
+
+        results += "\n=== BASELINE DEVICES (Cached in RAM) ===\n";
+        for (const auto &entry : baselineCache) {
+            const BaselineDevice &dev = entry.second;
+            results += String(dev.isBLE ? "BLE  " : "WiFi ") + macFmt6(dev.mac);
+            results += " Avg:" + String(dev.avgRssi) + "dBm";
+            results += " Min:" + String(dev.minRssi) + "dBm";
+            results += " Max:" + String(dev.maxRssi) + "dBm";
+            results += " Hits:" + String(dev.hitCount);
+            if (!dev.isBLE && dev.channel > 0) {
+                results += " CH:" + String(dev.channel);
+            }
+            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
+                results += " \"" + String(dev.name) + "\"";
+            }
+            results += "\n";
+        }
     }
     
     return results;
