@@ -629,7 +629,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
                 <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
                 <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
-                <a class="btn" href="/baseline-results" data-ajax="false" style="display:none;" id="baselineResultsBtn">Results</a>
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
                 <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
                 <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
@@ -2607,11 +2606,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const anomalyCountMatch = text.match(/Total anomalies: (\d+)/);
         
         if (text.includes('Baseline not yet established')) {
-          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;text-align:center;color:var(--mut);">';
-          html += '<div style="font-size:14px;margin-bottom:8px;">Baseline Not Yet Established</div>';
+          html += '<div style="padding:16px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;color:var(--mut);">';
+          html += '<div style="font-size:14px;margin-bottom:10px;color:var(--txt);font-weight:bold;">Phase 1: Establishing Baseline</div>';
           const devicesMatch = text.match(/Devices detected so far: (\d+)/);
-          if (devicesMatch) {
-            html += '<div style="font-size:12px;">Devices detected: <strong style="color:var(--txt);">' + devicesMatch[1] + '</strong></div>';
+          const elapsedMatch = text.match(/Elapsed: (\d+)s \/ (\d+)s/);
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;margin-bottom:12px;">';
+          if (devicesMatch) html += '<span>Devices seen: <strong style="color:var(--txt);">' + devicesMatch[1] + '</strong></span>';
+          if (elapsedMatch) html += '<span>Time: <strong style="color:var(--txt);">' + elapsedMatch[1] + 's / ' + elapsedMatch[2] + 's</strong></span>';
+          html += '</div>';
+          if (elapsedMatch) {
+            const pct = Math.min(100, Math.round(parseInt(elapsedMatch[1]) / parseInt(elapsedMatch[2]) * 100));
+            html += '<div style="background:var(--bord);border-radius:4px;height:6px;">';
+            html += '<div style="width:' + pct + '%;background:var(--acc);height:6px;border-radius:4px;transition:width 0.5s;"></div>';
+            html += '</div>';
+            html += '<div style="font-size:11px;margin-top:6px;text-align:right;">' + pct + '% complete</div>';
           }
           html += '</div>';
           return html;
@@ -3512,13 +3520,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const randomizationModeControls = document.getElementById('randomizationModeControls');
         const deviceScanModeControls = document.getElementById('deviceScanModeControls');
         const cacheBtn = document.getElementById('cacheBtn');
-        const baselineResultsBtn = document.getElementById('baselineResultsBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
         const resetRandBtn = document.getElementById('resetRandBtn');
-        
+
         cacheBtn.style.display = 'none';
-        baselineResultsBtn.style.display = 'none';
         resetBaselineBtn.style.display = 'none';
         clearOldBtn.style.display = 'none';
         resetRandBtn.style.display = 'none';
@@ -3526,10 +3532,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         baselineControls.style.display = 'none';
         randomizationModeControls.style.display = 'none';
         deviceScanModeControls.style.display = 'none';
-        
+
         if (selectedMethod === 'baseline') {
           baselineControls.style.display = 'block';
-          baselineResultsBtn.style.display = 'inline-block';
           resetBaselineBtn.style.display = 'inline-block';
           document.getElementById('detectionDuration').disabled = true;
           document.getElementById('baselineMonitorDuration').disabled = false;
