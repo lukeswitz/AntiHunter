@@ -1350,12 +1350,25 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     
     if (deviceHistory.find(macStr) == deviceHistory.end()) {
         bool inBaseline = isDeviceInBaseline(mac);
-        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0};
+        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0, now, 1};
     }
-    
+
     DeviceHistory &history = deviceHistory[macStr];
-    
+
     if (!history.wasPresent) {
+        if (now - history.firstSeenAt > 60000) {
+            history.firstSeenAt = now;
+            history.sightings = 1;
+        } else {
+            history.sightings++;
+        }
+        history.lastRssi = rssi;
+        history.lastSeen = now;
+        if (history.sightings < 2) {
+            return;
+        }
+        history.wasPresent = true;
+
         AnomalyHit hit;
         memcpy(hit.mac, mac, 6);
         hit.rssi = rssi;
@@ -1365,11 +1378,11 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.isBLE = isBLE;
         hit.timestamp = now;
         hit.reason = "New device (not in baseline)";
-        
+
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
         anomalyLog.push_back(hit);
         anomalyCount++;
-        
+
         String alert = "[ANOMALY] NEW: " + macStr;
         alert += " RSSI:" + String(rssi) + "dBm";
         alert += " Type:" + String(isBLE ? "BLE" : "WiFi");
@@ -1382,7 +1395,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 xSemaphoreGive(gpsMutex);
             }
         }
-        
+
         Serial.println(alert);
         logToSD(alert);
 

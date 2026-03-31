@@ -51,6 +51,8 @@ struct DeviceHistory {
     uint32_t disappearedAt;
     bool wasPresent;
     uint8_t significantChanges;
+    uint32_t firstSeenAt;
+    uint8_t sightings;
 };
 
 struct CachedSDLookup {

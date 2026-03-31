@@ -279,6 +279,11 @@ String getBaselineResults() {
     } else {
         results += "Baseline not yet established\n";
         results += "Devices detected so far: " + String(baselineDeviceCount) + "\n";
+        if (baselineStartTime > 0) {
+            uint32_t elapsed = (millis() - baselineStartTime) / 1000;
+            uint32_t total = baselineDuration / 1000;
+            results += "Elapsed: " + String(elapsed) + "s / " + String(total) + "s\n";
+        }
     }
     
     return results;
@@ -384,6 +389,7 @@ void baselineDetectionTask(void *pv) {
     uint32_t phaseStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t nextStatsUpdate = millis() + 1000;
+    uint32_t nextResultsUpdate = millis() + 2000;
     uint32_t nextCacheSizeCheck = millis() + 30000;
     uint32_t lastCleanup = millis();
     uint32_t lastWiFiScan = 0;
@@ -398,12 +404,18 @@ void baselineDetectionTask(void *pv) {
     
     while (millis() - phaseStart < baselineDuration && !stopRequested) {
         baselineStats.elapsedTime = millis() - phaseStart;
-        
+
         if ((int32_t)(millis() - nextStatsUpdate) >= 0) {
             updateBaselineStats();
             nextStatsUpdate += 1000;
         }
-        
+
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = getBaselineResults().c_str();
+            nextResultsUpdate = millis() + 2000;
+        }
+
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Establishing... Devices:%d WiFi:%u BLE:%u Heap:%u\n",
                         baselineDeviceCount, framesSeen.load(), bleFramesSeen.load(), ESP.getFreeHeap());
@@ -618,6 +630,7 @@ void baselineDetectionTask(void *pv) {
     phaseStart = millis();
     nextStatus = millis() + 5000;
     nextStatsUpdate = millis() + 1000;
+    nextResultsUpdate = millis() + 2000;
     lastCleanup = millis();
     lastWiFiScan = 0;
     lastBLEScan = 0;
@@ -626,14 +639,20 @@ void baselineDetectionTask(void *pv) {
     Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n", 
                 monitorStart, (forever ? UINT32_MAX : (uint32_t)duration * 1000));
         
-    while ((forever && !stopRequested) || 
+    while ((forever && !stopRequested) ||
         (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
-        
+
         baselineStats.elapsedTime = (millis() - phaseStart);
 
         if ((int32_t)(millis() - nextStatsUpdate) >= 0) {
             updateBaselineStats();
             nextStatsUpdate += 1000;
+        }
+
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = getBaselineResults().c_str();
+            nextResultsUpdate = millis() + 2000;
         }
 
         if ((int32_t)(millis() - nextStatus) >= 0) {
@@ -1335,12 +1354,25 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     
     if (deviceHistory.find(macStr) == deviceHistory.end()) {
         bool inBaseline = isDeviceInBaseline(mac);
-        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0};
+        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0, now, 1};
     }
     
     DeviceHistory &history = deviceHistory[macStr];
     
     if (!history.wasPresent) {
+        if (now - history.firstSeenAt > 60000) {
+            history.firstSeenAt = now;
+            history.sightings = 1;
+        } else {
+            history.sightings++;
+        }
+        history.lastRssi = rssi;
+        history.lastSeen = now;
+        if (history.sightings < 2) {
+            return;
+        }
+        history.wasPresent = true;
+
         AnomalyHit hit;
         memcpy(hit.mac, mac, 6);
         hit.rssi = rssi;
@@ -1350,11 +1382,11 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.isBLE = isBLE;
         hit.timestamp = now;
         hit.reason = "New device (not in baseline)";
-        
+
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
         anomalyLog.push_back(hit);
         anomalyCount++;
-        
+
         String alert = "[ANOMALY] NEW: " + macStr;
         alert += " RSSI:" + String(rssi) + "dBm";
         alert += " Type:" + String(isBLE ? "BLE" : "WiFi");
@@ -1367,7 +1399,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 xSemaphoreGive(gpsMutex);
             }
         }
-        
+
         Serial.println(alert);
         logToSD(alert);
 
