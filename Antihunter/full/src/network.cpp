@@ -2597,117 +2597,96 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function parseBaselineResults(text) {
+        function rssiCol(rssi) {
+          const v = parseInt(rssi);
+          if (v >= -50) return 'var(--succ)';
+          if (v >= -70) return 'var(--txt)';
+          return 'var(--mut)';
+        }
+
+        function makeDeviceCard(type, mac, rssi, channel, name) {
+          const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
+          let c = '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+          c += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
+          c += '<div>';
+          c += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + '</div>';
+          if (name && name !== 'Unknown') c += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
+          c += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
+          c += '</div>';
+          c += '<div style="text-align:right;">';
+          c += '<div style="font-size:12px;color:' + rssiCol(rssi) + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
+          if (channel) c += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
+          c += '</div></div></div>';
+          return c;
+        }
+
         let html = '';
-        
-        const totalMatch = text.match(/Total devices in baseline: (\d+)/);
-        const wifiMatch = text.match(/WiFi devices: (\d+)/);
-        const bleMatch = text.match(/BLE devices: (\d+)/);
-        const rssiThreshMatch = text.match(/RSSI threshold: ([-\d]+) dBm/);
-        const anomalyCountMatch = text.match(/Total anomalies: (\d+)/);
-        
+
         if (text.includes('Baseline not yet established')) {
-          const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1];
-          const deviceLines = baselineSection
-            ? baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/))
-            : [];
+          const devSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1];
+          const deviceLines = devSection ? devSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/)) : [];
           if (deviceLines.length === 0) {
-            html += '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">Cataloguing devices...</div>';
-            return html;
+            return '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">Cataloguing devices...</div>';
           }
-          html += '<div style="padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;max-height:70vh;overflow-y:auto;">';
           deviceLines.forEach(line => {
-            const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:([-\d]+)dBm\s+Max:([-\d]+)dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
-            if (match) {
-              const [_, type, mac, avg, min, max, hits, channel, name] = match;
-              html += '<div style="padding:6px 8px;margin-bottom:4px;background:var(--surf);border-radius:4px;border:1px solid var(--bord);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">';
-              html += '<div>';
-              html += '<span style="font-family:monospace;font-size:12px;color:var(--txt);">' + mac + '</span>';
-              if (name) html += '<span style="font-size:10px;color:var(--mut);margin-left:8px;">' + name + '</span>';
-              html += '</div>';
-              html += '<div style="display:flex;gap:10px;font-size:10px;color:var(--mut);">';
-              html += '<span style="color:' + (type === 'BLE' ? 'var(--acc)' : 'var(--succ)') + ';">' + type + '</span>';
-              html += '<span>' + avg + ' dBm</span>';
-              if (channel) html += '<span>CH ' + channel + '</span>';
-              html += '<span>' + hits + ' hits</span>';
-              html += '</div>';
-              html += '</div>';
-            }
+            const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm[^\n]*?Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
+            if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
           });
-          html += '</div>';
           return html;
         }
-        
-        if (anomalyCountMatch && parseInt(anomalyCountMatch[1]) > 0) {
-          html += '<div style="margin-bottom:12px;padding:12px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;">';
-          html += '<div style="font-size:14px;color:var(--dang);font-weight:bold;">Anomalies: ' + anomalyCountMatch[1] + '</div>';
+
+        const anomalyCountMatch = text.match(/Total anomalies: (\d+)/);
+        const anomalyCount = anomalyCountMatch ? parseInt(anomalyCountMatch[1]) : 0;
+
+        if (anomalyCount > 0) {
+          html += '<div style="margin-bottom:14px;padding:12px 16px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;display:flex;align-items:center;gap:12px;">';
+          html += '<div style="font-size:26px;font-weight:bold;color:var(--dang);">' + anomalyCount + '</div>';
+          html += '<div style="font-size:13px;color:var(--mut);">anomal' + (anomalyCount === 1 ? 'y' : 'ies') + ' detected</div>';
           html += '</div>';
-          
+
           const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];
           if (anomalySection) {
-            const anomalyLines = anomalySection.split('\n').filter(l => l.trim() && !l.includes('Total anomalies'));
-            anomalyLines.forEach(line => {
-              const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?\s+-\s+(.+)$/);
-              if (match) {
-                const [_, type, mac, rssi, channel, name, reason] = match;
-                
-                html += '<div style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid var(--warn);margin-bottom:10px;">';
-                html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;flex-wrap:wrap;gap:10px;">';
-                html += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + mac + '</div>';
-                html += '<span style="background:var(--warn);color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
-                html += '</div>';
-                html += '<div style="display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:8px;flex-wrap:wrap;">';
-                html += '<span>RSSI: <strong style="color:var(--txt);">' + rssi + ' dBm</strong></span>';
-                if (channel) html += '<span>Channel: <strong style="color:var(--txt);">' + channel + '</strong></span>';
-                if (name) html += '<span>Name: <strong style="color:var(--txt);">' + name + '</strong></span>';
-                html += '</div>';
-                html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;color:var(--warn);font-size:12px;">';
-                html += reason;
-                html += '</div>';
-                html += '</div>';
-              }
+            anomalySection.split('\n').filter(l => l.trim() && !l.includes('Total anomalies')).forEach(line => {
+              const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?\s+-\s+(.+)$/);
+              if (!m) return;
+              const [_, type, mac, rssi, channel, name, reason] = m;
+              const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
+              html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid var(--warn);margin-bottom:10px;">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:8px;">';
+              html += '<div style="font-family:monospace;font-size:14px;color:var(--txt);">' + mac + '</div>';
+              html += '<span style="background:' + typeColor + ';color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
+              html += '</div>';
+              html += '<div style="display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px;flex-wrap:wrap;">';
+              html += '<span>RSSI: <strong style="color:' + rssiCol(rssi) + ';">' + rssi + ' dBm</strong></span>';
+              if (channel) html += '<span>CH: <strong style="color:var(--txt);">' + channel + '</strong></span>';
+              if (name) html += '<span>Name: <strong style="color:var(--txt);">' + name + '</strong></span>';
+              html += '</div>';
+              html += '<div style="padding:8px 10px;background:var(--bg);border:1px solid var(--bord);border-left:3px solid var(--warn);border-radius:4px;font-size:12px;color:var(--warn);">' + reason + '</div>';
+              html += '</div>';
             });
           }
+        } else {
+          html += '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">No anomalies detected</div>';
         }
-        
+
         const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1]?.split('===')[0];
         if (baselineSection) {
-          html += '<details style="margin-top:14px;">';
-          html += '<summary style="cursor:pointer;color:var(--acc);user-select:none;padding:6px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
-          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
-          html += 'Baseline Devices (Cached in RAM)';
-          html += '</summary>';
-          html += '<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;max-height:400px;overflow-y:auto;">';
-          
           const deviceLines = baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/));
-          deviceLines.forEach(line => {
-            const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:([-\d]+)dBm\s+Max:([-\d]+)dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
-            if (match) {
-              const [_, type, mac, avg, min, max, hits, channel, name] = match;
-              
-              html += '<div style="padding:8px;margin-bottom:6px;background:var(--surf);border-radius:6px;border:1px solid var(--bord);">';
-              html += '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px;">';
-              html += '<div>';
-              html += '<div style="font-family:monospace;font-size:12px;color:var(--txt);margin-bottom:3px;">' + mac + '</div>';
-              if (name) html += '<div style="font-size:11px;color:var(--mut);">Name: ' + name + '</div>';
-              html += '</div>';
-              html += '<div style="text-align:right;">';
-              html += '<div style="font-size:11px;color:var(--mut);">Avg: ' + avg + ' dBm</div>';
-              html += '<div style="font-size:10px;color:var(--mut);">' + min + '→' + max + ' dBm</div>';
-              html += '</div>';
-              html += '</div>';
-              html += '<div style="display:flex;gap:12px;font-size:10px;color:var(--mut);margin-top:4px;">';
-              html += '<span>Type: <strong style="color:var(--txt);">' + type + '</strong></span>';
-              html += '<span>Hits: <strong style="color:var(--txt);">' + hits + '</strong></span>';
-              if (channel) html += '<span>CH: <strong style="color:var(--txt);">' + channel + '</strong></span>';
-              html += '</div>';
-              html += '</div>';
-            }
-          });
-          
-          html += '</div>';
-          html += '</details>';
+          if (deviceLines.length > 0) {
+            html += '<details style="margin-top:14px;">';
+            html += '<summary style="cursor:pointer;color:var(--acc);user-select:none;padding:8px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
+            html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
+            html += 'Baseline Devices (' + deviceLines.length + ' cached)';
+            html += '</summary>';
+            html += '<div style="margin-top:10px;">';
+            deviceLines.forEach(line => {
+              const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm[^\n]*?Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
+              if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
+            });
+            html += '</div></details>';
+          }
         }
-        
+
         return html;
       }
 
@@ -4021,9 +4000,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
              {
         resetBaselineDetection();
         req->send(200, "text/plain", "Baseline reset complete"); });
-
-  server->on("/baseline-results", HTTP_GET, [](AsyncWebServerRequest *req)
-             { req->send(200, "text/plain", getBaselineResults()); });
 
   server->on("/gps", HTTP_GET, [](AsyncWebServerRequest *r)
              {
