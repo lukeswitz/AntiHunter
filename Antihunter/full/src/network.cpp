@@ -2030,6 +2030,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
+      function rssiColorFor(rssi) {
+        const v = parseInt(rssi);
+        if (v >= -50) return 'var(--succ)';
+        if (v >= -70) return 'var(--txt)';
+        return 'var(--mut)';
+      }
+
       function parseAndStyleResults(text) {
         if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
           return '<div style="color:var(--mut);padding:20px;text-align:center;">No scan data yet.</div>';
@@ -2041,7 +2048,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html = parseTriangulationResults(text);
         } else if(text.includes('MAC Randomization Detection Results')) {
           html = parseRandomizationResults(text);
-        } else if (text.includes('Baseline not yet established') || text.includes('BASELINE ESTABLISHED')) {
+        } else if (text.includes('Baseline not yet established') || text.includes('Baseline Detection Results')) {
           html = parseBaselineResults(text);
         } else if (text.includes('Deauth Detection Results') || text.includes('Deauth Attack Detection Results')) {
           html = parseDeauthResults(text);
@@ -2597,13 +2604,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function parseBaselineResults(text) {
-        function rssiCol(rssi) {
-          const v = parseInt(rssi);
-          if (v >= -50) return 'var(--succ)';
-          if (v >= -70) return 'var(--txt)';
-          return 'var(--mut)';
-        }
-
         function makeDeviceCard(type, mac, rssi, channel, name) {
           const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
           let c = '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
@@ -2614,7 +2614,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           c += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
           c += '</div>';
           c += '<div style="text-align:right;">';
-          c += '<div style="font-size:12px;color:' + rssiCol(rssi) + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
+          c += '<div style="font-size:12px;color:' + rssiColorFor(rssi) + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
           if (channel) c += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
           c += '</div></div></div>';
           return c;
@@ -2629,7 +2629,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             return '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">Cataloguing devices...</div>';
           }
           deviceLines.forEach(line => {
-            const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm[^\n]*?Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
+            const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
             if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
           });
           return html;
@@ -2680,7 +2680,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '</summary>';
             html += '<div style="margin-top:10px;">';
             deviceLines.forEach(line => {
-              const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm[^\n]*?Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
+              const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
               if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
             });
             html += '</div></details>';
@@ -2893,10 +2893,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const name = match[5] || 'Unknown';
           
           const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
-          const rssiStrength = parseInt(rssi);
-          let rssiColor = 'var(--mut)';
-          if (rssiStrength >= -50) rssiColor = 'var(--succ)';
-          else if (rssiStrength >= -70) rssiColor = 'var(--txt)';
+          const rssiColor = rssiColorFor(rssi);
           
           html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
