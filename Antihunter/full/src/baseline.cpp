@@ -49,6 +49,7 @@ extern uint32_t BLE_SCAN_INTERVAL;
 BaselineStats baselineStats;
 bool baselineDetectionEnabled = false;
 bool baselineEstablished = false;
+static bool baselineResultsDirty = false;
 uint32_t baselineStartTime = 0;
 uint32_t baselineDuration = 300000;
 std::map<String, BaselineDevice> baselineCache;
@@ -203,6 +204,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         lruMap[macStr] = --lruList.end();
 
         baselineDeviceCount++;
+        baselineResultsDirty = true;
     } else {
         BaselineDevice &dev = baselineCache[macStr];
         dev.avgRssi = (dev.avgRssi * dev.hitCount + rssi) / (dev.hitCount + 1);
@@ -211,6 +213,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         dev.lastSeen = now;
         dev.hitCount++;
         dev.dirtyFlag = true;
+        baselineResultsDirty = true;
 
         auto lruIt = lruMap.find(macStr);
         if (lruIt != lruMap.end()) {
@@ -234,36 +237,42 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
     }
 }
 
+static void appendCacheDeviceLines(String& out) {
+    out.reserve(out.length() + baselineCache.size() * 90);
+    for (const auto &entry : baselineCache) {
+        const BaselineDevice &dev = entry.second;
+        out += String(dev.isBLE ? "BLE  " : "WiFi ") + macFmt6(dev.mac);
+        out += " Avg:" + String(dev.avgRssi) + "dBm";
+        out += " Min:" + String(dev.minRssi) + "dBm";
+        out += " Max:" + String(dev.maxRssi) + "dBm";
+        out += " Hits:" + String(dev.hitCount);
+        if (!dev.isBLE && dev.channel > 0) {
+            out += " CH:" + String(dev.channel);
+        }
+        if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
+            out += " \"" + String(dev.name) + "\"";
+        }
+        out += "\n";
+    }
+}
+
 String getBaselineResults() {
     String results;
-    
+
     if (baselineEstablished) {
-        results += "=== BASELINE ESTABLISHED ===\n";
+        results.reserve(256 + baselineCache.size() * 90 + anomalyLog.size() * 80);
+        results += "Baseline Detection Results\n";
         results += "Total devices in baseline: " + String(baselineDeviceCount) + "\n";
         results += "WiFi devices: " + String(baselineStats.wifiDevices) + "\n";
         results += "BLE devices: " + String(baselineStats.bleDevices) + "\n";
         results += "RSSI threshold: " + String(baselineRssiThreshold) + " dBm\n\n";
-        
+
         results += "=== BASELINE DEVICES (Cached in RAM) ===\n";
-        for (const auto &entry : baselineCache) {
-            const BaselineDevice &dev = entry.second;
-            results += String(dev.isBLE ? "BLE  " : "WiFi ") + macFmt6(dev.mac);
-            results += " Avg:" + String(dev.avgRssi) + "dBm";
-            results += " Min:" + String(dev.minRssi) + "dBm";
-            results += " Max:" + String(dev.maxRssi) + "dBm";
-            results += " Hits:" + String(dev.hitCount);
-            if (!dev.isBLE && dev.channel > 0) {
-                results += " CH:" + String(dev.channel);
-            }
-            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
-                results += " \"" + String(dev.name) + "\"";
-            }
-            results += "\n";
-        }
-        
+        appendCacheDeviceLines(results);
+
         results += "\n=== ANOMALIES DETECTED ===\n";
         results += "Total anomalies: " + String(anomalyCount) + "\n\n";
-        
+
         for (const auto &anomaly : anomalyLog) {
             results += String(anomaly.isBLE ? "BLE  " : "WiFi ") + macFmt6(anomaly.mac);
             results += " RSSI:" + String(anomaly.rssi) + "dBm";
@@ -277,6 +286,7 @@ String getBaselineResults() {
             results += "\n";
         }
     } else {
+        results.reserve(128 + baselineCache.size() * 90);
         results += "Baseline not yet established\n";
         results += "Devices detected so far: " + String(baselineDeviceCount) + "\n";
         if (baselineStartTime > 0) {
@@ -286,23 +296,9 @@ String getBaselineResults() {
         }
 
         results += "\n=== BASELINE DEVICES (Cached in RAM) ===\n";
-        for (const auto &entry : baselineCache) {
-            const BaselineDevice &dev = entry.second;
-            results += String(dev.isBLE ? "BLE  " : "WiFi ") + macFmt6(dev.mac);
-            results += " Avg:" + String(dev.avgRssi) + "dBm";
-            results += " Min:" + String(dev.minRssi) + "dBm";
-            results += " Max:" + String(dev.maxRssi) + "dBm";
-            results += " Hits:" + String(dev.hitCount);
-            if (!dev.isBLE && dev.channel > 0) {
-                results += " CH:" + String(dev.channel);
-            }
-            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
-                results += " \"" + String(dev.name) + "\"";
-            }
-            results += "\n";
-        }
+        appendCacheDeviceLines(results);
     }
-    
+
     return results;
 }
 
@@ -428,9 +424,12 @@ void baselineDetectionTask(void *pv) {
         }
 
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = getBaselineResults().c_str();
-            nextResultsUpdate = millis() + 2000;
+            nextResultsUpdate += 2000;
+            if (baselineResultsDirty) {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = getBaselineResults().c_str();
+                baselineResultsDirty = false;
+            }
         }
 
         if ((int32_t)(millis() - nextStatus) >= 0) {
@@ -667,9 +666,12 @@ void baselineDetectionTask(void *pv) {
         }
 
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = getBaselineResults().c_str();
-            nextResultsUpdate = millis() + 2000;
+            nextResultsUpdate += 2000;
+            if (baselineResultsDirty) {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = getBaselineResults().c_str();
+                baselineResultsDirty = false;
+            }
         }
 
         if ((int32_t)(millis() - nextStatus) >= 0) {
@@ -1371,7 +1373,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     
     if (deviceHistory.find(macStr) == deviceHistory.end()) {
         bool inBaseline = isDeviceInBaseline(mac);
-        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0, now, 1};
+        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0, now, 0};
     }
     
     DeviceHistory &history = deviceHistory[macStr];
@@ -1403,6 +1405,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
         anomalyLog.push_back(hit);
         anomalyCount++;
+        baselineResultsDirty = true;
 
         String alert = "[ANOMALY] NEW: " + macStr;
         alert += " RSSI:" + String(rssi) + "dBm";
