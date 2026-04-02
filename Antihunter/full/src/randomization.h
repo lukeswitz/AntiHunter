@@ -147,11 +147,20 @@ const float CONFIDENCE_THRESHOLD_NEW_SESSION = 0.18f;
 const float CONFIDENCE_THRESHOLD_ESTABLISHED = 0.35f;
 const uint8_t MAC_PREFIX_SIMILARITY_BYTES = 4;
 
+struct AuthFrameEvent {
+    uint8_t mac[6];
+    int8_t rssi;
+    uint8_t channel;
+    uint8_t payload[256];
+    uint16_t len;
+};
+
 extern bool randomizationDetectionEnabled;
 extern std::map<String, ProbeSession> activeSessions;
 extern std::map<String, DeviceIdentity> deviceIdentities;
 extern uint32_t identityIdCounter;
 extern std::mutex randMutex;
+extern QueueHandle_t authFrameQueue;
 
 void randomizationDetectionTask(void *pv);
 void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel, 

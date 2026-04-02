@@ -849,7 +849,10 @@ String getDiagnostics() {
     s += "Devices Found: " + String(totalHits) + "\n";
     s += "Current channel: " + String(WiFi.channel()) + "\n";
     s += "AP IP: " + WiFi.softAPIP().toString() + "\n";
-    s += "Unique devices: " + String((int)uniqueMacs.size()) + "\n";
+    portENTER_CRITICAL(&uniqueMacsMux);
+    int uniqueMacsCount = (int)uniqueMacs.size();
+    portEXIT_CRITICAL(&uniqueMacsMux);
+    s += "Unique devices: " + String(uniqueMacsCount) + "\n";
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
@@ -935,7 +938,10 @@ String getDiagnostics() {
     s += "Drone Detection: " + String(droneDetectionEnabled ? "Active" : "Inactive") + "\n";
     if (droneDetectionEnabled) {
         s += "Drones detected: " + String(droneDetectionCount) + "\n";
-        s += "Unique drones: " + String(detectedDrones.size()) + "\n";
+        portENTER_CRITICAL(&droneMux);
+        int uniqueDronesCount = (int)detectedDrones.size();
+        portEXIT_CRITICAL(&droneMux);
+        s += "Unique drones: " + String(uniqueDronesCount) + "\n";
     }
 
     s += "Last scan secs: " + String((unsigned)lastScanSecs) + (lastScanForever ? " (forever)" : "") + "\n";

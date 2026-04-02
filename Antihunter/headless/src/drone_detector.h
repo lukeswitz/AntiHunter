@@ -34,11 +34,19 @@ struct DroneDetection {
     uint8_t authData[ODID_AUTH_PAGE_NONZERO_DATA_SIZE + 1];
 };
 
+struct DroneFrameEvent {
+    uint8_t payload[400];
+    uint16_t len;
+    int8_t rssi;
+};
+
 extern std::map<String, DroneDetection> detectedDrones;
+extern portMUX_TYPE droneMux;
 extern std::vector<String> droneEventLog;
 extern std::atomic<uint32_t> droneDetectionCount;
 extern bool droneDetectionEnabled;
 extern QueueHandle_t droneQueue;
+extern QueueHandle_t droneFrameQueue;
 
 void droneDetectorTask(void *pv);
 void initializeDroneDetector();

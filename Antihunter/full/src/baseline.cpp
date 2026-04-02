@@ -38,7 +38,6 @@ extern bool isAllowlisted(const uint8_t *mac);
 std::map<String, bool> sdLookupCache;
 std::list<String> sdLookupLRU;
 const uint32_t SD_LOOKUP_CACHE_SIZE = 200;
-const uint32_t SD_LOOKUP_CACHE_TTL = 300000;
 std::map<String, uint32_t> sdDeviceIndex;
 
 // Scan intervals from scanner
@@ -211,7 +210,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         if (rssi < dev.minRssi) dev.minRssi = rssi;
         if (rssi > dev.maxRssi) dev.maxRssi = rssi;
         dev.lastSeen = now;
-        dev.hitCount++;
+        if (dev.hitCount < UINT32_MAX) dev.hitCount++;
         dev.dirtyFlag = true;
         baselineResultsDirty = true;
 
@@ -347,7 +346,7 @@ void baselineDetectionTask(void *pv) {
     
     stopRequested = false;
     baselineDetectionEnabled = true;
-    baselineEstablished = false;
+    if (baselineDeviceCount == 0) baselineEstablished = false;
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
 
@@ -642,7 +641,6 @@ void baselineDetectionTask(void *pv) {
     Serial.printf("[BASELINE] Baseline established with %d devices\n", baselineDeviceCount);
     Serial.printf("[BASELINE] Phase 2: Monitoring for anomalies (threshold: %d dBm)\n", baselineRssiThreshold);
 
-    uint32_t monitorStart = millis();
     phaseStart = millis();
     nextStatus = millis() + 5000;
     nextStatsUpdate = millis() + 1000;
@@ -652,11 +650,11 @@ void baselineDetectionTask(void *pv) {
     lastBLEScan = 0;
     lastMeshUpdate = 0;
 
-    Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n", 
-                monitorStart, (forever ? UINT32_MAX : (uint32_t)duration * 1000));
-        
+    Serial.printf("[BASELINE] Phase 2 starting at %u ms, target duration: %u ms\n",
+                phaseStart, (forever ? UINT32_MAX : (uint32_t)duration * 1000));
+
     while ((forever && !stopRequested) ||
-        (!forever && (int)(millis() - monitorStart) < duration * 1000 && !stopRequested)) {
+        (!forever && (int)(millis() - phaseStart) < duration * 1000 && !stopRequested)) {
 
         baselineStats.elapsedTime = (millis() - phaseStart);
 
@@ -935,9 +933,14 @@ void cleanupBaselineMemory() {
         }
         
         for (const auto& key : toRemove) {
+            auto lruIt = lruMap.find(key);
+            if (lruIt != lruMap.end()) {
+                lruList.erase(lruIt->second);
+                lruMap.erase(lruIt);
+            }
             baselineCache.erase(key);
         }
-        
+
         if (!toRemove.empty()) {
             Serial.printf("[BASELINE] Removed %d stale devices from cache\n", toRemove.size());
         }
@@ -1190,7 +1193,13 @@ void loadBaselineFromSD() {
             }
             
             rec.dirtyFlag = false;
-            baselineCache[macFmt6(rec.mac)] = rec;
+            String recMac = macFmt6(rec.mac);
+            baselineCache[recMac] = rec;
+            LRUNode node;
+            node.key = recMac;
+            node.lastSeen = rec.lastSeen;
+            lruList.push_back(node);
+            lruMap[recMac] = --lruList.end();
             loaded++;
         }
         

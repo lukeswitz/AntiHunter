@@ -25,6 +25,7 @@ std::map<String, ProbeSession> activeSessions;
 std::map<String, DeviceIdentity> deviceIdentities;
 uint32_t identityIdCounter = 0;
 QueueHandle_t probeRequestQueue = nullptr;
+QueueHandle_t authFrameQueue = nullptr;
 
 extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
@@ -1260,6 +1261,12 @@ void randomizationDetectionTask(void *pv) {
         Serial.printf("[RAND] Queue created (256 entries, heap: %u)\n", ESP.getFreeHeap());
     }
 
+    if (authFrameQueue) {
+        vQueueDelete(authFrameQueue);
+        authFrameQueue = nullptr;
+    }
+    authFrameQueue = xQueueCreate(64, sizeof(AuthFrameEvent));
+
     loadDeviceIdentities();
 
     std::set<String> transmittedIdentities;
@@ -1298,7 +1305,16 @@ void randomizationDetectionTask(void *pv) {
 
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
-        
+
+        if (authFrameQueue) {
+            AuthFrameEvent authEvt;
+            while (xQueueReceive(authFrameQueue, &authEvt, 0) == pdTRUE) {
+                correlateAuthFrameToRandomizedSession(authEvt.mac, authEvt.rssi,
+                                                     authEvt.channel,
+                                                     authEvt.payload, authEvt.len);
+            }
+        }
+
         if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
             ProbeRequestEvent event;
             int processedCount = 0;
@@ -1716,7 +1732,12 @@ void randomizationDetectionTask(void *pv) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
     }
-    
+
+    if (authFrameQueue) {
+        vQueueDelete(authFrameQueue);
+        authFrameQueue = nullptr;
+    }
+
     Serial.println("[RAND] Detection complete, results stored");
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);

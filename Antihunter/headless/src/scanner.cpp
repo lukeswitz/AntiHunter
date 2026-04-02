@@ -85,8 +85,7 @@ RFScanConfig rfConfig = {
 const uint32_t SCAN_MESH_SLOT_CYCLE_MS = 15000;
 const uint32_t SCAN_MESH_NUM_SLOTS = 5;
 const uint32_t SCAN_MESH_SLOT_DURATION_MS = SCAN_MESH_SLOT_CYCLE_MS / SCAN_MESH_NUM_SLOTS;
-const uint32_t SLOT_GUARD_MS = 200;  // Guard time at slot boundaries
-const uint32_t INTER_MESSAGE_DELAY_MS = 50;  // Minimum delay between mesh messages
+const uint32_t SLOT_GUARD_MS = 200;
 static uint32_t scanMeshCycleStartTime = 0;
 
 static uint8_t getScanNodeSlot() {
@@ -243,11 +242,6 @@ std::atomic<uint32_t> deauthCount(0);
 std::atomic<uint32_t> disassocCount(0);
 bool deauthDetectionEnabled = false;
 QueueHandle_t deauthQueue = nullptr;
-
-// Deauth Detection
-std::map<String, uint32_t> deauthSourceCounts;
-std::map<String, uint32_t> deauthTargetCounts;
-std::map<String, std::vector<uint32_t>> deauthTimings;
 
 // Triangulation
 TriangulationAccumulator triAccum = {0};
@@ -468,116 +462,34 @@ String getDeauthReasonText(uint16_t reasonCode) {
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
     if (!ppkt || ppkt->rx_ctrl.sig_len < 28) return;
-    
-    const uint8_t *payload = ppkt->payload;
-    
-    uint8_t version = (payload[0] & 0x03);
-    uint8_t type = (payload[0] >> 2) & 0x03;
-    uint8_t subtype = (payload[0] >> 4) & 0x0F;
-    
-    if (type != 0 || version != 0) return;
-    
-    bool isDisassoc = (subtype == 0x0A);
-    bool isDeauth = (subtype == 0x0C);
-    
-    if (!isDisassoc && !isDeauth) return;
-    
-    DeauthHit hit;
-    memcpy(hit.destMac, payload + 4, 6);
-    memcpy(hit.srcMac, payload + 10, 6);
-    memcpy(hit.bssid, payload + 16, 6);
-    hit.reasonCode = (payload[24] | (payload[25] << 8));
+    if (!deauthQueue) return;
 
-    hit.rssi = ppkt->rx_ctrl.rssi;
-    hit.channel = ppkt->rx_ctrl.channel;
-    hit.timestamp = millis();
-    hit.isDisassoc = isDisassoc;
+    const uint8_t *payload = ppkt->payload;
+    uint8_t version = (payload[0] & 0x03);
+    uint8_t type    = (payload[0] >> 2) & 0x03;
+    uint8_t subtype = (payload[0] >> 4) & 0x0F;
+
+    if (type != 0 || version != 0) return;
+
+    bool isDisassoc = (subtype == 0x0A);
+    bool isDeauth   = (subtype == 0x0C);
+    if (!isDisassoc && !isDeauth) return;
+
+    DeauthHit hit;
+    memcpy(hit.destMac, payload + 4,  6);
+    memcpy(hit.srcMac,  payload + 10, 6);
+    memcpy(hit.bssid,   payload + 16, 6);
+    hit.reasonCode  = (uint16_t)(payload[24] | (payload[25] << 8));
+    hit.rssi        = ppkt->rx_ctrl.rssi;
+    hit.channel     = ppkt->rx_ctrl.channel;
+    hit.timestamp   = millis();
+    hit.isDisassoc  = isDisassoc;
     hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
-    hit.companyId = 0;
-    
-    bool isAttack = false;
-    
-    if (hit.isBroadcast) {
-        isAttack = true;
-    }
-    
-    static std::map<String, std::vector<uint32_t>> targetHistory;
-    static uint32_t lastCleanupTime = 0;
-    
-    String destMacStr = macFmt6(hit.destMac);
-    uint32_t now = millis();
-    
-    targetHistory[destMacStr].push_back(now);
-    
-    auto& times = targetHistory[destMacStr];
-    times.erase(
-        std::remove_if(times.begin(), times.end(),
-            [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }),
-        times.end()
-    );
-    
-    if (times.size() >= DEAUTH_TARGETED_THRESHOLD) {
-        isAttack = true;
-    }
-    
-    if (hit.reasonCode == 1 || hit.reasonCode == 2 || 
-        hit.reasonCode == 6 || hit.reasonCode == 7) {
-        isAttack = true;
-    }
-    
-    if ((now - lastCleanupTime) > DEAUTH_CLEANUP_INTERVAL) {
-        for (auto it = targetHistory.begin(); it != targetHistory.end(); ) {
-            auto& vec = it->second;
-            vec.erase(
-                std::remove_if(vec.begin(), vec.end(),
-                    [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }),
-                vec.end()
-            );
-            
-            if (vec.empty()) {
-                it = targetHistory.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        
-        if (targetHistory.size() > DEAUTH_HISTORY_MAX_SIZE) {
-            size_t toRemove = targetHistory.size() - DEAUTH_HISTORY_MAX_SIZE;
-            auto it = targetHistory.begin();
-            for (size_t i = 0; i < toRemove && it != targetHistory.end(); ++i) {
-                it = targetHistory.erase(it);
-            }
-        }
-        
-        lastCleanupTime = now;
-    }
-    
-    if (isAttack) {
-        if (hit.isDisassoc) {
-            disassocCount = disassocCount + 1;
-        } else {
-            deauthCount = deauthCount + 1;
-        }
-        
-        if (deauthLog.size() < MAX_LOG_SIZE) {
-            deauthLog.push_back(hit);
-        }
-        
-        String alert = "[DEAUTH] ";
-        alert += hit.isDisassoc ? "DISASSOC " : "DEAUTH ";
-        alert += macFmt6(hit.srcMac) + " -> " + destMacStr;
-        alert += " RSSI:" + String(hit.rssi) + " CH:" + String(hit.channel);
-        alert += " | " + getDeauthReasonText(hit.reasonCode);
-        
-        if (hit.isBroadcast) {
-            alert += " [BROADCAST ATTACK]";
-        } else {
-            alert += " [TARGETED x" + String(times.size()) + "]";
-        }
-        
-        Serial.println(alert);
-        logToSD(alert);
-    }
+    hit.companyId   = 0;
+
+    BaseType_t woken = pdFALSE;
+    xQueueSendFromISR(deauthQueue, &hit, &woken);
+    if (woken) portYIELD_FROM_ISR();
 }
 
 // Main NimBLE callback
@@ -674,8 +586,6 @@ void snifferScanTask(void *pv)
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
-    const unsigned long BLE_SCAN_INTERVAL = 2000;
-    const unsigned long WIFI_SCAN_INTERVAL = 4000;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long nextResultsUpdate = millis() + 5000;
     
@@ -984,9 +894,10 @@ void snifferScanTask(void *pv)
         bleScan->stop();
         delay(100);
         BLEDevice::deinit(false);
+        pBLEScan = nullptr;
         delay(200);
     }
-    
+
     scanning = false;
     lastScanEnd = millis();
 
@@ -1312,9 +1223,6 @@ void blueTeamTask(void *pv) {
     disassocCount = 0;
     deauthDetectionEnabled = true;
     stopRequested = false;
-    deauthSourceCounts.clear();
-    deauthTargetCounts.clear();
-    deauthTimings.clear();
     scanning = true;
 
     if (deauthQueue) {
@@ -1348,21 +1256,55 @@ void blueTeamTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(200));
 
     const int BATCH_LIMIT = 4;
+    std::map<String, std::vector<uint32_t>> targetHistory;
+    uint32_t lastTargetCleanup = millis();
 
-    while ((forever && !stopRequested) || 
+    while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
-        
+
         int processed = 0;
-        
+
         while (processed++ < BATCH_LIMIT && xQueueReceive(deauthQueue, &hit, 0) == pdTRUE) {
-            if (deauthLog.size() < 2000) {
-                deauthLog.push_back(hit);
+            uint32_t now = millis();
+            String destMacStr = macFmt6(hit.destMac);
+
+            bool isAttack = hit.isBroadcast;
+            if (hit.reasonCode == 1 || hit.reasonCode == 2 ||
+                hit.reasonCode == 6 || hit.reasonCode == 7) isAttack = true;
+
+            targetHistory[destMacStr].push_back(now);
+            auto& times = targetHistory[destMacStr];
+            times.erase(std::remove_if(times.begin(), times.end(),
+                [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }), times.end());
+            if (times.size() >= DEAUTH_TARGETED_THRESHOLD) isAttack = true;
+
+            if ((now - lastTargetCleanup) > DEAUTH_CLEANUP_INTERVAL) {
+                for (auto it = targetHistory.begin(); it != targetHistory.end(); ) {
+                    auto& vec = it->second;
+                    vec.erase(std::remove_if(vec.begin(), vec.end(),
+                        [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }), vec.end());
+                    if (vec.empty()) it = targetHistory.erase(it); else ++it;
+                }
+                if (targetHistory.size() > DEAUTH_HISTORY_MAX_SIZE) {
+                    size_t toRemove = targetHistory.size() - DEAUTH_HISTORY_MAX_SIZE;
+                    auto it = targetHistory.begin();
+                    for (size_t i = 0; i < toRemove && it != targetHistory.end(); ++i)
+                        it = targetHistory.erase(it);
+                }
+                lastTargetCleanup = now;
             }
-            
+
+            if (!isAttack) continue;
+
+            if (hit.isDisassoc) disassocCount = disassocCount + 1;
+            else                deauthCount   = deauthCount + 1;
+
+            if (deauthLog.size() < 2000) deauthLog.push_back(hit);
+
             String srcMac = macFmt6(hit.srcMac);
-            String dstMac = macFmt6(hit.destMac);
+            String dstMac = destMacStr;
             String attackKey = srcMac + "->" + dstMac;
-            
+
             String alert = String(hit.isDisassoc ? "DISASSOC" : "DEAUTH");
             if (hit.isBroadcast) {
                 alert += " [BROADCAST]";
@@ -1435,18 +1377,6 @@ void blueTeamTask(void *pv) {
         }
         
         if (millis() - lastCleanup > 60000) {
-            if (deauthTimings.size() > 100) {
-                std::map<String, std::vector<uint32_t>> newTimings;
-                for (auto& entry : deauthTimings) {
-                    if (entry.second.size() > 20) {
-                        auto &vec = entry.second;
-                        newTimings[entry.first] = std::vector<uint32_t>(vec.end() - 20, vec.end());
-                    } else {
-                        newTimings[entry.first] = entry.second;
-                    }
-                }
-                deauthTimings = std::move(newTimings);
-            }
             lastCleanup = millis();
         }
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -1578,8 +1508,17 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-    if (droneDetectionEnabled) {
-        processDronePacket(ppkt->payload, ppkt->rx_ctrl.sig_len, ppkt->rx_ctrl.rssi);
+    if (droneDetectionEnabled && droneFrameQueue) {
+        DroneFrameEvent droneEvt;
+        uint16_t copyLen = ppkt->rx_ctrl.sig_len < sizeof(droneEvt.payload)
+                           ? ppkt->rx_ctrl.sig_len
+                           : (uint16_t)sizeof(droneEvt.payload);
+        memcpy(droneEvt.payload, ppkt->payload, copyLen);
+        droneEvt.len  = copyLen;
+        droneEvt.rssi = ppkt->rx_ctrl.rssi;
+        BaseType_t woken = pdFALSE;
+        xQueueSendFromISR(droneFrameQueue, &droneEvt, &woken);
+        if (woken) portYIELD_FROM_ISR();
     }
 
     if (randomizationDetectionEnabled && ppkt->rx_ctrl.sig_len >= 24) {
@@ -2326,7 +2265,7 @@ void listScanTask(void *pv) {
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
 
-        static uint32_t lastTimeSyncBroadcast = 0;
+        uint32_t lastTimeSyncBroadcast = 0;
         if (triangulationActive && triangulationInitiator &&
             (millis() - lastTimeSyncBroadcast) > 30000) {
             broadcastTimeSyncRequest();
@@ -2714,7 +2653,7 @@ void listScanTask(void *pv) {
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
-            static uint32_t lastBLEScan = 0;
+            uint32_t lastBLEScan = 0;
             if (millis() - lastBLEScan >= 3000) {
                 NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
                 pBLEScan->clearResults();
@@ -2882,40 +2821,10 @@ void listScanTask(void *pv) {
 }
 
 void cleanupMaps() {
-    const size_t MAX_MAP_SIZE = 100;
-    const size_t MAX_TIMING_SIZE = 50;
     const size_t MAX_LOG_SIZE = 500;
-    const uint32_t EVICTION_AGE_MS = 30000;
-    uint32_t now = millis();
 
-    if (deauthSourceCounts.size() > MAX_MAP_SIZE) {
-        std::vector<String> toRemove;
-        for (const auto& entry : deauthSourceCounts) {
-            if (entry.second < 2) {
-                toRemove.push_back(entry.first);
-            }
-        }
-        for (const auto& key : toRemove) {
-            deauthSourceCounts.erase(key);
-            deauthTargetCounts.erase(key);
-            deauthTimings.erase(key);
-        }
-        for (auto it = deauthTimings.begin(); it != deauthTimings.end(); ) {
-            auto& vec = it->second;
-            vec.erase(std::remove_if(vec.begin(), vec.end(), [now](uint32_t t) { return now - t > EVICTION_AGE_MS; }), vec.end());
-            if (vec.size() > MAX_TIMING_SIZE) {
-                vec.erase(vec.begin(), vec.begin() + (vec.size() - MAX_TIMING_SIZE));  // Vector OK here
-            }
-            if (vec.empty()) {
-                it = deauthTimings.erase(it);  // Safe erase with post-increment
-            } else {
-                ++it;
-            }
-        }
-    }
-    if (deauthQueue) xQueueReset(deauthQueue);  // Flush old hits
+    if (deauthQueue) xQueueReset(deauthQueue);
 
-    // Clean deauth logs (vector - trim oldest)
     if (deauthLog.size() > MAX_LOG_SIZE) {
         deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - MAX_LOG_SIZE));
     }
