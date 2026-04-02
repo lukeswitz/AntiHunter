@@ -18,7 +18,7 @@ struct BaselineDevice {
     char name[32];
     bool isBLE;
     uint8_t channel;
-    uint16_t hitCount;
+    uint32_t hitCount;
     uint8_t checksum;
     bool dirtyFlag;
 } __attribute__((packed));
@@ -55,17 +55,10 @@ struct DeviceHistory {
     uint8_t sightings;
 };
 
-struct CachedSDLookup {
-    String mac;
-    bool inBaseline;
-    uint32_t timestamp;
-};
-
 extern std::map<String, uint32_t> sdDeviceIndex;
 extern std::map<String, bool> sdLookupCache;
 extern std::list<String> sdLookupLRU;
 extern const uint32_t SD_LOOKUP_CACHE_SIZE;
-extern const uint32_t SD_LOOKUP_CACHE_TTL;
 
 void addToSDCache(const String& mac, bool found);
 bool checkSDCache(const String& mac, bool& found);

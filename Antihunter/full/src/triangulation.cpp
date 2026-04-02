@@ -675,7 +675,11 @@ uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
     uint32_t timeout = baseTimeoutMs;
 
     // Factor in number of nodes (more nodes = more potential for delays)
-    uint32_t nodeCount = triangulateAcks.size();
+    uint32_t nodeCount;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        nodeCount = (uint32_t)triangulateAcks.size();
+    }
     if (nodeCount > 0) {
         timeout += (uint32_t)(nodeCount * perNodeFactor);
     }
@@ -762,6 +766,7 @@ void stopTriangulation() {
 
             int lastNodeCount = initialNodeCount;
             uint32_t lastNewNodeTime = millis();
+            uint32_t lastUIUpdate = 0;
 
             while (millis() - waitStart < REPORT_TIMEOUT) {
                 int reportedCount = 0;
@@ -788,7 +793,6 @@ void stopTriangulation() {
                              reportedCount, totalAcked, (reportedCount * 100.0f) / totalAcked);
 
                 // Update UI with collection progress (every ~1s to avoid excessive updates)
-                static uint32_t lastUIUpdate = 0;
                 if (millis() - lastUIUpdate > 1000) {
                     std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                     antihunter::lastResults = ("TRIANGULATING: Collecting reports... " +
@@ -822,7 +826,12 @@ void stopTriangulation() {
 
             // Final status
             int finalReported = 0;
-            for (const auto &ack : triangulateAcks) {
+            std::vector<TriangulateAckInfo> acksCopy;
+            {
+                std::lock_guard<std::mutex> lock(triangulationMutex);
+                acksCopy = triangulateAcks;
+            }
+            for (const auto &ack : acksCopy) {
                 if (ack.reportReceived) {
                     finalReported++;
                 } else {
@@ -831,7 +840,7 @@ void stopTriangulation() {
             }
 
             Serial.printf("[TRIANGULATE] Wait complete: %d/%d nodes reported\n",
-                         finalReported, triangulateAcks.size());
+                         finalReported, acksCopy.size());
 
             // Grace period to process any final in-flight T_D messages (e.g., BLE after WiFi)
             Serial.println("[TRIANGULATE] Grace period for final T_D messages...");
@@ -1822,9 +1831,6 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
     uint16_t mySubsec = (myMicros % 1000000) / 10000;
     
     uint32_t propagationDelay = rxMicros - senderTxMicros;
-    if (propagationDelay > 100000) {
-        propagationDelay = rxMicros + (0xFFFFFFFF - senderTxMicros);
-    }
 
     nodePropagationDelays[senderId] = propagationDelay;
     const size_t MAX_PROP_DELAY_ENTRIES = 100;

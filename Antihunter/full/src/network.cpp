@@ -4428,16 +4428,16 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             }
 
         } else if (detection == "baseline") {
-            currentScanMode = SCAN_BOTH;
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
-            
+
             stopRequested = false;
-            req->send(200, "text/plain", 
-                    forever ? "Baseline detection starting (forever)" : 
+            req->send(200, "text/plain",
+                    forever ? "Baseline detection starting (forever)" :
                     ("Baseline detection starting for " + String(secs) + "s"));
-            
+
             if (!workerTaskHandle) {
+                currentScanMode = SCAN_BOTH;
                 scanning = true;
                 xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
                                     (void*)(intptr_t)(forever ? 0 : secs),
@@ -4453,20 +4453,20 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                 }
             }
             
-            currentScanMode = (ScanMode)scanMode;
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
-            
+
             stopRequested = false;
-            
-            String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" : 
+
+            String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" :
                             (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-            
-            req->send(200, "text/plain", 
-                    forever ? ("Randomization detection starting (forever) - " + modeStr) : 
+
+            req->send(200, "text/plain",
+                    forever ? ("Randomization detection starting (forever) - " + modeStr) :
                     ("Randomization detection starting for " + String(secs) + "s - " + modeStr));
-            
+
             if (!workerTaskHandle) {
+                currentScanMode = (ScanMode)scanMode;
                 scanning = true;
                 {
                     std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -4486,20 +4486,20 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                 }
             }
             
-            currentScanMode = (ScanMode)scanMode;
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
-            
+
             stopRequested = false;
-            
-            String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" : 
+
+            String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" :
                             (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-            
-            req->send(200, "text/plain", 
-                    forever ? ("Device scan starting (forever) - " + modeStr) : 
+
+            req->send(200, "text/plain",
+                    forever ? ("Device scan starting (forever) - " + modeStr) :
                     ("Device scan starting for " + String(secs) + "s - " + modeStr));
-            
+
             if (!workerTaskHandle) {
+                currentScanMode = (ScanMode)scanMode;
                 scanning = true;
                 xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
                                     (void*)(intptr_t)(forever ? 0 : secs),
@@ -4507,16 +4507,16 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             }
             
         } else if (detection == "drone-detection") {
-            currentScanMode = SCAN_WIFI;
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
-            
+
             stopRequested = false;
             req->send(200, "text/plain",
                     forever ? "Drone detection starting (forever)" :
                     ("Drone detection starting for " + String(secs) + "s"));
-            
+
             if (!workerTaskHandle) {
+                currentScanMode = SCAN_WIFI;
                 scanning = true;
                 xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
                                     (void*)(intptr_t)(forever ? 0 : secs),
@@ -5268,11 +5268,11 @@ void processCommand(const String &command, const String &targetId = "")
     
     if (mode >= 0 && mode <= 2)
     {
-      currentScanMode = (ScanMode)mode;
       stopRequested = false;
 
       if (!workerTaskHandle)
       {
+        currentScanMode = (ScanMode)mode;
         xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
                                 (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
       }
@@ -5299,11 +5299,11 @@ void processCommand(const String &command, const String &targetId = "")
     if (secs < 0) secs = 0;
     if (secs > 86400) secs = 86400;
 
-    currentScanMode = SCAN_WIFI;
     stopRequested = false;
 
     if (!workerTaskHandle)
     {
+      currentScanMode = SCAN_WIFI;
       xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
                               (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
     }

@@ -25,6 +25,7 @@ std::map<String, ProbeSession> activeSessions;
 std::map<String, DeviceIdentity> deviceIdentities;
 uint32_t identityIdCounter = 0;
 QueueHandle_t probeRequestQueue = nullptr;
+QueueHandle_t authFrameQueue = nullptr;
 
 extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
@@ -584,12 +585,28 @@ uint8_t calculateMACPrefixSimilarity(const uint8_t* mac1, const uint8_t* mac2) {
     return matches;
 }
 
-void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi, 
+void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi,
                                            uint8_t channel, const uint8_t* frame, uint16_t frameLen) {
+    if (!authFrameQueue) return;
+    AuthFrameEvent ev;
+    memcpy(ev.mac, globalMac, 6);
+    ev.rssi = rssi;
+    ev.channel = channel;
+    uint16_t copy = frameLen < sizeof(ev.payload) ? frameLen : sizeof(ev.payload);
+    memcpy(ev.payload, frame, copy);
+    ev.len = copy;
+    BaseType_t woken = pdFALSE;
+    xQueueSendFromISR(authFrameQueue, &ev, &woken);
+    if (woken) portYIELD_FROM_ISR();
+}
+
+static void processAuthFrameEvent(const AuthFrameEvent& ev) {
     std::lock_guard<std::mutex> lock(randMutex);
-    
+
     uint32_t now = millis();
-    uint16_t seqNum = extractSequenceNumber(frame, frameLen);
+    const uint8_t* globalMac = ev.mac;
+    int8_t rssi = ev.rssi;
+    uint16_t seqNum = extractSequenceNumber(ev.payload, ev.len);
     
     String bestSessionKey;
     float bestScore = 0.0f;
@@ -1165,6 +1182,12 @@ void randomizationDetectionTask(void *pv) {
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
     
+    if (authFrameQueue) {
+        vQueueDelete(authFrameQueue);
+        authFrameQueue = nullptr;
+    }
+    authFrameQueue = xQueueCreate(32, sizeof(AuthFrameEvent));
+
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
@@ -1226,10 +1249,17 @@ void randomizationDetectionTask(void *pv) {
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
         
+        {
+            AuthFrameEvent authEv;
+            while (xQueueReceive(authFrameQueue, &authEv, 0) == pdTRUE) {
+                processAuthFrameEvent(authEv);
+            }
+        }
+
         if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
             ProbeRequestEvent event;
             int processedCount = 0;
-            
+
             while (processedCount < 200 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
                 processedCount++;
                 
@@ -1595,11 +1625,16 @@ void randomizationDetectionTask(void *pv) {
 
     saveDeviceIdentities();
     
+    if (authFrameQueue) {
+        vQueueDelete(authFrameQueue);
+        authFrameQueue = nullptr;
+    }
+
     if (probeRequestQueue) {
         vQueueDelete(probeRequestQueue);
         probeRequestQueue = nullptr;
     }
-    
+
     Serial.println("[RAND] Detection complete, results stored");
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);

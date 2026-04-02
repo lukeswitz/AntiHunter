@@ -110,9 +110,6 @@ const uint32_t DEAUTH_TARGETED_THRESHOLD = 3;
 const uint32_t DEAUTH_CLEANUP_INTERVAL = 60000;    
 const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;    
 
-extern std::map<String, uint32_t> deauthSourceCounts;
-extern std::map<String, uint32_t> deauthTargetCounts;
-extern std::map<String, std::vector<uint32_t>> deauthTimings;
 extern std::vector<DeauthHit> deauthLog;
 extern std::atomic<uint32_t> deauthCount;
 extern std::atomic<uint32_t> disassocCount;
@@ -132,6 +129,7 @@ extern std::mutex triAccumMutex;
 extern bool droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 extern QueueHandle_t macQueue;
+extern portMUX_TYPE uniqueMacsMux;
 
 // Functions
 void initializeScanner();

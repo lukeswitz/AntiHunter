@@ -14,11 +14,13 @@ const size_t MAX_DETECTED_DRONES = 50;
 const uint32_t DRONE_STALE_TIME = 300000;
 
 std::map<String, DroneDetection> detectedDrones;
+portMUX_TYPE droneMux = portMUX_INITIALIZER_UNLOCKED;
 std::set<String> transmittedDrones;
 std::vector<String> droneEventLog;
 std::atomic<uint32_t> droneDetectionCount(0);
 bool droneDetectionEnabled = false;
 QueueHandle_t droneQueue = nullptr;
+QueueHandle_t droneFrameQueue = nullptr;
 
 extern std::atomic<bool> stopRequested;
 extern void radioStartSTA();
@@ -34,6 +36,11 @@ extern String macFmt6(const uint8_t *m);
 extern void sendMeshNotification(const Hit &hit);
 
 void initializeDroneDetector() {
+    if (droneFrameQueue) {
+        vQueueDelete(droneFrameQueue);
+    }
+    droneFrameQueue = xQueueCreate(8, sizeof(DroneFrameEvent));
+
     if (droneQueue) {
         vQueueDelete(droneQueue);
     }
@@ -432,9 +439,14 @@ void droneDetectorTask(void *pv)
     const unsigned long MESH_DRONE_UPDATE_INTERVAL = 5000;
     DroneDetection drone;
     
-    while ((forever && !stopRequested) || 
+    while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
-        
+
+        DroneFrameEvent rawFrame;
+        while (xQueueReceive(droneFrameQueue, &rawFrame, 0) == pdTRUE) {
+            processDronePacket(rawFrame.payload, rawFrame.len, rawFrame.rssi);
+        }
+
         while (xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
             localFramesSeen++;
             
@@ -530,6 +542,11 @@ void droneDetectorTask(void *pv)
     
     droneDetectionEnabled = false;
     scanning = false;
+
+    if (droneFrameQueue) {
+        vQueueDelete(droneFrameQueue);
+        droneFrameQueue = nullptr;
+    }
 
     if (meshEnabled && !stopRequested) {
         Serial.printf("[DRONE] Scan complete - transmitting final batch\n");
