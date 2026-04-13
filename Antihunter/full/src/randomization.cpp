@@ -1464,6 +1464,7 @@ void randomizationDetectionTask(void *pv) {
                         uint8_t mac[6];
                         memcpy(mac, macBytes, 6);
                         int8_t rssi = device->getRSSI();
+                        if (rssi > -10) continue;
                         if (rssi < rfConfig.globalRssiThreshold) {
                             continue;
                         }

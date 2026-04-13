@@ -501,6 +501,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
         bleFramesSeen = bleFramesSeen + 1;
 
         int8_t rssi = advertisedDevice->getRSSI();
+        if (rssi > -10) return;
         if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
             return;
         }
@@ -537,7 +538,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
         if (isMatch) {
             Hit h;
             memcpy(h.mac, mac, 6);
-            h.rssi = advertisedDevice->getRSSI();
+            h.rssi = rssi;
             h.ch = 0;
             strncpy(h.name, deviceName.c_str(), sizeof(h.name) - 1);
             h.name[sizeof(h.name) - 1] = '\0';
@@ -703,6 +704,7 @@ void snifferScanTask(void *pv)
                     String macStr = device->getAddress().toString().c_str();
                     macStr.toUpperCase();
                     int8_t rssi = device->getRSSI();
+                    if (rssi > -10) continue;
 
                     if (rssi < rfConfig.globalRssiThreshold) {
                         continue;
@@ -733,7 +735,7 @@ void snifferScanTask(void *pv)
                         {
                             Hit h;
                             memcpy(h.mac, mac, 6);
-                            h.rssi = device->getRSSI();
+                            h.rssi = rssi;
                             h.ch = 0;
                             strncpy(h.name, cleanName.c_str(), sizeof(h.name) - 1);
                             h.name[sizeof(h.name) - 1] = '\0';
@@ -743,7 +745,7 @@ void snifferScanTask(void *pv)
                             }
 
                             String logEntry = "BLE Device: " + macStr + " Name: " + cleanName +
-                                            " RSSI: " + String(device->getRSSI()) + "dBm";
+                                            " RSSI: " + String(rssi) + "dBm";
 
                             if (gpsValid)
                             {
@@ -2393,6 +2395,7 @@ void listScanTask(void *pv) {
                 macStr.toUpperCase();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                 int8_t rssi = device->getRSSI();
+                if (rssi > -10) continue;
                 // Skip RSSI threshold during triangulation - we want ALL measurements
                 if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
                     continue;
