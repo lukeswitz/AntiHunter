@@ -1669,6 +1669,7 @@ void calibrationTask(void *parameter) {
                 if (parseMac6(deviceMacStr, deviceMac) && 
                     memcmp(deviceMac, macBytes, 6) == 0) {
                     int8_t rssi = device->getRSSI();
+                    if (rssi > -10) continue;
                     bleSamples.push_back(rssi);
                     Serial.printf("[CALIB] [%02ds] BLE #%d: %d dBm\n", 
                                  elapsed, bleSamples.size(), rssi);

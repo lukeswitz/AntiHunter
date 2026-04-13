@@ -150,9 +150,13 @@ void resetBaselineDetection() {
 }
 
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
+    // Discard implausible RSSI (self-reception / NimBLE glitch values like -8 dBm)
+    if (rssi > -10) {
+        return;
+    }
     String macStr = macFmt6(mac);
     uint32_t now = millis();
-    
+
     if (baselineCache.find(macStr) == baselineCache.end()) {
         uint32_t effectiveLimit = (sdAvailable && sdBaselineInitialized) ? 
                                     baselineRamCacheSize : 1500;
@@ -497,7 +501,8 @@ void baselineDetectionTask(void *pv) {
                 String macStr = device->getAddress().toString().c_str();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                 int8_t rssi = device->getRSSI();
-                
+                if (rssi > -10) continue;
+
                 uint8_t mac[6];
                 if (parseMac6(macStr, mac)) {
                     Hit bh;
@@ -667,7 +672,8 @@ void baselineDetectionTask(void *pv) {
                 String macStr = device->getAddress().toString().c_str();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                 int8_t rssi = device->getRSSI();
-                
+                if (rssi > -10) continue;
+
                 uint8_t mac[6];
                 if (parseMac6(macStr, mac)) {
                     Hit bh;
@@ -1349,7 +1355,11 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     if (rssi < baselineRssiThreshold) {
         return;
     }
-    
+    // Discard implausible RSSI (self-reception / NimBLE glitch values like -8 dBm)
+    if (rssi > -10) {
+        return;
+    }
+
     String macStr = macFmt6(mac);
     uint32_t now = millis();
     
