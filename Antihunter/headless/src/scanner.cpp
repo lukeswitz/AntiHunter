@@ -570,6 +570,10 @@ void snifferScanTask(void *pv)
     }
 
     scanning = true;
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
     uniqueMacs.clear();
     hitsLog.clear();
     apCache.clear();
@@ -2190,6 +2194,10 @@ void listScanTask(void *pv) {
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
     lastScanStart = millis();
     lastScanSecs = secs;
     lastScanForever = forever;

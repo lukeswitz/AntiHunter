@@ -4,6 +4,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "scanner.h"
+#include "main.h"
 #include "opendroneid.h"
 #include "odid_wifi.h"
 #include <ArduinoJson.h>
@@ -425,6 +426,10 @@ void droneDetectorTask(void *pv)
     initializeDroneDetector();
     droneDetectionEnabled = true;
     scanning = true;
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
     stopRequested = false;
     
     uint32_t localFramesSeen = 0;

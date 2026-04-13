@@ -31,7 +31,9 @@ extern NimBLEScan *pBLEScan;
 extern String getNodeId();
 extern void logToSD(const String &msg);
 extern void radioStartSTA();
-extern void radioStopSTA();
+extern void radioStopListScan();
+extern void radioStartListScan();
+extern void radioStopListScan();
 extern bool isAllowlisted(const uint8_t *mac);
 
 // RAM SD Cache
@@ -376,14 +378,18 @@ void baselineDetectionTask(void *pv) {
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
-    
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
+
     baselineStats = BaselineStats();
     baselineStats.isScanning = true;
     baselineStats.phase1Complete = false;
     baselineStats.totalDuration = baselineDuration;
     
-    radioStartSTA();
-    vTaskDelay(pdMS_TO_TICKS(200)); 
+    radioStartListScan();
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     if (!pBLEScan) {
         BLEDevice::init("");
@@ -411,9 +417,15 @@ void baselineDetectionTask(void *pv) {
     
     Hit h;
     
-    Serial.printf("[BASELINE] Phase 1 starting at %u ms, will run until %u ms\n", 
+    Serial.printf("[BASELINE] Phase 1 starting at %u ms, will run until %u ms\n",
                   phaseStart, phaseStart + baselineDuration);
-    
+
+    // Write initial results immediately so web UI shows scan is active
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = getBaselineResults().c_str();
+    }
+
     while (millis() - phaseStart < baselineDuration && !stopRequested) {
         baselineStats.elapsedTime = millis() - phaseStart;
 
@@ -424,11 +436,10 @@ void baselineDetectionTask(void *pv) {
 
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             nextResultsUpdate += 2000;
-            if (baselineResultsDirty) {
-                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                antihunter::lastResults = getBaselineResults().c_str();
-                baselineResultsDirty = false;
-            }
+            // Always update during Phase 1 — UI needs to show establishment progress
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = getBaselineResults().c_str();
+            baselineResultsDirty = false;
         }
 
         if ((int32_t)(millis() - nextStatus) >= 0) {
@@ -546,44 +557,6 @@ void baselineDetectionTask(void *pv) {
             }
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
-        
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL && isMyMeshSlot()) {
-            lastMeshUpdate = millis();
-            uint32_t sentThisCycle = 0;
-
-            for (const auto& entry : baselineCache) {
-                if (!isMyMeshSlot()) break;
-                String macStr = macFmt6(entry.second.mac);
-
-                if (transmittedDevices.find(macStr) == transmittedDevices.end()) {
-                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
-                    deviceMsg += entry.second.isBLE ? " B " : " W ";
-                    deviceMsg += String(entry.second.avgRssi);
-
-                    if (!entry.second.isBLE && entry.second.channel > 0) {
-                        deviceMsg += " C" + String(entry.second.channel);
-                    }
-
-                    if (strlen(entry.second.name) > 0 &&
-                        strcmp(entry.second.name, "Unknown") != 0 &&
-                        strcmp(entry.second.name, "[Hidden]") != 0) {
-                        deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
-                    }
-
-                    if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                        if (sendToSerial1(deviceMsg, true)) {
-                            transmittedDevices.insert(macStr);
-                            sentThisCycle++;
-
-                            if (sentThisCycle % 2 == 0) {
-                                delay(500);
-                                rateLimiter.refillTokens();
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
@@ -613,7 +586,7 @@ void baselineDetectionTask(void *pv) {
         scanning = false;
         updateBaselineStats();
         
-        radioStopSTA();
+        radioStopListScan();
         vTaskDelay(pdMS_TO_TICKS(200));
         
         if (macQueue) {
@@ -854,7 +827,7 @@ void baselineDetectionTask(void *pv) {
     Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%u bytes\n",
                  baselineDeviceCount, anomalyCount, finalHeap);
     
-    radioStopSTA();
+    radioStopListScan();
     vTaskDelay(pdMS_TO_TICKS(200));
     
     if (sdBaselineInitialized) {
@@ -1461,6 +1434,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             anomalyLog.push_back(hit);
             anomalyCount++;
+            baselineResultsDirty = true;
 
             String alert = "[ANOMALY] RETURNED: " + macStr;
             alert += " was absent " + String(absentTime / 1000) + "s";
@@ -1503,6 +1477,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             anomalyLog.push_back(hit);
             anomalyCount++;
+            baselineResultsDirty = true;
 
             String alert = "[ANOMALY] RSSI-CHANGE: " + macStr;
             alert += " " + String(history.lastRssi) + "dBm -> " + String(rssi) + "dBm";
