@@ -1070,12 +1070,12 @@ bool flushBaselineCacheToSD() {
     if (!updates.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", "r+");
         if (dataFile) {
-            for (auto& [mac, dev] : updates) {
-                BaselineDevice wd = *dev;
+            for (size_t i = 0; i < updates.size(); i++) {
+                BaselineDevice wd = *updates[i].second;
                 calculateDeviceChecksum(wd);
-                dataFile.seek(sdDeviceIndex[mac]);
+                dataFile.seek(sdDeviceIndex[updates[i].first]);
                 if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    dev->dirtyFlag = false;
+                    updates[i].second->dirtyFlag = false;
                     flushed++;
                 }
             }
@@ -1088,14 +1088,14 @@ bool flushBaselineCacheToSD() {
     if (!appends.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         if (dataFile) {
-            for (auto& [mac, dev] : appends) {
-                BaselineDevice wd = *dev;
+            for (size_t i = 0; i < appends.size(); i++) {
+                BaselineDevice wd = *appends[i].second;
                 calculateDeviceChecksum(wd);
                 uint32_t position = dataFile.position();
                 if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    sdDeviceIndex[mac] = position;
+                    sdDeviceIndex[appends[i].first] = position;
                     totalDevicesOnSD++;
-                    dev->dirtyFlag = false;
+                    appends[i].second->dirtyFlag = false;
                     flushed++;
                 }
             }

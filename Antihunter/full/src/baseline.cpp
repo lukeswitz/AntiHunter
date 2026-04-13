@@ -631,13 +631,6 @@ void baselineDetectionTask(void *pv) {
             nextStatsUpdate += 1000;
         }
 
-        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
-            nextResultsUpdate += 2000;
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = getBaselineResults().c_str();
-            baselineResultsDirty = false;
-        }
-
         if ((int32_t)(millis() - nextStatus) >= 0) {
             Serial.printf("[BASELINE] Monitoring... Baseline:%d Anomalies:%d Heap:%u\n",
                         baselineDeviceCount, anomalyCount, ESP.getFreeHeap());
@@ -663,9 +656,9 @@ void baselineDetectionTask(void *pv) {
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
                     uint8_t channel = WiFi.channel(i);
-                    
+
                     if (ssid.length() == 0) ssid = "[Hidden]";
-                    
+
                     Hit wh;
                     memcpy(wh.mac, bssidBytes, 6);
                     wh.rssi = rssi;
@@ -673,7 +666,7 @@ void baselineDetectionTask(void *pv) {
                     strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
                     wh.name[sizeof(wh.name) - 1] = '\0';
                     wh.isBLE = false;
-                    
+
                     if (macQueue) {
                         xQueueSend(macQueue, &wh, 0);
                     }
@@ -689,7 +682,7 @@ void baselineDetectionTask(void *pv) {
 
         if (pBLEScan && (millis() - lastBLEScan >= rfConfig.bleScanInterval)) {
             lastBLEScan = millis();
-            
+
             if (!pBLEScan->isScanning()) {
                 pBLEScan->start(0, false);
                 vTaskDelay(pdMS_TO_TICKS(100));
@@ -698,15 +691,15 @@ void baselineDetectionTask(void *pv) {
             if (stopRequested) {
                 break;
             }
-            
+
             NimBLEScanResults scanResults = pBLEScan->getResults(0, true);
-            
+
             for (int i = 0; i < scanResults.getCount() && !stopRequested; i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                 String macStr = device->getAddress().toString().c_str();
                 String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                 int8_t rssi = device->getRSSI();
-                
+
                 uint8_t mac[6];
                 if (parseMac6(macStr, mac)) {
                     Hit bh;
@@ -716,7 +709,7 @@ void baselineDetectionTask(void *pv) {
                     strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
-                    
+
                     if (macQueue) {
                         xQueueSend(macQueue, &bh, 0);
                     }
@@ -727,19 +720,26 @@ void baselineDetectionTask(void *pv) {
             }
             pBLEScan->clearResults();
         }
-        
+
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
-            
+
             if (baselineEstablished) {
                 checkForAnomalies(h.mac, h.rssi, h.name, h.isBLE, h.ch);
             }
-            
+
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
-        
+
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0 || baselineResultsDirty) {
+            nextResultsUpdate = millis() + 2000;
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = getBaselineResults().c_str();
+            baselineResultsDirty = false;
+        }
+
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL && isMyMeshSlot()) {
             lastMeshUpdate = millis();
             uint32_t sentThisCycle = 0;
@@ -1104,12 +1104,12 @@ bool flushBaselineCacheToSD() {
     if (!updates.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", "r+");
         if (dataFile) {
-            for (auto& [mac, dev] : updates) {
-                BaselineDevice wd = *dev;
+            for (size_t i = 0; i < updates.size(); i++) {
+                BaselineDevice wd = *updates[i].second;
                 calculateDeviceChecksum(wd);
-                dataFile.seek(sdDeviceIndex[mac]);
+                dataFile.seek(sdDeviceIndex[updates[i].first]);
                 if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    dev->dirtyFlag = false;
+                    updates[i].second->dirtyFlag = false;
                     flushed++;
                 }
             }
@@ -1122,14 +1122,14 @@ bool flushBaselineCacheToSD() {
     if (!appends.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         if (dataFile) {
-            for (auto& [mac, dev] : appends) {
-                BaselineDevice wd = *dev;
+            for (size_t i = 0; i < appends.size(); i++) {
+                BaselineDevice wd = *appends[i].second;
                 calculateDeviceChecksum(wd);
                 uint32_t position = dataFile.position();
                 if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    sdDeviceIndex[mac] = position;
+                    sdDeviceIndex[appends[i].first] = position;
                     totalDevicesOnSD++;
-                    dev->dirtyFlag = false;
+                    appends[i].second->dirtyFlag = false;
                     flushed++;
                 }
             }
