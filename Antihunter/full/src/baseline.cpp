@@ -735,8 +735,13 @@ void baselineDetectionTask(void *pv) {
 
         if ((int32_t)(millis() - nextResultsUpdate) >= 0 || baselineResultsDirty) {
             nextResultsUpdate = millis() + 2000;
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = getBaselineResults().c_str();
+            String resultStr = getBaselineResults();
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = resultStr.c_str();
+            }
+            Serial.printf("[BASELINE] Results updated: %d bytes, anomalies=%d, dirty=%s\n",
+                        resultStr.length(), anomalyCount, baselineResultsDirty ? "true" : "false");
             baselineResultsDirty = false;
         }
 
@@ -812,7 +817,11 @@ void baselineDetectionTask(void *pv) {
         
         vTaskDelay(pdMS_TO_TICKS(50));
     }
-    
+
+    Serial.printf("[BASELINE] Phase 2 loop exited: forever=%s, stopRequested=%s, elapsed=%ums, duration=%d\n",
+                forever ? "true" : "false", stopRequested.load() ? "true" : "false",
+                (millis() - phaseStart), duration);
+
     baselineStats.isScanning = false;
     updateBaselineStats();
     
