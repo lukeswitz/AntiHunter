@@ -2657,7 +2657,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               html += '<span style="background:' + typeColor + ';color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
               html += '</div>';
               html += '<div style="display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px;flex-wrap:wrap;">';
-              html += '<span>RSSI: <strong style="color:' + rssiCol(rssi) + ';">' + rssi + ' dBm</strong></span>';
+              html += '<span>RSSI: <strong style="color:' + rssiColorFor(rssi) + ';">' + rssi + ' dBm</strong></span>';
               if (channel) html += '<span>CH: <strong style="color:var(--txt);">' + channel + '</strong></span>';
               if (name) html += '<span>Name: <strong style="color:var(--txt);">' + name + '</strong></span>';
               html += '</div>';

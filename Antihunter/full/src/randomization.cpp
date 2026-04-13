@@ -1293,6 +1293,10 @@ void randomizationDetectionTask(void *pv) {
     Serial.println("[RAND] Enabling detection...");
     randomizationDetectionEnabled = true;
     scanning = true;
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults.clear();
+    }
 
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
