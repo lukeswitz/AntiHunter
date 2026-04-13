@@ -10,14 +10,14 @@
 <p align="center">
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
-  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+  <h2 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
   
 </p>
 
 > [!NOTE]
-> Standalone or for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+> Standalone firmware, also integrates with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 > 
-> **Early Release** - Beta version. Potential stability issues and unexpected behavior may exist in the process. 
+> **Early Release** - Beta version. Potential stability issues and unexpected behavior. 
 
 
 
