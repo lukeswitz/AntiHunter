@@ -536,16 +536,11 @@ void baselineDetectionTask(void *pv) {
             }
 
             if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
-                for (auto& entry : baselineCache) {
-                    if (entry.second.dirtyFlag) {
-                        writeBaselineDeviceToSD(entry.second);
-                        entry.second.dirtyFlag = false;
-                    }
-                }
+                flushBaselineCacheToSD();
                 lastSDFlush = millis();
             }
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
@@ -781,19 +776,14 @@ void baselineDetectionTask(void *pv) {
             }
 
             if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
-                for (auto& entry : baselineCache) {
-                    if (entry.second.dirtyFlag) {
-                        writeBaselineDeviceToSD(entry.second);
-                        entry.second.dirtyFlag = false;
-                    }
-                }
+                flushBaselineCacheToSD();
                 lastSDFlush = millis();
             }
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(50));
     }
-    
+
     baselineStats.isScanning = false;
     updateBaselineStats();
     
@@ -1051,33 +1041,80 @@ bool flushBaselineCacheToSD() {
     if (!SafeSD::isAvailable() || !sdBaselineInitialized || baselineCache.empty()) {
         return false;
     }
-    
-    uint32_t dirtyCount = 0;
-    for (const auto& entry : baselineCache) {
-        if (entry.second.dirtyFlag) {
-            dirtyCount++;
-        }
-    }
-    
-    if (dirtyCount == 0) {
-        return true;
-    }
-    
-    Serial.printf("[BASELINE_SD] Flushing %d modified devices\n", dirtyCount);
-    
-    uint32_t flushed = 0;
+
+    // Separate dirty entries into updates (existing on SD) and appends (new)
+    std::vector<std::pair<String, BaselineDevice*>> updates;
+    std::vector<std::pair<String, BaselineDevice*>> appends;
+
     for (auto& entry : baselineCache) {
         if (entry.second.dirtyFlag) {
-            if (writeBaselineDeviceToSD(entry.second)) {
-                entry.second.dirtyFlag = false;
-                flushed++;
+            if (sdDeviceIndex.find(entry.first) != sdDeviceIndex.end()) {
+                updates.push_back({entry.first, &entry.second});
+            } else {
+                appends.push_back({entry.first, &entry.second});
             }
         }
     }
-    
+
+    uint32_t total = updates.size() + appends.size();
+    if (total == 0) {
+        return true;
+    }
+
+    Serial.printf("[BASELINE_SD] Flushing %d modified devices (%d updates, %d new)\n",
+                  total, updates.size(), appends.size());
+
+    uint32_t flushed = 0;
+
+    // Batch updates: single file open in r+ mode, seek to each position
+    if (!updates.empty()) {
+        File dataFile = SafeSD::open("/baseline_data.bin", "r+");
+        if (dataFile) {
+            for (auto& [mac, dev] : updates) {
+                BaselineDevice wd = *dev;
+                calculateDeviceChecksum(wd);
+                dataFile.seek(sdDeviceIndex[mac]);
+                if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
+                    dev->dirtyFlag = false;
+                    flushed++;
+                }
+            }
+            dataFile.close();
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+
+    // Batch appends: single file open in append mode
+    if (!appends.empty()) {
+        File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
+        if (dataFile) {
+            for (auto& [mac, dev] : appends) {
+                BaselineDevice wd = *dev;
+                calculateDeviceChecksum(wd);
+                uint32_t position = dataFile.position();
+                if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
+                    sdDeviceIndex[mac] = position;
+                    totalDevicesOnSD++;
+                    dev->dirtyFlag = false;
+                    flushed++;
+                }
+            }
+            dataFile.close();
+
+            // Update header device count once
+            File headerFile = SafeSD::open("/baseline_data.bin", "r+");
+            if (headerFile) {
+                headerFile.seek(6);
+                headerFile.write((uint8_t*)&totalDevicesOnSD, sizeof(totalDevicesOnSD));
+                headerFile.close();
+            }
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+
     Serial.printf("[BASELINE_SD] Flushed %d devices. Total unique on SD: %d\n", flushed, totalDevicesOnSD);
     saveBaselineStatsToSD();
-    
+
     return true;
 }
 
