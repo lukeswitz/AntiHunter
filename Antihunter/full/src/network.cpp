@@ -289,555 +289,688 @@ unsigned long getMeshSendInterval() {
 
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html>
-<html data-theme="dark">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AntiHunter</title>
-<style>
-:root{--t:0.2s}
-[data-theme="dark"]{--bg:#0a0e14;--surf:#111520;--bord:#1a1f2e;--txt:#e8f0f7;--sec:#94a3b8;--mut:#718096;--dim:#4a5568;--acc:#4a90e2;--acch:#5b9bd5;--accbg:rgba(74,144,226,0.08);--warn:#d4a017;--warnbg:rgba(212,160,23,0.08);--dang:#ef4444;--succ:#10b981;--shad:0 1px 3px rgba(0,0,0,0.3)}
-[data-theme="light"]{--bg:#f5f7fa;--surf:#ffffff;--bord:#e2e8f0;--txt:#1a202c;--sec:#64748b;--mut:#94a3b8;--dim:#a0aec0;--acc:#3b82f6;--acch:#2563eb;--accbg:rgba(59,130,246,0.08);--warn:#d4a017;--warnbg:rgba(212,160,23,0.08);--dang:#ef4444;--succ:#10b981;--shad:0 1px 3px rgba(0,0,0,0.08)}
-[data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--bord:#00cc66;--txt:#00dd77;--sec:#00aa55;--mut:#008844;--dim:#006633;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--warn:#ffcc00;--warnbg:rgba(255,204,0,0.1);--dang:#ff4444;--succ:#00cc66;--shad:0 0 10px rgba(0,204,102,0.3)}
-[data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.5)}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.5;min-height:100vh;transition:background var(--t),color var(--t)}
-.hdr{padding:0 16px;height:48px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:var(--shad)}
-.logo{font-size:15px;font-weight:700;color:var(--acc);letter-spacing:-0.02em;flex-shrink:0}
-.tabs{display:flex;gap:2px;margin-left:12px}
-.tab{padding:6px 14px;font-size:12px;font-weight:600;color:var(--mut);cursor:pointer;border-radius:6px;transition:color var(--t),background var(--t);user-select:none}
-.tab:hover{color:var(--sec)}
-.tab.active{color:var(--txt);background:var(--accbg)}
-.hdr-r{display:flex;align-items:center;gap:10px;margin-left:auto}
-.status-bar{display:flex;gap:6px;align-items:center}
-.status-item{padding:4px 10px;border:1px solid var(--bord);border-radius:4px;font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:0.04em;transition:all var(--t)}
-.status-item.active{border-color:var(--acc);color:var(--acc);background:var(--accbg)}
-.theme-toggle{width:36px;height:22px;background:var(--surf);border:1px solid var(--acc);border-radius:11px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:all 0.3s}
-.theme-toggle svg{width:14px;height:14px;position:absolute;transition:opacity 0.3s,transform 0.3s;stroke:var(--acc);fill:var(--acc)}
-.theme-toggle .sun{opacity:1;transform:rotate(0deg) scale(1)}
-.theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0);stroke:none}
-[data-theme="dark"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
-[data-theme="dark"] .theme-toggle .moon{opacity:1;transform:rotate(0deg) scale(1)}
-.theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
-[data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
-[data-theme="cyber"] .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0)}
-[data-theme="cyber"] .theme-toggle .terminal{opacity:1;transform:scale(1)}
-.tab-page{display:none}
-.tab-page.active{display:block}
-.page-inner{max-width:1200px;margin:0 auto;padding:20px}
-.grid-2{display:flex;flex-direction:column;gap:16px}
-.grid-2-sm{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-.grid-3-sm{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
-.section{min-width:0}
-.sec-label{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.06em;margin:16px 0 6px;padding:0 2px}
-.sec-label:first-child{margin-top:0}
-.sec-box{background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:14px;box-shadow:var(--shad)}
-.sec{font-size:13px;font-weight:600;color:var(--sec)}
-.dim{color:var(--dim);font-size:12px}
-.mono{font-family:'SF Mono',Monaco,'Courier New',monospace;font-size:13px}
-.field-hint{color:var(--mut);font-size:11px;margin:4px 0 8px}
-.field-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.info-btn{width:20px;height:20px;border-radius:50%;border:1px solid var(--bord);background:var(--surf);color:var(--mut);font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all var(--t)}
-.info-btn:hover{border-color:var(--acc);color:var(--acc)}
-.info-box{background:var(--accbg);border:1px solid var(--bord);border-radius:6px;padding:10px;font-size:12px;color:var(--sec);margin:8px 0;line-height:1.5}
-.cb-label{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--txt);cursor:pointer}
-.row{display:flex;align-items:center;gap:8px}
-.flex1{flex:1}
-.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-label{display:block;margin:8px 0 4px;color:var(--mut);font-size:11px;font-weight:600;letter-spacing:0.01em;text-transform:uppercase}
-input,select,textarea{width:100%;background:var(--surf);border:1px solid var(--bord);border-radius:6px;color:var(--txt);padding:8px 10px;font:inherit;font-size:13px;transition:border-color var(--t)}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 2px var(--accbg)}
-input::placeholder{color:var(--dim);opacity:0.8}
-select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23718096' d='M8.5 3L5 6.5 1.5 3'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
-textarea{min-height:70px;resize:vertical;line-height:1.5}
-input[type="checkbox"]{width:16px;height:16px;cursor:pointer;appearance:none;border:1px solid var(--bord);border-radius:3px;transition:all 0.15s;flex-shrink:0;padding:0}
-input[type="checkbox"]:checked{background:var(--acc);border-color:var(--acc)}
-input[type="checkbox"]:checked::after{content:'';display:block;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin:1px auto 0}
-input[type="number"]{-moz-appearance:textfield}
-input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-input[type="range"]{padding:0;border:none;height:4px;border-radius:2px;background:var(--bord);-webkit-appearance:none;cursor:pointer}
-input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--acc);border:none;cursor:pointer}
-input[type="range"]:focus{box-shadow:none}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--bord);background:var(--surf);color:var(--txt);text-decoration:none;cursor:pointer;font-size:13px;font-weight:600;transition:all var(--t);white-space:nowrap}
-.btn:hover{border-color:var(--acc);color:var(--acc)}
-.btn:active{opacity:0.8}
-.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
-.btn.primary:hover{background:var(--acch);border-color:var(--acch)}
-.btn.alt{color:var(--acc);border-color:var(--acc);background:transparent}
-.btn.alt:hover{background:var(--accbg)}
-.btn.danger{background:var(--dang);border-color:var(--dang);color:#fff}
-.btn.danger:hover{filter:brightness(1.1)}
-.btn.sm{padding:4px 10px;font-size:11px}
-.btn.full{width:100%}
-.status-box{padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:11px;margin-top:8px}
-.banner{color:var(--dang);border:1px solid var(--dang);padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:12px;font-weight:600;background:rgba(239,68,68,0.05)}
-hr{border:0;border-top:1px solid var(--bord);margin:14px 0}
-pre{background:rgba(0,0,0,0.2);border:1px solid var(--bord);border-radius:6px;padding:12px;font-size:11px;overflow-x:auto;font-family:monospace;line-height:1.5}
-.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:16px 20px;border-bottom:1px solid var(--bord);background:var(--surf)}
-.stat-cell{text-align:center}
-.stat-label{color:var(--dim);font-size:9px;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin:0 0 2px}
-.stat-value{color:var(--txt);font-size:18px;font-weight:700;letter-spacing:-0.02em}
-.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.results-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;border-bottom:1px solid var(--bord);background:var(--surf);flex-wrap:wrap}
-.results-info{font-size:12px;color:var(--sec)}
-.results-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.results-controls select{width:auto;padding:4px 24px 4px 8px;font-size:11px}
-.results-list{padding:12px 16px;overflow-y:auto;max-height:calc(100vh - 120px)}
-#toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9999}
-.toast{background:var(--surf);border:1px solid var(--bord);padding:10px 14px;border-radius:6px;box-shadow:var(--shad);opacity:0;transform:translateY(8px);transition:opacity 0.3s,transform 0.3s;font-size:13px;min-width:240px}
-.toast.show{opacity:1;transform:none}
-.toast.success{border-color:var(--succ)}
-.toast.error{border-color:var(--dang)}
-.toast.warning{border-color:var(--warn)}
-.bsheet{position:fixed;bottom:0;left:0;right:0;background:var(--surf);border-top:1px solid var(--bord);border-radius:12px 12px 0 0;box-shadow:0 -2px 10px rgba(0,0,0,0.2);transform:translateY(calc(100% - 36px));transition:transform 0.3s;z-index:200;max-height:80vh;overflow-y:auto}
-.bsheet.open{transform:translateY(0)}
-.bsheet-handle{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;cursor:pointer;flex-direction:column}
-.bsheet-bar{width:32px;height:3px;background:var(--dim);border-radius:2px}
-.bsheet-content{padding:0 16px 20px}
-.footer{text-align:center;padding:12px;font-size:10px;color:var(--dim)}
-.tab-buttons{display:flex;gap:4px;margin-bottom:12px;background:rgba(0,0,0,0.1);padding:4px;border-radius:8px;border:1px solid var(--bord)}
-.tab-btn{padding:6px 12px;background:transparent;border:none;border-radius:5px;cursor:pointer;color:var(--mut);font-size:12px;font-weight:600;transition:all 0.2s;flex:1;text-align:center}
-.tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,0.1)}
-.tab-btn:hover:not(.active){color:var(--acc)}
-.tab-content{display:none}
-.tab-content.active{display:block}
-@media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}.stat-row{grid-template-columns:repeat(6,1fr)}}
-@media(max-width:899px){.stat-row{grid-template-columns:repeat(3,1fr)}.hdr{flex-wrap:wrap;height:auto;padding:10px 16px}}
-@media(max-width:600px){.stat-row{grid-template-columns:repeat(2,1fr)}.status-bar{display:none}.tabs{margin-left:0}.tab{padding:6px 10px;font-size:11px}input,select,textarea{font-size:12px;padding:7px 9px}.btn{padding:7px 12px;font-size:12px}.stat-value{font-size:15px}.results-toolbar{flex-direction:column;align-items:flex-start}}
-</style>
-<script>
-let toggleHistory=[];
-function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();toggleHistory.push(now);toggleHistory=toggleHistory.filter(time=>now-time<2000);if(t==='cyber'){const n=localStorage.getItem('prevTheme')||'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n);localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');toggleHistory=[];return}if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){localStorage.setItem('prevTheme',t);e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');localStorage.setItem('cyberMode','1');toggleHistory=[];return}const n='dark'===t?'light':'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
-(function(){const e=localStorage.getItem('theme');e?document.documentElement.setAttribute('data-theme',e):document.documentElement.setAttribute('data-theme','dark')})();
-</script>
-</head>
-<body>
-<div id="toast"></div>
-<div class="hdr">
-<span class="logo">AntiHunter</span>
-<div class="tabs">
-<span class="tab active" onclick="switchPage('scan')">Scan</span>
-<span class="tab" onclick="switchPage('results')">Results</span>
-<span class="tab" onclick="switchPage('system')">System</span>
-</div>
-<div class="hdr-r">
-<div class="status-bar">
-<div class="status-item" id="modeStatus">WiFi</div>
-<div class="status-item" id="scanStatus">Idle</div>
-<div class="status-item" id="gpsStatus">GPS</div>
-<div class="status-item" id="rtcStatus">RTC</div>
-</div>
-<div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-<svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-<circle cx="12" cy="12" r="5"/>
-<line x1="12" y1="1" x2="12" y2="3"/>
-<line x1="12" y1="21" x2="12" y2="23"/>
-<line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-<line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-<line x1="1" y1="12" x2="3" y2="12"/>
-<line x1="21" y1="12" x2="23" y2="12"/>
-<line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-<line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-</svg>
-<svg class="moon" viewBox="0 0 24 24" fill="currentColor">
-<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-</svg>
-<svg class="terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-<line x1="8" y1="21" x2="16" y2="21"/>
-<line x1="12" y1="17" x2="12" y2="21"/>
-<polyline points="6 8 10 12 6 16"/>
-<line x1="12" y1="12" x2="18" y2="12"/>
-</svg>
-</div>
-<a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
-</div>
-</div>
+<html data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AntiHunter</title>
+    <style>
+      :root{--t:0.2s;--blur:12px}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#f0f4f8 0%,#e8eef3 100%);--surf:rgba(255,255,255,0.85);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(59,130,246,0.15);--bord-focus:rgba(59,130,246,0.4);--txt:#1a202c;--mut:#64748b;--acc:#3b82f6;--acch:#2563eb;--accbg:rgba(59,130,246,0.08);--succ:#10b981;--warn:#f59e0b;--dang:#ef4444;--shad:0 8px 32px rgba(0,0,0,0.08);--shad-hover:0 12px 48px rgba(0,0,0,0.12);--glow:0 0 24px rgba(59,130,246,0.2);--backdrop:blur(12px) saturate(180%)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e14 0%,#0f1419 100%);--surf:rgba(26,31,46,0.7);--surf-hover:rgba(26,31,46,0.9);--bord:rgba(74,144,226,0.25);--bord-focus:rgba(74,144,226,0.5);--txt:#e8f0f7;--mut:#94a3b8;--acc:#4a90e2;--acch:#5b9bd5;--accbg:rgba(74,144,226,0.1);--succ:#10b981;--warn:#ffaa00;--dang:#ff6b35;--shad:0 8px 32px rgba(0,0,0,0.5);--shad-hover:0 12px 48px rgba(0,0,0,0.7);--glow:0 0 32px rgba(74,144,226,0.25),0 0 64px rgba(74,144,226,0.1);--backdrop:blur(16px) saturate(180%)}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{background:var(--bg);background-attachment:fixed;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
+      .header{padding:18px 28px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:18px;box-shadow:var(--shad);flex-wrap:wrap;position:sticky;top:0;z-index:100}
+      h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+      h3{margin:0 0 18px;font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--txt)}
+      .container{max-width:1400px;margin:0 auto;padding:28px}
+      .card{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:1px solid var(--bord);border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:var(--shad);transition:all 0.3s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden}
+      .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,var(--acc) 50%,transparent 100%);opacity:0;transition:opacity 0.3s}
+      .card:hover{box-shadow:var(--shad-hover);border-color:var(--bord-focus);transform:translateY(-2px)}
+      .card:hover::before{opacity:0.6}
+      label{display:block;margin:10px 0 8px;color:var(--mut);font-size:13px;font-weight:600;letter-spacing:0.01em;text-transform:uppercase}
+      input,select,textarea{width:100%;background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);border-radius:8px;color:var(--txt);padding:12px 16px;font:inherit;font-size:14px;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);box-shadow:inset 0 1px 3px rgba(0,0,0,0.05)}
+      input:hover,select:hover,textarea:hover{border-color:var(--bord-focus)}
+      input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 4px var(--accbg),var(--glow);transform:translateY(-1px)}
+      input::placeholder{color:var(--mut);opacity:0.6}
+      select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+      [data-theme="dark"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a90e2' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E")}
+      textarea{min-height:80px;resize:vertical;line-height:1.5}
+      input[type="checkbox"]{width:20px;height:20px;cursor:pointer;position:relative;appearance:none;border:2px solid var(--bord);border-radius:4px;transition:all 0.2s;flex-shrink:0}
+      input[type="checkbox"]:checked{background:var(--acc);border-color:var(--acc);box-shadow:var(--glow)}
+      input[type="checkbox"]:checked::after{content:'✓';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:14px;font-weight:bold}
+      input[type="number"]{-moz-appearance:textfield}
+      input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+      .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:8px;border:2px solid var(--bord);background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--txt);text-decoration:none;cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;white-space:nowrap}
+      .btn::before{content:'';position:absolute;top:50%;left:50%;width:0;height:0;border-radius:50%;background:rgba(255,255,255,0.1);transform:translate(-50%,-50%);transition:width 0.4s,height 0.4s}
+      .btn:hover::before{width:300px;height:300px}
+      .btn:hover{transform:translateY(-2px);box-shadow:var(--shad-hover);border-color:var(--bord-focus)}
+      .btn:active{transform:translateY(0)}
+      .btn.primary{background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);border-color:var(--acc);color:#fff;box-shadow:var(--glow)}
+      .btn.primary:hover{box-shadow:var(--glow),var(--shad-hover);filter:brightness(1.1)}
+      .btn.alt{color:var(--acc);border-color:var(--acc);background:transparent}
+      .btn.danger{background:var(--dang);border-color:var(--dang);color:#fff;box-shadow:0 0 24px rgba(239,68,68,0.3)}
+      .btn.danger:hover{filter:brightness(1.15)}
+      .theme-toggle{width:48px;height:28px;background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--acc);border-radius:14px;cursor:pointer;position:relative;transition:all 0.3s;margin-left:auto;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:var(--glow)}
+      .theme-toggle:hover{transform:scale(1.05);box-shadow:var(--glow),var(--shad)}
+      .theme-toggle svg{width:18px;height:18px;position:absolute;transition:opacity 0.3s,transform 0.3s;stroke:var(--acc);fill:var(--acc)}
+      .theme-toggle .sun{opacity:1;transform:rotate(0deg) scale(1)}
+      .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0);stroke:none}
+      [data-theme="dark"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
+      [data-theme="dark"] .theme-toggle .moon{opacity:1;transform:rotate(0deg) scale(1)}
+      pre{background:rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;font-family:monospace;line-height:1.6}
+      hr{border:0;border-top:1px solid var(--bord);margin:20px 0}
+      .banner{color:var(--dang);border:2px solid var(--dang);padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;background:rgba(239,68,68,0.05);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+      #toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;z-index:9999}
+      .toast{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:2px solid var(--bord);padding:14px 18px;border-radius:8px;box-shadow:var(--shad-hover);opacity:0;transform:translateY(12px);transition:opacity 0.3s,transform 0.3s;font-size:14px;min-width:280px}
+      .toast.show{opacity:1;transform:none}
+      .toast.success{border-color:var(--succ);box-shadow:0 0 24px rgba(16,185,129,0.3)}
+      .toast.error{border-color:var(--dang);box-shadow:0 0 24px rgba(239,68,68,0.3)}
+      .toast.warning{border-color:var(--warn);box-shadow:0 0 24px rgba(245,158,11,0.3)}
+      .status-bar{display:flex;gap:10px;align-items:center;flex-shrink:0}
+      .status-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--mut);transition:all 0.2s;text-transform:uppercase;letter-spacing:0.05em}
+      .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc);box-shadow:var(--glow)}
+      .tab-buttons{display:flex;gap:6px;margin-bottom:18px;background:rgba(0,0,0,0.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:6px;border-radius:10px;border:1px solid var(--bord)}
+      .tab-btn{padding:10px 18px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;flex:1;text-align:center}
+      .tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+      .tab-btn:hover:not(.active){color:var(--acc)}
+      .tab-content{display:none}
+      .tab-content.active{display:block}
+      .stat-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:18px;border-radius:10px;transition:all 0.2s}
+      .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--glow)}
+      .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em}
+      .stat-value{color:var(--txt);font-size:24px;font-weight:800;letter-spacing:-0.02em}
+      .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+      .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:18px;padding:4px 0}
+      .card-header:hover h3{color:var(--acc)}
+      .card-header h3{margin:0;transition:color 0.2s}
+      .collapse-icon{transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);font-size:14px;color:var(--mut)}
+      .collapse-icon.open{transform:rotate(90deg)}
+      .card-body{overflow:hidden;transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1)}
+      .card-body.collapsed{max-height:0!important;margin:0;padding:0}
+      details>summary{list-style:none;cursor:pointer;font-weight:600;color:var(--acc);margin-bottom:12px;font-size:13px;padding:10px 0;transition:all 0.2s;border-radius:6px}
+      details>summary:hover{padding-left:8px;color:var(--acch)}
+      details>summary::-webkit-details-marker{display:none}
+      @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
+      @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
+      @media(max-width:600px){.stat-grid,.diag-grid{grid-template-columns:1fr}.status-item{font-size:11px;padding:6px 10px}input,select,textarea{font-size:13px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}}
+      .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none}
+      [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
+      .theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
+      [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
+      [data-theme="cyber"] .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0)}
+      [data-theme="cyber"] .theme-toggle .terminal{opacity:1;transform:scale(1)}
+    </style>
+    <script>
+      let toggleHistory=[];
+      function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();toggleHistory.push(now);toggleHistory=toggleHistory.filter(time=>now-time<2000);if(t==='cyber'){const n=localStorage.getItem('prevTheme')||'light';e.setAttribute('data-theme',n);localStorage.setItem('theme',n);localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');toggleHistory=[];return}if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){localStorage.setItem('prevTheme',t);e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');localStorage.setItem('cyberMode','1');toggleHistory=[];return}const n='dark'===t?'light':'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
+      (function(){const e=localStorage.getItem('theme');e?document.documentElement.setAttribute('data-theme',e):document.documentElement.setAttribute('data-theme','light')})();
+    </script>
+  </head>
+  <body>
+    <div id="toast"></div>
+    <div class="header">
+      <h1>AntiHunter</h1>
+      <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
+        <div class="status-bar">
+          <div class="status-item" id="modeStatus">WiFi</div>
+          <div class="status-item" id="scanStatus">Idle</div>
+          <div class="status-item" id="gpsStatus">GPS</div>
+          <div class="status-item" id="rtcStatus">RTC</div>
+        </div>
+        <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <svg class="terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+            <polyline points="6 8 10 12 6 16"/>
+            <line x1="12" y1="12" x2="18" y2="12"/>
+          </svg>
+        </div>
+      </div>
+      <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
+    </div>
+    <div class="container">
+      
+      <!-- Scanning & Targets + Detection Grid -->
+      <div class="grid-2" style="margin-bottom:16px;">
+        
+        <!-- Scanning & Targets -->
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('scanCard')">
+            <h3>Scanning & Targets</h3>
+            <span class="collapse-icon open" id="scanCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="scanCardBody">
+            
+            <!-- Target List -->
+            <details open>
+              <summary style="cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;"><span>▶</span> Target List</summary>
+              <form id="f" method="POST" action="/save">
+                <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="3"></textarea>
+                <div id="targetCount" style="margin:4px 0 8px;color:var(--mut);font-size:11px;">0 targets</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn primary" type="submit">Save</button>
+                  <a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
+                </div>
+              </form>
+            </details>
+            
+            <!-- Allowlist -->
+            <details style="margin-top:12px;">
+              <summary style="cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;"><span>▶</span> Allow List</summary>
+              <form id="af" method="POST" action="/allowlist-save">
+                <textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
+                <div id="allowlistCount" style="margin:4px 0 8px;color:var(--mut);font-size:11px;">0 allowlisted</div>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn primary" type="submit">Save</button>
+                  <a class="btn alt" href="/allowlist-export" download="allowlist.txt" data-ajax="false">Export</a>
+                </div>
+              </form>
+            </details>
+            
+            <!-- Scan Controls -->
+            <form id="s" method="POST" action="/scan">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label style="font-size:11px;">Mode</label>
+                  <select name="mode">
+                    <option value="0">WiFi</option>
+                    <option value="1">BLE</option>
+                    <option value="2" selected>WiFi+BLE</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11px;">Duration (s)</label>
+                  <input type="number" name="secs" min="0" max="86400" value="60">
+                </div>
+              </div>
+              
+              <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="forever" name="forever" value="1">Forever
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;">
+                  <input type="checkbox" id="triangulate" name="triangulate" value="1">Triangulate
+                </label>
+              </div>
+              
+              <div id="triangulateOptions" style="display:none;margin-bottom:8px;">
+                <input type="text" name="targetMac" placeholder="Target MAC">
+                <label style="font-size:11px;margin-top:8px;">RF Environment</label>
+                <select name="rfEnv" id="rfEnvSelect">
+                  <option value="0">Open Sky</option>
+                  <option value="1">Suburban</option>
+                  <option value="2" selected>Indoor</option>
+                  <option value="3">Indoor Dense</option>
+                  <option value="4">Industrial</option>
+                </select>
 
-<div class="tab-page active" id="page-scan">
-<div class="page-inner">
-<div class="grid-2">
-<div class="section">
-<div class="sec-label">Detection</div>
-<div class="sec-box">
-<div class="field-row">
-<label style="margin:0">Method</label>
-<span class="info-btn" onclick="toggleInfo()">i</span>
-</div>
-<form id="sniffer" method="POST" action="/sniffer">
-<select name="detection" id="detectionMode">
-<option value="device-scan">Device Discovery</option>
-<option value="baseline" selected>Baseline Anomaly</option>
-<option value="randomization-detection">Randomized Device Tracer</option>
-<option value="deauth">Deauth Detection</option>
-<option value="drone-detection">Drone RID Detection</option>
-</select>
-<div id="scanMethodInfo" class="info-box" style="display:none;"></div>
-<div id="randomizationModeControls" style="display:none;">
-<label>Scan Mode</label>
-<select id="randomizationMode" name="randomizationMode">
-<option value="0">WiFi Only</option>
-<option value="2" selected>WiFi + BLE</option>
-<option value="1">BLE Only</option>
-</select>
-</div>
-<div id="deviceScanModeControls" style="display:none;">
-<label>Scan Mode</label>
-<select id="deviceScanMode" name="deviceScanMode">
-<option value="0">WiFi Only</option>
-<option value="2" selected>WiFi + BLE</option>
-<option value="1">BLE Only</option>
-</select>
-</div>
-<div id="standardDurationControls">
-<div class="row">
-<div class="flex1">
-<label>Duration (s)</label>
-<input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
-</div>
-<label class="cb-label"><input type="checkbox" id="forever3" name="forever" value="1">Forever</label>
-</div>
-</div>
-<div id="baselineConfigControls" style="display:none;">
-<div class="grid-2-sm">
-<div>
-<label>RSSI</label>
-<select id="baselineRssiThreshold" name="rssiThreshold">
-<option value="-40">-40</option>
-<option value="-50">-50</option>
-<option value="-60" selected>-60</option>
-<option value="-70">-70</option>
-<option value="-80">-80</option>
-</select>
-</div>
-<div>
-<label>Baseline</label>
-<select id="baselineDuration" name="baselineDuration">
-<option value="300" selected>5m</option>
-<option value="600">10m</option>
-<option value="900">15m</option>
-</select>
-</div>
-</div>
-<div class="grid-2-sm">
-<div>
-<label>RAM Cache</label>
-<input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400">
-</div>
-<div>
-<label>SD Storage</label>
-<input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000">
-</div>
-</div>
-<div class="grid-3-sm">
-<div>
-<label title="Time device must be unseen before marked absent">Absent (s)</label>
-<input type="number" id="absenceThreshold" min="30" max="600" value="120">
-</div>
-<div>
-<label title="Reappearance triggers anomaly within this window">Reappear (s)</label>
-<input type="number" id="reappearanceWindow" min="60" max="1800" value="300">
-</div>
-<div>
-<label title="Min RSSI change to flag">RSSI dB</label>
-<input type="number" id="rssiChangeDelta" min="5" max="50" value="20">
-</div>
-</div>
-<label>Monitor (s)</label>
-<input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration">
-<label class="cb-label" style="margin:8px 0"><input type="checkbox" id="foreverBaseline" name="forever" value="1">Forever</label>
-<div id="baselineStatus" class="status-box"><div class="dim">No baseline data</div></div>
-</div>
-<div class="btn-row">
-<button class="btn primary" type="submit" id="startDetectionBtn">Start</button>
-<a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
-<button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
-<button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
-<button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
-</div>
-</form>
-</div>
-</div>
-<div class="section">
-<div class="sec-label">Targets</div>
-<div class="sec-box">
-<form id="f" method="POST" action="/save">
-<textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="3"></textarea>
-<div id="targetCount" class="field-hint">0 targets</div>
-<div class="btn-row" style="margin-top:0">
-<button class="btn primary" type="submit">Save</button>
-<a class="btn alt" href="/export" download="targets.txt" data-ajax="false">Export</a>
-</div>
-</form>
-</div>
-<div class="sec-label">Allow List</div>
-<div class="sec-box">
-<form id="af" method="POST" action="/allowlist-save">
-<textarea id="wlist" name="list" placeholder="DD:EE:FF&#10;11:22:33:44:55:66" rows="3"></textarea>
-<div id="allowlistCount" class="field-hint">0 allowlisted</div>
-<div class="btn-row" style="margin-top:0">
-<button class="btn primary" type="submit">Save</button>
-<a class="btn alt" href="/allowlist-export" download="allowlist.txt" data-ajax="false">Export</a>
-</div>
-</form>
-</div>
-<div class="sec-label">List Scan</div>
-<div class="sec-box">
-<form id="s" method="POST" action="/scan">
-<div class="grid-2-sm">
-<div>
-<label>Mode</label>
-<select name="mode">
-<option value="0">WiFi</option>
-<option value="1">BLE</option>
-<option value="2" selected>WiFi+BLE</option>
-</select>
-</div>
-<div>
-<label>Duration (s)</label>
-<input type="number" name="secs" min="0" max="86400" value="60">
-</div>
-</div>
-<div class="row" style="margin:8px 0;">
-<label class="cb-label"><input type="checkbox" id="forever" name="forever" value="1">Forever</label>
-<label class="cb-label"><input type="checkbox" id="triangulate" name="triangulate" value="1">Triangulate</label>
-</div>
-<div id="triangulateOptions" style="display:none;">
-<input type="text" name="targetMac" placeholder="Target MAC">
-<label>RF Environment</label>
-<select name="rfEnv" id="rfEnvSelect">
-<option value="0">Open Sky</option>
-<option value="1">Suburban</option>
-<option value="2" selected>Indoor</option>
-<option value="3">Indoor Dense</option>
-<option value="4">Industrial</option>
-</select>
-<label>Distance Tuning</label>
-<div>
-<label class="field-hint" style="margin:4px 0">WiFi: <span id="wifiPwrDisplay">1.0x</span></label>
-<input type="range" name="wifiPwr" id="wifiPwrSlider" min="0.1" max="5.0" step="0.1" value="1.0" oninput="document.getElementById('wifiPwrDisplay').innerText=this.value+'x'">
-</div>
-<div>
-<label class="field-hint" style="margin:4px 0">BLE: <span id="blePwrDisplay">1.0x</span></label>
-<input type="range" name="blePwr" id="blePwrSlider" min="0.1" max="5.0" step="0.1" value="1.0" oninput="document.getElementById('blePwrDisplay').innerText=this.value+'x'">
-</div>
-</div>
-<button class="btn primary full" type="submit">Start Scan</button>
-</form>
-</div>
-</div>
-</div>
-</div>
-</div>
+                <label style="font-size:11px;margin-top:12px;display:block;">Distance Tuning</label>
+                <div style="margin-bottom:6px;">
+                  <label style="font-size:10px;color:var(--mut);">WiFi: <span id="wifiPwrDisplay">1.0x</span></label>
+                  <input type="range" name="wifiPwr" id="wifiPwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                        oninput="document.getElementById('wifiPwrDisplay').innerText = this.value + 'x'"
+                        style="width:100%;">
+                </div>
+                <div style="margin-bottom:4px;">
+                  <label style="font-size:10px;color:var(--mut);">BLE: <span id="blePwrDisplay">1.0x</span></label>
+                  <input type="range" name="blePwr" id="blePwrSlider" min="0.1" max="5.0" step="0.1" value="1.0"
+                        oninput="document.getElementById('blePwrDisplay').innerText = this.value + 'x'"
+                        style="width:100%;">
+                </div>
+                <p style="font-size:9px;color:var(--mut);margin:4px 0 0 0;"><1.0 closer | >1.0 farther</p>
+              </div>
+              
+              <button class="btn primary" type="submit" style="width:100%;">Start Scan</button>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Detection & Analysis -->
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detectionCard')">
+            <h3>Detection & Analysis</h3>
+            <span class="collapse-icon open" id="detectionCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detectionCardBody"> <!-- Add this wrapper -->
+            <form id="sniffer" method="POST" action="/sniffer">
+              <label>Method</label>
+              <select name="detection" id="detectionMode">
+                <option value="device-scan">Device Discovery</option>
+                <option value="baseline" selected>Baseline Anomaly Sniffer</option>
+                <option value="randomization-detection">Randomized Device Tracer</option>
+                <option value="deauth">Deauthentication Attack Detection</option>
+                <option value="drone-detection">Drone RID Detection (WiFi)</option>
+              </select>
 
-<div class="tab-page" id="page-results">
-<div class="results-toolbar">
-<div class="results-info"></div>
-<div class="results-controls">
-<select id="sortBy" onchange="applySorting()">
-<option value="default">Default</option>
-<option value="rssi-desc">RSSI (Strongest)</option>
-<option value="rssi-asc">RSSI (Weakest)</option>
-<option value="confidence-desc">Confidence</option>
-<option value="sessions-desc">Sessions</option>
-<option value="lastseen-asc">Last Seen</option>
-<option value="name-asc">Name (A-Z)</option>
-<option value="type-asc">Type</option>
-<option value="channel-asc">Channel</option>
-</select>
-<button class="btn sm" type="button" onclick="toggleSortOrder()" title="Reverse sort">Sort</button>
-<button class="btn sm" type="button" onclick="clearResults()">Clear</button>
-<button class="btn sm" id="privacyBtn" type="button" onclick="togglePrivacy()"></button>
-</div>
-</div>
-<div id="r" class="results-list">No scan data yet.</div>
-</div>
+              <div id="randomizationModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="randomizationMode" name="randomizationMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
+              </div>
+              <div id="deviceScanModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="deviceScanMode" name="deviceScanMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
+              </div>
+              <div id="standardDurationControls" style="margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+                  <div>
+                    <label style="font-size:11px;">Duration (s)</label>
+                    <input type="number" name="secs" min="0" max="86400" value="60" id="detectionDuration">
+                  </div>
+                  <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;">
+                    <input type="checkbox" id="forever3" name="forever" value="1">Forever
+                  </label>
+                </div>
+              </div>
+              
+              <div id="baselineConfigControls" style="display:none;margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:11px;">RSSI</label>
+                    <select id="baselineRssiThreshold" name="rssiThreshold">
+                      <option value="-40">-40</option>
+                      <option value="-50">-50</option>
+                      <option value="-60" selected>-60</option>
+                      <option value="-70">-70</option>
+                      <option value="-80">-80</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:11px;">Baseline</label>
+                    <select id="baselineDuration" name="baselineDuration">
+                      <option value="300" selected>5m</option>
+                      <option value="600">10m</option>
+                      <option value="900">15m</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:11px;">RAM Cache (Non-SD defaults to 1500)</label>
+                    <input type="number" id="baselineRamSize" name="ramCacheSize" min="200" max="500" value="400" style="padding:6px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;">SD Device Storage</label>
+                    <input type="number" id="baselineSdMax" name="sdMaxDevices" min="1000" max="100000" value="50000" step="1000" style="padding:6px;">
+                  </div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:10px;color:var(--mut);" title="Time a device must be unseen before marked as disappeared from baseline">Marked Absent (s)</label>
+                    <input type="number" id="absenceThreshold" min="30" max="600" value="120" style="padding:4px;font-size:11px;">
+                  </div>
+                  <div>
+                    <label style="font-size:10px;color:var(--mut);" title="Window after disappearance during which reappearance triggers an anomaly alert">Seen Reappear (s)</label>
+                    <input type="number" id="reappearanceWindow" min="60" max="1800" value="300" style="padding:4px;font-size:11px;">
+                  </div>
+                  <div>
+                    <label style="font-size:10px;color:var(--mut);" title="Minimum RSSI change in dBm to flag as significant signal strength variation">RSSI Variation dB</label>
+                    <input type="number" id="rssiChangeDelta" min="5" max="50" value="20" style="padding:4px;font-size:11px;">
+                  </div>
+                </div>
+                
+                <label style="font-size:11px;">Monitor (s)</label>
+                <input type="number" name="secs" min="0" max="86400" value="300" id="baselineMonitorDuration" style="margin-bottom:8px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;padding-bottom:8px;color:var(--txt);">
+                  <input type="checkbox" id="foreverBaseline" name="forever" value="1" style="width:auto;margin:0;">
+                  <span>Forever</span>
+                </label>
+                <div id="baselineStatus" style="padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:11px;margin-bottom:8px;">
+                  <div style="color:var(--mut);">No baseline data</div>
+                </div>
+              </div>
+              
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+                <button class="btn primary" type="submit" id="startDetectionBtn" style="flex:1;min-width:80px;">Start</button>
+                <a class="btn alt" href="/sniffer-cache" data-ajax="false" id="cacheBtn" style="display:none;">Cache</a>
+                <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
+                <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
+                <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
+              </div>
+             
+            </form>
+          </div>
+        </div>
+      </div>
+      
+    <div class="grid-node-diag" style="margin-bottom:16px;">
+      <div class="card" style="min-width:280px;">
+        <h3>RF Settings</h3>
+        <div class="" id="detectionCardBody">
+          <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px;align-items:center;">
+            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-90" 
+                  oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'">
+            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
+          </div>
+          <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
 
-<div class="tab-page" id="page-system">
-<div class="page-inner">
-<div class="stat-row">
-<div class="stat-cell"><div class="stat-label">Uptime</div><div class="stat-value" id="uptime">--:--:--</div></div>
-<div class="stat-cell"><div class="stat-label">WiFi Frames</div><div class="stat-value" id="wifiFrames">0</div></div>
-<div class="stat-cell"><div class="stat-label">BLE Frames</div><div class="stat-value" id="bleFrames">0</div></div>
-<div class="stat-cell"><div class="stat-label">Hits</div><div class="stat-value" id="totalHits">0</div></div>
-<div class="stat-cell"><div class="stat-label">Devices</div><div class="stat-value" id="uniqueDevices">0</div></div>
-<div class="stat-cell"><div class="stat-label">Temp</div><div class="stat-value" id="temperature">--C</div></div>
-</div>
-<div class="grid-2">
-<div>
-<div class="sec-label">Node</div>
-<div class="sec-box">
-<form id="nodeForm" method="POST" action="/node-id" novalidate>
-<div class="row">
-<input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="text-transform:uppercase;flex:1;">
-<button class="btn primary" type="submit">Update</button>
-</div>
-</form>
-<hr>
-<div class="row" style="margin-top:8px;">
-<span class="sec">Mesh</span>
-<button class="btn sm" id="meshToggleBtn" onclick="toggleMesh()"></button>
-</div>
-<div id="meshControls" style="display:none;">
-<div class="row" style="margin:8px 0;">
-<label class="cb-label"><input type="checkbox" id="hbEnabledCb" onchange="toggleHb()">Heartbeat</label>
-</div>
-<div class="row">
-<input type="number" id="hbIntervalInput" min="1" max="60" step="1" value="10" style="flex:1;">
-<span class="dim">min</span>
-<button class="btn sm" onclick="saveHbInterval()">Save</button>
-</div>
-<label>Mesh Interval (ms)</label>
-<div class="row">
-<input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
-<button class="btn sm" onclick="saveMeshInterval()">Save</button>
-</div>
-<div class="btn-row" style="margin-top:8px;">
-<a class="btn alt" href="/mesh-test" data-ajax="true">Test</a>
-<a class="btn" href="/gps" data-ajax="false">GPS</a>
-</div>
-</div>
-</div>
-<div class="sec-label">Hardware</div>
-<div class="sec-box">
-<div id="hardwareDiag">Loading...</div>
-</div>
-</div>
-<div>
-<div class="sec-label">RF Settings</div>
-<div class="sec-box">
-<div class="row">
-<span class="dim">RSSI Filter</span>
-<span id="globalRssiValue" class="mono">-90 dBm</span>
-</div>
-<input type="range" id="globalRssiSlider" min="-100" max="-10" value="-90" oninput="document.getElementById('globalRssiValue').innerText=this.value+' dBm'">
-<hr>
-<label>Preset</label>
-<select id="rfPreset" onchange="updateRFPresetUI()">
-<option value="0">Relaxed</option>
-<option value="1">Balanced</option>
-<option value="2">Aggressive</option>
-<option value="3">Custom</option>
-</select>
-<div id="customRFSettings" style="display:none;">
-<div class="grid-2-sm">
-<div><label>WiFi Ch Time (ms)</label><input type="number" id="wifiChannelTime" min="110" max="300" value="120"></div>
-<div><label>WiFi Scan Int (ms)</label><input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000"></div>
-</div>
-<div class="grid-2-sm">
-<div><label>BLE Duration (ms)</label><input type="number" id="bleScanDuration" min="1000" max="5000" value="2000"></div>
-<div><label>BLE Interval (ms)</label><input type="number" id="bleScanInterval" min="1000" max="10000" value="2000"></div>
-</div>
-<label>WiFi Channels</label>
-<input type="text" id="wifiChannels" placeholder="1..14" value="1..14">
-</div>
-<button class="btn primary full" type="button" onclick="saveRFConfig()" style="margin-top:8px">Save RF</button>
-<hr>
-<div class="row" style="cursor:pointer;" onclick="document.getElementById('wifiApFields').style.display=document.getElementById('wifiApFields').style.display==='none'?'block':'none'">
-<span class="sec">WiFi Access Point</span>
-<span class="dim">+</span>
-</div>
-<div id="wifiApFields" style="display:none;">
-<label>SSID</label>
-<input type="text" id="apSsid" maxlength="32" placeholder="Antihunter">
-<label>Password</label>
-<input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters">
-<button class="btn primary full" type="button" onclick="saveWiFiConfig()" style="margin-top:8px">Save WiFi</button>
-</div>
-</div>
-<div class="sec-label">Network</div>
-<div class="sec-box">
-<div id="networkDiag">Loading...</div>
-</div>
-<div class="sec-label">Power</div>
-<div class="sec-box">
-<label>Heartbeat Interval</label>
-<select id="batterySaverInterval">
-<option value="1">1 min</option>
-<option value="2">2 min</option>
-<option value="5" selected>5 min</option>
-<option value="10">10 min</option>
-<option value="15">15 min</option>
-<option value="30">30 min</option>
-</select>
-<div class="btn-row">
-<button class="btn primary" type="button" onclick="enableBatterySaver()">Enable</button>
-<button class="btn alt" type="button" onclick="disableBatterySaver()">Disable</button>
-</div>
-<div id="batterySaverStatus" class="status-box dim">INACTIVE</div>
-</div>
-</div>
-</div>
-</div>
-</div>
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
 
-<div class="bsheet" id="bsheet">
-<div class="bsheet-handle" onclick="toggleSheet()">
-<div class="bsheet-bar"></div>
-<span class="dim" style="font-size:10px;">Data Destruction</span>
-</div>
-<div class="bsheet-content">
-<div class="sec-label">Secure Data Destruction</div>
-<div class="banner">WARNING: Permanent data wipe</div>
-<form id="eraseForm">
-<label>Confirmation Code</label>
-<input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA">
-<div class="btn-row">
-<button class="btn danger" type="button" onclick="requestErase()">WIPE</button>
-<button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
-</div>
-</form>
-<div id="eraseStatus" style="display:none;padding:8px;font-size:12px;"></div>
-<hr>
-<div class="sec-label">Auto-Erase</div>
-<label class="cb-label"><input type="checkbox" id="autoEraseEnabled"><span>Enable auto-erase on tampering</span></label>
-<label>Setup Period</label>
-<select id="setupDelay">
-<option value="30000">30 seconds</option>
-<option value="60000">1 minute</option>
-<option value="120000" selected>2 minutes</option>
-<option value="300000">5 minutes</option>
-<option value="600000">10 minutes</option>
-</select>
-<label>Erase Countdown</label>
-<select id="autoEraseDelay">
-<option value="10000">10 seconds</option>
-<option value="30000" selected>30 seconds</option>
-<option value="60000">1 minute</option>
-<option value="120000">2 minutes</option>
-<option value="300000">5 minutes</option>
-</select>
-<label>Trigger Cooldown</label>
-<select id="autoEraseCooldown">
-<option value="60000">1 minute</option>
-<option value="300000" selected>5 minutes</option>
-<option value="600000">10 minutes</option>
-<option value="1800000">30 minutes</option>
-<option value="3600000">1 hour</option>
-</select>
-<div class="sec-label" style="margin-top:12px;">Advanced</div>
-<label>Vibrations Required</label>
-<select id="vibrationsRequired">
-<option value="2">2</option>
-<option value="3" selected>3</option>
-<option value="4">4</option>
-<option value="5">5</option>
-</select>
-<label>Detection Window</label>
-<select id="detectionWindow">
-<option value="5000">5 seconds</option>
-<option value="10000">10 seconds</option>
-<option value="20000" selected>20 seconds</option>
-<option value="30000">30 seconds</option>
-<option value="60000">1 minute</option>
-</select>
-<button class="btn primary full" type="button" onclick="saveAutoEraseConfig()">Save Configuration</button>
-<div id="autoEraseStatus" class="status-box dim">DISABLED</div>
-</div>
-</div>
+          <select id="rfPreset" onchange="updateRFPresetUI()">
+            <option value="0">Relaxed (Stealthy)</option>
+            <option value="1">Balanced (Default)</option>
+            <option value="2">Aggressive (Fast)</option>
+            <option value="3">Custom</option>
+          </select>
+          
+          <div id="customRFSettings" style="display:none;margin-top:10px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:10px;color:var(--mut);">WiFi Channel Time (ms)</label>
+                <input type="number" id="wifiChannelTime" min="110" max="300" value="120" style="padding:4px;font-size:11px;">
+              </div>
+              <div>
+                <label style="font-size:10px;color:var(--mut);">WiFi Scan Interval (ms)</label>
+                <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:10px;color:var(--mut);">BLE Scan Duration (ms)</label>
+                <input type="number" id="bleScanDuration" min="1000" max="5000" value="2000" style="padding:4px;font-size:11px;">
+              </div>
+              <div>
+                <label style="font-size:10px;color:var(--mut);">BLE Scan Interval (ms)</label>
+                <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
+              </div>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:10px;color:var(--mut);">WiFi Channels</label>
+              <input type="text" id="wifiChannels" placeholder="1..14" value="1..14" style="padding:4px;font-size:11px;">
+            </div>
+          </div>
+        </div>
+        <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
 
-<div class="footer">AntiHunter v0.9 | Node: <span id="footerNodeId">--</span></div>
+        <hr style="margin:16px 0;border:none;border-top:1px solid var(--bord);">
+        <div class="card-header" onclick="toggleCollapse('wifiApCard')" style="cursor:pointer;padding:0;margin-bottom:12px;border:none;background:none;box-shadow:none;">
+            <h4 style="margin:0;font-size:13px;">WiFi Access Point</h4>
+            <span class="collapse-icon" id="wifiApCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="wifiApCardBody" style="max-height:0;">
+            <label style="font-size:11px;">SSID</label>
+            <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
+            
+            <label style="font-size:11px;">Password</label>
+            <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
+            
+            <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
+          </div>
+        </div>
+      
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;">
+          <h3 style="margin:0;">Scan Results</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="font-size:11px;color:var(--mut);">Sort:</label>
+            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;border-radius:6px;font-size:11px;">
+              <option value="default">Default</option>
+              <option value="rssi-desc">RSSI (Strongest)</option>
+              <option value="rssi-asc">RSSI (Weakest)</option>
+              <option value="confidence-desc">Confidence (High)</option>
+              <option value="sessions-desc">Sessions (Most)</option>
+              <option value="lastseen-asc">Last Seen (Recent)</option>
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="type-asc">Type (WiFi/BLE)</option>
+              <option value="channel-asc">Channel (Low-High)</option>
+            </select>
+            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;line-height:1;" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
+            <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
+            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="padding:6px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;"></button>
+          </div>
+        </div>
+        <div id="r" style="margin:0;">No scan data yet.</div>
+      </div>
+    </div>
+    
+      
+      <!-- Bottom Grid: Node + Diagnostics -->
+      <div class="grid-node-diag" style="margin-bottom:16px;">
+        
+        <div class="card" style="min-width:280px;">
+          <h3>Node Configuration</h3>
+          <form id="nodeForm" method="POST" action="/node-id" novalidate>
+            <label>Node ID</label>
+            <input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="text-transform:uppercase;">
+            <button class="btn primary" type="submit" style="margin-top:8px;width:100%;">Update</button>
+          </form>
+          
+          <hr>
+          
+          <div style="margin-top:12px;">
+            <label>Mesh Communications</label>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button class="btn" id="meshToggleBtn" onclick="toggleMesh()" style="flex:1;"></button>
+            </div>
+            
+            <div id="meshControls" style="display:none;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <input type="checkbox" id="hbEnabledCb" onchange="toggleHb()" style="width:20px;height:20px;">
+                <label style="margin:0;font-size:13px;cursor:pointer;" for="hbEnabledCb">Status Heartbeat</label>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                <input type="number" id="hbIntervalInput" min="1" max="60" step="1" value="10" style="flex:1;">
+                <label style="margin:0;font-size:12px;color:var(--mut);white-space:nowrap;">min interval</label>
+                <button class="btn" onclick="saveHbInterval()">Save</button>
+              </div>
+              <label>Mesh Send Interval (ms)</label>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
+                <button class="btn" onclick="saveMeshInterval()">Save</button>
+              </div>
+              
+              <div style="display:flex;gap:8px;">
+                <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
+                <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <h3>System Diagnostics</h3>
+          <div class="tab-buttons">
+            <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
+            <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
+            <div class="tab-btn" onclick="switchTab('network')">Network</div>
+          </div>
+          
+          <div id="overview" class="tab-content active">
+            <div class="stat-grid">
+              <div class="stat-item">
+                <div class="stat-label">Uptime</div>
+                <div class="stat-value" id="uptime">--:--:--</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">WiFi Frames</div>
+                <div class="stat-value" id="wifiFrames">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">BLE Frames</div>
+                <div class="stat-value" id="bleFrames">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Target Hits</div>
+                <div class="stat-value" id="totalHits">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Unique Devices</div>
+                <div class="stat-value" id="uniqueDevices">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">CPU Temp</div>
+                <div class="stat-value" id="temperature">--C</div>
+              </div>
+            </div>
+          </div>
+          
+         <div id="hardware" class="tab-content">
+            <div id="hardwareDiag">Loading...</div>
+          </div>
+
+          <div id="network" class="tab-content">
+            <div id="networkDiag">Loading...</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Secure Data Destruction -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCollapse('secureDataCard')">
+          <h3>Secure Data Destruction</h3>
+          <span class="collapse-icon" id="secureDataCardIcon">▶</span>
+        </div>
+        <div class="card-body collapsed" id="secureDataCardBody">
+          <div class="banner">WARNING: Permanent data wipe</div>
+          
+          <form id="eraseForm" style="margin-top:12px;">
+            <label>Confirmation Code</label>
+            <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA">
+            
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn danger" type="button" onclick="requestErase()">WIPE</button>
+              <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
+            </div>
+          </form>
+          
+          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
+          
+          <div style="margin-top:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-weight:bold;color:var(--acc);">Auto-Erase Configuration</span>
+              <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
+            </div>
+            
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+              <input type="checkbox" id="autoEraseEnabled">
+              <span>Enable auto-erase on tampering</span>
+            </label>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Setup Period</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Grace period after enabling before tamper detection becomes active</label>
+              <select id="setupDelay">
+                <option value="30000">30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000" selected>2 minutes</option>
+                <option value="300000">5 minutes</option>
+                <option value="600000">10 minutes</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Erase Countdown</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time you have to cancel after tamper detection</label>
+              <select id="autoEraseDelay">
+                <option value="10000">10 seconds</option>
+                <option value="30000" selected>30 seconds</option>
+                <option value="60000">1 minute</option>
+                <option value="120000">2 minutes</option>
+                <option value="300000">5 minutes</option>
+              </select>
+            </div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Trigger Cooldown</label>
+              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Minimum time before another tamper event can trigger erase</label>
+              <select id="autoEraseCooldown">
+                <option value="60000">1 minute</option>
+                <option value="300000" selected>5 minutes</option>
+                <option value="600000">10 minutes</option>
+                <option value="1800000">30 minutes</option>
+                <option value="3600000">1 hour</option>
+              </select>
+            </div>
+            
+            <div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--bord);border-radius:6px;margin-bottom:16px;">
+              <div style="font-size:10px;font-weight:bold;color:var(--mut);margin-bottom:8px;">ADVANCED SETTINGS</div>
+              
+              <div style="margin-bottom:12px;">
+                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Vibrations Required</label>
+                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Number of vibrations needed within detection window to trigger</label>
+                <select id="vibrationsRequired">
+                  <option value="2">2</option>
+                  <option value="3" selected>3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </div>
+              
+              <div style="margin-bottom:0;">
+                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Detection Window</label>
+                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time window for counting required vibrations</label>
+                <select id="detectionWindow">
+                  <option value="5000">5 seconds</option>
+                  <option value="10000">10 seconds</option>
+                  <option value="20000" selected>20 seconds</option>
+                  <option value="30000">30 seconds</option>
+                  <option value="60000">1 minute</option>
+                </select>
+              </div>
+            </div>
+            
+            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Configuration</button>
+            <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Battery Saver Mode -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCollapse('batterySaverCard')">
+          <h3>Battery Saver Mode</h3>
+          <span class="collapse-icon" id="batterySaverCardIcon">&#9654;</span>
+        </div>
+        <div class="card-body collapsed" id="batterySaverCardBody">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showBatterySaverHelp()" title="Click for help">?</span>
+          </div>
+
+          <p style="font-size:11px;color:#888;margin-bottom:12px;">
+            Reduces power consumption by stopping WiFi/BLE scanning, lowering CPU frequency, and sending only periodic heartbeats. WiFi AP and web UI remain active. Mesh UART remains active for receiving commands.
+          </p>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Heartbeat Interval</label>
+            <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
+            <select id="batterySaverInterval">
+              <option value="1">1 minute</option>
+              <option value="2">2 minutes</option>
+              <option value="5" selected>5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+            </select>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn primary" type="button" onclick="enableBatterySaver()" style="flex:1;">Enable Battery Saver</button>
+            <button class="btn alt" type="button" onclick="disableBatterySaver()" style="flex:1;">Disable</button>
+          </div>
+          <div id="batterySaverStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;background:rgba(0,0,0,0.2);">INACTIVE</div>
+        </div>
+      </div>
+
+      <!--
+      <div id="terminalToggle">TERMINAL</div>
+      <div id="terminalWindow">
+        <div id="terminalHeader">
+          <span id="terminalTitle">SERIAL MONITOR</span>
+          <span id="terminalClose">×</span>
+        </div>
+        <div id="terminalContent"></div>
+      </div>
+      -->
+      
+      <div class="footer">AntiHunter DIGINODE v0.9 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
@@ -849,36 +982,6 @@ function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-t
       let hbEnabled = false;
       let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
-
-      function switchPage(name) {
-        document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
-        var pg = document.getElementById('page-' + name);
-        if (pg) pg.classList.add('active');
-        var tabs = document.querySelectorAll('.tabs .tab');
-        var map = {'scan':0,'results':1,'system':2};
-        if (map[name] !== undefined && tabs[map[name]]) tabs[map[name]].classList.add('active');
-      }
-      function toggleSheet() {
-        document.getElementById('bsheet').classList.toggle('open');
-      }
-      function toggleInfo() {
-        var el = document.getElementById('scanMethodInfo');
-        if (el.style.display === 'none') {
-          var m = document.getElementById('detectionMode').value;
-          var info = {
-            'device-scan': 'Discovers all WiFi and BLE devices in range. Shows MAC addresses, signal strength, and device names.',
-            'baseline': 'Learns the RF environment during a baseline period, then monitors for new devices, signal spikes, disappearances, and reappearances.',
-            'randomization-detection': 'Tracks devices that use MAC address randomization by correlating behavioral patterns across address changes.',
-            'deauth': 'Monitors for deauthentication and disassociation attack frames.',
-            'drone-detection': 'Detects drones broadcasting WiFi Remote ID (RID) beacons as required by aviation regulations.'
-          };
-          el.textContent = info[m] || '';
-          el.style.display = 'block';
-        } else {
-          el.style.display = 'none';
-        }
-      }
 
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -3360,7 +3463,6 @@ function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-t
               const modeVal = parseInt(document.querySelector('#s select[name="mode"]')?.value ?? '2');
               const modeLabel = ['WiFi', 'BLE', 'WiFi+BLE'][modeVal] ?? 'WiFi+BLE';
               resultsElScan.innerHTML = parseAndStyleResults('Target scan starting...\nMode: ' + modeLabel + '\n');
-              switchPage('results');
           }
 
           fetch('/scan', {
@@ -3516,7 +3618,6 @@ function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-t
         if (resultsElSniffer && !resultsElSniffer.contains(document.activeElement)) {
             lastResultsText = '';
             resultsElSniffer.innerHTML = parseAndStyleResults('Scan starting...\n');
-            switchPage('results');
         }
 
         if (detectionMethod === 'baseline') {
