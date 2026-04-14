@@ -352,7 +352,11 @@ void baselineDetectionTask(void *pv) {
     
     stopRequested = false;
     baselineDetectionEnabled = true;
-    if (baselineDeviceCount == 0) baselineEstablished = false;
+    // Always re-enter Phase 1 on a new run — keep the cache but clear transient state
+    baselineEstablished = false;
+    anomalyLog.clear();
+    anomalyCount = 0;
+    deviceHistory.clear();
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
 
@@ -830,6 +834,12 @@ void baselineDetectionTask(void *pv) {
 
     baselineStats.isScanning = false;
     updateBaselineStats();
+
+    {
+        String finalResults = getBaselineResults();
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = finalResults.c_str();
+    }
     
     uint32_t finalHeap = ESP.getFreeHeap();
     Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%u bytes\n",

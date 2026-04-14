@@ -974,6 +974,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let radioBusy = false;
       let radioBusyTask = '';
 
+
       function isRadioBusy() {
         if (radioBusy) {
           toast('Radio busy — ' + (radioBusyTask || 'scan') + ' in progress. Stop it first.', 'warning');
@@ -1422,6 +1423,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             statsHTML = '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--mut);">WiFi Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">BLE Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Total Devices</div>' + '<div style="color:var(--acc);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? 'var(--dang)' : 'var(--txt)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
           }
           statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
+
+          // Always refresh results while scanning — keeps results in sync with phases card
+          if (stats.scanning) {
+            try {
+              const rr = await fetch('/results');
+              const rt = await rr.text();
+              if (rt !== lastResultsText) {
+                lastResultsText = rt;
+                const re = document.getElementById('r');
+                if (re) re.innerHTML = parseAndStyleResults(rt);
+              }
+            } catch(e) {}
+          }
+
           const startDetectionBtn = document.getElementById('startDetectionBtn');
           const detectionMode = document.getElementById('detectionMode')?.value;
           const cacheBtn = document.getElementById('cacheBtn');
@@ -3276,7 +3291,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const match = line.match(/(\d+)/);
               if (match) document.getElementById('totalHits').innerText = match[1];
             }
-            if (line.includes('Unique devices')) {
+            if (line.includes('Unique devices') && radioBusyTask !== 'baseline') {
               const match = line.match(/(\d+)/);
               if (match) document.getElementById('uniqueDevices').innerText = match[1];
             }
@@ -3297,6 +3312,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
+          }
+          if (radioBusyTask === 'baseline') {
+            try {
+              const bsResp = await fetch('/baseline/stats');
+              const bs = await bsResp.json();
+              document.getElementById('uniqueDevices').innerText = bs.totalDevices;
+            } catch(e) {}
           }
           updateStatusIndicators(diagText);
           const stopAllBtn = document.getElementById('stopAllBtn');
@@ -5269,17 +5291,19 @@ void processCommand(const String &command, const String &targetId = "")
 
       if (mode >= 0 && mode <= 2)
       {
-        currentScanMode = (ScanMode)mode;
-        parseChannelsCSV(channels);
-        stopRequested = false;
-
-        if (!workerTaskHandle)
-        {
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          Serial.println("[MESH] Radio busy, rejecting SCAN_START");
+          sendToSerial1(nodeId + ": SCAN_ACK:BUSY", true);
+        } else {
+          currentScanMode = (ScanMode)mode;
+          parseChannelsCSV(channels);
+          stopRequested = false;
+          scanning = true;
           xTaskCreatePinnedToCore(listScanTask, "scan", 8192,
                                   (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+          Serial.printf("[MESH] Started scan via mesh command\n");
+          sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
         }
-        Serial.printf("[MESH] Started scan via mesh command\n");
-        sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
     }
   }
@@ -5300,15 +5324,17 @@ void processCommand(const String &command, const String &targetId = "")
       secs = 60;
     }
 
-    stopRequested = false;
-
-    if (!workerTaskHandle)
-    {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+      Serial.println("[MESH] Radio busy, rejecting BASELINE_START");
+      sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
+    } else {
+      stopRequested = false;
+      scanning = true;
       xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
                               (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
+      sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
     }
-    Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
-    sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
   }
   else if (command.startsWith("BASELINE_STATUS"))
   {
@@ -5355,16 +5381,18 @@ void processCommand(const String &command, const String &targetId = "")
     
     if (mode >= 0 && mode <= 2)
     {
-      stopRequested = false;
-
-      if (!workerTaskHandle)
-      {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+        Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
+        sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
+      } else {
         currentScanMode = (ScanMode)mode;
+        stopRequested = false;
+        scanning = true;
         xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
                                 (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+        Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
+        sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
       }
-      Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
-      sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
   }
   else if (command.startsWith("DRONE_START:"))
@@ -5386,16 +5414,18 @@ void processCommand(const String &command, const String &targetId = "")
     if (secs < 0) secs = 0;
     if (secs > 86400) secs = 86400;
 
-    stopRequested = false;
-
-    if (!workerTaskHandle)
-    {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+      Serial.println("[MESH] Radio busy, rejecting DRONE_START");
+      sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
+    } else {
       currentScanMode = SCAN_WIFI;
+      stopRequested = false;
+      scanning = true;
       xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
                               (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+      Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
+      sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
     }
-    Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
-    sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
   }
   else if (command.startsWith("DEAUTH_START:"))
   {
@@ -5416,15 +5446,17 @@ void processCommand(const String &command, const String &targetId = "")
     if (secs < 0) secs = 0;
     if (secs > 86400) secs = 86400;
 
-    stopRequested = false;
-
-    if (!blueTeamTaskHandle)
-    {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+      Serial.println("[MESH] Radio busy, rejecting DEAUTH_START");
+      sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
+    } else {
+      stopRequested = false;
+      scanning = true;
       xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288,
                               (void *)(intptr_t)(forever ? 0 : secs), 1, &blueTeamTaskHandle, 1);
+      Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
+      sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
     }
-    Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
-    sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
   }
   else if (command.startsWith("RANDOMIZATION_START:"))
   {
@@ -5449,16 +5481,18 @@ void processCommand(const String &command, const String &targetId = "")
 
     if (mode >= 0 && mode <= 2)
     {
-      currentScanMode = (ScanMode)mode;
-      stopRequested = false;
-
-      if (!workerTaskHandle)
-      {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+        Serial.println("[MESH] Radio busy, rejecting RANDOMIZATION_START");
+        sendToSerial1(nodeId + ": RANDOMIZATION_ACK:BUSY", true);
+      } else {
+        currentScanMode = (ScanMode)mode;
+        stopRequested = false;
+        scanning = true;
         xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
                                 (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+        Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
+        sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
       }
-      Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
-      sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
     }
   }
   else if (command.startsWith("STOP"))
@@ -5892,10 +5926,15 @@ void processCommand(const String &command, const String &targetId = "")
     }
 
     // Participant nodes: now start scanning (coordinator handles its own scan task creation)
-    if (triangulationActive && !triangulationInitiator && !workerTaskHandle) {
-      Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
-      xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
-                             (void *)(intptr_t)triangulationDuration, 1, &workerTaskHandle, 1);
+    if (triangulationActive && !triangulationInitiator) {
+      if (workerTaskHandle || blueTeamTaskHandle) {
+        Serial.println("[TRIANGULATE] Radio busy, cannot start triangulation scan task");
+      } else {
+        scanning = true;
+        Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
+        xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
+                               (void *)(intptr_t)triangulationDuration, 1, &workerTaskHandle, 1);
+      }
     }
   }
   else if (command.startsWith("TRIANGULATE_RESULTS"))
