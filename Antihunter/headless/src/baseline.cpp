@@ -336,6 +336,9 @@ void baselineDetectionTask(void *pv) {
     stopRequested = false;
     baselineDetectionEnabled = true;
     baselineEstablished = false;
+    anomalyLog.clear();
+    anomalyCount = 0;
+    deviceHistory.clear();
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
 
