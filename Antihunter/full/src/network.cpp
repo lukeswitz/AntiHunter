@@ -381,6 +381,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
       [data-theme="cyber"] .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0)}
       [data-theme="cyber"] .theme-toggle .terminal{opacity:1;transform:scale(1)}
+      .page-tabs{display:flex;gap:4px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px;border-radius:8px;border:1px solid var(--bord)}
+      .page-tab-btn{padding:8px 16px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap}
+      .page-tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+      .page-tab-btn:hover:not(.active){color:var(--acc)}
+      .page-tab{display:none}
+      .page-tab.active{display:block}
+      #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
     </style>
     <script>
       let toggleHistory=[];
@@ -392,6 +399,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <div id="toast"></div>
     <div class="header">
       <h1>AntiHunter</h1>
+      <div class="page-tabs">
+        <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
+        <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
+        <div class="page-tab-btn" onclick="switchPage('system')">System</div>
+      </div>
       <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
         <div class="status-bar">
           <div class="status-item" id="modeStatus">WiFi</div>
@@ -426,7 +438,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
     </div>
     <div class="container">
-      
+      <div class="page-tab active" id="page-scan">
+
       <!-- Scanning & Targets + Detection Grid -->
       <div class="grid-2" style="margin-bottom:16px;">
         
@@ -621,9 +634,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <input type="checkbox" id="foreverBaseline" name="forever" value="1" style="width:auto;margin:0;">
                   <span>Forever</span>
                 </label>
-                <div id="baselineStatus" style="padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:11px;margin-bottom:8px;">
-                  <div style="color:var(--mut);">No baseline data</div>
-                </div>
               </div>
               
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
@@ -638,9 +648,62 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
       </div>
-      
-    <div class="grid-node-diag" style="margin-bottom:16px;">
-      <div class="card" style="min-width:280px;">
+      </div>
+
+      <div class="page-tab" id="page-results">
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;">
+          <h3 style="margin:0;">Scan Results</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="font-size:11px;color:var(--mut);">Sort:</label>
+            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;border-radius:6px;font-size:11px;">
+              <option value="default">Default</option>
+              <option value="rssi-desc">RSSI (Strongest)</option>
+              <option value="rssi-asc">RSSI (Weakest)</option>
+              <option value="confidence-desc">Confidence (High)</option>
+              <option value="sessions-desc">Sessions (Most)</option>
+              <option value="lastseen-asc">Last Seen (Recent)</option>
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="type-asc">Type (WiFi/BLE)</option>
+              <option value="channel-asc">Channel (Low-High)</option>
+            </select>
+            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;line-height:1;" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
+            <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
+            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="padding:6px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;"></button>
+          </div>
+        </div>
+        <div id="baselineStatus" style="padding:12px;background:var(--surf);border:2px solid var(--acc);border-radius:8px;font-size:12px;margin-bottom:12px;">
+          <div style="color:var(--mut);">No baseline data</div>
+        </div>
+        <div id="r" style="margin:0;">No scan data yet.</div>
+      </div>
+      </div>
+
+      <div class="page-tab" id="page-system">
+
+      <div class="card" style="margin-bottom:16px;">
+          <h3>System Diagnostics</h3>
+          <div class="tab-buttons">
+            <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
+            <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
+            <div class="tab-btn" onclick="switchTab('network')">Network</div>
+          </div>
+          <div id="overview" class="tab-content active">
+            <div class="stat-grid">
+              <div class="stat-item"><div class="stat-label">Uptime</div><div class="stat-value" id="uptime">--:--:--</div></div>
+              <div class="stat-item"><div class="stat-label">WiFi Frames</div><div class="stat-value" id="wifiFrames">0</div></div>
+              <div class="stat-item"><div class="stat-label">BLE Frames</div><div class="stat-value" id="bleFrames">0</div></div>
+              <div class="stat-item"><div class="stat-label">Target Hits</div><div class="stat-value" id="totalHits">0</div></div>
+              <div class="stat-item"><div class="stat-label">Unique Devices</div><div class="stat-value" id="uniqueDevices">0</div></div>
+              <div class="stat-item"><div class="stat-label">CPU Temp</div><div class="stat-value" id="temperature">--C</div></div>
+            </div>
+          </div>
+          <div id="hardware" class="tab-content"><div id="hardwareDiag">Loading...</div></div>
+          <div id="network" class="tab-content"><div id="networkDiag">Loading...</div></div>
+      </div>
+
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="card">
         <h3>RF Settings</h3>
         <div class="" id="detectionCardBody">
           <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
@@ -704,37 +767,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
           </div>
         </div>
-      
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;">
-          <h3 style="margin:0;">Scan Results</h3>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <label style="font-size:11px;color:var(--mut);">Sort:</label>
-            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;border-radius:6px;font-size:11px;">
-              <option value="default">Default</option>
-              <option value="rssi-desc">RSSI (Strongest)</option>
-              <option value="rssi-asc">RSSI (Weakest)</option>
-              <option value="confidence-desc">Confidence (High)</option>
-              <option value="sessions-desc">Sessions (Most)</option>
-              <option value="lastseen-asc">Last Seen (Recent)</option>
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="type-asc">Type (WiFi/BLE)</option>
-              <option value="channel-asc">Channel (Low-High)</option>
-            </select>
-            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;line-height:1;" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
-            <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
-            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="padding:6px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;"></button>
-          </div>
-        </div>
-        <div id="r" style="margin:0;">No scan data yet.</div>
-      </div>
-    </div>
-    
-      
-      <!-- Bottom Grid: Node + Diagnostics -->
-      <div class="grid-node-diag" style="margin-bottom:16px;">
-        
-        <div class="card" style="min-width:280px;">
+
+      <div class="card">
           <h3>Node Configuration</h3>
           <form id="nodeForm" method="POST" action="/node-id" novalidate>
             <label>Node ID</label>
@@ -773,54 +807,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
           </div>
         </div>
-        
-        <div class="card">
-          <h3>System Diagnostics</h3>
-          <div class="tab-buttons">
-            <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
-            <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
-            <div class="tab-btn" onclick="switchTab('network')">Network</div>
-          </div>
-          
-          <div id="overview" class="tab-content active">
-            <div class="stat-grid">
-              <div class="stat-item">
-                <div class="stat-label">Uptime</div>
-                <div class="stat-value" id="uptime">--:--:--</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-label">WiFi Frames</div>
-                <div class="stat-value" id="wifiFrames">0</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-label">BLE Frames</div>
-                <div class="stat-value" id="bleFrames">0</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-label">Target Hits</div>
-                <div class="stat-value" id="totalHits">0</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-label">Unique Devices</div>
-                <div class="stat-value" id="uniqueDevices">0</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-label">CPU Temp</div>
-                <div class="stat-value" id="temperature">--C</div>
-              </div>
-            </div>
-          </div>
-          
-         <div id="hardware" class="tab-content">
-            <div id="hardwareDiag">Loading...</div>
-          </div>
-
-          <div id="network" class="tab-content">
-            <div id="networkDiag">Loading...</div>
-          </div>
-        </div>
       </div>
-      
+
       <!-- Secure Data Destruction -->
       <div class="card">
         <div class="card-header" onclick="toggleCollapse('secureDataCard')">
@@ -969,8 +957,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div id="terminalContent"></div>
       </div>
       -->
-      
-      <div class="footer">AntiHunter DIGINODE v0.9 | Node: <span id="footerNodeId">--</span></div>
+      </div>
+
+      <div class="footer">AntiHunter DIGINODE v0.9.3 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
@@ -982,6 +971,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let hbEnabled = false;
       let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
+
+      function switchPage(pageName) {
+        if (document.activeElement) document.activeElement.blur();
+        document.querySelectorAll('.page-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.page-tab').forEach(function(p) { p.classList.remove('active'); });
+        var btn = document.querySelector('.page-tab-btn[onclick*="' + pageName + '"]');
+        if (btn) btn.classList.add('active');
+        var pg = document.getElementById('page-' + pageName);
+        if (pg) pg.classList.add('active');
+      }
 
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -1446,7 +1445,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }    
           // Polling from scan state
           if (stats.scanning && !baselineUpdateInterval) {
-            baselineUpdateInterval = setInterval(updateBaselineStatus, 1000);
+            baselineUpdateInterval = setInterval(updateBaselineStatus, 2000);
           } else if (!stats.scanning && baselineUpdateInterval) {
             clearInterval(baselineUpdateInterval);
             baselineUpdateInterval = null;
@@ -1562,7 +1561,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         
         const isRandomization = resultsElement.textContent.includes('MAC RANDOMIZATION DETECTION');
-        const isBaseline = resultsElement.textContent.includes('Baseline');
+        const isBaseline = resultsElement.textContent.includes('Baseline') || resultsElement.querySelector('.baseline-marker');
         const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
         const isDrone = resultsElement.textContent.includes('Drone Detection');
         const isDeviceScan = resultsElement.textContent.includes('Device Discovery');
@@ -1612,28 +1611,61 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
           });
         } else if (isBaseline) {
+          var baselineContainer = null;
           Array.from(resultsElement.children).forEach(child => {
-            const hasBackgroundStyle = child.getAttribute('style')?.includes('background:#000');
-            if (hasBackgroundStyle && child.textContent.match(/[A-F0-9:]{17}/)) {
+            if (child.classList.contains('device-card')) {
               const macMatch = child.textContent.match(/([A-F0-9:]+)/);
-              const mac = macMatch ? macMatch[1] : '';
-              
               const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
-              const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
-              
-              const nameMatch = child.textContent.match(/Name:\s*"([^"]+)"/);
-              const name = nameMatch ? nameMatch[1] : '';
-              
+              const nameMatch = child.textContent.match(/Name:\s*([^\n]+)/);
               items.push({
                 element: child,
-                mac, rssi, name,
+                mac: macMatch ? macMatch[1] : '',
+                rssi: rssiMatch ? parseInt(rssiMatch[1]) : 0,
+                name: nameMatch ? nameMatch[1].trim() : '',
                 sortKey: currentSort,
                 type: 'baseline'
               });
+            } else if (child.tagName === 'DETAILS') {
+              baselineContainer = child.querySelector('div');
+              if (baselineContainer) {
+                Array.from(baselineContainer.children).forEach(card => {
+                  if (card.classList.contains('device-card')) {
+                    const macMatch = card.textContent.match(/([A-F0-9:]+)/);
+                    const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+                    const nameMatch = card.textContent.match(/Name:\s*([^\n]+)/);
+                    items.push({
+                      element: card,
+                      mac: macMatch ? macMatch[1] : '',
+                      rssi: rssiMatch ? parseInt(rssiMatch[1]) : 0,
+                      name: nameMatch ? nameMatch[1].trim() : '',
+                      sortKey: currentSort,
+                      type: 'baseline'
+                    });
+                  }
+                });
+              }
+              preservedElements.push(child);
             } else {
               preservedElements.push(child);
             }
           });
+          if (baselineContainer && items.length > 0) {
+            items.sort((a, b) => {
+              let cmp = 0;
+              switch(currentSort) {
+                case 'rssi-desc': cmp = b.rssi - a.rssi; break;
+                case 'rssi-asc': cmp = a.rssi - b.rssi; break;
+                case 'name-asc': cmp = (a.name || a.mac).localeCompare(b.name || b.mac); break;
+                case 'type-asc': cmp = (a.element.getAttribute('data-type') || '').localeCompare(b.element.getAttribute('data-type') || ''); break;
+                case 'channel-asc': cmp = parseInt(a.element.getAttribute('data-channel') || '0') - parseInt(b.element.getAttribute('data-channel') || '0'); break;
+                default: cmp = 0;
+              }
+              return sortReverse ? -cmp : cmp;
+            });
+            baselineContainer.innerHTML = '';
+            items.forEach(item => baselineContainer.appendChild(item.element));
+            return;
+          }
         } else if (isDeauth) {
           Array.from(resultsElement.children).forEach(child => {
             const hasDeauthBorder = child.getAttribute('style')?.includes('border:1px solid #ff4444');
@@ -1757,11 +1789,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       // Override the parseAndStyleResults to reset sort after reload
       const originalParseAndStyleResults = window.parseAndStyleResults;
       window.parseAndStyleResults = function(text) {
-        currentSort = 'default';
-        sortReverse = false;
-        if (document.getElementById('sortBy')) {
-          document.getElementById('sortBy').value = 'default';
-        }
         const html = originalParseAndStyleResults.call(this, text);
         if (!privacyMode) return html;
         const temp = document.createElement('div');
@@ -2622,12 +2649,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         let html = '';
 
-        if (text.includes('Baseline not yet established')) {
+        var isEstablishing = text.includes('Baseline not yet established');
+        if (isEstablishing) {
           const devSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1];
           const deviceLines = devSection ? devSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/)) : [];
           if (deviceLines.length === 0) {
-            return '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">Cataloguing devices...</div>';
+            return '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">Cataloging devices...</div>';
           }
+          html += '<div class="baseline-marker" style="display:none;"></div>';
           deviceLines.forEach(line => {
             const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
             if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
@@ -3267,7 +3296,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (resultsText !== lastResultsText) {
                 lastResultsText = resultsText;
                 if (isScanning) {
-                  requestAnimationFrame(() => {
+                  setTimeout(() => {
                     const expandedCards = new Set();
                     const expandedDetails = new Map();
                     const contents = resultsElement.querySelectorAll('[id$="Content"]');
@@ -3316,9 +3345,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                         }
                       });
                     }
-                  });
+                    if (currentSort !== 'default') sortResultsDisplay();
+                  }, 0);
                 } else {
                   resultsElement.innerHTML = parseAndStyleResults(resultsText);
+                  if (currentSort !== 'default') sortResultsDisplay();
                 }
               }
             }
@@ -3463,6 +3494,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const modeVal = parseInt(document.querySelector('#s select[name="mode"]')?.value ?? '2');
               const modeLabel = ['WiFi', 'BLE', 'WiFi+BLE'][modeVal] ?? 'WiFi+BLE';
               resultsElScan.innerHTML = parseAndStyleResults('Target scan starting...\nMode: ' + modeLabel + '\n');
+              switchPage('results');
           }
 
           fetch('/scan', {
@@ -3618,9 +3650,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (resultsElSniffer && !resultsElSniffer.contains(document.activeElement)) {
             lastResultsText = '';
             resultsElSniffer.innerHTML = parseAndStyleResults('Scan starting...\n');
+            switchPage('results');
         }
 
         if (detectionMethod === 'baseline') {
+          setTimeout(updateBaselineStatus, 500);
           const rssiThreshold = document.getElementById('baselineRssiThreshold').value;
           const duration = document.getElementById('baselineDuration').value;
           const ramSize = document.getElementById('baselineRamSize').value;

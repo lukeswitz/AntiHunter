@@ -212,7 +212,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         baselineResultsDirty = true;
     } else {
         BaselineDevice &dev = baselineCache[macStr];
-        dev.avgRssi = (dev.avgRssi * dev.hitCount + rssi) / (dev.hitCount + 1);
+        dev.avgRssi = (int32_t(dev.avgRssi) * int32_t(dev.hitCount) + rssi) / int32_t(dev.hitCount + 1);
         if (rssi < dev.minRssi) dev.minRssi = rssi;
         if (rssi > dev.maxRssi) dev.maxRssi = rssi;
         dev.lastSeen = now;
