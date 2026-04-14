@@ -971,6 +971,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let hbEnabled = false;
       let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
+      let radioBusy = false;
+      let radioBusyTask = '';
+
+      function isRadioBusy() {
+        if (radioBusy) {
+          toast('Radio busy — ' + (radioBusyTask || 'scan') + ' in progress. Stop it first.', 'warning');
+          return true;
+        }
+        return false;
+      }
 
       function switchPage(pageName) {
         if (document.activeElement) document.activeElement.blur();
@@ -3226,6 +3236,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           ]);
           const diagText = await diagResponse.text();
           const isScanning = diagText.includes('Scanning: yes');
+          const isTriActive = diagText.includes('Triangulating: yes');
+          radioBusy = isScanning || isTriActive;
+          const taskMatch = diagText.match(/Task Type: ([^\n]+)/);
+          radioBusyTask = taskMatch ? taskMatch[1].trim() : '';
           const sections = diagText.split('\n');
           meshEnabled = diagText.includes('Mesh: Enabled');
           updateMeshUI();
@@ -3432,6 +3446,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       document.getElementById('s').addEventListener('submit', e => {
           e.preventDefault();
 
+          if (isRadioBusy()) return;
+
           const now = Date.now();
           const state = scanDebounce.listScan;
 
@@ -3502,14 +3518,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             body: fd
           }).then(r => {
             console.log('[SCAN] Response received at', new Date().toISOString());
+            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); return null; });
             return r.text();
           }).then(t => {
+            if (t === null) return;
             console.log('[SCAN] Response text:', t, 'at', new Date().toISOString());
             toast(t);
             console.log('[SCAN] Forcing tick() at', new Date().toISOString());
-            setTimeout(() => { 
+            setTimeout(() => {
               console.log('[SCAN] tick() executing at', new Date().toISOString());
-              tick(); 
+              tick();
             }, 100);
           }).catch(err => {
             console.error('[SCAN] Error at', new Date().toISOString(), err);
@@ -3581,6 +3599,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       document.getElementById('sniffer').addEventListener('submit', e => {
         e.preventDefault();
+
+        if (isRadioBusy()) return;
 
         const now = Date.now();
         const state = scanDebounce.sniffer;
@@ -3674,7 +3694,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               method: 'POST',
               body: fd
             });
-          }).then(r => r.text()).then(t => {
+          }).then(r => {
+            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); return null; });
+            return r.text();
+          }).then(t => {
+            if (t === null) return;
             toast(t, 'success');
             setTimeout(() => { tick(); }, 100);
             updateBaselineStatus();
@@ -3685,7 +3709,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           fetch(endpoint, {
             method: 'POST',
             body: fd
-          }).then(r => r.text()).then(t => {
+          }).then(r => {
+            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); return null; });
+            return r.text();
+          }).then(t => {
+            if (t === null) return;
             toast(t, 'success');
             setTimeout(() => { tick(); }, 100);
           }).catch(err => {
@@ -3862,6 +3890,12 @@ void startWebServer()
     r->send(200, "application/json", j); });
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req) {
+      // Radio-busy guard: reject if any scan task is already running
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          req->send(409, "text/plain", "Radio busy - stop current scan first");
+          return;
+      }
+
       int secs = 60;
       bool forever = false;
       ScanMode mode = SCAN_WIFI;
@@ -4240,9 +4274,15 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req)
              {
+        // Radio-busy guard: reject if any scan task is already running
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+            req->send(409, "text/plain", "Radio busy - stop current scan first");
+            return;
+        }
+
         int secs = 60;
         bool forever = false;
-        
+
         if (req->hasParam("forever", true)) forever = true;
         if (req->hasParam("secs", true)) {
             int v = req->getParam("secs", true)->value().toInt();
@@ -4259,8 +4299,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                   ("Drone detection starting for " + String(secs) + "s")); 
         
         if (!workerTaskHandle) {
-            xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288, 
-                                  (void*)(intptr_t)(forever ? 0 : secs), 
+            scanning = true;
+            xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
+                                  (void*)(intptr_t)(forever ? 0 : secs),
                                   1, &workerTaskHandle, 1);
         } });
 
@@ -4445,6 +4486,12 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
+        // Radio-busy guard: reject if any scan task is already running
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+            req->send(409, "text/plain", "Radio busy - stop current scan first");
+            return;
+        }
+
         String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
         int secs = req->hasParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
         bool forever = req->hasParam("forever", true);
@@ -4729,6 +4776,12 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         req->send(200, "text/plain", "Allowlist saved"); });
 
   server->on("/triangulate/start", HTTP_POST, [](AsyncWebServerRequest *req) {
+      // Radio-busy guard: reject if any scan task is already running
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          req->send(409, "text/plain", "Radio busy - stop current scan first");
+          return;
+      }
+
       if (!req->hasParam("mac", true) || !req->hasParam("duration", true)) {
         req->send(400, "text/plain", "Missing mac or duration parameter");
         return;
