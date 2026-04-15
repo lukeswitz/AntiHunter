@@ -1382,7 +1382,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
+      let baselineUpdating = false;
       async function updateBaselineStatus() {
+        if (baselineUpdating) return;
         const detectionMode = document.getElementById('detectionMode');
         if (!detectionMode || detectionMode.value !== 'baseline') {
           if (baselineUpdateInterval) {
@@ -1391,7 +1393,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           return;
         }
-        
+        baselineUpdating = true;
         try {
           const response = await fetch('/baseline/stats');
           const stats = await response.json();
@@ -1477,6 +1479,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
         } catch(error) {
           console.error('Status update error:', error);
+        } finally {
+          baselineUpdating = false;
         }
       }
 
@@ -3239,16 +3243,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return html;
       }
 
+      let tickStart = 0;
       async function tick() {
-        if (tickRunning) return;
-        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable || window.getSelection().toString().length > 0)) return;
+        if (tickRunning) {
+          if (Date.now() - tickStart > 15000) tickRunning = false;
+          else return;
+        }
         tickRunning = true;
+        tickStart = Date.now();
         try {
-          const [diagResponse, droneResponse, resultsResponse] = await Promise.all([
-            fetch('/diag'),
-            fetch('/drone/status').catch(() => null),
-            fetch('/results').catch(() => null)
-          ]);
+          const diagResponse = await fetch('/diag').catch(() => null);
+          if (!diagResponse) return;
           const diagText = await diagResponse.text();
           const isScanning = diagText.includes('Scanning: yes');
           const isTriActive = diagText.includes('Triangulating: yes');
@@ -3260,22 +3265,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           updateMeshUI();
           const hbMatch = diagText.match(/Heartbeat: \w+ (\d+)min/);
           hbEnabled = diagText.includes('Heartbeat: Enabled');
-          if (hbMatch) { const inp = document.getElementById('hbIntervalInput'); if (inp) inp.value = hbMatch[1]; }
+          if (hbMatch) { const inp = document.getElementById('hbIntervalInput'); if (inp && document.activeElement !== inp) inp.value = hbMatch[1]; }
           updateHbUI();
-          
-          if (droneResponse) {
-            try {
-              const droneData = await droneResponse.json();
-              if (droneData.enabled) {
-                document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
-                document.getElementById('droneStatus').classList.add('active');
-              } else {
-                document.getElementById('droneStatus').innerText = 'Drone Detection: Idle';
-                document.getElementById('droneStatus').classList.remove('active');
-              }
-            } catch (e) {}
-          }
-          let overview = '';
+
+          // --- System page updates: immediately after /diag, no extra fetches ---
           let hardware = '';
           let network = '';
           sections.forEach(line => {
@@ -3303,8 +3296,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               hardware += line + '\n';
             } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
               network += line + '\n';
-            } else {
-              overview += line + '\n';
             }
           });
           document.getElementById('hardwareDiag').innerHTML = formatDiagGrid(hardware, 'hardware');
@@ -3313,14 +3304,31 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (uptimeMatch) {
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
           }
-          if (radioBusyTask === 'baseline') {
+          updateStatusIndicators(diagText);
+
+          // --- Optional fetches: only when needed, skip what baseline already handles ---
+          const droneActive = diagText.includes('Drone Detection: Active');
+          const baselineHandling = !!baselineUpdateInterval;
+          const fetchPromises = [];
+          if (droneActive) fetchPromises.push(fetch('/drone/status').catch(() => null));
+          else fetchPromises.push(Promise.resolve(null));
+          if (!baselineHandling && (isScanning || (lastScanningState && !isScanning))) fetchPromises.push(fetch('/results').catch(() => null));
+          else fetchPromises.push(Promise.resolve(null));
+          const [droneResponse, resultsResponse] = await Promise.all(fetchPromises);
+          if (droneResponse) {
+            try {
+              const droneData = await droneResponse.json();
+              document.getElementById('droneStatus').innerText = 'Drone Detection: Active (' + droneData.unique + ' drones)';
+              document.getElementById('droneStatus').classList.add('active');
+            } catch (e) {}
+          }
+          if (radioBusyTask === 'baseline' && !baselineHandling) {
             try {
               const bsResp = await fetch('/baseline/stats');
               const bs = await bsResp.json();
               document.getElementById('uniqueDevices').innerText = bs.totalDevices;
             } catch(e) {}
           }
-          updateStatusIndicators(diagText);
           const stopAllBtn = document.getElementById('stopAllBtn');
           if (stopAllBtn) {
             stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
