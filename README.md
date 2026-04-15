@@ -51,7 +51,8 @@ The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, a
 
 ## Primary Detection Modes
 
-![image](https://github.com/user-attachments/assets/b3be1602-c651-41d2-9caf-c2e4956d3aff)
+<img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" />
+
 
 ### 1. List/Target Scan Mode
 
@@ -67,7 +68,7 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-by
 
 **`Experimental`**
 
-<img width="859" height="899" alt="Triangulation diagram" src="https://github.com/user-attachments/assets/c76bb177-ce4e-42db-aafb-fd360b7f49e2" />
+<img width="850" alt="Triangulation diagram" src="https://github.com/user-attachments/assets/c76bb177-ce4e-42db-aafb-fd360b7f49e2" />
 
 > [!TIP]
 > Target RSSI above -80 will produce more accurate results.
@@ -115,19 +116,19 @@ Fine-tune calculated distances per target using multipliers (0.1x - 5.0x):
 
 Captures all WiFi and Bluetooth devices in range. Records MAC addresses, SSIDs, signal strength, names, and channels for complete 2.4GHz spectrum visibility.
 
-
-<img width="869" height="454" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
+<img width="850" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
 
 #### B. Baseline Anomaly Detection
+
+Two-phase scanning: establishes baseline, then monitors for anomalies (new devices, disappearances, reappearances, significant RSSI changes). Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices, defaults to 1500 without SD). Persistent storage with automatic tiering survives reboots.
 
 > [!TIP]
 > A longer initial scan will produce more reliable detection behavior 
 
-Two-phase scanning: establishes baseline, then monitors for anomalies (new devices, disappearances, reappearances, significant RSSI changes). Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices, defaults to 1500 without SD). Persistent storage with automatic tiering survives reboots.
+<img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" />
+
 
 Use cases: distributed "trail cam" for intruders, perimeter security, surveillance detection, threat identification.
-
-<img width="870" height="346" alt="Baseline Detection" src="https://github.com/user-attachments/assets/6204a8e5-418d-49fd-b99c-c1d9c31ee3f2" />
 
 #### C. Deauthentication Attack Scan
 
@@ -168,8 +169,7 @@ Traces device identities across randomized MAC addresses using behavioral signat
 ---
 
 ## Sensor Integration
-
-![Sensor integration photo](https://github.com/user-attachments/assets/35752f4a-bc78-4834-a652-e72622d5d732)
+<img width="943" height="797" alt="Screenshot 2026-04-15 at 11 25 05 AM" src="https://github.com/user-attachments/assets/825fd764-5103-41d8-a8a0-f2504062acb4" />
 
 | Sensor | Interface | Description |
 |--------|-----------|-------------|
