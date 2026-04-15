@@ -973,6 +973,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let lastScanStartTime = 0;
       let radioBusy = false;
       let radioBusyTask = '';
+      let prevUniqueDevices = 0;
 
 
       function isRadioBusy() {
@@ -1422,7 +1423,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           let statsHTML = '';
           if (stats.scanning) {
-            statsHTML = '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--mut);">WiFi Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">BLE Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Total Devices</div>' + '<div style="color:var(--acc);font-size:16px;font-weight:bold;">' + stats.totalDevices + '</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? 'var(--dang)' : 'var(--txt)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+            const cur = stats.totalDevices;
+            const newBadge = (cur > prevUniqueDevices && prevUniqueDevices > 0) ? ' <span style="color:var(--succ);font-size:10px;font-weight:normal;">(+' + (cur - prevUniqueDevices) + ' new)</span>' : '';
+            statsHTML = '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">' + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11px;">' + '<div>' + '<div style="color:var(--mut);">WiFi Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.wifiDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.wifiHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">BLE Devices</div>' + '<div style="color:var(--txt);font-size:16px;font-weight:bold;">' + stats.bleDevices + '</div>' + '<div style="color:var(--mut);font-size:10px;">' + stats.bleHits + ' frames</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Total Devices</div>' + '<div style="color:var(--acc);font-size:16px;font-weight:bold;">' + cur + newBadge + '</div>' + '</div>' + '<div>' + '<div style="color:var(--mut);">Anomalies</div>' + '<div style="color:' + (stats.anomalies > 0 ? 'var(--dang)' : 'var(--txt)') + ';font-size:16px;font-weight:bold;">' + stats.anomalies + '</div>' + '</div>' + '</div>' + '</div>';
+            // Also update system overview unique devices
+            const el = document.getElementById('uniqueDevices');
+            if (el) {
+              if (cur > prevUniqueDevices && prevUniqueDevices > 0) {
+                el.innerHTML = cur + ' <span style="color:var(--succ);font-size:11px;font-weight:normal;">(+' + (cur - prevUniqueDevices) + ' new)</span>';
+                el.style.transition = 'color 0.3s';
+                el.style.color = 'var(--succ)';
+                setTimeout(() => { el.style.color = ''; }, 2000);
+              } else {
+                el.innerText = cur;
+              }
+            }
+            prevUniqueDevices = cur;
           }
           statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
 
@@ -1476,6 +1492,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           } else if (!stats.scanning && baselineUpdateInterval) {
             clearInterval(baselineUpdateInterval);
             baselineUpdateInterval = null;
+            prevUniqueDevices = 0;
           }
         } catch(error) {
           console.error('Status update error:', error);
@@ -3326,7 +3343,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             try {
               const bsResp = await fetch('/baseline/stats');
               const bs = await bsResp.json();
-              document.getElementById('uniqueDevices').innerText = bs.totalDevices;
+              const el = document.getElementById('uniqueDevices');
+              const cur = bs.totalDevices;
+              if (cur > prevUniqueDevices && prevUniqueDevices > 0) {
+                const diff = cur - prevUniqueDevices;
+                el.innerHTML = cur + ' <span style="color:var(--succ);font-size:11px;font-weight:normal;">(+' + diff + ' new)</span>';
+                el.style.transition = 'color 0.3s';
+                el.style.color = 'var(--succ)';
+                setTimeout(() => { el.style.color = ''; }, 2000);
+              } else {
+                el.innerText = cur;
+              }
+              prevUniqueDevices = cur;
             } catch(e) {}
           }
           const stopAllBtn = document.getElementById('stopAllBtn');
