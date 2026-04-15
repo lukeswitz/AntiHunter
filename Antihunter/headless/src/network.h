@@ -32,6 +32,7 @@ extern SemaphoreHandle_t serial1Mutex;
 extern bool meshEnabled;
 extern bool hbEnabled;
 extern uint32_t hbInterval;
+extern bool vibrationEnabled;
 
 // Mesh communication
 void initializeNetwork();

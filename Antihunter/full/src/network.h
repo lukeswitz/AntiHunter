@@ -34,6 +34,7 @@ extern AsyncWebServer *server;
 extern bool meshEnabled;
 extern bool hbEnabled;
 extern uint32_t hbInterval;
+extern bool vibrationEnabled;
 
 #ifndef AP_SSID
 #define AP_SSID "Antihunter"
