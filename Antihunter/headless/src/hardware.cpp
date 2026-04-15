@@ -371,6 +371,7 @@ void syncSettingsToNVS() {
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
     prefs.putBool("hbEnabled", hbEnabled);
     prefs.putUInt("hbInterval", hbInterval);
+    prefs.putBool("vibEnabled", vibrationEnabled);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -467,6 +468,7 @@ void loadConfiguration() {
         baselineDuration = prefs.getUInt("blDuration", 300000);
         hbEnabled = prefs.getBool("hbEnabled", false);
         hbInterval = prefs.getUInt("hbInterval", 600000);
+        vibrationEnabled = prefs.getBool("vibEnabled", true);
         return;
     }
 
@@ -1054,7 +1056,9 @@ void checkAndSendVibrationAlert() {
                     snprintf(vibrationMsg + offset, sizeof(vibrationMsg) - offset,
                             " GPS:%.6f,%.6f", gpsLat, gpsLon);
                 }
-                sendToSerial1(String(vibrationMsg), true);
+                if (vibrationEnabled) {
+                    sendToSerial1(String(vibrationMsg), true);
+                }
                 return;
             }
         }
@@ -1096,7 +1100,9 @@ void checkAndSendVibrationAlert() {
             }
 
             Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg);
-            sendToSerial1(String(vibrationMsg), true);
+            if (vibrationEnabled) {
+                sendToSerial1(String(vibrationMsg), true);
+            }
             logVibrationEvent(sensorValue);
 
         } else {

@@ -17,6 +17,10 @@ extern "C"
 bool meshEnabled = true;
 bool hbEnabled = false;
 uint32_t hbInterval = 600000;
+// Gates the VIBRATION TEXTMSG broadcasts in hardware.cpp. See the matching
+// declaration in the full/ variant for the full rationale. Default true
+// preserves existing behaviour after a firmware bump.
+bool vibrationEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
@@ -546,8 +550,27 @@ void processCommand(const String &command, const String &targetId = "")
     }
   else if (command.startsWith("VIBRATION_STATUS"))
   {
-    String status = lastVibrationTime > 0 ? ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") : "No vibrations detected";
+    String status = vibrationEnabled ? "ENABLED" : "DISABLED";
+    if (lastVibrationTime > 0) {
+      status += " Last:" + String((millis() - lastVibrationTime) / 1000) + "s";
+    } else {
+      status += " Last:never";
+    }
     sendToSerial1(nodeId + ": VIBRATION_STATUS: " + status, true);
+  }
+  else if (command == "VIBRATION_ON")
+  {
+    vibrationEnabled = true;
+    prefs.putBool("vibEnabled", true);
+    Serial.println("[VIB] Vibration broadcasts ENABLED");
+    sendToSerial1(nodeId + ": VIBRATION_ON_ACK:OK", true);
+  }
+  else if (command == "VIBRATION_OFF")
+  {
+    vibrationEnabled = false;
+    prefs.putBool("vibEnabled", false);
+    Serial.println("[VIB] Vibration broadcasts DISABLED");
+    sendToSerial1(nodeId + ": VIBRATION_OFF_ACK:OK", true);
   }
   else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);
