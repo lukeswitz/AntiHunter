@@ -388,7 +388,7 @@ void baselineDetectionTask(void *pv) {
     scanning = true;
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
+        antihunter::lastResults = "Baseline not yet established\nStarting...\n";
     }
 
     baselineStats = BaselineStats();

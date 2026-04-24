@@ -576,7 +576,8 @@ void snifferScanTask(void *pv)
     scanning = true;
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
+        antihunter::lastResults = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
+                                  " (IN PROGRESS)\nTarget Hits: 0\nStarting...\n";
     }
     uniqueMacs.clear();
     hitsLog.clear();
@@ -589,13 +590,6 @@ void snifferScanTask(void *pv)
     lastScanStart = millis();
     lastScanSecs = duration;
     lastScanForever = forever;
-
-    // Clear previous scan placehodler state
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
-                                  " (IN PROGRESS)\nTarget Hits: 0\nStarting...\n";
-    }
 
     int networksFound = 0;
     unsigned long lastBLEScan = 0;
@@ -1268,9 +1262,9 @@ void blueTeamTask(void *pv) {
     
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
+        antihunter::lastResults = "Deauth Attack Detection Results\nStarting...\n";
     }
-    
+
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
@@ -2219,10 +2213,8 @@ void listScanTask(void *pv) {
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
-    }
+    // Note: lastResults already set to "Target scan starting..." above (line ~2197)
+    // Do NOT clear it here — that creates a race where tick() sees "None yet."
     lastScanStart = millis();
     lastScanSecs = secs;
     lastScanForever = forever;

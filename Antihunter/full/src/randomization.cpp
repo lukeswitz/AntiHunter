@@ -1295,7 +1295,7 @@ void randomizationDetectionTask(void *pv) {
     scanning = true;
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
+        antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
     }
 
     uint32_t startTime = millis();
