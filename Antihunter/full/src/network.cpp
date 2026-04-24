@@ -1447,7 +1447,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             try {
               const rr = await fetch('/results');
               const rt = await rr.text();
-              if (rt !== lastResultsText) {
+              // Don't regress to empty/placeholder while scanning
+              if (rt && rt.trim() !== '' && !rt.includes('None yet') && !rt.includes('No scan data') && rt !== lastResultsText) {
                 lastResultsText = rt;
                 const re = document.getElementById('r');
                 if (re) re.innerHTML = parseAndStyleResults(rt);
@@ -3365,7 +3366,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (resultsElement && !resultsElement.contains(document.activeElement)) {
             if ((isScanning || (lastScanningState && !isScanning)) && resultsResponse) {
               const resultsText = await resultsResponse.text();
-              if (resultsText !== lastResultsText) {
+              // Don't regress to empty/placeholder while scanning — server may briefly clear lastResults during task init
+              if (isScanning && (!resultsText || resultsText.trim() === '' || resultsText.includes('None yet') || resultsText.includes('No scan data'))) {
+                // skip — keep current results visible
+              } else if (resultsText !== lastResultsText) {
                 lastResultsText = resultsText;
                 if (isScanning) {
                   setTimeout(() => {

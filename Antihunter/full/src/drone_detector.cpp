@@ -429,7 +429,7 @@ void droneDetectorTask(void *pv)
     scanning = true;
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
+        antihunter::lastResults = "Drone Detection Results\nStarting...\n";
     }
     stopRequested = false;
     
