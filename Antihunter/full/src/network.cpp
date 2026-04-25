@@ -5587,7 +5587,6 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command == "VIBRATION_ON")
   {
     vibrationEnabled = true;
-    prefs.putBool("vibEnabled", true);
     lastSaveTime = 0;
     saveConfiguration();
     sendToSerial1(nodeId + ": VIBRATION_ON_ACK:OK", true);
@@ -5596,7 +5595,6 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command == "VIBRATION_OFF")
   {
     vibrationEnabled = false;
-    prefs.putBool("vibEnabled", false);
     lastSaveTime = 0;
     saveConfiguration();
     sendToSerial1(nodeId + ": VIBRATION_OFF_ACK:OK", true);

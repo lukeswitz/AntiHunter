@@ -438,7 +438,8 @@ void saveConfiguration() {
     configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
     configFile.printf(" \"targets\":\"%s\",\n", prefs.getString("maclist", "").c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
-    configFile.printf(" \"hbInterval\":%u\n", hbInterval / 60000);
+    configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
+    configFile.printf(" \"vibEnabled\":%s\n", vibrationEnabled ? "true" : "false");
     configFile.println("}");
 
     configFile.flush();
@@ -680,6 +681,11 @@ void loadConfiguration() {
         if (minutes > 60) minutes = 60;
         hbInterval = minutes * 60000;
         prefs.putUInt("hbInterval", hbInterval);
+    }
+
+    if (doc.containsKey("vibEnabled")) {
+        vibrationEnabled = doc["vibEnabled"].as<bool>();
+        prefs.putBool("vibEnabled", vibrationEnabled);
     }
 
     Serial.println("Configuration loaded from SD card and synced to NVS");

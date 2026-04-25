@@ -443,6 +443,7 @@ void saveConfiguration() {
     configFile.printf(" \"apSsid\":\"%s\",\n", prefs.getString("apSsid", AP_SSID).c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
     configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
+    configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
     configFile.printf(" \"apPass\":\"%s\"\n", prefs.getString("apPass", AP_PASS).c_str());
     configFile.println("}");
 
@@ -701,6 +702,11 @@ void loadConfiguration() {
         prefs.putUInt("hbInterval", hbInterval);
     }
 
+    if (doc.containsKey("vibEnabled")) {
+        vibrationEnabled = doc["vibEnabled"].as<bool>();
+        prefs.putBool("vibEnabled", vibrationEnabled);
+    }
+
     Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
@@ -859,6 +865,7 @@ String getDiagnostics() {
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
     s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + " " + String(hbInterval / 60000) + "min\n";
+    s += "Vibration Broadcasts: " + String(vibrationEnabled ? "Enabled" : "Disabled") + "\n";
     if (lastVibrationTime > 0) {
         unsigned long vibrationTime = lastVibrationTime;
         unsigned long seconds = vibrationTime / 1000;
