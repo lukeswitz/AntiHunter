@@ -470,6 +470,8 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART, creating a lo
 | `AUTOERASE_DISABLE` | None | `@AH01 AUTOERASE_DISABLE` |
 | `AUTOERASE_STATUS` | None | `@AH01 AUTOERASE_STATUS` |
 | `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
+| `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
+| `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
 
 </details>
 
