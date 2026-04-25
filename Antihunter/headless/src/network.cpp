@@ -562,6 +562,7 @@ void processCommand(const String &command, const String &targetId = "")
   {
     vibrationEnabled = true;
     prefs.putBool("vibEnabled", true);
+    saveConfiguration();
     Serial.println("[VIB] Vibration broadcasts ENABLED");
     sendToSerial1(nodeId + ": VIBRATION_ON_ACK:OK", true);
   }
@@ -569,6 +570,7 @@ void processCommand(const String &command, const String &targetId = "")
   {
     vibrationEnabled = false;
     prefs.putBool("vibEnabled", false);
+    saveConfiguration();
     Serial.println("[VIB] Vibration broadcasts DISABLED");
     sendToSerial1(nodeId + ": VIBRATION_OFF_ACK:OK", true);
   }
