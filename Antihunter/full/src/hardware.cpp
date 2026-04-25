@@ -374,6 +374,7 @@ void syncSettingsToNVS() {
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
     prefs.putBool("hbEnabled", hbEnabled);
     prefs.putUInt("hbInterval", hbInterval);
+    prefs.putBool("vibEnabled", vibrationEnabled);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -442,6 +443,7 @@ void saveConfiguration() {
     configFile.printf(" \"apSsid\":\"%s\",\n", prefs.getString("apSsid", AP_SSID).c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
     configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
+    configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
     configFile.printf(" \"apPass\":\"%s\"\n", prefs.getString("apPass", AP_PASS).c_str());
     configFile.println("}");
 
@@ -472,6 +474,7 @@ void loadConfiguration() {
         baselineDuration = prefs.getUInt("blDuration", 300000);
         hbEnabled = prefs.getBool("hbEnabled", false);
         hbInterval = prefs.getUInt("hbInterval", 600000);
+        vibrationEnabled = prefs.getBool("vibEnabled", true);
         return;
     }
 
@@ -699,6 +702,11 @@ void loadConfiguration() {
         prefs.putUInt("hbInterval", hbInterval);
     }
 
+    if (doc.containsKey("vibEnabled")) {
+        vibrationEnabled = doc["vibEnabled"].as<bool>();
+        prefs.putBool("vibEnabled", vibrationEnabled);
+    }
+
     Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
@@ -857,6 +865,7 @@ String getDiagnostics() {
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
     s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + " " + String(hbInterval / 60000) + "min\n";
+    s += "Vibration Broadcasts: " + String(vibrationEnabled ? "Enabled" : "Disabled") + "\n";
     if (lastVibrationTime > 0) {
         unsigned long vibrationTime = lastVibrationTime;
         unsigned long seconds = vibrationTime / 1000;
@@ -1237,7 +1246,10 @@ void checkAndSendVibrationAlert() {
                     snprintf(vibrationMsg + offset, sizeof(vibrationMsg) - offset,
                             " GPS:%.6f,%.6f", gpsLat, gpsLon);
                 }
-                sendToSerial1(String(vibrationMsg), true);
+                Serial.printf("[VIBRATION] Setup-mode alert: %s\n", vibrationMsg);
+                if (vibrationEnabled) {
+                    sendToSerial1(String(vibrationMsg), true);
+                }
                 return;
             }
         }
@@ -1279,7 +1291,9 @@ void checkAndSendVibrationAlert() {
             }
 
             Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg);
-            sendToSerial1(String(vibrationMsg), true);
+            if (vibrationEnabled) {
+                sendToSerial1(String(vibrationMsg), true);
+            }
             logVibrationEvent(sensorValue);
 
         } else {

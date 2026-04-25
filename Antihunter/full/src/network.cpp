@@ -27,6 +27,13 @@ const int MAX_RETRIES = 10;
 bool meshEnabled = true;
 bool hbEnabled = false;
 uint32_t hbInterval = 600000;
+// Gates the VIBRATION TEXTMSG broadcasts in hardware.cpp (setup-mode + movement
+// detection sites). Detection still runs and logs to USB; only the mesh TX
+// is suppressed when false. Toggled by VIBRATION_ON / VIBRATION_OFF mesh
+// commands; persisted in NVS under "vibEnabled". Default true preserves
+// existing behaviour for already-deployed sensors after they pick up the
+// updated firmware.
+bool vibrationEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char/3s in sequence
@@ -5569,8 +5576,29 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command.startsWith("VIBRATION_STATUS"))
   {
-    String status = lastVibrationTime > 0 ? ("Last vibration: " + String(lastVibrationTime) + "ms (" + String((millis() - lastVibrationTime) / 1000) + "s ago)") : "No vibrations detected";
+    String status = vibrationEnabled ? "ENABLED" : "DISABLED";
+    if (lastVibrationTime > 0) {
+      status += " Last:" + String((millis() - lastVibrationTime) / 1000) + "s";
+    } else {
+      status += " Last:never";
+    }
     sendToSerial1(nodeId + ": VIBRATION_STATUS: " + status, true);
+  }
+  else if (command == "VIBRATION_ON")
+  {
+    vibrationEnabled = true;
+    lastSaveTime = 0;
+    saveConfiguration();
+    sendToSerial1(nodeId + ": VIBRATION_ON_ACK:OK", true);
+    broadcastToTerminal("[VIB] Vibration broadcasts enabled");
+  }
+  else if (command == "VIBRATION_OFF")
+  {
+    vibrationEnabled = false;
+    lastSaveTime = 0;
+    saveConfiguration();
+    sendToSerial1(nodeId + ": VIBRATION_OFF_ACK:OK", true);
+    broadcastToTerminal("[VIB] Vibration broadcasts disabled");
   }
   else if (command.startsWith("TRIANGULATE_START:")) {
     String params = command.substring(18);

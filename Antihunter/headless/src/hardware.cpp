@@ -371,6 +371,7 @@ void syncSettingsToNVS() {
     prefs.putUInt("bleDuration", rfConfig.bleScanDuration);
     prefs.putBool("hbEnabled", hbEnabled);
     prefs.putUInt("hbInterval", hbInterval);
+    prefs.putBool("vibEnabled", vibrationEnabled);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -437,7 +438,8 @@ void saveConfiguration() {
     configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
     configFile.printf(" \"targets\":\"%s\",\n", prefs.getString("maclist", "").c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
-    configFile.printf(" \"hbInterval\":%u\n", hbInterval / 60000);
+    configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
+    configFile.printf(" \"vibEnabled\":%s\n", vibrationEnabled ? "true" : "false");
     configFile.println("}");
 
     configFile.flush();
@@ -467,6 +469,7 @@ void loadConfiguration() {
         baselineDuration = prefs.getUInt("blDuration", 300000);
         hbEnabled = prefs.getBool("hbEnabled", false);
         hbInterval = prefs.getUInt("hbInterval", 600000);
+        vibrationEnabled = prefs.getBool("vibEnabled", true);
         return;
     }
 
@@ -678,6 +681,11 @@ void loadConfiguration() {
         if (minutes > 60) minutes = 60;
         hbInterval = minutes * 60000;
         prefs.putUInt("hbInterval", hbInterval);
+    }
+
+    if (doc.containsKey("vibEnabled")) {
+        vibrationEnabled = doc["vibEnabled"].as<bool>();
+        prefs.putBool("vibEnabled", vibrationEnabled);
     }
 
     Serial.println("Configuration loaded from SD card and synced to NVS");
@@ -1054,7 +1062,10 @@ void checkAndSendVibrationAlert() {
                     snprintf(vibrationMsg + offset, sizeof(vibrationMsg) - offset,
                             " GPS:%.6f,%.6f", gpsLat, gpsLon);
                 }
-                sendToSerial1(String(vibrationMsg), true);
+                Serial.printf("[VIBRATION] Setup-mode alert: %s\n", vibrationMsg);
+                if (vibrationEnabled) {
+                    sendToSerial1(String(vibrationMsg), true);
+                }
                 return;
             }
         }
@@ -1096,7 +1107,9 @@ void checkAndSendVibrationAlert() {
             }
 
             Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg);
-            sendToSerial1(String(vibrationMsg), true);
+            if (vibrationEnabled) {
+                sendToSerial1(String(vibrationMsg), true);
+            }
             logVibrationEvent(sensorValue);
 
         } else {
