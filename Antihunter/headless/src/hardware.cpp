@@ -1062,6 +1062,7 @@ void checkAndSendVibrationAlert() {
                     snprintf(vibrationMsg + offset, sizeof(vibrationMsg) - offset,
                             " GPS:%.6f,%.6f", gpsLat, gpsLon);
                 }
+                Serial.printf("[VIBRATION] Setup-mode alert: %s\n", vibrationMsg);
                 if (vibrationEnabled) {
                     sendToSerial1(String(vibrationMsg), true);
                 }
