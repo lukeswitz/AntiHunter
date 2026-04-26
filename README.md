@@ -58,7 +58,7 @@ The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, a
 
 Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-byte vendor IDs). AntiHunter sweeps WiFi channels and BLE frequencies, providing immediate alerts and detailed logging on detection.
 
-- Target monitoring by MAC address or vendor OUI prefix
+- Target monitoring by MAC address, vendor OUI prefix, SSID, or identity ID (`T-XXXX`)
 - WiFi-only, BLE-only, or combined scanning
 - Global user-configurable allowlist
 - Logs RSSI, channel, GPS coordinates, and device names to SD card
@@ -140,7 +140,7 @@ WiFi deauth/disassoc attack sniffer with frame filtering, real-time detection, a
 
 Identifies drones broadcasting Remote ID (FAA/EASA compliant). Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames), French drone ID format (OUI 0x6a5c35). Extracts UAV ID, pilot location, and flight telemetry. Sends immediate mesh alerts and logs to SD card and two API endpoints.
 
-#### E. MAC Randomization Correlation 
+#### E. MAC Randomization Correlation
 
 **`Experimental`**
 
@@ -156,11 +156,25 @@ Traces device identities across randomized MAC addresses using behavioral signat
 
 <img width="861" height="721" alt="Randomization Analyzer" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" />
 
+#### F. Probe Request Scanner
+
+Passive WiFi probe request sniffer that captures devices broadcasting for known networks. Reveals SSIDs devices are searching for, identifies device vendors via OUI lookup, and flags randomized MACs. Integrates with the target list for watchlist-based alerting.
+
+- WiFi-only, BLE-only, or combined scanning modes
+- SSID watchlist: add SSIDs directly to the target list alongside MACs and OUIs
+- OUI vendor identification (68-vendor PROGMEM table)
+- MAC randomization detection (locally-administered bit)
+- Destination address (addr1) checking: detects frames addressed TO a target, catching silent/sleeping devices
+- "Capture Probes" checkbox on device scans to piggyback probe collection on existing target scans
+- Mesh alerting for watchlist hits with 60-second dedup cooldown
+- RSSI min/max/current tracking per device, up to 4 probed SSIDs per device
+
 ### Use Cases
 
 - Perimeter security and intrusion detection
 - WiFi penetration testing, security auditing, and MAC randomization analysis
 - Device fingerprinting and persistent identification across randomization
+- Probe request analysis and SSID watchlist monitoring
 - Counter-UAV operations and airspace awareness
 - Event security and monitoring
 - Red team detection and defensive operations
@@ -430,7 +444,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART, creating a lo
 
 | Command | Parameters | Example |
 |---------|------------|---------|
-| `CONFIG_TARGETS` | Pipe-delimited MACs or OUI prefixes | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33` |
+| `CONFIG_TARGETS` | Pipe-delimited MACs, OUI prefixes, or SSIDs | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33\|MyNetwork` |
 | `CONFIG_NODEID` | 2-5 alphanumeric ID | `@AH01 CONFIG_NODEID:AH02` |
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
@@ -440,12 +454,14 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART, creating a lo
 | Command | Parameters | Example |
 |---------|------------|---------|
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1,6,11` |
-| `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | `@ALL DEVICE_SCAN_START:2:300` |
+| `DEVICE_SCAN_START` | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
 | `BASELINE_START` | `duration[:FOREVER]` (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
+| `PROBE_START` | `mode:secs[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL PROBE_START:2:300` |
+| `PROBE_STOP` | None | `@ALL PROBE_STOP` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -523,6 +539,7 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 | Triangulation Data | `NODE_ID: T_D: MAC RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` |
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
+| Probe Watchlist Hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GPS=lat,lon]` |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 
@@ -550,7 +567,7 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/scan` | POST | Start WiFi/BLE scan (`mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`) |
-| `/sniffer` | POST | Start detection mode (`detection`, `secs`, `forever`, `randomizationMode`) |
+| `/sniffer` | POST | Start detection mode (`detection`, `secs`, `forever`, `randomizationMode`, `probeScanMode`, `captureProbes`) |
 | `/drone` | POST | Start drone RID detection (`secs`, `forever`) |
 
 ### Results and Logs
@@ -563,6 +580,7 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 | `/drone-log` | GET | Drone event logs (JSON) |
 | `/deauth-results` | GET | Deauth attack logs |
 | `/randomization-results` | GET | Randomization detection results |
+| `/probe-results` | GET | Probe request detection results |
 | `/baseline-results` | GET | Baseline detection results |
 
 <details>

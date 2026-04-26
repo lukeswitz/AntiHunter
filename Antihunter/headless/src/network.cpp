@@ -408,6 +408,16 @@ void processCommand(const String &command, const String &targetId = "")
       } else {
         currentScanMode = (ScanMode)mode;
         stopRequested = false;
+
+        if (params.indexOf("+PROBE") >= 0) {
+            probeDetectionEnabled = true;
+            if (probeRequestQueue == nullptr) {
+                probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
+            } else {
+                xQueueReset(probeRequestQueue);
+            }
+        }
+
         scanning = true;
         xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
                                 (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
@@ -515,6 +525,50 @@ void processCommand(const String &command, const String &targetId = "")
         sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
       }
     }
+  }
+  else if (command.startsWith("PROBE_START:"))
+  {
+    String params = command.substring(12);
+    int modeDelim = params.indexOf(':');
+    int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+    int secs = 60;
+    bool forever = false;
+
+    if (modeDelim > 0)
+    {
+      int secsDelim = params.indexOf(':', modeDelim + 1);
+      secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
+      if (secsDelim > 0) {
+        String tail = params.substring(secsDelim + 1);
+        tail.toUpperCase();
+        if (tail == "FOREVER") forever = true;
+      }
+    }
+
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
+
+    if (mode >= 0 && mode <= 2)
+    {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+        Serial.println("[MESH] Radio busy, rejecting PROBE_START");
+        sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
+      } else {
+        currentScanMode = (ScanMode)mode;
+        stopRequested = false;
+        scanning = true;
+        xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
+                                (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+        Serial.printf("[MESH] Started probe detection via mesh command (%ds)\n", secs);
+        sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
+      }
+    }
+  }
+  else if (command == "PROBE_STOP")
+  {
+    stopRequested = true;
+    Serial.println("[MESH] Probe stop command received via mesh");
+    sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
   }
   else if (command.startsWith("STOP"))
   {
