@@ -54,6 +54,29 @@ struct ProbeDevice {
     bool isDstHit;
     char vendor[16];
     char hitReason[10];
+    // Historical intelligence (from SD probe database)
+    uint32_t histTotalSeen;       // lifetime probe count across all sessions
+    uint32_t histFirstEpoch;      // first-ever epoch (seconds since boot of first session, or RTC)
+    uint32_t histLastEpoch;       // last-seen epoch
+    uint16_t histSessionCount;    // how many scan sessions this device appeared in
+    bool histKnown;               // true if device was in SD database before this scan
+    // Probe response intelligence (addr3 = BSSID of responding AP)
+    char respondingAP[18];        // BSSID of AP that responded to this device's probe
+    char respondingSSID[33];      // SSID from probe response
+};
+
+// SD-backed probe device database entry (one per known device)
+struct ProbeDBEntry {
+    char mac[18];
+    uint32_t totalSeen;
+    uint32_t firstEpoch;
+    uint32_t lastEpoch;
+    uint16_t sessionCount;
+    char ssids[4][33];
+    uint8_t ssidCount;
+    int8_t bestRssi;
+    char vendor[16];
+    bool isRandomized;
 };
 
 struct TriangulationAccumulator {
@@ -121,6 +144,14 @@ const char* lookupOuiVendor(const uint8_t *mac);
 void probeDetectionTask(void *pv);
 String getProbeResults();
 void resetProbeDetection();
+
+// SD probe database
+void loadProbeDB();
+void saveProbeDB();
+void mergeProbeDeviceToDB(const ProbeDevice &dev);
+bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
+uint32_t getProbeDBSize();
+void clearProbeDB();
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s

@@ -395,6 +395,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .page-tab{display:none}
       .page-tab.active{display:block}
       #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
+      @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
     </style>
     <script>
       let toggleHistory=[];
@@ -1178,6 +1179,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           applyPrivacyToElement(document.body);
           document.querySelectorAll('textarea').forEach(ta => {
             ta.value = ta.value.replace(/\b([A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi, 'XX:XX:XX:XX:XX:XX');
+            ta.value = ta.value.replace(/(?:probes:|AP=|SSID:\s*)"([^"]+)"/g, (m, s) => m.replace(s, ssidHash(s)));
           });
         } else {
           if (resultsElement && lastResultsText) {
@@ -1658,6 +1660,40 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             div.textContent = 'REDACTED';
           }
         });
+
+        // Redact SSIDs — all elements with data-ssid attribute
+        el.querySelectorAll('[data-ssid]').forEach(elem => {
+          const original = elem.getAttribute('data-ssid');
+          const hashed = ssidHash(original);
+          const sup = elem.querySelector('sup');
+          if (sup) {
+            const supText = sup.textContent;
+            elem.textContent = '';
+            elem.appendChild(document.createTextNode(hashed + ' '));
+            const newSup = document.createElement('sup');
+            newSup.textContent = supText;
+            elem.appendChild(newSup);
+          } else {
+            elem.textContent = hashed;
+          }
+          elem.title = 'REDACTED';
+        });
+
+        // Redact AP responded SSIDs
+        el.querySelectorAll('[data-ap-ssid]').forEach(div => {
+          const strong = div.querySelector('strong');
+          if (strong) strong.textContent = ssidHash(div.getAttribute('data-ap-ssid'));
+        });
+      }
+
+      function ssidHash(ssid) {
+        if (!ssid || ssid.length === 0) return '?';
+        let h = 0x811c9dc5;
+        for (let i = 0; i < ssid.length; i++) {
+          h ^= ssid.charCodeAt(i);
+          h = Math.imul(h, 0x01000193);
+        }
+        return 'net#' + ((h >>> 0) & 0xFFFF).toString(16).padStart(4, '0');
       }
 
       function toggleSortOrder() {
@@ -3017,14 +3053,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const devMatch = statsLine.match(/Devices:\s*(\d+)/);
         const probeMatch = statsLine.match(/Probes:\s*(\d+)/);
         const ssidMatch = statsLine.match(/SSIDs:\s*(\d+)/);
-        const hitMatch = statsLine.match(/Hits:\s*(\d+)/);
+        const savedMatch = statsLine.match(/Saved:\s*(\d+)/);
 
-        html += '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        if (inProgress) html += '<span style="color:var(--acc);font-weight:bold;">SCANNING</span>';
+        // Stats bar
+        html += '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;align-items:center;">';
+        if (inProgress) html += '<span style="color:var(--acc);font-weight:bold;animation:pulse 1.5s ease-in-out infinite;">SCANNING</span>';
         if (devMatch) html += '<span>Devices: <strong>' + devMatch[1] + '</strong></span>';
         if (probeMatch) html += '<span>Probes: <strong>' + probeMatch[1] + '</strong></span>';
         if (ssidMatch) html += '<span>SSIDs: <strong>' + ssidMatch[1] + '</strong></span>';
-        if (hitMatch) html += '<span>Hits: <strong style="color:' + (parseInt(hitMatch[1]) > 0 ? '#e74c3c' : 'var(--txt)') + ';">' + hitMatch[1] + '</strong></span>';
+        if (savedMatch && parseInt(savedMatch[1]) > 0) html += '<span>Saved Devices: <strong style="color:#3498db;">' + savedMatch[1] + '</strong></span>';
         html += '</div>';
 
         let deviceLines = [];
@@ -3036,60 +3073,117 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (!line) continue;
           if (line.startsWith('SSIDs seen')) {
             inSsidSection = true;
-            ssidSection += '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;"><div style="font-weight:bold;color:var(--acc);margin-bottom:6px;">' + line + '</div><div style="font-size:11px;color:var(--mut);">';
             continue;
           }
           if (inSsidSection) {
-            ssidSection += line + '<br>';
-            continue;
+            if (line.startsWith('WiFi') || line.startsWith('BLE')) { inSsidSection = false; }
+            else { ssidSection += line + '\n'; continue; }
           }
           if (line.startsWith('WiFi') || line.startsWith('BLE')) {
             deviceLines.push(line);
           }
         }
 
+        // Device cards
         if (deviceLines.length > 0) {
-          html += '<div style="overflow-x:auto;">';
-          html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
-          html += '<thead><tr style="background:var(--surf);border-bottom:2px solid var(--bord);">';
-          html += '<th style="padding:6px;text-align:left;">MAC</th><th style="padding:6px;">RSSI</th><th style="padding:6px;">CH</th><th style="padding:6px;text-align:left;">Vendor</th><th style="padding:6px;text-align:left;">SSID</th><th style="padding:6px;">Status</th>';
-          html += '</tr></thead><tbody>';
+          html += '<div style="display:flex;flex-direction:column;gap:6px;">';
 
           for (const line of deviceLines) {
-            const isHit = line.includes('[HIT');
-            const isDst = line.includes('(dst)');
+            const isKnown = line.includes('[KNOWN:');
             const macM = line.match(/([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
             const rssiM = line.match(/RSSI=(-?\d+)dBm/);
             const chM = line.match(/CH=(\d+)/);
-            const ssidM = line.match(/"([^"]*)"/);
             const wildcard = line.includes('(wildcard)');
+            const countM = line.match(/\sx(\d+)/);
 
+            // Parse vendor: word after CH=N
             let vendor = '';
-            const afterCh = line.replace(/.*CH=\d+\s*/, '');
-            const vendorM = afterCh.match(/^(\S+)/);
-            if (vendorM && vendorM[1] !== '"' && !vendorM[1].startsWith('"')) vendor = vendorM[1];
+            const vendorM = line.match(/CH=\d+\s+(\w+)/);
+            if (vendorM && vendorM[1] !== 'probes' && vendorM[1] !== 'AP') vendor = vendorM[1];
 
-            const rowBg = isHit ? 'background:rgba(231,76,60,0.12);' : '';
-            html += '<tr style="border-bottom:1px solid var(--bord);' + rowBg + '">';
-            html += '<td style="padding:6px;font-family:monospace;">' + (macM ? macM[1] : '') + '</td>';
-            html += '<td style="padding:6px;text-align:center;">' + (rssiM ? rssiM[1] : '') + '</td>';
-            html += '<td style="padding:6px;text-align:center;">' + (chM ? chM[1] : '') + '</td>';
-            html += '<td style="padding:6px;">' + vendor + '</td>';
-            html += '<td style="padding:6px;">' + (ssidM ? ssidM[1] : (wildcard ? '<em>wildcard</em>' : '')) + '</td>';
-            let status = '';
-            if (isHit) {
-              const hitType = line.match(/\[HIT:?(\w*)\]/);
-              status = '<span style="color:#e74c3c;font-weight:bold;">HIT' + (hitType && hitType[1] ? ':' + hitType[1] : '') + '</span>';
+            // Parse all SSIDs from probes:"X","Y" format
+            let ssids = [];
+            const probesM = line.match(/probes:((?:"[^"]*",?)+)/);
+            if (probesM) {
+              const matches = probesM[1].matchAll(/"([^"]*)"/g);
+              for (const m of matches) ssids.push(m[1]);
             }
-            if (isDst) status += (status ? ' ' : '') + '<span style="color:var(--acc);">dst</span>';
-            html += '<td style="padding:6px;text-align:center;">' + status + '</td>';
-            html += '</tr>';
+
+            // Parse responding AP (SSID + optional BSSID)
+            const apM = line.match(/AP="([^"]*)"/);
+            const apBssidM = line.match(/APBSSID=([A-Fa-f0-9:]+)/);
+
+            // Parse KNOWN history
+            const knownM = line.match(/\[KNOWN:seen=(\d+)\s+sessions=(\d+)\s+last=([^\]]+)\]/);
+
+            // Card styling
+            let borderColor = 'var(--bord)';
+            let bgColor = 'var(--surf)';
+            if (isKnown) { borderColor = '#3498db'; bgColor = 'rgba(52,152,219,0.06)'; }
+
+            html += '<div style="padding:8px 12px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:8px;font-size:11px;">';
+
+            // Top row: MAC + vendor + status badges
+            html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+            html += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);">' + (macM ? macM[1] : '') + '</span>';
+            if (vendor === 'Randomized') {
+              html += '<span style="background:#8e44ad;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">RAND</span>';
+            } else if (vendor) {
+              html += '<span style="color:var(--mut);">' + vendor + '</span>';
+            }
+            html += '<span style="color:var(--mut);">' + (rssiM ? rssiM[1] + 'dBm' : '') + '</span>';
+            if (chM) html += '<span style="color:var(--mut);">CH' + chM[1] + '</span>';
+            if (countM && parseInt(countM[1]) > 1) html += '<span style="color:var(--acc);">x' + countM[1] + '</span>';
+            if (isKnown) html += '<span style="background:#3498db;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">KNOWN</span>';
+            html += '</div>';
+
+            // Second row: SSIDs this device is probing for
+            if (ssids.length > 0) {
+              html += '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">';
+              html += '<span style="color:var(--mut);font-size:10px;">Probing:</span>';
+              for (const s of ssids) {
+                html += '<span data-ssid="' + s + '" style="background:var(--bg);border:1px solid var(--bord);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--txt);">' + s + '</span>';
+              }
+              html += '</div>';
+            } else if (wildcard) {
+              html += '<div style="margin-top:4px;color:var(--mut);font-size:10px;font-style:italic;">Broadcast probe (no specific SSID)</div>';
+            }
+
+            // Third row: Responding AP (from probe response intelligence)
+            if (apM) {
+              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:3px;font-size:10px;color:#2ecc71;">AP responded: <strong>' + apM[1] + '</strong>';
+              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>';
+              html += '</div>';
+            }
+
+            // Fourth row: Historical intelligence
+            if (knownM) {
+              html += '<div style="margin-top:3px;font-size:10px;color:#3498db;">Seen ' + knownM[1] + ' times across ' + knownM[2] + ' sessions, last: ' + knownM[3] + '</div>';
+            }
+
+            html += '</div>';
           }
-          html += '</tbody></table></div>';
+          html += '</div>';
         }
 
-        if (ssidSection) {
-          html += ssidSection + '</div></div>';
+        // SSID intelligence panel
+        if (ssidSection.trim()) {
+          const ssidLines = ssidSection.trim().split('\n');
+          html += '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+          html += '<div style="font-weight:bold;color:var(--acc);margin-bottom:8px;">Network Intelligence (' + ssidLines.length + ' SSIDs)</div>';
+          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+          for (const sl of ssidLines) {
+            const sm = sl.trim().match(/"([^"]+)"\s*\((\d+)\s+device/);
+            if (sm) {
+              const devCount = parseInt(sm[2]);
+              const opacity = Math.min(1, 0.4 + devCount * 0.2);
+              const macsM = sl.match(/\[([^\]]+)\]/);
+              let tooltip = sm[1] + ' (' + devCount + ' device' + (devCount > 1 ? 's' : '') + ')';
+              if (macsM) tooltip += ': ' + macsM[1];
+              html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:rgba(46,204,113,' + opacity + ');color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:' + (devCount > 2 ? 'bold' : 'normal') + ';cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup></span>';
+            }
+          }
+          html += '</div></div>';
         }
 
         return html;
@@ -3115,19 +3209,32 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         
         const lines = text.split('\n');
+        let inProbeSection = false;
+        let probeLines = [];
+
         lines.forEach(line => {
+          if (line.startsWith('--- Probe Intelligence')) {
+            inProbeSection = true;
+            return;
+          }
+
+          if (inProbeSection) {
+            if (line.trim().length > 0) probeLines.push(line.trim());
+            return;
+          }
+
           const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
           if (!match) return;
-          
+
           const type = match[1];
           const mac = match[2];
           const rssi = match[3];
           const channel = match[4] || '';
           const name = match[5] || 'Unknown';
-          
+
           const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
           const rssiColor = rssiColorFor(rssi);
-          
+
           html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
           html += '<div>';
@@ -3142,7 +3249,48 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div>';
           html += '</div>';
         });
-        
+
+        // Render probe intelligence section if present
+        if (probeLines.length > 0) {
+          html += '<div style="margin-top:16px;padding:10px;background:var(--surf);border:1px solid #8e44ad;border-radius:8px;">';
+          html += '<div style="font-weight:bold;color:#8e44ad;margin-bottom:8px;">Probe Intelligence (' + probeLines.length + ' probing devices)</div>';
+          html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+          for (const pl of probeLines) {
+            const macM = pl.match(/^([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
+            const isRand = pl.includes(' Rand');
+            const probesM = pl.match(/probes:((?:"[^"]*",?)+)/);
+            const apM = pl.match(/AP="([^"]*)"/);
+            const apBssidM = pl.match(/APBSSID=([A-Fa-f0-9:]+)/);
+            const countM = pl.match(/x(\d+)$/);
+            const vendorM = pl.match(/^[A-F0-9:]+\s+(\w+)/);
+            const vendor = vendorM && vendorM[1] !== 'Rand' && vendorM[1] !== 'probes' && vendorM[1] !== 'AP' ? vendorM[1] : '';
+
+            html += '<div style="padding:6px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;">';
+            html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+            if (macM) html += '<span style="font-family:monospace;font-weight:bold;">' + macM[1] + '</span>';
+            if (isRand) html += '<span style="background:#8e44ad;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
+            else if (vendor) html += '<span style="color:var(--mut);">' + vendor + '</span>';
+            if (countM) html += '<span style="color:var(--acc);">x' + countM[1] + '</span>';
+            html += '</div>';
+            if (probesM) {
+              html += '<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;">';
+              html += '<span style="color:var(--mut);font-size:9px;">Probing:</span>';
+              const ssids = probesM[1].matchAll(/"([^"]*)"/g);
+              for (const s of ssids) {
+                html += '<span data-ssid="' + s[1] + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;">' + s[1] + '</span>';
+              }
+              html += '</div>';
+            }
+            if (apM) {
+              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:2px;font-size:9px;color:#2ecc71;">AP responded: <strong>' + apM[1] + '</strong>';
+              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>';
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+          html += '</div></div>';
+        }
+
         return html;
       }
 
@@ -4827,7 +4975,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                 if (req->hasParam("captureProbes", true)) {
                     probeDetectionEnabled = true;
                     if (probeRequestQueue == nullptr) {
-                        probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
+                        probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
                     } else {
                         xQueueReset(probeRequestQueue);
                     }
@@ -5308,6 +5456,25 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       req->send(200, "text/plain", "Results cleared");
   });
 
+  // Probe database endpoints
+  server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
+      uint32_t dbSize = getProbeDBSize();
+      req->send(200, "text/plain", "Probe database: " + String(dbSize) + " known devices");
+  });
+
+  server->on("/api/probedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+      clearProbeDB();
+      req->send(200, "text/plain", "Probe database cleared");
+  });
+
+  server->on("/api/probes.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
+      if (SD.exists("/probes.jsonl")) {
+          req->send(SD, "/probes.jsonl", "application/x-ndjson");
+      } else {
+          req->send(404, "text/plain", "No probe log file");
+      }
+  });
+
   server->on("/wifi-config", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!req->hasParam("ssid", true)) {
           req->send(400, "text/plain", "Missing SSID parameter");
@@ -5753,6 +5920,58 @@ void processCommand(const String &command, const String &targetId = "")
         sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
       }
     }
+  }
+  else if (command.startsWith("PROBE_START:"))
+  {
+    // PROBE_START:<mode>:<secs>[:FOREVER]
+    String params = command.substring(12);
+    int modeDelim = params.indexOf(':');
+    int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+    int secs = 60;
+    bool forever = false;
+
+    if (modeDelim > 0)
+    {
+      int secsDelim = params.indexOf(':', modeDelim + 1);
+      secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
+      if (secsDelim > 0 && params.substring(secsDelim + 1) == "FOREVER")
+      {
+        forever = true;
+      }
+    }
+
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
+
+    if (mode >= 0 && mode <= 2)
+    {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+        Serial.println("[MESH] Radio busy, rejecting PROBE_START");
+        sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
+      } else {
+        currentScanMode = (ScanMode)mode;
+        stopRequested = false;
+        scanning = true;
+        xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
+                                (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
+        Serial.printf("[MESH] Started probe detection via mesh command (%ds)\n", secs);
+        sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
+      }
+    }
+  }
+  else if (command.startsWith("PROBE_STOP"))
+  {
+    stopRequested = true;
+    Serial.println("[MESH] Probe stop command received via mesh");
+    sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
+  }
+  else if (command.startsWith("PROBE_HIT "))
+  {
+    // Received a PROBE_HIT from another node — log it to terminal
+    // Full message format: "PROBE_HIT AA:BB:CC:DD:EE:FF Apple RSSI=-42 CH=6 SSID=\"HomeNet\""
+    String payload = command.substring(10);
+    Serial.printf("[MESH] PROBE_HIT received: %s\n", payload.c_str());
+    broadcastToTerminal("[PROBE_HIT] " + payload);
   }
   else if (command.startsWith("STOP"))
   {
