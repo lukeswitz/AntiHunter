@@ -675,9 +675,17 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
     }
 };
 
+// Forward declarations for probe system (defined later, needed by snifferScanTask)
+static std::map<String, ProbeDevice> probeDevices;
+static std::mutex probeMutex;
+static std::set<String> uniqueSsids;
+static void addProbeSsid(ProbeDevice &dev, const char *ssid);
+static bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
+static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize);
+
 void snifferScanTask(void *pv)
 {
-    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : 
+    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                  (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
     int duration = (int)(intptr_t)pv;
@@ -974,9 +982,93 @@ void snifferScanTask(void *pv)
             }
         }
 
+        // Drain probeRequestQueue when captureProbes is enabled during device scan
+        if (probeDetectionEnabled && probeRequestQueue) {
+            ProbeRequestEvent pEvt;
+            int pCount = 0;
+            while (xQueueReceive(probeRequestQueue, &pEvt, 0) == pdTRUE && pCount < 30) {
+                pCount++;
+
+                // Handle probe responses — map responding AP to device
+                if (pEvt.isProbeResponse) {
+                    char devMac[18];
+                    snprintf(devMac, sizeof(devMac), "%02X:%02X:%02X:%02X:%02X:%02X",
+                             pEvt.addr1[0], pEvt.addr1[1], pEvt.addr1[2],
+                             pEvt.addr1[3], pEvt.addr1[4], pEvt.addr1[5]);
+                    char respSsid[33] = {0};
+                    extractSsidFromIE(pEvt.payload, pEvt.payloadLen, 36, respSsid, sizeof(respSsid));
+                    std::lock_guard<std::mutex> lock(probeMutex);
+                    auto pit = probeDevices.find(String(devMac));
+                    if (pit != probeDevices.end()) {
+                        ProbeDevice &pd = pit->second;
+                        char apBssid[18];
+                        snprintf(apBssid, sizeof(apBssid), "%02X:%02X:%02X:%02X:%02X:%02X",
+                                 pEvt.addr3[0], pEvt.addr3[1], pEvt.addr3[2],
+                                 pEvt.addr3[3], pEvt.addr3[4], pEvt.addr3[5]);
+                        strncpy(pd.respondingAP, apBssid, 17);
+                        pd.respondingAP[17] = '\0';
+                        if (respSsid[0]) {
+                            strncpy(pd.respondingSSID, respSsid, 32);
+                            pd.respondingSSID[32] = '\0';
+                            addProbeSsid(pd, respSsid);
+                        }
+                    }
+                    continue;
+                }
+
+                if (pEvt.dstMatch) {
+                    if (!matchesMac(pEvt.mac)) continue;
+                }
+
+                char pmac[18];
+                snprintf(pmac, sizeof(pmac), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         pEvt.mac[0], pEvt.mac[1], pEvt.mac[2],
+                         pEvt.mac[3], pEvt.mac[4], pEvt.mac[5]);
+
+                char pssid[33] = {0};
+                bool pHasSsid = false;
+                if (!pEvt.dstMatch) {
+                    pHasSsid = extractSsidFromProbe(pEvt.payload, pEvt.payloadLen, pssid, sizeof(pssid));
+                }
+
+                bool pRandomized = (pEvt.mac[0] & 0x02) && !(pEvt.mac[0] & 0x01);
+
+                std::lock_guard<std::mutex> lock(probeMutex);
+                if (pHasSsid && pssid[0]) uniqueSsids.insert(String(pssid));
+
+                auto pit = probeDevices.find(String(pmac));
+                if (pit != probeDevices.end()) {
+                    ProbeDevice &pd = pit->second;
+                    pd.rssi = pEvt.rssi;
+                    pd.lastSeen = millis();
+                    pd.probeCount++;
+                    if (pHasSsid) addProbeSsid(pd, pssid);
+                } else if (probeDevices.size() < 100) {
+                    ProbeDevice pd = {};
+                    memcpy(pd.mac, pEvt.mac, 6);
+                    pd.rssi = pEvt.rssi;
+                    pd.rssiMin = pEvt.rssi;
+                    pd.rssiMax = pEvt.rssi;
+                    pd.channel = pEvt.channel;
+                    pd.firstSeen = millis();
+                    pd.lastSeen = millis();
+                    pd.probeCount = 1;
+                    pd.isRandomized = pRandomized;
+                    pd.respondingAP[0] = '\0';
+                    pd.respondingSSID[0] = '\0';
+                    if (!pRandomized) {
+                        const char *pv = lookupOuiVendor(pEvt.mac);
+                        if (pv) strncpy(pd.vendor, pv, sizeof(pd.vendor) - 1);
+                    }
+                    if (pHasSsid) addProbeSsid(pd, pssid);
+                    probeDevices[String(pmac)] = pd;
+                }
+            }
+        }
+
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            
+
             std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
             results += "Elapsed: " + std::to_string((millis() - lastScanStart) / 1000) + "s";
             if (!forever && duration > 0) {
@@ -1009,7 +1101,37 @@ void snifferScanTask(void *pv)
             if (hitsLog.size() > 50) {
                 results += "... (" + std::to_string(hitsLog.size() - 50) + " more)\n";
             }
-            
+
+            // Append probe intelligence if captureProbes enabled
+            if (probeDetectionEnabled) {
+                std::lock_guard<std::mutex> plock(probeMutex);
+                if (!probeDevices.empty()) {
+                    results += "\n--- Probe Intelligence (" + std::to_string(probeDevices.size()) + " probing devices) ---\n";
+                    int pShown = 0;
+                    for (auto &pp : probeDevices) {
+                        if (pShown++ >= 20) break;
+                        ProbeDevice &pd = pp.second;
+                        results += std::string(pp.first.c_str());
+                        if (pd.isRandomized) {
+                            results += " Rand";
+                        } else if (pd.vendor[0]) {
+                            results += " " + std::string(pd.vendor);
+                        }
+                        if (pd.ssidCount > 0) {
+                            results += " probes:";
+                            for (uint8_t si = 0; si < pd.ssidCount; si++) {
+                                if (si > 0) results += ",";
+                                results += "\"" + std::string(pd.ssids[si]) + "\"";
+                            }
+                        }
+                        if (pd.respondingSSID[0]) {
+                            results += " AP=\"" + std::string(pd.respondingSSID) + "\"";
+                        }
+                        results += " x" + std::to_string(pd.probeCount) + "\n";
+                    }
+                }
+            }
+
             antihunter::lastResults = results;
             nextResultsUpdate = millis() + 5000;
         }
@@ -1027,6 +1149,17 @@ void snifferScanTask(void *pv)
         BLEDevice::deinit(false);
         pBLEScan = nullptr;
         delay(200);
+    }
+
+    // Save probe data to SD if captureProbes was enabled
+    bool hadProbes = probeDetectionEnabled.load();
+    if (hadProbes) {
+        std::lock_guard<std::mutex> plock(probeMutex);
+        for (auto &pp : probeDevices) {
+            mergeProbeDeviceToDB(pp.second);
+        }
+        saveProbeDB();
+        Serial.printf("[SNIFFER] Saved %u probe devices to DB\n", probeDevices.size());
     }
 
     probeDetectionEnabled = false;
@@ -1684,9 +1817,39 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                                       : (uint16_t)sizeof(probeEvt.payload);
                 memcpy(probeEvt.payload, payload, probeEvt.payloadLen);
                 probeEvt.dstMatch = false;
+                probeEvt.isProbeResponse = false;
                 BaseType_t woken = pdFALSE;
                 xQueueSendFromISR(probeRequestQueue, &probeEvt, &woken);
                 if (woken) portYIELD_FROM_ISR();
+            }
+        }
+
+        // Probe Response (stype 5): addr1=DA (client), addr2=SA (AP), addr3=BSSID
+        // Rate-limited: only queue if queue <50% full to preserve capacity for probe requests
+        else if (ftype == 0 && stype == 5 && probeDetectionEnabled && probeRequestQueue) {
+            UBaseType_t qFree = uxQueueSpacesAvailable(probeRequestQueue);
+            if (qFree > 128) {
+                const uint8_t *da = payload + 4;
+                const uint8_t *sa = payload + 10;
+                const uint8_t *bssid = payload + 16;
+
+                if (da[0] != 0xFF && !(da[0] & 0x01)) {
+                    ProbeRequestEvent respEvt = {};
+                    memcpy(respEvt.mac, sa, 6);
+                    memcpy(respEvt.addr1, da, 6);
+                    memcpy(respEvt.addr3, bssid, 6);
+                    respEvt.rssi = ppkt->rx_ctrl.rssi;
+                    respEvt.channel = ppkt->rx_ctrl.channel;
+                    respEvt.payloadLen = ppkt->rx_ctrl.sig_len < sizeof(respEvt.payload)
+                                         ? ppkt->rx_ctrl.sig_len
+                                         : (uint16_t)sizeof(respEvt.payload);
+                    memcpy(respEvt.payload, payload, respEvt.payloadLen);
+                    respEvt.dstMatch = false;
+                    respEvt.isProbeResponse = true;
+                    BaseType_t woken = pdFALSE;
+                    xQueueSendFromISR(probeRequestQueue, &respEvt, &woken);
+                    if (woken) portYIELD_FROM_ISR();
+                }
             }
         }
 
@@ -1717,20 +1880,22 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             }
         }
 
-        if (probeDetectionEnabled && ftype == 0 && probeRequestQueue) {
-            const uint8_t *da = payload + 4;
-            // Send unicast dst MACs to probe task for matching
-            // (matchesMac not safe here - takes mutex)
-            if (da[0] != 0xFF && !(da[0] & 0x01)) {
-                ProbeRequestEvent dstEvt = {};
-                memcpy(dstEvt.mac, da, 6);
-                dstEvt.rssi = ppkt->rx_ctrl.rssi;
-                dstEvt.channel = ppkt->rx_ctrl.channel;
-                dstEvt.payloadLen = 0;
-                dstEvt.dstMatch = true;
-                BaseType_t woken = pdFALSE;
-                xQueueSendFromISR(probeRequestQueue, &dstEvt, &woken);
-                if (woken) portYIELD_FROM_ISR();
+        if (probeDetectionEnabled && ftype == 0 && probeRequestQueue
+            && stype != 4 && stype != 5 && stype != 8) {
+            UBaseType_t qFree2 = uxQueueSpacesAvailable(probeRequestQueue);
+            if (qFree2 > 192) {
+                const uint8_t *da = payload + 4;
+                if (da[0] != 0xFF && !(da[0] & 0x01)) {
+                    ProbeRequestEvent dstEvt = {};
+                    memcpy(dstEvt.mac, da, 6);
+                    dstEvt.rssi = ppkt->rx_ctrl.rssi;
+                    dstEvt.channel = ppkt->rx_ctrl.channel;
+                    dstEvt.payloadLen = 0;
+                    dstEvt.dstMatch = true;
+                    BaseType_t woken = pdFALSE;
+                    xQueueSendFromISR(probeRequestQueue, &dstEvt, &woken);
+                    if (woken) portYIELD_FROM_ISR();
+                }
             }
         }
     }
@@ -2168,10 +2333,7 @@ void radioStopListScan() {
     Serial.println("[RADIO] List scan mode stopped");
 }
 
-static std::map<String, ProbeDevice> probeDevices;
-static std::mutex probeMutex;
 static std::atomic<uint32_t> totalProbeCount(0);
-static std::set<String> uniqueSsids;
 static std::atomic<uint32_t> probeHitCount(0);
 static std::map<String, uint32_t> probeHitCooldowns;
 static const uint32_t PROBE_HIT_COOLDOWN_MS = 60000;
@@ -2187,6 +2349,29 @@ static void addProbeSsid(ProbeDevice &dev, const char *ssid)
         dev.ssids[dev.ssidCount][32] = '\0';
         dev.ssidCount++;
     }
+}
+
+// Extract SSID from IE tags. ieStart=24 for probe requests, 36 for probe responses/beacons.
+static bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize)
+{
+    if (frameLen < ieStart + 2) return false;
+    const uint8_t *ie = payload + ieStart;
+    uint16_t ieLen = frameLen - ieStart;
+    uint16_t offset = 0;
+    while (offset + 2 <= ieLen) {
+        uint8_t tag = ie[offset];
+        uint8_t len = ie[offset + 1];
+        if (offset + 2 + len > ieLen) break;
+        if (tag == 0) {
+            if (len == 0) { ssidBuf[0] = '\0'; return false; }
+            size_t copyLen = (len < ssidBufSize - 1) ? len : (ssidBufSize - 1);
+            memcpy(ssidBuf, &ie[offset + 2], copyLen);
+            ssidBuf[copyLen] = '\0';
+            return true;
+        }
+        offset += 2 + len;
+    }
+    return false;
 }
 
 static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize)
@@ -2269,6 +2454,10 @@ void probeDetectionTask(void *pv)
 
     Serial.printf("[PROBE] Starting probe detection, duration=%d forever=%d\n", duration, forever);
 
+    // Load known device database from SD
+    loadProbeDB();
+    Serial.printf("[PROBE] Probe DB loaded: %u known devices\n", getProbeDBSize());
+
     {
         std::lock_guard<std::mutex> lock(probeMutex);
         probeDevices.clear();
@@ -2279,7 +2468,7 @@ void probeDetectionTask(void *pv)
     }
 
     if (probeRequestQueue == nullptr) {
-        probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
+        probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
     } else {
         xQueueReset(probeRequestQueue);
     }
@@ -2304,14 +2493,49 @@ void probeDetectionTask(void *pv)
     uint32_t startTime = millis();
     uint32_t nextResultsUpdate = startTime;
     uint32_t lastBLEScan = 0;
+    uint32_t lastDBSave = startTime;
 
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
 
         ProbeRequestEvent event;
         int processedCount = 0;
-        while (xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 20) {
+        while (xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 60) {
             processedCount++;
+
+            // --- Probe Response (stype 5) ---
+            // Maps the responding AP's SSID to the device that sent the probe request
+            if (event.isProbeResponse) {
+                // addr1 = device that probed, extract SSID from probe response IEs (offset 36)
+                char devMacStr[18];
+                snprintf(devMacStr, sizeof(devMacStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         event.addr1[0], event.addr1[1], event.addr1[2],
+                         event.addr1[3], event.addr1[4], event.addr1[5]);
+
+                char apBssid[18];
+                snprintf(apBssid, sizeof(apBssid), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         event.addr3[0], event.addr3[1], event.addr3[2],
+                         event.addr3[3], event.addr3[4], event.addr3[5]);
+
+                char respSsid[33] = {0};
+                extractSsidFromIE(event.payload, event.payloadLen, 36, respSsid, sizeof(respSsid));
+
+                std::lock_guard<std::mutex> lock(probeMutex);
+                auto it = probeDevices.find(String(devMacStr));
+                if (it != probeDevices.end()) {
+                    ProbeDevice &dev = it->second;
+                    strncpy(dev.respondingAP, apBssid, 17);
+                    dev.respondingAP[17] = '\0';
+                    if (respSsid[0]) {
+                        strncpy(dev.respondingSSID, respSsid, 32);
+                        dev.respondingSSID[32] = '\0';
+                        addProbeSsid(dev, respSsid);
+                        uniqueSsids.insert(String(respSsid));
+                    }
+                }
+                continue;
+            }
+
             totalProbeCount++;
 
             char macStr[18];
@@ -2389,6 +2613,24 @@ void probeDetectionTask(void *pv)
                     dev.isRandomized = randomized;
                     dev.isTargetHit = isHit;
                     dev.isDstHit = dstHit;
+                    dev.respondingAP[0] = '\0';
+                    dev.respondingSSID[0] = '\0';
+
+                    // Annotate with SD database history
+                    ProbeDBEntry hist;
+                    if (lookupProbeHistory(macStr, hist)) {
+                        dev.histKnown = true;
+                        dev.histTotalSeen = hist.totalSeen;
+                        dev.histFirstEpoch = hist.firstEpoch;
+                        dev.histLastEpoch = hist.lastEpoch;
+                        dev.histSessionCount = hist.sessionCount;
+                    } else {
+                        dev.histKnown = false;
+                        dev.histTotalSeen = 0;
+                        dev.histFirstEpoch = 0;
+                        dev.histLastEpoch = 0;
+                        dev.histSessionCount = 0;
+                    }
 
                     if (vendor) {
                         strncpy(dev.vendor, vendor, sizeof(dev.vendor) - 1);
@@ -2409,7 +2651,7 @@ void probeDetectionTask(void *pv)
             }
 
             if (isHit) {
-                sendProbeHitMesh(event.mac, event.rssi, event.channel, ssidBuf, vendor, event.dstMatch);
+                sendProbeHitMesh(event.mac, event.rssi, event.channel, ssidBuf, vendor, dstHit);
             }
         }
 
@@ -2464,6 +2706,18 @@ void probeDetectionTask(void *pv)
             lastBLEScan = millis();
         }
 
+        // Periodic DB save every 60s (for forever mode resilience)
+        if ((millis() - lastDBSave) >= 60000) {
+            {
+                std::lock_guard<std::mutex> lock(probeMutex);
+                for (auto &p : probeDevices) {
+                    mergeProbeDeviceToDB(p.second);
+                }
+            }
+            saveProbeDB();
+            lastDBSave = millis();
+        }
+
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
@@ -2473,15 +2727,78 @@ void probeDetectionTask(void *pv)
         radioStopSTA();
     }
 
+    // Merge all devices into SD database and save
+    {
+        std::lock_guard<std::mutex> lock(probeMutex);
+        for (auto &p : probeDevices) {
+            mergeProbeDeviceToDB(p.second);
+        }
+    }
+    saveProbeDB();
+    Serial.printf("[PROBE] Merged %u devices into probe database\n", probeDevices.size());
+
+    // Log probe events to /probes.jsonl on SD
+    {
+        File logFile = SD.open("/probes.jsonl", FILE_APPEND);
+        if (logFile) {
+            uint32_t now = millis() / 1000;
+            std::lock_guard<std::mutex> lock(probeMutex);
+            for (auto &p : probeDevices) {
+                ProbeDevice &dev = p.second;
+                DynamicJsonDocument doc(512);
+                doc["t"] = now;
+                doc["mac"] = p.first;
+                doc["rssi"] = dev.rssi;
+                doc["ch"] = dev.channel;
+                doc["cnt"] = dev.probeCount;
+                doc["rand"] = dev.isRandomized;
+                if (dev.vendor[0]) doc["v"] = dev.vendor;
+                if (dev.isTargetHit) doc["hit"] = true;
+                if (dev.isDstHit) doc["dst"] = true;
+                JsonArray ss = doc.createNestedArray("ss");
+                for (uint8_t i = 0; i < dev.ssidCount; i++) {
+                    ss.add(dev.ssids[i]);
+                }
+                if (dev.respondingAP[0]) doc["ap"] = dev.respondingAP;
+                if (dev.respondingSSID[0]) doc["apssid"] = dev.respondingSSID;
+                serializeJson(doc, logFile);
+                logFile.println();
+            }
+            logFile.close();
+
+            // Rotate if over 1MB
+            File check = SD.open("/probes.jsonl", FILE_READ);
+            if (check && check.size() > 1048576) {
+                check.close();
+                SD.remove("/probes_old.jsonl");
+                SD.rename("/probes.jsonl", "/probes_old.jsonl");
+                Serial.println("[PROBE] Rotated probes.jsonl");
+            } else if (check) {
+                check.close();
+            }
+        }
+    }
+
+    scanning = false;
+
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = getProbeResults().c_str();
     }
 
-    scanning = false;
     workerTaskHandle = nullptr;
     Serial.println("[PROBE] Probe detection stopped");
     vTaskDelete(nullptr);
+}
+
+static String formatAge(uint32_t epochNow, uint32_t epochThen)
+{
+    if (epochThen == 0 || epochNow <= epochThen) return "now";
+    uint32_t diff = epochNow - epochThen;
+    if (diff < 60) return String(diff) + "s ago";
+    if (diff < 3600) return String(diff / 60) + "m ago";
+    if (diff < 86400) return String(diff / 3600) + "h ago";
+    return String(diff / 86400) + "d ago";
 }
 
 String getProbeResults()
@@ -2496,7 +2813,7 @@ String getProbeResults()
     results += "\nDevices: " + String(probeDevices.size()) +
                " | Probes: " + String((uint32_t)totalProbeCount) +
                " | SSIDs: " + String(uniqueSsids.size()) +
-               " | Hits: " + String((uint32_t)probeHitCount) + "\n\n";
+               " | Saved: " + String(getProbeDBSize()) + "\n\n";
 
     std::vector<std::pair<String, ProbeDevice*>> sorted;
     for (auto &p : probeDevices) {
@@ -2504,9 +2821,11 @@ String getProbeResults()
     }
     std::sort(sorted.begin(), sorted.end(),
         [](const std::pair<String, ProbeDevice*> &a, const std::pair<String, ProbeDevice*> &b) {
-        if (a.second->isTargetHit != b.second->isTargetHit) return a.second->isTargetHit;
+        if (a.second->histKnown != b.second->histKnown) return a.second->histKnown;
         return a.second->rssi > b.second->rssi;
     });
+
+    uint32_t nowEpoch = millis() / 1000;
 
     for (auto &p : sorted) {
         ProbeDevice &dev = *p.second;
@@ -2518,35 +2837,69 @@ String getProbeResults()
             results += String(dev.vendor);
         }
 
+        // SSIDs this device is probing for
         if (dev.ssidCount > 0) {
-            results += " \"" + String(dev.ssids[0]) + "\"";
+            results += " probes:";
+            for (uint8_t i = 0; i < dev.ssidCount; i++) {
+                if (i > 0) results += ",";
+                results += "\"" + String(dev.ssids[i]) + "\"";
+            }
         } else {
             results += " (wildcard)";
         }
 
-        if (dev.isDstHit) results += " (dst)";
+        // Probe response intelligence — what AP responded
+        if (dev.respondingSSID[0]) {
+            results += " AP=\"" + String(dev.respondingSSID) + "\"";
+            if (dev.respondingAP[0]) results += " APBSSID=" + String(dev.respondingAP);
+        }
 
-        if (dev.isTargetHit) {
-            if (dev.hitReason[0]) {
-                results += " [HIT:" + String(dev.hitReason) + "]";
-            } else {
-                results += " [HIT]";
-            }
+        // Probe count this session
+        if (dev.probeCount > 1) {
+            results += " x" + String(dev.probeCount);
+        }
+
+        // Historical intelligence from SD database
+        if (dev.histKnown) {
+            results += " [KNOWN:seen=" + String(dev.histTotalSeen) +
+                       " sessions=" + String(dev.histSessionCount) +
+                       " last=" + formatAge(nowEpoch, dev.histLastEpoch) + "]";
         }
 
         results += "\n";
     }
 
+    // SSID summary with device mapping
     if (uniqueSsids.size() > 0) {
         results += "\nSSIDs seen (" + String(uniqueSsids.size()) + "):\n";
-        std::map<String, int> ssidDevCount;
+
+        // Build SSID->devices map
+        std::map<String, std::vector<String>> ssidToDevices;
         for (auto &p : probeDevices) {
             for (uint8_t i = 0; i < p.second.ssidCount; i++) {
-                ssidDevCount[String(p.second.ssids[i])]++;
+                ssidToDevices[String(p.second.ssids[i])].push_back(p.first);
             }
         }
-        for (auto &s : ssidDevCount) {
-            results += "  " + s.first + " (" + String(s.second) + (s.second == 1 ? " device" : " devices") + ")\n";
+
+        // Sort by device count descending
+        std::vector<std::pair<String, std::vector<String>>> ssidSorted(ssidToDevices.begin(), ssidToDevices.end());
+        std::sort(ssidSorted.begin(), ssidSorted.end(),
+            [](const std::pair<String, std::vector<String>> &a,
+               const std::pair<String, std::vector<String>> &b) { return a.second.size() > b.second.size(); });
+
+        for (auto &s : ssidSorted) {
+            results += "  \"" + s.first + "\" (" + String(s.second.size()) +
+                       (s.second.size() == 1 ? " device" : " devices") + ")";
+            // Show the first 3 MAC addresses probing for this SSID
+            if (s.second.size() <= 3) {
+                results += " [";
+                for (size_t i = 0; i < s.second.size(); i++) {
+                    if (i > 0) results += ", ";
+                    results += s.second[i].substring(9); // last 3 octets for brevity
+                }
+                results += "]";
+            }
+            results += "\n";
         }
     }
 
@@ -2561,6 +2914,200 @@ void resetProbeDetection()
     totalProbeCount = 0;
     probeHitCount = 0;
     probeHitCooldowns.clear();
+}
+
+// --- SD Probe Device Database ---
+// Stores known devices as JSONL on SD: /probedb.jsonl
+// Each line: {"m":"AA:BB:CC:DD:EE:FF","t":1234,"f":100,"l":200,"s":3,"r":-42,"v":"Apple","rd":0,"ss":["Net1","Net2"]}
+
+static std::map<String, ProbeDBEntry> probeDB;
+static std::mutex probeDBMutex;
+static const char *PROBE_DB_PATH = "/probedb.jsonl";
+static const size_t PROBE_DB_MAX_ENTRIES = 500;
+
+void loadProbeDB()
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    probeDB.clear();
+
+    if (!SD.exists(PROBE_DB_PATH)) {
+        Serial.println("[PROBEDB] No database file on SD");
+        return;
+    }
+
+    File f = SD.open(PROBE_DB_PATH, FILE_READ);
+    if (!f) {
+        Serial.println("[PROBEDB] Failed to open database");
+        return;
+    }
+
+    uint32_t count = 0;
+    while (f.available() && count < PROBE_DB_MAX_ENTRIES) {
+        String line = f.readStringUntil('\n');
+        line.trim();
+        if (line.length() < 10) continue;
+
+        DynamicJsonDocument doc(512);
+        if (deserializeJson(doc, line) != DeserializationError::Ok) continue;
+
+        const char *mac = doc["m"] | "";
+        if (strlen(mac) < 17) continue;
+
+        ProbeDBEntry entry = {};
+        strncpy(entry.mac, mac, 17);
+        entry.mac[17] = '\0';
+        entry.totalSeen = doc["t"] | 0;
+        entry.firstEpoch = doc["f"] | 0;
+        entry.lastEpoch = doc["l"] | 0;
+        entry.sessionCount = doc["s"] | 0;
+        entry.bestRssi = doc["r"] | -128;
+        entry.isRandomized = doc["rd"] | false;
+
+        const char *vendor = doc["v"] | "";
+        strncpy(entry.vendor, vendor, sizeof(entry.vendor) - 1);
+
+        JsonArray ssArr = doc["ss"];
+        entry.ssidCount = 0;
+        if (ssArr) {
+            for (JsonVariant s : ssArr) {
+                if (entry.ssidCount >= 4) break;
+                const char *ss = s.as<const char*>();
+                if (ss && ss[0]) {
+                    strncpy(entry.ssids[entry.ssidCount], ss, 32);
+                    entry.ssids[entry.ssidCount][32] = '\0';
+                    entry.ssidCount++;
+                }
+            }
+        }
+
+        probeDB[String(mac)] = entry;
+        count++;
+    }
+    f.close();
+    Serial.printf("[PROBEDB] Loaded %u devices from SD\n", count);
+}
+
+void saveProbeDB()
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+
+    File f = SD.open(PROBE_DB_PATH, FILE_WRITE);
+    if (!f) {
+        Serial.println("[PROBEDB] Failed to write database");
+        return;
+    }
+
+    uint32_t written = 0;
+    for (auto &p : probeDB) {
+        DynamicJsonDocument doc(512);
+        doc["m"] = p.second.mac;
+        doc["t"] = p.second.totalSeen;
+        doc["f"] = p.second.firstEpoch;
+        doc["l"] = p.second.lastEpoch;
+        doc["s"] = p.second.sessionCount;
+        doc["r"] = p.second.bestRssi;
+        doc["v"] = p.second.vendor;
+        doc["rd"] = p.second.isRandomized ? 1 : 0;
+
+        JsonArray ss = doc.createNestedArray("ss");
+        for (uint8_t i = 0; i < p.second.ssidCount; i++) {
+            ss.add(p.second.ssids[i]);
+        }
+
+        serializeJson(doc, f);
+        f.println();
+        written++;
+    }
+    f.close();
+    Serial.printf("[PROBEDB] Saved %u devices to SD\n", written);
+}
+
+void mergeProbeDeviceToDB(const ProbeDevice &dev)
+{
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+             dev.mac[0], dev.mac[1], dev.mac[2], dev.mac[3], dev.mac[4], dev.mac[5]);
+
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    uint32_t now = millis() / 1000;
+
+    auto it = probeDB.find(String(macStr));
+    if (it != probeDB.end()) {
+        ProbeDBEntry &e = it->second;
+        e.totalSeen += dev.probeCount;
+        e.lastEpoch = now;
+        e.sessionCount++;
+        if (dev.rssi > e.bestRssi) e.bestRssi = dev.rssi;
+        if (dev.vendor[0] && !e.vendor[0]) {
+            strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
+        }
+        for (uint8_t i = 0; i < dev.ssidCount; i++) {
+            bool found = false;
+            for (uint8_t j = 0; j < e.ssidCount; j++) {
+                if (strcasecmp(e.ssids[j], dev.ssids[i]) == 0) { found = true; break; }
+            }
+            if (!found && e.ssidCount < 4) {
+                strncpy(e.ssids[e.ssidCount], dev.ssids[i], 32);
+                e.ssids[e.ssidCount][32] = '\0';
+                e.ssidCount++;
+            }
+        }
+    } else {
+        if (probeDB.size() >= PROBE_DB_MAX_ENTRIES) {
+            uint32_t oldestEpoch = UINT32_MAX;
+            String oldestKey;
+            for (auto &p : probeDB) {
+                if (p.second.lastEpoch < oldestEpoch) {
+                    oldestEpoch = p.second.lastEpoch;
+                    oldestKey = p.first;
+                }
+            }
+            if (oldestKey.length() > 0) probeDB.erase(oldestKey);
+        }
+
+        ProbeDBEntry e = {};
+        strncpy(e.mac, macStr, 17);
+        e.mac[17] = '\0';
+        e.totalSeen = dev.probeCount;
+        e.firstEpoch = now;
+        e.lastEpoch = now;
+        e.sessionCount = 1;
+        e.bestRssi = dev.rssi;
+        e.isRandomized = dev.isRandomized;
+        strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
+        e.ssidCount = 0;
+        for (uint8_t i = 0; i < dev.ssidCount && e.ssidCount < 4; i++) {
+            strncpy(e.ssids[e.ssidCount], dev.ssids[i], 32);
+            e.ssids[e.ssidCount][32] = '\0';
+            e.ssidCount++;
+        }
+        probeDB[String(macStr)] = e;
+    }
+}
+
+bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out)
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    auto it = probeDB.find(String(macStr));
+    if (it != probeDB.end()) {
+        out = it->second;
+        return true;
+    }
+    return false;
+}
+
+uint32_t getProbeDBSize()
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    return probeDB.size();
+}
+
+void clearProbeDB()
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    probeDB.clear();
+    SD.remove(PROBE_DB_PATH);
+    Serial.println("[PROBEDB] Database cleared");
 }
 
 void initializeScanner()

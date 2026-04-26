@@ -25,6 +25,9 @@ struct ProbeRequestEvent {
     uint16_t payloadLen;
     uint8_t payload[128];
     bool dstMatch;
+    bool isProbeResponse;    // stype 5: addr1=DA (device), addr2=SA (AP), addr3=BSSID
+    uint8_t addr1[6];        // destination (the device that sent the probe request)
+    uint8_t addr3[6];        // BSSID of the responding AP
 };
 
 extern QueueHandle_t probeRequestQueue;
