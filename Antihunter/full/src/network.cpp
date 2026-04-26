@@ -462,7 +462,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <details open>
               <summary style="cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;"><span>▶</span> Target List</summary>
               <form id="f" method="POST" action="/save">
-                <textarea id="list" name="list" placeholder="AA:BB:CC&#10;AA:BB:CC:DD:EE:FF" rows="3"></textarea>
+                <textarea id="list" name="list" placeholder="MAC, OUI, or SSID (one per line)&#10;AA:BB:CC:DD:EE:FF&#10;AA:BB:CC&#10;MyHomeWiFi" rows="3"></textarea>
                 <div id="targetCount" style="margin:4px 0 8px;color:var(--mut);font-size:11px;">0 targets</div>
                 <div style="display:flex;gap:8px;">
                   <button class="btn primary" type="submit">Save</button>
@@ -552,13 +552,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <form id="sniffer" method="POST" action="/sniffer">
               <label>Method</label>
               <select name="detection" id="detectionMode">
-                <option value="device-scan">Device Discovery</option>
-                <option value="baseline" selected>Baseline Anomaly Sniffer</option>
+                <option value="device-scan" selected>Device Discovery</option>
+                <option value="baseline">Baseline Anomaly Sniffer</option>
                 <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
+                <option value="probe-scan">Probe Request Scanner</option>
               </select>
 
+              <div id="probeScanModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="probeScanMode" name="probeScanMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
+              </div>
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
                 <select id="randomizationMode" name="randomizationMode">
@@ -574,6 +583,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="2" selected>WiFi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
+                <label style="font-size:11px;margin-top:6px;display:block;"><input type="checkbox" name="captureProbes" value="1" style="margin-right:4px;">Capture Probes</label>
               </div>
               <div id="standardDurationControls" style="margin-top:10px;">
                 <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
@@ -679,7 +689,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="padding:6px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;"></button>
           </div>
         </div>
-        <div id="baselineStatus" style="padding:12px;background:var(--surf);border:2px solid var(--acc);border-radius:8px;font-size:12px;margin-bottom:12px;">
+        <div id="baselineStatus" style="display:none;padding:12px;background:var(--surf);border:2px solid var(--acc);border-radius:8px;font-size:12px;margin-bottom:12px;">
           <div style="color:var(--mut);">No baseline data</div>
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
@@ -812,6 +822,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
               </div>
             </div>
+          </div>
+
+          <hr>
+
+          <div style="margin-top:12px;">
+            <label>Vibration Sensor Alerts</label>
+            <div style="display:flex;gap:8px;margin-bottom:4px;">
+              <button class="btn" id="vibToggleBtn" onclick="toggleVibration()" style="flex:1;"></button>
+            </div>
+            <div style="font-size:10px;color:var(--mut);">Controls mesh broadcast alerts when vibration is detected</div>
           </div>
         </div>
       </div>
@@ -975,6 +995,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let lastScanningState = false;
       let lastResultsText = '';
       let meshEnabled = true;
+      let vibrationEnabled = true;
       let hbEnabled = false;
       let privacyMode = localStorage.getItem('privacyMode') === '1';
       let lastScanStartTime = 0;
@@ -1223,6 +1244,40 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
       
+      async function toggleVibration() {
+        vibrationEnabled = !vibrationEnabled;
+        updateVibrationUI();
+        try {
+          const r = await fetch('/vibration', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'enabled=' + vibrationEnabled
+          });
+          const msg = await r.text();
+          toast(msg, 'success');
+        } catch(e) {
+          toast('Failed to update vibration status', 'error');
+          vibrationEnabled = !vibrationEnabled;
+          updateVibrationUI();
+        }
+      }
+
+      function updateVibrationUI() {
+        const btn = document.getElementById('vibToggleBtn');
+        if (!btn) return;
+        if (vibrationEnabled) {
+          btn.textContent = 'Alerts: Enabled';
+          btn.style.background = 'var(--succ)';
+          btn.style.borderColor = 'var(--succ)';
+          btn.style.color = '#fff';
+        } else {
+          btn.textContent = 'Alerts: Disabled';
+          btn.style.background = 'var(--dang)';
+          btn.style.borderColor = 'var(--dang)';
+          btn.style.color = '#fff';
+        }
+      }
+
       function updateHbUI() {
         const cb = document.getElementById('hbEnabledCb');
         if (cb) cb.checked = hbEnabled;
@@ -1394,13 +1449,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function updateBaselineStatus() {
         if (baselineUpdating) return;
         const detectionMode = document.getElementById('detectionMode');
+        const statusDiv = document.getElementById('baselineStatus');
         if (!detectionMode || detectionMode.value !== 'baseline') {
+          if (statusDiv) statusDiv.style.display = 'none';
           if (baselineUpdateInterval) {
             clearInterval(baselineUpdateInterval);
             baselineUpdateInterval = null;
           }
           return;
         }
+        if (statusDiv) statusDiv.style.display = '';
         baselineUpdating = true;
         try {
           const response = await fetch('/baseline/stats');
@@ -1981,17 +2039,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const detectionModeSelect = document.getElementById('detectionMode');
         const randomizationModeSelect = document.getElementById('randomizationMode');
         const deviceScanModeSelect = document.getElementById('deviceScanMode');
+        const probeScanModeSelect = document.getElementById('probeScanMode');
         const modeStatus = document.getElementById('modeStatus');
-        
+
         let currentMode = '0';
-        
-        // Check which form is active and visible
+
         const detectionMethod = detectionModeSelect?.value;
-        
+
         if (detectionMethod === 'randomization-detection' && randomizationModeSelect?.offsetParent !== null) {
           currentMode = randomizationModeSelect.value;
         } else if (detectionMethod === 'device-scan' && deviceScanModeSelect?.offsetParent !== null) {
           currentMode = deviceScanModeSelect.value;
+        } else if (detectionMethod === 'probe-scan' && probeScanModeSelect?.offsetParent !== null) {
+          currentMode = probeScanModeSelect.value;
         } else if (scanModeSelect) {
           currentMode = scanModeSelect.value;
         }
@@ -2135,6 +2195,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html = parseDeauthResults(text);
         } else if (text.includes('Drone Detection Results')) {
           html = parseDroneResults(text);
+        } else if (text.includes('Probes:') && text.includes('SSIDs:')) {
+          html = parseProbeResults(text);
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
           html = parseDeviceScanResults(text);
         } else {
@@ -2945,6 +3007,94 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return html;
       }
 
+      function parseProbeResults(text) {
+        let html = '';
+        const lines = text.split('\n');
+        const headerLine = lines[0] || '';
+        const statsLine = lines[1] || '';
+        const inProgress = headerLine.includes('IN PROGRESS');
+
+        const devMatch = statsLine.match(/Devices:\s*(\d+)/);
+        const probeMatch = statsLine.match(/Probes:\s*(\d+)/);
+        const ssidMatch = statsLine.match(/SSIDs:\s*(\d+)/);
+        const hitMatch = statsLine.match(/Hits:\s*(\d+)/);
+
+        html += '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        if (inProgress) html += '<span style="color:var(--acc);font-weight:bold;">SCANNING</span>';
+        if (devMatch) html += '<span>Devices: <strong>' + devMatch[1] + '</strong></span>';
+        if (probeMatch) html += '<span>Probes: <strong>' + probeMatch[1] + '</strong></span>';
+        if (ssidMatch) html += '<span>SSIDs: <strong>' + ssidMatch[1] + '</strong></span>';
+        if (hitMatch) html += '<span>Hits: <strong style="color:' + (parseInt(hitMatch[1]) > 0 ? '#e74c3c' : 'var(--txt)') + ';">' + hitMatch[1] + '</strong></span>';
+        html += '</div>';
+
+        let deviceLines = [];
+        let ssidSection = '';
+        let inSsidSection = false;
+
+        for (let i = 2; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          if (line.startsWith('SSIDs seen')) {
+            inSsidSection = true;
+            ssidSection += '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;"><div style="font-weight:bold;color:var(--acc);margin-bottom:6px;">' + line + '</div><div style="font-size:11px;color:var(--mut);">';
+            continue;
+          }
+          if (inSsidSection) {
+            ssidSection += line + '<br>';
+            continue;
+          }
+          if (line.startsWith('WiFi') || line.startsWith('BLE')) {
+            deviceLines.push(line);
+          }
+        }
+
+        if (deviceLines.length > 0) {
+          html += '<div style="overflow-x:auto;">';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+          html += '<thead><tr style="background:var(--surf);border-bottom:2px solid var(--bord);">';
+          html += '<th style="padding:6px;text-align:left;">MAC</th><th style="padding:6px;">RSSI</th><th style="padding:6px;">CH</th><th style="padding:6px;text-align:left;">Vendor</th><th style="padding:6px;text-align:left;">SSID</th><th style="padding:6px;">Status</th>';
+          html += '</tr></thead><tbody>';
+
+          for (const line of deviceLines) {
+            const isHit = line.includes('[HIT');
+            const isDst = line.includes('(dst)');
+            const macM = line.match(/([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
+            const rssiM = line.match(/RSSI=(-?\d+)dBm/);
+            const chM = line.match(/CH=(\d+)/);
+            const ssidM = line.match(/"([^"]*)"/);
+            const wildcard = line.includes('(wildcard)');
+
+            let vendor = '';
+            const afterCh = line.replace(/.*CH=\d+\s*/, '');
+            const vendorM = afterCh.match(/^(\S+)/);
+            if (vendorM && vendorM[1] !== '"' && !vendorM[1].startsWith('"')) vendor = vendorM[1];
+
+            const rowBg = isHit ? 'background:rgba(231,76,60,0.12);' : '';
+            html += '<tr style="border-bottom:1px solid var(--bord);' + rowBg + '">';
+            html += '<td style="padding:6px;font-family:monospace;">' + (macM ? macM[1] : '') + '</td>';
+            html += '<td style="padding:6px;text-align:center;">' + (rssiM ? rssiM[1] : '') + '</td>';
+            html += '<td style="padding:6px;text-align:center;">' + (chM ? chM[1] : '') + '</td>';
+            html += '<td style="padding:6px;">' + vendor + '</td>';
+            html += '<td style="padding:6px;">' + (ssidM ? ssidM[1] : (wildcard ? '<em>wildcard</em>' : '')) + '</td>';
+            let status = '';
+            if (isHit) {
+              const hitType = line.match(/\[HIT:?(\w*)\]/);
+              status = '<span style="color:#e74c3c;font-weight:bold;">HIT' + (hitType && hitType[1] ? ':' + hitType[1] : '') + '</span>';
+            }
+            if (isDst) status += (status ? ' ' : '') + '<span style="color:var(--acc);">dst</span>';
+            html += '<td style="padding:6px;text-align:center;">' + status + '</td>';
+            html += '</tr>';
+          }
+          html += '</tbody></table></div>';
+        }
+
+        if (ssidSection) {
+          html += ssidSection + '</div></div>';
+        }
+
+        return html;
+      }
+
       function parseDeviceScanResults(text) {
         let html = '';
         
@@ -3292,6 +3442,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           hbEnabled = diagText.includes('Heartbeat: Enabled');
           if (hbMatch) { const inp = document.getElementById('hbIntervalInput'); if (inp && document.activeElement !== inp) inp.value = hbMatch[1]; }
           updateHbUI();
+          vibrationEnabled = diagText.includes('Vibration Broadcasts: Enabled');
+          updateVibrationUI();
 
           // --- System page updates: immediately after /diag, no extra fetches ---
           let hardware = '';
@@ -3617,6 +3769,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const baselineControls = document.getElementById('baselineConfigControls');
         const randomizationModeControls = document.getElementById('randomizationModeControls');
         const deviceScanModeControls = document.getElementById('deviceScanModeControls');
+        const probeScanModeControls = document.getElementById('probeScanModeControls');
         const cacheBtn = document.getElementById('cacheBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
@@ -3630,6 +3783,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         baselineControls.style.display = 'none';
         randomizationModeControls.style.display = 'none';
         deviceScanModeControls.style.display = 'none';
+        probeScanModeControls.style.display = 'none';
+        document.getElementById('baselineStatus').style.display = 'none';
 
         if (selectedMethod === 'baseline') {
           baselineControls.style.display = 'block';
@@ -3657,7 +3812,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           standardControls.style.display = 'block';
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
-          
+
+        } else if (selectedMethod === 'probe-scan') {
+          standardControls.style.display = 'block';
+          probeScanModeControls.style.display = 'block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+
         } else {
           standardControls.style.display = 'block';
           cacheBtn.style.display = 'inline-block';
@@ -4399,6 +4560,18 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             req->send(400, "text/plain", "Missing enabled parameter");
         } });
 
+  server->on("/vibration", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (req->hasParam("enabled", true)) {
+            vibrationEnabled = req->getParam("enabled", true)->value() == "true";
+            lastSaveTime = 0;
+            saveConfiguration();
+            Serial.printf("[VIB] Vibration alerts %s via web UI\n", vibrationEnabled ? "enabled" : "disabled");
+            req->send(200, "text/plain", vibrationEnabled ? "Vibration alerts enabled" : "Vibration alerts disabled");
+        } else {
+            req->send(400, "text/plain", "Missing enabled parameter");
+        } });
+
   server->on("/mesh-hb", HTTP_POST, [](AsyncWebServerRequest *req)
              {
         if (req->hasParam("enabled", true)) {
@@ -4650,12 +4823,51 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
             if (!workerTaskHandle) {
                 currentScanMode = (ScanMode)scanMode;
+
+                if (req->hasParam("captureProbes", true)) {
+                    probeDetectionEnabled = true;
+                    if (probeRequestQueue == nullptr) {
+                        probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
+                    } else {
+                        xQueueReset(probeRequestQueue);
+                    }
+                }
+
                 scanning = true;
                 xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
                                     (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);
             }
-            
+
+        } else if (detection == "probe-scan") {
+            int scanMode = SCAN_BOTH;
+            if (req->hasParam("probeScanMode", true)) {
+                int mode = req->getParam("probeScanMode", true)->value().toInt();
+                if (mode >= 0 && mode <= 2) {
+                    scanMode = mode;
+                }
+            }
+
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+
+            stopRequested = false;
+
+            String modeStr = (scanMode == SCAN_WIFI) ? "WiFi" :
+                            (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+
+            req->send(200, "text/plain",
+                    forever ? ("Probe scan starting (forever) - " + modeStr) :
+                    ("Probe scan starting for " + String(secs) + "s - " + modeStr));
+
+            if (!workerTaskHandle) {
+                currentScanMode = (ScanMode)scanMode;
+                scanning = true;
+                xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
+                                    (void*)(intptr_t)(forever ? 0 : secs),
+                                    1, &workerTaskHandle, 1);
+            }
+
         } else if (detection == "drone-detection") {
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;

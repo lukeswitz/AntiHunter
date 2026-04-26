@@ -24,6 +24,7 @@ struct ProbeRequestEvent {
     uint8_t channel;
     uint16_t payloadLen;
     uint8_t payload[128];
+    bool dstMatch;
 };
 
 extern QueueHandle_t probeRequestQueue;

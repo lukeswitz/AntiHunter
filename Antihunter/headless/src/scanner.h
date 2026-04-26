@@ -30,11 +30,30 @@ struct Target {
     uint8_t bytes[6];
     uint8_t len;
     char identityId[10];
+    char ssid[33];
 };
 
 struct Allowlist {
     uint8_t bytes[6];
     uint8_t len;
+};
+
+struct ProbeDevice {
+    uint8_t mac[6];
+    int8_t rssi;
+    int8_t rssiMin;
+    int8_t rssiMax;
+    uint8_t channel;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    uint32_t probeCount;
+    char ssids[4][33];
+    uint8_t ssidCount;
+    bool isRandomized;
+    bool isTargetHit;
+    bool isDstHit;
+    char vendor[16];
+    char hitReason[10];
 };
 
 struct TriangulationAccumulator {
@@ -94,6 +113,14 @@ extern TaskHandle_t workerTaskHandle;
 
 // Allowlist
 extern std::vector<Allowlist> allowlist;
+
+extern std::vector<String> ssidTargets;
+extern std::atomic<bool> probeDetectionEnabled;
+bool matchesSsid(const char *ssid);
+const char* lookupOuiVendor(const uint8_t *mac);
+void probeDetectionTask(void *pv);
+String getProbeResults();
+void resetProbeDetection();
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
