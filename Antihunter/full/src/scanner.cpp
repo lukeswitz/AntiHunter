@@ -3184,6 +3184,35 @@ uint32_t getProbeDBSize()
     return probeDB.size();
 }
 
+String getProbeDBJson()
+{
+    std::lock_guard<std::mutex> lock(probeDBMutex);
+    String out = "[";
+    bool first = true;
+    for (auto &p : probeDB) {
+        if (!first) out += ",";
+        first = false;
+        DynamicJsonDocument doc(512);
+        doc["mac"] = p.second.mac;
+        doc["seen"] = p.second.totalSeen;
+        doc["sessions"] = p.second.sessionCount;
+        doc["first"] = p.second.firstEpoch;
+        doc["last"] = p.second.lastEpoch;
+        doc["rssi"] = p.second.bestRssi;
+        doc["vendor"] = p.second.vendor;
+        doc["rand"] = p.second.isRandomized;
+        JsonArray ss = doc.createNestedArray("ssids");
+        for (uint8_t i = 0; i < p.second.ssidCount; i++) {
+            ss.add(p.second.ssids[i]);
+        }
+        String tmp;
+        serializeJson(doc, tmp);
+        out += tmp;
+    }
+    out += "]";
+    return out;
+}
+
 void clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);

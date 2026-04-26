@@ -1998,7 +1998,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 }
             }
 
-            if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam') {
+            if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam' || taskType === 'probedet') {
                 const startDetectionBtn = document.getElementById('startDetectionBtn');
                 if (startDetectionBtn) {
                     startDetectionBtn.textContent = 'Stop Scanning';
@@ -3045,6 +3045,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       function parseProbeResults(text) {
         let html = '';
+        savedDevicesLoaded = false;
         const lines = text.split('\n');
         const headerLine = lines[0] || '';
         const statsLine = lines[1] || '';
@@ -3063,6 +3064,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (ssidMatch) html += '<span>SSIDs: <strong>' + ssidMatch[1] + '</strong></span>';
         if (savedMatch && parseInt(savedMatch[1]) > 0) html += '<span>Saved Devices: <strong style="color:#3498db;">' + savedMatch[1] + '</strong></span>';
         html += '</div>';
+
+        // Collapsible saved devices dropdown
+        if (savedMatch && parseInt(savedMatch[1]) > 0) {
+          html += '<div id="savedDevicesPanel" style="margin-bottom:12px;">';
+          html += '<div id="savedDevicesToggle" onclick="toggleSavedDevices()" style="cursor:pointer;padding:8px 12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mut);user-select:none;">';
+          html += '<span id="savedDevicesArrow" style="transition:transform 0.2s;display:inline-block;">&#9654;</span>';
+          html += '<span>Saved Devices (' + savedMatch[1] + ')</span>';
+          html += '</div>';
+          html += '<div id="savedDevicesList" style="display:none;margin-top:4px;max-height:300px;overflow-y:auto;border:1px solid var(--bord);border-radius:8px;background:var(--bg);"></div>';
+          html += '</div>';
+        }
 
         let deviceLines = [];
         let ssidSection = '';
@@ -3187,6 +3199,52 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
 
         return html;
+      }
+
+      let savedDevicesLoaded = false;
+      let savedDevicesOpen = false;
+      function toggleSavedDevices() {
+        const list = document.getElementById('savedDevicesList');
+        const arrow = document.getElementById('savedDevicesArrow');
+        if (!list || !arrow) return;
+        savedDevicesOpen = !savedDevicesOpen;
+        list.style.display = savedDevicesOpen ? 'block' : 'none';
+        arrow.style.transform = savedDevicesOpen ? 'rotate(90deg)' : '';
+        if (savedDevicesOpen && !savedDevicesLoaded) {
+          list.innerHTML = '<div style="padding:12px;color:var(--mut);font-size:11px;">Loading...</div>';
+          fetch('/api/probedb').then(r => r.json()).then(devices => {
+            savedDevicesLoaded = true;
+            if (!devices.length) {
+              list.innerHTML = '<div style="padding:12px;color:var(--mut);font-size:11px;">No saved devices</div>';
+              return;
+            }
+            let h = '';
+            devices.sort((a, b) => b.last - a.last);
+            for (const d of devices) {
+              const isRand = d.rand;
+              const border = isRand ? '#8e44ad' : 'var(--bord)';
+              h += '<div style="padding:6px 10px;border-bottom:1px solid var(--bord);font-size:11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">';
+              h += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);min-width:140px;">' + d.mac + '</span>';
+              if (isRand) {
+                h += '<span style="background:#8e44ad;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
+              } else if (d.vendor) {
+                h += '<span style="color:var(--mut);font-size:10px;">' + d.vendor + '</span>';
+              }
+              h += '<span style="color:var(--mut);font-size:10px;">' + d.rssi + 'dBm</span>';
+              h += '<span style="color:var(--mut);font-size:10px;">x' + d.seen + '</span>';
+              h += '<span style="color:var(--mut);font-size:10px;">' + d.sessions + ' sess</span>';
+              if (d.ssids && d.ssids.length > 0) {
+                for (const s of d.ssids) {
+                  h += '<span style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--txt);">' + s + '</span>';
+                }
+              }
+              h += '</div>';
+            }
+            list.innerHTML = h;
+          }).catch(() => {
+            list.innerHTML = '<div style="padding:12px;color:#e74c3c;font-size:11px;">Failed to load</div>';
+          });
+        }
       }
 
       function parseDeviceScanResults(text) {
@@ -5458,8 +5516,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   // Probe database endpoints
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
-      uint32_t dbSize = getProbeDBSize();
-      req->send(200, "text/plain", "Probe database: " + String(dbSize) + " known devices");
+      String json = getProbeDBJson();
+      req->send(200, "application/json", json);
   });
 
   server->on("/api/probedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {

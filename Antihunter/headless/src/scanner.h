@@ -150,6 +150,7 @@ void saveProbeDB();
 void mergeProbeDeviceToDB(const ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
+String getProbeDBJson();
 void clearProbeDB();
 
 // Eviction and cleanup
