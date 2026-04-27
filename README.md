@@ -11,85 +11,99 @@
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
-  
+
 </p>
 
 > [!NOTE]
-> Standalone firmware, also integrates with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
-> 
-> **Early Release** - Beta version. Potential stability issues and unexpected behavior. 
+> **Standalone firmware, also integrates with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
+>
+> Early Release: Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
 
-
+`Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Primary Detection Modes](#primary-detection-modes)
-3. [Sensor Integration](#sensor-integration)
-4. [Secure Data Destruction](#secure-data-destruction)
-5. [RF Configuration](#rf-configuration)
-6. [System Architecture](#system-architecture)
-7. [Hardware Requirements](#hardware-requirements)
-8. [Getting Started](#getting-started)
-9. [Mesh Command Reference](#mesh-command-reference)
-10. [API Reference](#api-reference)
-11. [Credits](#credits)
-12. [Disclaimer](#legal-disclaimer)
-
-
-#### News
-
-- `Jan. 29 2026`: Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).
+2. [Features](#features)
+3. [Detection Modes](#detection-modes)
+4. [Sensor Integration](#sensor-integration)
+5. [Secure Data Destruction](#secure-data-destruction)
+6. [RF Configuration](#rf-configuration)
+7. [System Architecture](#system-architecture)
+8. [Hardware](#hardware)
+9. [Getting Started](#getting-started)
+10. [Mesh Commands](#mesh-commands)
+11. [API Reference](#api-reference)
+12. [Credits](#credits)
+13. [Disclaimer](#legal-disclaimer)
 
 ## Overview
 
-**AntiHunter** is a low-cost, open-source distributed perimeter defense system for wireless network security and operational awareness. Built on ESP32-S3 with mesh networking, it creates a scalable sensor network for real-time threat detection, device mapping, and perimeter security.
-
-The system combines WiFi/BLE scanning, GPS positioning, environmental sensors, and distributed coordination to provide a digital and physical "tripwire", transforming spectrum activity into actionable security intelligence.
+- Open-source wireless sensor node for perimeter defense and spectrum awareness. 
+- ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, and LoRa mesh networking. 
+- Deploy one node or a distributed network -- each scans independently and coordinates over Meshtastic.
 
 <a href="https://www.tindie.com/stores/teamantihunter/"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
 
-## Primary Detection Modes
+## Features
 
-<img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" />
+| Feature | What it does | Scan modes |
+|---------|-------------|------------|
+| **Target Scan** | MAC/OUI/SSID watchlist with instant mesh alerts | WiFi, BLE, or both |
+| **Device Scanner** | Captures all nearby WiFi and BLE devices with RSSI, channels, names | WiFi, BLE, or both |
+| **Probe Request Scanner** | Passive sniffer -- reveals SSIDs devices are searching for | WiFi, BLE, or both |
+| **Ghost SSID Detection** | Flags probed SSIDs with no responding AP nearby | Probe / Device scan |
+| **Baseline Anomaly Detection** | Learn-then-alert: spots new, missing, and changed devices | WiFi + BLE |
+| **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
+| **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
+| **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID) | WiFi beacon/NAN |
+| **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
+| **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
+| **Secure Data Destruction** | Tamper-triggered or remote wipe with post-wipe obfuscation | Vibration / mesh |
+| **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
+| **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
+| **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 
+### Use Cases
 
-### 1. List/Target Scan Mode
+- Perimeter security and intrusion detection
+- Penetration testing and wireless security auditing
+- Counter-UAV operations and airspace monitoring
+- Surveillance detection and OPSEC audits
+- Device fingerprinting across MAC randomization
+- Probe analysis and rogue device detection
+- Event security and monitoring
 
-Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-byte vendor IDs). AntiHunter sweeps WiFi channels and BLE frequencies, providing immediate alerts and detailed logging on detection.
+---
 
-- Target monitoring by MAC address or vendor OUI prefix
+## Detection Modes
+
+<img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" />
+
+### 1. Target Scan
+
+Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
+
 - WiFi-only, BLE-only, or combined scanning
-- Global user-configurable allowlist
-- Logs RSSI, channel, GPS coordinates, and device names to SD card
-- Real-time alerts via web interface, command center, and mesh network
+- Global allowlist filters out known devices
+- Logs RSSI, channel, GPS, and device names to SD
+- Real-time alerts over mesh network
 
+### 2. Triangulation (Experimental)
 
-### 2. Triangulation/Trilateration (Distributed)
-
-**`Experimental`**
-
-<img width="850" alt="Triangulation diagram" src="https://github.com/user-attachments/assets/c76bb177-ce4e-42db-aafb-fd360b7f49e2" />
+Multiple nodes scan for a target simultaneously. Each records RSSI and GPS coordinates. Data is aggregated over mesh for weighted trilateration with Kalman filtering.
 
 > [!TIP]
-> Target RSSI above -80 will produce more accurate results.
+> Target RSSI above -80 produces better results for BLE devices
 
-Coordinates multiple nodes across a mesh network for precise location tracking. Each node simultaneously scans for a target, recording RSSI and GPS coordinates. Data is aggregated and forwarded over mesh for RSSI-based trilateration processing.
+- Outputs: GPS coordinates, confidence, estimated uncertainty (m), average HDOP
+- Google Maps link sent over mesh
+- Per-target distance tuning multipliers (0.1x - 5.0x)
 
-- Multi-node coordination across mesh network
-- GPS integration from each contributing node
-- RSSI-based weighted trilateration with Kalman filtering
-- Outputs: Average HDOP, GPS coordinates, confidence, estimated uncertainty (m), GPS quality
-- Google Maps link sent over mesh with details
-
-> **Experimental T114 Support:** Small buffer and slow speed causes latency. Heltec v3 recommended.
+> Heltec v3 recommended. T114's small buffer causes latency.
 
 <details>
-<summary>RF Environment Calibration and Distance Tuning</summary>
-
-#### Passive Detection Range (ESP32 + 5 dBi Antenna)
-
-Ranges assume passive scanning. Active transmission achieves greater distances.
+<summary>RF Environment Calibration</summary>
 
 Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
@@ -101,90 +115,78 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 | Indoor Dense | 4.0 | 3.5 | -27 dBm | -69 dBm | Office spaces, many partitions |
 | Industrial | 4.8 | 4.0 | -30 dBm | -73 dBm | Heavy obstruction, machinery |
 
-
-#### Distance Tuning (Target-Specific)
-
-Fine-tune calculated distances per target using multipliers (0.1x - 5.0x):
-- **< 1.0**: Target appears closer (increase sensitivity) -- e.g., 0.5x = 2x closer
-- **> 1.0**: Target appears farther (reduce false positives) -- e.g., 2.0x = 2x farther
-- **Default**: 1.0x (no adjustment)
-
 </details>
 
-### 3. Detection and Analysis Sniffers
+## 3. Detection Sniffers
 
-<img width="850" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
+### A. Device Scanner
 
-#### A. Device Scanner
+<img width="800" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
 
-Captures all WiFi and Bluetooth devices in range. Records MAC addresses, SSIDs, signal strength, names, and channels for complete 2.4GHz spectrum visibility.
+Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength, names, and channels.
 
-- Enable probe detection to find devices and their desired SSID:
-  <img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" />
+- Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status):
 
-#### B. Baseline Anomaly Detection
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" />
 
-Two-phase scanning: establishes baseline, then monitors for anomalies (new devices, disappearances, reappearances, significant RSSI changes). Configurable RAM cache (200-500 devices) and SD storage (1K-100K devices, defaults to 1500 without SD). Persistent storage with automatic tiering survives reboots.
+### B. Baseline Anomaly Detection
+
+Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
+
+- RAM cache: 200-500 devices, SD overflow: 1K-100K devices (default 1500 without SD)
+- Automatic tiering between RAM and SD
 
 > [!TIP]
-> A longer initial scan will produce more reliable detection behavior 
+> A longer initial scan produces more reliable baselines.
 
-<img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" />
+<img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" />
 
+### C. Deauth Attack Detection
 
-Use cases: distributed "trail cam" for intruders, perimeter security, surveillance detection, threat identification.
-
-#### C. Deauthentication Attack Scan
-
-WiFi deauth/disassoc attack sniffer with frame filtering, real-time detection, and integration with randomization tracking for source identification.
+WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with randomization tracking for source identification.
 
 <img width="858" height="382" alt="Deauth Detection" src="https://github.com/user-attachments/assets/1b1e77db-a479-4cfd-beae-e13a7187cae4" />
 
-#### D. Drone RID Detection
+### D. Drone RID Detection
 
-Identifies drones broadcasting Remote ID (FAA/EASA compliant). Supports ODID/ASTM F3411 protocols (NAN action frames and beacon frames), French drone ID format (OUI 0x6a5c35). Extracts UAV ID, pilot location, and flight telemetry. Sends immediate mesh alerts and logs to SD card and two API endpoints.
+Detects drones broadcasting Remote ID per FAA/EASA standards. Supports ODID/ASTM F3411 (NAN action frames, beacon frames) and French drone ID (OUI 0x6a5c35). Extracts UAV ID, pilot location, and flight telemetry. Mesh alerts and SD logging.
 
-#### E. MAC Randomization Correlation 
-
-**`Experimental`**
+### E. MAC Randomization Correlation (Experimental)
 
 > [!TIP]
-> Use the Privacy button at the top of the results pane if sharing screenshots
-
-Traces device identities across randomized MAC addresses using behavioral signatures: IE fingerprinting, channel sequencing, timing analysis, RSSI patterns, and sequence number correlation. Assigns unique identity IDs (`T-XXXX`) with persistent SD storage.
-
-- Up to 30 simultaneous identities with up to 50 linked MACs each
-- Dual signature support (full and minimal IE patterns)
-- Confidence-based linking with threshold adaptation
-- Detects global MAC leaks and WiFi-BLE device correlation
+> Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots. SSIDs are hashed as `net#XXXX` for correlation without exposure.
 
 <img width="861" height="721" alt="Randomization Analyzer" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" />
 
-#### F. Probe Scanner
+Links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
 
-Detects devices actively probing for networks, correlates probe requests across channels, and captures device fingerprints.
+- Up to 30 simultaneous identities, 50 linked MACs each
+- Dual signature support (full and minimal IE patterns)
+- Confidence-based linking with adaptive thresholds
+- Detects global MAC leaks and WiFi-BLE correlation
 
-- Why this matters: most devices broadcast previously connected SSIDs before associating. That's a passive leak of network history, location patterns, and device identity.
+### F. Probe Request Scanner
+
+Passive probe request sniffer. Captures devices broadcasting for known networks, identifies vendors via OUI lookup, and flags randomized MACs.
+
 
 <img width="500" alt="image" src="https://github.com/user-attachments/assets/99a894e1-1ab2-4dda-959d-29cb7880a637" />
 
+- SSID watchlist: add SSIDs to the target list alongside MACs and OUIs
+- OUI vendor identification (68-vendor table)
+- MAC randomization detection (locally-administered bit check)
+- Destination address (addr1) checking: catches frames addressed TO a target
+- Mesh alerting for watchlist hits (60s dedup cooldown)
+- RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
-### Use Cases
+> **Ghost SSID detection:** SSIDs that devices probe for but no nearby AP responds with. These appear prefixed with `~` in results (e.g., `~"HomeNetwork"` vs `"CoffeeShop"`). Ghost SSIDs reveal networks the device connected to elsewhere -- location history, home/work networks, travel patterns. Most devices broadcast previously connected SSIDs before associating, passively leaking network history and device identity.
 
-- Perimeter security and intrusion detection
-- WiFi penetration testing, security auditing, and MAC randomization analysis
-- Device fingerprinting and persistent identification across randomization
-- Counter-UAV operations and airspace awareness
-- Event security and monitoring
-- Red team detection and defensive operations
-- Wireless threat hunting, forensics, and privacy assessments
-- Rogue device detection: correlate probes to identify repeat surveillance or unauthorized hardware
-- OPSEC audits: see what your own devices are leaking
 
 ---
 
 ## Sensor Integration
-<img width="943" height="797" alt="Screenshot 2026-04-15 at 11 25 05 AM" src="https://github.com/user-attachments/assets/825fd764-5103-41d8-a8a0-f2504062acb4" />
+
+<img width="943" height="797" alt="Screenshot 2026-04-15 at 11 25 05 AM" src="https://github.com/user-attachments/assets/825fd764-5103-41d8-a8a0-f2504062acb4" />
 
 | Sensor | Interface | Description |
 |--------|-----------|-------------|
@@ -197,20 +199,20 @@ Detects devices actively probing for networks, correlates probe requests across 
 
 ## Secure Data Destruction
 
-Tamper detection and emergency data wiping to protect data from unauthorized access.
+Tamper detection and emergency data wiping.
 
 ![Secure Data Destruction](https://github.com/user-attachments/assets/bdd8825d-82aa-46d4-b20c-3ebf7ca0dd9f)
 
-- **Auto-erase on tampering**: Configurable vibration-triggered destruction (disabled by default)
-- **Setup delay**: Grace period after enabling to complete deployment
+- **Auto-erase on tampering**: Vibration-triggered destruction (disabled by default)
+- **Setup delay**: Grace period after enabling for deployment
 - **Manual secure wipe**: Via web interface
-- **Remote force erase**: Mesh-commanded with token authentication (5-min expiry, device-specific)
-- **Obfuscation**: Creates a dummy IoT weather device config after wipe
+- **Remote force erase**: Mesh-commanded with token auth (5-min expiry, device-specific)
+- **Obfuscation**: Plants a dummy IoT weather config after wipe
 
-> **Warning**: Data destruction is permanent and irreversible. Configure thresholds carefully.
+> **Warning**: Data destruction is permanent and irreversible.
 
 <details>
-<summary>Auto-Erase Configuration Parameters</summary>
+<summary>Auto-Erase Configuration</summary>
 
 | Parameter | Range | Description |
 |-----------|-------|-------------|
@@ -221,9 +223,9 @@ Tamper detection and emergency data wiping to protect data from unauthorized acc
 | Cooldown period | 5-60min | Minimum time between tamper attempts |
 
 **Usage:**
-1. Enable auto-erase via web interface with appropriate setup delay
-2. Configure thresholds for deployment environment
-3. Deploy device and walk away during setup period
+1. Enable auto-erase via web interface with setup delay
+2. Configure thresholds for your environment
+3. Deploy and walk away during setup period
 4. Monitor mesh alerts for tamper events
 5. Remote erase: `@NODE ERASE_REQUEST` to generate token, then `@NODE ERASE_FORCE:<token>`
 
@@ -244,20 +246,20 @@ Tamper detection and emergency data wiping to protect data from unauthorized acc
 | Aggressive | 110ms | 4000ms | 2000ms | 2000ms | -70 dBm | Fast detection, high coverage |
 | Custom | User-defined | User-defined | User-defined | User-defined | User-defined | Fine-tuned |
 
-Configure via web interface at `http://192.168.4.1` or API endpoints. All settings persist to NVS and SD card.
+Configure via web interface at `http://192.168.4.1` or API. All settings persist to NVS and SD.
 
 <details>
-<summary>Parameter Definitions and Tuning Notes</summary>
+<summary>Parameter Tuning</summary>
 
 - **WiFi Channel Time**: Duration per channel (50-300ms). Shorter = faster coverage.
 - **WiFi Scan Interval**: Time between scan cycles (1000-10000ms).
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
 - **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves discovery but reduces WiFi scan frequency.
-- **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Lower captures distant signals; higher focuses on nearby. Triangulation is exempt.
+- **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Triangulation is exempt.
 - **WiFi Channels**: Comma-separated (1,6,11) or range (1..14). Default: 1,6,11.
 
 > [!TIP]
->Lower intervals = faster detection, higher power. Higher intervals = reduced power, may miss brief transmissions.
+> Lower intervals = faster detection, higher power. Higher intervals = reduced power, may miss brief transmissions.
 
 </details>
 
@@ -267,26 +269,26 @@ Configure via web interface at `http://192.168.4.1` or API endpoints. All settin
 
 <img width="1407" height="913" alt="System Architecture" src="https://github.com/user-attachments/assets/67348f3d-6613-462c-8e0f-dad419e43f9a" />
 
-AntiHunter operates as a distributed sensor network. Nodes function independently while contributing to the overall security picture via Meshtastic mesh networking.
+Nodes function independently and coordinate via Meshtastic mesh networking.
 
-**Workflow:** Local detection -> Target identification -> Data collection (RSSI, GPS, timestamp) -> Mesh broadcast -> Command center aggregation
+**Workflow:** Detection -> Data collection (RSSI, GPS, timestamp) -> Mesh broadcast -> Command center aggregation
 
-**[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO) Integration:** Aggregates data from all nodes, provides real-time mapping and visualization, enables coordinated response operations.
+**[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO):** Aggregates data from all nodes with real-time mapping and visualization.
 
 ---
 
-## Hardware Requirements
+## Hardware
 
 > [!IMPORTANT]
-> Requires regulated 5V power supply. Unregulated battery sources cause voltage instability that may disable or damage components.
+> Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
 
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ### Core Components
 
-- **ESP32-S3 Development Board** (minimum 8MB flash)
-- **Meshtastic Board**: Heltec v3.2 (recommended) or T114. Alternatives in [discussions](https://github.com/lukeswitz/AntiHunter/discussions).
-- **GPS, SDHC, Vibration, and RTC modules**
+- **Seeed XIAO ESP32-S3** (minimum 8MB flash)
+- **Meshtastic board**: Heltec v3.2 (recommended) or T114. Alternatives in [discussions](https://github.com/lukeswitz/AntiHunter/discussions).
+- **GPS, SDHC, vibration, and RTC modules**
 
 <details>
 <summary>Bill of Materials</summary>
@@ -324,11 +326,8 @@ POWER & THERMAL
 
 ENCLOSURE
 - 1x Weatherproof Enclosure (3D printable)
-
-  - Enclosure STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
-
+  - STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
 - Assembly manual: [PDF](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
-
 
 </details>
 
@@ -338,7 +337,7 @@ ENCLOSURE
 XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564bd0e0add96cd723a730cb65c81e48aa891f0f9c20471cd/68747470733a2f2f66696c65732e736565656473747564696f2e636f6d2f77696b692f536565656453747564696f2d5849414f2d455350333253332f696d672f322e6a7067)
 
 > [!IMPORTANT]
-> Pin assignments and hardware requirements will evolve. Always verify compatibility with your specific board.
+> Pin assignments may evolve. Verify compatibility with your board revision.
 
 | Function | GPIO | Description |
 |----------|------|-------------|
@@ -360,9 +359,9 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 ## Getting Started
 
-### Quick Flasher
+### Quick Flash
 
-Precompiled binaries for rapid deployment:
+Precompiled binaries:
 
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
@@ -371,7 +370,7 @@ chmod +x flashAntihunter.sh
 ```
 
 <details>
-<summary>Headless Configuration (Optional)</summary>
+<summary>Headless variant</summary>
 
 Requires bootloader and partitions files from `Dist/` in the same directory.
 
@@ -381,14 +380,14 @@ Requires bootloader and partitions files from `Dist/` in the same directory.
 
 </details>
 
-**Post-Flash Setup:**
+**Post-flash:**
 
-- **Full Firmware**: Connect to `Antihunter` WiFi AP (password: `antihunt3r123`), access `http://192.168.4.1`, configure RF settings and detection modes, change SSID/password in RF Settings.
-- **Headless Firmware**: Use serial monitor or mesh commands.
+- **Full firmware**: Connect to `Antihunter` WiFi AP (password: `antihunt3r123`), open `http://192.168.4.1`. Configure RF settings, detection modes, and change the AP credentials in RF Settings.
+- **Headless firmware**: Serial monitor or mesh commands only.
 
-### Development Setup
+### Build from Source
 
-**Prerequisites:** PlatformIO, Git, USB cable. Optional: VS Code with PlatformIO IDE extension.
+**Prerequisites:** PlatformIO, Git, USB cable. Optional: VS Code with PlatformIO extension.
 
 ```bash
 git clone https://github.com/lukeswitz/AntiHunter.git
@@ -396,71 +395,66 @@ cd AntiHunter
 ```
 
 ```bash
-# List connected devices
-pio device list
-
-# Flash full firmware
-pio run -e AntiHunter-full -t upload
-
-# Flash headless firmware
-pio run -e AntiHunter-headless -t upload
-
-# Monitor serial output
-pio device monitor -e AntiHunter-full
-
-# Clean deployment (erase + upload)
-pio run -e AntiHunter-full -t erase -t upload
+pio device list                                    # List connected devices
+pio run -e AntiHunter-full -t upload               # Flash full firmware (web UI)
+pio run -e AntiHunter-headless -t upload           # Flash headless firmware
+pio device monitor -e AntiHunter-full              # Serial monitor
+pio run -e AntiHunter-full -t erase -t upload      # Clean flash (erase + upload)
 ```
 
-**Environments:**
-- **Full**: Includes web server (ESPAsyncWebServer, AsyncTCP) for AP dashboard
-- **Headless**: Minimal dependencies, ideal for distributed/background deployment
+**Build environments:**
+- `AntiHunter-full` -- Web server (ESPAsyncWebServer, AsyncTCP) with AP dashboard
+- `AntiHunter-headless` -- Minimal dependencies, no web UI, mesh/serial only
 
 ---
 
 ## Mesh Network Integration
 
-AntiHunter integrates with Meshtastic LoRa mesh networks via UART, creating a long-range sensor network.
+Meshtastic LoRa mesh via UART for long-range distributed sensing.
 
-- **Connection**: Mode: `TEXTMSG`, Speed: `115200 baud`, Pins: `10 RX / 9 TX` (T114), `19 RX / 20 TX` (Heltec V3)
-- **Protocol**: Standard Meshtastic serial, public and encrypted channels (protobuf in development)
-- **Rate Limiting**: 3-second intervals prevent mesh flooding (configurable)
-- **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for specific node. Node IDs: 2-5 alphanumeric characters.
+- **Connection**: TEXTMSG mode, 115200 baud. Pins: `10 RX / 9 TX` (T114), `19 RX / 20 TX` (Heltec V3)
+- **Protocol**: Standard Meshtastic serial, public and encrypted channels
+- **Rate limiting**: 3s intervals (configurable)
+- **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
 
-## Mesh Command Reference
+## Mesh Commands
 
-- All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9) no spaces
-
-### Core Commands
+All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 > [!TIP]
-> Use `@ALL` to send command to all nodes. Replace `ALL` with a node id for singular commands.  
+> `@ALL` broadcasts to all nodes. Replace with a node ID for targeted commands.
+
+### Core
 
 | Command | Description | Example |
 |---------|-------------|---------|
 | `STATUS` | System status (mode, scan state, hits, temp, uptime, GPS) | `@ALL STATUS` |
 | `STOP` | Stop all operations | `@ALL STOP` |
 
-### Configuration Commands
+### Configuration
 
 | Command | Parameters | Example |
 |---------|------------|---------|
-| `CONFIG_TARGETS` | Pipe-delimited MACs or OUI prefixes | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33` |
+| `CONFIG_TARGETS` | Pipe-delimited MACs, OUI prefixes, or SSIDs | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33\|MyNetwork` |
 | `CONFIG_NODEID` | 2-5 alphanumeric ID | `@AH01 CONFIG_NODEID:AH02` |
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
 
-### Scanning Commands
+### Scanning
 
 | Command | Parameters | Example |
 |---------|------------|---------|
 | `SCAN_START` | `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1,6,11` |
-| `DEVICE_SCAN_START` | `mode:secs[:FOREVER]` | `@ALL DEVICE_SCAN_START:2:300` |
+| `DEVICE_SCAN_START` | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
 | `BASELINE_START` | `duration[:FOREVER]` (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
+| `PROBE_START` | `mode:secs[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL PROBE_START:2:300` |
+| `PROBE_STOP` | None | `@ALL PROBE_STOP` |
+
+The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -499,7 +493,7 @@ AntiHunter integrates with Meshtastic LoRa mesh networks via UART, creating a lo
 | `BATTERY_SAVER_STOP` | None | `@AH01 BATTERY_SAVER_STOP` |
 | `BATTERY_SAVER_STATUS` | None | `@AH01 BATTERY_SAVER_STATUS` |
 
-Battery saver stops all WiFi/BLE scanning, reduces CPU to 80MHz, enables light sleep, reduces GPS polling to once per minute. Mesh UART stays active. Heartbeat format:
+Stops WiFi/BLE scanning, reduces CPU to 80MHz, enables light sleep, GPS polled once per minute. Mesh UART stays active. Heartbeat format:
 
 ```
 NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
@@ -508,9 +502,9 @@ NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
 </details>
 
 <details>
-<summary>Status Heartbeat Commands</summary>
+<summary>Heartbeat Commands</summary>
 
-Periodic status messages (`Time`, `Temp`, GPS) broadcast over mesh. **Disabled by default.**
+Periodic status broadcast over mesh. **Disabled by default.**
 
 | Command | Parameters | Example |
 |---------|------------|---------|
@@ -518,12 +512,7 @@ Periodic status messages (`Time`, `Temp`, GPS) broadcast over mesh. **Disabled b
 | `HB_OFF` | None | `@AH01 HB_OFF` |
 | `HB_INTERVAL` | `minutes` (1-60) | `@AH01 HB_INTERVAL:10` |
 
-ACK format: `NODE_ID: HB_ACK:ENABLED|DISABLED` or `NODE_ID: HB_ACK:INTERVAL Xmin`
-
-Status heartbeat format:
-```
-NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
-```
+Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 
 </details>
 
@@ -538,6 +527,7 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 | Triangulation Data | `NODE_ID: T_D: MAC RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` |
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
+| Probe Watchlist Hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GHOST] [GPS=lat,lon]` |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 
@@ -548,40 +538,49 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 ## API Reference
 
 > [!NOTE]
-> All API timestamps use UTC.
+> All timestamps UTC. Full firmware only.
 
-### Core Operations
+### Core
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/` | GET | Main web interface |
+| `/` | GET | Web interface |
 | `/diag` | GET | System diagnostics |
 | `/stop` | GET | Stop all operations |
-| `/config` | GET | System configuration (JSON) |
-| `/config` | POST | Update channels and target list |
+| `/config` | GET/POST | System configuration (JSON) |
+| `/clear-results` | POST | Clear all scan results |
 
-### Scanning and Detection
+### Scanning
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/scan` | POST | Start WiFi/BLE scan (`mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`) |
-| `/sniffer` | POST | Start detection mode (`detection`, `secs`, `forever`, `randomizationMode`) |
+| `/scan` | POST | Start target scan (`mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`) |
+| `/sniffer` | POST | Start detection scan (`detection`, `secs`, `forever`, `randomizationMode`, `probeScanMode`, `captureProbes`) |
 | `/drone` | POST | Start drone RID detection (`secs`, `forever`) |
 
-### Results and Logs
+### Results
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/results` | GET | Latest scan/triangulation results |
 | `/sniffer-cache` | GET | Cached device detections |
-| `/drone-results` | GET | Drone detection results |
-| `/drone-log` | GET | Drone event logs (JSON) |
+| `/probe-results` | GET | Probe request results |
 | `/deauth-results` | GET | Deauth attack logs |
-| `/randomization-results` | GET | Randomization detection results |
-| `/baseline-results` | GET | Baseline detection results |
+| `/randomization-results` | GET | Randomization correlation results |
+| `/baseline-results` | GET | Baseline anomaly results |
+| `/drone-results` | GET | Drone detection results |
+| `/drone-log` | GET | Drone event log (JSON) |
+
+### Probe Database
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/probedb` | GET | Probe database (JSON: mac, vendor, SSIDs, RSSI, randomization status) |
+| `/api/probedb/clear` | POST | Clear probe database |
+| `/api/probes.jsonl` | GET | Stream probe log from SD (JSONL) |
 
 <details>
-<summary>Configuration Management Endpoints</summary>
+<summary>Configuration Endpoints</summary>
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -600,25 +599,24 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 
 | Endpoint | Method | Parameters | Description |
 |----------|--------|------------|-------------|
-| `/rf-config` | GET | - | Get RF config (JSON) |
+| `/rf-config` | GET | - | RF config (JSON) |
 | `/rf-config` | POST | `preset` (0-2) | Apply preset: 0=Relaxed, 1=Balanced, 2=Aggressive |
-| `/rf-config` | POST | `preset`, `globalRssiThreshold` | Preset with custom RSSI |
 | `/rf-config` | POST | `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold` | Full custom config |
-| `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | Update RSSI threshold only |
-| `/wifi-config` | GET | - | Get WiFi AP settings (JSON) |
-| `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63 or empty) | Update AP credentials (triggers 3s reboot) |
+| `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | RSSI threshold only |
+| `/wifi-config` | GET | - | WiFi AP settings (JSON) |
+| `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63 or empty) | Update AP credentials (triggers reboot) |
 
 </details>
 
 <details>
-<summary>Baseline Detection Endpoints</summary>
+<summary>Baseline Endpoints</summary>
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/baseline/status` | GET | Baseline scan status (JSON) |
-| `/baseline/stats` | GET | Detailed baseline statistics (JSON) |
-| `/baseline/config` | GET/POST | Get/update baseline config (`rssiThreshold`, `baselineDuration`, `ramCacheSize`, `sdMaxDevices`, `absenceThreshold`, `reappearanceWindow`, `rssiChangeDelta`) |
-| `/baseline/reset` | POST | Reset baseline detection |
+| `/baseline/stats` | GET | Baseline statistics (JSON) |
+| `/baseline/config` | GET/POST | Baseline config (`rssiThreshold`, `baselineDuration`, `ramCacheSize`, `sdMaxDevices`, `absenceThreshold`, `reappearanceWindow`, `rssiChangeDelta`) |
+| `/baseline/reset` | POST | Reset baseline |
 
 </details>
 
@@ -627,10 +625,11 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/triangulate/start` | POST | Start triangulation (`mac`, `duration`, `rfEnv`, optional `wifiPwr`/`blePwr` 0.1-5.0) |
+| `/triangulate/start` | POST | Start (`mac`, `duration`, `rfEnv`, optional `wifiPwr`/`blePwr` 0.1-5.0) |
 | `/triangulate/stop` | POST | Stop triangulation |
-| `/triangulate/status` | GET | Triangulation status (JSON) |
-| `/triangulate/results` | GET | Triangulation results |
+| `/triangulate/status` | GET | Status (JSON) |
+| `/triangulate/results` | GET | Results |
+| `/triangulate/nodes` | GET | Connected triangulation nodes |
 | `/triangulate/calibrate` | POST | Calibrate path loss (`mac`, `distance`) |
 
 </details>
@@ -638,37 +637,38 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 <details>
 <summary>Randomization, Security, and Hardware Endpoints</summary>
 
-**Randomization Detection:**
+**Randomization:**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/randomization/reset` | POST | Reset randomization detection |
 | `/randomization/clear-old` | POST | Clear old identities (optional `age`) |
-| `/randomization/identities` | GET | Tracked device identities (JSON) |
+| `/randomization/identities` | GET | Tracked identities (JSON) |
 
-**Security and Erasure:**
+**Security:**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/erase/status` | GET | Erasure status |
 | `/erase/request` | POST | Request secure erase (`confirm`=WIPE_ALL_DATA, optional `reason`) |
-| `/erase/cancel` | POST | Cancel tamper erase sequence |
+| `/erase/cancel` | POST | Cancel erase sequence |
 | `/secure/status` | GET | Tamper detection status |
 | `/secure/abort` | POST | Abort tamper sequence |
-| `/config/autoerase` | GET/POST | Get/update auto-erase config |
-| `/battery-saver` | GET | Battery saver control (`action`=start/stop/status, `interval`) |
+| `/config/autoerase` | GET/POST | Auto-erase config |
+| `/battery-saver` | GET | Battery saver (`action`=start/stop/status, `interval`) |
 
-**Hardware and Status:**
+**Hardware:**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/gps` | GET | GPS status and location |
-| `/sd-status` | GET | SD card status and health |
+| `/sd-status` | GET | SD card status |
 | `/drone/status` | GET | Drone detection status (JSON) |
-| `/mesh` | POST | Enable/disable mesh networking |
+| `/mesh` | POST | Enable/disable mesh |
 | `/mesh-test` | GET | Test mesh connectivity |
-| `/mesh-hb` | POST | Enable/disable status heartbeat (`enabled=true\|false`) |
-| `/mesh-hb-interval` | POST | Set heartbeat interval in minutes (`interval=1-60`) |
+| `/mesh-hb` | POST | Enable/disable heartbeat (`enabled=true\|false`) |
+| `/mesh-hb-interval` | POST | Set heartbeat interval (`interval=1-60` minutes) |
+| `/vibration` | POST | Toggle vibration sensor |
 
 </details>
 
@@ -676,9 +676,7 @@ NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]
 
 ## Credits
 
-AntiHunter is the result of collaborative development by security researchers, embedded systems engineers, and open-source contributors. Original concept and hardware design by @TheRealSirHaXalot.
-
-Get [involved](https://github.com/lukeswitz/AntiHunter/discussions). Contributions via pull requests, issue reports, and documentation improvements are welcome.
+Original concept and hardware design by @TheRealSirHaXalot. Get [involved](https://github.com/lukeswitz/AntiHunter/discussions) -- PRs, issues, and docs contributions welcome.
 
 ## Legal Disclaimer
 
