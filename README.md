@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
-  <h2 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
   
 </p>
 
@@ -60,9 +60,12 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-by
 
 - Target monitoring by MAC address, vendor OUI prefix, SSID, or identity ID (`T-XXXX`)
 - WiFi-only, BLE-only, or combined scanning
+- Enable probe detection to find devices and their desired SSID
 - Global user-configurable allowlist
 - Logs RSSI, channel, GPS coordinates, and device names to SD card
 - Real-time alerts via web interface, command center, and mesh network
+
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" />
 
 ### 2. Triangulation/Trilateration (Distributed)
 
@@ -169,6 +172,11 @@ Passive WiFi probe request sniffer that captures devices broadcasting for known 
 - Mesh alerting for watchlist hits with 60-second dedup cooldown
 - RSSI min/max/current tracking per device, up to 4 probed SSIDs per device
 
+- Why this matters: most devices broadcast previously connected SSIDs before associating. That's a passive leak of network history, location patterns, and device identity.
+
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/99a894e1-1ab2-4dda-959d-29cb7880a637" />
+
+
 ### Use Cases
 
 - Perimeter security and intrusion detection
@@ -179,6 +187,8 @@ Passive WiFi probe request sniffer that captures devices broadcasting for known 
 - Event security and monitoring
 - Red team detection and defensive operations
 - Wireless threat hunting, forensics, and privacy assessments
+- Rogue device detection: correlate probes to identify repeat surveillance or unauthorized hardware
+- OPSEC audits: see what your own devices are leaking
 
 ---
 
