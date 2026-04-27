@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
-  <h2 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
   
 </p>
 
@@ -60,9 +60,12 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-by
 
 - Target monitoring by MAC address or vendor OUI prefix
 - WiFi-only, BLE-only, or combined scanning
+- Enable probe detection to find devices and their desired SSID
 - Global user-configurable allowlist
 - Logs RSSI, channel, GPS coordinates, and device names to SD card
 - Real-time alerts via web interface, command center, and mesh network
+
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" />
 
 ### 2. Triangulation/Trilateration (Distributed)
 
@@ -156,6 +159,15 @@ Traces device identities across randomized MAC addresses using behavioral signat
 
 <img width="861" height="721" alt="Randomization Analyzer" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" />
 
+#### F. Probe Scanner
+
+Detects devices actively probing for networks, correlates probe requests across channels, and captures device fingerprints.
+
+- Why this matters: most devices broadcast previously connected SSIDs before associating. That's a passive leak of network history, location patterns, and device identity.
+
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/99a894e1-1ab2-4dda-959d-29cb7880a637" />
+
+
 ### Use Cases
 
 - Perimeter security and intrusion detection
@@ -165,6 +177,8 @@ Traces device identities across randomized MAC addresses using behavioral signat
 - Event security and monitoring
 - Red team detection and defensive operations
 - Wireless threat hunting, forensics, and privacy assessments
+- Rogue device detection: correlate probes to identify repeat surveillance or unauthorized hardware
+- OPSEC audits: see what your own devices are leaking
 
 ---
 
