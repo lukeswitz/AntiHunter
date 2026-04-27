@@ -303,11 +303,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <title>AntiHunter</title>
     <style>
       :root{--t:0.2s;--blur:12px}
-      [data-theme="light"]{--bg:linear-gradient(135deg,#f0f4f8 0%,#e8eef3 100%);--surf:rgba(255,255,255,0.85);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(59,130,246,0.15);--bord-focus:rgba(59,130,246,0.4);--txt:#1a202c;--mut:#64748b;--acc:#3b82f6;--acch:#2563eb;--accbg:rgba(59,130,246,0.08);--succ:#10b981;--warn:#f59e0b;--dang:#ef4444;--shad:0 8px 32px rgba(0,0,0,0.08);--shad-hover:0 12px 48px rgba(0,0,0,0.12);--glow:0 0 24px rgba(59,130,246,0.2);--backdrop:blur(12px) saturate(180%)}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e14 0%,#0f1419 100%);--surf:rgba(26,31,46,0.7);--surf-hover:rgba(26,31,46,0.9);--bord:rgba(74,144,226,0.25);--bord-focus:rgba(74,144,226,0.5);--txt:#e8f0f7;--mut:#94a3b8;--acc:#4a90e2;--acch:#5b9bd5;--accbg:rgba(74,144,226,0.1);--succ:#10b981;--warn:#ffaa00;--dang:#ff6b35;--shad:0 8px 32px rgba(0,0,0,0.5);--shad-hover:0 12px 48px rgba(0,0,0,0.7);--glow:0 0 32px rgba(74,144,226,0.25),0 0 64px rgba(74,144,226,0.1);--backdrop:blur(16px) saturate(180%)}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#a05848;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:rgba(14,20,34,0.85);--surf-hover:rgba(18,26,42,0.95);--bord:rgba(96,160,224,0.12);--bord-focus:rgba(96,160,224,0.35);--txt:#c8d4e0;--mut:#6878a0;--acc:#60a0e0;--acch:#4888cc;--accbg:rgba(96,160,224,0.08);--succ:#60a0e0;--warn:#c09040;--dang:#b86050;--shad:0 8px 32px rgba(0,0,0,0.6);--shad-hover:0 12px 48px rgba(0,0,0,0.8);--glow:0 0 24px rgba(96,160,224,0.15),0 0 48px rgba(96,160,224,0.05);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:fixed;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:18px 28px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:18px;box-shadow:var(--shad);flex-wrap:wrap;position:sticky;top:0;z-index:100}
+      .header-right{display:flex;align-items:center;gap:16px;margin-left:auto}
       h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
       h3{margin:0 0 18px;font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--txt)}
       .container{max-width:1400px;margin:0 auto;padding:28px}
@@ -336,7 +337,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .btn.primary{background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);border-color:var(--acc);color:#fff;box-shadow:var(--glow)}
       .btn.primary:hover{box-shadow:var(--glow),var(--shad-hover);filter:brightness(1.1)}
       .btn.alt{color:var(--acc);border-color:var(--acc);background:transparent}
-      .btn.danger{background:var(--dang);border-color:var(--dang);color:#fff;box-shadow:0 0 24px rgba(239,68,68,0.3)}
+      .btn.danger{background:var(--dang);border-color:var(--dang);color:#fff;box-shadow:0 0 24px rgba(184,96,80,0.3)}
       .btn.danger:hover{filter:brightness(1.15)}
       .theme-toggle{width:48px;height:28px;background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--acc);border-radius:14px;cursor:pointer;position:relative;transition:all 0.3s;margin-left:auto;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:var(--glow)}
       .theme-toggle:hover{transform:scale(1.05);box-shadow:var(--glow),var(--shad)}
@@ -347,16 +348,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="dark"] .theme-toggle .moon{opacity:1;transform:rotate(0deg) scale(1)}
       pre{background:rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;font-family:monospace;line-height:1.6}
       hr{border:0;border-top:1px solid var(--bord);margin:20px 0}
-      .banner{color:var(--dang);border:2px solid var(--dang);padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;background:rgba(239,68,68,0.05);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+      .banner{color:var(--dang);border:2px solid var(--dang);padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;background:var(--c-err-bg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
       #toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;z-index:9999}
       .toast{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:2px solid var(--bord);padding:14px 18px;border-radius:8px;box-shadow:var(--shad-hover);opacity:0;transform:translateY(12px);transition:opacity 0.3s,transform 0.3s;font-size:14px;min-width:280px}
       .toast.show{opacity:1;transform:none}
-      .toast.success{border-color:var(--succ);box-shadow:0 0 24px rgba(16,185,129,0.3)}
-      .toast.error{border-color:var(--dang);box-shadow:0 0 24px rgba(239,68,68,0.3)}
-      .toast.warning{border-color:var(--warn);box-shadow:0 0 24px rgba(245,158,11,0.3)}
+      .toast.success{border-color:var(--succ);box-shadow:0 0 24px rgba(96,160,224,0.2)}
+      .toast.error{border-color:var(--dang);box-shadow:0 0 24px rgba(184,96,80,0.2)}
+      .toast.warning{border-color:var(--warn);box-shadow:0 0 24px rgba(192,144,64,0.2)}
       .status-bar{display:flex;gap:10px;align-items:center;flex-shrink:0}
-      .status-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--mut);transition:all 0.2s;text-transform:uppercase;letter-spacing:0.05em}
-      .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc);box-shadow:var(--glow)}
+      .status-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--mut);transition:all 0.3s;text-transform:uppercase;letter-spacing:0.05em;position:relative}
+      .status-item.idle{border-color:rgba(80,180,120,0.4);background:rgba(80,180,120,0.08);color:#50b478;box-shadow:0 0 12px rgba(80,180,120,0.15),0 0 4px rgba(80,180,120,0.1)}
+      .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc);box-shadow:var(--glow);animation:scanPulse 2s ease-in-out infinite}
+      @keyframes scanPulse{0%,100%{box-shadow:var(--glow)}50%{box-shadow:0 0 20px rgba(96,160,224,0.3),0 0 40px rgba(96,160,224,0.1)}}
       .tab-buttons{display:flex;gap:6px;margin-bottom:18px;background:rgba(0,0,0,0.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:6px;border-radius:10px;border:1px solid var(--bord)}
       .tab-btn{padding:10px 18px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;flex:1;text-align:center}
       .tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,0.1)}
@@ -380,9 +383,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details>summary::-webkit-details-marker{display:none}
       @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
-      @media(max-width:600px){.stat-grid,.diag-grid{grid-template-columns:1fr}.status-item{font-size:11px;padding:6px 10px}input,select,textarea{font-size:13px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}}
+      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-right{width:100%;order:3;justify-content:space-between}.page-tabs{order:2;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:6px;flex-wrap:wrap}.status-item{font-size:10px;padding:5px 8px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none}
+      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
       .theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
       [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
@@ -427,10 +430,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
         <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
       </div>
-      <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
+      <div class="header-right">
         <div class="status-bar">
           <div class="status-item" id="modeStatus">WiFi</div>
-          <div class="status-item" id="scanStatus">Idle</div>
+          <div class="status-item idle" id="scanStatus">Idle</div>
           <div class="status-item" id="gpsStatus">GPS</div>
           <div class="status-item" id="rtcStatus">RTC</div>
         </div>
@@ -876,7 +879,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div style="margin-top:16px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
               <span style="font-weight:bold;color:var(--acc);">Auto-Erase Configuration</span>
-              <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
+              <span style="cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
             </div>
             
             <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
@@ -886,7 +889,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <div style="margin-bottom:16px;">
               <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Setup Period</label>
-              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Grace period after enabling before tamper detection becomes active</label>
+              <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Grace period after enabling before tamper detection becomes active</label>
               <select id="setupDelay">
                 <option value="30000">30 seconds</option>
                 <option value="60000">1 minute</option>
@@ -898,7 +901,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <div style="margin-bottom:16px;">
               <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Erase Countdown</label>
-              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time you have to cancel after tamper detection</label>
+              <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Time you have to cancel after tamper detection</label>
               <select id="autoEraseDelay">
                 <option value="10000">10 seconds</option>
                 <option value="30000" selected>30 seconds</option>
@@ -910,7 +913,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <div style="margin-bottom:16px;">
               <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Trigger Cooldown</label>
-              <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Minimum time before another tamper event can trigger erase</label>
+              <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Minimum time before another tamper event can trigger erase</label>
               <select id="autoEraseCooldown">
                 <option value="60000">1 minute</option>
                 <option value="300000" selected>5 minutes</option>
@@ -925,7 +928,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               
               <div style="margin-bottom:12px;">
                 <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Vibrations Required</label>
-                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Number of vibrations needed within detection window to trigger</label>
+                <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Number of vibrations needed within detection window to trigger</label>
                 <select id="vibrationsRequired">
                   <option value="2">2</option>
                   <option value="3" selected>3</option>
@@ -936,7 +939,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               
               <div style="margin-bottom:0;">
                 <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Detection Window</label>
-                <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">Time window for counting required vibrations</label>
+                <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Time window for counting required vibrations</label>
                 <select id="detectionWindow">
                   <option value="5000">5 seconds</option>
                   <option value="10000">10 seconds</option>
@@ -962,16 +965,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </div>
         <div class="card-body collapsed" id="batterySaverCardBody">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-            <span style="cursor:help;padding:2px 6px;background:rgba(74,144,226,0.2);border:1px solid #4a90e2;border-radius:4px;font-size:10px;" onclick="showBatterySaverHelp()" title="Click for help">?</span>
+            <span style="cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;" onclick="showBatterySaverHelp()" title="Click for help">?</span>
           </div>
 
-          <p style="font-size:11px;color:#888;margin-bottom:12px;">
+          <p style="font-size:11px;color:var(--mut);margin-bottom:12px;">
             Reduces power consumption by stopping WiFi/BLE scanning, lowering CPU frequency, and sending only periodic heartbeats. WiFi AP and web UI remain active. Mesh UART remains active for receiving commands.
           </p>
 
           <div style="margin-bottom:16px;">
             <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Heartbeat Interval</label>
-            <label style="font-size:10px;color:#888;margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">How often to send status heartbeats while in battery saver mode</label>
             <select id="batterySaverInterval">
               <option value="1">1 minute</option>
               <option value="2">2 minutes</option>
@@ -1067,6 +1070,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (btn) btn.classList.add('active');
         var pg = document.getElementById('page-' + pageName);
         if (pg) pg.classList.add('active');
+        window.scrollTo(0, 0);
         if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
       }
 
@@ -1863,7 +1867,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
         } else if (isDeauth) {
           Array.from(resultsElement.children).forEach(child => {
-            const hasDeauthBorder = child.getAttribute('style')?.includes('border:1px solid #ff4444');
+            const hasDeauthBorder = child.getAttribute('style')?.includes('border:1px solid var(--warn)');
             if (hasDeauthBorder) {
               const macMatch = child.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
               const mac = macMatch ? macMatch[1] : '';
@@ -1886,7 +1890,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           });
         } else if (isDrone) {
           Array.from(resultsElement.children).forEach(child => {
-            const hasDroneBorder = child.getAttribute('style')?.includes('border:1px solid #0aff9d');
+            const hasDroneBorder = child.getAttribute('style')?.includes('border:1px solid var(--acc)');
             if (hasDroneBorder) {
               const macMatch = child.textContent.match(/([A-F0-9:]+)/);
               const mac = macMatch ? macMatch[1] : '';
@@ -1992,6 +1996,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return temp.innerHTML;
       };
       
+      const scanTaskLabels = {
+        scan: 'List Scan', sniffer: 'Device Scan', drone: 'Drone Detect',
+        blueteam: 'Blue Team', baseline: 'Baseline', randdetect: 'Rand Detect',
+        probedet: 'Probe Detect', triangulate: 'Triangulate'
+      };
+      function setScanStatus(label, state) {
+        const el = document.getElementById('scanStatus');
+        if (!el) return;
+        el.innerText = label;
+        el.classList.remove('idle', 'active');
+        if (state) el.classList.add(state);
+      }
       function updateStatusIndicators(diagText) {
         const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
         const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
@@ -2004,8 +2020,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
 
         if (isScanning || isTriangulating) {
-            document.getElementById('scanStatus').innerText = isTriangulating ? 'Triangulating' : 'Active';
-            document.getElementById('scanStatus').classList.add('active');
+            const label = scanTaskLabels[taskType] || (isTriangulating ? 'Triangulate' : 'Scanning');
+            setScanStatus(label, 'active');
             
             const startScanBtn = document.querySelector('#s button');
             if (startScanBtn && taskType === 'scan') {
@@ -2068,8 +2084,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const isWithinGracePeriod = (Date.now() - lastScanStartTime) < 3000;
 
             if (!isWithinGracePeriod) {
-                document.getElementById('scanStatus').innerText = 'Idle';
-                document.getElementById('scanStatus').classList.remove('active');
+                setScanStatus('Idle', 'idle');
 
                 const startScanBtn = document.querySelector('#s button');
                 if (startScanBtn) {
@@ -2398,32 +2413,32 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         // Show warning banners but continue parsing - don't block other sections
         if (text.includes('No Mesh Nodes Responding')) {
-          html += '<div style="padding:20px;background:var(--dang-bg,#fee2e2);border:2px solid var(--dang,#ef4444);border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="padding:20px;background:var(--c-err-bg);border:2px solid var(--dang);border-radius:12px;margin-bottom:16px;">';
           html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dang,#ef4444)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
-          html += '<div style="font-weight:700;font-size:16px;color:#7f1d1d;">No Mesh Nodes Responding</div>';
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dang)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+          html += '<div style="font-weight:700;font-size:16px;color:var(--dang);">No Mesh Nodes Responding</div>';
           html += '</div>';
-          html += '<div style="color:#7f1d1d;font-size:14px;">No mesh nodes responded to the triangulation request. Check mesh connectivity.</div>';
+          html += '<div style="color:var(--txt);font-size:14px;">No mesh nodes responded to the triangulation request. Check mesh connectivity.</div>';
           html += '</div>';
         }
 
         if (text.includes('TRIANGULATION IMPOSSIBLE') || text.includes('none have GPS')) {
-          html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="padding:20px;background:var(--c-alert-bg);border:2px solid var(--warn);border-radius:12px;margin-bottom:16px;">';
           html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-          html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Triangulation Impossible</div>';
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+          html += '<div style="font-weight:700;font-size:16px;color:var(--warn);">Triangulation Impossible</div>';
           html += '</div>';
-          html += '<div style="color:#78350f;font-size:14px;">Nodes responded but none have GPS coordinates. Enable GPS on at least 3 nodes.</div>';
+          html += '<div style="color:var(--txt);font-size:14px;">Nodes responded but none have GPS coordinates. Enable GPS on at least 3 nodes.</div>';
           html += '</div>';
         }
 
         if (text.includes('Insufficient GPS Nodes')) {
-          html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="padding:20px;background:var(--c-alert-bg);border:2px solid var(--warn);border-radius:12px;margin-bottom:16px;">';
           html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-          html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Waiting for More GPS Nodes</div>';
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+          html += '<div style="font-weight:700;font-size:16px;color:var(--warn);">Waiting for More GPS Nodes</div>';
           html += '</div>';
-          html += '<div style="color:#78350f;font-size:14px;">Triangulation requires at least 3 GPS-equipped nodes. Collecting data...</div>';
+          html += '<div style="color:var(--txt);font-size:14px;">Triangulation requires at least 3 GPS-equipped nodes. Collecting data...</div>';
           html += '</div>';
         }
 
@@ -2682,7 +2697,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
           html += '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">';
           if (anchorMac) html += '<span style="font-family:monospace;font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
-          html += '<span style="background:' + (isBLE ? '#4a1a4a' : '#1a2a4a') + ';color:' + (isBLE ? '#d896ff' : '#6ab7ff') + ';padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + deviceType + '</span>';
+          html += '<span style="background:' + (isBLE ? 'var(--c-ble-bg)' : 'var(--c-wifi-bg)') + ';color:' + (isBLE ? 'var(--c-ble)' : 'var(--c-wifi)') + ';padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + deviceType + '</span>';
           if (nameMatch) html += '<span style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
           if (ssidMatch) html += '<span style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
           if (vendorMatch) html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + vendorMatch[1].trim() + '</span>';
@@ -2831,7 +2846,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       function parseBaselineResults(text) {
         function makeDeviceCard(type, mac, rssi, channel, name) {
-          const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
+          const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
           let c = '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
           c += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
           c += '<div>';
@@ -2878,7 +2893,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?\s+-\s+(.+)$/);
               if (!m) return;
               const [_, type, mac, rssi, channel, name, reason] = m;
-              const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
+              const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
               html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid var(--warn);margin-bottom:10px;">';
               html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:8px;">';
               html += '<div style="font-family:monospace;font-size:14px;color:var(--txt);">' + mac + '</div>';
@@ -3109,7 +3124,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (devMatch) html += '<span>Devices: <strong>' + devMatch[1] + '</strong></span>';
         if (probeMatch) html += '<span>Probes: <strong>' + probeMatch[1] + '</strong></span>';
         if (ssidMatch) html += '<span>SSIDs: <strong>' + ssidMatch[1] + '</strong></span>';
-        if (savedMatch && parseInt(savedMatch[1]) > 0) html += '<span>Saved Devices: <strong style="color:#3498db;">' + savedMatch[1] + '</strong></span>';
         html += '</div>';
 
         // Collapsible saved devices dropdown
@@ -3178,7 +3192,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             // Card styling
             let borderColor = 'var(--bord)';
             let bgColor = 'var(--surf)';
-            if (isKnown) { borderColor = '#3498db'; bgColor = 'rgba(52,152,219,0.06)'; }
+            if (isKnown) { borderColor = 'var(--c-known)'; bgColor = 'var(--accbg)'; }
 
             html += '<div style="padding:8px 12px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:8px;font-size:11px;">';
 
@@ -3186,14 +3200,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
             html += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);">' + (macM ? macM[1] : '') + '</span>';
             if (vendor === 'Randomized') {
-              html += '<span style="background:#8e44ad;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">RAND</span>';
+              html += '<span style="background:var(--c-rand);color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">RAND</span>';
             } else if (vendor) {
               html += '<span style="color:var(--mut);">' + vendor + '</span>';
             }
             html += '<span style="color:var(--mut);">' + (rssiM ? rssiM[1] + 'dBm' : '') + '</span>';
             if (chM) html += '<span style="color:var(--mut);">CH' + chM[1] + '</span>';
             if (countM && parseInt(countM[1]) > 1) html += '<span style="color:var(--acc);">x' + countM[1] + '</span>';
-            if (isKnown) html += '<span style="background:#3498db;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">KNOWN</span>';
+            if (isKnown) html += '<span style="background:var(--c-known);color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">KNOWN</span>';
             html += '</div>';
 
             // Second row: SSIDs this device is probing for
@@ -3202,7 +3216,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               html += '<span style="color:var(--mut);font-size:10px;">Probing:</span>';
               for (const s of ssids) {
                 if (s.ghost) {
-                  html += '<span data-ssid="' + s.name + '" title="Not nearby - saved/home network" style="background:rgba(231,76,60,0.1);border:1px dashed #c0392b;padding:1px 6px;border-radius:4px;font-size:10px;color:#e74c3c;">' + s.name + ' <sup style="font-size:8px;opacity:0.7;">away</sup></span>';
+                  html += '<span data-ssid="' + s.name + '" title="Not nearby - saved/home network" style="background:var(--c-away-bg);border:1px dashed var(--c-away);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--c-away);">' + s.name + ' <sup style="font-size:8px;opacity:0.7;">away</sup></span>';
                 } else {
                   html += '<span data-ssid="' + s.name + '" style="background:var(--bg);border:1px solid var(--bord);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--txt);">' + s.name + '</span>';
                 }
@@ -3214,14 +3228,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
             // Third row: Responding AP (from probe response intelligence)
             if (apM) {
-              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:3px;font-size:10px;color:#2ecc71;">AP responded: <strong>' + apM[1] + '</strong>';
+              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:3px;font-size:10px;color:var(--c-ap);">AP responded: <strong>' + apM[1] + '</strong>';
               if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>';
               html += '</div>';
             }
 
             // Fourth row: Historical intelligence
             if (knownM) {
-              html += '<div style="margin-top:3px;font-size:10px;color:#3498db;">Seen ' + knownM[1] + ' times across ' + knownM[2] + ' sessions, last: ' + knownM[3] + '</div>';
+              html += '<div style="margin-top:3px;font-size:10px;color:var(--c-known);">Seen ' + knownM[1] + ' times across ' + knownM[2] + ' sessions, last: ' + knownM[3] + '</div>';
             }
 
             html += '</div>';
@@ -3252,7 +3266,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (isGhost) tooltip += ' - not nearby, saved/home network';
               if (macsM) tooltip += ': ' + macsM[1];
               if (isGhost) {
-                html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:rgba(231,76,60,0.15);color:#e74c3c;border:1px dashed #c0392b;padding:3px 10px;border-radius:12px;font-size:11px;cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup> <span style="font-size:8px;opacity:0.7;">away</span></span>';
+                html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:var(--c-away-bg);color:var(--c-away);border:1px dashed var(--c-away);padding:3px 10px;border-radius:12px;font-size:11px;cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup> <span style="font-size:8px;opacity:0.7;">away</span></span>';
               } else {
                 const opacity = Math.min(1, 0.4 + devCount * 0.2);
                 html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:rgba(46,204,113,' + opacity + ');color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:' + (devCount > 2 ? 'bold' : 'normal') + ';cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup></span>';
@@ -3286,11 +3300,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             devices.sort((a, b) => b.last - a.last);
             for (const d of devices) {
               const isRand = d.rand;
-              const border = isRand ? '#8e44ad' : 'var(--bord)';
+              const border = isRand ? 'var(--c-rand)' : 'var(--bord)';
               h += '<div style="padding:6px 10px;border-bottom:1px solid var(--bord);font-size:11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">';
               h += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);min-width:140px;">' + d.mac + '</span>';
               if (isRand) {
-                h += '<span style="background:#8e44ad;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
+                h += '<span style="background:var(--c-rand);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
               } else if (d.vendor) {
                 h += '<span style="color:var(--mut);font-size:10px;">' + d.vendor + '</span>';
               }
@@ -3306,7 +3320,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
             list.innerHTML = h;
           }).catch(() => {
-            list.innerHTML = '<div style="padding:12px;color:#e74c3c;font-size:11px;">Failed to load</div>';
+            list.innerHTML = '<div style="padding:12px;color:var(--c-err);font-size:11px;">Failed to load</div>';
           });
         }
       }
@@ -3354,7 +3368,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const channel = match[4] || '';
           const name = match[5] || 'Unknown';
 
-          const typeColor = type === 'BLE' ? '#4da6ff' : 'var(--acc)';
+          const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
           const rssiColor = rssiColorFor(rssi);
 
           html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
@@ -3374,8 +3388,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         // Render probe intelligence section if present
         if (probeLines.length > 0) {
-          html += '<div style="margin-top:16px;padding:10px;background:var(--surf);border:1px solid #8e44ad;border-radius:8px;">';
-          html += '<div style="font-weight:bold;color:#8e44ad;margin-bottom:8px;">Probe Intelligence (' + probeLines.length + ' probing devices)</div>';
+          html += '<div style="margin-top:16px;padding:10px;background:var(--surf);border:1px solid var(--c-rand);border-radius:8px;">';
+          html += '<div style="font-weight:bold;color:var(--c-rand);margin-bottom:8px;">Probe Intelligence (' + probeLines.length + ' probing devices)</div>';
           html += '<div style="display:flex;flex-direction:column;gap:4px;">';
           for (const pl of probeLines) {
             const macM = pl.match(/^([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
@@ -3390,7 +3404,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '<div style="padding:6px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;">';
             html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
             if (macM) html += '<span style="font-family:monospace;font-weight:bold;">' + macM[1] + '</span>';
-            if (isRand) html += '<span style="background:#8e44ad;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
+            if (isRand) html += '<span style="background:var(--c-rand);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
             else if (vendor) html += '<span style="color:var(--mut);">' + vendor + '</span>';
             if (countM) html += '<span style="color:var(--acc);">x' + countM[1] + '</span>';
             html += '</div>';
@@ -3401,7 +3415,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               for (const s of ssids) {
                 const ghost = s[1] === '~';
                 if (ghost) {
-                  html += '<span data-ssid="' + s[2] + '" title="Not nearby - saved/home network" style="background:rgba(231,76,60,0.1);border:1px dashed #c0392b;padding:1px 5px;border-radius:3px;font-size:9px;color:#e74c3c;">' + s[2] + ' <sup style="font-size:7px;opacity:0.7;">away</sup></span>';
+                  html += '<span data-ssid="' + s[2] + '" title="Not nearby - saved/home network" style="background:var(--c-away-bg);border:1px dashed var(--c-away);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--c-away);">' + s[2] + ' <sup style="font-size:7px;opacity:0.7;">away</sup></span>';
                 } else {
                   html += '<span data-ssid="' + s[2] + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;">' + s[2] + '</span>';
                 }
@@ -3409,7 +3423,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               html += '</div>';
             }
             if (apM) {
-              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:2px;font-size:9px;color:#2ecc71;">AP responded: <strong>' + apM[1] + '</strong>';
+              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:2px;font-size:9px;color:var(--c-ap);">AP responded: <strong>' + apM[1] + '</strong>';
               if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>';
               html += '</div>';
             }
@@ -3609,13 +3623,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (status === 'COMPLETED') {
               clearInterval(poll);
               // Show persistent success message
-              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#00cc66;font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:var(--c-ok);font-weight:bold;">SUCCESS: Secure erase completed successfully</pre>';
               toast('All data has been securely destroyed', 'success');
               // Clear the form
               document.getElementById('eraseConfirm').value = '';
             } else if (status.startsWith('FAILED')) {
               clearInterval(poll);
-              document.getElementById('eraseStatus').innerHTML = '<pre style="color:#ff4444;font-weight:bold;">FAILED: ' + status + '</pre>';
+              document.getElementById('eraseStatus').innerHTML = '<pre style="color:var(--c-err);font-weight:bold;">FAILED: ' + status + '</pre>';
               toast('Secure erase failed: ' + status, 'error');
             }
           }).catch(error => {
@@ -3973,11 +3987,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           lastScanStartTime = now;
 
           // Immediately update UI to show scanning state for ALL scan types
-          const scanStatusEl = document.getElementById('scanStatus');
-          if (scanStatusEl) {
-              scanStatusEl.innerText = isTriangulation ? 'Triangulating' : 'Scanning';
-              scanStatusEl.classList.add('active');
-          }
+          setScanStatus(isTriangulation ? 'Triangulate' : 'List Scan', 'active');
 
           // Update button immediately for all scan types
           if (submitBtn) {
@@ -4130,11 +4140,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         state.lastSubmit = now;
         lastScanStartTime = now;
 
-        const scanStatusEl = document.getElementById('scanStatus');
-        if (scanStatusEl) {
-            scanStatusEl.innerText = 'Scanning';
-            scanStatusEl.classList.add('active');
-        }
+        const detMethodLabels = {
+          'device-scan': 'Device Scan', 'drone-detection': 'Drone Detect',
+          'blue-team': 'Blue Team', 'baseline': 'Baseline',
+          'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect'
+        };
+        setScanStatus(detMethodLabels[detectionMethod] || 'Scanning', 'active');
 
         if (submitBtn) {
             submitBtn.textContent = 'Stop Scanning';
@@ -4282,7 +4293,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const el = document.getElementById('batterySaverStatus');
           if (data.enabled) {
             el.style.background = 'rgba(0,200,100,0.2)';
-            el.style.color = '#00c864';
+            el.style.color = 'var(--c-ok)';
             el.innerHTML = 'ACTIVE - Heartbeat every ' + data.interval + ' min | Next: ' + data.nextHeartbeat + 's';
           } else {
             el.style.background = 'rgba(0,0,0,0.2)';
