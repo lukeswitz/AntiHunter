@@ -73,6 +73,7 @@ void updateRTCTime();
 String getRTCTimeString();
 String getFormattedTimestamp();
 time_t getRTCEpoch();
+uint32_t getEventTimestamp();
 bool setRTCTime(int year, int month, int day, int hour, int minute, int second);
 bool setRTCTimeFromEpoch(time_t epoch);
 
@@ -105,6 +106,7 @@ void saveConfiguration();
 void loadConfiguration();
 void syncSettingsToNVS();
 void logToSD(const String &data);
+void logEventToSD(const char* path, const String& jsonLine);
 
 // Tamper Detection System
 extern bool tamperEraseActive;

@@ -995,6 +995,39 @@ void logVibrationEvent(int sensorValue) {
     Serial.printf("[MOTION] %s\n", event.c_str());
 }
 
+void logEventToSD(const char* path, const String& jsonLine) {
+    if (!SafeSD::isAvailable()) return;
+
+    File f = SafeSD::open(path, FILE_APPEND);
+    if (!f) {
+        f = SafeSD::open(path, FILE_WRITE);
+        if (!f) {
+            Serial.printf("[SD] Failed to open %s for event log\n", path);
+            return;
+        }
+    }
+    f.println(jsonLine);
+    f.close();
+
+    // Rotate if over 1MB
+    File check = SafeSD::open(path, FILE_READ);
+    if (check && check.size() > 1048576) {
+        check.close();
+        String rotated = String(path);
+        int dotIdx = rotated.lastIndexOf('.');
+        if (dotIdx > 0) {
+            rotated = rotated.substring(0, dotIdx) + "_old" + rotated.substring(dotIdx);
+        } else {
+            rotated += "_old";
+        }
+        SafeSD::remove(rotated.c_str());
+        SD.rename(path, rotated.c_str());
+        Serial.printf("[SD] Rotated %s -> %s\n", path, rotated.c_str());
+    } else if (check) {
+        check.close();
+    }
+}
+
 String getGPSData()
 {
     return lastGPSData;
@@ -1111,6 +1144,20 @@ void checkAndSendVibrationAlert() {
                 sendToSerial1(String(vibrationMsg), true);
             }
             logVibrationEvent(sensorValue);
+
+            // Structured vibration event log
+            {
+                DynamicJsonDocument doc(128);
+                doc["t"] = getEventTimestamp();
+                doc["uptime_ms"] = millis();
+                if (gpsValid) {
+                    doc["lat"] = gpsLat;
+                    doc["lon"] = gpsLon;
+                }
+                String line;
+                serializeJson(doc, line);
+                logEventToSD("/vibrations.jsonl", line);
+            }
 
         } else {
             Serial.printf("[VIBRATION] Alert rate limited - %lums since last alert\n", millis() - lastVibrationAlert);
@@ -1285,9 +1332,9 @@ void updateRTCTime() {
     snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
              now.year(), now.month(), now.day(),
              now.hour(), now.minute(), now.second());
-    
+
     rtcTimeString = String(buffer);
-    
+
     xSemaphoreGive(rtcMutex);
 
     if (gpsValid && gps.time.isValid()) {
@@ -1347,6 +1394,12 @@ time_t getRTCEpoch() {
     xSemaphoreGive(rtcMutex);
     
     return epoch;
+}
+
+uint32_t getEventTimestamp() {
+    time_t epoch = getRTCEpoch();
+    if (epoch > 946684800) return (uint32_t)epoch;  // valid if after year 2000
+    return millis() / 1000;
 }
 
 bool setRTCTime(int year, int month, int day, int hour, int minute, int second) {

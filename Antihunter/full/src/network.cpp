@@ -396,6 +396,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .page-tab.active{display:block}
       #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
       @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+      #data-table{width:100%;border-collapse:collapse;font-size:12px}
+      #data-table th{position:sticky;top:0;background:var(--surf);border-bottom:2px solid var(--bord);padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--mut);cursor:pointer;user-select:none;white-space:nowrap}
+      #data-table th:hover{color:var(--acc)}
+      #data-table th .sort-arrow{margin-left:4px;font-size:9px}
+      #data-table td{padding:6px 10px;border-bottom:1px solid var(--bord);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+      #data-table tr:hover{background:var(--accbg)}
+      .data-header{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+      .data-header select{width:auto;min-width:160px;padding:8px 32px 8px 12px;font-size:13px}
+      .data-header input[type="text"]{flex:1;min-width:120px;padding:8px 12px;font-size:13px}
+      .data-pager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px;font-size:12px;color:var(--mut)}
+      .data-pager button{padding:6px 12px}
+      .rssi-good{color:var(--succ)}.rssi-mid{color:var(--warn)}.rssi-bad{color:var(--dang)}
+      .rand-yes{color:var(--warn);font-weight:600}
+      .data-empty{text-align:center;padding:40px 20px;color:var(--mut);font-size:14px}
     </style>
     <script>
       let toggleHistory=[];
@@ -411,6 +425,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
         <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
+        <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
       </div>
       <div style="display:flex;align-items:center;gap:16px;margin-left:auto;">
         <div class="status-bar">
@@ -987,6 +1002,37 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       -->
       </div>
 
+      <div class="page-tab" id="page-data">
+      <div class="card">
+        <h3>Data Explorer</h3>
+        <div class="data-header">
+          <select id="dataSet" onchange="loadDataSet()">
+            <option value="probedb">Probe Devices</option>
+            <option value="probes">Probe Events</option>
+            <option value="deauth">Deauth Attacks</option>
+            <option value="drones">Drone Detections</option>
+            <option value="vibrations">Vibration Events</option>
+            <option value="baseline">Baseline Stats</option>
+            <option value="syslog">System Log</option>
+          </select>
+          <input type="text" id="dataSearch" placeholder="Search..." oninput="onDataSearch()">
+          <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
+          <a class="btn alt" id="dataExport" download style="padding:8px 14px;font-size:12px;">Export</a>
+          <button class="btn danger" id="dataClear" onclick="clearDataSet()" style="padding:8px 14px;font-size:12px;">Clear</button>
+        </div>
+        <div id="dataArea" style="overflow-x:auto;">
+          <div class="data-empty">Select a dataset to view.</div>
+        </div>
+        <div class="data-pager" id="dataPager" style="display:none;">
+          <button class="btn alt" onclick="dataPagePrev()" id="dataPrevBtn">Prev</button>
+          <span id="dataPageInfo">--</span>
+          <button class="btn alt" onclick="dataPageNext()" id="dataNextBtn">Next</button>
+        </div>
+      </div>
+      </div>
+
+      </div>
+
       <div class="footer">AntiHunter DIGINODE v0.9.3 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
@@ -1021,6 +1067,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (btn) btn.classList.add('active');
         var pg = document.getElementById('page-' + pageName);
         if (pg) pg.classList.add('active');
+        if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
       }
 
       function switchTab(tabName) {
@@ -4249,6 +4296,156 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         toast('Battery Saver: Disables WiFi/BLE scanning, reduces CPU to 80MHz, sends periodic heartbeats. Mesh UART stays active to receive commands like BATTERY_SAVER_STOP.', 'info');
       }
 
+      // ---- Data Tab ----
+      var dataRows=[],dataFiltered=[],dataCols=[],dataPage=0,dataSortCol=-1,dataSortAsc=false,dataSearchTimer=null;
+      var DATA_PAGE_SIZE=50;
+      var DATA_SETS={
+        probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',
+          cols:['MAC','Vendor','RSSI','Sessions','Seen','First','Last','SSIDs','Rand'],
+          keys:['mac','vendor','rssi','sessions','seen','first','last','ssids','rand']},
+        probes:{url:'/api/probes.jsonl',clear:null,fmt:'jsonl',
+          cols:['Time','MAC','RSSI','Ch','Count','Vendor','SSIDs','Rand','Hit'],
+          keys:['t','mac','rssi','ch','cnt','v','ss','rand','hit']},
+        deauth:{url:'/api/deauth.jsonl',clear:'/api/deauth/clear',fmt:'jsonl',
+          cols:['Time','Src','Dst','BSSID','RSSI','Ch','Reason','Type'],
+          keys:['t','src','dst','bssid','rssi','ch','reason','_type']},
+        drones:{url:'/api/drones.jsonl',clear:'/api/drones/clear',fmt:'jsonl',
+          cols:['Time','MAC','RSSI','UAV ID','Type','Lat','Lon'],
+          keys:['timestamp','mac','rssi','uav_id','type','lat','lon']},
+        vibrations:{url:'/api/vibrations.jsonl',clear:'/api/vibrations/clear',fmt:'jsonl',
+          cols:['Time','Uptime','Lat','Lon'],
+          keys:['t','uptime_ms','lat','lon']},
+        baseline:{url:'/baseline/stats',clear:null,fmt:'baseline',cols:[],keys:[]},
+        syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',
+          cols:['Time','Message'],keys:['_time','_msg']}
+      };
+      function loadDataSet(){
+        var ds=document.getElementById('dataSet').value;
+        var cfg=DATA_SETS[ds];
+        var area=document.getElementById('dataArea');
+        area.innerHTML='<div class="data-empty">Loading...</div>';
+        document.getElementById('dataPager').style.display='none';
+        document.getElementById('dataSearch').value='';
+        var exp=document.getElementById('dataExport');
+        exp.href=cfg.url;
+        exp.download=ds+(cfg.fmt==='text'?'.log':cfg.fmt==='json'?'.json':'.jsonl');
+        document.getElementById('dataClear').style.display=cfg.clear?'':'none';
+        fetch(cfg.url).then(function(r){
+          if(!r.ok) throw new Error(r.status);
+          return r.text();
+        }).then(function(text){
+          if(cfg.fmt==='baseline'){renderBaseline(text);return;}
+          if(cfg.fmt==='text'){parseLogData(text,cfg);return;}
+          if(cfg.fmt==='json'){dataRows=JSON.parse(text);}
+          else{var lines=text.trim().split('\n');dataRows=[];for(var i=0;i<lines.length;i++){if(lines[i].trim()){try{dataRows.push(JSON.parse(lines[i]));}catch(e){}}}}
+          dataCols=cfg.keys;dataPage=0;dataSortCol=-1;dataSortAsc=false;
+          dataFiltered=dataRows.slice();
+          var tk=dataCols.indexOf('last')>=0?'last':dataCols.indexOf('timestamp')>=0?'timestamp':dataCols.indexOf('t')>=0?'t':null;
+          if(tk){var ci=dataCols.indexOf(tk);dataSortCol=ci;dataSortAsc=false;dataFiltered.sort(function(a,b){return(getVal(b,tk)||0)-(getVal(a,tk)||0);});}
+          renderDataTable(cfg);
+        }).catch(function(e){area.innerHTML='<div class="data-empty">No data available.</div>';});
+      }
+      function getVal(row,key){
+        if(key==='_type') return row.disassoc?'DISASSOC':'DEAUTH';
+        return row[key];
+      }
+      function fmtCell(val,key){
+        if(val===undefined||val===null) return '-';
+        if(key==='t'||key==='timestamp'||key==='first'||key==='last'){
+          if(typeof val==='number'&&val>946684800) return new Date(val*1000).toISOString().replace('T',' ').substring(0,19)+' UTC';
+          if(typeof val==='number'&&val>0){var s=val%60,m=Math.floor(val/60)%60,h=Math.floor(val/3600);return (h?h+'h ':'')+(m?m+'m ':'')+s+'s (uptime)';}
+          if(typeof val==='number') return '-';
+          return String(val);
+        }
+        if(key==='rssi'){var cls=val>-50?'rssi-good':val>-70?'rssi-mid':'rssi-bad';return '<span class="'+cls+'">'+val+' dBm</span>';}
+        if(key==='rand') return val?'<span class="rand-yes">Yes</span>':'No';
+        if(key==='hit'||key==='dst') return val?'<span style="color:var(--dang);font-weight:600">Yes</span>':'No';
+        if(key==='ss'||key==='ssids'){
+          if(Array.isArray(val)){if(val.length===0) return '-';var shown=val.slice(0,2).join(', ');if(val.length>2) shown+=' +'+(val.length-2)+' more';return shown;}
+          return String(val);
+        }
+        if(key==='uptime_ms'){var s=Math.floor(val/1000);var m=Math.floor(s/60);s=s%60;var h=Math.floor(m/60);m=m%60;return (h?h+'h ':'')+(m?m+'m ':'')+(s+'s');}
+        if(key==='mac'||key==='src'||key==='dst'||key==='bssid'){
+          if(typeof privacyMode!=='undefined'&&privacyMode&&typeof val==='string'&&val.length>=17) return val.substring(0,9)+'XX:XX'+val.substring(14);
+        }
+        if(key==='_type') return val;
+        return String(val);
+      }
+      function renderDataTable(cfg){
+        var area=document.getElementById('dataArea');
+        if(!dataFiltered.length){area.innerHTML='<div class="data-empty">No records found.</div>';document.getElementById('dataPager').style.display='none';return;}
+        var start=dataPage*DATA_PAGE_SIZE,end=Math.min(start+DATA_PAGE_SIZE,dataFiltered.length);
+        var html='<table id="data-table"><thead><tr>';
+        for(var c=0;c<cfg.cols.length;c++){
+          var arrow='';if(dataSortCol===c) arrow='<span class="sort-arrow">'+(dataSortAsc?'&#9650;':'&#9660;')+'</span>';
+          html+='<th onclick="sortDataCol('+c+')">'+cfg.cols[c]+arrow+'</th>';
+        }
+        html+='</tr></thead><tbody>';
+        for(var i=start;i<end;i++){html+='<tr>';for(var c=0;c<dataCols.length;c++){html+='<td>'+fmtCell(getVal(dataFiltered[i],dataCols[c]),dataCols[c])+'</td>';}html+='</tr>';}
+        html+='</tbody></table>';area.innerHTML=html;
+        var pager=document.getElementById('dataPager');
+        if(dataFiltered.length>DATA_PAGE_SIZE){
+          pager.style.display='flex';
+          document.getElementById('dataPageInfo').textContent=(start+1)+'-'+end+' of '+dataFiltered.length;
+          document.getElementById('dataPrevBtn').disabled=dataPage===0;
+          document.getElementById('dataNextBtn').disabled=end>=dataFiltered.length;
+        } else { pager.style.display='none'; }
+      }
+      function sortDataCol(ci){
+        var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
+        if(dataSortCol===ci){dataSortAsc=!dataSortAsc;}else{dataSortCol=ci;dataSortAsc=true;}
+        var key=dataCols[ci];
+        dataFiltered.sort(function(a,b){
+          var av=getVal(a,key),bv=getVal(b,key);
+          if(av===undefined||av===null) av='';if(bv===undefined||bv===null) bv='';
+          if(typeof av==='number'&&typeof bv==='number') return dataSortAsc?av-bv:bv-av;
+          av=String(av).toLowerCase();bv=String(bv).toLowerCase();
+          return dataSortAsc?av.localeCompare(bv):bv.localeCompare(av);
+        });
+        dataPage=0;renderDataTable(cfg);
+      }
+      function onDataSearch(){
+        clearTimeout(dataSearchTimer);
+        dataSearchTimer=setTimeout(function(){
+          var q=document.getElementById('dataSearch').value.toLowerCase();
+          var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
+          if(!q){dataFiltered=dataRows.slice();}else{
+            dataFiltered=dataRows.filter(function(row){
+              for(var c=0;c<dataCols.length;c++){var v=getVal(row,dataCols[c]);if(v!==undefined&&v!==null&&String(v).toLowerCase().indexOf(q)>=0) return true;}
+              return false;
+            });
+          }
+          dataPage=0;renderDataTable(cfg);
+        },300);
+      }
+      function dataPagePrev(){if(dataPage>0){dataPage--;renderDataTable(DATA_SETS[document.getElementById('dataSet').value]);}}
+      function dataPageNext(){var ds=document.getElementById('dataSet').value;if((dataPage+1)*DATA_PAGE_SIZE<dataFiltered.length){dataPage++;renderDataTable(DATA_SETS[ds]);}}
+      function clearDataSet(){
+        var ds=document.getElementById('dataSet').value,cfg=DATA_SETS[ds];
+        if(!cfg.clear) return;
+        if(!confirm('Clear all '+ds+' data? This cannot be undone.')) return;
+        fetch(cfg.clear,{method:'POST'}).then(function(r){if(r.ok){toast('Data cleared','success');loadDataSet();}else toast('Clear failed','error');});
+      }
+      function parseLogData(text,cfg){
+        dataRows=[];dataCols=cfg.keys;
+        var lines=text.trim().split('\n');
+        for(var i=0;i<lines.length;i++){var line=lines[i];var m=line.match(/^\[([^\]]+)\]\s*(.*)$/);if(m){dataRows.push({_time:m[1],_msg:m[2]});}else if(line.trim()){dataRows.push({_time:'',_msg:line});}}
+        dataRows.reverse();dataFiltered=dataRows.slice();dataPage=0;dataSortCol=-1;dataSortAsc=false;renderDataTable(cfg);
+      }
+      function renderBaseline(text){
+        var area=document.getElementById('dataArea');document.getElementById('dataPager').style.display='none';
+        try{var d=JSON.parse(text);
+          area.innerHTML='<div class="stat-grid">'
+            +'<div class="stat-item"><div class="stat-label">Devices</div><div class="stat-value">'+(d.deviceCount||d.devices||0)+'</div></div>'
+            +'<div class="stat-item"><div class="stat-label">RAM Cache</div><div class="stat-value">'+(d.ramSize||d.ram||0)+'</div></div>'
+            +'<div class="stat-item"><div class="stat-label">SD Cache</div><div class="stat-value">'+(d.sdSize||d.sd||0)+'</div></div>'
+            +'<div class="stat-item"><div class="stat-label">RSSI Threshold</div><div class="stat-value">'+(d.rssiThreshold||d.rssi||'-70')+' dBm</div></div>'
+            +'<div class="stat-item"><div class="stat-label">Absence</div><div class="stat-value">'+(d.absenceThreshold||d.absence||'120')+'s</div></div>'
+            +'<div class="stat-item"><div class="stat-label">Reappear Window</div><div class="stat-value">'+(d.reappearWindow||d.reappear||'300')+'s</div></div>'
+            +'</div><div style="margin-top:16px;"><button class="btn danger" onclick="if(confirm(\'Reset all baseline data?\'))fetch(\'/baseline/reset\',{method:\'POST\'}).then(function(){toast(\'Baseline reset\',\'success\');loadDataSet();})">Reset Baseline</button></div>';
+        }catch(e){area.innerHTML='<div class="data-empty">No baseline data available.</div>';}
+      }
+
       // Initialize
       load();
       updatePrivacyBtn();
@@ -5553,6 +5750,69 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       } else {
           req->send(404, "text/plain", "No probe log file");
       }
+  });
+
+  // --- Data tab API endpoints ---
+
+  server->on("/api/deauth.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
+      if (SD.exists("/deauth.jsonl")) {
+          req->send(SD, "/deauth.jsonl", "application/x-ndjson");
+      } else {
+          req->send(404, "text/plain", "No deauth log file");
+      }
+  });
+
+  server->on("/api/deauth/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+      deauthLog.clear();
+      deauthCount = 0;
+      disassocCount = 0;
+      SafeSD::remove("/deauth.jsonl");
+      SafeSD::remove("/deauth_old.jsonl");
+      req->send(200, "text/plain", "Deauth log cleared");
+  });
+
+  server->on("/api/drones.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
+      if (SD.exists("/drones.jsonl")) {
+          req->send(SD, "/drones.jsonl", "application/x-ndjson");
+      } else {
+          req->send(404, "text/plain", "No drone log file");
+      }
+  });
+
+  server->on("/api/drones/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+      droneEventLog.clear();
+      detectedDrones.clear();
+      droneDetectionCount = 0;
+      SafeSD::remove("/drones.jsonl");
+      SafeSD::remove("/drones_old.jsonl");
+      req->send(200, "text/plain", "Drone log cleared");
+  });
+
+  server->on("/api/vibrations.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
+      if (SD.exists("/vibrations.jsonl")) {
+          req->send(SD, "/vibrations.jsonl", "application/x-ndjson");
+      } else {
+          req->send(404, "text/plain", "No vibration log file");
+      }
+  });
+
+  server->on("/api/vibrations/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+      SafeSD::remove("/vibrations.jsonl");
+      SafeSD::remove("/vibrations_old.jsonl");
+      req->send(200, "text/plain", "Vibration log cleared");
+  });
+
+  server->on("/api/antihunter.log", HTTP_GET, [](AsyncWebServerRequest *req) {
+      if (SD.exists("/antihunter.log")) {
+          req->send(SD, "/antihunter.log", "text/plain");
+      } else {
+          req->send(404, "text/plain", "No system log file");
+      }
+  });
+
+  server->on("/api/antihunter.log/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+      SafeSD::remove("/antihunter.log");
+      req->send(200, "text/plain", "System log cleared");
   });
 
   server->on("/wifi-config", HTTP_POST, [](AsyncWebServerRequest *req) {

@@ -1752,6 +1752,27 @@ void blueTeamTask(void *pv) {
         antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
     }
 
+    // Log deauth events to SD
+    if (SafeSD::isAvailable() && !deauthLog.empty()) {
+        uint32_t now = getEventTimestamp();
+        for (const auto& hit : deauthLog) {
+            DynamicJsonDocument doc(384);
+            doc["t"] = now;
+            doc["src"] = macFmt6(hit.srcMac);
+            doc["dst"] = macFmt6(hit.destMac);
+            doc["bssid"] = macFmt6(hit.bssid);
+            doc["rssi"] = hit.rssi;
+            doc["ch"] = hit.channel;
+            doc["reason"] = hit.reasonCode;
+            doc["disassoc"] = hit.isDisassoc;
+            doc["broadcast"] = hit.isBroadcast;
+            String line;
+            serializeJson(doc, line);
+            logEventToSD("/deauth.jsonl", line);
+        }
+        Serial.printf("[BLUE] Logged %d deauth events to SD\n", (int)deauthLog.size());
+    }
+
     if (meshEnabled && !stopRequested) {
         Serial.printf("[BLUE] Scan complete - transmitting final batch\n");
         rateLimiter.flush();
@@ -2837,7 +2858,7 @@ void probeDetectionTask(void *pv)
     {
         File logFile = SD.open("/probes.jsonl", FILE_APPEND);
         if (logFile) {
-            uint32_t now = millis() / 1000;
+            uint32_t now = getEventTimestamp();
             std::lock_guard<std::mutex> lock(probeMutex);
             for (auto &p : probeDevices) {
                 ProbeDevice &dev = p.second;
@@ -3129,7 +3150,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
              dev.mac[0], dev.mac[1], dev.mac[2], dev.mac[3], dev.mac[4], dev.mac[5]);
 
     std::lock_guard<std::mutex> lock(probeDBMutex);
-    uint32_t now = millis() / 1000;
+    uint32_t now = getEventTimestamp();
 
     auto it = probeDB.find(String(macStr));
     if (it != probeDB.end()) {
@@ -3250,6 +3271,9 @@ void initializeScanner()
     String wtxt = prefs.getString("allowlist", "");
     saveAllowlist(wtxt);
     Serial.printf("Loaded %d allowlist entries\n", allowlist.size());
+
+    loadProbeDB();
+    Serial.printf("Loaded %u probe devices from DB\n", getProbeDBSize());
 }
 
 static void resetTriAccumulator(const uint8_t* mac) {

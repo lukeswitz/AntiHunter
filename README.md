@@ -578,6 +578,23 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | `/api/probedb/clear` | POST | Clear probe database |
 | `/api/probes.jsonl` | GET | Stream probe log from SD (JSONL) |
 
+### Data Explorer
+
+The **Data** tab in the web UI provides a searchable, sortable view of all SD-logged scan data. Select a dataset from the dropdown, search across any column, click column headers to sort, and page through results.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/deauth.jsonl` | GET | Deauth/disassoc attack log (JSONL) |
+| `/api/deauth/clear` | POST | Clear deauth log (RAM + SD) |
+| `/api/drones.jsonl` | GET | Drone RID detection log (JSONL) |
+| `/api/drones/clear` | POST | Clear drone log (RAM + SD) |
+| `/api/vibrations.jsonl` | GET | Vibration/tamper event log (JSONL) |
+| `/api/vibrations/clear` | POST | Clear vibration log (SD) |
+| `/api/antihunter.log` | GET | System event log (text) |
+| `/api/antihunter.log/clear` | POST | Clear system log |
+
+Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detections, Vibration Events, Baseline Stats, and System Log. All datasets support export (download the raw file) and clear (with confirmation). The headless firmware logs the same data to SD without the web UI.
+
 <details>
 <summary>Configuration Endpoints</summary>
 
