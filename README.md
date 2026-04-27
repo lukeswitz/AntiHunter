@@ -32,7 +32,7 @@
 6. [RF Configuration](#rf-configuration)
 7. [System Architecture](#system-architecture)
 8. [Hardware](#hardware)
-9. [Getting Started](#getting-started) -- [Web Flasher & Configurator](https://lukeswitz.github.io/AntiHunter/flasher/) | CLI | Build from Source
+9. [Getting Started](#getting-started)
 10. [Mesh Commands](#mesh-commands)
 11. [API Reference](#api-reference)
 12. [Credits](#credits)
