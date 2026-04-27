@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AntiHunter Web Flasher</title>
+  <script
+    type="module"
+    src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"
+  ></script>
+  <style>
+    :root{--t:0.2s;--blur:12px}
+    [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#a05848;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
+    [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:rgba(14,20,34,0.85);--surf-hover:rgba(18,26,42,0.95);--bord:rgba(96,160,224,0.12);--bord-focus:rgba(96,160,224,0.35);--txt:#c8d4e0;--mut:#6878a0;--acc:#60a0e0;--acch:#4888cc;--accbg:rgba(96,160,224,0.08);--succ:#60a0e0;--warn:#c09040;--dang:#b86050;--shad:0 8px 32px rgba(0,0,0,0.6);--shad-hover:0 12px 48px rgba(0,0,0,0.8);--glow:0 0 24px rgba(96,160,224,0.15),0 0 48px rgba(96,160,224,0.05);--backdrop:blur(16px) saturate(180%);--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
+    [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
+    [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);background-attachment:fixed;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
+    .header{padding:18px 28px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:18px;box-shadow:var(--shad);flex-wrap:wrap;position:sticky;top:0;z-index:100}
+    .header-right{display:flex;align-items:center;gap:16px;margin-left:auto}
+    h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    h3{margin:0 0 18px;font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--txt)}
+    .container{max-width:720px;margin:0 auto;padding:28px}
+    .card{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:1px solid var(--bord);border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:var(--shad);transition:all 0.3s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden}
+    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,var(--acc) 50%,transparent 100%);opacity:0;transition:opacity 0.3s}
+    .card:hover{box-shadow:var(--shad-hover);border-color:var(--bord-focus);transform:translateY(-2px)}
+    .card:hover::before{opacity:0.6}
+    label{display:block;margin:10px 0 8px;color:var(--mut);font-size:13px;font-weight:600;letter-spacing:0.01em;text-transform:uppercase}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:8px;border:2px solid var(--bord);background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--txt);text-decoration:none;cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;white-space:nowrap}
+    .btn::before{content:'';position:absolute;top:50%;left:50%;width:0;height:0;border-radius:50%;background:rgba(255,255,255,0.1);transform:translate(-50%,-50%);transition:width 0.4s,height 0.4s}
+    .btn:hover::before{width:300px;height:300px}
+    .btn:hover{transform:translateY(-2px);box-shadow:var(--shad-hover);border-color:var(--bord-focus)}
+    .btn:active{transform:translateY(0)}
+    .btn.primary{background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);border-color:var(--acc);color:#fff;box-shadow:var(--glow)}
+    .btn.primary:hover{box-shadow:var(--glow),var(--shad-hover);filter:brightness(1.1)}
+    .btn.alt{color:var(--acc);border-color:var(--acc);background:transparent}
+    .theme-toggle{width:48px;height:28px;background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--acc);border-radius:14px;cursor:pointer;position:relative;transition:all 0.3s;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:var(--glow)}
+    .theme-toggle:hover{transform:scale(1.05);box-shadow:var(--glow),var(--shad)}
+    .theme-toggle svg{width:18px;height:18px;position:absolute;transition:opacity 0.3s,transform 0.3s;stroke:var(--acc);fill:var(--acc)}
+    .theme-toggle .sun{opacity:1;transform:rotate(0deg) scale(1)}
+    .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0);stroke:none}
+    [data-theme="dark"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
+    [data-theme="dark"] .theme-toggle .moon{opacity:1;transform:rotate(0deg) scale(1)}
+    .theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
+    [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
+    [data-theme="cyber"] .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0)}
+    [data-theme="cyber"] .theme-toggle .terminal{opacity:1;transform:scale(1)}
+    .banner{color:var(--dang);border:2px solid var(--dang);padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;background:var(--c-err-bg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .banner.info{color:var(--acc);border-color:var(--acc);background:var(--accbg)}
+    pre{background:rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;font-family:monospace;line-height:1.6}
+    hr{border:0;border-top:1px solid var(--bord);margin:20px 0}
+
+    /* Firmware selector */
+    .fw-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+    .fw-option{background:var(--surf);border:2px solid var(--bord);border-radius:10px;padding:20px;cursor:pointer;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);text-align:center;position:relative}
+    .fw-option:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--shad-hover)}
+    .fw-option.selected{border-color:var(--acc);background:var(--accbg);box-shadow:var(--glow)}
+    .fw-option .fw-icon{font-size:32px;margin-bottom:10px;display:block;opacity:0.7}
+    .fw-option.selected .fw-icon{opacity:1}
+    .fw-name{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:4px}
+    .fw-desc{font-size:12px;color:var(--mut);line-height:1.4}
+    .fw-option .fw-check{position:absolute;top:10px;right:10px;width:22px;height:22px;border:2px solid var(--bord);border-radius:50%;transition:all 0.2s}
+    .fw-option.selected .fw-check{border-color:var(--acc);background:var(--acc);box-shadow:var(--glow)}
+    .fw-option.selected .fw-check::after{content:'';display:block;width:6px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin:3px auto 0}
+
+    /* Version badge */
+    .version-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:var(--accbg);border:1px solid var(--acc);color:var(--acc);font-size:12px;font-weight:600;letter-spacing:0.02em}
+    .version-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--acc);animation:pulse 2s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+    /* Flash button area */
+    .flash-area{text-align:center;padding:8px 0}
+    .flash-area esp-web-install-button{display:inline-block}
+    .flash-area esp-web-install-button::part(invoke-button){
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      padding:14px 32px;border-radius:8px;border:2px solid var(--acc);
+      background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);
+      color:#fff;cursor:pointer;font-size:15px;font-weight:700;
+      transition:all 0.2s cubic-bezier(0.4,0,0.2,1);
+      box-shadow:var(--glow);font-family:inherit;letter-spacing:0.01em
+    }
+    .flash-area esp-web-install-button::part(invoke-button):hover{
+      filter:brightness(1.1);transform:translateY(-2px);
+      box-shadow:var(--glow),var(--shad-hover)
+    }
+
+    /* Steps */
+    .steps{counter-reset:step;margin:0;padding:0;list-style:none}
+    .steps li{counter-increment:step;position:relative;padding:0 0 16px 40px;color:var(--txt);font-size:13px;line-height:1.6}
+    .steps li::before{content:counter(step);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--accbg);border:2px solid var(--acc);color:var(--acc);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+    .steps li::after{content:'';position:absolute;left:12px;top:28px;width:2px;height:calc(100% - 28px);background:var(--bord)}
+    .steps li:last-child::after{display:none}
+    .steps li:last-child{padding-bottom:0}
+
+    /* Status line */
+    .status-line{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;background:var(--accbg);border:1px solid var(--acc);font-size:13px;color:var(--acc);font-weight:600;margin-bottom:16px}
+    .status-line.loading .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--acc);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite}
+    .status-line.error{background:var(--c-err-bg);border-color:var(--dang);color:var(--dang)}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Footer */
+    .footer{text-align:center;padding:20px;font-size:12px;color:var(--mut)}
+    .footer a{color:var(--acc);text-decoration:none}
+    .footer a:hover{text-decoration:underline}
+
+    /* Responsive */
+    @media(max-width:600px){
+      .header{padding:12px 16px;gap:10px}
+      .header h1{font-size:16px}
+      .container{padding:12px}
+      .card{padding:14px}
+      .fw-grid{grid-template-columns:1fr}
+      .fw-name{font-size:14px}
+    }
+  </style>
+  <script>
+    let toggleHistory=[];
+    function toggleTheme(){
+      const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();
+      toggleHistory.push(now);
+      toggleHistory=toggleHistory.filter(time=>now-time<2000);
+      if(t==='cyber'){
+        const n=localStorage.getItem('prevTheme')||'light';
+        e.setAttribute('data-theme',n);localStorage.setItem('theme',n);
+        localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');
+        toggleHistory=[];return;
+      }
+      if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){
+        localStorage.setItem('prevTheme',t);
+        e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');
+        localStorage.setItem('cyberMode','1');toggleHistory=[];return;
+      }
+      const n='dark'===t?'light':'dark';
+      e.setAttribute('data-theme',n);localStorage.setItem('theme',n);
+    }
+    (function(){
+      const e=localStorage.getItem('theme');
+      e?document.documentElement.setAttribute('data-theme',e)
+        :document.documentElement.setAttribute('data-theme','light');
+    })();
+  </script>
+</head>
+<body>
+  <div class="header">
+    <h1>AntiHunter Web Flasher</h1>
+    <div class="header-right">
+      <div id="versionBadge" class="version-badge" style="display:none">
+        <span class="dot"></span>
+        <span id="versionText">--</span>
+      </div>
+      <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg class="terminal" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+          <polyline points="6 8 10 12 6 16"/>
+          <line x1="12" y1="12" x2="18" y2="12"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Browser check -->
+    <div id="browserWarning" class="banner" style="display:none">
+      Web Serial is not supported in this browser. Use Chrome or Edge on desktop.
+    </div>
+
+    <!-- Status -->
+    <div id="statusLine" class="status-line loading">
+      <span class="spinner"></span>
+      <span id="statusText">Checking latest release...</span>
+    </div>
+
+    <!-- Firmware Selection -->
+    <div class="card">
+      <h3>Select Firmware</h3>
+      <div class="fw-grid">
+        <div class="fw-option selected" id="opt-full" onclick="selectFirmware('full')">
+          <span class="fw-check"></span>
+          <span class="fw-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+              stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+          </span>
+          <div class="fw-name">Full</div>
+          <div class="fw-desc">
+            WiFi AP + WebUI<br>
+            On-device configuration via browser
+          </div>
+        </div>
+        <div class="fw-option" id="opt-headless" onclick="selectFirmware('headless')">
+          <span class="fw-check"></span>
+          <span class="fw-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+              <line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+          </span>
+          <div class="fw-name">Headless</div>
+          <div class="fw-desc">
+            Mesh-only, no WiFi AP<br>
+            Configure via serial or mesh commands
+          </div>
+        </div>
+      </div>
+
+      <!-- Flash button -->
+      <div class="flash-area">
+        <esp-web-install-button id="flashBtn">
+          <button class="btn primary" slot="activate">
+            Connect & Flash
+          </button>
+          <span slot="unsupported">
+            <div class="banner">
+              Your browser does not support Web Serial.
+              Use Chrome 89+ or Edge 89+ on desktop.
+            </div>
+          </span>
+          <span slot="not-allowed">
+            <div class="banner info">
+              Serial access was denied. Reload the page to try again.
+            </div>
+          </span>
+        </esp-web-install-button>
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="card">
+      <h3>How to Flash</h3>
+      <ol class="steps">
+        <li>
+          Connect your Seeed XIAO ESP32-S3 to your computer via USB-C.
+        </li>
+        <li>
+          Select <strong>Full</strong> (WiFi AP + WebUI) or
+          <strong>Headless</strong> (mesh only) above.
+        </li>
+        <li>
+          Click <strong>Connect & Flash</strong> and select the serial port
+          for your ESP32 in the browser dialog.
+        </li>
+        <li>
+          Wait for the flash to complete. The device will reboot
+          automatically.
+        </li>
+        <li>
+          <strong>Full firmware:</strong> Connect to the
+          <code>Antihunter</code> WiFi AP (password:
+          <code>antihunt3r123</code>) and open
+          <code>http://192.168.4.1</code>.
+        </li>
+      </ol>
+    </div>
+
+    <!-- Fallback -->
+    <div class="card">
+      <h3>Manual Flash (CLI)</h3>
+      <p style="font-size:13px;color:var(--mut);margin-bottom:12px;">
+        If Web Serial is unavailable, use the shell script:
+      </p>
+      <pre id="cliBlock">curl -fLO https://github.com/lukeswitz/AntiHunter/raw/main/Dist/flashAntihunter.sh
+chmod +x flashAntihunter.sh
+./flashAntihunter.sh</pre>
+      <div style="margin-top:12px;">
+        <a class="btn alt" id="releaseLink"
+          href="https://github.com/lukeswitz/AntiHunter/releases/latest"
+          target="_blank" rel="noopener">
+          View Release on GitHub
+        </a>
+      </div>
+    </div>
+
+    <div class="footer">
+      <a href="https://github.com/lukeswitz/AntiHunter"
+        target="_blank" rel="noopener">
+        AntiHunter
+      </a>
+      &mdash; ESP32-S3 Counter-Surveillance Mesh
+    </div>
+  </div>
+
+  <script>
+    const REPO = 'lukeswitz/AntiHunter';
+    const DIST_BASE = `https://github.com/${REPO}/raw/refs/heads/main/Dist`;
+
+    let selectedFirmware = 'full';
+    let latestVersion = null;
+
+    function selectFirmware(type) {
+      selectedFirmware = type;
+      document.getElementById('opt-full').classList
+        .toggle('selected', type === 'full');
+      document.getElementById('opt-headless').classList
+        .toggle('selected', type === 'headless');
+      updateManifest();
+    }
+
+    function setStatus(text, isError) {
+      const line = document.getElementById('statusLine');
+      const span = document.getElementById('statusText');
+      line.classList.remove('loading', 'error');
+      if (isError) line.classList.add('error');
+      span.textContent = text;
+    }
+
+    function buildManifestUrl(version, variant) {
+      const tag = version.replace(/^v/, '');
+      const binName = `antihunter-${variant}-v${tag}.bin`;
+      const binUrl = `${DIST_BASE}/${binName}`;
+      const bootUrl = `${DIST_BASE}/bootloader.bin`;
+      const partUrl = `${DIST_BASE}/partitions.bin`;
+
+      const manifest = {
+        name: variant === 'full'
+          ? `AntiHunter Full ${version}`
+          : `AntiHunter Headless ${version}`,
+        new_install_prompt_erase: true,
+        builds: [{
+          chipFamily: 'ESP32-S3',
+          parts: [
+            { path: bootUrl, offset: 0 },
+            { path: partUrl, offset: 32768 },
+            { path: binUrl, offset: 65536 }
+          ]
+        }]
+      };
+
+      const blob = new Blob(
+        [JSON.stringify(manifest)],
+        { type: 'application/json' }
+      );
+      return URL.createObjectURL(blob);
+    }
+
+    function updateManifest() {
+      if (!latestVersion) return;
+      const btn = document.getElementById('flashBtn');
+      const oldUrl = btn.getAttribute('manifest');
+      if (oldUrl && oldUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(oldUrl);
+      }
+      const url = buildManifestUrl(latestVersion, selectedFirmware);
+      btn.setAttribute('manifest', url);
+    }
+
+    async function fetchLatestVersion() {
+      try {
+        const resp = await fetch(
+          `https://api.github.com/repos/${REPO}/releases/latest`,
+          { headers: { Accept: 'application/vnd.github.v3+json' } }
+        );
+
+        if (resp.status === 404) {
+          const tagsResp = await fetch(
+            `https://api.github.com/repos/${REPO}/tags?per_page=1`,
+            { headers: { Accept: 'application/vnd.github.v3+json' } }
+          );
+          if (!tagsResp.ok) throw new Error(`Tags API: ${tagsResp.status}`);
+          const tags = await tagsResp.json();
+          if (!tags.length) throw new Error('No tags found');
+          return tags[0].name;
+        }
+
+        if (!resp.ok) throw new Error(`Releases API: ${resp.status}`);
+        const data = await resp.json();
+        return data.tag_name;
+      } catch (err) {
+        throw err;
+      }
+    }
+
+    async function init() {
+      if (!('serial' in navigator)) {
+        document.getElementById('browserWarning').style.display = 'block';
+      }
+
+      try {
+        latestVersion = await fetchLatestVersion();
+        document.getElementById('versionBadge').style.display = 'inline-flex';
+        document.getElementById('versionText').textContent =
+          `Latest: ${latestVersion}`;
+        setStatus(`Ready to flash ${latestVersion}`, false);
+        updateManifest();
+      } catch (err) {
+        latestVersion = 'v0.9.4';
+        setStatus(
+          `Could not fetch latest version, using ${latestVersion}`,
+          true
+        );
+        document.getElementById('versionBadge').style.display = 'inline-flex';
+        document.getElementById('versionText').textContent =
+          `Fallback: ${latestVersion}`;
+        updateManifest();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
