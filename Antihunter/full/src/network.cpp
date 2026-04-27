@@ -1179,7 +1179,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           applyPrivacyToElement(document.body);
           document.querySelectorAll('textarea').forEach(ta => {
             ta.value = ta.value.replace(/\b([A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi, 'XX:XX:XX:XX:XX:XX');
-            ta.value = ta.value.replace(/(?:probes:|AP=|SSID:\s*)"([^"]+)"/g, (m, s) => m.replace(s, ssidHash(s)));
+            ta.value = ta.value.replace(/(?:probes:|AP=|SSID:\s*)~?"([^"]+)"/g, (m, s) => m.replace(s, ssidHash(s)));
           });
         } else {
           if (resultsElement && lastResultsText) {
@@ -3113,12 +3113,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const vendorM = line.match(/CH=\d+\s+(\w+)/);
             if (vendorM && vendorM[1] !== 'probes' && vendorM[1] !== 'AP') vendor = vendorM[1];
 
-            // Parse all SSIDs from probes:"X","Y" format
+            // Parse all SSIDs from probes:~"Ghost","Local" format (~prefix = ghost network)
             let ssids = [];
-            const probesM = line.match(/probes:((?:"[^"]*",?)+)/);
+            const probesM = line.match(/probes:((?:~?"[^"]*",?)+)/);
             if (probesM) {
-              const matches = probesM[1].matchAll(/"([^"]*)"/g);
-              for (const m of matches) ssids.push(m[1]);
+              const matches = probesM[1].matchAll(/(~?)"([^"]*)"/g);
+              for (const m of matches) ssids.push({name: m[2], ghost: m[1] === '~'});
             }
 
             // Parse responding AP (SSID + optional BSSID)
@@ -3154,7 +3154,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               html += '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">';
               html += '<span style="color:var(--mut);font-size:10px;">Probing:</span>';
               for (const s of ssids) {
-                html += '<span data-ssid="' + s + '" style="background:var(--bg);border:1px solid var(--bord);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--txt);">' + s + '</span>';
+                if (s.ghost) {
+                  html += '<span data-ssid="' + s.name + '" title="Not nearby - saved/home network" style="background:rgba(231,76,60,0.1);border:1px dashed #c0392b;padding:1px 6px;border-radius:4px;font-size:10px;color:#e74c3c;">' + s.name + ' <sup style="font-size:8px;opacity:0.7;">away</sup></span>';
+                } else {
+                  html += '<span data-ssid="' + s.name + '" style="background:var(--bg);border:1px solid var(--bord);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--txt);">' + s.name + '</span>';
+                }
               }
               html += '</div>';
             } else if (wildcard) {
@@ -3181,18 +3185,31 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         // SSID intelligence panel
         if (ssidSection.trim()) {
           const ssidLines = ssidSection.trim().split('\n');
+          let nearbyCount = 0, ghostCount = 0;
+          for (const sl of ssidLines) {
+            if (sl.trim().startsWith('~')) ghostCount++; else nearbyCount++;
+          }
           html += '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-          html += '<div style="font-weight:bold;color:var(--acc);margin-bottom:8px;">Network Intelligence (' + ssidLines.length + ' SSIDs)</div>';
+          html += '<div style="font-weight:bold;color:var(--acc);margin-bottom:8px;">Network Intelligence (' + ssidLines.length + ' SSIDs';
+          if (ghostCount > 0) html += ', ' + ghostCount + ' away';
+          html += ')</div>';
           html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
           for (const sl of ssidLines) {
-            const sm = sl.trim().match(/"([^"]+)"\s*\((\d+)\s+device/);
+            const trimmed = sl.trim();
+            const isGhost = trimmed.startsWith('~');
+            const sm = trimmed.match(/~?"([^"]+)"\s*\((\d+)\s+device/);
             if (sm) {
               const devCount = parseInt(sm[2]);
-              const opacity = Math.min(1, 0.4 + devCount * 0.2);
               const macsM = sl.match(/\[([^\]]+)\]/);
               let tooltip = sm[1] + ' (' + devCount + ' device' + (devCount > 1 ? 's' : '') + ')';
+              if (isGhost) tooltip += ' - not nearby, saved/home network';
               if (macsM) tooltip += ': ' + macsM[1];
-              html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:rgba(46,204,113,' + opacity + ');color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:' + (devCount > 2 ? 'bold' : 'normal') + ';cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup></span>';
+              if (isGhost) {
+                html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:rgba(231,76,60,0.15);color:#e74c3c;border:1px dashed #c0392b;padding:3px 10px;border-radius:12px;font-size:11px;cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup> <span style="font-size:8px;opacity:0.7;">away</span></span>';
+              } else {
+                const opacity = Math.min(1, 0.4 + devCount * 0.2);
+                html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:rgba(46,204,113,' + opacity + ');color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:' + (devCount > 2 ? 'bold' : 'normal') + ';cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup></span>';
+              }
             }
           }
           html += '</div></div>';
@@ -3316,7 +3333,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           for (const pl of probeLines) {
             const macM = pl.match(/^([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
             const isRand = pl.includes(' Rand');
-            const probesM = pl.match(/probes:((?:"[^"]*",?)+)/);
+            const probesM = pl.match(/probes:((?:~?"[^"]*",?)+)/);
             const apM = pl.match(/AP="([^"]*)"/);
             const apBssidM = pl.match(/APBSSID=([A-Fa-f0-9:]+)/);
             const countM = pl.match(/x(\d+)$/);
@@ -3333,9 +3350,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (probesM) {
               html += '<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;">';
               html += '<span style="color:var(--mut);font-size:9px;">Probing:</span>';
-              const ssids = probesM[1].matchAll(/"([^"]*)"/g);
+              const ssids = probesM[1].matchAll(/(~?)"([^"]*)"/g);
               for (const s of ssids) {
-                html += '<span data-ssid="' + s[1] + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;">' + s[1] + '</span>';
+                const ghost = s[1] === '~';
+                if (ghost) {
+                  html += '<span data-ssid="' + s[2] + '" title="Not nearby - saved/home network" style="background:rgba(231,76,60,0.1);border:1px dashed #c0392b;padding:1px 5px;border-radius:3px;font-size:9px;color:#e74c3c;">' + s[2] + ' <sup style="font-size:7px;opacity:0.7;">away</sup></span>';
+                } else {
+                  html += '<span data-ssid="' + s[2] + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;">' + s[2] + '</span>';
+                }
               }
               html += '</div>';
             }
