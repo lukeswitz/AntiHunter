@@ -167,19 +167,18 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 
 ### F. Probe Request Scanner
 
-Passive probe request sniffer. Captures devices broadcasting for known networks, identifies vendors via OUI lookup, and flags randomized MACs.
-
+Goes beyond probe request capture: correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in the device's history), identify which APs responded, and catch silent devices via destination address matching.
 
 <img width="500" alt="image" src="https://github.com/user-attachments/assets/99a894e1-1ab2-4dda-959d-29cb7880a637" />
 
+- **Three-field correlation**: Probe requests (addr2=source), probe responses (addr1=client, addr2=AP, addr3=BSSID), and destination address matching all feed into a single per-device record
+- **Destination address (addr1) matching**: Detects when probe requests are addressed TO a target MAC -- catches silent or sleeping devices that never transmit their own identity
+- **Ghost SSID detection**: Cross-references probe requests against probe responses to flag SSIDs with no responding AP nearby. Ghost SSIDs appear prefixed with `~` (e.g., `~"HomeNetwork"` vs `"CoffeeShop"`) and reveal networks the device connected to elsewhere -- location history, home/work networks, travel patterns
 - SSID watchlist: add SSIDs to the target list alongside MACs and OUIs
 - OUI vendor identification (68-vendor table)
 - MAC randomization detection (locally-administered bit check)
-- Destination address (addr1) checking: catches frames addressed TO a target
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
-
-> **Ghost SSID detection:** SSIDs that devices probe for but no nearby AP responds with. These appear prefixed with `~` in results (e.g., `~"HomeNetwork"` vs `"CoffeeShop"`). Ghost SSIDs reveal networks the device connected to elsewhere -- location history, home/work networks, travel patterns. Most devices broadcast previously connected SSIDs before associating, passively leaking network history and device identity.
 
 
 ---
