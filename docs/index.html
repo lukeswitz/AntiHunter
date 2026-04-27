@@ -481,9 +481,31 @@ chmod +x flashAntihunter.sh
       updateManifest();
     }
 
+    let manifestBlobUrl = null;
+
     function updateManifest() {
-      document.getElementById('flashBtn').setAttribute('manifest',
-        selectedFirmware === 'full' ? 'manifest-full.json' : 'manifest-headless.json');
+      if (manifestBlobUrl) URL.revokeObjectURL(manifestBlobUrl);
+      const ver = latestVersion || FALLBACK_VERSION;
+      const variant = selectedFirmware === 'full' ? 'full' : 'headless';
+      const name = selectedFirmware === 'full'
+        ? 'AntiHunter Full (WiFi AP + WebUI)'
+        : 'AntiHunter Headless (Mesh Only)';
+      const base = `https://raw.githubusercontent.com/${REPO}/main/Dist`;
+      const manifest = {
+        name,
+        new_install_prompt_erase: true,
+        builds: [{
+          chipFamily: 'ESP32-S3',
+          parts: [
+            { path: `${base}/bootloader.bin`, offset: 0 },
+            { path: `${base}/partitions.bin`, offset: 32768 },
+            { path: `${base}/antihunter-${variant}-${ver}.bin`, offset: 65536 }
+          ]
+        }]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      manifestBlobUrl = URL.createObjectURL(blob);
+      document.getElementById('flashBtn').setAttribute('manifest', manifestBlobUrl);
     }
 
     /* -- Terminal -- */
