@@ -142,7 +142,7 @@ void setRFPreset(uint8_t preset) {
             rfConfig.wifiScanInterval = 8000;
             rfConfig.bleScanInterval = 4000;
             rfConfig.bleScanDuration = 3000;
-            rfConfig.globalRssiThreshold = -80;
+            rfConfig.globalRssiThreshold = -95;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;

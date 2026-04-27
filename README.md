@@ -32,7 +32,7 @@
 6. [RF Configuration](#rf-configuration)
 7. [System Architecture](#system-architecture)
 8. [Hardware](#hardware)
-9. [Getting Started](#getting-started)
+9. [Getting Started](#getting-started) -- [Web Flasher & Configurator](https://lukeswitz.github.io/AntiHunter/flasher/) | CLI | Build from Source
 10. [Mesh Commands](#mesh-commands)
 11. [API Reference](#api-reference)
 12. [Credits](#credits)
@@ -361,9 +361,13 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 ## Getting Started
 
-### Quick Flash
+### Web Flasher & Configurator (Recommended)
 
-Precompiled binaries:
+Flash and configure directly from your browser -- no tools to install. Requires Chrome or Edge on desktop.
+
+**[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/flasher/)** -- select Full or Headless, plug in your ESP32-S3, and click Connect & Flash. After flashing, use the built-in serial terminal to configure the device: it resets the board, detects the config window, and sends your settings automatically.
+
+### CLI Flash
 
 ```bash
 curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
@@ -371,16 +375,7 @@ chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
 
-<details>
-<summary>Headless variant</summary>
-
-Requires bootloader and partitions files from `Dist/` in the same directory.
-
-```bash
-./flashAntihunter.sh -c
-```
-
-</details>
+Use `-c` to configure device parameters during flash, `-e` to erase flash first.
 
 **Post-flash:**
 
