@@ -481,10 +481,7 @@ chmod +x flashAntihunter.sh
       updateManifest();
     }
 
-    let manifestBlobUrl = null;
-
     function updateManifest() {
-      if (manifestBlobUrl) URL.revokeObjectURL(manifestBlobUrl);
       const ver = latestVersion || FALLBACK_VERSION;
       const variant = selectedFirmware === 'full' ? 'full' : 'headless';
       const name = selectedFirmware === 'full'
@@ -503,9 +500,8 @@ chmod +x flashAntihunter.sh
           ]
         }]
       };
-      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-      manifestBlobUrl = URL.createObjectURL(blob);
-      document.getElementById('flashBtn').setAttribute('manifest', manifestBlobUrl);
+      const dataUri = 'data:application/json;base64,' + btoa(JSON.stringify(manifest));
+      document.getElementById('flashBtn').setAttribute('manifest', dataUri);
     }
 
     /* -- Terminal -- */
