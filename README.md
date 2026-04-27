@@ -60,12 +60,10 @@ Maintain a watchlist of target MAC addresses (full 6-byte) or OUI prefixes (3-by
 
 - Target monitoring by MAC address, vendor OUI prefix, SSID, or identity ID (`T-XXXX`)
 - WiFi-only, BLE-only, or combined scanning
-- Enable probe detection to find devices and their desired SSID
 - Global user-configurable allowlist
 - Logs RSSI, channel, GPS coordinates, and device names to SD card
 - Real-time alerts via web interface, command center, and mesh network
 
-<img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" />
 
 ### 2. Triangulation/Trilateration (Distributed)
 
@@ -115,11 +113,14 @@ Fine-tune calculated distances per target using multipliers (0.1x - 5.0x):
 
 ### 3. Detection and Analysis Sniffers
 
+<img width="850" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
+
 #### A. Device Scanner
 
 Captures all WiFi and Bluetooth devices in range. Records MAC addresses, SSIDs, signal strength, names, and channels for complete 2.4GHz spectrum visibility.
 
-<img width="850" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
+- Enable probe detection to find devices and their desired SSID:
+  <img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" />
 
 #### B. Baseline Anomaly Detection
 
