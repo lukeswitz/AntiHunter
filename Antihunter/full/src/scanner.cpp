@@ -682,6 +682,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
 static std::map<String, ProbeDevice> probeDevices;
 static std::mutex probeMutex;
 static std::set<String> uniqueSsids;
+static std::set<String> respondedSsids;  // SSIDs confirmed nearby (AP sent probe response)
 static void addProbeSsid(ProbeDevice &dev, const char *ssid);
 static bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
 static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize);
@@ -1014,6 +1015,7 @@ void snifferScanTask(void *pv)
                             strncpy(pd.respondingSSID, respSsid, 32);
                             pd.respondingSSID[32] = '\0';
                             addProbeSsid(pd, respSsid);
+                            respondedSsids.insert(String(respSsid));
                         }
                     }
                     continue;
@@ -1124,7 +1126,9 @@ void snifferScanTask(void *pv)
                             results += " probes:";
                             for (uint8_t si = 0; si < pd.ssidCount; si++) {
                                 if (si > 0) results += ",";
-                                results += "\"" + std::string(pd.ssids[si]) + "\"";
+                                String s = String(pd.ssids[si]);
+                                bool ghost = respondedSsids.find(s) == respondedSsids.end();
+                                results += (ghost ? "~\"" : "\"") + std::string(pd.ssids[si]) + "\"";
                             }
                         }
                         if (pd.respondingSSID[0]) {
@@ -1218,7 +1222,9 @@ void snifferScanTask(void *pv)
                     results += " probes:";
                     for (uint8_t si = 0; si < pit->second.ssidCount; si++) {
                         if (si > 0) results += ",";
-                        results += "\"" + std::string(pit->second.ssids[si]) + "\"";
+                        String s = String(pit->second.ssids[si]);
+                        bool ghost = respondedSsids.find(s) == respondedSsids.end();
+                        results += (ghost ? "~\"" : "\"") + std::string(pit->second.ssids[si]) + "\"";
                     }
                 }
             }
@@ -1244,7 +1250,9 @@ void snifferScanTask(void *pv)
                         results += " probes:";
                         for (uint8_t si = 0; si < pd.ssidCount; si++) {
                             if (si > 0) results += ",";
-                            results += "\"" + std::string(pd.ssids[si]) + "\"";
+                            String s = String(pd.ssids[si]);
+                            bool ghost = respondedSsids.find(s) == respondedSsids.end();
+                            results += (ghost ? "~\"" : "\"") + std::string(pd.ssids[si]) + "\"";
                         }
                     }
                     if (pd.respondingSSID[0]) {
@@ -2483,7 +2491,8 @@ static bool shouldSendProbeHit(const String &key)
 }
 
 static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
-                              const char *ssid, const char *vendor, bool isDst)
+                              const char *ssid, const char *vendor, bool isDst,
+                              bool ghostSsid)
 {
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -2505,6 +2514,7 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
     msg += " RSSI=" + String(rssi) + " CH=" + String(channel);
     if (ssid && ssid[0]) {
         msg += " SSID=\"" + String(ssid) + "\"";
+        if (ghostSsid) msg += " GHOST";
     }
     if (isDst) {
         msg += " DST";
@@ -2530,6 +2540,7 @@ void probeDetectionTask(void *pv)
         std::lock_guard<std::mutex> lock(probeMutex);
         probeDevices.clear();
         uniqueSsids.clear();
+        respondedSsids.clear();
         totalProbeCount = 0;
         probeHitCount = 0;
         probeHitCooldowns.clear();
@@ -2604,6 +2615,7 @@ void probeDetectionTask(void *pv)
                         dev.respondingSSID[32] = '\0';
                         addProbeSsid(dev, respSsid);
                         uniqueSsids.insert(String(respSsid));
+                        respondedSsids.insert(String(respSsid));
                     }
                 }
                 continue;
@@ -2724,7 +2736,9 @@ void probeDetectionTask(void *pv)
             }
 
             if (isHit) {
-                sendProbeHitMesh(event.mac, event.rssi, event.channel, ssidBuf, vendor, dstHit);
+                bool ghostSsid = hasSSID && ssidBuf[0] &&
+                                 respondedSsids.find(String(ssidBuf)) == respondedSsids.end();
+                sendProbeHitMesh(event.mac, event.rssi, event.channel, ssidBuf, vendor, dstHit, ghostSsid);
             }
         }
 
@@ -2919,12 +2933,14 @@ String getProbeResults()
             results += String(dev.vendor);
         }
 
-        // SSIDs this device is probing for
+        // SSIDs this device is probing for (~prefix = ghost, no AP nearby)
         if (dev.ssidCount > 0) {
             results += " probes:";
             for (uint8_t i = 0; i < dev.ssidCount; i++) {
                 if (i > 0) results += ",";
-                results += "\"" + String(dev.ssids[i]) + "\"";
+                String s = String(dev.ssids[i]);
+                bool ghost = respondedSsids.find(s) == respondedSsids.end();
+                results += (ghost ? "~\"" : "\"") + s + "\"";
             }
         } else {
             results += " (wildcard)";
@@ -2970,7 +2986,8 @@ String getProbeResults()
                const std::pair<String, std::vector<String>> &b) { return a.second.size() > b.second.size(); });
 
         for (auto &s : ssidSorted) {
-            results += "  \"" + s.first + "\" (" + String(s.second.size()) +
+            bool ghost = respondedSsids.find(s.first) == respondedSsids.end();
+            results += "  " + String(ghost ? "~" : "") + "\"" + s.first + "\" (" + String(s.second.size()) +
                        (s.second.size() == 1 ? " device" : " devices") + ")";
             // Show the first 3 MAC addresses probing for this SSID
             if (s.second.size() <= 3) {
@@ -2993,6 +3010,7 @@ void resetProbeDetection()
     std::lock_guard<std::mutex> lock(probeMutex);
     probeDevices.clear();
     uniqueSsids.clear();
+    respondedSsids.clear();
     totalProbeCount = 0;
     probeHitCount = 0;
     probeHitCooldowns.clear();
