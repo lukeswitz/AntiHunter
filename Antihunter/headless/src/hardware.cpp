@@ -1260,17 +1260,27 @@ void updateRTCTime() {
         return;
     }
 
-    if (!rtc.begin()) {
-        Serial.println("[RTC] Communication lost");
-        rtcAvailable = false;
-        return;
-    }
-    
     if (rtcMutex == nullptr) return;
     if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return;
-    
+
     DateTime now = rtc.now();
-    
+
+    // Sanity check: if year is 0 or wildly out of range, I2C read failed
+    if (now.year() < 2020 || now.year() > 2099) {
+        xSemaphoreGive(rtcMutex);
+        static uint8_t rtcFailCount = 0;
+        rtcFailCount++;
+        if (rtcFailCount >= 5) {
+            Serial.println("[RTC] Repeated bad reads, marking unavailable");
+            rtcAvailable = false;
+            rtcFailCount = 0;
+        }
+        return;
+    }
+
+    static uint8_t rtcFailCount = 0;
+    rtcFailCount = 0;  // good read, reset counter
+
     char buffer[30];
     snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
              now.year(), now.month(), now.day(),
