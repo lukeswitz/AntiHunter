@@ -263,7 +263,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             lastDroneLog = millis();
             
             DynamicJsonDocument doc(512);
-            doc["timestamp"] = drone.timestamp;
+            doc["timestamp"] = getEventTimestamp();
             doc["mac"] = macStr;
             doc["rssi"] = drone.rssi;
             doc["uav_id"] = uavIdStr;
@@ -290,7 +290,8 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             droneEventLog.push_back(jsonStr);
             
             logToSD("DRONE: " + jsonStr);
-            
+            logEventToSD("/drones.jsonl", jsonStr);
+
             String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + uavIdStr;
             meshMsg += " R" + String(drone.rssi);
             if (drone.latitude != 0) {
