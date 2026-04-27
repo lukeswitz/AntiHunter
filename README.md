@@ -7,6 +7,7 @@
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 </div>
 
+
 <p align="center">
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
@@ -78,7 +79,7 @@
 
 ## Detection Modes
 
-<img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" />
+<!-- <img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" /> -->
 
 ### 1. Target Scan
 
@@ -121,13 +122,13 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ### A. Device Scanner
 
-<img width="800" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" />
+<!-- <img width="800" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" /> -->
 
 Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength, names, and channels.
 
 - Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status):
 
-<img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" />
+<!-- <img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" /> -->
 
 ### B. Baseline Anomaly Detection
 
@@ -139,13 +140,13 @@ Two-phase scan: establish a baseline of known devices, then monitor for anomalie
 > [!TIP]
 > A longer initial scan produces more reliable baselines.
 
-<img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" />
+<!-- <img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" /> -->
 
 ### C. Deauth Attack Detection
 
 WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with randomization tracking for source identification.
 
-<img width="858" height="382" alt="Deauth Detection" src="https://github.com/user-attachments/assets/1b1e77db-a479-4cfd-beae-e13a7187cae4" />
+<!-- <img width="858" height="382" alt="Deauth Detection" src="https://github.com/user-attachments/assets/1b1e77db-a479-4cfd-beae-e13a7187cae4" /> -->
 
 ### D. Drone RID Detection
 
@@ -156,7 +157,7 @@ Detects drones broadcasting Remote ID per FAA/EASA standards. Supports ODID/ASTM
 > [!TIP]
 > Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots. SSIDs are hashed as `net#XXXX` for correlation without exposure.
 
-<img width="861" height="721" alt="Randomization Analyzer" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" />
+<!-- <img width="861" height="721" alt="Randomization Analyzer" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" /> -->
 
 Links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
 
@@ -170,7 +171,7 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 Passive probe request sniffer. Captures devices broadcasting for known networks, identifies vendors via OUI lookup, and flags randomized MACs.
 
 
-<img width="500" alt="image" src="https://github.com/user-attachments/assets/99a894e1-1ab2-4dda-959d-29cb7880a637" />
+<!-- <img width="500" alt="image" src="https://github.com/user-attachments/assets/99a894e1-1ab2-4dda-959d-29cb7880a637" /> -->
 
 - SSID watchlist: add SSIDs to the target list alongside MACs and OUIs
 - OUI vendor identification (68-vendor table)
@@ -186,7 +187,7 @@ Passive probe request sniffer. Captures devices broadcasting for known networks,
 
 ## Sensor Integration
 
-<img width="943" height="797" alt="Screenshot 2026-04-15 at 11 25 05 AM" src="https://github.com/user-attachments/assets/825fd764-5103-41d8-a8a0-f2504062acb4" />
+<!-- <img width="943" height="797" alt="Screenshot 2026-04-15 at 11 25 05 AM" src="https://github.com/user-attachments/assets/825fd764-5103-41d8-a8a0-f2504062acb4" /> -->
 
 | Sensor | Interface | Description |
 |--------|-----------|-------------|
@@ -201,7 +202,7 @@ Passive probe request sniffer. Captures devices broadcasting for known networks,
 
 Tamper detection and emergency data wiping.
 
-![Secure Data Destruction](https://github.com/user-attachments/assets/bdd8825d-82aa-46d4-b20c-3ebf7ca0dd9f)
+<!-- ![Secure Data Destruction](https://github.com/user-attachments/assets/bdd8825d-82aa-46d4-b20c-3ebf7ca0dd9f)  -->
 
 - **Auto-erase on tampering**: Vibration-triggered destruction (disabled by default)
 - **Setup delay**: Grace period after enabling for deployment
@@ -235,7 +236,7 @@ Tamper detection and emergency data wiping.
 
 ## RF Configuration
 
-<img width="815" height="616" alt="RF Configuration" src="https://github.com/user-attachments/assets/0463de41-dd3c-4d85-a4c7-bc6ada393488" />
+<!-- <img width="815" height="616" alt="RF Configuration" src="https://github.com/user-attachments/assets/0463de41-dd3c-4d85-a4c7-bc6ada393488" /> -->
 
 ### Scan Presets
 
@@ -282,6 +283,8 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 > [!IMPORTANT]
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
 
+### Assembling the PCB
+ 
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ### Core Components
