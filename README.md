@@ -48,6 +48,9 @@
 
 ## Features
 
+<img width="2046" height="1395" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
+
+
 | Feature | What it does | Scan modes |
 |---------|-------------|------------|
 | **Target Scan** | MAC/OUI/SSID watchlist with instant mesh alerts | WiFi, BLE, or both |
@@ -64,6 +67,10 @@
 | **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
+| **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
+
+<img width="959" height="1398" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
+
 
 ### Use Cases
 
@@ -82,6 +89,9 @@
 <!-- <img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" /> -->
 
 ### 1. Target Scan
+
+<img width="1179" height="797" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
+
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
 
@@ -132,6 +142,8 @@ Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength
 
 ### B. Baseline Anomaly Detection
 
+<img width="1421" height="1208" alt="image" src="https://github.com/user-attachments/assets/1e7d31ff-6565-49d7-8cd4-d4b54c5fe5f8" />
+
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
 - RAM cache: 200-500 devices, SD overflow: 1K-100K devices (default 1500 without SD)
@@ -167,6 +179,9 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 - Detects global MAC leaks and WiFi-BLE correlation
 
 ### F. Probe Request Scanner
+
+<img width="2046" height="1404" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
+
 
 Goes beyond probe request capture: correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in the device's history), identify which APs responded, and catch silent devices via destination address matching.
 
@@ -283,6 +298,9 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
 
 ### Assembling the PCB
+
+<img width="2241" height="2358" alt="image" src="https://github.com/user-attachments/assets/426c4693-3dc1-49f0-9a6c-ccd2bb3a758e" />
+
  
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
