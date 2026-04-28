@@ -550,15 +550,14 @@ void processCommand(const String &command, const String &targetId = "")
         int next = params.indexOf(':', cur + 1);
         String tok = params.substring(cur + 1, next > 0 ? next : params.length());
         tok.trim();
-        String upper = tok;
-        upper.toUpperCase();
-        if (upper == "FOREVER") forever = true;
+        tok.toUpperCase();
+        if (tok == "FOREVER") forever = true;
         else if (tok == "+ALL") broadcastAll = true;
         cur = next;
       }
     }
 
-    if (secs < 0) secs = 0;
+    if (secs < 1 && !forever) secs = 1;
     if (secs > 86400) secs = 86400;
 
     if (mode >= 0 && mode <= 2)
