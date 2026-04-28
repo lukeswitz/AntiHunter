@@ -586,6 +586,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="2" selected>WiFi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
+                <label style="font-size:11px;margin-top:6px;display:block;"><input type="checkbox" name="broadcastAll" value="1" style="margin-right:4px;">Broadcast All Probes (mesh)</label>
               </div>
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
@@ -5284,6 +5285,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                 }
             }
 
+            bool broadcastAll = req->hasParam("broadcastAll", true);
+
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
 
@@ -5293,12 +5296,13 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                             (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
             req->send(200, "text/plain",
-                    forever ? ("Probe scan starting (forever) - " + modeStr) :
-                    ("Probe scan starting for " + String(secs) + "s - " + modeStr));
+                    forever ? ("Probe scan starting (forever) - " + modeStr + (broadcastAll ? " [ALL]" : "")) :
+                    ("Probe scan starting for " + String(secs) + "s - " + modeStr + (broadcastAll ? " [ALL]" : "")));
 
             if (!workerTaskHandle) {
                 currentScanMode = (ScanMode)scanMode;
                 scanning = true;
+                probeBroadcastAll.store(broadcastAll);
                 xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
                                     (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);
@@ -6274,24 +6278,36 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command.startsWith("PROBE_START:"))
   {
-    // PROBE_START:<mode>:<secs>[:FOREVER]
+    // PROBE_START:<mode>:<secs>[:FOREVER][:+ALL]
+    // Trailing flag tokens (FOREVER, +ALL) may appear in any order.
+    // +ALL: broadcast every probe (not just CONFIG_TARGETS matches), still
+    // subject to the 60s shouldSendProbeHit dedup per MAC+SSID.
     String params = command.substring(12);
     int modeDelim = params.indexOf(':');
     int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
     int secs = 60;
     bool forever = false;
+    bool broadcastAll = false;
 
     if (modeDelim > 0)
     {
       int secsDelim = params.indexOf(':', modeDelim + 1);
       secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
-      if (secsDelim > 0 && params.substring(secsDelim + 1) == "FOREVER")
+      // Walk remaining colon-delimited tokens recognizing FOREVER / +ALL
+      int cur = secsDelim;
+      while (cur > 0)
       {
-        forever = true;
+        int next = params.indexOf(':', cur + 1);
+        String tok = params.substring(cur + 1, next > 0 ? next : params.length());
+        tok.trim();
+        tok.toUpperCase();
+        if (tok == "FOREVER") forever = true;
+        else if (tok == "+ALL") broadcastAll = true;
+        cur = next;
       }
     }
 
-    if (secs < 0) secs = 0;
+    if (secs < 1 && !forever) secs = 1;
     if (secs > 86400) secs = 86400;
 
     if (mode >= 0 && mode <= 2)
@@ -6303,9 +6319,10 @@ void processCommand(const String &command, const String &targetId = "")
         currentScanMode = (ScanMode)mode;
         stopRequested = false;
         scanning = true;
+        probeBroadcastAll.store(broadcastAll);
         xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
                                 (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-        Serial.printf("[MESH] Started probe detection via mesh command (%ds)\n", secs);
+        Serial.printf("[MESH] Started probe detection via mesh command (%ds, all=%d)\n", secs, broadcastAll);
         sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
       }
     }
