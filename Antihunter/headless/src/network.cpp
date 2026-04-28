@@ -528,20 +528,33 @@ void processCommand(const String &command, const String &targetId = "")
   }
   else if (command.startsWith("PROBE_START:"))
   {
+    // PROBE_START:<mode>:<secs>[:FOREVER][:+ALL]
+    // Trailing flag tokens (FOREVER, +ALL) may appear in any order.
+    // +ALL: broadcast every probe (not just CONFIG_TARGETS matches), still
+    // subject to the 60s shouldSendProbeHit dedup per MAC+SSID.
     String params = command.substring(12);
     int modeDelim = params.indexOf(':');
     int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
     int secs = 60;
     bool forever = false;
+    bool broadcastAll = false;
 
     if (modeDelim > 0)
     {
       int secsDelim = params.indexOf(':', modeDelim + 1);
       secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
-      if (secsDelim > 0) {
-        String tail = params.substring(secsDelim + 1);
-        tail.toUpperCase();
-        if (tail == "FOREVER") forever = true;
+      // Walk remaining colon-delimited tokens recognizing FOREVER / +ALL
+      int cur = secsDelim;
+      while (cur > 0)
+      {
+        int next = params.indexOf(':', cur + 1);
+        String tok = params.substring(cur + 1, next > 0 ? next : params.length());
+        tok.trim();
+        String upper = tok;
+        upper.toUpperCase();
+        if (upper == "FOREVER") forever = true;
+        else if (tok == "+ALL") broadcastAll = true;
+        cur = next;
       }
     }
 
@@ -557,9 +570,10 @@ void processCommand(const String &command, const String &targetId = "")
         currentScanMode = (ScanMode)mode;
         stopRequested = false;
         scanning = true;
+        probeBroadcastAll.store(broadcastAll);
         xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
                                 (void *)(intptr_t)(forever ? 0 : secs), 1, &workerTaskHandle, 1);
-        Serial.printf("[MESH] Started probe detection via mesh command (%ds)\n", secs);
+        Serial.printf("[MESH] Started probe detection via mesh command (%ds, all=%d)\n", secs, broadcastAll);
         sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
       }
     }
