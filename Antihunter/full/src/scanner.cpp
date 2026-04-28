@@ -2502,9 +2502,21 @@ static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char
     return false;
 }
 
+static const size_t PROBE_HIT_COOLDOWN_MAX = 500;
+
 static bool shouldSendProbeHit(const String &key)
 {
     uint32_t now = millis();
+
+    if (probeHitCooldowns.size() >= PROBE_HIT_COOLDOWN_MAX) {
+        for (auto it = probeHitCooldowns.begin(); it != probeHitCooldowns.end(); ) {
+            if ((now - it->second) >= PROBE_HIT_COOLDOWN_MS)
+                it = probeHitCooldowns.erase(it);
+            else
+                ++it;
+        }
+    }
+
     auto it = probeHitCooldowns.find(key);
     if (it == probeHitCooldowns.end()) {
         probeHitCooldowns[key] = now;

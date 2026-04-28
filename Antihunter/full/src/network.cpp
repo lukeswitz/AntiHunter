@@ -586,6 +586,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="2" selected>WiFi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
+                <label style="font-size:11px;margin-top:6px;display:block;"><input type="checkbox" name="broadcastAll" value="1" style="margin-right:4px;">Broadcast All Probes (mesh)</label>
               </div>
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
@@ -5284,6 +5285,8 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                 }
             }
 
+            bool broadcastAll = req->hasParam("broadcastAll", true);
+
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
 
@@ -5293,12 +5296,13 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                             (scanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
             req->send(200, "text/plain",
-                    forever ? ("Probe scan starting (forever) - " + modeStr) :
-                    ("Probe scan starting for " + String(secs) + "s - " + modeStr));
+                    forever ? ("Probe scan starting (forever) - " + modeStr + (broadcastAll ? " [ALL]" : "")) :
+                    ("Probe scan starting for " + String(secs) + "s - " + modeStr + (broadcastAll ? " [ALL]" : "")));
 
             if (!workerTaskHandle) {
                 currentScanMode = (ScanMode)scanMode;
                 scanning = true;
+                probeBroadcastAll.store(broadcastAll);
                 xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
                                     (void*)(intptr_t)(forever ? 0 : secs),
                                     1, &workerTaskHandle, 1);
@@ -6296,13 +6300,14 @@ void processCommand(const String &command, const String &targetId = "")
         int next = params.indexOf(':', cur + 1);
         String tok = params.substring(cur + 1, next > 0 ? next : params.length());
         tok.trim();
+        tok.toUpperCase();
         if (tok == "FOREVER") forever = true;
         else if (tok == "+ALL") broadcastAll = true;
         cur = next;
       }
     }
 
-    if (secs < 0) secs = 0;
+    if (secs < 1 && !forever) secs = 1;
     if (secs > 86400) secs = 86400;
 
     if (mode >= 0 && mode <= 2)
