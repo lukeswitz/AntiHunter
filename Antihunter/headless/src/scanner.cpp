@@ -35,6 +35,12 @@ extern Preferences prefs;
 static std::vector<Target> targets;
 std::vector<String> ssidTargets;
 std::atomic<bool> probeDetectionEnabled(false);
+// probeBroadcastAll: when true, PROBE_HIT mesh broadcasts fire for every probe
+// captured during PROBE_START scan (still subject to the 60s shouldSendProbeHit
+// dedup per MAC+SSID). When false (default), only probes matching CONFIG_TARGETS
+// (mac/ssid/dst) trigger broadcasts — matches pre-existing target-driven behavior.
+// Set by the PROBE_START parser before xTaskCreate, cleared on task exit.
+std::atomic<bool> probeBroadcastAll(false);
 QueueHandle_t macQueue = nullptr;
 std::set<String> uniqueMacs;
 std::map<String, uint32_t> deviceLastSeen;
@@ -2452,9 +2458,21 @@ static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char
     return false;
 }
 
+static const size_t PROBE_HIT_COOLDOWN_MAX = 500;
+
 static bool shouldSendProbeHit(const String &key)
 {
     uint32_t now = millis();
+
+    if (probeHitCooldowns.size() >= PROBE_HIT_COOLDOWN_MAX) {
+        for (auto it = probeHitCooldowns.begin(); it != probeHitCooldowns.end(); ) {
+            if ((now - it->second) >= PROBE_HIT_COOLDOWN_MS)
+                it = probeHitCooldowns.erase(it);
+            else
+                ++it;
+        }
+    }
+
     auto it = probeHitCooldowns.find(key);
     if (it == probeHitCooldowns.end()) {
         probeHitCooldowns[key] = now;
@@ -2707,7 +2725,7 @@ void probeDetectionTask(void *pv)
                 }
             }
 
-            if (isHit) {
+            if (isHit || probeBroadcastAll.load()) {
                 bool ghostSsid = hasSSID && ssidBuf[0] &&
                                  respondedSsids.find(String(ssidBuf)) == respondedSsids.end();
                 sendProbeHitMesh(event.mac, event.rssi, event.channel, ssidBuf, vendor, dstHit, ghostSsid);
@@ -2781,6 +2799,7 @@ void probeDetectionTask(void *pv)
     }
 
     probeDetectionEnabled = false;
+    probeBroadcastAll = false;
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStopSTA();

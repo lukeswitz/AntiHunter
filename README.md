@@ -466,7 +466,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
-| `PROBE_START` | `mode:secs[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL PROBE_START:2:300` |
+| `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.

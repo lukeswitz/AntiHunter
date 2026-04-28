@@ -138,6 +138,7 @@ extern std::vector<Allowlist> allowlist;
 
 extern std::vector<String> ssidTargets;
 extern std::atomic<bool> probeDetectionEnabled;
+extern std::atomic<bool> probeBroadcastAll;
 bool matchesSsid(const char *ssid);
 const char* lookupOuiVendor(const uint8_t *mac);
 void probeDetectionTask(void *pv);
