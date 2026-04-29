@@ -907,7 +907,7 @@ void updateGPSLocation() {
                             + String((millis() - lastDataTime) / 1000)
                             + "s ago)";
                 
-                if (wasLocked && !nowLocked) {
+                if (wasLocked) {
                     sendGPSLockStatus(false);
                 }
             }
@@ -932,7 +932,7 @@ void logToSD(const String &data) {
     if (!SafeSD::isAvailable()) return;
     
     static uint32_t totalWrites = 0;
-    static uint32_t failCount = 0;
+    static uint32_t failCount = 0;  // cppcheck-suppress variableScope
     static File logFile;
 
     if (!SD.exists("/")) {
@@ -1633,8 +1633,8 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
 
     // Stop any active scanning tasks
     extern std::atomic<bool> stopRequested;
-    extern TaskHandle_t workerTaskHandle;
-    extern TaskHandle_t blueTeamTaskHandle;
+    extern TaskHandle_t workerTaskHandle;  // cppcheck-suppress shadowVariable
+    extern TaskHandle_t blueTeamTaskHandle;  // cppcheck-suppress shadowVariable
 
     stopRequested = true;
 
@@ -1721,7 +1721,7 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
-    extern std::atomic<bool> triangulationActive;
+    extern std::atomic<bool> triangulationActive;  // cppcheck-suppress shadowVariable
     if (triangulationActive.load()) {
         return;
     }

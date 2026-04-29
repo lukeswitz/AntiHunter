@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <mutex>
+#include <numeric>
 
 #include <SD.h>
 #include <NimBLEAddress.h>
@@ -51,7 +52,7 @@ bool isGlobalMAC(const uint8_t *mac) {
 uint16_t computeCRC16(const uint8_t *data, uint16_t length) {
     uint16_t crc = 0xFFFF;
     for (uint16_t i = 0; i < length; i++) {
-        crc ^= (uint16_t)data[i] << 8;
+        crc ^= static_cast<uint16_t>(data[i]) << 8;
         for (uint8_t j = 0; j < 8; j++) {
             if (crc & 0x8000) {
                 crc = (crc << 1) ^ 0x1021;
@@ -79,8 +80,8 @@ bool detectWiFiBLECorrelation(const uint8_t* wifiMac, const uint8_t* bleMac) {
         return false;
     }
     
-    bool midBytesClose = (abs((int)wifiMac[3] - (int)bleMac[3]) <= 1) && 
-                         (abs((int)wifiMac[4] - (int)bleMac[4]) <= 1);
+    bool midBytesClose = (abs(static_cast<int>(wifiMac[3]) - static_cast<int>(bleMac[3])) <= 1) &&
+                         (abs(static_cast<int>(wifiMac[4]) - static_cast<int>(bleMac[4])) <= 1);
     
     int wifiLast = wifiMac[5];
     int bleLast = bleMac[5];
@@ -164,16 +165,16 @@ float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1
     for (uint8_t i = 1; i < count1 && i < 50; i++) {
         if (times1[i] > times1[i-1]) {
             uint32_t interval = times1[i] - times1[i-1];
-            if (interval > 0 && interval < 60000) {
+            if (interval < 60000) {
                 intervals1.push_back(interval);
             }
         }
     }
-    
+
     for (uint8_t i = 1; i < count2 && i < 50; i++) {
         if (times2[i] > times2[i-1]) {
             uint32_t interval = times2[i] - times2[i-1];
-            if (interval > 0 && interval < 60000) {
+            if (interval < 60000) {
                 intervals2.push_back(interval);
             }
         }
@@ -181,19 +182,18 @@ float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1
     
     if (intervals1.size() < 2 || intervals2.size() < 2) return 0.0f;
     
-    uint32_t sum1 = 0, sum2 = 0;
-    for (auto& val : intervals1) sum1 += val;
-    for (auto& val : intervals2) sum2 += val;
+    uint32_t sum1 = std::accumulate(intervals1.begin(), intervals1.end(), uint32_t{0});
+    uint32_t sum2 = std::accumulate(intervals2.begin(), intervals2.end(), uint32_t{0});
     
-    float mean1 = (float)sum1 / intervals1.size();
-    float mean2 = (float)sum2 / intervals2.size();
+    float mean1 = static_cast<float>(sum1) / intervals1.size();
+    float mean2 = static_cast<float>(sum2) / intervals2.size();
     
     float var1 = 0, var2 = 0;
-    for (auto& val : intervals1) {
+    for (const auto& val : intervals1) {
         float diff = val - mean1;
         var1 += diff * diff;
     }
-    for (auto& val : intervals2) {
+    for (const auto& val : intervals2) {
         float diff = val - mean2;
         var2 += diff * diff;
     }
@@ -222,7 +222,7 @@ float calculateSignatureSetSimilarity(const ProbeSession& session, const DeviceI
     float fpScore = 0.0f;
     
     if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
-        fpScore = (float)fpMatches / 6.0f;
+        fpScore = static_cast<float>(fpMatches) / 6.0f;
     }
     
     float ieOrderScore = matchIEOrder(session.ieOrder, identity.signature.ieOrder) ? 1.0f : 0.0f;
@@ -262,7 +262,7 @@ void updateDeviceSignatureSet(DeviceIdentity& identity, const ProbeSession& sess
     
     if (!signatureExists) {
         if (session.rssiReadings.size() > 0) {
-            uint8_t addCount = min((size_t)(20 - identity.signature.rssiHistoryCount), 
+            uint8_t addCount = min(static_cast<size_t>(20 - identity.signature.rssiHistoryCount),
                                    session.rssiReadings.size());
             for (size_t i = 0; i < addCount; i++) {
                 identity.signature.rssiHistory[identity.signature.rssiHistoryCount++] = 
@@ -270,7 +270,7 @@ void updateDeviceSignatureSet(DeviceIdentity& identity, const ProbeSession& sess
             }
         }
         
-        for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount) && 
+        for (uint8_t i = 1; i < min(static_cast<uint8_t>(50), session.probeCount) && 
              identity.signature.intervalCount < 20; i++) {
             if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
                 identity.signature.probeIntervals[identity.signature.intervalCount++] = 
@@ -347,7 +347,7 @@ void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fin
                 break;
             case 221:
                 if (vendorLen + len < 64) {
-                    size_t copyLen = min((int)len, 8);
+                    size_t copyLen = min(static_cast<int>(len), 8);
                     memcpy(vendorBuf + vendorLen, ieBody, copyLen);
                     vendorLen += copyLen;
                 }
@@ -373,9 +373,10 @@ void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t finger
     uint8_t tempBuf[64] = {0};
     uint16_t bufPos = 0;
     
+    // cppcheck-suppress knownConditionTrueFalse
     if (device->haveManufacturerData() && bufPos < 48) {
         std::string mfgData = device->getManufacturerData();
-        uint16_t copyLen = min((size_t)16, mfgData.length());
+        uint16_t copyLen = min(static_cast<size_t>(16), mfgData.length());
         memcpy(tempBuf + bufPos, mfgData.data(), copyLen);
         bufPos += copyLen;
     }
@@ -384,7 +385,7 @@ void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t finger
         NimBLEUUID uuid = device->getServiceUUID();
         const uint8_t* uuidData = uuid.getValue();
         uint8_t uuidLen = uuid.bitSize() / 8;
-        uint16_t copyLen = min((uint8_t)16, uuidLen);
+        uint16_t copyLen = min(static_cast<uint8_t>(16), uuidLen);
         memcpy(tempBuf + bufPos, uuidData, copyLen);
         bufPos += copyLen;
     }
@@ -393,15 +394,15 @@ void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t finger
         NimBLEUUID uuid = device->getServiceDataUUID();
         const uint8_t* uuidData = uuid.getValue();
         uint8_t uuidLen = uuid.bitSize() / 8;
-        uint16_t copyLen = min((uint8_t)8, uuidLen);
+        uint16_t copyLen = min(static_cast<uint8_t>(8), uuidLen);
         memcpy(tempBuf + bufPos, uuidData, copyLen);
         bufPos += copyLen;
     }
     
     if (bufPos > 0) {
-        uint16_t seg1Len = min((uint16_t)16, bufPos);
-        uint16_t seg2Len = bufPos > 16 ? min((uint16_t)16, (uint16_t)(bufPos - 16)) : 0;
-        uint16_t seg3Len = bufPos > 32 ? min((uint16_t)16, (uint16_t)(bufPos - 32)) : 0;
+        uint16_t seg1Len = min(static_cast<uint16_t>(16), bufPos);
+        uint16_t seg2Len = bufPos > 16 ? min(static_cast<uint16_t>(16), static_cast<uint16_t>(bufPos - 16)) : 0;
+        uint16_t seg3Len = bufPos > 32 ? min(static_cast<uint16_t>(16), static_cast<uint16_t>(bufPos - 32)) : 0;
         
         fingerprint[0] = seg1Len > 0 ? computeCRC16(tempBuf, seg1Len) : 0;
         fingerprint[1] = seg2Len > 0 ? computeCRC16(tempBuf + 16, seg2Len) : 0;
@@ -423,13 +424,13 @@ float calculateIntervalConsistency(const uint32_t intervals[], uint8_t count) {
     
     uint32_t variance = 0;
     for (uint8_t i = 0; i < count; i++) {
-        int32_t diff = (int32_t)intervals[i] - (int32_t)mean;
-        variance += (uint32_t)(diff * diff);
+        int32_t diff = static_cast<int32_t>(intervals[i]) - static_cast<int32_t>(mean);
+        variance += static_cast<uint32_t>(diff * diff);
     }
     variance /= count;
-    
-    float stdDev = sqrtf((float)variance);
-    float cv = stdDev / (float)mean;
+
+    float stdDev = sqrtf(static_cast<float>(variance));
+    float cv = stdDev / static_cast<float>(mean);
     
     return max(0.0f, 1.0f - (cv / 0.5f));
 }
@@ -444,12 +445,12 @@ float calculateRssiConsistency(const int8_t readings[], uint8_t count) {
     uint32_t variance = 0;
     for (uint8_t i = 0; i < count; i++) {
         int16_t diff = readings[i] - mean;
-        variance += (uint32_t)(diff * diff);
+        variance += static_cast<uint32_t>(diff * diff);
     }
     variance /= count;
-    
-    float stdDev = sqrtf((float)variance);
-    
+
+    float stdDev = sqrtf(static_cast<float>(variance));
+
     if (stdDev > 15.0f) return 0.1f;
     if (stdDev > 10.0f) return 0.5f;
     return 0.9f;
@@ -465,10 +466,8 @@ uint32_t countChannels(uint32_t bitmap) {
 }
 
 bool isMinimalSignature(const uint16_t fingerprint[6]) {
-    uint8_t nonZero = 0;
-    for(int i = 0; i < 4; i++) {
-        if(fingerprint[i] != 0) nonZero++;
-    }
+    auto nonZero = std::count_if(fingerprint, fingerprint + 4,
+                                 [](uint16_t v) { return v != 0; });
     return nonZero <= 1;
 }
 
@@ -506,8 +505,7 @@ float calculateChannelSequenceSimilarity(const uint8_t* seq1, uint8_t len1,
     if(len1 == 0 || len2 == 0) return 0.0f;
     
     uint8_t maxLen = max(len1, len2);
-    uint8_t minLen = min(len1, len2);
-    
+
     if(maxLen == 0) return 0.0f;
     
     float dotProduct = 0.0f;
@@ -515,8 +513,8 @@ float calculateChannelSequenceSimilarity(const uint8_t* seq1, uint8_t len1,
     float mag2 = 0.0f;
     
     for(uint8_t i = 0; i < maxLen; i++) {
-        float v1 = (i < len1) ? (float)seq1[i] : 0.0f;
-        float v2 = (i < len2) ? (float)seq2[i] : 0.0f;
+        float v1 = (i < len1) ? static_cast<float>(seq1[i]) : 0.0f;
+        float v2 = (i < len2) ? static_cast<float>(seq2[i]) : 0.0f;
         dotProduct += v1 * v2;
         mag1 += v1 * v1;
         mag2 += v2 * v2;
@@ -541,7 +539,7 @@ void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
     memcpy(event.mac, mac, 6);
     event.rssi = rssi;
     event.channel = channel;
-    event.payloadLen = min((uint16_t)128, length);
+    event.payloadLen = min(static_cast<uint16_t>(128), length);
     if (length > 0 && payload) {
         memcpy(event.payload, payload, event.payloadLen);
     }
@@ -616,8 +614,8 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
         }
         
         int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
-                               session.rssiSum / (int)session.rssiReadings.size() : 
-                               session.rssiSum / max(1, (int)session.probeCount);
+                               session.rssiSum / static_cast<int>(session.rssiReadings.size()) :
+                               session.rssiSum / max(1, static_cast<int>(session.probeCount));
         int8_t rssiDelta = abs(rssi - sessionAvgRssi);
         if (rssiDelta < 20) {
             score += 0.25f * (1.0f - (rssiDelta / 40.0f));
@@ -635,17 +633,17 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
     }
     
     if (bestScore > 0.40f && !bestSessionKey.isEmpty()) {
-        ProbeSession& session = activeSessions[bestSessionKey];
-        
-        session.hasGlobalMacLeak = true;
-        memcpy(session.globalMacLeaked, globalMac, 6);
-        
-        Serial.printf("[RAND] AUTH LEAK: %s->%s sc:%.2f sq:%d->%d\n",
-                     macFmt6(session.mac).c_str(), macFmt6(globalMac).c_str(),
-                     bestScore, session.lastSeqNum, seqNum);
+        ProbeSession& bestSession = activeSessions[bestSessionKey];
 
-        if (session.probeCount < 8) session.probeCount = 8;
-        linkSessionToTrackBehavioral(session);
+        bestSession.hasGlobalMacLeak = true;
+        memcpy(bestSession.globalMacLeaked, globalMac, 6);
+
+        Serial.printf("[RAND] AUTH LEAK: %s->%s sc:%.2f sq:%d->%d\n",
+                     macFmt6(bestSession.mac).c_str(), macFmt6(globalMac).c_str(),
+                     bestScore, bestSession.lastSeqNum, seqNum);
+
+        if (bestSession.probeCount < 8) bestSession.probeCount = 8;
+        linkSessionToTrackBehavioral(bestSession);
     }
 }
 
@@ -667,19 +665,16 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     uint8_t sessionChannelSeqLen = 0;
     extractChannelSequence(session, sessionChannelSeq, sessionChannelSeqLen);
     
-    int16_t sessionRssiSum = 0;
-    for (const auto& rssi : session.rssiReadings) {
-        sessionRssiSum += rssi;
-    }
+    int16_t sessionRssiSum = std::accumulate(session.rssiReadings.begin(), session.rssiReadings.end(), int16_t{0});
     int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
-                            sessionRssiSum / (int)session.rssiReadings.size() : 
-                            session.rssiSum / max(1, (int)session.probeCount);
+                            sessionRssiSum / static_cast<int>(session.rssiReadings.size()) :
+                            session.rssiSum / max(1, static_cast<int>(session.probeCount));
     
     float sessionIntervalConsistency = 0.0f;
     if (session.probeCount >= 3) {
         uint32_t intervals[49];
         uint8_t intervalCount = 0;
-        for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount); i++) {
+        for (uint8_t i = 1; i < min(static_cast<uint8_t>(50), session.probeCount); i++) {
             if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
                 intervals[intervalCount++] = session.probeTimestamps[i] - session.probeTimestamps[i-1];
             }
@@ -690,8 +685,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     }
     
     float sessionRssiConsistency = calculateRssiConsistency(
-        session.rssiReadings.data(), 
-        min((uint8_t)20, (uint8_t)session.rssiReadings.size())
+        session.rssiReadings.data(),
+        min(static_cast<uint8_t>(20), static_cast<uint8_t>(session.rssiReadings.size()))
     );
     
     bool isBLE = (session.primaryChannel == 0);
@@ -716,18 +711,15 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     float bestScore = 0.0f;
     int8_t bestRssiDelta = 127;
     
-    for (auto& identityEntry : deviceIdentities) {
-        DeviceIdentity& identity = identityEntry.second;
+    for (const auto& identityEntry : deviceIdentities) {
+        const DeviceIdentity& identity = identityEntry.second;
         
         if (now - identity.lastSeen > TRACK_STALE_TIME) continue;
         
-        bool alreadyLinked = false;
-        for (const auto& existingMac : identity.macs) {
-            if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
-                alreadyLinked = true;
-                break;
-            }
-        }
+        bool alreadyLinked = std::any_of(identity.macs.begin(), identity.macs.end(),
+            [&session](const MacAddress& m) {
+                return memcmp(m.bytes.data(), session.mac, 6) == 0;
+            });
         if (alreadyLinked) continue;
         
         bool inRotationGap = detectMACRotationGap(identity, now);
@@ -736,8 +728,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         for (uint8_t i = 0; i < identity.signature.rssiHistoryCount; i++) {
             identityRssiSum += identity.signature.rssiHistory[i];
         }
-        int8_t identityAvgRssi = identity.signature.rssiHistoryCount > 0 ? 
-                                 identityRssiSum / (int)identity.signature.rssiHistoryCount : 
+        int8_t identityAvgRssi = identity.signature.rssiHistoryCount > 0 ?
+                                 identityRssiSum / static_cast<int>(identity.signature.rssiHistoryCount) :
                                  sessionAvgRssi;
         
         int8_t rssiDelta = abs(sessionAvgRssi - identityAvgRssi);
@@ -755,7 +747,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         float macPrefixScore = 0.0f;
         uint8_t prefixMatches = calculateMACPrefixSimilarity(session.mac, identity.macs[0].bytes.data());
         if (prefixMatches >= 3) {
-            macPrefixScore = (float)prefixMatches / 4.0f;
+            macPrefixScore = static_cast<float>(prefixMatches) / 4.0f;
         }
         macPrefixScore *= 0.30f;
         
@@ -778,7 +770,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         }
         
         if (fpMatch) {
-            fingerprintScore = (float)fpMatches / 5.0f;
+            fingerprintScore = static_cast<float>(fpMatches) / 5.0f;
         }
         fingerprintScore *= 0.12f;
         
@@ -816,7 +808,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         
         if (session.probeCount >= 2 && identity.observedSessions >= 1) {
             float interFrameScore = calculateInterFrameTimingSimilarity(
-                session.probeTimestamps, min((uint8_t)50, session.probeCount),
+                session.probeTimestamps, min(static_cast<uint8_t>(50), session.probeCount),
                 identity.signature.probeIntervals, identity.signature.intervalCount
             );
             timingScore = max(timingScore, interFrameScore);
@@ -914,7 +906,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         }
         
         if (session.probeCount >= 2 && identity.signature.intervalCount < 20) {
-            for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount) && 
+            for (uint8_t i = 1; i < min(static_cast<uint8_t>(50), session.probeCount) && 
                  identity.signature.intervalCount < 20; i++) {
                 if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
                     identity.signature.probeIntervals[identity.signature.intervalCount++] = 
@@ -962,12 +954,13 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             memcpy(identity.mfrData, session.mfrData, session.mfrDataLen);
         }
         {
-            int16_t sum = 0; int8_t mn = identity.rssiMin, mx = identity.rssiMax;
+            int8_t mn = identity.rssiMin, mx = identity.rssiMax;
             size_t cnt = session.rssiReadings.size();
             if (cnt > 0) {
+                int16_t sum = 0;
                 for (auto r : session.rssiReadings) { sum += r; if (r < mn) mn = r; if (r > mx) mx = r; }
                 identity.rssiMin = mn; identity.rssiMax = mx;
-                identity.rssiAvg = (int8_t)((identity.rssiAvg + (int8_t)(sum / (int16_t)cnt)) / 2);
+                identity.rssiAvg = static_cast<int8_t>((identity.rssiAvg + static_cast<int8_t>(sum / static_cast<int16_t>(cnt))) / 2);
             }
         }
 
@@ -988,6 +981,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         for (const auto& existingEntry : deviceIdentities) {
             const DeviceIdentity& existingIdentity = existingEntry.second;
             for (const auto& existingMac : existingIdentity.macs) {
+                // cppcheck-suppress useStlAlgorithm
                 if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
                     Serial.printf("[RAND] MAC %s already in %s, skipping new identity\n",
                                 macStr.c_str(), existingIdentity.identityId);
@@ -1019,7 +1013,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 mn = mx = session.rssiReadings[0];
                 for (auto r : session.rssiReadings) { sum += r; if (r < mn) mn = r; if (r > mx) mx = r; }
             }
-            newIdentity.rssiAvg = cnt > 0 ? (int8_t)(sum / (int16_t)cnt) : session.rssiMin;
+            newIdentity.rssiAvg = cnt > 0 ? static_cast<int8_t>(sum / static_cast<int16_t>(cnt)) : session.rssiMin;
             newIdentity.rssiMin = cnt > 0 ? mn : session.rssiMin;
             newIdentity.rssiMax = cnt > 0 ? mx : session.rssiMax;
         }
@@ -1051,7 +1045,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         }
         
         newIdentity.signature.intervalCount = 0;
-        for (uint8_t i = 1; i < min((uint8_t)50, session.probeCount) && 
+        for (uint8_t i = 1; i < min(static_cast<uint8_t>(50), session.probeCount) && 
              newIdentity.signature.intervalCount < 20; i++) {
             if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
                 newIdentity.signature.probeIntervals[newIdentity.signature.intervalCount++] = 
@@ -1117,7 +1111,7 @@ void cleanupStaleTracks() {
     uint32_t now = millis();
     std::vector<String> toRemove;
     
-    for (auto& entry : deviceIdentities) {
+    for (const auto& entry : deviceIdentities) {
         if (now - entry.second.lastSeen > TRACK_STALE_TIME) {
             toRemove.push_back(entry.first);
         }
@@ -1163,7 +1157,7 @@ String getRandomizationResults() {
             results += "  SSID: " + String(identity.probedSSID) + "\n";
         }
         if (identity.isBLE && identity.mfrDataLen >= 2) {
-            uint16_t cid = (uint16_t)identity.mfrData[0] | ((uint16_t)identity.mfrData[1] << 8);
+            uint16_t cid = static_cast<uint16_t>(identity.mfrData[0]) | (static_cast<uint16_t>(identity.mfrData[1]) << 8);
             results += "  Vendor CID: 0x" + String(cid, HEX) + "\n";
             String hex;
             for (uint8_t b = 0; b < identity.mfrDataLen; b++) {
@@ -1193,9 +1187,9 @@ String getRandomizationResults() {
 
         if (identity.signature.channelSeqLength > 0) {
             results += "  Channel sequence: ";
-            for (uint8_t i = 0; i < min((uint8_t)8, identity.signature.channelSeqLength); i++) {
+            for (uint8_t i = 0; i < min(static_cast<uint8_t>(8), identity.signature.channelSeqLength); i++) {
                 results += String(identity.signature.channelSequence[i]);
-                if (i < min((uint8_t)8, identity.signature.channelSeqLength) - 1) results += ",";
+                if (i < min(static_cast<uint8_t>(8), identity.signature.channelSeqLength) - 1) results += ",";
             }
             if (identity.signature.channelSeqLength > 8) results += "...";
             results += "\n";
@@ -1219,9 +1213,9 @@ String getRandomizationResults() {
         }
 
         results += "  MACs: ";
-        for (size_t i = 0; i < min((size_t)5, identity.macs.size()); i++) {
+        for (size_t i = 0; i < min(static_cast<size_t>(5), identity.macs.size()); i++) {
             results += macFmt6(identity.macs[i].bytes.data());
-            if (i < min((size_t)5, identity.macs.size()) - 1) results += ", ";
+            if (i < min(static_cast<size_t>(5), identity.macs.size()) - 1) results += ", ";
         }
         if (identity.macs.size() > 5) {
             results += " (+" + String(identity.macs.size() - 5) + " more)";
@@ -1233,7 +1227,7 @@ String getRandomizationResults() {
 }
 
 void randomizationDetectionTask(void *pv) {
-    int duration = (int)(intptr_t)pv;
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
@@ -1308,7 +1302,7 @@ void randomizationDetectionTask(void *pv) {
     const uint32_t BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
 
     while ((forever && !stopRequested) ||
-           (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
+           (!forever && (millis() - startTime) < static_cast<uint32_t>(duration * 1000) && !stopRequested)) {
 
         if (authFrameQueue) {
             AuthFrameEvent authEvt;
@@ -1520,7 +1514,7 @@ void randomizationDetectionTask(void *pv) {
                             session.probedSSID[0] = '\0';
                             {
                                 std::string mfr = device->getManufacturerData();
-                                session.mfrDataLen = (uint8_t)min((int)mfr.size(), 8);
+                                session.mfrDataLen = static_cast<uint8_t>(min(static_cast<int>(mfr.size()), 8));
                                 if (session.mfrDataLen > 0) {
                                     memcpy(session.mfrData, mfr.data(), session.mfrDataLen);
                                 }
@@ -1570,7 +1564,7 @@ void randomizationDetectionTask(void *pv) {
         } 
         
         // Process all unlinked randomized sessions
-        if ((int32_t)(millis() - nextStatus) >= 0) {
+        if (static_cast<int32_t>(millis() - nextStatus) >= 0) {
             uint32_t now = millis();
             std::vector<ProbeSession*> toProcess;
             
@@ -1636,7 +1630,7 @@ void randomizationDetectionTask(void *pv) {
 
         
 
-        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0) {
             std::string results = getRandomizationResults().c_str();
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -1646,7 +1640,7 @@ void randomizationDetectionTask(void *pv) {
         }
         
 
-        if ((int32_t)(millis() - nextCleanup) >= 0) {
+        if (static_cast<int32_t>(millis() - nextCleanup) >= 0) {
             cleanupStaleSessions();
             nextCleanup += 30000;
         }
@@ -1761,30 +1755,30 @@ void saveDeviceIdentities() {
     }
     
     uint32_t count = deviceIdentities.size();
-    file.write((uint8_t*)&count, sizeof(count));
-    
+    file.write(reinterpret_cast<const uint8_t*>(&count), sizeof(count));
+
     for (const auto& entry : deviceIdentities) {
         const DeviceIdentity& id = entry.second;
-        
-        file.write((uint8_t*)&id.identityId, sizeof(id.identityId));
-        
+
+        file.write(reinterpret_cast<const uint8_t*>(&id.identityId), sizeof(id.identityId));
+
         uint32_t macCount = id.macs.size();
-        file.write((uint8_t*)&macCount, sizeof(macCount));
+        file.write(reinterpret_cast<const uint8_t*>(&macCount), sizeof(macCount));
         for (const auto& mac : id.macs) {
             file.write(mac.bytes.data(), 6);
         }
-        
-        file.write((uint8_t*)&id.signature, sizeof(BehavioralSignature));
-        file.write((uint8_t*)&id.firstSeen, sizeof(id.firstSeen));
-        file.write((uint8_t*)&id.lastSeen, sizeof(id.lastSeen));
-        file.write((uint8_t*)&id.confidence, sizeof(id.confidence));
-        file.write((uint8_t*)&id.sessionCount, sizeof(id.sessionCount));
-        file.write((uint8_t*)&id.observedSessions, sizeof(id.observedSessions));
-        file.write((uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum));
-        file.write((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid));
-        file.write((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
-        file.write((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac));
-        file.write((uint8_t*)&id.isBLE, sizeof(id.isBLE));
+
+        file.write(reinterpret_cast<const uint8_t*>(&id.signature), sizeof(BehavioralSignature));
+        file.write(reinterpret_cast<const uint8_t*>(&id.firstSeen), sizeof(id.firstSeen));
+        file.write(reinterpret_cast<const uint8_t*>(&id.lastSeen), sizeof(id.lastSeen));
+        file.write(reinterpret_cast<const uint8_t*>(&id.confidence), sizeof(id.confidence));
+        file.write(reinterpret_cast<const uint8_t*>(&id.sessionCount), sizeof(id.sessionCount));
+        file.write(reinterpret_cast<const uint8_t*>(&id.observedSessions), sizeof(id.observedSessions));
+        file.write(reinterpret_cast<const uint8_t*>(&id.lastSequenceNum), sizeof(id.lastSequenceNum));
+        file.write(reinterpret_cast<const uint8_t*>(&id.sequenceValid), sizeof(id.sequenceValid));
+        file.write(reinterpret_cast<const uint8_t*>(&id.hasKnownGlobalMac), sizeof(id.hasKnownGlobalMac));
+        file.write(reinterpret_cast<const uint8_t*>(&id.knownGlobalMac), sizeof(id.knownGlobalMac));
+        file.write(reinterpret_cast<const uint8_t*>(&id.isBLE), sizeof(id.isBLE));
     }
     
     file.close();
@@ -1804,7 +1798,7 @@ void loadDeviceIdentities() {
     }
     
     uint32_t count = 0;
-    if (file.read((uint8_t*)&count, sizeof(count)) != sizeof(count)) {
+    if (file.read(reinterpret_cast<uint8_t*>(&count), sizeof(count)) != sizeof(count)) {
         Serial.println("[RAND] Failed to read identity count");
         file.close();
         return;
@@ -1819,10 +1813,10 @@ void loadDeviceIdentities() {
     for (uint32_t i = 0; i < count; i++) {
         DeviceIdentity id;
 
-        if (file.read((uint8_t*)&id.identityId, sizeof(id.identityId)) != sizeof(id.identityId)) break;
-        
+        if (file.read(reinterpret_cast<uint8_t*>(&id.identityId), sizeof(id.identityId)) != sizeof(id.identityId)) break;
+
         uint32_t macCount = 0;
-        if (file.read((uint8_t*)&macCount, sizeof(macCount)) != sizeof(macCount)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&macCount), sizeof(macCount)) != sizeof(macCount)) break;
         
         if (macCount > 50) break;
         
@@ -1835,22 +1829,22 @@ void loadDeviceIdentities() {
             id.macs.push_back(MacAddress(macBytes));
         }
         
-        if (file.read((uint8_t*)&id.signature, sizeof(BehavioralSignature)) != sizeof(BehavioralSignature)) break;
-        if (file.read((uint8_t*)&id.firstSeen, sizeof(id.firstSeen)) != sizeof(id.firstSeen)) break;
-        if (file.read((uint8_t*)&id.lastSeen, sizeof(id.lastSeen)) != sizeof(id.lastSeen)) break;
-        if (file.read((uint8_t*)&id.confidence, sizeof(id.confidence)) != sizeof(id.confidence)) break;
-        if (file.read((uint8_t*)&id.sessionCount, sizeof(id.sessionCount)) != sizeof(id.sessionCount)) break;
-        if (file.read((uint8_t*)&id.observedSessions, sizeof(id.observedSessions)) != sizeof(id.observedSessions)) break;
-        if (file.read((uint8_t*)&id.lastSequenceNum, sizeof(id.lastSequenceNum)) != sizeof(id.lastSequenceNum)) break;
-        if (file.read((uint8_t*)&id.sequenceValid, sizeof(id.sequenceValid)) != sizeof(id.sequenceValid)) break;
-        if (file.read((uint8_t*)&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac)) != sizeof(id.hasKnownGlobalMac)) break;
-        if (file.read((uint8_t*)&id.knownGlobalMac, sizeof(id.knownGlobalMac)) != sizeof(id.knownGlobalMac)) break;
-        if (file.read((uint8_t*)&id.isBLE, sizeof(id.isBLE)) != sizeof(id.isBLE)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.signature), sizeof(BehavioralSignature)) != sizeof(BehavioralSignature)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.firstSeen), sizeof(id.firstSeen)) != sizeof(id.firstSeen)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.lastSeen), sizeof(id.lastSeen)) != sizeof(id.lastSeen)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.confidence), sizeof(id.confidence)) != sizeof(id.confidence)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.sessionCount), sizeof(id.sessionCount)) != sizeof(id.sessionCount)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.observedSessions), sizeof(id.observedSessions)) != sizeof(id.observedSessions)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.lastSequenceNum), sizeof(id.lastSequenceNum)) != sizeof(id.lastSequenceNum)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.sequenceValid), sizeof(id.sequenceValid)) != sizeof(id.sequenceValid)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.hasKnownGlobalMac), sizeof(id.hasKnownGlobalMac)) != sizeof(id.hasKnownGlobalMac)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.knownGlobalMac), sizeof(id.knownGlobalMac)) != sizeof(id.knownGlobalMac)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.isBLE), sizeof(id.isBLE)) != sizeof(id.isBLE)) break;
         
         if (!id.macs.empty()) {
             String key = macFmt6(id.macs[0].bytes.data());
             deviceIdentities[key] = id;
-            identityIdCounter = max(identityIdCounter, (uint32_t)strtol(id.identityId + 2, NULL, 16));
+            identityIdCounter = max(identityIdCounter, static_cast<uint32_t>(strtol(id.identityId + 2, nullptr, 16)));
         }
     }
     
