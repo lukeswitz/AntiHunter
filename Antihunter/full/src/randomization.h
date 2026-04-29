@@ -13,7 +13,7 @@ struct MacAddress {
     std::array<uint8_t, 6> bytes;
     
     MacAddress() { bytes.fill(0); }
-    MacAddress(const uint8_t* mac) {
+    explicit MacAddress(const uint8_t* mac) {
         memcpy(bytes.data(), mac, 6);
     }
 };

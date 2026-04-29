@@ -210,7 +210,7 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;
-    static unsigned long lastGPSPollBatterySaver = 0;
+    static unsigned long lastGPSPollBatterySaver = 0;  // cppcheck-suppress variableScope
     static unsigned long lastHeapCheck = 0;
 
     // Handle serial time setting (always process, even in battery saver)

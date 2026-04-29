@@ -811,7 +811,7 @@ bool waitForInitialConfig() {
 String getDiagnostics() {
     static std::mutex diagMutex;
     static unsigned long lastDiagTime = 0;
-    static unsigned long lastSDTime = 0;
+    static unsigned long lastSDTime = 0;  // cppcheck-suppress variableScope
     static unsigned long lastTempTime = 0;
     static String cachedDiag = "";
     static String cachedSDInfo = "";
@@ -849,7 +849,7 @@ String getDiagnostics() {
     uint32_t uptime_seconds = uptime_total_seconds % 60;
 
     char uptimeBuffer[10];
-    snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02lu:%02lu:%02lu", uptime_hours, uptime_minutes, uptime_seconds);
+    snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02u:%02u:%02u", uptime_hours, uptime_minutes, uptime_seconds);
     s += "Up:" + String(uptimeBuffer) + "\n";
     s += "Scan Mode: " + modeStr + "\n";
     s += "WiFi Frames: " + String((unsigned)framesSeen) + "\n";
@@ -1095,7 +1095,7 @@ void updateGPSLocation() {
                             + String((millis() - lastDataTime) / 1000)
                             + "s ago)";
                 
-                if (wasLocked && !nowLocked) {
+                if (wasLocked) {
                     sendGPSLockStatus(false);
                 }
             }
@@ -1120,7 +1120,7 @@ void logToSD(const String &data) {
     if (!SafeSD::isAvailable()) return;
     
     static uint32_t totalWrites = 0;
-    static uint32_t failCount = 0;
+    static uint32_t failCount = 0;  // cppcheck-suppress variableScope
     static File logFile;
 
     if (!SD.exists("/")) {
@@ -1824,8 +1824,8 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
 
     // Stop any active scanning tasks
     extern std::atomic<bool> stopRequested;
-    extern TaskHandle_t workerTaskHandle;
-    extern TaskHandle_t blueTeamTaskHandle;
+    extern TaskHandle_t workerTaskHandle;  // cppcheck-suppress shadowVariable
+    extern TaskHandle_t blueTeamTaskHandle;  // cppcheck-suppress shadowVariable
 
     stopRequested = true;
 
@@ -1908,7 +1908,7 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
-    extern std::atomic<bool> triangulationActive;
+    extern std::atomic<bool> triangulationActive;  // cppcheck-suppress shadowVariable
     if (triangulationActive.load()) {
         return;  // Silently skip heartbeat to avoid mesh pollution
     }

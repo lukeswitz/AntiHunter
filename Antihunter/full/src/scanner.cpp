@@ -6,6 +6,7 @@
 #include <NimBLEAdvertisedDevice.h>
 #include <NimBLEScan.h>
 #include <algorithm>
+#include <iterator>
 #include "randomization.h"
 #include <string>
 #include <atomic>
@@ -165,7 +166,6 @@ void setRFPreset(uint8_t preset) {
             rfConfig.globalRssiThreshold = -70;
             break;
         default:
-            preset = 1;
             setRFPreset(1);
             return;
     }
@@ -221,7 +221,7 @@ int8_t getGlobalRssiThreshold() {
 }
 
 void setGlobalRssiThreshold(int8_t threshold) {
-    if (threshold >= -128 && threshold <= -10) {
+    if (threshold <= -10) {
         rfConfig.globalRssiThreshold = threshold;
         prefs.putInt("globalRSSI", threshold);
         Serial.printf("[RF] Global RSSI threshold set to %d dBm\n", threshold);
@@ -403,14 +403,14 @@ static bool parseMacLike(const String &ln, Target &out)
     for (size_t i = 0; i < ln.length(); ++i)
     {
         char c = ln[i];
-        if (isxdigit((int)c))
-            t += (char)toupper(c);
+        if (isxdigit(static_cast<int>(c)))
+            t += static_cast<char>(toupper(c));
     }
     if (t.length() == 12)
     {
         for (int i = 0; i < 6; i++)
         {
-            out.bytes[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+            out.bytes[i] = static_cast<uint8_t>(strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16));
         }
         out.len = 6;
         return true;
@@ -419,7 +419,7 @@ static bool parseMacLike(const String &ln, Target &out)
     {
         for (int i = 0; i < 3; i++)
         {
-            out.bytes[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+            out.bytes[i] = static_cast<uint8_t>(strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16));
         }
         out.len = 3;
         out.ssid[0] = '\0';
@@ -448,9 +448,12 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
         return false;
     }
 
+    // cppcheck-suppress shadowVariable
     extern std::map<String, DeviceIdentity> deviceIdentities;
+    // cppcheck-suppress shadowVariable
     extern std::mutex randMutex;
-    
+
+    // cppcheck-suppress localMutex
     std::lock_guard<std::mutex> lock(randMutex);
 
     String idStr(identityId);
@@ -461,19 +464,16 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
     
     const DeviceIdentity& identity = it->second;
     
-    for (const auto& macAddr : identity.macs) {
-        if (memcmp(macAddr.bytes.data(), mac, 6) == 0) {
-            return true;
-        }
-    }
-    
-    return false;
+    return std::any_of(identity.macs.begin(), identity.macs.end(),
+        [mac](const MacAddress& macAddr) {
+            return memcmp(macAddr.bytes.data(), mac, 6) == 0;
+        });
 }
 
 String getTargetsList()
 {
     String out;
-    for (auto &t : targets)
+    for (const auto &t : targets)
     {
         if (t.len == 255) {
             out += String(t.ssid);
@@ -505,7 +505,7 @@ void saveTargetsList(const String &txt)
     targets.clear();
     ssidTargets.clear();
     int start = 0;
-    while (start < (int)txt.length())
+    while (start < static_cast<int>(txt.length()))
     {
         int nl = txt.indexOf('\n', start);
         if (nl < 0)
@@ -534,15 +534,13 @@ bool matchesSsid(const char *ssid)
     if (!ssid || ssid[0] == '\0') return false;
     String lower = String(ssid);
     lower.toLowerCase();
-    for (const auto &s : ssidTargets) {
-        if (lower == s) return true;
-    }
-    return false;
+    return std::any_of(ssidTargets.begin(), ssidTargets.end(),
+                       [&lower](const String &s) { return lower == s; });
 }
 
 static inline bool matchesMac(const uint8_t *mac)
 {
-    for (auto &t : targets)
+    for (const auto &t : targets)
     {
         if (t.len == 0 && strlen(t.identityId) > 0) {
             if (matchesIdentityMac(t.identityId, mac)) {
@@ -648,9 +646,9 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             if (nimbleName.length() > 0) {
                 deviceName = "";
                 for (size_t i = 0; i < nimbleName.length() && i < 31; i++) {
-                    uint8_t c = (uint8_t)nimbleName[i];
+                    uint8_t c = static_cast<uint8_t>(nimbleName[i]);
                     if (c >= 32 && c <= 126) {
-                        deviceName += (char)c;
+                        deviceName += static_cast<char>(c);
                     }
                 }
                 if (deviceName.length() == 0) {
@@ -698,7 +696,7 @@ void snifferScanTask(void *pv)
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                  (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
-    int duration = (int)(intptr_t)pv;
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
 
     Serial.printf("[SNIFFER] Starting device scan %s\n",
@@ -731,7 +729,6 @@ void snifferScanTask(void *pv)
     lastScanSecs = duration;
     lastScanForever = forever;
 
-    int networksFound = 0;
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
@@ -750,7 +747,7 @@ void snifferScanTask(void *pv)
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
-            networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
             if (stopRequested) break;
 
             if (networksFound > 0)
@@ -763,7 +760,7 @@ void snifferScanTask(void *pv)
                     if (rssi < rfConfig.globalRssiThreshold) {
                         continue;
                     }
-                    uint8_t *bssidBytes = WiFi.BSSID(i);
+                    const uint8_t *bssidBytes = WiFi.BSSID(i);
 
                     if (ssid.length() == 0)
                     {
@@ -1068,8 +1065,8 @@ void snifferScanTask(void *pv)
                     pd.respondingAP[0] = '\0';
                     pd.respondingSSID[0] = '\0';
                     if (!pRandomized) {
-                        const char *pv = lookupOuiVendor(pEvt.mac);
-                        if (pv) strncpy(pd.vendor, pv, sizeof(pd.vendor) - 1);
+                        const char *pvLocal = lookupOuiVendor(pEvt.mac);
+                        if (pvLocal) strncpy(pd.vendor, pvLocal, sizeof(pd.vendor) - 1);
                     }
                     if (pHasSsid) addProbeSsid(pd, pssid);
                     probeDevices[String(pmac)] = pd;
@@ -1169,7 +1166,7 @@ void snifferScanTask(void *pv)
     bool hadProbes = probeDetectionEnabled.load();
     if (hadProbes) {
         std::lock_guard<std::mutex> plock(probeMutex);
-        for (auto &pp : probeDevices) {
+        for (const auto &pp : probeDevices) {
             mergeProbeDeviceToDB(pp.second);
         }
         saveProbeDB();
@@ -1456,14 +1453,14 @@ String getSnifferCache()
     return result;
 }
 
-std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount, 
-                                uint32_t disassocCount, const std::vector<DeauthHit>& deauthLog) {
+static std::string buildDeauthResults(bool forever, int duration, uint32_t deauthTotal,
+                                       uint32_t disassocTotal, const std::vector<DeauthHit>& deauthEntries) {
     std::map<String, DeauthStats> statsMap;
     
-    for (const auto& h : deauthLog) {
+    for (const auto& h : deauthEntries) {
         String dstMac = macFmt6(h.destMac);
         if (dstMac == "FF:FF:FF:FF:FF:FF") dstMac = "[BROADCAST]";
-        
+
         if (statsMap.find(dstMac) == statsMap.end()) {
             DeauthStats stats;
             stats.srcMac = dstMac;
@@ -1474,7 +1471,7 @@ std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount,
             stats.channel = h.channel;
             statsMap[dstMac] = stats;
         }
-        
+
         statsMap[dstMac].count++;
         if (h.isBroadcast) {
             statsMap[dstMac].broadcastCount++;
@@ -1483,12 +1480,12 @@ std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount,
         }
         statsMap[dstMac].lastRssi = h.rssi;
     }
-    
+
     std::string results = "Deauth Attack Detection Results\n";
     results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
-    results += "Deauth frames: " + std::to_string(deauthCount) + "\n";
-    results += "Disassoc frames: " + std::to_string(disassocCount) + "\n";
-    results += "Total attacks: " + std::to_string(deauthLog.size()) + "\n";
+    results += "Deauth frames: " + std::to_string(deauthTotal) + "\n";
+    results += "Disassoc frames: " + std::to_string(disassocTotal) + "\n";
+    results += "Total attacks: " + std::to_string(deauthEntries.size()) + "\n";
     results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n\n";
     
     if (statsMap.empty()) {
@@ -1516,7 +1513,7 @@ std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount,
             
             int sourcesShown = 0;
             std::map<String, int> sourceCounts;
-            for (const auto& h : deauthLog) {
+            for (const auto& h : deauthEntries) {
                 String dst = macFmt6(h.destMac);
                 if (dst == "FF:FF:FF:FF:FF:FF") dst = "[BROADCAST]";
                 if (dst == entry.first) {
@@ -1546,7 +1543,7 @@ std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount,
 }
 
 void blueTeamTask(void *pv) {
-    int duration = (int)(intptr_t)pv;
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
 
     String startMsg = forever ?
@@ -1761,17 +1758,17 @@ void blueTeamTask(void *pv) {
     // Log deauth events to SD
     if (SafeSD::isAvailable() && !deauthLog.empty()) {
         uint32_t now = getEventTimestamp();
-        for (const auto& hit : deauthLog) {
+        for (const auto& deauthHit : deauthLog) {
             DynamicJsonDocument doc(384);
             doc["t"] = now;
-            doc["src"] = macFmt6(hit.srcMac);
-            doc["dst"] = macFmt6(hit.destMac);
-            doc["bssid"] = macFmt6(hit.bssid);
-            doc["rssi"] = hit.rssi;
-            doc["ch"] = hit.channel;
-            doc["reason"] = hit.reasonCode;
-            doc["disassoc"] = hit.isDisassoc;
-            doc["broadcast"] = hit.isBroadcast;
+            doc["src"] = macFmt6(deauthHit.srcMac);
+            doc["dst"] = macFmt6(deauthHit.destMac);
+            doc["bssid"] = macFmt6(deauthHit.bssid);
+            doc["rssi"] = deauthHit.rssi;
+            doc["ch"] = deauthHit.channel;
+            doc["reason"] = deauthHit.reasonCode;
+            doc["disassoc"] = deauthHit.isDisassoc;
+            doc["broadcast"] = deauthHit.isBroadcast;
             String line;
             serializeJson(doc, line);
             logEventToSD("/deauth.jsonl", line);
@@ -1864,7 +1861,7 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
 
-    const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)buf;
+    const wifi_promiscuous_pkt_t *ppkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
 
     if (ppkt->rx_ctrl.sig_len < 24) {
         return;
@@ -1883,7 +1880,7 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         DroneFrameEvent droneEvt;
         uint16_t copyLen = ppkt->rx_ctrl.sig_len < sizeof(droneEvt.payload)
                            ? ppkt->rx_ctrl.sig_len
-                           : (uint16_t)sizeof(droneEvt.payload);
+                           : static_cast<uint16_t>(sizeof(droneEvt.payload));
         memcpy(droneEvt.payload, ppkt->payload, copyLen);
         droneEvt.len  = copyLen;
         droneEvt.rssi = ppkt->rx_ctrl.rssi;
@@ -1921,7 +1918,7 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 probeEvt.channel = actualChannel;
                 probeEvt.payloadLen = ppkt->rx_ctrl.sig_len < sizeof(probeEvt.payload)
                                       ? ppkt->rx_ctrl.sig_len
-                                      : (uint16_t)sizeof(probeEvt.payload);
+                                      : static_cast<uint16_t>(sizeof(probeEvt.payload));
                 memcpy(probeEvt.payload, payload, probeEvt.payloadLen);
                 probeEvt.dstMatch = false;
                 probeEvt.isProbeResponse = false;
@@ -1939,10 +1936,10 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
             UBaseType_t qFree = uxQueueSpacesAvailable(probeRequestQueue);
             if (qFree > 128) {
                 const uint8_t *da = payload + 4;
-                const uint8_t *sa = payload + 10;
-                const uint8_t *bssid = payload + 16;
 
                 if (da[0] != 0xFF && !(da[0] & 0x01)) {
+                    const uint8_t *sa = payload + 10;
+                    const uint8_t *bssid = payload + 16;
                     ProbeRequestEvent respEvt = {};
                     memcpy(respEvt.mac, sa, 6);
                     memcpy(respEvt.addr1, da, 6);
@@ -1951,7 +1948,7 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                     respEvt.channel = ppkt->rx_ctrl.channel;
                     respEvt.payloadLen = ppkt->rx_ctrl.sig_len < sizeof(respEvt.payload)
                                          ? ppkt->rx_ctrl.sig_len
-                                         : (uint16_t)sizeof(respEvt.payload);
+                                         : static_cast<uint16_t>(sizeof(respEvt.payload));
                     memcpy(respEvt.payload, payload, respEvt.payloadLen);
                     respEvt.dstMatch = false;
                     respEvt.isProbeResponse = true;
@@ -1971,7 +1968,7 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 authEvt.channel = ppkt->rx_ctrl.channel;
                 authEvt.len = ppkt->rx_ctrl.sig_len < sizeof(authEvt.payload)
                               ? ppkt->rx_ctrl.sig_len
-                              : (uint16_t)sizeof(authEvt.payload);
+                              : static_cast<uint16_t>(sizeof(authEvt.payload));
                 memcpy(authEvt.payload, payload, authEvt.len);
                 BaseType_t woken = pdFALSE;
                 xQueueSendFromISR(authFrameQueue, &authEvt, &woken);
@@ -2012,7 +2009,7 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     uint8_t tods = (fc >> 8) & 0x1;
     uint8_t fromds = (fc >> 9) & 0x1;
 
-    const uint8_t *a1 = p + 4, *a2 = p + 10, *a3 = p + 16, *a4 = p + 24;
+    const uint8_t *a2 = p + 10, *a3 = p + 16;
     uint8_t cand1[6], cand2[6];
     bool c1 = false, c2 = false;
 
@@ -2031,6 +2028,8 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     }
     else if (ftype == 2)
     {
+        // cppcheck-suppress variableScope
+        const uint8_t *a1 = p + 4;
         if (!tods && !fromds)
         {
             if (!isZeroOrBroadcast(a2))
@@ -2559,14 +2558,14 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
         msg += " DST";
     }
 
-    if (msg.length() <= (size_t)MAX_MESH_SIZE) {
+    if (msg.length() <= static_cast<size_t>(MAX_MESH_SIZE)) {
         sendToSerial1(msg, true);
     }
 }
 
 void probeDetectionTask(void *pv)
 {
-    int duration = (int)(intptr_t)pv;
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
 
     Serial.printf("[PROBE] Starting probe detection, duration=%d forever=%d\n", duration, forever);
@@ -2715,7 +2714,7 @@ void probeDetectionTask(void *pv)
                     if (probeDevices.size() >= 100) {
                         uint32_t oldestTime = UINT32_MAX;
                         String oldestKey;
-                        for (auto &p : probeDevices) {
+                        for (const auto &p : probeDevices) {
                             if (!p.second.isTargetHit && p.second.lastSeen < oldestTime) {
                                 oldestTime = p.second.lastSeen;
                                 oldestKey = p.first;
@@ -2836,7 +2835,7 @@ void probeDetectionTask(void *pv)
         if ((millis() - lastDBSave) >= 60000) {
             {
                 std::lock_guard<std::mutex> lock(probeMutex);
-                for (auto &p : probeDevices) {
+                for (const auto &p : probeDevices) {
                     mergeProbeDeviceToDB(p.second);
                 }
             }
@@ -2866,7 +2865,7 @@ void probeDetectionTask(void *pv)
     // Merge all devices into SD database and save
     {
         std::lock_guard<std::mutex> lock(probeMutex);
-        for (auto &p : probeDevices) {
+        for (const auto &p : probeDevices) {
             mergeProbeDeviceToDB(p.second);
         }
     }
@@ -2951,9 +2950,9 @@ String getProbeResults()
                " | Saved: " + String(getProbeDBSize()) + "\n\n";
 
     std::vector<std::pair<String, ProbeDevice*>> sorted;
-    for (auto &p : probeDevices) {
-        sorted.push_back({p.first, &p.second});
-    }
+    sorted.reserve(probeDevices.size());
+    std::transform(probeDevices.begin(), probeDevices.end(), std::back_inserter(sorted),
+        [](auto &p) -> std::pair<String, ProbeDevice*> { return {p.first, &p.second}; });
     // Sort: known devices first, then by signal strength
     std::sort(sorted.begin(), sorted.end(),
         [](const std::pair<String, ProbeDevice*> &a, const std::pair<String, ProbeDevice*> &b) {
@@ -3013,7 +3012,7 @@ String getProbeResults()
 
         // Build SSID→devices map
         std::map<String, std::vector<String>> ssidToDevices;
-        for (auto &p : probeDevices) {
+        for (const auto &p : probeDevices) {
             for (uint8_t i = 0; i < p.second.ssidCount; i++) {
                 ssidToDevices[String(p.second.ssids[i])].push_back(p.first);
             }
@@ -3025,7 +3024,7 @@ String getProbeResults()
             [](const std::pair<String, std::vector<String>> &a,
                const std::pair<String, std::vector<String>> &b) { return a.second.size() > b.second.size(); });
 
-        for (auto &s : ssidSorted) {
+        for (const auto &s : ssidSorted) {
             bool ghost = respondedSsids.find(s.first) == respondedSsids.end();
             results += "  " + String(ghost ? "~" : "") + "\"" + s.first + "\" (" + String(s.second.size()) +
                        (s.second.size() == 1 ? " device" : " devices") + ")";
@@ -3096,12 +3095,12 @@ void loadProbeDB()
         ProbeDBEntry entry = {};
         strncpy(entry.mac, mac, 17);
         entry.mac[17] = '\0';
-        entry.totalSeen = doc["t"] | 0;
-        entry.firstEpoch = doc["f"] | 0;
-        entry.lastEpoch = doc["l"] | 0;
-        entry.sessionCount = doc["s"] | 0;
+        entry.totalSeen = doc["t"].as<uint32_t>();
+        entry.firstEpoch = doc["f"].as<uint32_t>();
+        entry.lastEpoch = doc["l"].as<uint32_t>();
+        entry.sessionCount = doc["s"].as<uint16_t>();
         entry.bestRssi = doc["r"] | -128;
-        entry.isRandomized = doc["rd"] | false;
+        entry.isRandomized = doc["rd"].as<bool>();
 
         const char *vendor = doc["v"] | "";
         strncpy(entry.vendor, vendor, sizeof(entry.vendor) - 1);
@@ -3138,7 +3137,7 @@ void saveProbeDB()
     }
 
     uint32_t written = 0;
-    for (auto &p : probeDB) {
+    for (const auto &p : probeDB) {
         DynamicJsonDocument doc(512);
         doc["m"] = p.second.mac;
         doc["t"] = p.second.totalSeen;
@@ -3196,7 +3195,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
         if (probeDB.size() >= PROBE_DB_MAX_ENTRIES) {
             uint32_t oldestEpoch = UINT32_MAX;
             String oldestKey;
-            for (auto &p : probeDB) {
+            for (const auto &p : probeDB) {
                 if (p.second.lastEpoch < oldestEpoch) {
                     oldestEpoch = p.second.lastEpoch;
                     oldestKey = p.first;
@@ -3247,7 +3246,7 @@ String getProbeDBJson()
     std::lock_guard<std::mutex> lock(probeDBMutex);
     String out = "[";
     bool first = true;
-    for (auto &p : probeDB) {
+    for (const auto &p : probeDB) {
         if (!first) out += ",";
         first = false;
         DynamicJsonDocument doc(512);
@@ -3315,7 +3314,7 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.hasGPS = false;
     triAccum.lastSendTime = millis();
 }
-uint32_t hashString(const String& str) {
+static uint32_t hashString(const String& str) {
     uint32_t hash = 0;
     for (size_t i = 0; i < str.length(); i++) {
         hash = hash * 31 + str.charAt(i);
@@ -3437,7 +3436,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
 // Scan tasks
 void listScanTask(void *pv) {
-    int secs = (int)(intptr_t)pv;
+    int secs = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (secs <= 0);
 
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
@@ -3480,13 +3479,14 @@ void listScanTask(void *pv) {
     if (triangulationInitiator) {
         String myNodeId = getNodeId();
         if (myNodeId.length() == 0) {
-            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+            myNodeId = "NODE_" + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
         }
 
         {
             std::lock_guard<std::mutex> lock(triangulationMutex);
             bool selfNodeExists = false;
-            for (auto& node : triangulationNodes) {
+            for (const auto& node : triangulationNodes) {
+                // cppcheck-suppress useStlAlgorithm
                 if (node.nodeId == myNodeId) {
                     selfNodeExists = true;
                     Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
@@ -3540,9 +3540,8 @@ void listScanTask(void *pv) {
 
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    uint32_t nextStatus = millis() + 1000;
-    std::map<String, uint32_t> deviceLastSeen;
-    const uint32_t DEDUPE_WINDOW = 3000;
+    std::map<String, uint32_t> localDeviceLastSeen;
+    const uint32_t LOCAL_DEDUPE_WINDOW = 3000;
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
     Hit h;
@@ -3578,13 +3577,13 @@ void listScanTask(void *pv) {
                     }
 
                     uint8_t ch = WiFi.channel(i);
-                    uint8_t *bssidBytes = WiFi.BSSID(i);
+                    const uint8_t *bssidBytes = WiFi.BSSID(i);
 
                     if (ssid.length() == 0) ssid = "[Hidden]";
 
                     uint32_t now = millis();
-                    bool shouldProcess = (deviceLastSeen.find(bssid) == deviceLastSeen.end() ||
-                                          (now - deviceLastSeen[bssid] >= DEDUPE_WINDOW));
+                    bool shouldProcess = (localDeviceLastSeen.find(bssid) == localDeviceLastSeen.end() ||
+                                          (now - localDeviceLastSeen[bssid] >= LOCAL_DEDUPE_WINDOW));
 
                     if (!shouldProcess) continue;
 
@@ -3624,7 +3623,7 @@ void listScanTask(void *pv) {
                         if (hitsLog.size() < MAX_LOG_SIZE) {
                             hitsLog.push_back(wh);
                         }
-                        deviceLastSeen[bssid] = now;
+                        localDeviceLastSeen[bssid] = now;
                     }
                 }
                 WiFi.scanDelete();
@@ -3653,8 +3652,8 @@ void listScanTask(void *pv) {
                     continue;
                 }
                 uint32_t now = millis();
-                bool shouldProcess = (deviceLastSeen.find(macStr) == deviceLastSeen.end() ||
-                                      (now - deviceLastSeen[macStr] >= DEDUPE_WINDOW));
+                bool shouldProcess = (localDeviceLastSeen.find(macStr) == localDeviceLastSeen.end() ||
+                                      (now - localDeviceLastSeen[macStr] >= LOCAL_DEDUPE_WINDOW));
 
                 if (!shouldProcess) continue;
 
@@ -3689,8 +3688,8 @@ void listScanTask(void *pv) {
                         Serial.printf("[SCAN] Queue full/unavailable for target %s\n", macStrOrig.c_str());
                     }
                 } else {
-                    Hit bh;
                     if (parseMac6(macStrOrig, mac)) {
+                        Hit bh;
                         memcpy(bh.mac, mac, 6);
                         bh.rssi = rssi;
                         bh.ch = 0;
@@ -3700,7 +3699,7 @@ void listScanTask(void *pv) {
                         if (hitsLog.size() < MAX_LOG_SIZE) {
                             hitsLog.push_back(bh);
                         }
-                        deviceLastSeen[macStr] = now;
+                        localDeviceLastSeen[macStr] = now;
                     }
                 }
             }
@@ -3718,18 +3717,18 @@ void listScanTask(void *pv) {
                 continue;
             }
 
-            if (deviceLastSeen.find(macStr) != deviceLastSeen.end()) {
-                if (now - deviceLastSeen[macStr] < DEDUPE_WINDOW) continue;
+            if (localDeviceLastSeen.find(macStr) != localDeviceLastSeen.end()) {
+                if (now - localDeviceLastSeen[macStr] < LOCAL_DEDUPE_WINDOW) continue;
             }
 
-            deviceLastSeen[macStr] = now;
+            localDeviceLastSeen[macStr] = now;
             uniqueMacs.insert(macStr);
             if (hitsLog.size() < MAX_LOG_SIZE) {
                 hitsLog.push_back(h);
             }
 
-            if (seenTargets.find(macStr) == seenTargets.end()) {
-                seenTargets.insert(macStr);
+            auto [it, inserted] = seenTargets.insert(macStr);
+            if (inserted) {
                 totalHits = totalHits + 1;
             }
 
@@ -3753,7 +3752,7 @@ void listScanTask(void *pv) {
             if (triangulationActive) {
                 String myNodeId = getNodeId();
                 if (myNodeId.length() == 0) {
-                    myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+                    myNodeId = "NODE_" + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
                 }
 
                 bool needsReset = false;
@@ -3771,19 +3770,19 @@ void listScanTask(void *pv) {
                     {
                         std::lock_guard<std::mutex> lock(triAccumMutex);
 
-                        String macStr = macFmt6(h.mac);
+                        String macStrTri = macFmt6(h.mac);
                         Serial.printf("[TRI-HIT] MAC=%s Type=%s RSSI=%d CH=%d Name=%s\n",
-                                     macStr.c_str(), h.isBLE ? "BLE" : "WiFi",
+                                     macStrTri.c_str(), h.isBLE ? "BLE" : "WiFi",
                                      h.rssi, h.ch, h.name);
 
                         if (h.isBLE && triAccum.wifiHitCount > 0 && triAccum.bleHitCount == 0) {
                             Serial.printf("[TRI-CONFLICT] WARNING: Device %s switching from WiFi to BLE! Ignoring BLE detection.\n",
-                                         macStr.c_str());
+                                         macStrTri.c_str());
                             goto skip_accumulation;
                         }
                         if (!h.isBLE && triAccum.bleHitCount > 0 && triAccum.wifiHitCount == 0) {
                             Serial.printf("[TRI-CONFLICT] WARNING: Device %s switching from BLE to WiFi! Ignoring WiFi detection.\n",
-                                         macStr.c_str());
+                                         macStrTri.c_str());
                             goto skip_accumulation;
                         }
 
@@ -3817,34 +3816,34 @@ void listScanTask(void *pv) {
                     }
 
                     if (triangulationInitiator) {
-                        String myNodeId = getNodeId();
-                        if (myNodeId.length() == 0) {
-                            myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+                        String myNodeIdLocal = getNodeId();
+                        if (myNodeIdLocal.length() == 0) {
+                            myNodeIdLocal = "NODE_" + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
                         }
 
                         int8_t avgRssi;
-                        int totalHits;
+                        int triHitCount;
                         bool isBLE;
-                        float lat, lon, hdop;
+                        float triLat, triLon, triHdop;
                         bool hasGPS;
 
                         {
                             std::lock_guard<std::mutex> lock(triAccumMutex);
                             if (triAccum.wifiHitCount > 0) {
                                 avgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-                                totalHits = triAccum.wifiHitCount;
+                                triHitCount = triAccum.wifiHitCount;
                                 isBLE = false;
                             } else if (triAccum.bleHitCount > 0) {
                                 avgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-                                totalHits = triAccum.bleHitCount;
+                                triHitCount = triAccum.bleHitCount;
                                 isBLE = true;
                             } else {
                                 continue;
                             }
 
-                            lat = triAccum.lat;
-                            lon = triAccum.lon;
-                            hdop = triAccum.hdop;
+                            triLat = triAccum.lat;
+                            triLon = triAccum.lon;
+                            triHdop = triAccum.hdop;
                             hasGPS = triAccum.hasGPS;
                         }
 
@@ -3852,14 +3851,15 @@ void listScanTask(void *pv) {
                             std::lock_guard<std::mutex> lock(triangulationMutex);
                             bool selfNodeFound = false;
                             for (auto &node : triangulationNodes) {
-                                if (node.nodeId == myNodeId) {
+                                // cppcheck-suppress useStlAlgorithm
+                                if (node.nodeId == myNodeIdLocal) {
                                     updateNodeRSSI(node, avgRssi);
-                                    node.hitCount = totalHits;
+                                    node.hitCount = triHitCount;
                                     node.isBLE = isBLE;
                                     if (hasGPS) {
-                                        node.lat = lat;
-                                        node.lon = lon;
-                                        node.hdop = hdop;
+                                        node.lat = triLat;
+                                        node.lon = triLon;
+                                        node.hdop = triHdop;
                                         node.hasGPS = true;
                                     }
                                     node.distanceEstimate = rssiToDistance(node, !node.isBLE);
@@ -3871,12 +3871,12 @@ void listScanTask(void *pv) {
 
                             if (!selfNodeFound) {
                                 TriangulationNode selfNode;
-                                selfNode.nodeId = myNodeId;
-                                selfNode.lat = hasGPS ? lat : 0.0;
-                                selfNode.lon = hasGPS ? lon : 0.0;
-                                selfNode.hdop = hasGPS ? hdop : 99.9;
+                                selfNode.nodeId = myNodeIdLocal;
+                                selfNode.lat = hasGPS ? triLat : 0.0f;
+                                selfNode.lon = hasGPS ? triLon : 0.0f;
+                                selfNode.hdop = hasGPS ? triHdop : 99.9f;
                                 selfNode.rssi = avgRssi;
-                                selfNode.hitCount = totalHits;
+                                selfNode.hitCount = triHitCount;
                                 selfNode.hasGPS = hasGPS;
                                 selfNode.isBLE = isBLE;
                                 selfNode.lastUpdate = millis();
@@ -3888,7 +3888,7 @@ void listScanTask(void *pv) {
                                 triangulationNodes.push_back(selfNode);
 
                                 Serial.printf("[TRIANGULATE SELF] Added: hits=%d avgRSSI=%d Type=%s dist=%.1fm GPS=%s\n",
-                                            totalHits, avgRssi,
+                                            triHitCount, avgRssi,
                                             selfNode.isBLE ? "BLE" : "WiFi",
                                             selfNode.distanceEstimate,
                                             hasGPS ? "YES" : "NO");
@@ -3945,7 +3945,7 @@ void listScanTask(void *pv) {
             if ((int32_t)(millis() - nextTriReportCheck) >= 0) {
                 String myNodeId = getNodeId();
                 if (myNodeId.length() == 0) {
-                    myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+                    myNodeId = "NODE_" + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
                 }
                 sendTriAccumulatedData(myNodeId);
                 nextTriReportCheck = millis() + 1000;  // Check every second
@@ -3985,7 +3985,8 @@ void listScanTask(void *pv) {
             }
             std::vector<Hit> deduped;
             deduped.reserve(bestByMac.size());
-            for (auto& p : bestByMac) deduped.push_back(p.second);
+            std::transform(bestByMac.begin(), bestByMac.end(), std::back_inserter(deduped),
+                [](const std::pair<const std::string, Hit>& p) { return p.second; });
             std::sort(deduped.begin(), deduped.end(), [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
             int shown = 0;
             for (const auto& sh : deduped) {
@@ -4047,9 +4048,9 @@ void listScanTask(void *pv) {
         results += "No targets detected.\n";
     } else {
         std::vector<Hit> sortedHits;
-        for (const auto& entry : hitsMap) {
-            sortedHits.push_back(entry.second);
-        }
+        sortedHits.reserve(hitsMap.size());
+        std::transform(hitsMap.begin(), hitsMap.end(), std::back_inserter(sortedHits),
+            [](const auto& entry) { return entry.second; });
         std::sort(sortedHits.begin(), sortedHits.end(),
                   [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
 
@@ -4168,13 +4169,13 @@ void listScanTask(void *pv) {
 }
 
 void cleanupMaps() {
-    const size_t MAX_LOG_SIZE = 500;
+    const size_t DEAUTH_LOG_MAX = 500;
 
     if (deauthQueue) xQueueReset(deauthQueue);
 
     // Clean deauth logs (vector - trim oldest)
-    if (deauthLog.size() > MAX_LOG_SIZE) {
-        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - MAX_LOG_SIZE));
+    if (deauthLog.size() > DEAUTH_LOG_MAX) {
+        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - DEAUTH_LOG_MAX));
     }
 }
 
@@ -4187,14 +4188,14 @@ static bool parseAllowlistEntry(const String &ln, Allowlist &out)
     for (size_t i = 0; i < ln.length(); ++i)
     {
         char c = ln[i];
-        if (isxdigit((int)c))
-            t += (char)toupper(c);
+        if (isxdigit(static_cast<int>(c)))
+            t += static_cast<char>(toupper(c));
     }
     if (t.length() == 12)
     {
         for (int i = 0; i < 6; i++)
         {
-            out.bytes[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+            out.bytes[i] = static_cast<uint8_t>(strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16));
         }
         out.len = 6;
         return true;
@@ -4203,7 +4204,7 @@ static bool parseAllowlistEntry(const String &ln, Allowlist &out)
     {
         for (int i = 0; i < 3; i++)
         {
-            out.bytes[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+            out.bytes[i] = static_cast<uint8_t>(strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16));
         }
         out.len = 3;
         return true;
@@ -4219,7 +4220,7 @@ size_t getAllowlistCount()
 String getAllowlistText()
 {
     String out;
-    for (auto &w : allowlist)
+    for (const auto &w : allowlist)
     {
         if (w.len == 6)
         {
@@ -4264,16 +4265,10 @@ void saveAllowlist(const String &txt)
 
 bool isAllowlisted(const uint8_t *mac)
 {
-    for (auto &w : allowlist)
-    {
-        if (w.len == 6)
-        {
-            if (memcmp(w.bytes, mac, 6) == 0) return true;
-        }
-        else if (w.len == 3)
-        {
-            if (memcmp(w.bytes, mac, 3) == 0) return true;
-        }
-    }
-    return false;
+    return std::any_of(allowlist.begin(), allowlist.end(),
+        [mac](const Allowlist &w) {
+            if (w.len == 6) return memcmp(w.bytes, mac, 6) == 0;
+            if (w.len == 3) return memcmp(w.bytes, mac, 3) == 0;
+            return false;
+        });
 }

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdint>
 #include <atomic>
 #include "drone_detector.h"
@@ -8,7 +9,6 @@
 #include "opendroneid.h"
 #include "odid_wifi.h"
 #include <ArduinoJson.h>
-#include <cstdint>
 
 const size_t MAX_DRONE_LOG_ENTRIES = 100;
 const size_t MAX_DETECTED_DRONES = 50;
@@ -51,12 +51,12 @@ void initializeDroneDetector() {
     droneDetectionCount = 0;
 }
 
-static void parseDroneData(DroneDetection *drone, ODID_UAS_Data *uasData) {
+static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) {
     if (uasData->BasicIDValid[0]) {
-        strncpy(drone->uavId, (char *)uasData->BasicID[0].UASID, ODID_ID_SIZE);
+        strncpy(drone->uavId, reinterpret_cast<const char *>(uasData->BasicID[0].UASID), ODID_ID_SIZE);
         drone->uaType = uasData->BasicID[0].UAType;
     }
-    
+
     if (uasData->LocationValid) {
         drone->latitude = uasData->Location.Latitude;
         drone->longitude = uasData->Location.Longitude;
@@ -67,20 +67,20 @@ static void parseDroneData(DroneDetection *drone, ODID_UAS_Data *uasData) {
         drone->speedVertical = uasData->Location.SpeedVertical;
         drone->status = uasData->Location.Status;
     }
-    
+
     if (uasData->SystemValid) {
         drone->operatorLat = uasData->System.OperatorLatitude;
         drone->operatorLon = uasData->System.OperatorLongitude;
     }
-    
+
     if (uasData->OperatorIDValid) {
-        strncpy(drone->operatorId, (char *)uasData->OperatorID.OperatorId, ODID_ID_SIZE);
+        strncpy(drone->operatorId, reinterpret_cast<const char *>(uasData->OperatorID.OperatorId), ODID_ID_SIZE);
     }
-    
+
     if (uasData->SelfIDValid) {
         strncpy(drone->description, uasData->SelfID.Desc, ODID_STR_SIZE);
     }
-    
+
     if (uasData->AuthValid[0]) {
         drone->authType = uasData->Auth[0].AuthType;
         drone->authTimestamp = uasData->Auth[0].Timestamp;
@@ -88,7 +88,7 @@ static void parseDroneData(DroneDetection *drone, ODID_UAS_Data *uasData) {
     }
 }
 
-static void parseFrenchDrone(DroneDetection *drone, uint8_t *payload, int buf_len) {
+static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int buf_len) {
     union {
         uint32_t u32;
         int32_t i32;
@@ -100,13 +100,13 @@ static void parseFrenchDrone(DroneDetection *drone, uint8_t *payload, int buf_le
     } alt, height;
 
     int j = 9;
-    int frame_length = payload[1];
+    const int frame_length = payload[1];
 
     while (j < frame_length && j + 1 < buf_len) {
-        uint8_t t = payload[j];
-        uint8_t l = payload[j + 1];
+        const uint8_t t = payload[j];
+        const uint8_t l = payload[j + 1];
         if (j + 2 + l > buf_len) break;
-        uint8_t *v = &payload[j + 2];
+        const uint8_t *v = &payload[j + 2];
 
         switch (t) {
         case 2:
@@ -172,8 +172,9 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     if (!droneDetectionEnabled || length < 24) return;
     
     DroneDetection drone;
+    // cppcheck-suppress memsetClassFloat
     memset(&drone, 0, sizeof(drone));
-    
+
     memcpy(drone.mac, payload + 10, 6);
     drone.rssi = rssi;
     drone.timestamp = millis();
@@ -191,71 +192,70 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     static const uint8_t nan_dest[6] = {0x51, 0x6f, 0x9a, 0x01, 0x00, 0x00};
     if (memcmp(nan_dest, payload + 4, 6) == 0) {
         char op_id[ODID_ID_SIZE + 1];
-        if (odid_wifi_receive_message_pack_nan_action_frame(&uasData, op_id, (uint8_t*)payload, (size_t)length) == 0) {
+        if (odid_wifi_receive_message_pack_nan_action_frame(&uasData, op_id, const_cast<uint8_t*>(payload), static_cast<size_t>(length)) == 0) {
             parseDroneData(&drone, &uasData);
             validDrone = true;
         }
     }
     else if (payload[0] == 0x80 && length > 38) {
         int offset = 36;
-        bool printed = false;
-        
-        while (offset < length && !printed) {
+
+        while (offset < length) {
             if (offset + 2 >= length) break;
-            
-            int typ = payload[offset];
-            int len = payload[offset + 1];
-            
+
+            const int typ = payload[offset];
+            const int len = payload[offset + 1];
+
             if (offset + 2 + len > length) break;
-            
-            uint8_t *val = (uint8_t*)&payload[offset + 2];
-            
+
+            const uint8_t *val = &payload[offset + 2];
+
             if ((typ == 0xdd) && (val[0] == 0x6a) && (val[1] == 0x5c) && (val[2] == 0x35)) {
-                parseFrenchDrone(&drone, (uint8_t*)&payload[offset], length - offset);
+                parseFrenchDrone(&drone, &payload[offset], length - offset);
                 validDrone = true;
-                printed = true;
+                break;
             }
             else if ((typ == 0xdd) &&
                      (((val[0] == 0x90 && val[1] == 0x3a && val[2] == 0xe6)) ||
                       ((val[0] == 0xfa && val[1] == 0x0b && val[2] == 0xbc)))) {
-                int j = offset + 7;
+                const int j = offset + 7;
                 if (j < length) {
+                    // cppcheck-suppress memsetClassFloat
                     memset(&uasData, 0, sizeof(uasData));
-                    odid_message_process_pack(&uasData, (uint8_t*)&payload[j], length - j);
+                    odid_message_process_pack(&uasData, const_cast<uint8_t*>(&payload[j]), length - j);
                     parseDroneData(&drone, &uasData);
                     validDrone = true;
-                    printed = true;
                 }
+                break;
             }
-            
+
             offset += len + 2;
         }
     }
     
     if (validDrone) {
-        String macStr = macFmt6(drone.mac);
-        String uavIdStr = String(drone.uavId);
+        const String macStr = macFmt6(drone.mac);
+        const String uavIdStr = String(drone.uavId);
         
         // Deduplicate by UAV ID, not MAC
-        bool foundExisting = false;
-        for (auto& entry : detectedDrones) {
-            if (String(entry.second.uavId) == uavIdStr && uavIdStr.length() > 0) {
-                entry.second.rssi = drone.rssi;
-                entry.second.lastSeen = millis();
-                memcpy(entry.second.mac, drone.mac, 6);
-                
-                if (drone.latitude != 0) entry.second.latitude = drone.latitude;
-                if (drone.longitude != 0) entry.second.longitude = drone.longitude;
-                if (drone.altitudeMsl != 0) entry.second.altitudeMsl = drone.altitudeMsl;
-                if (drone.operatorLat != 0) entry.second.operatorLat = drone.operatorLat;
-                if (drone.operatorLon != 0) entry.second.operatorLon = drone.operatorLon;
-                
-                foundExisting = true;
-                break;
-            }
+        auto existingIt = std::find_if(detectedDrones.begin(), detectedDrones.end(),
+            [&uavIdStr](const std::pair<const String, DroneDetection>& entry) {
+                return String(entry.second.uavId) == uavIdStr && uavIdStr.length() > 0;
+            });
+
+        if (existingIt != detectedDrones.end()) {
+            existingIt->second.rssi = drone.rssi;
+            existingIt->second.lastSeen = millis();
+            memcpy(existingIt->second.mac, drone.mac, 6);
+
+            if (drone.latitude != 0) existingIt->second.latitude = drone.latitude;
+            if (drone.longitude != 0) existingIt->second.longitude = drone.longitude;
+            if (drone.altitudeMsl != 0) existingIt->second.altitudeMsl = drone.altitudeMsl;
+            if (drone.operatorLat != 0) existingIt->second.operatorLat = drone.operatorLat;
+            if (drone.operatorLon != 0) existingIt->second.operatorLon = drone.operatorLon;
         }
         
-        if (!foundExisting) {
+        if (existingIt == detectedDrones.end()) {
             detectedDrones[macStr] = drone;
             droneDetectionCount = droneDetectionCount + 1;
         }
@@ -307,8 +307,6 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             if (drone.operatorLat != 0 || drone.operatorLon != 0) {
                 meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
             }
-            // sendToSerial1(String(meshMsg), false);
-
             if (sendToSerial1(meshMsg, false)) {
                 transmittedDrones.insert(drone.uavId);
             }
@@ -358,7 +356,7 @@ String getDroneDetectionResults() {
             results += "  Description: " + String(d.description) + "\n";
         }
 
-        uint32_t age = (millis() - d.lastSeen) / 1000;
+        const uint32_t age = (millis() - d.lastSeen) / 1000;
         results += "  Last seen: " + String(age) + "s ago\n\n";
     }
 
@@ -378,7 +376,7 @@ String getDroneEventLog() {
 }
 
 void cleanupDroneData() {
-    uint32_t now = millis();
+    const uint32_t now = millis();
     
     for (auto it = detectedDrones.begin(); it != detectedDrones.end();) {
         if (now - it->second.lastSeen > DRONE_STALE_TIME) {
@@ -419,8 +417,8 @@ void cleanupDroneData() {
 
 void droneDetectorTask(void *pv)
 {
-    int duration = (int)(intptr_t)pv;
-    bool forever = (duration <= 0);
+    const int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    const bool forever = (duration <= 0);
 
     Serial.printf("[DRONE] Starting drone detection %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
@@ -439,12 +437,11 @@ void droneDetectorTask(void *pv)
     
     radioStartSTA();
     
-    uint32_t scanStart = millis();
+    const uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
     uint32_t lastMeshUpdate = millis();
     const unsigned long MESH_DRONE_UPDATE_INTERVAL = 5000;
-    DroneDetection drone;
     
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
@@ -454,17 +451,18 @@ void droneDetectorTask(void *pv)
             processDronePacket(rawFrame.payload, rawFrame.len, rawFrame.rssi);
         }
 
+        DroneDetection drone;
         while (xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
             localFramesSeen++;
-            
-            String macStr = macFmt6(drone.mac);
+
+            const String macStr = macFmt6(drone.mac);
             String logEntry = "DRONE: " + macStr + " ID:" + String(drone.uavId) +
                             " Lat=" + String(drone.latitude, 6) +
                             " Lon=" + String(drone.longitude, 6) +
                             " Alt=" + String(drone.altitudeMsl, 1) + "m" +
                             " Speed=" + String(drone.speed, 1) + "m/s" +
                             " RSSI=" + String(drone.rssi) + "dBm";
-            
+
             if (drone.operatorLat != 0 || drone.operatorLon != 0) {
                 logEntry += " OpLat=" + String(drone.operatorLat, 6) +
                         " OpLon=" + String(drone.operatorLon, 6);
@@ -472,10 +470,10 @@ void droneDetectorTask(void *pv)
 
             Serial.println("[DRONE] " + logEntry);
             logToSD(logEntry);
-            
-            String droneId = String(drone.uavId);
-            if (meshEnabled && transmittedDrones.find(droneId) == transmittedDrones.end()) {
-                String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + droneId;
+
+            const String queueDroneId = String(drone.uavId);
+            if (meshEnabled && transmittedDrones.find(queueDroneId) == transmittedDrones.end()) {
+                String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + queueDroneId;
                 meshMsg += " R" + String(drone.rssi);
                 if (drone.latitude != 0) {
                     meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
@@ -490,20 +488,20 @@ void droneDetectorTask(void *pv)
                     meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
                 }
                 if (sendToSerial1(meshMsg, false)) {
-                    transmittedDrones.insert(droneId);
+                    transmittedDrones.insert(queueDroneId);
                 }
             }
         }
         
         if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DRONE_UPDATE_INTERVAL)) {
             lastMeshUpdate = millis();
-            
+
             int sentThisCycle = 0;
             for (const auto& entry : detectedDrones) {
-                String droneId = String(entry.second.uavId);
-                
-                if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
-                    String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId;
+                const String meshDroneId = String(entry.second.uavId);
+
+                if (transmittedDrones.find(meshDroneId) == transmittedDrones.end()) {
+                    String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + meshDroneId;
                     droneMsg += " R" + String(entry.second.rssi);
                     if (entry.second.latitude != 0) {
                         droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
@@ -521,7 +519,7 @@ void droneDetectorTask(void *pv)
                     }
                     
                     if (droneMsg.length() <= MAX_MESH_SIZE && sendToSerial1(droneMsg, true)) {
-                        transmittedDrones.insert(droneId);
+                        transmittedDrones.insert(meshDroneId);
                         sentThisCycle++;
                         
                         if (sentThisCycle % 2 == 0) {
@@ -561,13 +559,13 @@ void droneDetectorTask(void *pv)
         delay(100);
         
         for (const auto& entry : detectedDrones) {
-            String droneId = String(entry.second.uavId);
-            
-            if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
-                String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId;
+            const String finalDroneId = String(entry.second.uavId);
+
+            if (transmittedDrones.find(finalDroneId) == transmittedDrones.end()) {
+                String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + finalDroneId;
                 droneMsg += " R" + String(entry.second.rssi);
                 if (entry.second.latitude != 0) {
-                    droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
+                    droneMsg += " GPS:" + String(entry.second.latitude, 6) +
                             "," + String(entry.second.longitude, 6);
                 }
                 if (entry.second.altitudeMsl != 0) {
@@ -577,13 +575,13 @@ void droneDetectorTask(void *pv)
                     droneMsg += " SPD:" + String(entry.second.speed, 1);
                 }
                 if (entry.second.operatorLat != 0 || entry.second.operatorLon != 0) {
-                    droneMsg += " OP:" + String(entry.second.operatorLat, 6) + 
+                    droneMsg += " OP:" + String(entry.second.operatorLat, 6) +
                             "," + String(entry.second.operatorLon, 6);
                 }
-                
+
                 if (droneMsg.length() <= MAX_MESH_SIZE) {
                     if (sendToSerial1(droneMsg, true)) {
-                        transmittedDrones.insert(droneId);
+                        transmittedDrones.insert(finalDroneId);
                     }
                 }
             }
@@ -595,9 +593,9 @@ void droneDetectorTask(void *pv)
         }
         delay(100);
         
-        uint32_t totalDrones = detectedDrones.size();
-        uint32_t finalTransmitted = transmittedDrones.size();
-        uint32_t finalRemaining = totalDrones - finalTransmitted;
+        const uint32_t totalDrones = detectedDrones.size();
+        const uint32_t finalTransmitted = transmittedDrones.size();
+        const uint32_t finalRemaining = totalDrones - finalTransmitted;
         
         String summary = getNodeId() + ": DRONE_DONE: Detected=" + String(droneDetectionCount) +
                         " Unique=" + String(totalDrones) +

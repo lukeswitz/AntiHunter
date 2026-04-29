@@ -3,6 +3,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "main.h"
+#include <algorithm>
 #include <ArduinoJson.h>
 #include <SD.h>
 #include <WiFi.h>
@@ -164,10 +165,10 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         if (baselineCache.size() >= effectiveLimit) {
             if (sdAvailable && sdBaselineInitialized) {
                 if (!lruList.empty()) {
-                    auto& oldest = lruList.front();
+                    const auto& oldest = lruList.front();
                     String oldestKey = oldest.key;
 
-                    auto& oldestDevice = baselineCache[oldestKey];
+                    const auto& oldestDevice = baselineCache[oldestKey];
                     if (oldestDevice.dirtyFlag) {
                         writeBaselineDeviceToSD(oldestDevice);
                     }
@@ -460,9 +461,9 @@ void baselineDetectionTask(void *pv) {
             uint32_t newLimit = calculateOptimalCacheSize();
             if (newLimit < baselineRamCacheSize && baselineCache.size() > newLimit) {
                 while (baselineCache.size() > newLimit && !lruList.empty()) {
-                    auto& oldest = lruList.front();
+                    const auto& oldest = lruList.front();
                     String oldestKey = oldest.key;
-                    auto& oldestDevice = baselineCache[oldestKey];
+                    const auto& oldestDevice = baselineCache[oldestKey];
                     if (oldestDevice.dirtyFlag) {
                         writeBaselineDeviceToSD(oldestDevice);
                     }
@@ -490,7 +491,7 @@ void baselineDetectionTask(void *pv) {
 
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound && !stopRequested; i++) {
-                    uint8_t *bssidBytes = WiFi.BSSID(i);
+                    const uint8_t *bssidBytes = WiFi.BSSID(i);
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
                     uint8_t channel = WiFi.channel(i);
@@ -571,10 +572,8 @@ void baselineDetectionTask(void *pv) {
             cleanupBaselineMemory();
             lastCleanup = millis();
 
-            uint32_t dirtyCount = 0;
-            for (const auto& entry : baselineCache) {
-                if (entry.second.dirtyFlag) dirtyCount++;
-            }
+            uint32_t dirtyCount = std::count_if(baselineCache.begin(), baselineCache.end(),
+                [](const auto& entry) { return entry.second.dirtyFlag; });
 
             if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
                 flushBaselineCacheToSD();
@@ -661,7 +660,7 @@ void baselineDetectionTask(void *pv) {
 
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound && !stopRequested; i++) {
-                    uint8_t *bssidBytes = WiFi.BSSID(i);
+                    const uint8_t *bssidBytes = WiFi.BSSID(i);
                     String ssid = WiFi.SSID(i);
                     int32_t rssi = WiFi.RSSI(i);
                     uint8_t channel = WiFi.channel(i);
@@ -949,7 +948,7 @@ void cleanupBaselineMemory() {
 // Baseline SD 
 uint8_t calculateDeviceChecksum(BaselineDevice& device) {
     uint8_t sum = 0;
-    uint8_t* ptr = (uint8_t*)&device;
+    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(&device);
     for (size_t i = 0; i < sizeof(BaselineDevice) - 1; i++) {
         sum ^= ptr[i];
     }
@@ -975,9 +974,9 @@ bool initializeBaselineSD() {
         uint16_t version = 1;
         uint32_t deviceCount = 0;
         
-        dataFile.write((uint8_t*)&magic, sizeof(magic));
-        dataFile.write((uint8_t*)&version, sizeof(version));
-        dataFile.write((uint8_t*)&deviceCount, sizeof(deviceCount));
+        dataFile.write(reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
+        dataFile.write(reinterpret_cast<uint8_t*>(&version), sizeof(version));
+        dataFile.write(reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
         dataFile.close();
         
         Serial.println("[BASELINE_SD] Data file created");
@@ -1013,11 +1012,11 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
     
     BaselineDevice writeDevice = device;
     calculateDeviceChecksum(writeDevice);
-    
-    String macStr = macFmt6(device.mac);
-    
+
+    const String macStr = macFmt6(device.mac);
+
     if (sdDeviceIndex.find(macStr) != sdDeviceIndex.end()) {
-        uint32_t position = sdDeviceIndex[macStr];
+        const uint32_t position = sdDeviceIndex[macStr];
         
         File dataFile = SafeSD::open("/baseline_data.bin", "r+");
         if (!dataFile) {
@@ -1026,9 +1025,9 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
         }
         
         dataFile.seek(position);
-        size_t written = dataFile.write((uint8_t*)&writeDevice, sizeof(BaselineDevice));
+        size_t written = dataFile.write(reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
         dataFile.close();
-        
+
         return (written == sizeof(BaselineDevice));
     } else {
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
@@ -1036,9 +1035,9 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
             Serial.println("[BASELINE_SD] Failed to open for append");
             return false;
         }
-        
+
         uint32_t position = dataFile.position();
-        size_t written = dataFile.write((uint8_t*)&writeDevice, sizeof(BaselineDevice));
+        size_t written = dataFile.write(reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
         dataFile.close();
         
         if (written == sizeof(BaselineDevice)) {
@@ -1048,7 +1047,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
-                headerFile.write((uint8_t*)&totalDevicesOnSD, sizeof(totalDevicesOnSD));
+                headerFile.write(reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD));
                 headerFile.close();
             }
             
@@ -1064,29 +1063,29 @@ bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
         return false;
     }
     
-    String macStr = macFmt6(mac);
-    
+    const String macStr = macFmt6(mac);
+
     if (sdDeviceIndex.find(macStr) == sdDeviceIndex.end()) {
         return false;
     }
-    
-    uint32_t position = sdDeviceIndex[macStr];
-    
+
+    const uint32_t position = sdDeviceIndex[macStr];
+
     File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
     if (!dataFile) {
         return false;
     }
-    
+
     dataFile.seek(position);
-    size_t bytesRead = SafeSD::read(dataFile, (uint8_t*)&device, sizeof(BaselineDevice));
+    const size_t bytesRead = SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&device), sizeof(BaselineDevice));
     dataFile.close();
     
     if (bytesRead != sizeof(BaselineDevice)) {
         return false;
     }
     
-    uint8_t storedChecksum = device.checksum;
-    uint8_t calcChecksum = calculateDeviceChecksum(device);
+    const uint8_t storedChecksum = device.checksum;
+    const uint8_t calcChecksum = calculateDeviceChecksum(device);
     
     if (calcChecksum != storedChecksum) {
         Serial.println("[BASELINE_SD] Checksum fail");
@@ -1115,7 +1114,7 @@ bool flushBaselineCacheToSD() {
         }
     }
 
-    uint32_t total = updates.size() + appends.size();
+    const uint32_t total = updates.size() + appends.size();
     if (total == 0) {
         return true;
     }
@@ -1133,7 +1132,7 @@ bool flushBaselineCacheToSD() {
                 BaselineDevice wd = *updates[i].second;
                 calculateDeviceChecksum(wd);
                 dataFile.seek(sdDeviceIndex[updates[i].first]);
-                if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
+                if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
                     updates[i].second->dirtyFlag = false;
                     flushed++;
                 }
@@ -1151,7 +1150,7 @@ bool flushBaselineCacheToSD() {
                 BaselineDevice wd = *appends[i].second;
                 calculateDeviceChecksum(wd);
                 uint32_t position = dataFile.position();
-                if (dataFile.write((uint8_t*)&wd, sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
+                if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
                     sdDeviceIndex[appends[i].first] = position;
                     totalDevicesOnSD++;
                     appends[i].second->dirtyFlag = false;
@@ -1164,7 +1163,7 @@ bool flushBaselineCacheToSD() {
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
-                headerFile.write((uint8_t*)&totalDevicesOnSD, sizeof(totalDevicesOnSD));
+                headerFile.write(reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD));
                 headerFile.close();
             }
             vTaskDelay(pdMS_TO_TICKS(10));
@@ -1191,19 +1190,20 @@ void loadBaselineFromSD() {
     uint32_t magic;
     uint16_t version;
     uint32_t deviceCount;
-    
-    SafeSD::read(dataFile, (uint8_t*)&magic, sizeof(magic));
-    SafeSD::read(dataFile, (uint8_t*)&version, sizeof(version));
-    SafeSD::read(dataFile, (uint8_t*)&deviceCount, sizeof(deviceCount));
-    
+
+    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
+    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&version), sizeof(version));
+    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
+    (void)version; // read to advance file position; value unused
+
     if (magic != 0xBA5EBA11) {
         Serial.println("[BASELINE_SD] Invalid header");
         dataFile.close();
         return;
     }
-    
+
     Serial.printf("[BASELINE_SD] Loading %d devices\n", deviceCount);
-    
+
     totalDevicesOnSD = deviceCount;
     baselineDeviceCount = deviceCount;
     
@@ -1217,19 +1217,19 @@ void loadBaselineFromSD() {
         uint32_t loaded = 0;
         
         while (dataFile.available() >= sizeof(BaselineDevice) && loaded < toLoad) {
-            size_t bytesRead = SafeSD::read(dataFile, (uint8_t*)&rec, sizeof(BaselineDevice));
-            
+            size_t bytesRead = SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&rec), sizeof(BaselineDevice));
+
             if (bytesRead != sizeof(BaselineDevice)) {
                 break;
             }
-            
-            uint8_t storedChecksum = rec.checksum;
-            uint8_t calcChecksum = calculateDeviceChecksum(rec);
-            
+
+            const uint8_t storedChecksum = rec.checksum;
+            const uint8_t calcChecksum = calculateDeviceChecksum(rec);
+
             if (calcChecksum != storedChecksum) {
                 continue;
             }
-            
+
             rec.dirtyFlag = false;
             String recMac = macFmt6(rec.mac);
             baselineCache[recMac] = rec;
@@ -1286,16 +1286,20 @@ void loadBaselineStatsFromSD() {
         return;
     }
     
-    String json = statsFile.readString();
+    const String json = statsFile.readString();
     statsFile.close();
     
     DynamicJsonDocument doc(512);
-    DeserializationError error = deserializeJson(doc, json);
+    const DeserializationError error = deserializeJson(doc, json);
     
     if (!error) {
+        // cppcheck-suppress badBitmaskCheck
         baselineDeviceCount = doc["totalDevices"] | 0;
+        // cppcheck-suppress badBitmaskCheck
         baselineStats.wifiDevices = doc["wifiDevices"] | 0;
+        // cppcheck-suppress badBitmaskCheck
         baselineStats.bleDevices = doc["bleDevices"] | 0;
+        // cppcheck-suppress badBitmaskCheck
         baselineEstablished = doc["established"] | false;
         baselineRssiThreshold = doc["rssiThreshold"] | -60;
         
@@ -1584,29 +1588,31 @@ void buildSDIndex() {
     
     uint32_t magic, deviceCount;
     uint16_t version;
-    
-    SafeSD::read(dataFile, (uint8_t*)&magic, sizeof(magic));
-    SafeSD::read(dataFile, (uint8_t*)&version, sizeof(version));
-    SafeSD::read(dataFile, (uint8_t*)&deviceCount, sizeof(deviceCount));
-    
+
+    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
+    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&version), sizeof(version));
+    SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
+    (void)version; // read to advance file position; value unused
+    (void)deviceCount; // used only to validate header was read completely
+
     if (magic != 0xBA5EBA11) {
         dataFile.close();
         return;
     }
-    
+
     BaselineDevice rec;
     uint32_t position = 10;
-    
+
     while (dataFile.available() >= sizeof(BaselineDevice)) {
-        size_t bytesRead = SafeSD::read(dataFile, (uint8_t*)&rec, sizeof(BaselineDevice));
+        size_t bytesRead = SafeSD::read(dataFile, reinterpret_cast<uint8_t*>(&rec), sizeof(BaselineDevice));
         
         if (bytesRead != sizeof(BaselineDevice)) {
             break;
         }
         
-        uint8_t storedChecksum = rec.checksum;
-        uint8_t calcChecksum = calculateDeviceChecksum(rec);
-        
+        const uint8_t storedChecksum = rec.checksum;
+        const uint8_t calcChecksum = calculateDeviceChecksum(rec);
+
         if (calcChecksum == storedChecksum) {
             String macStr = macFmt6(rec.mac);
             sdDeviceIndex[macStr] = position;
