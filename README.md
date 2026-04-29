@@ -9,10 +9,13 @@
 
 
 <p align="center">
+  
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
+<div align="center">
+  <a href="#getting-started">Quick Start</a> | <a href="#hardware">DIY Build</a> | <a href="#features">Features</a>
+</div>
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
-
 </p>
 
 > [!NOTE]
@@ -20,6 +23,7 @@
 >
 > Early Release: Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
 
+### News:
 `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 ## Table of Contents
