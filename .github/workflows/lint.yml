@@ -15,8 +15,13 @@ jobs:
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-    - name: Install cppcheck
-      run: sudo apt-get install -y cppcheck
+    - name: Install cppcheck 2.20
+      run: |
+        sudo apt-get install -y cmake build-essential libpcre3-dev
+        curl -sL https://github.com/danmar/cppcheck/archive/refs/tags/2.20.tar.gz | tar xz
+        cmake -S cppcheck-2.20 -B cppcheck-build -DCMAKE_BUILD_TYPE=Release
+        cmake --build cppcheck-build -j"$(nproc)"
+        sudo cmake --install cppcheck-build
 
     - name: Run cppcheck (full + headless)
       run: make lint
