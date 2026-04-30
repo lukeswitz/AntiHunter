@@ -4104,12 +4104,14 @@ void listScanTask(void *pv) {
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
             uint32_t waitStart = millis();
             uint32_t STOP_WAIT_TIMEOUT = 30000;
-            uint32_t maxPropDelay = 0;
-            for (const auto& pair : nodePropagationDelays) {
-                if (pair.second < 1000000 && pair.second > maxPropDelay) {
-                    maxPropDelay = pair.second;
-                }
-            }
+            auto maxIt = std::max_element(nodePropagationDelays.begin(), nodePropagationDelays.end(),
+                [](const std::pair<const String, uint32_t>& a, const std::pair<const String, uint32_t>& b) {
+                    uint32_t va = (a.second < 1000000) ? a.second : 0;
+                    uint32_t vb = (b.second < 1000000) ? b.second : 0;
+                    return va < vb;
+                });
+            uint32_t maxPropDelay = (maxIt != nodePropagationDelays.end() && maxIt->second < 1000000)
+                                    ? maxIt->second : 0;
             if (maxPropDelay > 0) {
                 uint32_t latencyMargin = (maxPropDelay / 1000) * 5;
                 STOP_WAIT_TIMEOUT += latencyMargin;

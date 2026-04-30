@@ -1026,10 +1026,11 @@ void stopTriangulation() {
                 float gpsPositionError = avgHDOP * 2.5;
                 float rssiDistanceError = avgDistance * 0.20;
                 float geometricError = gdop * 5.0;
-                float maxOffsetMs = 0;
-                for (const auto &sync : nodeSyncStatus) {
-                    if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
-                }
+                auto maxSyncIt = std::max_element(nodeSyncStatus.begin(), nodeSyncStatus.end(),
+                    [](const NodeSyncStatus& a, const NodeSyncStatus& b) {
+                        return a.millisOffset < b.millisOffset;
+                    });
+                float maxOffsetMs = (maxSyncIt != nodeSyncStatus.end()) ? maxSyncIt->millisOffset : 0;
                 float syncError = (maxOffsetMs / 1000.0) * avgDistance * 0.3;
                 float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
 
@@ -1185,10 +1186,11 @@ String calculateTriangulation() {
     bool syncVerified = verifyNodeSynchronization(10);
     results += "Clock Sync: " + String(syncVerified ? "VERIFIED <10ms" : "WARNING >10ms") + "\n";
 
-    float maxOffsetMs = 0;
-    for (const auto &sync : nodeSyncStatus) {
-        if (sync.millisOffset > maxOffsetMs) maxOffsetMs = sync.millisOffset;
-    }
+    auto maxSyncIt = std::max_element(nodeSyncStatus.begin(), nodeSyncStatus.end(),
+        [](const NodeSyncStatus& a, const NodeSyncStatus& b) {
+            return a.millisOffset < b.millisOffset;
+        });
+    float maxOffsetMs = (maxSyncIt != nodeSyncStatus.end()) ? maxSyncIt->millisOffset : 0;
     if (clockDiscipline.offsetCalibrated) {
         results += "Clock Quality:\n";
         results += "  Drift: " + String(clockDiscipline.driftRate * 1e6, 2) + " ppm\n";
@@ -1461,10 +1463,11 @@ String calculateTriangulation() {
             geometricError = avgDistance * 0.10 / sqrt(gpsNodes.size() - 2);
         }
         
-        float localMaxOffsetMs = 0;
-        for (const auto &sync : nodeSyncStatus) {
-            if (sync.millisOffset > localMaxOffsetMs) localMaxOffsetMs = sync.millisOffset;
-        }
+        auto localMaxIt = std::max_element(nodeSyncStatus.begin(), nodeSyncStatus.end(),
+            [](const NodeSyncStatus& a, const NodeSyncStatus& b) {
+                return a.millisOffset < b.millisOffset;
+            });
+        float localMaxOffsetMs = (localMaxIt != nodeSyncStatus.end()) ? localMaxIt->millisOffset : 0;
         float syncError = (localMaxOffsetMs / 1000.0) * avgDistance * 0.3;
         float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
         
@@ -1962,16 +1965,16 @@ void addPathLossSample(float rssi, float distance, bool isWiFi) {
     if (distance < 0.1 || distance > 200.0) return;  // Sanity check
     
     PathLossSample sample = {rssi, distance, isWiFi, millis()};
-    auto& samples = isWiFi ? adaptivePathLoss.wifiSamples : adaptivePathLoss.bleSamples;
-    
+    std::vector<PathLossSample>& samples = isWiFi
+        ? adaptivePathLoss.wifiSamples
+        : adaptivePathLoss.bleSamples;
+
     samples.push_back(sample);
-    
-    // Keep only recent samples
+
     if (samples.size() > adaptivePathLoss.MAX_SAMPLES) {
         samples.erase(samples.begin());
     }
-    
-    // Trigger re-estimation every 10 samples or every 30 seconds
+
     if (samples.size() % 10 == 0 || millis() - adaptivePathLoss.lastUpdate > 30000) {
         estimatePathLossParameters(isWiFi);
     }

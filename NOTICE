@@ -1,5 +1,5 @@
 AntiHunter
-Copyright (c) 2025-2026 Luke Switzer and contributors.
+Copyright (c) 2025-2026 Luke Switzer.
 
 This project was originally released under the MIT License.
 
@@ -10,9 +10,9 @@ All prior releases under the MIT License remain available under those terms
 at their respective tags and commits. New contributions from the relicense
 tag forward are governed exclusively by the AGPL-3.0.
 
-The relicense was performed with written consent from all contributors whose
-code is included in the relicensed codebase. See CLA.md for the contributor
-agreement and signatory list.
+Prior to relicensing, all third-party contributions were rewritten or
+removed so that the relicensed codebase contains only original work by
+the copyright holder.
 
 Third-party components retain their original licenses as noted in their
 respective files or directories.
