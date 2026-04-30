@@ -646,7 +646,7 @@ static void handleVibrationStatus(const String &command)
 static void setVibrationEnabled(bool enabled)
 {
   vibrationEnabled = enabled;
-  lastSaveTime = 0;
+  prefs.putBool("vibEnabled", enabled);
   saveConfiguration();
   Serial.printf("[VIB] Vibration broadcasts %s\n", enabled ? "ENABLED" : "DISABLED");
   sendToSerial1(nodeId + (enabled ? ": VIBRATION_ON_ACK:OK" : ": VIBRATION_OFF_ACK:OK"), true);

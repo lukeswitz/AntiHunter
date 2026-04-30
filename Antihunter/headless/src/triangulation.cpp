@@ -1927,8 +1927,8 @@ void addPathLossSample(float rssi, float distance, bool isWiFi) {
     if (distance < 0.1 || distance > 200.0) return;  // Sanity check
     
     PathLossSample sample = {rssi, distance, isWiFi, millis()};
-    const auto& samples = isWiFi ? adaptivePathLoss.wifiSamples : adaptivePathLoss.bleSamples;
-    
+    auto& samples = isWiFi ? adaptivePathLoss.wifiSamples : adaptivePathLoss.bleSamples;
+
     samples.push_back(sample);
     
     // Keep only recent samples

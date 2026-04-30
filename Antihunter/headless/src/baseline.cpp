@@ -540,7 +540,7 @@ void baselineDetectionTask(void *pv) {
             lastCleanup = millis();
 
             uint32_t dirtyCount = std::count_if(baselineCache.begin(), baselineCache.end(),
-                [](const auto& entry) { return entry.second.dirtyFlag; });
+                [](const std::pair<const String, BaselineDevice>& entry) { return entry.second.dirtyFlag; });
 
             if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
                 flushBaselineCacheToSD();
@@ -779,7 +779,7 @@ void baselineDetectionTask(void *pv) {
             lastCleanup = millis();
 
             uint32_t dirtyCount = std::count_if(baselineCache.begin(), baselineCache.end(),
-                [](const auto& entry) { return entry.second.dirtyFlag; });
+                [](const std::pair<const String, BaselineDevice>& entry) { return entry.second.dirtyFlag; });
 
             if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
                 flushBaselineCacheToSD();

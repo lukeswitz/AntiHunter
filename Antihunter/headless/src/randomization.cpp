@@ -735,7 +735,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         if (now - identity.lastSeen > TRACK_STALE_TIME) continue;
         
         bool alreadyLinked = std::any_of(identity.macs.begin(), identity.macs.end(),
-            [&session](const auto& existingMac) {
+            [&session](const MacAddress& existingMac) {
                 return memcmp(existingMac.bytes.data(), session.mac, 6) == 0;
             });
         if (alreadyLinked) continue;

@@ -2901,7 +2901,9 @@ String getProbeResults()
     std::vector<std::pair<String, ProbeDevice*>> sorted;
     sorted.reserve(probeDevices.size());
     std::transform(probeDevices.begin(), probeDevices.end(), std::back_inserter(sorted),
-        [](auto &p) -> std::pair<String, ProbeDevice*> { return {p.first, &p.second}; });
+        [](std::pair<const String, ProbeDevice> &p) -> std::pair<String, ProbeDevice*> {
+            return {p.first, &p.second};
+        });
     std::sort(sorted.begin(), sorted.end(),
         [](const std::pair<String, ProbeDevice*> &a, const std::pair<String, ProbeDevice*> &b) {
         if (a.second->histKnown != b.second->histKnown) return a.second->histKnown;
@@ -3948,7 +3950,7 @@ void listScanTask(void *pv) {
         std::vector<Hit> sortedHits;
         sortedHits.reserve(hitsMap.size());
         std::transform(hitsMap.begin(), hitsMap.end(), std::back_inserter(sortedHits),
-            [](const auto& entry) { return entry.second; });
+            [](const std::pair<const String, Hit>& entry) { return entry.second; });
         std::sort(sortedHits.begin(), sortedHits.end(),
                   [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
 
