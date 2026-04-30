@@ -36,12 +36,9 @@ extern Preferences prefs;
 static std::vector<Target> targets;
 std::vector<String> ssidTargets;
 std::atomic<bool> probeDetectionEnabled(false);
-// probeBroadcastAll: when true, PROBE_HIT mesh broadcasts fire for every probe
-// captured during PROBE_START scan (still subject to the 60s shouldSendProbeHit
-// dedup per MAC+SSID). When false (default), only probes matching CONFIG_TARGETS
-// (mac/ssid/dst) trigger broadcasts — matches pre-existing target-driven behavior.
-// Set by the PROBE_START parser before xTaskCreate, cleared on task exit.
-std::atomic<bool> probeBroadcastAll(false);
+// When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
+// Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
+std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
 std::set<String> uniqueMacs;
 std::map<String, uint32_t> deviceLastSeen;
@@ -2733,7 +2730,7 @@ void probeDetectionTask(void *pv)
                 }
             }
 
-            if (isHit || probeBroadcastAll.load()) {
+            if (isHit || probeBroadcastAll.load(std::memory_order_relaxed)) {
                 bool ghostSsid = hasSSID && ssidBuf[0] &&
                                  respondedSsids.find(String(ssidBuf)) == respondedSsids.end();
                 sendProbeHitMesh(event.mac, event.rssi, event.channel, ssidBuf, vendor, dstHit, ghostSsid);
@@ -2807,7 +2804,7 @@ void probeDetectionTask(void *pv)
     }
 
     probeDetectionEnabled = false;
-    probeBroadcastAll = false;
+    probeBroadcastAll.store(false, std::memory_order_relaxed);
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStopSTA();

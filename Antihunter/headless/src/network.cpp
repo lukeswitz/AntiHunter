@@ -18,9 +18,8 @@ extern "C"
 bool meshEnabled = true;
 bool hbEnabled = false;
 uint32_t hbInterval = 600000;
-// Gates the VIBRATION TEXTMSG broadcasts in hardware.cpp. See the matching
-// declaration in the full/ variant for the full rationale. Default true
-// preserves existing behaviour after a firmware bump.
+// Runtime gate for vibration mesh broadcasts (NVS key: "vibEnabled").
+// Detection and USB logging always run; this only controls Serial1 TX.
 bool vibrationEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
@@ -538,53 +537,53 @@ static void handleRandomizationStart(const String &command)
 
 static void handleProbeStart(const String &command)
 {
-  // PROBE_START:<mode>:<secs>[:FOREVER][:+ALL]
-  // Trailing flag tokens (FOREVER, +ALL) may appear in any order.
-  // +ALL: broadcast every probe (not just CONFIG_TARGETS matches), still
-  // subject to the 60s shouldSendProbeHit dedup per MAC+SSID.
-  String params = command.substring(12);
-  int modeDelim = params.indexOf(':');
-  int mode = params.substring(0, modeDelim > 0 ? modeDelim : params.length()).toInt();
+  // Format: PROBE_START:<mode>:<secs>[:FOREVER][:+ALL]
+  // Flags after secs are order-independent.
+  int fieldIdx = 0;
+  int mode = 0;
   int secs = 60;
   bool forever = false;
   bool broadcastAll = false;
 
-  if (modeDelim > 0)
-  {
-    int secsDelim = params.indexOf(':', modeDelim + 1);
-    secs = params.substring(modeDelim + 1, secsDelim > 0 ? secsDelim : params.length()).toInt();
-    // Walk remaining colon-delimited tokens recognizing FOREVER / +ALL
-    int cur = secsDelim;
-    while (cur > 0)
-    {
-      int next = params.indexOf(':', cur + 1);
-      String tok = params.substring(cur + 1, next > 0 ? next : params.length());
-      tok.trim();
-      tok.toUpperCase();
-      if (tok == "FOREVER") forever = true;
-      else if (tok == "+ALL") broadcastAll = true;
-      cur = next;
+  // Split on ':' starting after "PROBE_START:"
+  int pos = 12;
+  while (pos < (int)command.length()) {
+    int sep = command.indexOf(':', pos);
+    String field = (sep >= 0) ? command.substring(pos, sep) : command.substring(pos);
+    field.trim();
+
+    if (fieldIdx == 0) {
+      mode = field.toInt();
+    } else if (fieldIdx == 1) {
+      secs = field.toInt();
+    } else {
+      String upper = field;
+      upper.toUpperCase();
+      if (upper == "FOREVER") forever = true;
+      else if (upper == "+ALL") broadcastAll = true;
     }
+    fieldIdx++;
+    if (sep < 0) break;
+    pos = sep + 1;
   }
 
   if (secs < 1 && !forever) secs = 1;
   if (secs > 86400) secs = 86400;
 
-  if (mode >= 0 && mode <= 2)
-  {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
-      Serial.println("[MESH] Radio busy, rejecting PROBE_START");
-      sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
-    } else {
-      currentScanMode = (ScanMode)mode;
-      stopRequested = false;
-      scanning = true;
-      probeBroadcastAll.store(broadcastAll);
-      xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
-                              reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
-      Serial.printf("[MESH] Started probe detection via mesh command (%ds, all=%d)\n", secs, broadcastAll);
-      sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
-    }
+  if (mode < 0 || mode > 2) return;
+
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    Serial.println("[MESH] Radio busy, rejecting PROBE_START");
+    sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
+  } else {
+    currentScanMode = static_cast<ScanMode>(mode);
+    stopRequested = false;
+    scanning = true;
+    probeBroadcastAll.store(broadcastAll, std::memory_order_relaxed);
+    xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
+                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
+    sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
   }
 }
 
@@ -631,31 +630,38 @@ static void handleStatus(const String &command)
 
 static void handleVibrationStatus(const String &command)
 {
-  String status = vibrationEnabled ? "ENABLED" : "DISABLED";
+  (void)command;
+  char buf[64];
   if (lastVibrationTime > 0) {
-    status += " Last:" + String((millis() - lastVibrationTime) / 1000) + "s";
+    snprintf(buf, sizeof(buf), "%s Last:%lus",
+             vibrationEnabled ? "ENABLED" : "DISABLED",
+             (millis() - lastVibrationTime) / 1000);
   } else {
-    status += " Last:never";
+    snprintf(buf, sizeof(buf), "%s Last:never",
+             vibrationEnabled ? "ENABLED" : "DISABLED");
   }
-  sendToSerial1(nodeId + ": VIBRATION_STATUS: " + status, true);
+  sendToSerial1(nodeId + ": VIBRATION_STATUS: " + buf, true);
+}
+
+static void setVibrationEnabled(bool enabled)
+{
+  vibrationEnabled = enabled;
+  lastSaveTime = 0;
+  saveConfiguration();
+  Serial.printf("[VIB] Vibration broadcasts %s\n", enabled ? "ENABLED" : "DISABLED");
+  sendToSerial1(nodeId + (enabled ? ": VIBRATION_ON_ACK:OK" : ": VIBRATION_OFF_ACK:OK"), true);
 }
 
 static void handleVibrationOn(const String &command)
 {
-  vibrationEnabled = true;
-  prefs.putBool("vibEnabled", true);
-  saveConfiguration();
-  Serial.println("[VIB] Vibration broadcasts ENABLED");
-  sendToSerial1(nodeId + ": VIBRATION_ON_ACK:OK", true);
+  (void)command;
+  setVibrationEnabled(true);
 }
 
 static void handleVibrationOff(const String &command)
 {
-  vibrationEnabled = false;
-  prefs.putBool("vibEnabled", false);
-  saveConfiguration();
-  Serial.println("[VIB] Vibration broadcasts DISABLED");
-  sendToSerial1(nodeId + ": VIBRATION_OFF_ACK:OK", true);
+  (void)command;
+  setVibrationEnabled(false);
 }
 
 static void handleTriangulateStart(const String &command, const String &targetId)
