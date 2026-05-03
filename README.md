@@ -387,7 +387,15 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 Flash and configure directly from your browser -- no tools to install. Requires Chrome or Edge on desktop.
 
-**[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, plug in your ESP32-S3, and click Connect & Flash. After flashing, use the built-in serial terminal to configure the device: it resets the board, detects the config window, and sends your settings automatically.
+1. **[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, plug in your ESP32-S3, and click Connect & Flash. 
+
+- Choose "Erase Device" during process if upgrading from pre v0.9.2 firmware or to clear saved settings from flash memory.
+
+   > Preferences are also saved and synced to/from SD storage. If corrupted, the settings will self-heal. 
+
+2. Optional: After flashing, set the configuration choices and press send to device. 
+
+   - Use it to change settings without using the device (especially useful for headless FW).  
 
 ### CLI Flash
 
