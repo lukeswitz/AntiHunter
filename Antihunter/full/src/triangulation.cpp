@@ -1151,14 +1151,14 @@ void stopTriangulation() {
     Serial.println("[TRIANGULATE] Stopped, results generated, buffers cleared");
 }
 
-float haversineDistance(float lat1, float lon1, float lat2, float lon2) { //TODO make it more accurate 
-    const float R = 6371000.0;
-    float dLat = (lat2 - lat1) * M_PI / 180.0;
-    float dLon = (lon2 - lon1) * M_PI / 180.0;
-    float a = sin(dLat/2) * sin(dLat/2) +
-              cos(lat1 * M_PI / 180.0) * cos(lat2 * M_PI / 180.0) *
-              sin(dLon/2) * sin(dLon/2);
-    return R * 2.0 * atan2(sqrt(a), sqrt(1-a));
+float haversineDistance(float lat1, float lon1, float lat2, float lon2) {
+    const double R = 6371000.0;
+    double dLat = (lat2 - lat1) * M_PI / 180.0;
+    double dLon = (lon2 - lon1) * M_PI / 180.0;
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+               cos(static_cast<double>(lat1) * M_PI / 180.0) * cos(static_cast<double>(lat2) * M_PI / 180.0) *
+               sin(dLon / 2) * sin(dLon / 2);
+    return static_cast<float>(R * 2.0 * atan2(sqrt(a), sqrt(1.0 - a)));
 }
 
 void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east, float &north) {
