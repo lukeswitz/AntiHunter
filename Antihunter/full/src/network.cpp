@@ -418,6 +418,70 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     </script>
   </head>
   <body>
+    <!-- Onboarding disclaimer overlay -->
+    <div id="ob-overlay" style="display:none;position:fixed;inset:0;z-index:10000;background:#0b0e14;align-items:center;justify-content:center;flex-direction:column">
+      <div style="width:min(460px,92vw);max-height:90vh;display:flex;flex-direction:column">
+        <div style="text-align:center;padding:32px 0 20px;flex-shrink:0">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><path d="M8 12a4 4 0 0 0 4 4M16 12a4 4 0 0 0-4-4" opacity="0.5"/></svg>
+          <div style="font-size:22px;font-weight:700;color:#e8ecf0;letter-spacing:-0.02em">Welcome to AntiHunter</div>
+          <div style="font-size:13px;color:#6878a0;margin-top:4px">WiFi/BLE Detection Node</div>
+        </div>
+        <div id="ob-scroll" style="flex:1;overflow-y:auto;padding:0 24px 16px;-webkit-overflow-scrolling:touch">
+          <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Authorized Use Only</div><div style="font-size:13px;color:#8898b8;line-height:1.5">For use on networks and systems you own or have explicit written permission to assess. Comply with all local privacy, radio, and telecom laws.</div></div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c09040" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">No Warranty</div><div style="font-size:13px;color:#8898b8;line-height:1.5">Provided "AS IS" without warranty of any kind. Detection accuracy is not guaranteed. Do not rely on this for safety-critical decisions.</div></div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Privacy and Data</div><div style="font-size:13px;color:#8898b8;line-height:1.5">All data is stored locally on your device. You are responsible for securing collected data and complying with data protection laws (e.g., GDPR) in your jurisdiction.</div></div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:10px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a0e0" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            <div><div style="font-size:14px;font-weight:600;color:#e8ecf0;margin-bottom:4px">Your Responsibility</div><div style="font-size:13px;color:#8898b8;line-height:1.5">By continuing, you accept full responsibility for your actions and agree to indemnify the authors and contributors against any claims arising from your use.</div></div>
+          </div>
+        </div>
+        <div style="padding:12px 24px 28px;flex-shrink:0;text-align:center">
+          <div id="ob-hint" style="font-size:11px;color:#6878a0;margin-bottom:10px;transition:opacity 0.3s">Scroll to review all sections</div>
+          <button id="ob-btn" disabled onclick="obAccept()" style="width:100%;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#6878a0;font-size:15px;font-weight:600;cursor:not-allowed;transition:all 0.5s cubic-bezier(0.4,0,0.2,1)">Continue</button>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes ob-glow{0%,100%{box-shadow:0 0 0 0 rgba(64,180,100,0.4)}50%{box-shadow:0 0 24px 4px rgba(64,180,100,0.15)}}
+      #ob-btn.ready{background:linear-gradient(135deg,#38a860,#2e8c50);border-color:#38a860;color:#fff;cursor:pointer;animation:ob-glow 2.5s ease-in-out infinite}
+      #ob-btn.ready:hover{filter:brightness(1.15);transform:scale(1.02)}
+      #ob-scroll::-webkit-scrollbar{width:4px}
+      #ob-scroll::-webkit-scrollbar-track{background:transparent}
+      #ob-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:2px}
+    </style>
+    <script>
+    (function(){
+      var ov=document.getElementById('ob-overlay');
+      var sc=document.getElementById('ob-scroll');
+      var bt=document.getElementById('ob-btn');
+      var hn=document.getElementById('ob-hint');
+      function chkScroll(){
+        if(sc.scrollTop+sc.clientHeight>=sc.scrollHeight-10){
+          bt.disabled=false;bt.classList.add('ready');hn.style.opacity='0';
+        }
+      }
+      fetch('/api/onboarding').then(function(r){return r.json()}).then(function(d){
+        if(!d.accepted){ov.style.display='flex';setTimeout(chkScroll,100)}
+      }).catch(function(){ov.style.display='flex';setTimeout(chkScroll,100)});
+      sc.addEventListener('scroll',chkScroll);
+      window.obAccept=function(){
+        if(bt.disabled)return;
+        fetch('/api/onboarding',{method:'POST'}).then(function(){
+          ov.style.opacity='0';ov.style.transition='opacity 0.4s';
+          setTimeout(function(){ov.style.display='none'},400);
+        });
+      };
+    })();
+    </script>
     <div id="toast"></div>
     <div class="header">
       <h1>AntiHunter</h1>
@@ -5865,6 +5929,16 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       };
       esp_timer_create(&timer_args, &timer);
       esp_timer_start_once(timer, 3000000);
+  });
+
+  // Onboarding disclaimer — persisted in NVS
+  server->on("/api/onboarding", HTTP_GET, [](AsyncWebServerRequest *r) {
+      bool done = prefs.getBool("obDone", false);
+      r->send(200, "application/json", done ? "{\"accepted\":true}" : "{\"accepted\":false}");
+  });
+  server->on("/api/onboarding", HTTP_POST, [](AsyncWebServerRequest *r) {
+      prefs.putBool("obDone", true);
+      r->send(200, "application/json", "{\"accepted\":true}");
   });
 
   server->begin();

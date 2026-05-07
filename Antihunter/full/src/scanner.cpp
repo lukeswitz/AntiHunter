@@ -3726,7 +3726,7 @@ void listScanTask(void *pv) {
                 hitsLog.push_back(h);
             }
 
-            auto [it, inserted] = seenTargets.insert(macStr);
+            bool inserted = seenTargets.insert(macStr).second;
             if (inserted) {
                 totalHits = totalHits + 1;
             }

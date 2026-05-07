@@ -109,6 +109,21 @@
     .cfg-grid .full{grid-column:1/-1}
     .cfg-note{font-size:11px;color:var(--mut);margin-top:4px}
 
+    .disclaimer-overlay{position:fixed;inset:0;background:rgba(10,14,22,0.95);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
+    .disclaimer-overlay.hidden{display:none}
+    .disclaimer-box{background:var(--surf);border:1px solid var(--bord);border-radius:12px;max-width:540px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shad)}
+    .disclaimer-box h2{font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--warn);padding:24px 28px 0;font-weight:700}
+    .disclaimer-content{padding:20px 28px;overflow-y:auto;font-size:12px;line-height:1.8;color:var(--mut)}
+    .disclaimer-content p{margin-bottom:12px}
+    .disclaimer-content strong{color:var(--txt)}
+    .disclaimer-actions{padding:20px 28px;border-top:1px solid var(--bord);display:flex;gap:12px}
+    .disclaimer-actions button{flex:1;padding:12px;border-radius:8px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s}
+    .btn-decline{background:transparent;border:2px solid var(--bord);color:var(--mut)}
+    .btn-decline:hover{border-color:var(--dang);color:var(--dang)}
+    .btn-accept{background:transparent;border:2px solid var(--acc);color:var(--acc)}
+    .btn-accept:hover{background:linear-gradient(135deg,var(--acc),var(--acch));color:#fff}
+    .disclaimer-footer{padding:0 28px 20px;font-size:10px;color:var(--mut);opacity:0.6;line-height:1.6}
+
     .footer{text-align:center;padding:20px;font-size:12px;color:var(--mut)}
     .footer a{color:var(--acc);text-decoration:none}
     .footer a:hover{text-decoration:underline}
@@ -150,6 +165,25 @@
   </script>
 </head>
 <body>
+  <div class="disclaimer-overlay" id="disclaimerOverlay">
+    <div class="disclaimer-box">
+      <h2>Disclaimer & Terms of Use</h2>
+      <div class="disclaimer-content">
+        <p><strong>READ CAREFULLY BEFORE PROCEEDING.</strong> By clicking "I Accept" you acknowledge and agree to the following terms:</p>
+        <p><strong>AS-IS SOFTWARE.</strong> This firmware and web flasher are provided "as is" without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose, and non-infringement. The entire risk as to quality, performance, and results remains solely with you.</p>
+        <p><strong>NO LIABILITY.</strong> In no event shall the authors, contributors, or maintainers be liable for any claim, damages, or other liability, whether in contract, tort, or otherwise, arising from or in connection with the software. This includes direct, indirect, incidental, consequential, or punitive damages including loss of data, device damage, or bricking of hardware.</p>
+        <p><strong>HARDWARE RISK.</strong> Flashing firmware carries inherent risk. Incorrect firmware, interrupted flash, power loss during write, or incompatible hardware may render your device permanently inoperable. You accept full responsibility for all consequences of flashing firmware.</p>
+        <p><strong>LEGAL COMPLIANCE.</strong> You are solely responsible for ensuring your use complies with all applicable laws and regulations. Wireless monitoring, network scanning, and RF operations may be regulated in your jurisdiction. Use only on systems you own or have written authorization to assess.</p>
+        <p><strong>INDEMNIFICATION.</strong> You agree to indemnify and hold harmless the authors, contributors, and maintainers from any claims, liabilities, damages, losses, and expenses arising from your use of this software.</p>
+        <p><strong>EDUCATIONAL & RESEARCH USE.</strong> This project is intended for authorized security research, counter-surveillance, and lawful personal use only. Unauthorized access to networks, systems, or data belonging to others is strictly prohibited.</p>
+      </div>
+      <div class="disclaimer-actions">
+        <button class="btn-decline" onclick="declineDisclaimer()">Decline</button>
+        <button class="btn-accept" onclick="acceptDisclaimer()">I Accept</button>
+      </div>
+      <div class="disclaimer-footer">By proceeding you confirm you are of legal age in your jurisdiction and accept all terms above.</div>
+    </div>
+  </div>
   <div class="header">
     <h1>AntiHunter Flasher & Configurator</h1>
     <div class="header-right">
@@ -744,6 +778,18 @@ chmod +x flashAntihunter.sh
     }
 
     init();
+  </script>
+  <script>
+    function acceptDisclaimer(){
+      document.getElementById('disclaimerOverlay').classList.add('hidden');
+      sessionStorage.setItem('ah-flasher-disclaimer','1');
+    }
+    function declineDisclaimer(){
+      document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:inherit;color:var(--mut);font-size:13px;letter-spacing:1px;">Disclaimer declined. Close this page.</div>';
+    }
+    if(sessionStorage.getItem('ah-flasher-disclaimer')==='1'){
+      document.getElementById('disclaimerOverlay').classList.add('hidden');
+    }
   </script>
 </body>
 </html>
