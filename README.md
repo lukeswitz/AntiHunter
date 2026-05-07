@@ -13,7 +13,7 @@
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
 <div align="center">
-  <a href="#getting-started">Quick Start</a> | <a href="#hardware">DIY Build</a> | <a href="#features">Features</a>
+  <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
 </div>
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
 </p>
@@ -42,17 +42,20 @@
 12. [Credits](#credits)
 13. [Disclaimer](#legal-disclaimer)
 
+<a href="https://www.tindie.com/stores/teamantihunter/"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
+
 ## Overview
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
-- ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, and LoRa mesh networking. 
-- Deploy one node or a distributed network -- each scans independently and coordinates over Meshtastic.
+- ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
+- Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
 
-<a href="https://www.tindie.com/stores/teamantihunter/"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
 
-## Features
+
 
 <img width="2046" height="1395" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
+
+## Features
 
 
 | Feature | What it does | Scan modes |
@@ -387,7 +390,15 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 Flash and configure directly from your browser -- no tools to install. Requires Chrome or Edge on desktop.
 
-**[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, plug in your ESP32-S3, and click Connect & Flash. After flashing, use the built-in serial terminal to configure the device: it resets the board, detects the config window, and sends your settings automatically.
+1. **[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, plug in your ESP32-S3, and click Connect & Flash. 
+
+- Choose "Erase Device" during process if upgrading from pre v0.9.2 firmware or to clear saved settings from flash memory.
+
+   > Preferences are also saved and synced to/from SD storage. If corrupted, the settings will self-heal. 
+
+2. Optional: After flashing, set the configuration choices and press send to device. 
+
+   - Use it to change settings without using the device (especially useful for headless FW).  
 
 ### CLI Flash
 
