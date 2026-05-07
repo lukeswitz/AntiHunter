@@ -14,7 +14,8 @@ CPPCHECK_FLAGS := --enable=all --std=c++17 \
 FULL_SRC := Antihunter/full/src
 HEADLESS_SRC := Antihunter/headless/src
 EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
-	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c
+	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c \
+	--suppress=*:*/opendroneid.h --suppress=*:*/odid_wifi.h
 
 .PHONY: lint lint-full lint-headless build build-full build-headless clean
 
