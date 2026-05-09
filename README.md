@@ -42,7 +42,7 @@
 12. [Credits](#credits)
 13. [Disclaimer](#legal-disclaimer)
 
-<a href="https://www.tindie.com/stores/teamantihunter/"><img src="https://d2ss6ovg47m0r5.cloudfront.net/badges/tindie-mediums.png" alt="I sell on Tindie" width="150" height="78"></a>
+
 
 ## Overview
 
