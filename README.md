@@ -721,9 +721,12 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 
 ---
 
-## Credits
+## Acknowledgments
 
 Original concept and hardware design by @TheRealSirHaXalot. Get [involved](https://github.com/lukeswitz/AntiHunter/discussions) -- PRs, issues, and docs contributions welcome.
+
+
+This project includes code from [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c), licensed under the Apache License 2.0. Copyright (C) Intel Corporation and OpenDroneID contributors
 
 ## Legal Disclaimer
 
