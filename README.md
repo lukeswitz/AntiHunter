@@ -19,30 +19,29 @@
 </p>
 
 > [!NOTE]
-> **Standalone firmware, also integrates with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
+> **Standalone FW (AP/Mesh) also integrates with the [AntiHunter Command Center Pro](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
 >
 > Early Release: Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
 
 ### News:
 `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
-## Table of Contents
+# Table of Contents
 
 1. [Overview](#overview)
 2. [Features](#features)
 3. [Detection Modes](#detection-modes)
-4. [Sensor Integration](#sensor-integration)
-5. [Secure Data Destruction](#secure-data-destruction)
-6. [RF Configuration](#rf-configuration)
-7. [System Architecture](#system-architecture)
-8. [Hardware](#hardware)
-9. [Getting Started](#getting-started)
-10. [Mesh Commands](#mesh-commands)
-11. [API Reference](#api-reference)
-12. [Credits](#credits)
-13. [Disclaimer](#legal-disclaimer)
+4. [Secure Data Destruction](#secure-data-destruction)
+5. [RF Configuration](#rf-configuration)
+6. [System Architecture](#system-architecture)
+7. [Hardware](#hardware)
+8. [Getting Started](#getting-started)
+9. [Mesh Commands](#mesh-commands)
+10. [API Reference](#api-reference)
+11. [Acknowledgments](#acknowledgments)
+12. [Legal](#legal-disclaimer)
 
-
+---
 
 ## Overview
 
@@ -187,8 +186,7 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 
 ### F. Probe Request Scanner
 
-<img width="2046" height="1404" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
-
+<img width="1200" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
 
 Goes beyond probe request capture: correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in the device's history), identify which APs responded, and catch silent devices via destination address matching.
 
@@ -202,20 +200,6 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - MAC randomization detection (locally-administered bit check)
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
-
-
----
-
-## Sensor Integration
-
-<!-- <img width="943" height="797" alt="Screenshot 2026-04-15 at 11 25 05 AM" src="https://github.com/user-attachments/assets/825fd764-5103-41d8-a8a0-f2504062acb4" /> -->
-
-| Sensor | Interface | Description |
-|--------|-----------|-------------|
-| **GPS** | UART2 (RX=GPIO44, TX=GPIO43) 9600 baud | TinyGPS++ NMEA parsing. Location, altitude, satellite data. API at `/gps`. |
-| **SD Card** | SPI | Logs to `/antihunter.log` with timestamps, MACs, RSSI, GPS. Web interface shows storage stats. |
-| **Vibration/Tamper** | SW-420 (interrupt) | Interrupt-driven with 3s rate limiting. Mesh alerts with GPS and timestamps. |
-| **RTC** | DS3231 via I2C | NTP sync on flash, fallback to system time and GPS. Drift correction. All timestamps UTC. |
 
 ---
 
@@ -305,9 +289,6 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
 
 ### Assembling the PCB
-
-<img width="2241" height="2358" alt="image" src="https://github.com/user-attachments/assets/426c4693-3dc1-49f0-9a6c-ccd2bb3a758e" />
-
  
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
