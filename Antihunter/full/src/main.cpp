@@ -4,12 +4,14 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include "network.h"
-#include "scanner.h" 
+#include "scanner.h"
 #include "hardware.h"
+#include "detect.h"
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include "esp_wifi.h"
+#include "esp_log.h"
 
 
 Preferences prefs;
@@ -58,7 +60,33 @@ void uartForwardTask(void *parameter) {
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
           } else {
-            processMeshMessage(toProcess);
+            // Phase 1-3: detect-module mesh prefixes (sender required for quorum)
+            if (toProcess.startsWith("PMKID_HARVEST:") ||
+                toProcess.startsWith("EVILTWIN:") ||
+                toProcess.startsWith("SSID_CONFUSION:") ||
+                toProcess.startsWith("SAE_DOS:") ||
+                toProcess.startsWith("BLETRACK:") ||
+                toProcess.startsWith("RECON:") ||
+                toProcess.startsWith("RID_CLAIM:") ||
+                toProcess.startsWith("RID_RX:") ||
+                toProcess.startsWith("BLOOM:") ||
+                toProcess.startsWith("CHAN_ASSIGN:") ||
+                toProcess.startsWith("FRAG:") ||
+                toProcess.startsWith("IDHASH:") ||
+                toProcess.startsWith("CSI_MOTION:") ||
+                toProcess.startsWith("TRK_LINK:") ||
+                toProcess.startsWith("HSHK:") ||
+                toProcess.startsWith("KRACK:") ||
+                toProcess.startsWith("ATTACKER_HUNT:") ||
+                toProcess.startsWith("PWNAGOTCHI:") ||
+                toProcess.startsWith("KARMA_CAND:") ||
+                toProcess.startsWith("KARMA_CONFIRMED:") ||
+                toProcess.startsWith("TOF_PING:") ||
+                toProcess.startsWith("TOF_PONG:")) {
+              detect_processMesh(senderId, toProcess);
+            } else {
+              processMeshMessage(toProcess);
+            }
           }
 
           meshBuffer = "";
@@ -169,6 +197,8 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
+    // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)
+    esp_log_level_set("vfs_api", ESP_LOG_NONE);
     Serial.println("\n=== Antihunter [FULL] Boot ===");
 
     delay(400);
@@ -186,7 +216,7 @@ void setup() {
     loadConfiguration();
 
     Serial.println("Waiting for mesh device stability...");
-    delay(15000);
+    delay(10000);
 
     initializeNetwork();
     delay(500);
@@ -195,8 +225,16 @@ void setup() {
     initializeRTC();
     delay(500);
     initializeVibrationSensor();
-    initializeScanner();
-    
+initializeScanner();
+
+    // Phase 1-3 detect module (attack-sig + mesh-coord + BLE perimeter)
+    initializeDetect();
+    csi_enable(true);
+    // Optional: enable GPS PPS on free GPIO. Wire GPS PPS to GPIO 21 (D5
+    // analogue free on XIAO S3 when GPS RX/TX are on 44/43). -1 disables.
+    initializeGpsPps(21);
+    xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
+
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 

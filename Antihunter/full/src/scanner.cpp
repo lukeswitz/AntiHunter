@@ -16,6 +16,7 @@
 #include "network.h"
 #include "triangulation.h"
 #include "baseline.h"
+#include "detect.h"
 #include "main.h"
 
 extern "C"
@@ -637,6 +638,15 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
         String macStr = addr.toString().c_str();
         if (!parseMac6(macStr, mac)) return;
 
+        // Phase 1.7 / 3.1 / 3.2: feed BLE adv into detect module via queue.
+        // All heavy work (tracker scoring, ODID decode, malformed check)
+        // happens in detectTask context — not here in nimble_host callback.
+        {
+            std::vector<uint8_t> payload = advertisedDevice->getPayload();
+            detect_onBleAdv(mac, rssi, payload.data(),
+                            (uint16_t)payload.size(), nullptr);
+        }
+
         String deviceName = "Unknown";
         if (advertisedDevice->haveName()) {
             std::string nimbleName = advertisedDevice->getName();
@@ -730,7 +740,9 @@ void snifferScanTask(void *pv)
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
-    unsigned long nextResultsUpdate = millis() + 2000;
+    // Fire first in-progress results write on first loop iteration so the UI
+    // moves off the "Scan starting..." placeholder within ~1 tick.
+    unsigned long nextResultsUpdate = millis();
     
     std::set<String> transmittedDevices;
 
@@ -1141,7 +1153,7 @@ void snifferScanTask(void *pv)
             }
 
             antihunter::lastResults = results;
-            nextResultsUpdate = millis() + 5000;
+            nextResultsUpdate = millis() + 1500;
         }
 
         Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
@@ -1998,6 +2010,13 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     }
 
     detectDeauthFrame(ppkt);
+
+    // Phase 1: attack-signature detectors (PMKID, evil-twin, SSID confusion,
+    // SAE DoS, OWE abuse, FragAttacks PN reuse). Enqueues to detect task,
+    // ISR-safe (xQueueSendFromISR inside).
+    detect_onWifiFrame(ppkt->payload, ppkt->rx_ctrl.sig_len,
+                       ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
+
     framesSeen = framesSeen + 1;
 
     const uint8_t *p = ppkt->payload;
@@ -2618,7 +2637,9 @@ void probeDetectionTask(void *pv)
 
         ProbeRequestEvent event;
         int processedCount = 0;
-        while (xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 60) {
+        // Drain aggressively each loop — queue is 256 deep, ISR fills fast.
+        // Higher cap = lower latency from probe RX → UI update.
+        while (xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 200) {
             totalDrained++;
             processedCount++;
 
@@ -2849,7 +2870,7 @@ void probeDetectionTask(void *pv)
             lastDebug = millis();
         }
 
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     probeDetectionEnabled = false;

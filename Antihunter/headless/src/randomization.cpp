@@ -3,6 +3,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "main.h"
+#include "detect.h"
 #include <algorithm>
 #include <cmath>
 #include <mutex>
@@ -1046,10 +1047,34 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         newIdentity.observedSessions = 1;
         
         deviceIdentities[macStr] = newIdentity;
-        
+
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, newIdentity.identityId, sizeof(session.linkedIdentityId) - 1);
         session.linkedIdentityId[sizeof(session.linkedIdentityId) - 1] = '\0';
+
+        // Phase 3.4: CYT hostile-recon scoring (headless variant — no probedSSID field).
+        {
+            uint8_t add = 0;
+            char reasonBuf[64] = {0};
+            if (session.probeCount >= 10) {
+                add += 10;
+                strncat(reasonBuf, "high_probe_count", sizeof(reasonBuf) - strlen(reasonBuf) - 1);
+            }
+            if (session.probeCount >= 25) {
+                add += 15;
+                if (reasonBuf[0]) strncat(reasonBuf, ",", sizeof(reasonBuf) - strlen(reasonBuf) - 1);
+                strncat(reasonBuf, "very_high_probe_count", sizeof(reasonBuf) - strlen(reasonBuf) - 1);
+            }
+            if (add > 0) recon_updateFromProbeSession(newIdentity.identityId, add, reasonBuf);
+        }
+
+        {
+            uint32_t pgHash = pg_computeHashFromBytes(
+                reinterpret_cast<const uint8_t*>(session.fingerprint),
+                session.ieOrder.ieTypes, session.ieOrder.ieCount,
+                nullptr, 0);
+            pg_announceLocalIdentity(pgHash, newIdentity.identityId, sessionAvgRssi);
+        }
 
         Serial.printf("[RAND] New %s from %s (n:%d rssi:%d ic:%.2f type:%s sig:%s)\n",
                      newIdentity.identityId, macStr.c_str(), session.probeCount, 

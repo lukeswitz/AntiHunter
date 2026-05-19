@@ -96,7 +96,8 @@ struct DetectFrameEvent {
         AUTH_SAE = 2,     // 802.11 auth, algo=3 SAE
         BEACON_DEEP = 3,  // beacon for evil-twin/OWE analysis
         QOS_DATA = 4,     // QoS data frame for A-MSDU PN check
-        PROBE_RESP = 5    // probe response for SSID confusion
+        PROBE_RESP = 5,   // probe response for SSID confusion
+        BLE_ADV = 6       // BLE adv (deferred from NimBLE callback)
     };
     uint8_t kind;
     uint8_t channel;
@@ -207,7 +208,7 @@ void initializeDetect();
 void detectTask(void *pv);
 
 // Sniffer hook — called from sniffer_cb (IRAM, must be brief / ISR-safe)
-void detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel);
+void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel);
 
 // BLE hook — called from BLE scan onResult
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
@@ -247,6 +248,283 @@ void detect_clearBleTracker();
 String detect_getReconJson();
 void detect_clearRecon();
 void recon_updateFromProbeSession(const char *identityId, uint8_t addToScore, const char *reason);
+
+// =============================================================================
+// Feature 12: Inter-node mesh ping (PPS-disciplined link-quality)
+// =============================================================================
+// NOTE: transport is mesh-Serial1 (Meshtastic), not direct ESP-NOW. RTT is
+// dominated by transport latency, not RF time-of-flight. est_dist_m is NOT
+// a real distance; kept as -1 sentinel. Use for link health + jitter only.
+struct TofPeer {
+    char nodeId[16];
+    uint64_t lastRttUs;
+    uint64_t bestRttUs;
+    uint64_t avgRttUs;
+    uint32_t samples;
+    uint32_t lastSeen;
+    int8_t estDistanceM;
+};
+
+void   tof_ping(const char *targetNode);
+void   tof_broadcastPing();
+void   tof_processPing(const String &fromNode, uint32_t seq, uint64_t theirTxUs);
+void   tof_processPong(const String &fromNode, uint32_t seqId, uint64_t origTxEcho, uint64_t theirRxUs);
+String tof_getPeersJson();
+void   tof_clear();
+size_t tof_peerCount();
+
+// =============================================================================
+// Feature 10/11: TSF clock-skew physical-layer AP fingerprint
+// =============================================================================
+// Every AP's beacon TSF advances at crystal-PPM-offset rate. Track per-BSSID
+// skew: expected_delta = beacon_interval * 1024 us; actual_delta = tsf - prev.
+// PPM = (actual - expected) / expected * 1e6. Running average = hw fingerprint.
+// Spoofed evil-twin has different PPM than legit AP even if all IEs/SSID match.
+
+struct TsfSkewEntry {
+    uint8_t bssid[6];
+    char ssid[33];
+    float ppmEstimate;
+    int32_t lastSkewUs;
+    uint32_t samples;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+};
+
+String tsf_getSkewJson();
+void   tsf_clear();
+size_t tsf_count();
+
+// =============================================================================
+// Feature 9: Reactive KARMA probe-bait
+// =============================================================================
+// Track APs emitting probe-responses for >N distinct SSIDs in a window (KARMA
+// candidate). Then emit honey probe-requests with deterministic markers; any
+// probe-response echoing the marker confirms KARMA + identifies the rogue AP.
+
+struct KarmaCandidate {
+    uint8_t bssid[6];
+    uint8_t distinctSsids;
+    uint32_t firstSseen;
+    uint32_t lastSeen;
+    char lastSsid[33];
+    bool baitEmitted;
+    bool confirmed;
+};
+
+void   karma_init();
+void   karma_setEnabled(bool on);
+bool   karma_isEnabled();
+void   karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi);
+bool   karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi);
+String karma_getJson();
+void   karma_clear();
+size_t karma_candidateCount();
+size_t karma_confirmedCount();
+
+// =============================================================================
+// Feature 7: Pwnagotchi swarm detection (verified addr2 = DE:AD:BE:EF:DE:AD)
+// =============================================================================
+struct PwnagotchiSighting {
+    uint8_t bssid[6];
+    int8_t lastRssi;
+    int8_t bestRssi;
+    uint16_t observations;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    char snippet[64];
+};
+
+String pwnagotchi_getJson();
+void   pwnagotchi_clear();
+size_t pwnagotchi_count();
+
+// =============================================================================
+// Feature 6: Attacker reverse-trilateration
+// =============================================================================
+// On confirmed attack signature (PMKID burst, SAE DoS, deauth flood, KRACK)
+// auto-kick existing triangulation infra against the offender's MAC.
+// Cooldown per source MAC. Mesh-broadcast hunt request so all nodes participate.
+
+void attacker_kick(const uint8_t *mac, const char *attackType);
+String attacker_getActiveHuntsJson();
+void   attacker_clearHunts();
+size_t attacker_huntCount();
+void   attacker_setCooldown(uint32_t ms);
+
+// =============================================================================
+// Feature 5: Distributed 4-way handshake reconstruction + KRACK detect
+// =============================================================================
+// Each node captures M1/M2/M3/M4 from EAPOL-Key frames. Mesh broadcasts each
+// (BSSID, STA, msg_num, replay_counter, rssi, node). Coordinator stitches into
+// per-(BSSID,STA) reconstruction. Repeated M3 with same replay-counter from one
+// BSSID/STA pair = KRACK CVE-2017-13077 PTK reinstallation signature.
+
+struct HandshakeFragment {
+    uint8_t bssid[6];
+    uint8_t sta[6];
+    uint8_t msgNum;        // 1, 2, 3, 4
+    uint64_t replayCtr;
+    int8_t rssi;
+    uint32_t ts;
+    char nodeId[16];
+};
+
+struct HandshakeReconstruction {
+    uint8_t bssid[6];
+    uint8_t sta[6];
+    uint8_t seenMask;      // bit 0..3 = M1..M4 seen
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    uint8_t krackEvents;
+    std::vector<HandshakeFragment> fragments;
+};
+
+String hshk_getReconJson();
+void   hshk_clear();
+size_t hshk_count();
+uint32_t hshk_krackEvents();
+
+// =============================================================================
+// Feature 4: AirTag owner-presence inference + battery decode
+// =============================================================================
+// Apple Find My adv: FF 4C 00 12 19 [status] ...
+// status bit 2 = Maintained (owner connected within last ~15 min)
+// status bits 6-7 = battery level (00 full, 01 medium, 10 low, 11 critical)
+//                   only meaningful when Maintained set
+//
+// We decode per-adv and aggregate: owner-present rate + battery + chain to
+// tracker rotation chain id from Feature 3.
+
+struct AirTagPresence {
+    uint8_t addr[6];
+    uint8_t lastStatusByte;
+    uint16_t observations;
+    uint16_t maintainedCount;
+    uint8_t batteryLastSeen;
+    int8_t lastRssi;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    bool isFindMy;
+};
+
+String airtag_getPresenceJson();
+void   airtag_clear();
+size_t airtag_count();
+
+// =============================================================================
+// Feature 3: BLE tracker rotation un-linking
+// =============================================================================
+// Trackers rotate identifiers: Tile/SmartTag every ~15 min, AirTag every ~24h.
+// When one disappears and a new tracker of same vendor class appears at similar
+// RSSI within a rotation window, stitch them into a persistent chain.
+
+struct TrackerChain {
+    uint32_t chainId;
+    char vendor[16];
+    int8_t avgRssi;
+    uint8_t linkCount;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    struct Link {
+        uint8_t addr[6];
+        int8_t rssi;
+        uint32_t startTs;
+        uint32_t endTs;
+    };
+    std::vector<Link> links;
+};
+
+String tracker_getChainsJson();
+void tracker_clearChains();
+size_t tracker_chainCount();
+
+// =============================================================================
+// Feature 2: Probe-graph identity correlator (mesh-wide)
+// =============================================================================
+// Each node already de-randomizes via IE fingerprint + IE order + chan-sequence
+// (randomization.cpp). New: broadcast a deterministic hash of those over mesh.
+// Other nodes that derive the SAME hash for any of their tracked identities
+// link the two — same device seen by N nodes => meta-identity with motion path.
+
+struct ProbeGraphIdentity {
+    uint32_t hash;
+    char localTrackId[10];
+    int8_t bestRssi;
+    uint8_t sightingCount;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    struct NodeSeen {
+        String nodeId;
+        int8_t rssi;
+        uint32_t ts;
+    };
+    std::vector<NodeSeen> nodes;
+};
+
+void pg_init();
+uint32_t pg_computeHashFromBytes(const uint8_t *ieFp12, const uint8_t *ieOrderBytes,
+                                 uint8_t ieOrderLen, const uint8_t *chanSeq, uint8_t chanSeqLen);
+void pg_announceLocalIdentity(uint32_t hash, const char *localTrackId, int8_t rssi);
+String pg_getGraphJson();
+void pg_clear();
+size_t pg_size();
+
+// =============================================================================
+// Feature 1+8: CSI Presence / Motion / RF Fingerprint
+// =============================================================================
+// ESP32-S3 exposes per-packet Channel State Information via esp_wifi_set_csi_rx_cb.
+// We capture amplitude per subcarrier, compute rolling variance, detect motion
+// when variance crosses threshold. Per-source-MAC amplitude profile = radio
+// physical-layer fingerprint surviving MAC randomization.
+
+struct CsiSnapshot {
+    uint8_t srcMac[6];
+    int8_t rssi;
+    uint8_t channel;
+    uint8_t bandwidth;       // 0=20MHz, 1=40MHz
+    uint8_t firstWord;       // L-LTF / HT-LTF marker
+    uint8_t numSubcarriers;  // typically 52 (20MHz) or 114 (40MHz)
+    int16_t amp[64];         // amplitude proxy (sqrt(I^2+Q^2)) — clipped to 64 subcarriers
+    uint32_t ts;
+};
+
+struct CsiMotionEvent {
+    uint8_t srcMac[6];
+    uint16_t varianceQ8;     // running variance in Q8 fixed-point
+    int8_t rssi;
+    uint8_t channel;
+    uint32_t ts;
+    char zone[8];            // "near" / "mid" / "far" by RSSI bucket
+};
+
+struct CsiFingerprint {
+    uint8_t srcMac[6];
+    uint16_t profileHash;
+    uint32_t observations;
+    int8_t avgRssi;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+};
+
+void csi_init();
+void csi_enable(bool on);
+bool csi_isEnabled();
+String csi_getMotionJsonl();
+String csi_getFingerprintJson();
+void csi_clear();
+String detect_getHealthJson();
+String detect_getConfigJson();
+bool   detect_setConfigFromJson(const String &body);
+void   detect_persistTunables();
+uint32_t detect_droppedWifi();
+uint32_t detect_droppedBle();
+uint32_t detect_droppedCsi();
+uint32_t detect_meshRateGated();
+void csi_setMotionThreshold(uint16_t varQ8);
+uint16_t csi_getMotionThreshold();
+uint32_t csi_packetsObserved();
+uint32_t csi_motionEvents();
 
 // PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);

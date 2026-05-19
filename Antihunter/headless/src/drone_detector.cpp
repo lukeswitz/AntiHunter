@@ -7,6 +7,7 @@
 #include "main.h"
 #include "opendroneid.h"
 #include "odid_wifi.h"
+#include "detect.h"
 #include <ArduinoJson.h>
 
 const size_t MAX_DRONE_LOG_ENTRIES = 100;
@@ -65,6 +66,10 @@ static void parseDroneData(DroneDetection *drone, ODID_UAS_Data *uasData) {
         drone->heading = uasData->Location.Direction;
         drone->speedVertical = uasData->Location.SpeedVertical;
         drone->status = uasData->Location.Status;
+        if (drone->uavId[0] != 0) {
+            detect_recordRidClaim(drone->uavId, drone->latitude, drone->longitude,
+                                  drone->altitudeMsl, drone->rssi);
+        }
     }
     
     if (uasData->SystemValid) {
@@ -319,6 +324,49 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
         if (droneQueue) {
             xQueueSend(droneQueue, &drone, 0);
         }
+    }
+}
+
+// Phase 3.2: BLE ODID Remote ID (ASTM F3411 over BLE 5.x).
+void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
+                         const uint8_t *odid, int odidLen) {
+    if (!droneDetectionEnabled || !addr || !odid || odidLen < 1) return;
+    if (rssi < rfConfig.globalRssiThreshold) return;
+    DroneDetection drone;
+    memset(&drone, 0, sizeof(drone));
+    memcpy(drone.mac, addr, 6);
+    drone.rssi = rssi;
+    drone.timestamp = millis();
+    drone.lastSeen = millis();
+    ODID_UAS_Data uasData;
+    odid_initUasData(&uasData);
+    int skip = (odidLen >= 1) ? 1 : 0;
+    if (odidLen - skip < 1) return;
+    if (odid_message_process_pack(&uasData,
+                                  const_cast<uint8_t*>(odid + skip),
+                                  (size_t)(odidLen - skip)) != 0) return;
+    bool useful = uasData.BasicIDValid[0] || uasData.LocationValid ||
+                  uasData.SystemValid || uasData.OperatorIDValid;
+    if (!useful) return;
+    parseDroneData(&drone, &uasData);
+    const String macStr = macFmt6(drone.mac);
+    const String uavIdStr = String(drone.uavId);
+    auto existingIt = std::find_if(detectedDrones.begin(), detectedDrones.end(),
+        [&uavIdStr](const std::pair<const String, DroneDetection>& entry) {
+            return String(entry.second.uavId) == uavIdStr && uavIdStr.length() > 0;
+        });
+    if (existingIt != detectedDrones.end()) {
+        existingIt->second.rssi = drone.rssi;
+        existingIt->second.lastSeen = millis();
+        memcpy(existingIt->second.mac, drone.mac, 6);
+        if (drone.latitude != 0)    existingIt->second.latitude    = drone.latitude;
+        if (drone.longitude != 0)   existingIt->second.longitude   = drone.longitude;
+        if (drone.altitudeMsl != 0) existingIt->second.altitudeMsl = drone.altitudeMsl;
+        if (drone.operatorLat != 0) existingIt->second.operatorLat = drone.operatorLat;
+        if (drone.operatorLon != 0) existingIt->second.operatorLon = drone.operatorLon;
+    } else {
+        detectedDrones[macStr] = drone;
+        droneDetectionCount = droneDetectionCount + 1;
     }
 }
 

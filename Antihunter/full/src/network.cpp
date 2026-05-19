@@ -4,6 +4,7 @@
 #include "hardware.h"
 #include "scanner.h"
 #include "main.h"
+#include "detect.h"
 #include <AsyncTCP.h>
 #include <AsyncWebSocket.h>
 #include <RTClib.h>
@@ -469,17 +470,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           bt.disabled=false;bt.classList.add('ready');hn.style.opacity='0';
         }
       }
-      fetch('/api/onboarding').then(function(r){return r.json()}).then(function(d){
-        if(!d.accepted){ov.style.display='flex';setTimeout(chkScroll,100)}
-      }).catch(function(){ov.style.display='flex';setTimeout(chkScroll,100)});
-      sc.addEventListener('scroll',chkScroll);
-      window.obAccept=function(){
-        if(bt.disabled)return;
-        fetch('/api/onboarding',{method:'POST'}).then(function(){
-          ov.style.opacity='0';ov.style.transition='opacity 0.4s';
-          setTimeout(function(){ov.style.display='none'},400);
-        });
-      };
+//    fetch('/api/onboarding').then(function(r){return r.json()}).then(function(d){
+//      if(!d.accepted){ov.style.display='flex';setTimeout(chkScroll,100)}
+//    }).catch(function(){ov.style.display='flex';setTimeout(chkScroll,100)});
+//    sc.addEventListener('scroll',chkScroll);
+//    window.obAccept=function(){
+//      if(bt.disabled)return;
+//      fetch('/api/onboarding',{method:'POST'}).then(function(){
+//        ov.style.opacity='0';ov.style.transition='opacity 0.4s';
+//        setTimeout(function(){ov.style.display='none'},400);
+//      });
+//    };
     })();
     </script>
     <div id="toast"></div>
@@ -490,6 +491,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
         <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
+        <div class="page-tab-btn" onclick="switchPage('detect')">Detect</div>
       </div>
       <div class="header-right">
         <div class="status-bar">
@@ -1096,9 +1098,330 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       </div>
 
-      </div>
+      <!-- ===== DETECT TAB ===== -->
+      <div class="page-tab" id="page-detect">
+        <style>
+          #page-detect .sev{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;margin-right:6px;vertical-align:middle}
+          #page-detect .sev.crit{background:#7f1d1d;color:#fff}
+          #page-detect .sev.high{background:#ea580c;color:#fff}
+          #page-detect .sev.med{background:#ca8a04;color:#fff}
+          #page-detect .sev.info{background:#334155;color:#cbd5e1}
+          #page-detect .card.hidden{display:none}
+          #page-detect details>summary{cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;list-style:none}
+          #page-detect details>summary::-webkit-details-marker{display:none}
+          #page-detect details>summary>span:first-child{display:inline-block;width:10px;transition:transform .15s}
+          #page-detect details[open]>summary>span:first-child{transform:rotate(90deg)}
+          #page-detect .det-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;border-bottom:1px solid var(--bord)}
+          #page-detect .det-row:last-child{border-bottom:0}
+          #page-detect .det-row .name{flex:1;color:var(--txt)}
+          #page-detect .det-row label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--mut);margin:0;cursor:pointer}
+          #page-detect .det-row input[type=checkbox]{margin:0;cursor:pointer}
+          #page-detect .num{font-family:monospace;color:var(--acc);font-weight:700}
+          #page-detect .log-pre{max-height:240px;overflow:auto;font-size:11px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
+          #page-detect input[type=number],#page-detect input[type=text]{padding:4px 8px;font-size:12px}
+          #det-filter{flex:1;min-width:180px;max-width:400px}
+          #det-banner{display:none;background:linear-gradient(90deg,rgba(127,29,29,.18),rgba(234,88,12,.10));border:1px solid #7f1d1d;border-radius:6px;padding:8px 10px;margin-bottom:10px}
+          #det-banner.show{display:block}
+          #det-banner .bn-row{display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0;cursor:pointer}
+          #det-banner .bn-row:hover{background:rgba(255,255,255,0.04)}
+          #det-banner .bn-when{color:var(--mut);font-size:10px;min-width:60px}
+          #det-banner .bn-msg{flex:1;color:var(--txt)}
+          .det-chips{display:flex;gap:6px;flex-wrap:wrap}
+          .det-chip{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid transparent;user-select:none;text-transform:uppercase;letter-spacing:.3px}
+          .det-chip.all{background:var(--surf);color:var(--mut);border-color:var(--bord)}
+          .det-chip.crit{background:rgba(127,29,29,.25);color:#fca5a5;border-color:#7f1d1d}
+          .det-chip.high{background:rgba(234,88,12,.22);color:#fdba74;border-color:#ea580c}
+          .det-chip.med{background:rgba(202,138,4,.22);color:#fde68a;border-color:#ca8a04}
+          .det-chip.info{background:rgba(51,65,85,.4);color:#cbd5e1;border-color:#334155}
+          .det-chip.firing{box-shadow:0 0 0 2px rgba(255,255,255,.15) inset}
+          .det-chip.off{opacity:.35}
+          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:11px;margin:4px 0}
+          #page-detect table.dt th{text-align:left;padding:4px 6px;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--bord);cursor:pointer;user-select:none;white-space:nowrap}
+          #page-detect table.dt th:hover{color:var(--acc)}
+          #page-detect table.dt td{padding:4px 6px;border-bottom:1px solid var(--bord);font-family:monospace;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          #page-detect table.dt tr:hover td{background:rgba(255,255,255,.03)}
+          #page-detect table.dt .empty{color:var(--mut);font-style:italic;text-align:center;padding:10px}
+          .det-quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+          .det-quick button{padding:3px 9px;font-size:11px}
+          #det-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;align-items:start}
+          #det-grid>.card{margin:0}
+          #det-grid .log-pre{max-height:180px}
+          @media (max-width:720px){#det-grid{grid-template-columns:1fr}}
+        </style>
 
-      <div class="footer">AntiHunter DIGINODE v0.9.4 | Node: <span id="footerNodeId">--</span></div>
+        <div id="det-banner"><div style="font-size:10px;color:#fca5a5;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">ACTIVE ALERTS</div><div id="det-banner-body"></div></div>
+
+        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="det-filter" placeholder="Filter (e.g. csi, airtag, karma)" oninput="detApplyFilters()">
+          <div class="det-chips" id="det-chips">
+            <span class="det-chip all" data-sev="all">All</span>
+            <span class="det-chip crit" data-sev="crit">Crit</span>
+            <span class="det-chip high" data-sev="high">High</span>
+            <span class="det-chip med" data-sev="med">Med</span>
+            <span class="det-chip info" data-sev="info">Info</span>
+            <span class="det-chip" data-sev="firing" style="background:rgba(34,197,94,.2);color:#86efac;border:1px solid #16a34a;">Firing</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detOverviewCard')">
+            <h3><span class="sev info">overview</span>Detection Overview</h3>
+            <span class="collapse-icon open" id="detOverviewCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detOverviewCardBody">
+            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;">
+              <div class="stat"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
+              <div class="stat"><div class="stat-label">Evil-Twin</div><div class="stat-value" id="d-et">0</div></div>
+              <div class="stat"><div class="stat-label">SSID Conf</div><div class="stat-value" id="d-sc">0</div></div>
+              <div class="stat"><div class="stat-label">SAE DoS</div><div class="stat-value" id="d-sae">0</div></div>
+              <div class="stat"><div class="stat-label">OWE Abuse</div><div class="stat-value" id="d-owe">0</div></div>
+              <div class="stat"><div class="stat-label">FragAttacks</div><div class="stat-value" id="d-frag">0</div></div>
+              <div class="stat"><div class="stat-label">BLE Malformed</div><div class="stat-value" id="d-blem">0</div></div>
+              <div class="stat"><div class="stat-label">BLE Trackers</div><div class="stat-value" id="d-trk">0</div></div>
+              <div class="stat"><div class="stat-label">Recon</div><div class="stat-value" id="d-rec">0</div></div>
+              <div class="stat"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pw-n">0</div></div>
+              <div class="stat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
+              <div class="stat"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
+            </div>
+            <div style="font-size:11px;color:var(--mut);margin-bottom:8px;">
+              <span class="lbl">Heap:</span><span id="d-heap" class="num">--</span>
+              <span class="lbl" style="margin-left:10px;">Drops:</span><span id="d-drops" class="num">--</span>
+              <span class="lbl" style="margin-left:10px;">Mesh-gated:</span><span id="d-mgated" class="num">--</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn alt" onclick="detectClearAll()">Clear All State</button>
+              <button class="btn alt" onclick="detectReloadOui()">Reload OUI</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detConfigCard')">
+            <h3><span class="sev info">config</span>Detector Controls</h3>
+            <span class="collapse-icon open" id="detConfigCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detConfigCardBody">
+            <p style="font-size:11px;color:var(--mut);margin:0 0 8px;">Toggle local detection and mesh broadcast per signal class. Persists across reboot.</p>
+            <div class="det-quick">
+              <button class="btn alt" onclick="detPreset('all-on')">All On</button>
+              <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
+              <button class="btn alt" onclick="detPreset('quiet')">Quiet Mode</button>
+              <button class="btn alt" onclick="detPreset('mesh-silent')">Mesh Silent</button>
+              <button class="btn alt" onclick="detPreset('mesh-all')">Mesh All On</button>
+            </div>
+            <details open>
+              <summary><span>▶</span> WiFi Attack Signatures</summary>
+              <div id="cfg-wifi"></div>
+            </details>
+            <details>
+              <summary><span>▶</span> BLE Signals</summary>
+              <div id="cfg-ble"></div>
+            </details>
+            <details>
+              <summary><span>▶</span> Mesh / Physical Layer</summary>
+              <div id="cfg-mesh"></div>
+            </details>
+            <details>
+              <summary><span>▶</span> Thresholds &amp; Timing</summary>
+              <div id="cfg-thresh" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;"></div>
+              <button class="btn primary" onclick="detSaveThresh()" style="margin-top:8px;">Save Thresholds</button>
+            </details>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detMeshCard')">
+            <h3><span class="sev info">mesh</span>Mesh Defense</h3>
+            <span class="collapse-icon open" id="detMeshCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detMeshCardBody">
+            <div style="font-size:12px;line-height:1.7;">
+              <div><span class="lbl">PPS Lock:</span><span id="d-pps" class="num">--</span></div>
+              <div><span class="lbl">Bloom Local:</span><span id="d-bl" class="num">--</span></div>
+              <div><span class="lbl">Bloom Neighbor:</span><span id="d-bn" class="num">--</span></div>
+              <div><span class="lbl">Quorum Candidates:</span><span id="d-qc" class="num">0</span></div>
+            </div>
+            <details style="margin-top:10px;">
+              <summary><span>▶</span> Quorum Status</summary>
+              <pre id="d-quorum" class="log-pre">--</pre>
+            </details>
+            <details style="margin-top:6px;">
+              <summary><span>▶</span> Channel Partition</summary>
+              <button class="btn alt" onclick="detectAssignChannels()" style="margin-bottom:6px;">Reassign</button>
+              <pre id="d-chan" class="log-pre">--</pre>
+            </details>
+          </div>
+        </div>
+
+        <div id="det-grid">
+        <div class="card" data-key="rid" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detRidCard')">
+            <h3><span class="sev high">high</span>Remote ID Spoof Validator</h3>
+            <span class="collapse-icon" id="detRidCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detRidCardBody"><pre id="d-rid" class="log-pre">--</pre></div>
+        </div>
+
+        <div class="card" data-key="recon" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detReconCard')">
+            <h3><span class="sev high">high</span>Hostile Recon Scoring</h3>
+            <span class="collapse-icon" id="detReconCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detReconCardBody">
+            <button class="btn alt" onclick="detectClearRecon()" style="margin-bottom:6px;">Clear</button>
+            <pre id="d-recpre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="trackers" data-sev="med">
+          <div class="card-header" onclick="toggleCollapse('detTrackerCard')">
+            <h3><span class="sev med">med</span>BLE Trackers</h3>
+            <span class="collapse-icon" id="detTrackerCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detTrackerCardBody">
+            <button class="btn alt" onclick="detectClearTrackers()" style="margin-bottom:6px;">Clear Watchlist</button>
+            <details open><summary><span>▶</span> Watchlist (latest)</summary><pre id="d-trkpre" class="log-pre">--</pre></details>
+            <details><summary><span>▶</span> Rotation Chains <span class="num" id="trk-n">0</span></summary>
+              <button class="btn alt" onclick="trkClear()" style="margin:6px 0;">Clear Chains</button>
+              <pre id="trk-pre" class="log-pre">--</pre>
+            </details>
+          </div>
+        </div>
+
+        <div class="card" data-key="airtag" data-sev="med">
+          <div class="card-header" onclick="toggleCollapse('detAirtagCard')">
+            <h3><span class="sev med">med</span>AirTag Owner-Presence <span class="num" id="at-n">0</span></h3>
+            <span class="collapse-icon" id="detAirtagCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detAirtagCardBody">
+            <button class="btn alt" onclick="atClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="at-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="csi" data-sev="med">
+          <div class="card-header" onclick="toggleCollapse('detCsiCard')">
+            <h3><span class="sev med">med</span>CSI Presence &amp; Motion</h3>
+            <span class="collapse-icon" id="detCsiCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detCsiCardBody">
+            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px;">
+              <div class="stat"><div class="stat-label">Enabled</div><div class="stat-value" id="csi-on">--</div></div>
+              <div class="stat"><div class="stat-label">Packets</div><div class="stat-value" id="csi-pk">0</div></div>
+              <div class="stat"><div class="stat-label">Motion</div><div class="stat-value" id="csi-mv">0</div></div>
+              <div class="stat"><div class="stat-label">Thresh Q8</div><div class="stat-value" id="csi-th">--</div></div>
+              <div class="stat"><div class="stat-label">FPs</div><div class="stat-value" id="csi-fp">0</div></div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+              <input id="csi-thresh-in" type="number" min="100" max="10000" placeholder="Threshold" style="width:130px;">
+              <button class="btn alt" onclick="csiSetThresh()">Set</button>
+              <button class="btn alt" onclick="csiClear()">Clear</button>
+            </div>
+            <details><summary><span>▶</span> Motion Events</summary><pre id="csi-motion" class="log-pre">--</pre></details>
+            <details><summary><span>▶</span> RF Fingerprints</summary><pre id="csi-fp-pre" class="log-pre">--</pre></details>
+          </div>
+        </div>
+
+        <div class="card" data-key="karma" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detKarmaCard')">
+            <h3><span class="sev crit">crit</span>KARMA Probe-Bait</h3>
+            <span class="collapse-icon" id="detKarmaCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detKarmaCardBody">
+            <div style="font-size:12px;line-height:1.7;">
+              <span class="lbl">Bait:</span><span id="km-on" class="num">--</span>
+              <span class="lbl" style="margin-left:10px;">Candidates:</span><span id="km-c" class="num">0</span>
+              <span class="lbl" style="margin-left:10px;">Confirmed:</span><span id="km-x" class="num">0</span>
+            </div>
+            <button class="btn alt" onclick="kmClear()" style="margin:6px 0;">Clear</button>
+            <pre id="km-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="pwna" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detPwnaCard')">
+            <h3><span class="sev high">high</span>Pwnagotchi Swarm <span class="num" id="pw-n">0</span></h3>
+            <span class="collapse-icon" id="detPwnaCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detPwnaCardBody">
+            <button class="btn alt" onclick="pwClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pw-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="hunts" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detHuntCard')">
+            <h3><span class="sev crit">crit</span>Attacker Reverse-Trilat <span class="num" id="ah-n">0</span></h3>
+            <span class="collapse-icon" id="detHuntCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detHuntCardBody">
+            <button class="btn alt" onclick="ahClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="ah-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="handshake" data-sev="crit">
+          <div class="card-header" onclick="toggleCollapse('detHshkCard')">
+            <h3><span class="sev crit">crit</span>Handshakes + KRACK <span class="num" id="hs-n">0</span></h3>
+            <span class="collapse-icon" id="detHshkCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detHshkCardBody">
+            <button class="btn alt" onclick="hsClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="hs-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="probegraph" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detPgCard')">
+            <h3><span class="sev info">info</span>Probe-Graph (mesh) <span class="num" id="pg-n">0</span></h3>
+            <span class="collapse-icon" id="detPgCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detPgCardBody">
+            <button class="btn alt" onclick="pgClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pg-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="tsf" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detTsfCard')">
+            <h3><span class="sev info">info</span>TSF Clock-Skew <span class="num" id="tsf-n">0</span></h3>
+            <span class="collapse-icon" id="detTsfCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detTsfCardBody">
+            <button class="btn alt" onclick="tsfClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="tsf-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="tof" data-sev="info">
+          <div class="card-header" onclick="toggleCollapse('detTofCard')">
+            <h3><span class="sev info">info</span>Mesh Link RTT <span class="num" id="tof-n">0</span></h3>
+            <span class="collapse-icon" id="detTofCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detTofCardBody">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+              <input id="tof-target-in" type="text" placeholder="nodeId or *" style="width:140px;">
+              <button class="btn" onclick="tofPing()">Ping</button>
+              <button class="btn alt" onclick="tofClear()">Clear</button>
+            </div>
+            <pre id="tof-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="events" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detEventsCard')">
+            <h3><span class="sev high">high</span>Live Event Stream</h3>
+            <span class="collapse-icon" id="detEventsCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detEventsCardBody">
+            <pre id="d-stream" class="log-pre" style="max-height:300px;">--</pre>
+          </div>
+        </div>
+        </div><!-- /det-grid -->
+      </div>
+      <!-- ===== /DETECT TAB ===== -->
+
+      <div align="center" class="footer">v0.9.5 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
@@ -4529,6 +4852,493 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       updateAutoEraseStatus();
       setInterval(tick, 2000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
+
+      // ===== Detect tab logic =====
+      function _safeParse(s){
+        try{return JSON.parse(s);}
+        catch(e){console.warn('detect: bad json line', e); return null;}
+      }
+      async function _jt(u){
+        try{const r=await fetch(u);return await r.text();}
+        catch(e){console.warn('detect: fetch text failed', u, e); return '';}
+      }
+      async function _jj(u){
+        try{const r=await fetch(u);return await r.json();}
+        catch(e){console.warn('detect: fetch json failed', u, e); return null;}
+      }
+      function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
+      async function detectTick(){
+        const tab=document.getElementById('page-detect');
+        if(!tab||!tab.classList.contains('active'))return;
+        const [pm,et,sc,sa,ow,fr,bm,q,b,p,rid,tr,rc,ch]=await Promise.all([
+          _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
+          _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
+          _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
+          _jt('/api/ble_malformed.jsonl'),
+          _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
+          _jj('/api/rid_claims'),_jj('/api/ble_tracker'),_jj('/api/recon'),
+          _jj('/api/channel_partition')
+        ]);
+        document.getElementById('d-pmkid').textContent=_countLines(pm);
+        document.getElementById('d-et').textContent=_countLines(et);
+        document.getElementById('d-sc').textContent=_countLines(sc);
+        document.getElementById('d-sae').textContent=_countLines(sa);
+        document.getElementById('d-owe').textContent=_countLines(ow);
+        document.getElementById('d-frag').textContent=_countLines(fr);
+        document.getElementById('d-blem').textContent=_countLines(bm);
+        document.getElementById('d-trk').textContent=(tr||[]).length;
+        document.getElementById('d-rec').textContent=(rc||[]).length;
+        document.getElementById('d-pps').textContent=p?(p.locked?'YES':'no')+' edge='+p.last_edge:'--';
+        document.getElementById('d-bl').textContent=b?(b.local_bits_set+' / '+b.capacity_bits):'--';
+        document.getElementById('d-bn').textContent=b?(b.neighbor_bits_set+' / '+b.capacity_bits):'--';
+        document.getElementById('d-qc').textContent=q?((q.candidates||[]).length):0;
+        document.getElementById('d-quorum').textContent=q?JSON.stringify(q,null,2):'--';
+        document.getElementById('d-chan').textContent=ch?JSON.stringify(ch,null,2):'--';
+        document.getElementById('d-rid').textContent=rid?JSON.stringify(rid,null,2):'[]';
+        detRenderTable('d-recpre',rc||[],[
+          {key:'id',label:'TrackId'},{key:'score',label:'Score'},
+          {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
+        ]);
+        const evtRows=[];
+        function parseLines(s,kind,sevHint){
+          (s||'').split('\n').filter(l=>l.trim()).forEach(l=>{
+            const o=_safeParse(l);
+            if(o)evtRows.push({kind,sev:sevHint,ts:o.ts||0,raw:l,o});
+          });
+        }
+        parseLines(pm,'PMKID','crit');parseLines(et,'EvilTwin','high');parseLines(sc,'SSIDConf','high');
+        parseLines(sa,'SAE','high');parseLines(ow,'OWE','med');parseLines(fr,'Frag','med');
+        parseLines(bm,'BLEMalformed','med');
+        evtRows.sort((a,b)=>(b.ts||0)-(a.ts||0));
+        detRenderTable('d-stream',evtRows.slice(0,40),[
+          {key:'kind',label:'Type'},
+          {key:'sev',label:'Sev',get:r=>r.sev.toUpperCase()},
+          {key:'ts',label:'Age',get:r=>_ago(r.ts)},
+          {key:'raw',label:'Detail',get:r=>r.raw}
+        ]);
+        if(evtRows.length>0)detMarkActive('events');
+        if((rc||[]).length>0)detMarkActive('recon');
+        if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
+      }
+      async function detectClearAll(){await fetch('/api/detect/clear_all',{method:'POST'});detectTick()}
+      async function csiTick(){
+        if(!detTabActive())return;
+        const [stats,mot,fp]=await Promise.all([
+          _jj('/api/csi/stats'),_jt('/api/csi/motion.jsonl'),_jj('/api/csi/fingerprints')
+        ]);
+        if(stats){
+          document.getElementById('csi-on').textContent=stats.enabled?'YES':'no';
+          document.getElementById('csi-pk').textContent=stats.pkts;
+          document.getElementById('csi-mv').textContent=stats.motion_events;
+          document.getElementById('csi-th').textContent=stats.thresh_q8;
+        }
+        document.getElementById('csi-fp').textContent=(fp||[]).length;
+        const motionRows=(mot||'').split('\n').filter(l=>l.trim()).map(l=>{try{return JSON.parse(l)}catch(e){return null}}).filter(x=>x);
+        detRenderTable('csi-motion',motionRows.slice(-25).reverse(),[
+          {key:'ts',label:'Age',get:r=>_ago(r.ts)},
+          {key:'src',label:'Source'},{key:'var',label:'Var Q8'},
+          {key:'rssi',label:'RSSI'},{key:'ch',label:'Ch'},{key:'zone',label:'Zone'}
+        ]);
+        detRenderTable('csi-fp-pre',fp||[],[
+          {key:'src',label:'Source'},{key:'hash',label:'Hash'},
+          {key:'obs',label:'Obs'},{key:'avg_rssi',label:'Avg RSSI'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(motionRows.length>0)detMarkActive('csi');
+      }
+      async function csiToggle(on){
+        const fd=new FormData();fd.append('on',on);
+        await fetch('/api/csi/enable',{method:'POST',body:fd});csiTick();
+      }
+      async function csiSetThresh(){
+        const v=document.getElementById('csi-thresh-in').value;
+        if(!v)return;
+        const fd=new FormData();fd.append('v',v);
+        await fetch('/api/csi/threshold',{method:'POST',body:fd});csiTick();
+      }
+      async function csiClear(){await fetch('/api/csi/clear',{method:'POST'});csiTick();}
+      async function pgTick(){
+        if(!detTabActive())return;
+        const pg=await _jj('/api/probegraph');
+        const n=(pg||[]).length;
+        document.getElementById('pg-n').textContent=n;
+        detRenderTable('pg-pre',pg||[],[
+          {key:'hash',label:'Hash'},{key:'local',label:'TrackId'},
+          {key:'best_rssi',label:'Best RSSI'},{key:'sightings',label:'Sight'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(n>0)detMarkActive('probegraph');
+      }
+      async function pgClear(){await fetch('/api/probegraph/clear',{method:'POST'});pgTick();}
+      async function trkTick(){
+        if(!detTabActive())return;
+        const [chains,watch]=await Promise.all([_jj('/api/tracker_chains'),_jj('/api/ble_tracker')]);
+        const n=(chains||[]).length;
+        document.getElementById('trk-n').textContent=n;
+        detRenderTable('trk-pre',chains||[],[
+          {key:'chain',label:'Chain'},{key:'vendor',label:'Vendor'},
+          {key:'links',label:'Links'},{key:'avg_rssi',label:'Avg RSSI'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        detRenderTable('d-trkpre',watch||[],[
+          {key:'addr',label:'Addr'},{key:'vendor',label:'Vendor'},
+          {key:'sightings',label:'Sight'},{key:'avg_rssi',label:'RSSI'},
+          {key:'score',label:'Score'},{key:'last_seen',label:'Last',get:r=>_ago(r.last_seen)}
+        ]);
+        if(n>0||(watch||[]).length>0)detMarkActive('trackers');
+      }
+      async function trkClear(){await fetch('/api/tracker_chains/clear',{method:'POST'});trkTick();}
+      async function atTick(){
+        if(!detTabActive())return;
+        const a=await _jj('/api/airtag_presence');
+        const n=(a||[]).length;
+        document.getElementById('at-n').textContent=n;
+        detRenderTable('at-pre',a||[],[
+          {key:'addr',label:'Addr'},{key:'owner_nearby',label:'Owner'},
+          {key:'battery',label:'Battery'},{key:'observations',label:'Obs'},
+          {key:'last_rssi',label:'RSSI'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(n>0)detMarkActive('airtag');
+      }
+      async function atClear(){await fetch('/api/airtag_presence/clear',{method:'POST'});atTick();}
+      async function hsTick(){
+        if(!detTabActive())return;
+        const [r,s]=await Promise.all([_jj('/api/handshakes'),_jj('/api/handshakes/stats')]);
+        if(s){
+          document.getElementById('hs-n').textContent=s.count;
+          const ko=document.getElementById('d-hs-krack'); if(ko)ko.textContent=s.krack_events;
+        }
+        const rows=(r||[]).map(x=>Object.assign({mask:['','M1','M2','M3','M4','M1M2','M1M3','M1-3','M4o','M1M4','M2M4','M1-3M4','M3M4','M1M3M4','M2-4','M1-4'][x.seen_mask&15]||x.seen_mask},x));
+        detRenderTable('hs-pre',rows,[
+          {key:'bssid',label:'BSSID'},{key:'sta',label:'STA'},
+          {key:'mask',label:'Msgs'},{key:'complete',label:'Done'},
+          {key:'krack_events',label:'KRACK'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(s&&s.krack_events>0)detMarkActive('handshake');
+      }
+      async function hsClear(){await fetch('/api/handshakes/clear',{method:'POST'});hsTick();}
+      async function ahTick(){
+        if(!detTabActive())return;
+        const h=await _jj('/api/attacker_hunts');
+        const n=(h||[]).length;
+        document.getElementById('ah-n').textContent=n;
+        const o=document.getElementById('d-ah-n'); if(o)o.textContent=n;
+        detRenderTable('ah-pre',h||[],[
+          {key:'mac',label:'MAC'},{key:'type',label:'Type'},
+          {key:'started',label:'Started',get:r=>_ago(r.started)},
+          {key:'last_kick',label:'Last Kick',get:r=>_ago(r.last_kick)}
+        ]);
+        if(n>0)detMarkActive('hunts');
+      }
+      async function ahClear(){await fetch('/api/attacker_hunts/clear',{method:'POST'});ahTick();}
+      async function pwTick(){
+        if(!detTabActive())return;
+        const p=await _jj('/api/pwnagotchi');
+        const n=(p||[]).length;
+        document.getElementById('pw-n').textContent=n;
+        const o=document.getElementById('d-pw-n'); if(o)o.textContent=n;
+        detRenderTable('pw-pre',p||[],[
+          {key:'bssid',label:'BSSID'},{key:'observations',label:'Obs'},
+          {key:'best_rssi',label:'Best RSSI'},{key:'last_rssi',label:'Last RSSI'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)},{key:'snippet',label:'Snippet'}
+        ]);
+        if(n>0)detMarkActive('pwna');
+      }
+      async function pwClear(){await fetch('/api/pwnagotchi/clear',{method:'POST'});pwTick();}
+      async function kmTick(){
+        if(!detTabActive())return;
+        const [s,c]=await Promise.all([_jj('/api/karma/stats'),_jj('/api/karma')]);
+        if(s){document.getElementById('km-on').textContent=s.enabled?'YES':'no';
+              document.getElementById('km-c').textContent=s.candidates;
+              document.getElementById('km-x').textContent=s.confirmed;}
+        detRenderTable('km-pre',c||[],[
+          {key:'bssid',label:'BSSID'},{key:'distinct_ssids',label:'SSIDs'},
+          {key:'bait_emitted',label:'Bait'},{key:'confirmed',label:'Confirmed'},
+          {key:'last_ssid',label:'Last SSID'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(s&&s.confirmed>0)detMarkActive('karma');
+      }
+      async function kmToggle(on){const fd=new FormData();fd.append('on',on);await fetch('/api/karma/enable',{method:'POST',body:fd});kmTick();}
+      async function kmClear(){await fetch('/api/karma/clear',{method:'POST'});kmTick();}
+      async function tsfTick(){
+        if(!detTabActive())return;
+        const t=await _jj('/api/tsf_skew');
+        document.getElementById('tsf-n').textContent=(t||[]).length;
+        detRenderTable('tsf-pre',t||[],[
+          {key:'bssid',label:'BSSID'},{key:'ssid',label:'SSID'},
+          {key:'ppm',label:'PPM'},{key:'samples',label:'N'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+      }
+      async function tsfClear(){await fetch('/api/tsf_skew/clear',{method:'POST'});tsfTick();}
+      async function tofTick(){
+        if(!detTabActive())return;
+        const t=await _jj('/api/tof');
+        document.getElementById('tof-n').textContent=(t||[]).length;
+        detRenderTable('tof-pre',t||[],[
+          {key:'node',label:'Node'},{key:'last_rtt_us',label:'Last RTT us'},
+          {key:'best_rtt_us',label:'Best us'},{key:'avg_rtt_us',label:'Avg us'},
+          {key:'samples',label:'N'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+      }
+      async function tofPing(){
+        const tgt=document.getElementById('tof-target-in').value||'*';
+        const fd=new FormData();fd.append('target',tgt);
+        await fetch('/api/tof/ping',{method:'POST',body:fd});tofTick();
+      }
+      async function tofClear(){await fetch('/api/tof/clear',{method:'POST'});tofTick();}
+      const _detLastActivity={};
+      let _detSev='all';
+      function detApplyFilters(){
+        const q=(document.getElementById('det-filter').value||'').toLowerCase().trim();
+        document.querySelectorAll('#page-detect .card').forEach(c=>{
+          const h=c.querySelector('.card-header h3');
+          const t=h?h.textContent.toLowerCase():'';
+          const sev=c.dataset.sev||'';
+          const key=c.dataset.key||'';
+          let show=true;
+          if(q && !t.includes(q)) show=false;
+          if(_detSev==='crit'&&sev!=='crit') show=false;
+          else if(_detSev==='high'&&!(sev==='crit'||sev==='high')) show=false;
+          else if(_detSev==='med'&&!(sev==='crit'||sev==='high'||sev==='med')) show=false;
+          else if(_detSev==='info'&&sev!=='info') show=false;
+          else if(_detSev==='firing'&&!_detLastActivity[key]) show=false;
+          c.classList.toggle('hidden', !show);
+        });
+        detSortByActivity();
+      }
+      function detSortByActivity(){
+        const parent=document.getElementById('page-detect');
+        if(!parent)return;
+        const cards=[...parent.querySelectorAll('.card[data-key]')];
+        cards.sort((a,b)=>{
+          const aa=_detLastActivity[a.dataset.key]||0;
+          const bb=_detLastActivity[b.dataset.key]||0;
+          return bb-aa;
+        });
+        cards.forEach(c=>parent.appendChild(c));
+      }
+      function detMarkActive(key){
+        _detLastActivity[key]=Date.now();
+        const card=document.querySelector('#page-detect .card[data-key="'+key+'"]');
+        if(card){const sev=card.dataset.sev||'';if(sev==='crit'||sev==='high')detPushAlert(key,card);}
+      }
+      const _detAlerts=[];
+      function detPushAlert(key,card){
+        const title=card.querySelector('.card-header h3');
+        const txt=title?title.textContent.replace(/\\s+/g,' ').trim():key;
+        const sev=card.dataset.sev||'med';
+        const exists=_detAlerts.find(a=>a.key===key);
+        if(exists){exists.ts=Date.now();return;}
+        _detAlerts.unshift({key,txt,sev,ts:Date.now()});
+        while(_detAlerts.length>5)_detAlerts.pop();
+        detRenderBanner();
+      }
+      function detRenderBanner(){
+        const b=document.getElementById('det-banner');const bd=document.getElementById('det-banner-body');
+        if(!b||!bd)return;
+        if(_detAlerts.length===0){b.classList.remove('show');bd.innerHTML='';return;}
+        const now=Date.now();
+        const fresh=_detAlerts.filter(a=>now-a.ts<300000).slice(0,3);
+        if(fresh.length===0){b.classList.remove('show');return;}
+        b.classList.add('show');
+        bd.innerHTML = fresh.map(a => {
+          const secs = Math.floor((now - a.ts) / 1000);
+          const when = secs < 60 ? `${secs}s ago` : `${Math.floor(secs / 60)}m ago`;
+          const escapedKey = a.key.replace(/'/g, "\\'");
+          
+          return `<div class="bn-row" onclick="detJump('${escapedKey}')">` +
+          `<span class="sev ${a.sev}">${a.sev}</span>` +
+          `<span class="bn-when">${when}</span>` +
+          `<span class="bn-msg">${a.txt}</span></div>`;
+        }).join('');
+      }
+      setInterval(detRenderBanner,5000);
+      function detJump(key){
+        const card=document.querySelector('#page-detect .card[data-key="'+key+'"]');
+        if(!card)return;
+        const body=card.querySelector('.card-body');
+        if(body&&body.classList.contains('collapsed')){
+          const id=card.querySelector('.card-header').getAttribute('onclick');
+          if(id){const m=id.match(/toggleCollapse\\(['"]([^'"]+)['"]\\)/);if(m)toggleCollapse(m[1]);}
+        }
+        card.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+      document.querySelectorAll('#det-chips .det-chip').forEach(c=>{
+        c.addEventListener('click',()=>{
+          _detSev=c.dataset.sev;
+          document.querySelectorAll('#det-chips .det-chip').forEach(x=>x.classList.remove('firing'));
+          c.classList.add('firing');
+          detApplyFilters();
+        });
+      });
+        function detRenderTable(elId, rows, cols) {
+          const el = document.getElementById(elId);
+          if (!el) return;
+          
+          if (!rows || rows.length === 0) {
+            el.innerHTML = '<table class="dt"><tr><td class="empty">(none)</td></tr></table>';
+            return;
+          }
+          
+          const thead = cols
+          .map((c, i) => `<th onclick="detTableSort('${elId}', ${i})">${c.label}</th>`)
+          .join('');
+          
+          const tbody = rows
+          .map(r => {
+            const tds = cols
+            .map(c => {
+              const v = c.get ? c.get(r) : r[c.key];
+              const val = v === undefined || v === null ? '-' : v;
+              const escaped = String(val).replace(/"/g, '&quot;');
+              return `<td title="${escaped}">${val}</td>`;
+            })
+            .join('');
+            return `<tr>${tds}</tr>`;
+          })
+          .join('');
+          
+          el.innerHTML = `<table class="dt"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+          el._detRows = rows;
+          el._detCols = cols;
+        }
+        function detTableSort(id,colIdx){
+        const el=document.getElementById(id);if(!el||!el._detRows)return;
+        const c=el._detCols[colIdx];const k=c.key;
+        const prev=el._detSortK===k?el._detSortAsc:false;
+        el._detSortK=k;el._detSortAsc=!prev;
+        el._detRows.sort((a,b)=>{
+          const av=c.get?c.get(a):a[k],bv=c.get?c.get(b):b[k];
+          if(av<bv)return prev?1:-1;if(av>bv)return prev?-1:1;return 0;
+        });
+        detRenderTable(id,el._detRows,el._detCols);
+      }
+      function _ago(ms){
+        if(!ms)return '-';
+        const s=Math.floor((Date.now()-ms)/1000);
+        if(s<60)return s+'s';
+        if(s<3600)return Math.floor(s/60)+'m';
+        return Math.floor(s/3600)+'h';
+      }
+      const DET_FEATURES_LOCAL=[
+        ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin'],['ssid_confusion','SSID Confusion'],
+        ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
+        ['ble_malformed','BLE Malformed'],['hshk','Handshake Reconstruction'],
+        ['pwna','Pwnagotchi'],['tracker','BLE Tracker'],['airtag','AirTag'],
+        ['tsf','TSF Clock-Skew'],['rid_spoof','RID Spoof Validator'],
+        ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
+        ['karma','KARMA Bait'],['csi','CSI Presence']
+      ];
+      const DET_FEATURES_MESH=[
+        ['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil-Twin'],['mesh_ssid_confusion','SSID Conf'],
+        ['mesh_sae','SAE'],['mesh_frag','FragAttacks'],['mesh_ble_malformed','BLE Malformed'],
+        ['mesh_hshk','Handshakes'],['mesh_krack','KRACK'],['mesh_tracker','Tracker'],
+        ['mesh_pwna','Pwnagotchi'],['mesh_karma','KARMA'],['mesh_recon','Recon'],
+        ['mesh_csi_motion','CSI Motion'],['mesh_attacker_hunt','Attacker Hunt']
+      ];
+      const DET_THRESHOLDS=[
+        ['csi_thresh','CSI Threshold Q8',100,10000],
+        ['pmkid_window','PMKID Window (ms)',1000,60000],
+        ['pmkid_min_bssids','PMKID Min BSSIDs',2,10],
+        ['sae_window','SAE Window (ms)',1000,60000],
+        ['sae_unmatched_thresh','SAE Unmatched',3,50],
+        ['frag_reuse_thresh','FragAttacks Reuse Count',2,32],
+        ['hunt_cooldown_ms','Hunt Cooldown (ms)',5000,600000]
+      ];
+      let _detCfg=null;
+      function detRenderConfig(){
+        if(!_detCfg)return;
+        const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof'];
+        const bleKeys=['ble_malformed','tracker','airtag','karma','pwna','csi'];
+        const meshKeys=DET_FEATURES_MESH.map(x=>x[0]);
+        const tsfKey='tsf';const bloomKey='bloom_gossip';
+        function rowHtml(k,label){
+          const on=_detCfg[k]===true;
+          return `<div class="det-row"><div class="name">${label}</div>
+            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}> enabled</label></div>`;
+        }
+        function rowMesh(k,label){
+          const on=_detCfg[k]===true;
+          return `<div class="det-row"><div class="name">${label}</div>
+            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}> broadcast</label></div>`;
+        }
+        const wifiHtml=DET_FEATURES_LOCAL.filter(p=>wifiKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
+        const bleHtml=DET_FEATURES_LOCAL.filter(p=>bleKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
+        const physHtml=rowHtml(tsfKey,'TSF Clock-Skew')+rowHtml(bloomKey,'Bloom Gossip')+
+          '<div style="margin-top:8px;color:var(--mut);font-size:11px;font-weight:600;">Mesh broadcast</div>'+
+          DET_FEATURES_MESH.map(p=>rowMesh(p[0],p[1])).join('');
+        document.getElementById('cfg-wifi').innerHTML=wifiHtml;
+        document.getElementById('cfg-ble').innerHTML=bleHtml;
+        document.getElementById('cfg-mesh').innerHTML=physHtml;
+        let threshHtml='';
+        DET_THRESHOLDS.forEach(t=>{
+          const v=_detCfg[t[0]]||t[2];
+          threshHtml+=`<div><label style="font-size:11px;color:var(--mut);">${t[1]}</label>
+            <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%"></div>`;
+        });
+        document.getElementById('cfg-thresh').innerHTML=threshHtml;
+        document.querySelectorAll('#cfg-wifi input,#cfg-ble input,#cfg-mesh input').forEach(el=>{
+          el.addEventListener('change',()=>detPostCfg({[el.dataset.cfg]:el.checked}));
+        });
+      }
+      async function detPostCfg(patch){
+        await fetch('/api/detect/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+        Object.assign(_detCfg||{},patch);
+      }
+      async function detPreset(name){
+        const all_local={pmkid:true,eviltwin:true,ssid_confusion:true,sae:true,owe:true,frag:false,
+          ble_malformed:true,hshk:true,pwna:true,tracker:true,airtag:true,tsf:true,rid_spoof:true,
+          bloom_gossip:true,attacker_trilat:true,karma:true,csi:true};
+        const all_mesh={mesh_pmkid:true,mesh_eviltwin:true,mesh_ssid_confusion:true,mesh_sae:true,
+          mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false,mesh_krack:true,mesh_tracker:true,
+          mesh_pwna:true,mesh_karma:true,mesh_recon:true,mesh_csi_motion:false,mesh_attacker_hunt:true};
+        let patch={};
+        if(name==='all-on'){patch=Object.assign({},all_local,all_mesh);patch.frag=true;patch.mesh_frag=true;patch.mesh_csi_motion=true;patch.mesh_ble_malformed=true;patch.mesh_hshk=true;}
+        else if(name==='all-off'){Object.keys(all_local).forEach(k=>patch[k]=false);Object.keys(all_mesh).forEach(k=>patch[k]=false);}
+        else if(name==='quiet'){patch={frag:false,ble_malformed:false,tsf:false,bloom_gossip:false,csi:false,mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false,mesh_csi_motion:false};}
+        else if(name==='mesh-silent'){Object.keys(all_mesh).forEach(k=>patch[k]=false);}
+        else if(name==='mesh-all'){Object.keys(all_mesh).forEach(k=>patch[k]=true);}
+        await detPostCfg(patch);
+        await detLoadCfg();
+      }
+      function detSaveThresh(){
+        const patch={};
+        document.querySelectorAll('input[data-thr]').forEach(el=>{
+          const v=parseInt(el.value,10);
+          if(!isNaN(v))patch[el.dataset.thr]=v;
+        });
+        detPostCfg(patch);
+      }
+      async function detLoadCfg(){
+        _detCfg=await _jj('/api/detect/config');
+        detRenderConfig();
+      }
+      async function detHealthTick(){
+        const tab=document.getElementById('page-detect');
+        if(!tab||!tab.classList.contains('active'))return;
+        const h=await _jj('/api/detect/health');
+        if(!h)return;
+        document.getElementById('d-heap').textContent=Math.round(h.heap_free/1024)+'K (min '+Math.round(h.heap_min/1024)+'K)';
+        document.getElementById('d-drops').textContent='wifi:'+h.drops.wifi+' ble:'+h.drops.ble+' csi:'+h.drops.csi;
+        document.getElementById('d-mgated').textContent=h.drops.mesh_gated;
+      }
+      function detTabActive(){
+        const tab=document.getElementById('page-detect');
+        return tab&&tab.classList.contains('active');
+      }
+      function detAllTicks(){
+        if(!detTabActive())return;
+        detectTick();csiTick();pgTick();trkTick();atTick();hsTick();
+        ahTick();pwTick();kmTick();tsfTick();tofTick();detHealthTick();
+      }
+      async function detectAssignChannels(){await fetch('/api/channel_partition',{method:'POST'});detectTick()}
+      async function detectClearTrackers(){await fetch('/api/ble_tracker/clear',{method:'POST'});detectTick()}
+      async function detectClearRecon(){await fetch('/api/recon/clear',{method:'POST'});detectTick()}
+      async function detectReloadOui(){await fetch('/api/oui/reload',{method:'POST'});detectTick()}
+      detLoadCfg();
+      setInterval(detAllTicks,5000);
+      detAllTicks();
     </script>
   </body>
 </html>
@@ -5939,6 +6749,326 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/api/onboarding", HTTP_POST, [](AsyncWebServerRequest *r) {
       prefs.putBool("obDone", true);
       r->send(200, "application/json", "{\"accepted\":true}");
+  });
+
+  // ====== Phase 1-3: /detect endpoints ======
+
+  // Phase 1: attack-signature jsonl getters (RAM log, recent events)
+  server->on("/api/pmkid.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getPmkidJsonl());
+  });
+  server->on("/api/eviltwin.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getEvilTwinJsonl());
+  });
+  server->on("/api/ssid_confusion.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getSsidConfusionJsonl());
+  });
+  server->on("/api/sae_dos.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getSaeDosJsonl());
+  });
+  server->on("/api/owe_abuse.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getOweAbuseJsonl());
+  });
+  server->on("/api/fragattack.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getFragAttackJsonl());
+  });
+  server->on("/api/ble_malformed.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getBleMalformedJsonl());
+  });
+
+  // Phase 2 mesh / quorum / bloom / channel
+  server->on("/api/quorum", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getQuorumStatusJson());
+  });
+  server->on("/api/quorum/config", HTTP_POST, [](AsyncWebServerRequest *r) {
+      String type = r->hasParam("type", true) ? r->getParam("type", true)->value() : "";
+      int n = r->hasParam("n", true) ? r->getParam("n", true)->value().toInt() : 0;
+      if (type.length() == 0 || n <= 0) { r->send(400, "text/plain", "type+n required"); return; }
+      quorum_setRequired(type, (uint8_t)n);
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
+  server->on("/api/bloom", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getBloomStatsJson());
+  });
+  server->on("/api/rid_claims", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getRidClaimsJson());
+  });
+  server->on("/api/channel_partition", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getChannelAssignmentJson());
+  });
+  server->on("/api/channel_partition", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_assignChannelPartition();
+      r->send(200, "application/json", detect_getChannelAssignmentJson());
+  });
+  server->on("/api/pps", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"locked\":") + (ppsLocked() ? "true" : "false") +
+                 ",\"last_edge\":" + String(ppsLastEdgeMicros()) +
+                 ",\"disciplined_us\":" + String((unsigned long long)getDisciplinedMicros()) + "}";
+      r->send(200, "application/json", j);
+  });
+
+  // Phase 3 BLE perimeter / recon / OUI
+  server->on("/api/ble_tracker", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getBleTrackerJson());
+  });
+  server->on("/api/ble_tracker/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearBleTracker();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/recon", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getReconJson());
+  });
+  server->on("/api/recon/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearRecon();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/oui/reload", HTTP_POST, [](AsyncWebServerRequest *r) {
+      bool ok = loadOuiTable();
+      r->send(200, "application/json", ok ? "{\"loaded\":true}" : "{\"loaded\":false}");
+  });
+  server->on("/api/detect/clear_all", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearAll();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/detect/health", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getHealthJson());
+  });
+  server->on("/api/detect/config", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getConfigJson());
+  });
+  server->on("/api/detect/config", HTTP_POST,
+    [](AsyncWebServerRequest *r) {
+        r->send(200, "application/json", "{\"ok\":true}");
+    },
+    NULL,
+    [](AsyncWebServerRequest *r, uint8_t *data, size_t len, size_t index, size_t total) {
+        static String acc;
+        if (index == 0) acc = "";
+        for (size_t i = 0; i < len; ++i) acc += (char)data[i];
+        if (index + len == total) {
+            detect_setConfigFromJson(acc);
+            detect_persistTunables();
+            acc = "";
+        }
+    });
+
+  server->on("/api/csi/motion.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", csi_getMotionJsonl());
+  });
+  server->on("/api/csi/fingerprints", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", csi_getFingerprintJson());
+  });
+  server->on("/api/csi/stats", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"enabled\":") + (csi_isEnabled() ? "true" : "false") +
+                 ",\"pkts\":" + String(csi_packetsObserved()) +
+                 ",\"motion_events\":" + String(csi_motionEvents()) +
+                 ",\"thresh_q8\":" + String(csi_getMotionThreshold()) + "}";
+      r->send(200, "application/json", j);
+  });
+  server->on("/api/csi/enable", HTTP_POST, [](AsyncWebServerRequest *r) {
+      bool on = true;
+      if (r->hasParam("on", true)) on = r->getParam("on", true)->value().toInt() != 0;
+      csi_enable(on);
+      r->send(200, "application/json", on ? "{\"enabled\":true}" : "{\"enabled\":false}");
+  });
+  server->on("/api/csi/threshold", HTTP_POST, [](AsyncWebServerRequest *r) {
+      uint16_t v = 1500;
+      if (r->hasParam("v", true)) v = (uint16_t)r->getParam("v", true)->value().toInt();
+      csi_setMotionThreshold(v);
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
+  server->on("/api/csi/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      csi_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/probegraph", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", pg_getGraphJson());
+  });
+  server->on("/api/probegraph/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      pg_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/tracker_chains", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", tracker_getChainsJson());
+  });
+  server->on("/api/tracker_chains/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      tracker_clearChains();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/airtag_presence", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", airtag_getPresenceJson());
+  });
+  server->on("/api/airtag_presence/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      airtag_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/handshakes", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", hshk_getReconJson());
+  });
+  server->on("/api/handshakes/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      hshk_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/handshakes/stats", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"count\":") + String(hshk_count()) +
+                 ",\"krack_events\":" + String(hshk_krackEvents()) + "}";
+      r->send(200, "application/json", j);
+  });
+
+  server->on("/api/attacker_hunts", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", attacker_getActiveHuntsJson());
+  });
+  server->on("/api/attacker_hunts/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      attacker_clearHunts();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/tof", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", tof_getPeersJson());
+  });
+  server->on("/api/tof/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      tof_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/tof/ping", HTTP_POST, [](AsyncWebServerRequest *r) {
+      String tgt = "*";
+      if (r->hasParam("target", true)) tgt = r->getParam("target", true)->value();
+      tof_ping(tgt.c_str());
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server->on("/api/tsf_skew", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", tsf_getSkewJson());
+  });
+  server->on("/api/tsf_skew/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      tsf_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/karma", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", karma_getJson());
+  });
+  server->on("/api/karma/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      karma_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/karma/enable", HTTP_POST, [](AsyncWebServerRequest *r) {
+      bool on = true;
+      if (r->hasParam("on", true)) on = r->getParam("on", true)->value().toInt() != 0;
+      karma_setEnabled(on);
+      r->send(200, "application/json", on ? "{\"enabled\":true}" : "{\"enabled\":false}");
+  });
+  server->on("/api/karma/stats", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"enabled\":") + (karma_isEnabled() ? "true" : "false") +
+                 ",\"candidates\":" + String(karma_candidateCount()) +
+                 ",\"confirmed\":" + String(karma_confirmedCount()) + "}";
+      r->send(200, "application/json", j);
+  });
+
+  server->on("/api/pwnagotchi", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", pwnagotchi_getJson());
+  });
+  server->on("/api/pwnagotchi/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      pwnagotchi_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/attacker_hunts/cooldown", HTTP_POST, [](AsyncWebServerRequest *r) {
+      uint32_t ms = 60000;
+      if (r->hasParam("ms", true)) ms = (uint32_t)r->getParam("ms", true)->value().toInt();
+      attacker_setCooldown(ms);
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  // Minimal /detect UI page — single-page dashboard for all detectors.
+  // Full UI integration into existing HTML tabs follows the same pattern as
+  // /baseline/stats / /api/probes.jsonl polling already in the main HTML.
+  server->on("/detect", HTTP_GET, [](AsyncWebServerRequest *r) {
+      static const char HTML[] PROGMEM = R"HTML(<!doctype html><html><head>
+<meta charset=utf-8><title>AntiHunter - Detect</title>
+<style>
+body{background:#0a0e14;color:#b3d1ff;font:14px/1.4 monospace;margin:0;padding:1em}
+h1,h2{color:#ffae00}
+section{border:1px solid #2a3f5f;padding:.5em;margin:.5em 0;background:#0d1622}
+pre{white-space:pre-wrap;max-height:260px;overflow:auto;background:#000a14;padding:.4em;font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:.5em}
+.row>section{flex:1 1 320px}
+.k{color:#7fc7ff}.v{color:#fff}
+button{background:#23314a;color:#b3d1ff;border:1px solid #3b557d;padding:.3em .7em;cursor:pointer}
+button:hover{background:#2f4163}
+nav a{color:#ffae00;text-decoration:none;margin-right:1em}
+</style></head><body>
+<nav><a href="/">Main</a><a href="/detect">Detect</a></nav>
+<h1>Detection Engine</h1>
+<div class=row>
+<section><h2>Attack signatures</h2>
+<div><span class=k>PMKID burst:</span> <span id=cnt-pmkid class=v>-</span></div>
+<div><span class=k>Evil-twin:</span> <span id=cnt-et class=v>-</span></div>
+<div><span class=k>SSID confusion:</span> <span id=cnt-sc class=v>-</span></div>
+<div><span class=k>SAE DoS:</span> <span id=cnt-sae class=v>-</span></div>
+<div><span class=k>OWE abuse:</span> <span id=cnt-owe class=v>-</span></div>
+<div><span class=k>FragAttacks:</span> <span id=cnt-frag class=v>-</span></div>
+<div><span class=k>BLE malformed:</span> <span id=cnt-blem class=v>-</span></div>
+<button onclick="clearAll()">Clear all</button>
+<pre id=stream></pre>
+</section>
+<section><h2>Mesh defense</h2>
+<div><span class=k>PPS lock:</span> <span id=pps class=v>-</span></div>
+<div><span class=k>Bloom local bits:</span> <span id=bl class=v>-</span></div>
+<div><span class=k>Bloom neighbor bits:</span> <span id=bn class=v>-</span></div>
+<div><span class=k>Quorum candidates:</span> <span id=qc class=v>-</span></div>
+<button onclick="assignChannels()">Assign channel partition</button>
+<pre id=quorum></pre>
+<h2>Remote ID claims</h2>
+<pre id=rid></pre>
+</section>
+<section><h2>BLE perimeter</h2>
+<div><span class=k>Trackers seen:</span> <span id=trk class=v>-</span></div>
+<div><span class=k>Recon flagged:</span> <span id=rec class=v>-</span></div>
+<button onclick="fetch('/api/ble_tracker/clear',{method:'POST'})">Clear trackers</button>
+<button onclick="fetch('/api/recon/clear',{method:'POST'})">Clear recon</button>
+<pre id=trkpre></pre>
+<pre id=recpre></pre>
+</section>
+</div>
+<script>
+async function jget(u){const r=await fetch(u);try{return await r.json()}catch(e){return await r.text()}}
+async function tick(){
+ const [pm,et,sc,sa,ow,fr,bm,q,b,p,rid,tr,rc]=await Promise.all([
+  fetch('/api/pmkid.jsonl').then(r=>r.text()),
+  fetch('/api/eviltwin.jsonl').then(r=>r.text()),
+  fetch('/api/ssid_confusion.jsonl').then(r=>r.text()),
+  fetch('/api/sae_dos.jsonl').then(r=>r.text()),
+  fetch('/api/owe_abuse.jsonl').then(r=>r.text()),
+  fetch('/api/fragattack.jsonl').then(r=>r.text()),
+  fetch('/api/ble_malformed.jsonl').then(r=>r.text()),
+  jget('/api/quorum'),jget('/api/bloom'),jget('/api/pps'),
+  jget('/api/rid_claims'),jget('/api/ble_tracker'),jget('/api/recon')
+ ]);
+ const c=t=>t.split('\n').filter(l=>l.trim()).length;
+ cnt_pmkid.textContent=c(pm);cnt_et.textContent=c(et);cnt_sc.textContent=c(sc);
+ cnt_sae.textContent=c(sa);cnt_owe.textContent=c(ow);cnt_frag.textContent=c(fr);cnt_blem.textContent=c(bm);
+ stream.textContent=[pm,et,sc,sa,ow,fr,bm].join('---\n').slice(-4000);
+ pps.textContent=(p.locked?'YES':'no')+' edge='+p.last_edge;
+ bl.textContent=b.local_bits_set+' / '+b.capacity_bits;
+ bn.textContent=b.neighbor_bits_set+' / '+b.capacity_bits;
+ qc.textContent=(q.candidates||[]).length;
+ quorum.textContent=JSON.stringify(q,null,2);
+ rid_.textContent=JSON.stringify(rid,null,2);
+ trk.textContent=(tr||[]).length;
+ rec.textContent=(rc||[]).length;
+ trkpre.textContent=JSON.stringify(tr,null,2);
+ recpre.textContent=JSON.stringify(rc,null,2);
+}
+const rid_=document.getElementById('rid');
+async function clearAll(){await fetch('/api/detect/clear_all',{method:'POST'});tick()}
+async function assignChannels(){await fetch('/api/channel_partition',{method:'POST'});tick()}
+tick();setInterval(tick,3000);
+</script></body></html>)HTML";
+      r->send(200, "text/html", (const uint8_t*)HTML, strlen_P(HTML));
   });
 
   server->begin();
