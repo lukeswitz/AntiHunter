@@ -3162,25 +3162,44 @@ void detect_processMesh(const String &fromNode, const String &msg) {
             id.nodes.push_back(ns);
         }
     } else if (msg.startsWith("BLOOM:")) {
-        // Base64-like raw 2KB filter would exceed mesh frame. We use packed-hex chunks
-        // by index: BLOOM:<idx>:<128hex bytes>
+        // Two formats supported:
+        //   Dense: BLOOM:<idx>:<256-hex-chars>           (full 128-byte chunk)
+        //   Sparse: BLOOM:<idx>:S:<off>=<val>,<off>=<val>... (only non-zero bytes, off/val hex)
         int p1 = msg.indexOf(':', 6);
         if (p1 < 0) return;
         int idx = msg.substring(6, p1).toInt();
-        String hex = msg.substring(p1 + 1);
         if (idx < 0 || idx >= (int)(BloomFilter::BYTES / 128)) return;
+        String body = msg.substring(p1 + 1);
         std::lock_guard<std::recursive_mutex> lk(g_mtx);
         uint8_t *dst = g_neighborBloom.mutableData() + idx * 128;
-        for (size_t i = 0; i < 128 && i * 2 + 1 < hex.length(); ++i) {
-            uint8_t b = 0;
-            for (int n = 0; n < 2; ++n) {
-                char c = hex[i * 2 + n];
-                b <<= 4;
-                if (c >= '0' && c <= '9') b |= c - '0';
-                else if (c >= 'A' && c <= 'F') b |= c - 'A' + 10;
-                else if (c >= 'a' && c <= 'f') b |= c - 'a' + 10;
+        if (body.startsWith("S:")) {
+            int s = 2;
+            while (s < (int)body.length()) {
+                int e = body.indexOf(',', s);
+                String tok = (e < 0) ? body.substring(s) : body.substring(s, e);
+                int eq = tok.indexOf('=');
+                if (eq > 0) {
+                    int off = (int)strtol(tok.substring(0, eq).c_str(), nullptr, 16);
+                    int val = (int)strtol(tok.substring(eq + 1).c_str(), nullptr, 16);
+                    if (off >= 0 && off < 128 && val >= 0 && val <= 0xFF) {
+                        dst[off] |= (uint8_t)val;
+                    }
+                }
+                if (e < 0) break;
+                s = e + 1;
             }
-            dst[i] |= b;  // OR-merge
+        } else {
+            for (size_t i = 0; i < 128 && i * 2 + 1 < body.length(); ++i) {
+                uint8_t b = 0;
+                for (int n = 0; n < 2; ++n) {
+                    char c = body[i * 2 + n];
+                    b <<= 4;
+                    if (c >= '0' && c <= '9') b |= c - '0';
+                    else if (c >= 'A' && c <= 'F') b |= c - 'A' + 10;
+                    else if (c >= 'a' && c <= 'f') b |= c - 'a' + 10;
+                }
+                dst[i] |= b;
+            }
         }
     } else if (msg.startsWith("CHAN_ASSIGN:")) {
         // CHAN_ASSIGN:nodeId:1,2,3
@@ -3211,24 +3230,38 @@ void detect_periodicMeshGossip() {
     const uint8_t *src = g_localBloom.data();
     size_t sent = 0;
     for (size_t idx = 0; idx < BloomFilter::BYTES / 128; ++idx) {
-        bool anySet = false;
+        uint16_t nonzero = 0;
         uint8_t chunkHash = 0;
         for (size_t i = 0; i < 128; ++i) {
             uint8_t b = src[idx * 128 + i];
-            if (b) anySet = true;
+            if (b) nonzero++;
             chunkHash ^= b;
             chunkHash = (chunkHash << 1) | (chunkHash >> 7);
         }
-        if (!anySet) continue;
+        if (nonzero == 0) continue;
         if (chunkHash == g_lastBloomTxHash[idx]) continue;
         g_lastBloomTxHash[idx] = chunkHash;
-        String hex = String("BLOOM:") + String((unsigned)idx) + ":";
-        char tmp[3];
-        for (size_t i = 0; i < 128; ++i) {
-            snprintf(tmp, sizeof(tmp), "%02X", src[idx * 128 + i]);
-            hex += tmp;
+        String body;
+        if (nonzero <= 48) {
+            body = "S:";
+            char tmp[8];
+            bool first = true;
+            for (size_t i = 0; i < 128; ++i) {
+                uint8_t b = src[idx * 128 + i];
+                if (!b) continue;
+                if (!first) body += ',';
+                first = false;
+                snprintf(tmp, sizeof(tmp), "%X=%X", (unsigned)i, b);
+                body += tmp;
+            }
+        } else {
+            char tmp[3];
+            for (size_t i = 0; i < 128; ++i) {
+                snprintf(tmp, sizeof(tmp), "%02X", src[idx * 128 + i]);
+                body += tmp;
+            }
         }
-        sendToSerial1(getNodeId() + ": " + hex, true);
+        sendToSerial1(getNodeId() + ": BLOOM:" + String((unsigned)idx) + ":" + body, true);
         vTaskDelay(pdMS_TO_TICKS(50));
         if (++sent >= 1) break;
     }

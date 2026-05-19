@@ -16,10 +16,22 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Get version from tag
+    - name: Get version + channel from tag
       id: get_version
       run: |
-        echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        TAG="${GITHUB_REF#refs/tags/}"
+        echo "version=${TAG}" >> $GITHUB_OUTPUT
+        # Beta channel: tags matching v*-beta* (e.g. v1.2.0-beta, v1.2.0-beta3)
+        # Stable channel: plain v* (e.g. v1.2.0)
+        if [[ "$TAG" == *-beta* ]]; then
+          echo "channel=beta" >> $GITHUB_OUTPUT
+          echo "branch=beta" >> $GITHUB_OUTPUT
+          echo "prerelease=true" >> $GITHUB_OUTPUT
+        else
+          echo "channel=stable" >> $GITHUB_OUTPUT
+          echo "branch=stable" >> $GITHUB_OUTPUT
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Set up Python
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
@@ -55,7 +67,8 @@ jobs:
     - name: Update Dist bins and web flasher manifests
       run: |
         VERSION=${{ steps.get_version.outputs.version }}
-        RAW="https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist"
+        BRANCH=${{ steps.get_version.outputs.branch }}
+        RAW="https://raw.githubusercontent.com/lukeswitz/AntiHunter/${BRANCH}/Dist"
 
         cp .pio/build/AntiHunter-full/firmware.bin "Dist/antihunter-full-${VERSION}.bin"
         cp .pio/build/AntiHunter-headless/firmware.bin "Dist/antihunter-headless-${VERSION}.bin"
@@ -84,11 +97,11 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add Dist/*.bin docs/flasher/manifest-*.json
-        git diff --cached --quiet || git commit -m "dist: update bins and flasher manifests for ${{ steps.get_version.outputs.version }}"
-        git push origin HEAD:main
+        git diff --cached --quiet || git commit -m "dist: update bins and flasher manifests for ${{ steps.get_version.outputs.version }} (${{ steps.get_version.outputs.channel }})"
+        git push origin HEAD:${{ steps.get_version.outputs.branch }}
 
     - name: Create Release
       uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2.6.1
       with:
         files: release/*
-        prerelease: true
+        prerelease: ${{ steps.get_version.outputs.prerelease }}

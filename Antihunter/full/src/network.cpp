@@ -491,7 +491,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
         <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
-        <div class="page-tab-btn" onclick="switchPage('detect')">Detect</div>
+        <div class="page-tab-btn" onclick="switchPage('detect')">Sentinel</div>
       </div>
       <div class="header-right">
         <div class="status-bar">
@@ -1149,6 +1149,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           @media (max-width:720px){#det-grid{grid-template-columns:1fr}}
         </style>
 
+        <div style="margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(127,29,29,.15),rgba(234,88,12,.08));border:1px solid var(--bord);border-radius:10px;">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            <h2 style="margin:0;font-size:20px;letter-spacing:-0.01em;color:var(--txt);">Sentinel</h2>
+            <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
+          </div>
+          <div style="font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5;">
+            Persistent RF surveillance with adversary tracking. Beyond signal detection: validates Remote ID claims via mesh geometry, scores hostile recon behavior, correlates BLE tracker rotation chains, audits handshake captures, fingerprints attacker tools, cross-verifies threats across mesh nodes.
+          </div>
+        </div>
+
         <div id="det-banner"><div style="font-size:10px;color:#fca5a5;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">ACTIVE ALERTS</div><div id="det-banner-body"></div></div>
 
         <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -1179,7 +1189,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div class="stat"><div class="stat-label">BLE Malformed</div><div class="stat-value" id="d-blem">0</div></div>
               <div class="stat"><div class="stat-label">BLE Trackers</div><div class="stat-value" id="d-trk">0</div></div>
               <div class="stat"><div class="stat-label">Recon</div><div class="stat-value" id="d-rec">0</div></div>
-              <div class="stat"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pw-n">0</div></div>
               <div class="stat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
               <div class="stat"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
             </div>
@@ -1335,17 +1344,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <button class="btn alt" onclick="kmClear()" style="margin:6px 0;">Clear</button>
             <pre id="km-pre" class="log-pre">--</pre>
-          </div>
-        </div>
-
-        <div class="card" data-key="pwna" data-sev="high">
-          <div class="card-header" onclick="toggleCollapse('detPwnaCard')">
-            <h3><span class="sev high">high</span>Pwnagotchi Swarm <span class="num" id="pw-n">0</span></h3>
-            <span class="collapse-icon" id="detPwnaCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="detPwnaCardBody">
-            <button class="btn alt" onclick="pwClear()" style="margin-bottom:6px;">Clear</button>
-            <pre id="pw-pre" class="log-pre">--</pre>
           </div>
         </div>
 
@@ -5031,20 +5029,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(n>0)detMarkActive('hunts');
       }
       async function ahClear(){await fetch('/api/attacker_hunts/clear',{method:'POST'});ahTick();}
-      async function pwTick(){
-        if(!detTabActive())return;
-        const p=await _jj('/api/pwnagotchi');
-        const n=(p||[]).length;
-        document.getElementById('pw-n').textContent=n;
-        const o=document.getElementById('d-pw-n'); if(o)o.textContent=n;
-        detRenderTable('pw-pre',p||[],[
-          {key:'bssid',label:'BSSID'},{key:'observations',label:'Obs'},
-          {key:'best_rssi',label:'Best RSSI'},{key:'last_rssi',label:'Last RSSI'},
-          {key:'last',label:'Last',get:r=>_ago(r.last)},{key:'snippet',label:'Snippet'}
-        ]);
-        if(n>0)detMarkActive('pwna');
-      }
-      async function pwClear(){await fetch('/api/pwnagotchi/clear',{method:'POST'});pwTick();}
       async function kmTick(){
         if(!detTabActive())return;
         const [s,c]=await Promise.all([_jj('/api/karma/stats'),_jj('/api/karma')]);
@@ -5225,7 +5209,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin'],['ssid_confusion','SSID Confusion'],
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
         ['ble_malformed','BLE Malformed'],['hshk','Handshake Reconstruction'],
-        ['pwna','Pwnagotchi'],['tracker','BLE Tracker'],['airtag','AirTag'],
+        ['tracker','BLE Tracker'],['airtag','AirTag'],
         ['tsf','TSF Clock-Skew'],['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
         ['karma','KARMA Bait'],['csi','CSI Presence']
@@ -5234,7 +5218,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil-Twin'],['mesh_ssid_confusion','SSID Conf'],
         ['mesh_sae','SAE'],['mesh_frag','FragAttacks'],['mesh_ble_malformed','BLE Malformed'],
         ['mesh_hshk','Handshakes'],['mesh_krack','KRACK'],['mesh_tracker','Tracker'],
-        ['mesh_pwna','Pwnagotchi'],['mesh_karma','KARMA'],['mesh_recon','Recon'],
+        ['mesh_karma','KARMA'],['mesh_recon','Recon'],
         ['mesh_csi_motion','CSI Motion'],['mesh_attacker_hunt','Attacker Hunt']
       ];
       const DET_THRESHOLDS=[
@@ -5250,7 +5234,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function detRenderConfig(){
         if(!_detCfg)return;
         const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof'];
-        const bleKeys=['ble_malformed','tracker','airtag','karma','pwna','csi'];
+        const bleKeys=['ble_malformed','tracker','airtag','karma','csi'];
         const meshKeys=DET_FEATURES_MESH.map(x=>x[0]);
         const tsfKey='tsf';const bloomKey='bloom_gossip';
         function rowHtml(k,label){
@@ -5288,11 +5272,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       async function detPreset(name){
         const all_local={pmkid:true,eviltwin:true,ssid_confusion:true,sae:true,owe:true,frag:false,
-          ble_malformed:true,hshk:true,pwna:true,tracker:true,airtag:true,tsf:true,rid_spoof:true,
+          ble_malformed:true,hshk:true,tracker:true,airtag:true,tsf:true,rid_spoof:true,
           bloom_gossip:true,attacker_trilat:true,karma:true,csi:true};
         const all_mesh={mesh_pmkid:true,mesh_eviltwin:true,mesh_ssid_confusion:true,mesh_sae:true,
           mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false,mesh_krack:true,mesh_tracker:true,
-          mesh_pwna:true,mesh_karma:true,mesh_recon:true,mesh_csi_motion:false,mesh_attacker_hunt:true};
+          mesh_karma:true,mesh_recon:true,mesh_csi_motion:false,mesh_attacker_hunt:true};
         let patch={};
         if(name==='all-on'){patch=Object.assign({},all_local,all_mesh);patch.frag=true;patch.mesh_frag=true;patch.mesh_csi_motion=true;patch.mesh_ble_malformed=true;patch.mesh_hshk=true;}
         else if(name==='all-off'){Object.keys(all_local).forEach(k=>patch[k]=false);Object.keys(all_mesh).forEach(k=>patch[k]=false);}
@@ -5330,7 +5314,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function detAllTicks(){
         if(!detTabActive())return;
         detectTick();csiTick();pgTick();trkTick();atTick();hsTick();
-        ahTick();pwTick();kmTick();tsfTick();tofTick();detHealthTick();
+        ahTick();kmTick();tsfTick();tofTick();detHealthTick();
       }
       async function detectAssignChannels(){await fetch('/api/channel_partition',{method:'POST'});detectTick()}
       async function detectClearTrackers(){await fetch('/api/ble_tracker/clear',{method:'POST'});detectTick()}
