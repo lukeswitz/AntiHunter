@@ -3,15 +3,39 @@
 #include "network.h"
 #include "scanner.h"
 #include "baseline.h"
+#include "drone_detector.h"
+#include "main.h"
+#include "triangulation.h"
 #include <SD.h>
 #include <LittleFS.h>
 #include <esp_timer.h>
 #include <esp_attr.h>
+#include <esp_wifi.h>
+#include <esp_wifi_types.h>
 #include <driver/gpio.h>
+#include <math.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 #include <algorithm>
 
 namespace ah_detect {
+static uint32_t trackerTryLinkRotation(const uint8_t *addr, const char *vendor, int8_t rssi, uint32_t now);
+static void trackerSweepVanished(uint32_t now);
+static void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len);
+static uint8_t classifyEapolMsg(uint16_t keyInfo);
+static void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
+                       uint64_t replayCtr, int8_t rssi, const char *nodeId, uint32_t now);
+static void persistSnapshot();
+static void loadSnapshot();
+static bool meshRateGate(const String &type, uint32_t minIntervalMs);
+void attacker_kick(const uint8_t *mac, const char *attackType);
+static bool isPwnagotchiBeacon(const uint8_t *frame, uint16_t len);
+static void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
+                              const uint8_t *ie, uint16_t ieLen);
+void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi);
+bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi);
+static void tsfObserve(const uint8_t *bssid, uint64_t tsf, uint16_t beaconInterval,
+                       const char *ssid, uint32_t now);
 
 // =============================================================================
 // State
@@ -33,7 +57,7 @@ std::atomic<uint8_t>  g_trackerMinSightings{3};
 QueueHandle_t g_detectFrameQueue = nullptr;
 
 // Mutex
-std::mutex g_mtx;
+std::recursive_mutex g_mtx;
 
 // PMKID burst tracking — per src MAC, list of (bssid, ts)
 struct PmkidBurst {
@@ -77,9 +101,45 @@ std::vector<SaeDosEvent> g_saeDosLog;
 struct PnState {
     uint32_t lastPN;
     uint32_t lastSeen;
+    uint8_t  reuseCount;
 };
 std::map<uint64_t, PnState> g_pnState;
 std::vector<FragAttackEvent> g_fragLog;
+std::atomic<bool>    g_fragEnabled{false};
+std::atomic<uint8_t> g_fragReuseThresh{8};
+
+// Per-feature enable (local detection on/off)
+std::atomic<bool> g_karmaEnabled{true};
+std::atomic<bool> g_pmkidEnabled{true};
+std::atomic<bool> g_eviltwinEnabled{true};
+std::atomic<bool> g_ssidConfusionEnabled{true};
+std::atomic<bool> g_saeEnabled{true};
+std::atomic<bool> g_oweEnabled{true};
+std::atomic<bool> g_bleMalformedEnabled{true};
+std::atomic<bool> g_hshkEnabled{true};
+std::atomic<bool> g_pwnaEnabled{true};
+std::atomic<bool> g_trackerEnabled{true};
+std::atomic<bool> g_airtagEnabled{true};
+std::atomic<bool> g_tsfEnabled{true};
+std::atomic<bool> g_ridSpoofEnabled{true};
+std::atomic<bool> g_bloomGossipEnabled{true};
+std::atomic<bool> g_attackerTrilatEnabled{true};
+
+// Per-feature mesh broadcast (separate from local detection)
+std::atomic<bool> g_meshPmkid{true};
+std::atomic<bool> g_meshEviltwin{true};
+std::atomic<bool> g_meshSsidConf{true};
+std::atomic<bool> g_meshSae{true};
+std::atomic<bool> g_meshFrag{false};
+std::atomic<bool> g_meshBleMalformed{false};
+std::atomic<bool> g_meshHshk{false};
+std::atomic<bool> g_meshKrack{true};
+std::atomic<bool> g_meshTracker{true};
+std::atomic<bool> g_meshPwna{true};
+std::atomic<bool> g_meshKarma{true};
+std::atomic<bool> g_meshRecon{true};
+std::atomic<bool> g_meshCsiMotion{false};
+std::atomic<bool> g_meshAttackerHunt{true};
 
 // BLE malformed
 std::vector<BleMalformedEvent> g_bleMalformedLog;
@@ -92,7 +152,6 @@ std::map<String, ReconAlert> g_recon;
 
 // RID claims (mesh-cooperative validation)
 std::map<String, RidClaim> g_ridClaims;  // key = uavId
-std::vector<RidClaim> g_ridHistory;       // archived
 
 // Quorum
 std::map<String, AlertCandidate> g_alerts;  // key = type+":"+key
@@ -147,6 +206,36 @@ static inline String macStr(const uint8_t *m) {
     snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X",
              m[0],m[1],m[2],m[3],m[4],m[5]);
     return String(buf);
+}
+
+static std::map<String, uint32_t> g_meshRateMap;
+static std::atomic<uint32_t> g_droppedWifi{0};
+static std::atomic<uint32_t> g_droppedBle{0};
+static std::atomic<uint32_t> g_droppedCsi{0};
+static std::atomic<uint32_t> g_meshGated{0};
+static bool meshRateGate(const String &type, uint32_t minIntervalMs) {
+    uint32_t now = millis();
+    auto it = g_meshRateMap.find(type);
+    if (it != g_meshRateMap.end() && (now - it->second) < minIntervalMs) {
+        g_meshGated.fetch_add(1);
+        return false;
+    }
+    g_meshRateMap[type] = now;
+    if (g_meshRateMap.size() > 256) {
+        String oldestK;
+        uint32_t oldestT = UINT32_MAX;
+        for (auto &kv : g_meshRateMap) if (kv.second < oldestT) { oldestT = kv.second; oldestK = kv.first; }
+        g_meshRateMap.erase(oldestK);
+    }
+    return true;
+}
+
+static String tsHuman(uint32_t ms) {
+    if (rtcAvailable) {
+        time_t e = getRTCEpoch();
+        return String((unsigned long)e);
+    }
+    return String(ms);
 }
 
 // FNV-1a 32-bit
@@ -266,10 +355,14 @@ void initGpsPps(int gpio) {
 
 uint64_t getDisciplinedMicros() {
     uint64_t bootMicros = esp_timer_get_time();
-    uint32_t epoch = g_ppsAnchorEpoch;
-    uint64_t anchor = g_ppsAnchorMicros;
+    static portMUX_TYPE ppsMux = portMUX_INITIALIZER_UNLOCKED;
+    uint32_t epoch;
+    uint64_t anchor;
+    portENTER_CRITICAL(&ppsMux);
+    epoch = g_ppsAnchorEpoch;
+    anchor = g_ppsAnchorMicros;
+    portEXIT_CRITICAL(&ppsMux);
     if (epoch == 0 || anchor == 0) {
-        // Fallback: RTC seconds + boot µs delta (low precision)
         time_t e = getRTCEpoch();
         return (uint64_t)e * 1000000ULL;
     }
@@ -286,76 +379,90 @@ uint64_t getDisciplinedMicros() {
 // We detect: EAPOL-Key from src targeting >=N distinct BSSIDs within window.
 
 static void handleEAPOL(const DetectFrameEvent &e) {
-    if (e.len < 32) return;
-    // Identify EAPOL: scan for 0x88 0x8E ethertype after LLC SNAP
-    // QoS-Data has 26-byte header (+2 QoS); Data has 24-byte.
-    // Quick approach: locate 0xAA 0xAA 0x03 then check ethertype.
+    if (!g_hshkEnabled.load() && !g_pmkidEnabled.load()) return;
+    if (e.len < 34) return;
     int eapolOff = -1;
-    for (int i = 24; i < (int)e.len - 8; ++i) {
+    int searchEnd = (int)e.len - 8;
+    for (int i = 24; i < searchEnd; ++i) {
         if (e.payload[i] == 0xAA && e.payload[i+1] == 0xAA && e.payload[i+2] == 0x03 &&
+            e.payload[i+3] == 0x00 && e.payload[i+4] == 0x00 && e.payload[i+5] == 0x00 &&
             e.payload[i+6] == 0x88 && e.payload[i+7] == 0x8E) {
             eapolOff = i + 8;
             break;
         }
     }
-    if (eapolOff < 0 || eapolOff + 4 >= (int)e.len) return;
-    // EAPOL header: version(1) type(1) length(2). type==3 => EAPOL-Key
+    if (eapolOff < 0 || eapolOff + 16 >= (int)e.len) return;
     if (e.payload[eapolOff + 1] != 0x03) return;
-    // KeyDescriptor type at +4 (RSN/WPA=2)
-    // Key Information at +5..+6 (big-endian per 802.11)
-    if (eapolOff + 6 >= (int)e.len) return;
     uint16_t keyInfo = ((uint16_t)e.payload[eapolOff + 5] << 8) | e.payload[eapolOff + 6];
-    bool pairwise = (keyInfo >> 3) & 1;
-    bool install  = (keyInfo >> 6) & 1;
-    bool ack      = (keyInfo >> 7) & 1;
-    bool mic      = (keyInfo >> 8) & 1;
-    // M1 / PMKID-request: pairwise=1, install=0, ack=1, mic=0
-    if (!(pairwise && !install && ack && !mic)) return;
+    uint8_t msgNum = classifyEapolMsg(keyInfo);
 
-    // src=addr2, bssid=addr3 for ToDS=0,FromDS=1 (AP->STA); for STA->AP swap.
+    uint16_t fc = (uint16_t)e.payload[0] | ((uint16_t)e.payload[1] << 8);
+    uint8_t toDs   = (fc >> 8) & 1;
+    uint8_t fromDs = (fc >> 9) & 1;
+    const uint8_t *a1 = e.payload + 4;
     const uint8_t *a2 = e.payload + 10;
     const uint8_t *a3 = e.payload + 16;
+    const uint8_t *bssid;
+    const uint8_t *sta;
+    if (toDs == 0 && fromDs == 1) { bssid = a2; sta = a1; }
+    else if (toDs == 1 && fromDs == 0) { bssid = a1; sta = a2; }
+    else if (toDs == 0 && fromDs == 0) { bssid = a3; sta = a2; }
+    else return;
 
-    uint64_t srcK = packMac(a2);
-    uint64_t bssK = packMac(a3);
+    uint64_t replayCtr = 0;
+    for (int i = 0; i < 8; ++i) replayCtr = (replayCtr << 8) | e.payload[eapolOff + 9 + i];
+
     uint32_t now = millis();
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
 
-    std::lock_guard<std::mutex> lk(g_mtx);
+    if (g_hshkEnabled.load() && msgNum >= 1 && msgNum <= 4) {
+        hshkRecord(bssid, sta, msgNum, replayCtr, e.rssi, getNodeId().c_str(), now);
+        if (meshEnabled && g_meshHshk.load() && meshRateGate("HSHK", 1000)) {
+            sendToSerial1(getNodeId() + ": HSHK:" + macStr(bssid) + ":" + macStr(sta) +
+                          ":" + String(msgNum) + ":" + String((unsigned long)replayCtr) +
+                          ":" + String(e.rssi), true);
+        }
+    }
+
+    if (msgNum != 1 || !g_pmkidEnabled.load()) return;
+    const uint8_t *src = sta;
+    bool broadcastDest = (a1[0] & 0x01) != 0;
+    uint64_t srcK = packMac(src);
     PmkidBurst &b = g_pmkidBursts[srcK];
     b.lastSeen = now;
+    uint64_t bssK = packMac(bssid);
     b.bssidTs[bssK] = now;
-    // Prune old
     uint16_t win = g_pmkidWindow.load();
     for (auto it = b.bssidTs.begin(); it != b.bssidTs.end(); ) {
         if (now - it->second > win) it = b.bssidTs.erase(it);
         else ++it;
     }
-    if (b.bssidTs.size() >= g_pmkidMinBssids.load()) {
+    bool fire = (b.bssidTs.size() >= g_pmkidMinBssids.load()) || broadcastDest;
+    if (fire) {
         PmkidHarvestEvent ev{};
-        memcpy(ev.srcMac, a2, 6);
-        memcpy(ev.bssid, a3, 6);
+        memcpy(ev.srcMac, src, 6);
+        memcpy(ev.bssid, bssid, 6);
         ev.rssi = e.rssi;
         ev.channel = e.channel;
         ev.ts = now;
         g_pmkidLog.push_back(ev);
         if (g_pmkidLog.size() > MAX_PMKID_LOG) g_pmkidLog.erase(g_pmkidLog.begin());
 
-        String src = macStr(a2);
-        String line = String("{\"src\":\"") + src + "\",\"bssid\":\"" + macStr(a3) +
+        String bs = macStr(bssid);
+        String sr = macStr(src);
+        String line = String("{\"src\":\"") + sr + "\",\"bssid\":\"" + bs +
                       "\",\"rssi\":" + String(ev.rssi) +
                       ",\"ch\":" + String(ev.channel) +
                       ",\"ts\":" + String(now) +
-                      ",\"burst_bssids\":" + String((unsigned)b.bssidTs.size()) + "}";
+                      ",\"distinct_peers\":" + String((unsigned)b.bssidTs.size()) +
+                      ",\"bcast\":" + String(broadcastDest ? "true" : "false") + "}";
         logEventToSD("/pmkid.jsonl", line);
-
-        // Mesh announce
-        if (meshEnabled) {
-            sendToSerial1(getNodeId() + ": PMKID_HARVEST:" + src + ":" + macStr(a3) +
+        if (meshEnabled && g_meshPmkid.load() && meshRateGate("PMKID_HARVEST", 5000)) {
+            sendToSerial1(getNodeId() + ": PMKID_HARVEST:" + sr + ":" + bs +
                           ":" + String(ev.rssi), true);
         }
-        // Local quorum
-        quorum_addReport("PMKID", src, getNodeId(), ev.rssi);
-        // Throttle: clear burst after firing
+        quorum_addReport("PMKID", sr, getNodeId(), ev.rssi);
+        attacker_kick(src, "PMKID");
         b.bssidTs.clear();
     }
 }
@@ -364,15 +471,34 @@ static void handleEAPOL(const DetectFrameEvent &e) {
 // Beacon / Evil-Twin / SSID Confusion / OWE
 // =============================================================================
 static void handleBeacon(const DetectFrameEvent &e) {
-    // Mgmt frame: ftype=0 stype=8. fixed body 12 bytes: timestamp(8) interval(2) caps(2)
     if (e.len < 36) return;
+    bool wantPwna = g_pwnaEnabled.load();
+    bool wantEvil = g_eviltwinEnabled.load();
+    bool wantTsf  = g_tsfEnabled.load();
+    bool wantOwe  = g_oweEnabled.load();
+    if (!wantPwna && !wantEvil && !wantTsf && !wantOwe) return;
     const uint8_t *p = e.payload;
-    const uint8_t *bssid = p + 16; // addr3
+    const uint8_t *bssid = p + 16;
     uint64_t tsf = 0;
     for (int i = 0; i < 8; ++i) tsf |= ((uint64_t)p[24 + i]) << (8 * i);
     uint16_t beaconInt = (uint16_t)p[32] | ((uint16_t)p[33] << 8);
     const uint8_t *ie = p + 36;
     uint16_t ieLen = e.len - 36;
+
+    if (isPwnagotchiBeacon(p, e.len)) {
+        if (!wantPwna) return;
+        std::lock_guard<std::recursive_mutex> lkP(g_mtx);
+        pwnagotchiObserve(bssid, e.rssi, ie, ieLen);
+        return;
+    }
+
+    if (wantTsf) {
+        char ssidLocal[33] = {0};
+        extractSSID(ie, ieLen, ssidLocal, sizeof(ssidLocal));
+        std::lock_guard<std::recursive_mutex> lkT(g_mtx);
+        tsfObserve(bssid, tsf, beaconInt, ssidLocal, millis());
+    }
+    if (!wantEvil && !wantOwe) return;
 
     char ssid[33] = {0};
     extractSSID(ie, ieLen, ssid, sizeof(ssid));
@@ -384,7 +510,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
     uint64_t k = packMac(bssid);
     uint32_t now = millis();
 
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_apBaseline.find(k);
     if (it == g_apBaseline.end()) {
         ApBaseline b{};
@@ -456,7 +582,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                       ",\"ch\":" + String(ev.channel) +
                       ",\"ts\":" + String(now) + "}";
         logEventToSD("/eviltwin.jsonl", line);
-        if (meshEnabled) {
+        if (meshEnabled && g_meshEviltwin.load() && meshRateGate("EVILTWIN_" + bs, 10000)) {
             sendToSerial1(getNodeId() + ": EVILTWIN:" + bs + ":" + ev.reason + ":" + String(ev.rssi), true);
         }
         quorum_addReport("EVILTWIN", bs, getNodeId(), ev.rssi);
@@ -509,6 +635,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
 // SSID Confusion (CVE-2023-52424)
 // =============================================================================
 static void handleProbeResp(const DetectFrameEvent &e) {
+    if (!g_ssidConfusionEnabled.load() && !g_karmaEnabled.load()) return;
     if (e.len < 36) return;
     const uint8_t *p = e.payload;
     const uint8_t *bssid = p + 16;
@@ -518,10 +645,16 @@ static void handleProbeResp(const DetectFrameEvent &e) {
     if (!extractSSID(ie, ieLen, ssid, sizeof(ssid))) return;
     if (ssid[0] == 0) return;
 
+    if (g_karmaEnabled.load()) {
+        karma_observeProbeResp(bssid, ssid, e.rssi);
+        karma_checkBaitMatch(ssid, bssid, e.rssi);
+    }
+    if (!g_ssidConfusionEnabled.load()) return;
+
     uint64_t k = packMac(bssid);
     uint32_t now = millis();
 
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_apBaseline.find(k);
     if (it == g_apBaseline.end()) return;  // need a beacon baseline first
     ApBaseline &b = it->second;
@@ -549,7 +682,8 @@ static void handleProbeResp(const DetectFrameEvent &e) {
                   ",\"ts\":" + String(now) + "}";
     logEventToSD("/ssid_confusion.jsonl", line);
     if (meshEnabled) {
-        sendToSerial1(getNodeId() + ": SSID_CONFUSION:" + bs + ":" + String(e.rssi), true);
+        if (g_meshSsidConf.load() && meshRateGate("SSIDCONF_" + bs, 30000))
+            sendToSerial1(getNodeId() + ": SSID_CONFUSION:" + bs + ":" + String(e.rssi), true);
     }
     quorum_addReport("SSIDCONF", bs, getNodeId(), e.rssi);
     strncpy(b.respSsid, ssid, sizeof(b.respSsid) - 1);
@@ -559,6 +693,7 @@ static void handleProbeResp(const DetectFrameEvent &e) {
 // SAE / Dragonblood DoS
 // =============================================================================
 static void handleAuthSae(const DetectFrameEvent &e) {
+    if (!g_saeEnabled.load()) return;
     // 802.11 auth: fixed body at +24 = algo(2) seq(2) status(2)
     if (e.len < 30) return;
     const uint8_t *p = e.payload;
@@ -570,7 +705,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
     uint32_t now = millis();
     uint16_t win = g_saeWindow.load();
 
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     SaeCounter &c = g_saeCounters[k];
     if (c.windowStart == 0 || now - c.windowStart > win) {
         c.windowStart = now;
@@ -601,10 +736,11 @@ static void handleAuthSae(const DetectFrameEvent &e) {
                       ",\"window_start\":" + String(c.windowStart) +
                       ",\"ts\":" + String(now) + "}";
         logEventToSD("/sae_dos.jsonl", line);
-        if (meshEnabled) {
+        if (meshEnabled && g_meshSae.load() && meshRateGate("SAE_DOS_" + bs, 10000)) {
             sendToSerial1(getNodeId() + ": SAE_DOS:" + bs + ":" + String(unmatched), true);
         }
         quorum_addReport("SAE_DOS", bs, getNodeId(), e.rssi);
+        attacker_kick(bssid, "SAE_DOS");
     }
 }
 
@@ -612,74 +748,70 @@ static void handleAuthSae(const DetectFrameEvent &e) {
 // FragAttacks A-MSDU + PN reuse
 // =============================================================================
 static void handleQosData(const DetectFrameEvent &e) {
-    // QoS Data: ftype=2 stype=8. Header 26 bytes. QoS Ctrl at +24..+25.
-    if (e.len < 32) return;
+    if (e.len < 38) return;
     const uint8_t *p = e.payload;
     uint16_t fc = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
     uint8_t stype = (fc >> 4) & 0xF;
     uint8_t ftype = (fc >> 2) & 0x3;
     if (ftype != 2 || stype != 8) return;
+    uint8_t toDs   = (fc >> 8) & 1;
+    uint8_t fromDs = (fc >> 9) & 1;
     uint8_t protectedBit = (fc >> 14) & 1;
-    if (!protectedBit) return;  // PN only meaningful on protected frames
+    if (!protectedBit) return;
+    const uint8_t *a1 = p + 4;
+    if (a1[0] & 0x01) return;
     const uint8_t *a2 = p + 10;
-    uint8_t qos0 = p[24];
+    uint8_t hdrLen = 24 + 2;
+    bool fourAddr = (toDs == 1 && fromDs == 1);
+    if (fourAddr) hdrLen += 6;
+    if ((int)e.len < hdrLen + 8) return;
+    uint8_t qos0 = p[hdrLen - 2];
     uint8_t tid = qos0 & 0x0F;
     uint8_t aMsdu = (qos0 >> 7) & 1;
 
-    // CCMP/GCMP header is at +26 for QoS Data. PN field: PN0(1) PN1(1) rsvd(1) keyid(1) PN2..PN5(4)
-    // Reconstructed PN: PN5 PN4 PN3 PN2 PN1 PN0  (48-bit). We use low 32 bits for tracking.
-    uint8_t pn0 = p[26], pn1 = p[27], pn2 = p[30], pn3 = p[31];
-    // Validate keyid byte (offset 27 layout) — bit 5 (ExtIV) must be set
-    if (!(p[27] & 0x20)) {
-        // Not standard CCMP/GCMP — skip
-        (void)pn0; (void)pn1; (void)pn2; (void)pn3;
-        return;
-    }
-    pn1 = p[26];
-    pn0 = p[27];
-    // Actually CCMP header layout: byte0=PN0, byte1=PN1, byte2=Rsvd, byte3=KeyId, byte4=PN2, byte5=PN3, byte6=PN4, byte7=PN5
-    uint8_t b0 = p[26], b1 = p[27], b2 = p[28], b3 = p[29], b4 = p[30], b5 = p[31];
-    (void)b2;
-    if (!(b3 & 0x20)) return;
-    uint32_t pnLow = ((uint32_t)b5 << 24) | ((uint32_t)b4 << 16) | ((uint32_t)b1 << 8) | b0;
-    (void)pnLow;
-    uint32_t pn32 = ((uint32_t)b5 << 24) | ((uint32_t)b4 << 16) | ((uint32_t)b1 << 8) | b0;
+    const uint8_t *cc = p + hdrLen;
+    if (!(cc[3] & 0x20)) return;
+    uint32_t pn32 = ((uint32_t)cc[5] << 24) | ((uint32_t)cc[4] << 16) |
+                    ((uint32_t)cc[1] << 8)  |  cc[0];
 
+    if (!g_fragEnabled.load()) return;
     uint64_t key = (packMac(a2) << 4) | tid;
     uint32_t now = millis();
 
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_pnState.find(key);
     if (it == g_pnState.end()) {
-        g_pnState[key] = {pn32, now};
-        if (g_pnState.size() > 64) {
-            // evict oldest
+        if (g_pnState.size() >= 64) {
             uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
             for (auto &kv : g_pnState) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
             g_pnState.erase(oldestK);
         }
+        g_pnState[key] = {pn32, now, 0};
         return;
     }
-    bool reuse = (pn32 == it->second.lastPN);
-    bool rewind = (pn32 < it->second.lastPN) && !reuse;
+    uint32_t lastPN = it->second.lastPN;
+    bool exactReuse = (pn32 == lastPN);
+    bool bigRewind = (pn32 < lastPN) && ((lastPN - pn32) > 10000) && (pn32 > 1024);
+    if (exactReuse) {
+        if (it->second.reuseCount < 255) it->second.reuseCount++;
+    } else {
+        it->second.reuseCount = 0;
+    }
+    bool sustainedReuse = it->second.reuseCount >= g_fragReuseThresh.load();
     bool fired = false;
     FragAttackEvent ev{};
     memcpy(ev.srcMac, a2, 6);
     ev.tid = tid;
-    ev.lastPN = it->second.lastPN;
+    ev.lastPN = lastPN;
     ev.observedPN = pn32;
     ev.rssi = e.rssi;
     ev.channel = e.channel;
     ev.ts = now;
-    if (reuse) { strncpy(ev.reason, "PN_REUSE", sizeof(ev.reason) - 1); fired = true; }
-    else if (rewind) { strncpy(ev.reason, "PN_REWIND", sizeof(ev.reason) - 1); fired = true; }
-    if (aMsdu) {
-        // A-MSDU bit set: spec-compliant frames must use LLC/SNAP A-MSDU header.
-        // Without decryption we can't fully validate; flag if PN rewind co-occurs.
-        if (rewind || reuse) {
-            strncpy(ev.reason, "AMSDU_BAD", sizeof(ev.reason) - 1);
-            fired = true;
-        }
+    if (sustainedReuse) { strncpy(ev.reason, "PN_REUSE", sizeof(ev.reason) - 1); fired = true; it->second.reuseCount = 0; }
+    else if (bigRewind) { strncpy(ev.reason, "PN_REWIND", sizeof(ev.reason) - 1); fired = true; }
+    if (aMsdu && (sustainedReuse || bigRewind)) {
+        strncpy(ev.reason, "AMSDU_BAD", sizeof(ev.reason) - 1);
+        fired = true;
     }
     if (fired) {
         g_fragLog.push_back(ev);
@@ -694,7 +826,7 @@ static void handleQosData(const DetectFrameEvent &e) {
                       ",\"ch\":" + String(e.channel) +
                       ",\"ts\":" + String(now) + "}";
         logEventToSD("/fragattack.jsonl", line);
-        if (meshEnabled) {
+        if (meshEnabled && g_meshFrag.load() && meshRateGate("FRAG_" + src, 30000)) {
             sendToSerial1(getNodeId() + ": FRAG:" + src + ":" + ev.reason, true);
         }
     }
@@ -713,20 +845,17 @@ struct WatchEntry {
     const char *vendor;
 };
 static const WatchEntry kWatch[] = {
-    {0xFF4F, 0xFFFF, 0, {0,0,0,0}, "AirTag"},
-    {0xFD6F, 0xFFFF, 0, {0,0,0,0}, "AppleFindMy"},
-    {0xFD5A, 0xFFFF, 0, {0,0,0,0}, "SamsungSmartTag"},
+    {0xFEEC, 0xFFFF, 0, {0,0,0,0}, "TileUnreg"},
     {0xFEED, 0xFFFF, 0, {0,0,0,0}, "Tile"},
-    {0xFD6C, 0xFFFF, 0, {0,0,0,0}, "Skydio"},
-    {0xFFE0, 0xFFFF, 0, {0,0,0,0}, "DJI"},
-    {0xFFFA, 0xFFFF, 0, {0,0,0,0}, "OpenDroneID"},
-    {0,       0x004C, 0, {0,0,0,0}, "Apple"},          // generic Apple mfg
+    {0xFD59, 0xFFFF, 0, {0,0,0,0}, "SmartTagUnreg"},
+    {0xFD5A, 0xFFFF, 0, {0,0,0,0}, "SamsungSmartTag"},
+    {0xFEAA, 0xFFFF, 1, {0x40,0,0,0}, "GoogleFMDN"},
+    {0xFFFA, 0xFFFF, 1, {0x0D,0,0,0}, "OpenDroneID"},
+    {0,       0x004C, 2, {0x12,0x19,0,0}, "AirTag_or_FindMy"},
+    {0,       0x004C, 1, {0x07,0,0,0}, "AppleProxPair"},
+    {0,       0x004C, 1, {0x10,0,0,0}, "AppleNearby"},
+    {0,       0x004C, 0, {0,0,0,0}, "Apple"},
     {0,       0x0075, 0, {0,0,0,0}, "Samsung"},
-    {0,       0x009C, 0, {0,0,0,0}, "Chipolo"},
-    {0,       0x0500, 0, {0,0,0,0}, "PebbleBee"},
-    {0,       0x015F, 0, {0,0,0,0}, "Eufy"},
-    {0,       0x05E6, 0, {0,0,0,0}, "RollingSquare"},
-    {0,       0x5941, 0, {0,0,0,0}, "Autel"},
 };
 
 static bool parseAdvForWatch(const uint8_t *p, uint16_t len, WatchEntry &outMatch) {
@@ -736,18 +865,27 @@ static bool parseAdvForWatch(const uint8_t *p, uint16_t len, WatchEntry &outMatc
         if (l == 0) { off += 1; continue; }
         if (off + 1 + l > len) return false;
         uint8_t adType = p[off + 1];
-        // 0x16 Service Data 16-bit UUID
         if (adType == 0x16 && l >= 3) {
             uint16_t uuid = (uint16_t)p[off + 2] | ((uint16_t)p[off + 3] << 8);
             for (const auto &w : kWatch) {
-                if (w.serviceUuid == uuid) { outMatch = w; return true; }
+                if (w.serviceUuid != uuid) continue;
+                if (w.mfgPrefixLen == 0) { outMatch = w; return true; }
+                if (l >= 3 + w.mfgPrefixLen &&
+                    memcmp(&p[off + 4], w.mfgPrefix, w.mfgPrefixLen) == 0) {
+                    outMatch = w; return true;
+                }
             }
         }
-        // 0xFF Manufacturer Specific Data
         if (adType == 0xFF && l >= 3) {
             uint16_t mfg = (uint16_t)p[off + 2] | ((uint16_t)p[off + 3] << 8);
             for (const auto &w : kWatch) {
-                if (w.serviceUuid == 0 && w.mfgId == mfg) { outMatch = w; return true; }
+                if (w.serviceUuid != 0) continue;
+                if (w.mfgId != mfg) continue;
+                if (w.mfgPrefixLen == 0) { outMatch = w; return true; }
+                if (l >= 3 + w.mfgPrefixLen &&
+                    memcmp(&p[off + 4], w.mfgPrefix, w.mfgPrefixLen) == 0) {
+                    outMatch = w; return true;
+                }
             }
         }
         off += 1 + l;
@@ -756,7 +894,7 @@ static bool parseAdvForWatch(const uint8_t *p, uint16_t len, WatchEntry &outMatc
 }
 
 static bool validateBleAdvStructure(const uint8_t *p, uint16_t len, const char **reason) {
-    if (len > 31) { *reason = "PAYLOAD_OVERLEN"; return false; }
+    if (len > 254) { *reason = "PAYLOAD_OVERLEN"; return false; }
     uint16_t off = 0;
     while (off < len) {
         uint8_t l = p[off];
@@ -768,17 +906,38 @@ static bool validateBleAdvStructure(const uint8_t *p, uint16_t len, const char *
 }
 
 void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len, const char *name) {
+    (void)name;
     if (!g_detectEnabled.load()) return;
     uint32_t now = millis();
+
+    // Phase 3.2 BLE ODID Remote ID — Service Data 16-bit UUID 0xFFFA
+    // (AD type 0x16, UUID bytes FA FF little-endian). Done here in task
+    // context, not in nimble_host callback.
+    if (len >= 8 && payload) {
+        size_t off = 0;
+        while (off + 2 <= len) {
+            uint8_t l = payload[off];
+            if (l == 0) { off += 1; continue; }
+            if (off + 1 + l > len) break;
+            uint8_t adType = payload[off + 1];
+            if (adType == 0x16 && l >= 4 &&
+                payload[off + 2] == 0xFA && payload[off + 3] == 0xFF) {
+                size_t odidLen = len - (off + 4);
+                processDroneOdidBle(addr, rssi, payload + off + 4, (int)odidLen);
+                break;
+            }
+            off += 1 + l;
+        }
+    }
     const char *malformedReason = nullptr;
-    if (!validateBleAdvStructure(payload, len, &malformedReason) && malformedReason) {
+    if (g_bleMalformedEnabled.load() && !validateBleAdvStructure(payload, len, &malformedReason) && malformedReason) {
         BleMalformedEvent ev{};
         memcpy(ev.addr, addr, 6);
         ev.rssi = rssi;
         strncpy(ev.reason, malformedReason, sizeof(ev.reason) - 1);
         ev.payloadLen = len;
         ev.ts = now;
-        std::lock_guard<std::mutex> lk(g_mtx);
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
         g_bleMalformedLog.push_back(ev);
         if (g_bleMalformedLog.size() > MAX_BLEM_LOG) g_bleMalformedLog.erase(g_bleMalformedLog.begin());
         String addr_s = macStr(addr);
@@ -790,10 +949,13 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
         logEventToSD("/ble_malformed.jsonl", line);
         return;
     }
+    if (!g_trackerEnabled.load() && !g_airtagEnabled.load()) return;
     WatchEntry match{};
     if (!parseAdvForWatch(payload, len, match)) return;
 
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    if (g_airtagEnabled.load()) airtagProcess(addr, rssi, payload, len);
+    if (!g_trackerEnabled.load()) return;
     uint64_t k = packMac(addr);
     auto it = g_bleTrackers.find(k);
     if (it == g_bleTrackers.end()) {
@@ -816,6 +978,8 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
         s.persistenceScore = 10;
         s.followAlerted = false;
         g_bleTrackers[k] = s;
+        trackerSweepVanished(now);
+        trackerTryLinkRotation(addr, match.vendor, rssi, now);
         return;
     }
     BleTrackerSighting &s = it->second;
@@ -852,7 +1016,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
                       ",\"score\":" + String(s.persistenceScore) +
                       ",\"ts\":" + String(now) + "}";
         logEventToSD("/ble_follow.jsonl", line);
-        if (meshEnabled) {
+        if (meshEnabled && g_meshTracker.load() && meshRateGate("BLETRACK_" + a_s, 60000)) {
             sendToSerial1(getNodeId() + ": BLETRACK:" + a_s + ":" + match.vendor + ":" + String(s.persistenceScore), true);
         }
         quorum_addReport("BLETRACK", a_s, getNodeId(), rssi);
@@ -882,7 +1046,7 @@ static float rssiToMeters(int8_t rssi) {
 void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t rssi) {
     if (!uavId || uavId[0] == 0) return;
     uint32_t now = millis();
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto &c = g_ridClaims[uavId];
     strncpy(c.uavId, uavId, sizeof(c.uavId) - 1);
     c.lat = lat;
@@ -910,13 +1074,11 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
         sendToSerial1(String(buf), true);
     }
 
-    // Local validation if we have 2+ GPS reports
     int gpsCount = 0;
     bool geomViolation = false;
+    bool anyClose = false;
     for (auto &rx2 : c.rxs) if (rx2.hasGps) gpsCount++;
     if (gpsCount >= 2) {
-        bool anyClose = false;
-        bool anyFar = false;
         for (auto &rx2 : c.rxs) {
             if (!rx2.hasGps) continue;
             float claimedDist = haversineMeters(rx2.nodeLat, rx2.nodeLon, lat, lon);
@@ -924,7 +1086,6 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
             float ratio = (claimedDist > 1.0f) ? (rssiDist / claimedDist) : 0.0f;
             if (claimedDist > 2000.0f && rssiDist < 200.0f) anyClose = true;
             if (ratio > 5.0f || ratio < 0.05f) geomViolation = true;
-            (void)anyFar;
         }
         c.verified = !geomViolation && !anyClose;
         c.insufficient = false;
@@ -933,7 +1094,1443 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
         c.verified = false;
     }
 }
+// =============================================================================
+// Feature 12: Inter-node ToF / link-quality via mesh ping
+// =============================================================================
+struct TofPendingPing {
+    uint32_t seqId;
+    uint64_t txUs;
+    char target[16];
+};
+static std::map<String, TofPeer> g_tofPeers;
+static std::vector<TofPendingPing> g_tofPending;
+static std::atomic<uint32_t> g_tofSeq{1};
+static constexpr size_t MAX_TOF_PENDING = 16;
+static constexpr size_t MAX_TOF_PEERS   = 32;
+
+void tof_ping(const char *targetNode) {
+    if (!targetNode || !meshEnabled) return;
+    uint32_t seq = g_tofSeq.fetch_add(1);
+    uint64_t txUs = getDisciplinedMicros();
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    if (g_tofPending.size() >= MAX_TOF_PENDING) g_tofPending.erase(g_tofPending.begin());
+    TofPendingPing p{};
+    p.seqId = seq;
+    p.txUs = txUs;
+    strncpy(p.target, targetNode, sizeof(p.target) - 1);
+    g_tofPending.push_back(p);
+    char buf[96];
+    snprintf(buf, sizeof(buf), "%s: TOF_PING:%s:%u:%llu",
+             getNodeId().c_str(), targetNode, (unsigned)seq, (unsigned long long)txUs);
+    sendToSerial1(String(buf), true);
+}
+
+void tof_broadcastPing() { tof_ping("*"); }
+
+void tof_processPing(const String &fromNode, uint32_t seq, uint64_t theirTxUs) {
+    if (!meshEnabled) return;
+    uint64_t rxUs = getDisciplinedMicros();
+    char buf[176];
+    snprintf(buf, sizeof(buf), "%s: TOF_PONG:%s:%u:%llu:%llu",
+             getNodeId().c_str(), fromNode.c_str(), (unsigned)seq,
+             (unsigned long long)theirTxUs,
+             (unsigned long long)rxUs);
+    sendToSerial1(String(buf), true);
+}
+
+void tof_processPong(const String &fromNode, uint32_t seqHint, uint64_t origTxEcho, uint64_t theirRxUs) {
+    uint64_t rxUs = getDisciplinedMicros();
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    uint64_t origTxUs = 0;
+    bool matched = false;
+    for (auto it = g_tofPending.begin(); it != g_tofPending.end(); ) {
+        if (rxUs - it->txUs > 5000000ULL) { it = g_tofPending.erase(it); continue; }
+        if (it->seqId == seqHint &&
+            (String(it->target) == fromNode || String(it->target) == "*")) {
+            origTxUs = it->txUs;
+            it = g_tofPending.erase(it);
+            matched = true;
+            break;
+        }
+        ++it;
+    }
+    if (!matched) return;
+    if (origTxEcho != 0 && origTxEcho != origTxUs) return;
+    uint64_t totalRtt = rxUs - origTxUs;
+    uint64_t netRtt = totalRtt;
+    if (theirRxUs > origTxEcho && origTxEcho > 0) {
+        uint64_t remoteProc = (theirRxUs > origTxEcho) ? (theirRxUs - origTxEcho) : 0;
+        if (remoteProc < totalRtt) netRtt = totalRtt - remoteProc;
+    }
+
+    auto pit = g_tofPeers.find(fromNode);
+    if (pit == g_tofPeers.end()) {
+        if (g_tofPeers.size() >= MAX_TOF_PEERS) {
+            String oldestKey;
+            uint32_t oldestT = UINT32_MAX;
+            for (auto &kv : g_tofPeers) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestKey = kv.first; }
+            if (oldestKey.length()) g_tofPeers.erase(oldestKey);
+        }
+        TofPeer np{};
+        strncpy(np.nodeId, fromNode.c_str(), sizeof(np.nodeId) - 1);
+        np.bestRttUs = netRtt;
+        np.avgRttUs = netRtt;
+        np.lastRttUs = netRtt;
+        np.samples = 1;
+        np.lastSeen = millis();
+        np.estDistanceM = -1;
+        g_tofPeers[fromNode] = np;
+        return;
+    }
+    TofPeer &peer = pit->second;
+    if (netRtt < peer.bestRttUs) peer.bestRttUs = netRtt;
+    peer.avgRttUs = (peer.avgRttUs * 7 + netRtt) / 8;
+    peer.lastRttUs = netRtt;
+    peer.samples++;
+    peer.lastSeen = millis();
+    peer.estDistanceM = -1;
+}
+
+String tof_getPeersJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_tofPeers) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"node\":\"" + String(kv.second.nodeId) + "\"" +
+               ",\"last_rtt_us\":" + String((unsigned long)kv.second.lastRttUs) +
+               ",\"best_rtt_us\":" + String((unsigned long)kv.second.bestRttUs) +
+               ",\"avg_rtt_us\":" + String((unsigned long)kv.second.avgRttUs) +
+               ",\"samples\":" + String(kv.second.samples) +
+               ",\"est_dist_m\":" + String(kv.second.estDistanceM) +
+               ",\"last\":" + String(kv.second.lastSeen) + "}";
+    }
+    out += "]";
+    return out;
+}
+void tof_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_tofPeers.clear();
+    g_tofPending.clear();
+}
+size_t tof_peerCount() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_tofPeers.size();
+}
+
+// =============================================================================
+// Feature 10/11: TSF clock-skew fingerprint
+// =============================================================================
+struct TsfTrack {
+    uint64_t prevTsf;
+    uint64_t prevRxUs;
+    uint16_t beaconInterval;
+    float ppmEstimate;
+    int32_t lastSkewUs;
+    uint32_t samples;
+    uint32_t firstSeen;
+    uint32_t lastSeen;
+    char ssid[33];
+};
+static std::map<uint64_t, TsfTrack> g_tsfTrack;
+static constexpr size_t MAX_TSF_TRACK = 200;
+
+static void tsfObserve(const uint8_t *bssid, uint64_t tsf, uint16_t beaconInterval,
+                       const char *ssid, uint32_t nowMs) {
+    uint64_t nowUs = esp_timer_get_time();
+    uint64_t k = packMac(bssid);
+    auto tit = g_tsfTrack.find(k);
+    if (tit == g_tsfTrack.end()) {
+        if (g_tsfTrack.size() >= MAX_TSF_TRACK) {
+            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+            for (auto &kv : g_tsfTrack) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            g_tsfTrack.erase(oldestK);
+        }
+        TsfTrack nt{};
+        nt.prevTsf = tsf;
+        nt.prevRxUs = nowUs;
+        nt.beaconInterval = beaconInterval;
+        nt.firstSeen = nowMs;
+        strncpy(nt.ssid, ssid ? ssid : "", sizeof(nt.ssid) - 1);
+        nt.samples = 1;
+        nt.lastSeen = nowMs;
+        g_tsfTrack[k] = nt;
+        return;
+    }
+    TsfTrack &t = tit->second;
+    if (tsf <= t.prevTsf) {
+        t.prevTsf = tsf;
+        t.prevRxUs = nowUs;
+        t.lastSeen = nowMs;
+        return;
+    }
+    uint64_t actualDelta = tsf - t.prevTsf;
+    uint64_t rxDeltaUs = nowUs - t.prevRxUs;
+    if (rxDeltaUs < 50000ULL || rxDeltaUs > 60000000ULL) {
+        t.prevTsf = tsf;
+        t.prevRxUs = nowUs;
+        t.lastSeen = nowMs;
+        return;
+    }
+    int64_t skew = (int64_t)actualDelta - (int64_t)rxDeltaUs;
+    if (skew > 200000 || skew < -200000) {
+        t.prevTsf = tsf;
+        t.prevRxUs = nowUs;
+        t.lastSeen = nowMs;
+        return;
+    }
+    float ppm = ((float)skew / (float)rxDeltaUs) * 1e6f;
+    if (ppm > 500.0f || ppm < -500.0f) {
+        t.prevTsf = tsf;
+        t.prevRxUs = nowUs;
+        t.lastSeen = nowMs;
+        return;
+    }
+    t.ppmEstimate = (t.ppmEstimate * (float)(t.samples - 1) + ppm) / (float)t.samples;
+    t.lastSkewUs = (int32_t)skew;
+    if (t.samples < UINT32_MAX) t.samples++;
+    t.prevTsf = tsf;
+    t.prevRxUs = nowUs;
+    t.beaconInterval = beaconInterval;
+    strncpy(t.ssid, ssid ? ssid : "", sizeof(t.ssid) - 1);
+    t.lastSeen = nowMs;
+}
+
+String tsf_getSkewJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_tsfTrack) {
+        if (kv.second.samples < 3) continue;
+        if (!first) out += ",";
+        first = false;
+        uint8_t bssid[6];
+        unpackMac(kv.first, bssid);
+        out += "{\"bssid\":\"" + macStr(bssid) + "\"" +
+               ",\"ssid\":\"" + String(kv.second.ssid) + "\"" +
+               ",\"ppm\":" + String(kv.second.ppmEstimate, 2) +
+               ",\"last_skew_us\":" + String(kv.second.lastSkewUs) +
+               ",\"samples\":" + String(kv.second.samples) +
+               ",\"first\":" + String(kv.second.firstSeen) +
+               ",\"last\":" + String(kv.second.lastSeen) + "}";
+    }
+    out += "]";
+    return out;
+}
+void tsf_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_tsfTrack.clear();
+}
+size_t tsf_count() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_tsfTrack.size();
+}
+
+// =============================================================================
+// Feature 9: Reactive KARMA probe-bait
+// =============================================================================
+static std::map<uint64_t, KarmaCandidate> g_karma;
+static std::map<uint64_t, std::set<String>> g_karmaSsids;
+static std::vector<String> g_baitSsids;
+// g_karmaEnabled declared earlier
+static constexpr uint8_t  KARMA_DISTINCT_THRESHOLD = 3;
+static constexpr uint32_t KARMA_WINDOW_MS = 30000;
+static constexpr size_t   MAX_KARMA = 64;
+static constexpr size_t   MAX_BAIT  = 8;
+
+static const uint8_t kProbeReqHeader[24] = {
+    0x40, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x02, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00
+};
+static const uint8_t kSupportedRates[10] = {
+    0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24
+};
+
+static void karmaEmitBait(const uint8_t *targetBssid) {
+    uint32_t seq = (uint32_t)esp_timer_get_time() & 0xFFFFFF;
+    char ssid[33];
+    snprintf(ssid, sizeof(ssid), "H%s_%06X", getNodeId().c_str(), (unsigned)seq);
+    size_t ssidLen = strlen(ssid);
+    if (ssidLen > 32) ssidLen = 32;
+
+    uint8_t frame[24 + 2 + 32 + sizeof(kSupportedRates)];
+    memcpy(frame, kProbeReqHeader, 24);
+    frame[24] = 0x00;
+    frame[25] = (uint8_t)ssidLen;
+    memcpy(frame + 26, ssid, ssidLen);
+    memcpy(frame + 26 + ssidLen, kSupportedRates, sizeof(kSupportedRates));
+    size_t total = 26 + ssidLen + sizeof(kSupportedRates);
+
+    esp_err_t err = esp_wifi_80211_tx(WIFI_IF_AP, frame, total, false);
+    (void)err;
+
+    if (g_baitSsids.size() >= MAX_BAIT) g_baitSsids.erase(g_baitSsids.begin());
+    g_baitSsids.push_back(String(ssid));
+    (void)targetBssid;
+}
+
+void karma_setEnabled(bool on) { g_karmaEnabled.store(on); }
+bool karma_isEnabled() { return g_karmaEnabled.load(); }
+void karma_init() {}
+
+void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi) {
+    if (!g_karmaEnabled.load() || !bssid || !ssid || ssid[0] == 0) return;
+    uint64_t k = packMac(bssid);
+    uint32_t now = millis();
+    std::unique_lock<std::recursive_mutex> lk(g_mtx);
+    auto kit = g_karma.find(k);
+    if (kit == g_karma.end()) {
+        if (g_karma.size() >= MAX_KARMA) {
+            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+            for (auto &kv : g_karma) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            g_karma.erase(oldestK);
+            g_karmaSsids.erase(oldestK);
+        }
+        KarmaCandidate nc{};
+        memcpy(nc.bssid, bssid, 6);
+        nc.firstSseen = now;
+        nc.lastSeen = now;
+        nc.distinctSsids = 0;
+        nc.baitEmitted = false;
+        nc.confirmed = false;
+        g_karma[k] = nc;
+        kit = g_karma.find(k);
+    }
+    KarmaCandidate &candidate = kit->second;
+    auto &ssidSet = g_karmaSsids[k];
+    if (now - candidate.firstSseen > KARMA_WINDOW_MS) {
+        ssidSet.clear();
+        candidate.firstSseen = now;
+        candidate.distinctSsids = 0;
+        candidate.baitEmitted = false;
+    }
+    candidate.lastSeen = now;
+    strncpy(candidate.lastSsid, ssid, sizeof(candidate.lastSsid) - 1);
+    if (ssidSet.insert(String(ssid)).second) {
+        candidate.distinctSsids = (uint8_t)std::min<size_t>(255, ssidSet.size());
+    }
+
+    bool shouldEmitBait = false;
+    uint8_t emitDistinctSsids = 0;
+    uint8_t emitBssid[6];
+    if (!candidate.baitEmitted && candidate.distinctSsids >= KARMA_DISTINCT_THRESHOLD) {
+        candidate.baitEmitted = true;
+        shouldEmitBait = true;
+        emitDistinctSsids = candidate.distinctSsids;
+        memcpy(emitBssid, bssid, 6);
+    }
+    (void)rssi;
+    if (shouldEmitBait) {
+        lk.unlock();
+        karmaEmitBait(emitBssid);
+        if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CAND_" + macStr(emitBssid), 60000)) {
+            sendToSerial1(getNodeId() + ": KARMA_CAND:" + macStr(emitBssid) +
+                          ":" + String(emitDistinctSsids), true);
+        }
+    }
+}
+
+bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi) {
+    if (!ssid || !bssid) return false;
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    for (auto &s : g_baitSsids) {
+        if (s == ssid) {
+            uint64_t k = packMac(bssid);
+            auto &cand = g_karma[k];
+            if (cand.firstSseen == 0) {
+                memcpy(cand.bssid, bssid, 6);
+                cand.firstSseen = millis();
+            }
+            cand.confirmed = true;
+            cand.lastSeen = millis();
+            strncpy(cand.lastSsid, ssid, sizeof(cand.lastSsid) - 1);
+            if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
+                sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) +
+                              ":" + String(rssi), true);
+            }
+            quorum_addReport("KARMA", macStr(bssid), getNodeId(), rssi);
+            attacker_kick(bssid, "KARMA");
+            return true;
+        }
+    }
+    return false;
+}
+
+String karma_getJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_karma) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"bssid\":\"" + macStr(kv.second.bssid) + "\"" +
+               ",\"distinct_ssids\":" + String((unsigned)kv.second.distinctSsids) +
+               ",\"bait_emitted\":" + String(kv.second.baitEmitted ? "true" : "false") +
+               ",\"confirmed\":" + String(kv.second.confirmed ? "true" : "false") +
+               ",\"last_ssid\":\"" + String(kv.second.lastSsid) + "\"" +
+               ",\"first\":" + String(kv.second.firstSseen) +
+               ",\"last\":" + String(kv.second.lastSeen) + "}";
+    }
+    out += "]";
+    return out;
+}
+void karma_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_karma.clear();
+    g_karmaSsids.clear();
+    g_baitSsids.clear();
+}
+size_t karma_candidateCount() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_karma.size();
+}
+size_t karma_confirmedCount() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    size_t n = 0;
+    for (auto &kv : g_karma) if (kv.second.confirmed) n++;
+    return n;
+}
+
+// =============================================================================
+// Feature 7: Pwnagotchi swarm detect
+// =============================================================================
+static const uint8_t PWNAGOTCHI_ADDR2[6] = {0xDE,0xAD,0xBE,0xEF,0xDE,0xAD};
+static std::map<uint64_t, PwnagotchiSighting> g_pwna;
+static constexpr size_t MAX_PWNA = 32;
+
+static bool isPwnagotchiBeacon(const uint8_t *frame, uint16_t len) {
+    if (len < 36) return false;
+    return memcmp(frame + 10, PWNAGOTCHI_ADDR2, 6) == 0;
+}
+
+static void pwnagotchiExtractSnippet(const uint8_t *ie, uint16_t ieLen, char *out, size_t outSz) {
+    uint16_t off = 0;
+    out[0] = 0;
+    while (off + 2 <= ieLen) {
+        uint8_t tag = ie[off];
+        uint8_t len = ie[off + 1];
+        if (off + 2 + len > ieLen) break;
+        if (tag == 222 && len > 0) {
+            size_t n = std::min<size_t>(len, outSz - 1);
+            for (size_t i = 0; i < n; ++i) {
+                uint8_t c = ie[off + 2 + i];
+                out[i] = (c >= 32 && c <= 126) ? (char)c : '.';
+            }
+            out[n] = 0;
+            return;
+        }
+        off += 2 + len;
+    }
+}
+
+static void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
+                              const uint8_t *ie, uint16_t ieLen) {
+    uint32_t now = millis();
+    uint64_t k = packMac(bssid);
+    auto sit = g_pwna.find(k);
+    if (sit == g_pwna.end()) {
+        if (g_pwna.size() >= MAX_PWNA) {
+            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+            for (auto &kv : g_pwna) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            g_pwna.erase(oldestK);
+        }
+        PwnagotchiSighting ns{};
+        memcpy(ns.bssid, bssid, 6);
+        ns.firstSeen = now;
+        ns.bestRssi = rssi;
+        g_pwna[k] = ns;
+        sit = g_pwna.find(k);
+    }
+    PwnagotchiSighting &s = sit->second;
+    if (rssi > s.bestRssi) s.bestRssi = rssi;
+    s.lastRssi = rssi;
+    if (s.observations < 65535) s.observations++;
+    s.lastSeen = now;
+    pwnagotchiExtractSnippet(ie, ieLen, s.snippet, sizeof(s.snippet));
+
+    if (meshEnabled) {
+        if (g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
+            sendToSerial1(getNodeId() + ": PWNAGOTCHI:" + macStr(bssid) + ":" + String(rssi), true);
+    }
+    quorum_addReport("PWNAGOTCHI", macStr(bssid), getNodeId(), rssi);
+    attacker_kick(bssid, "PWNAGOTCHI");
+}
+
+String pwnagotchi_getJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_pwna) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"bssid\":\"" + macStr(kv.second.bssid) + "\"" +
+               ",\"observations\":" + String(kv.second.observations) +
+               ",\"last_rssi\":" + String(kv.second.lastRssi) +
+               ",\"best_rssi\":" + String(kv.second.bestRssi) +
+               ",\"first\":" + String(kv.second.firstSeen) +
+               ",\"last\":" + String(kv.second.lastSeen) +
+               ",\"snippet\":\"" + String(kv.second.snippet) + "\"}";
+    }
+    out += "]";
+    return out;
+}
+void pwnagotchi_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_pwna.clear();
+}
+size_t pwnagotchi_count() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_pwna.size();
+}
+
+// =============================================================================
+// Feature 6: Attacker reverse-trilateration
+// =============================================================================
+struct AttackerHunt {
+    uint8_t mac[6];
+    char attackType[16];
+    uint32_t startedAt;
+    uint32_t lastKick;
+};
+static std::map<uint64_t, AttackerHunt> g_hunts;
+static std::atomic<uint32_t> g_huntCooldown{60000};
+static constexpr size_t MAX_HUNTS = 32;
+
+void attacker_kick(const uint8_t *mac, const char *attackType) {
+    if (!mac) return;
+    if (!g_attackerTrilatEnabled.load()) return;
+    uint64_t k = packMac(mac);
+    uint32_t now = millis();
+    bool startTrilat = false;
+    String macS;
+    {
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        auto it = g_hunts.find(k);
+        uint32_t cool = g_huntCooldown.load();
+        if (it != g_hunts.end() && (now - it->second.lastKick) < cool) return;
+        uint32_t priorStartedAt = (it != g_hunts.end()) ? it->second.startedAt : now;
+        if (it == g_hunts.end() && g_hunts.size() >= MAX_HUNTS) {
+            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+            for (auto &kv : g_hunts) if (kv.second.lastKick < oldestT) { oldestT = kv.second.lastKick; oldestK = kv.first; }
+            g_hunts.erase(oldestK);
+        }
+        AttackerHunt h{};
+        memcpy(h.mac, mac, 6);
+        strncpy(h.attackType, attackType ? attackType : "?", sizeof(h.attackType) - 1);
+        h.startedAt = priorStartedAt;
+        h.lastKick = now;
+        g_hunts[k] = h;
+        if (!::triangulationActive.load()) {
+            startTrilat = true;
+            macS = macStr(mac);
+        }
+    }
+    if (startTrilat) ::startTriangulation(macS, 60);
+    if (meshEnabled && g_meshAttackerHunt.load() && meshRateGate("HUNT_" + macStr(mac), 60000)) {
+        sendToSerial1(getNodeId() + ": ATTACKER_HUNT:" + macStr(mac) + ":" + String(attackType ? attackType : "?"), true);
+    }
+}
+String attacker_getActiveHuntsJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_hunts) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"mac\":\"" + macStr(kv.second.mac) +
+               "\",\"type\":\"" + String(kv.second.attackType) +
+               "\",\"started\":" + String(kv.second.startedAt) +
+               ",\"last_kick\":" + String(kv.second.lastKick) + "}";
+    }
+    out += "]";
+    return out;
+}
+void attacker_clearHunts() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_hunts.clear();
+}
+size_t attacker_huntCount() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_hunts.size();
+}
+void attacker_setCooldown(uint32_t ms) { g_huntCooldown.store(ms); }
+
+// =============================================================================
+// Feature 5: Distributed 4-way handshake reconstruction + KRACK
+// =============================================================================
+static std::map<uint64_t, HandshakeReconstruction> g_hshk;
+static std::atomic<uint32_t> g_krackEvents{0};
+static constexpr size_t MAX_HSHK = 48;
+static constexpr size_t MAX_HSHK_FRAGS = 16;
+
+static uint64_t hshkKey(const uint8_t *bssid, const uint8_t *sta) {
+    uint64_t kb = 0, ks = 0;
+    for (int i = 0; i < 6; ++i) kb = (kb << 8) | bssid[i];
+    for (int i = 0; i < 6; ++i) ks = (ks << 8) | sta[i];
+    return kb ^ (ks * 0x9E3779B97F4A7C15ULL);
+}
+
+static uint8_t classifyEapolMsg(uint16_t keyInfo) {
+    bool pairwise = (keyInfo >> 3) & 1;
+    bool install  = (keyInfo >> 6) & 1;
+    bool ack      = (keyInfo >> 7) & 1;
+    bool mic      = (keyInfo >> 8) & 1;
+    bool secure   = (keyInfo >> 9) & 1;
+    if (!pairwise) return 0;
+    if (!install && ack && !mic) return 1;
+    if (!install && !ack && mic && !secure) return 2;
+    if (install && ack && mic) return 3;
+    if (!install && !ack && mic && secure) return 4;
+    return 0;
+}
+
+static void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
+                       uint64_t replayCtr, int8_t rssi, const char *nodeId, uint32_t now) {
+    if (msgNum < 1 || msgNum > 4) return;
+    uint64_t k = hshkKey(bssid, sta);
+    auto it = g_hshk.find(k);
+    if (it == g_hshk.end()) {
+        if (g_hshk.size() >= MAX_HSHK) {
+            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+            for (auto &kv : g_hshk) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            g_hshk.erase(oldestK);
+        }
+        HandshakeReconstruction r{};
+        memcpy(r.bssid, bssid, 6);
+        memcpy(r.sta, sta, 6);
+        r.seenMask = 0;
+        r.firstSeen = now;
+        r.lastSeen = now;
+        r.krackEvents = 0;
+        g_hshk[k] = r;
+        it = g_hshk.find(k);
+    }
+    HandshakeReconstruction &r = it->second;
+    if (msgNum == 3) {
+        for (auto &f : r.fragments) {
+            if (f.msgNum == 3 && f.replayCtr == replayCtr) {
+                if (r.krackEvents < 255) r.krackEvents++;
+                g_krackEvents.fetch_add(1);
+                if (meshEnabled && g_meshKrack.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
+                    sendToSerial1(getNodeId() + ": KRACK:" + macStr(bssid) + ":" + macStr(sta) +
+                                  ":" + String((unsigned long)replayCtr), true);
+                }
+                quorum_addReport("KRACK", macStr(bssid) + "/" + macStr(sta), getNodeId(), rssi);
+                attacker_kick(bssid, "KRACK");
+                break;
+            }
+        }
+    }
+    HandshakeFragment f{};
+    memcpy(f.bssid, bssid, 6);
+    memcpy(f.sta, sta, 6);
+    f.msgNum = msgNum;
+    f.replayCtr = replayCtr;
+    f.rssi = rssi;
+    f.ts = now;
+    strncpy(f.nodeId, nodeId, sizeof(f.nodeId) - 1);
+    r.fragments.push_back(f);
+    if (r.fragments.size() > MAX_HSHK_FRAGS) r.fragments.erase(r.fragments.begin());
+    r.seenMask |= (1 << (msgNum - 1));
+    r.lastSeen = now;
+}
+
+String hshk_getReconJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_hshk) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"bssid\":\"" + macStr(kv.second.bssid) +
+               "\",\"sta\":\"" + macStr(kv.second.sta) +
+               "\",\"seen_mask\":" + String((unsigned)kv.second.seenMask) +
+               ",\"complete\":" + String(kv.second.seenMask == 0x0F ? "true" : "false") +
+               ",\"krack_events\":" + String((unsigned)kv.second.krackEvents) +
+               ",\"first\":" + String(kv.second.firstSeen) +
+               ",\"last\":" + String(kv.second.lastSeen) +
+               ",\"frags\":[";
+        bool ff = true;
+        for (auto &f : kv.second.fragments) {
+            if (!ff) out += ",";
+            ff = false;
+            out += "{\"msg\":" + String(f.msgNum) +
+                   ",\"rc\":" + String((unsigned long)f.replayCtr) +
+                   ",\"rssi\":" + String(f.rssi) +
+                   ",\"node\":\"" + String(f.nodeId) + "\"" +
+                   ",\"ts\":" + String(f.ts) + "}";
+        }
+        out += "]}";
+    }
+    out += "]";
+    return out;
+}
+void hshk_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_hshk.clear();
+    g_krackEvents.store(0);
+}
+size_t hshk_count() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_hshk.size();
+}
+uint32_t hshk_krackEvents() { return g_krackEvents.load(); }
+
+// =============================================================================
+// Feature 4: AirTag owner-presence inference + battery
+// =============================================================================
+static std::map<uint64_t, AirTagPresence> g_airtag;
+static constexpr size_t MAX_AIRTAG = 120;
+
+static bool airtagDecode(const uint8_t *adv, uint16_t len, uint8_t &statusOut) {
+    uint16_t off = 0;
+    while (off + 2 <= len) {
+        uint8_t l = adv[off];
+        if (l == 0) { off++; continue; }
+        if (off + 1 + l > len) return false;
+        uint8_t adType = adv[off + 1];
+        if (adType == 0xFF && l >= 5) {
+            uint16_t mfg = (uint16_t)adv[off + 2] | ((uint16_t)adv[off + 3] << 8);
+            if (mfg == 0x004C && adv[off + 4] == 0x12 && adv[off + 5] == 0x19) {
+                if (l < 7) return false;
+                statusOut = adv[off + 6];
+                return true;
+            }
+        }
+        off += 1 + l;
+    }
+    return false;
+}
+
+static void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len) {
+    uint8_t status = 0;
+    if (!airtagDecode(payload, len, status)) return;
+    uint64_t k = packMac(addr);
+    uint32_t now = millis();
+    auto ait = g_airtag.find(k);
+    if (ait == g_airtag.end()) {
+        if (g_airtag.size() >= MAX_AIRTAG) {
+            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+            for (auto &kv : g_airtag) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            g_airtag.erase(oldestK);
+        }
+        AirTagPresence np{};
+        memcpy(np.addr, addr, 6);
+        np.firstSeen = now;
+        np.isFindMy = true;
+        g_airtag[k] = np;
+        ait = g_airtag.find(k);
+    }
+    AirTagPresence &p = ait->second;
+    p.lastStatusByte = status;
+    p.observations++;
+    bool maintained = (status & 0x04) != 0;
+    if (maintained) {
+        p.maintainedCount++;
+        p.batteryLastSeen = (status >> 6) & 0x03;
+    }
+    p.lastRssi = rssi;
+    p.lastSeen = now;
+}
+
+String airtag_getPresenceJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_airtag) {
+        if (!first) out += ",";
+        first = false;
+        bool ownerNearby = (kv.second.lastStatusByte & 0x04) != 0;
+        const char *bat = "unknown";
+        if (ownerNearby) {
+            switch (kv.second.batteryLastSeen) {
+                case 0: bat = "full"; break;
+                case 1: bat = "medium"; break;
+                case 2: bat = "low"; break;
+                case 3: bat = "critical"; break;
+            }
+        }
+        float ownerRate = (kv.second.observations > 0)
+                          ? (float)kv.second.maintainedCount / (float)kv.second.observations : 0.0f;
+        out += "{\"addr\":\"" + macStr(kv.second.addr) + "\"" +
+               ",\"status\":" + String(kv.second.lastStatusByte) +
+               ",\"owner_nearby\":" + String(ownerNearby ? "true" : "false") +
+               ",\"owner_seen_rate\":" + String(ownerRate, 2) +
+               ",\"battery\":\"" + bat + "\"" +
+               ",\"observations\":" + String(kv.second.observations) +
+               ",\"last_rssi\":" + String(kv.second.lastRssi) +
+               ",\"first\":" + String(kv.second.firstSeen) +
+               ",\"last\":" + String(kv.second.lastSeen) + "}";
+    }
+    out += "]";
+    return out;
+}
+void airtag_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_airtag.clear();
+}
+size_t airtag_count() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_airtag.size();
+}
+
+// =============================================================================
+// Feature 3: BLE tracker rotation un-linking
+// =============================================================================
+struct VanishedTracker {
+    uint8_t addr[6];
+    char vendor[16];
+    int8_t lastRssi;
+    uint32_t vanishedAt;
+    uint32_t chainId;
+};
+static std::vector<VanishedTracker> g_vanished;
+static std::map<uint32_t, TrackerChain> g_chains;
+static uint32_t g_chainSeq = 1;
+static constexpr uint32_t TRACKER_VANISH_MS    = 60000;
+static constexpr uint32_t TRACKER_LINK_WINDOW  = 90000;
+static constexpr int8_t   TRACKER_RSSI_TOL_DB  = 6;
+static constexpr size_t   MAX_CHAINS           = 80;
+static constexpr size_t   MAX_VANISHED         = 60;
+
+static uint32_t trackerTryLinkRotation(const uint8_t *addr, const char *vendor, int8_t rssi, uint32_t now) {
+    if (!vendor || vendor[0] == 0) return 0;
+    for (auto it = g_vanished.begin(); it != g_vanished.end(); ) {
+        if (now - it->vanishedAt > TRACKER_LINK_WINDOW) {
+            it = g_vanished.erase(it);
+            continue;
+        }
+        if (strcmp(it->vendor, vendor) == 0 &&
+            abs((int)it->lastRssi - (int)rssi) <= TRACKER_RSSI_TOL_DB &&
+            memcmp(it->addr, addr, 6) != 0) {
+            uint32_t cid = it->chainId;
+            VanishedTracker v = *it;
+            g_vanished.erase(it);
+            if (cid == 0) {
+                if (g_chains.size() >= MAX_CHAINS) {
+                    uint32_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+                    for (auto &kv : g_chains) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+                    g_chains.erase(oldestK);
+                }
+                cid = g_chainSeq++;
+                TrackerChain c{};
+                c.chainId = cid;
+                strncpy(c.vendor, vendor, sizeof(c.vendor) - 1);
+                c.avgRssi = rssi;
+                c.firstSeen = v.vanishedAt;
+                c.lastSeen = now;
+                TrackerChain::Link l1{};
+                memcpy(l1.addr, v.addr, 6);
+                l1.rssi = v.lastRssi;
+                l1.startTs = v.vanishedAt;
+                l1.endTs = v.vanishedAt;
+                c.links.push_back(l1);
+                c.linkCount = 1;
+                g_chains[cid] = c;
+            }
+            TrackerChain &chain = g_chains[cid];
+            TrackerChain::Link l{};
+            memcpy(l.addr, addr, 6);
+            l.rssi = rssi;
+            l.startTs = now;
+            l.endTs = now;
+            chain.links.push_back(l);
+            if (chain.linkCount < 255) chain.linkCount++;
+            chain.avgRssi = (int8_t)(((int32_t)chain.avgRssi + rssi) / 2);
+            chain.lastSeen = now;
+            if (meshEnabled && g_meshTracker.load() && meshRateGate("TRKLINK_" + String(cid), 30000)) {
+                sendToSerial1(getNodeId() + ": TRK_LINK:" + String(cid) + ":" +
+                              vendor + ":" + macStr(addr) + ":" + String(rssi), true);
+            }
+            return cid;
+        }
+        ++it;
+    }
+    return 0;
+}
+
+static void trackerSweepVanished(uint32_t now) {
+    for (auto it = g_bleTrackers.begin(); it != g_bleTrackers.end(); ) {
+        if (now - it->second.lastSeen > TRACKER_VANISH_MS && it->second.vendor[0]) {
+            if (g_vanished.size() >= MAX_VANISHED) g_vanished.erase(g_vanished.begin());
+            VanishedTracker v{};
+            memcpy(v.addr, it->second.addr, 6);
+            strncpy(v.vendor, it->second.vendor, sizeof(v.vendor) - 1);
+            v.lastRssi = it->second.avgRssi;
+            v.vanishedAt = it->second.lastSeen;
+            v.chainId = 0;
+            g_vanished.push_back(v);
+            it = g_bleTrackers.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+String tracker_getChainsJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    trackerSweepVanished(millis());
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_chains) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"chain\":" + String(kv.second.chainId) +
+               ",\"vendor\":\"" + String(kv.second.vendor) + "\"" +
+               ",\"links\":" + String((unsigned)kv.second.linkCount) +
+               ",\"avg_rssi\":" + String(kv.second.avgRssi) +
+               ",\"first\":" + String(kv.second.firstSeen) +
+               ",\"last\":" + String(kv.second.lastSeen) +
+               ",\"history\":[";
+        bool fl = true;
+        for (auto &l : kv.second.links) {
+            if (!fl) out += ",";
+            fl = false;
+            out += "{\"addr\":\"" + macStr(l.addr) +
+                   "\",\"rssi\":" + String(l.rssi) +
+                   ",\"first\":" + String(l.startTs) +
+                   ",\"last\":" + String(l.endTs) + "}";
+        }
+        out += "]}";
+    }
+    out += "]";
+    return out;
+}
+void tracker_clearChains() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_chains.clear();
+    g_vanished.clear();
+}
+size_t tracker_chainCount() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_chains.size();
+}
+
+// =============================================================================
+// Feature 2: Probe-graph identity correlator
+// =============================================================================
+static std::map<uint32_t, ProbeGraphIdentity> g_pgGraph;
+
+uint32_t pg_computeHashFromBytes(const uint8_t *ieFp12, const uint8_t *ieOrderBytes,
+                                 uint8_t ieOrderLen, const uint8_t *chanSeq, uint8_t chanSeqLen) {
+    uint32_t h = 0x811C9DC5;
+    if (ieFp12) for (uint8_t i = 0; i < 12; ++i) { h ^= ieFp12[i]; h *= 16777619u; }
+    if (ieOrderBytes && ieOrderLen) for (uint8_t i = 0; i < ieOrderLen; ++i) { h ^= ieOrderBytes[i]; h *= 16777619u; }
+    if (chanSeq && chanSeqLen) for (uint8_t i = 0; i < chanSeqLen; ++i) { h ^= chanSeq[i]; h *= 16777619u; }
+    return h;
+}
+
+void pg_announceLocalIdentity(uint32_t hash, const char *localTrackId, int8_t rssi) {
+    if (!localTrackId) return;
+    uint32_t now = millis();
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    auto &id = g_pgGraph[hash];
+    if (id.hash == 0) {
+        id.hash = hash;
+        id.firstSeen = now;
+        id.bestRssi = rssi;
+        id.sightingCount = 1;
+        strncpy(id.localTrackId, localTrackId, sizeof(id.localTrackId) - 1);
+    } else {
+        if (rssi > id.bestRssi) id.bestRssi = rssi;
+        if (id.sightingCount < 255) id.sightingCount++;
+    }
+    id.lastSeen = now;
+    bool selfPresent = false;
+    String me = getNodeId();
+    for (auto &n : id.nodes) if (n.nodeId == me) { n.rssi = rssi; n.ts = now; selfPresent = true; break; }
+    if (!selfPresent) {
+        ProbeGraphIdentity::NodeSeen ns;
+        ns.nodeId = me; ns.rssi = rssi; ns.ts = now;
+        id.nodes.push_back(ns);
+    }
+    if (meshEnabled) {
+        sendToSerial1(me + ": IDHASH:" + String(hash) + ":" +
+                      String(localTrackId) + ":" + String(rssi), true);
+    }
+}
+
+void pg_init() {}
+void pg_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_pgGraph.clear();
+}
+size_t pg_size() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return g_pgGraph.size();
+}
+String pg_getGraphJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_pgGraph) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"hash\":" + String(kv.second.hash) +
+               ",\"local\":\"" + String(kv.second.localTrackId) + "\"" +
+               ",\"best_rssi\":" + String(kv.second.bestRssi) +
+               ",\"sightings\":" + String((unsigned)kv.second.sightingCount) +
+               ",\"first\":" + String(kv.second.firstSeen) +
+               ",\"last\":" + String(kv.second.lastSeen) +
+               ",\"nodes\":[";
+        bool fn = true;
+        for (auto &n : kv.second.nodes) {
+            if (!fn) out += ",";
+            fn = false;
+            out += "{\"node\":\"" + n.nodeId + "\",\"rssi\":" + String(n.rssi) +
+                   ",\"ts\":" + String(n.ts) + "}";
+        }
+        out += "]}";
+    }
+    out += "]";
+    return out;
+}
+
+// =============================================================================
+// Feature 1+8: CSI Presence / Motion / RF Fingerprint
+// =============================================================================
+static QueueHandle_t g_csiQueue = nullptr;
+static std::atomic<bool> g_csiEnabled{false};
+static std::atomic<uint32_t> g_csiPkts{0};
+static std::atomic<uint32_t> g_csiMotion{0};
+static std::atomic<uint16_t> g_csiThreshQ8{1500};
+static std::vector<CsiMotionEvent> g_csiMotionLog;
+static std::map<uint64_t, CsiFingerprint> g_csiFp;
+
+struct CsiHistory {
+    int16_t prevAmp[64];
+    uint16_t varQ8;
+    uint8_t valid;
+    uint32_t lastTs;
+};
+static std::map<uint64_t, CsiHistory> g_csiHist;
+static constexpr size_t MAX_CSI_MOTION_LOG = 80;
+static constexpr size_t MAX_CSI_FP = 200;
+
+static void IRAM_ATTR csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
+    (void)ctx;
+    if (!info || !info->buf || info->len < 8) return;
+    if (!g_csiQueue) return;
+    CsiSnapshot snap{};
+    memcpy(snap.srcMac, info->mac, 6);
+    snap.rssi = info->rx_ctrl.rssi;
+    snap.channel = info->rx_ctrl.channel;
+    snap.bandwidth = info->rx_ctrl.cwb;
+    snap.ts = info->rx_ctrl.timestamp;
+    int8_t *src = info->buf;
+    int n = info->len / 2;
+    if (n > 64) n = 64;
+    snap.numSubcarriers = (uint8_t)n;
+    for (int i = 0; i < n; ++i) {
+        int8_t I = src[i * 2];
+        int8_t Q = src[i * 2 + 1];
+        int32_t mag2 = (int32_t)I * I + (int32_t)Q * Q;
+        int32_t m = mag2;
+        int32_t r = 0;
+        for (int b = 14; b >= 0; --b) {
+            int32_t t = r + (1 << b);
+            if (t * t <= m) r = t;
+        }
+        snap.amp[i] = (int16_t)r;
+    }
+    if (uxQueueSpacesAvailable(g_csiQueue) < 1) { g_droppedCsi.fetch_add(1); return; }
+    BaseType_t woken = pdFALSE;
+    xQueueSendFromISR(g_csiQueue, &snap, &woken);
+    if (woken) portYIELD_FROM_ISR();
+}
+
+static void csiProcess(const CsiSnapshot &s) {
+    g_csiPkts.fetch_add(1);
+    uint64_t k = packMac(s.srcMac);
+    uint32_t now = millis();
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    CsiHistory &h = g_csiHist[k];
+    if (h.valid) {
+        int32_t accum = 0;
+        uint8_t cnt = s.numSubcarriers < 52 ? s.numSubcarriers : 52;
+        for (uint8_t i = 0; i < cnt; ++i) {
+            int32_t d = (int32_t)s.amp[i] - (int32_t)h.prevAmp[i];
+            accum += d * d;
+        }
+        uint32_t mean = (cnt > 0) ? (uint32_t)(accum / cnt) : 0;
+        uint16_t varQ8 = (mean > 0xFFFF) ? 0xFFFF : (uint16_t)mean;
+        h.varQ8 = (uint16_t)(((uint32_t)h.varQ8 * 7 + varQ8) / 8);
+        uint16_t thresh = g_csiThreshQ8.load();
+        if (h.varQ8 > thresh && (now - h.lastTs) > 500) {
+            CsiMotionEvent ev{};
+            memcpy(ev.srcMac, s.srcMac, 6);
+            ev.varianceQ8 = h.varQ8;
+            ev.rssi = s.rssi;
+            ev.channel = s.channel;
+            ev.ts = now;
+            if (s.rssi > -55) strncpy(ev.zone, "near", sizeof(ev.zone) - 1);
+            else if (s.rssi > -75) strncpy(ev.zone, "mid", sizeof(ev.zone) - 1);
+            else strncpy(ev.zone, "far", sizeof(ev.zone) - 1);
+            g_csiMotionLog.push_back(ev);
+            if (g_csiMotionLog.size() > MAX_CSI_MOTION_LOG) g_csiMotionLog.erase(g_csiMotionLog.begin());
+            g_csiMotion.fetch_add(1);
+            h.lastTs = now;
+            if (meshEnabled) {
+                if (g_meshCsiMotion.load() && meshRateGate("CSI_MOTION_" + macStr(s.srcMac), 5000))
+                    sendToSerial1(getNodeId() + ": CSI_MOTION:" + macStr(s.srcMac) +
+                                  ":" + String(h.varQ8) + ":" + String(s.rssi) + ":" + ev.zone, true);
+            }
+        }
+    }
+    uint8_t cap = s.numSubcarriers < 64 ? s.numSubcarriers : 64;
+    memcpy(h.prevAmp, s.amp, cap * sizeof(int16_t));
+    h.valid = 1;
+
+    if (g_csiFp.size() < MAX_CSI_FP) {
+        CsiFingerprint &fp = g_csiFp[k];
+        if (fp.observations == 0) {
+            memcpy(fp.srcMac, s.srcMac, 6);
+            fp.firstSeen = now;
+        }
+        uint32_t fh = 0x811C9DC5;
+        for (uint8_t i = 0; i < cap; ++i) {
+            uint8_t q = (uint8_t)(s.amp[i] >> 2);
+            fh ^= q; fh *= 16777619u;
+        }
+        fp.profileHash = (uint16_t)(fh ^ (fh >> 16));
+        uint32_t n = fp.observations;
+        fp.avgRssi = (int8_t)(((int32_t)fp.avgRssi * (int32_t)n + s.rssi) / (int32_t)(n + 1));
+        fp.observations = n + 1;
+        fp.lastSeen = now;
+    }
+}
+
+void csi_init() {
+    if (!g_csiQueue) g_csiQueue = xQueueCreate(48, sizeof(CsiSnapshot));
+    wifi_csi_config_t cfg = {
+        .lltf_en = true,
+        .htltf_en = true,
+        .stbc_htltf2_en = true,
+        .ltf_merge_en = true,
+        .channel_filter_en = true,
+        .manu_scale = false,
+        .shift = 0,
+    };
+    esp_wifi_set_csi_config(&cfg);
+    esp_wifi_set_csi_rx_cb(csi_rx_cb, nullptr);
+}
+void csi_enable(bool on) {
+    esp_wifi_set_csi(on);
+    g_csiEnabled.store(on);
+}
+bool csi_isEnabled() { return g_csiEnabled.load(); }
+void csi_clear() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_csiMotionLog.clear();
+    g_csiFp.clear();
+    g_csiHist.clear();
+    g_csiPkts.store(0);
+    g_csiMotion.store(0);
+}
+void csi_setMotionThreshold(uint16_t v) { g_csiThreshQ8.store(v); }
+uint16_t csi_getMotionThreshold() { return g_csiThreshQ8.load(); }
+uint32_t csi_packetsObserved() { return g_csiPkts.load(); }
+uint32_t csi_motionEvents() { return g_csiMotion.load(); }
+String csi_getMotionJsonl() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out;
+    for (auto &e : g_csiMotionLog) {
+        out += String("{\"src\":\"") + macStr(e.srcMac) +
+               "\",\"var\":" + String(e.varianceQ8) +
+               ",\"rssi\":" + String(e.rssi) +
+               ",\"ch\":" + String(e.channel) +
+               ",\"zone\":\"" + e.zone +
+               "\",\"ts\":" + String(e.ts) + "}\n";
+    }
+    return out;
+}
+String csi_getFingerprintJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (auto &kv : g_csiFp) {
+        if (!first) out += ",";
+        first = false;
+        out += "{\"src\":\"" + macStr(kv.second.srcMac) +
+               "\",\"hash\":" + String(kv.second.profileHash) +
+               ",\"obs\":" + String((unsigned)kv.second.observations) +
+               ",\"avg_rssi\":" + String(kv.second.avgRssi) +
+               ",\"first\":" + String(kv.second.firstSeen) +
+               ",\"last\":" + String(kv.second.lastSeen) + "}";
+    }
+    out += "]";
+    return out;
+}
+
+void csiDrainTask(void *pv) {
+    CsiSnapshot s;
+    while (true) {
+        if (g_csiQueue && xQueueReceive(g_csiQueue, &s, pdMS_TO_TICKS(200)) == pdTRUE) {
+            csiProcess(s);
+        }
+    }
+}
+
+// =============================================================================
+// Persistence (SD snapshot of mid-term state across reboot)
+// =============================================================================
+static constexpr const char *SNAP_PATH = "/detect_state.bin";
+static constexpr uint32_t SNAP_MAGIC = 0xA111EDD1;
+static constexpr uint16_t SNAP_VER   = 2;
+
+struct SnapHeader {
+    uint32_t magic;
+    uint16_t ver;
+    uint16_t reserved;
+    uint32_t chains;
+    uint32_t airtag;
+    uint32_t recon;
+    uint32_t tsf;
+    uint32_t pwna;
+};
+
+static void persistSnapshot() {
+    if (!SafeSD::isAvailable()) return;
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    const char *tmpPath = "/detect_state.tmp";
+    File f = SD.open(tmpPath, FILE_WRITE);
+    if (!f) return;
+    SnapHeader h{};
+    h.magic = SNAP_MAGIC;
+    h.ver = SNAP_VER;
+    h.chains = g_chains.size();
+    h.airtag = g_airtag.size();
+    h.recon  = g_recon.size();
+    h.tsf    = g_tsfTrack.size();
+    h.pwna   = g_pwna.size();
+    f.write((const uint8_t*)&h, sizeof(h));
+    for (auto &kv : g_chains) {
+        uint32_t cid = kv.second.chainId;
+        f.write((const uint8_t*)&cid, 4);
+        f.write((const uint8_t*)kv.second.vendor, 16);
+        int8_t avg = kv.second.avgRssi;
+        f.write((const uint8_t*)&avg, 1);
+        uint8_t lc = (kv.second.links.size() > 8) ? 8 : (uint8_t)kv.second.links.size();
+        f.write(&lc, 1);
+        f.write((const uint8_t*)&kv.second.firstSeen, 4);
+        f.write((const uint8_t*)&kv.second.lastSeen, 4);
+        size_t writtenLinks = 0;
+        for (auto &lnk : kv.second.links) {
+            if (writtenLinks >= 8) break;
+            f.write(lnk.addr, 6);
+            int8_t lr = lnk.rssi;
+            f.write((const uint8_t*)&lr, 1);
+            f.write((const uint8_t*)&lnk.startTs, 4);
+            f.write((const uint8_t*)&lnk.endTs, 4);
+            writtenLinks++;
+        }
+    }
+    for (auto &kv : g_airtag) {
+        f.write(kv.second.addr, 6);
+        f.write(&kv.second.lastStatusByte, 1);
+        uint16_t obs = kv.second.observations;
+        f.write((const uint8_t*)&obs, 2);
+        uint16_t mc = kv.second.maintainedCount;
+        f.write((const uint8_t*)&mc, 2);
+        f.write(&kv.second.batteryLastSeen, 1);
+        int8_t rs = kv.second.lastRssi;
+        f.write((const uint8_t*)&rs, 1);
+        f.write((const uint8_t*)&kv.second.firstSeen, 4);
+        f.write((const uint8_t*)&kv.second.lastSeen, 4);
+    }
+    for (auto &kv : g_recon) {
+        char id[10] = {0};
+        strncpy(id, kv.second.identityId, 9);
+        f.write((const uint8_t*)id, 10);
+        f.write(&kv.second.score, 1);
+        f.write((const uint8_t*)kv.second.reasons, 96);
+        f.write((const uint8_t*)&kv.second.ts, 4);
+    }
+    for (auto &kv : g_tsfTrack) {
+        uint64_t mac = kv.first;
+        f.write((const uint8_t*)&mac, 8);
+        float ppm = kv.second.ppmEstimate;
+        f.write((const uint8_t*)&ppm, 4);
+        uint32_t n = kv.second.samples;
+        f.write((const uint8_t*)&n, 4);
+        f.write((const uint8_t*)kv.second.ssid, 33);
+        f.write((const uint8_t*)&kv.second.firstSeen, 4);
+        f.write((const uint8_t*)&kv.second.lastSeen, 4);
+    }
+    for (auto &kv : g_pwna) {
+        f.write(kv.second.bssid, 6);
+        f.write((const uint8_t*)&kv.second.observations, 2);
+        int8_t br = kv.second.bestRssi;
+        f.write((const uint8_t*)&br, 1);
+        int8_t lr = kv.second.lastRssi;
+        f.write((const uint8_t*)&lr, 1);
+        f.write((const uint8_t*)&kv.second.firstSeen, 4);
+        f.write((const uint8_t*)&kv.second.lastSeen, 4);
+        f.write((const uint8_t*)kv.second.snippet, sizeof(kv.second.snippet));
+    }
+    f.close();
+    if (SD.exists(SNAP_PATH)) SD.remove(SNAP_PATH);
+    SD.rename(tmpPath, SNAP_PATH);
+}
+
+static void loadSnapshot() {
+    if (!SafeSD::isAvailable()) return;
+    if (!SD.exists(SNAP_PATH)) return;
+    File f = SD.open(SNAP_PATH, FILE_READ);
+    if (!f) return;
+    SnapHeader h{};
+    if (f.read((uint8_t*)&h, sizeof(h)) != sizeof(h)) { f.close(); return; }
+    if (h.magic != SNAP_MAGIC || h.ver != SNAP_VER) { f.close(); return; }
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    for (uint32_t i = 0; i < h.chains; ++i) {
+        uint32_t cid; char vendor[16]; int8_t avg; uint8_t lc;
+        uint32_t first, last;
+        if (f.read((uint8_t*)&cid, 4) != 4) break;
+        if (f.read((uint8_t*)vendor, 16) != 16) break;
+        if (f.read((uint8_t*)&avg, 1) != 1) break;
+        if (f.read(&lc, 1) != 1) break;
+        if (f.read((uint8_t*)&first, 4) != 4) break;
+        if (f.read((uint8_t*)&last, 4) != 4) break;
+        TrackerChain c{};
+        c.chainId = cid;
+        memcpy(c.vendor, vendor, 16);
+        c.avgRssi = avg;
+        c.linkCount = lc;
+        c.firstSeen = first;
+        c.lastSeen = last;
+        for (uint8_t lidx = 0; lidx < lc && lidx < 8; ++lidx) {
+            TrackerChain::Link lnk{};
+            if (f.read(lnk.addr, 6) != 6) { c.linkCount = lidx; break; }
+            int8_t lr;
+            if (f.read((uint8_t*)&lr, 1) != 1) { c.linkCount = lidx; break; }
+            lnk.rssi = lr;
+            if (f.read((uint8_t*)&lnk.startTs, 4) != 4) { c.linkCount = lidx; break; }
+            if (f.read((uint8_t*)&lnk.endTs, 4) != 4) { c.linkCount = lidx; break; }
+            c.links.push_back(lnk);
+        }
+        g_chains[cid] = c;
+        if (cid >= g_chainSeq) g_chainSeq = cid + 1;
+    }
+    for (uint32_t i = 0; i < h.airtag; ++i) {
+        AirTagPresence p{};
+        if (f.read(p.addr, 6) != 6) break;
+        if (f.read(&p.lastStatusByte, 1) != 1) break;
+        uint16_t obs, mc;
+        if (f.read((uint8_t*)&obs, 2) != 2) break;
+        if (f.read((uint8_t*)&mc, 2) != 2) break;
+        if (f.read(&p.batteryLastSeen, 1) != 1) break;
+        int8_t rs;
+        if (f.read((uint8_t*)&rs, 1) != 1) break;
+        p.observations = obs;
+        p.maintainedCount = mc;
+        p.lastRssi = rs;
+        if (f.read((uint8_t*)&p.firstSeen, 4) != 4) break;
+        if (f.read((uint8_t*)&p.lastSeen, 4) != 4) break;
+        p.isFindMy = true;
+        g_airtag[packMac(p.addr)] = p;
+    }
+    for (uint32_t i = 0; i < h.recon; ++i) {
+        char id[10] = {0};
+        ReconAlert r{};
+        if (f.read((uint8_t*)id, 10) != 10) break;
+        if (f.read(&r.score, 1) != 1) break;
+        if (f.read((uint8_t*)r.reasons, 96) != 96) break;
+        if (f.read((uint8_t*)&r.ts, 4) != 4) break;
+        strncpy(r.identityId, id, 9);
+        g_recon[String(id)] = r;
+    }
+    for (uint32_t i = 0; i < h.tsf; ++i) {
+        uint64_t mac;
+        if (f.read((uint8_t*)&mac, 8) != 8) break;
+        TsfTrack t{};
+        if (f.read((uint8_t*)&t.ppmEstimate, 4) != 4) break;
+        if (f.read((uint8_t*)&t.samples, 4) != 4) break;
+        if (f.read((uint8_t*)t.ssid, 33) != 33) break;
+        if (f.read((uint8_t*)&t.firstSeen, 4) != 4) break;
+        if (f.read((uint8_t*)&t.lastSeen, 4) != 4) break;
+        if (t.samples > 0) g_tsfTrack[mac] = t;
+    }
+    for (uint32_t i = 0; i < h.pwna; ++i) {
+        PwnagotchiSighting p{};
+        if (f.read(p.bssid, 6) != 6) break;
+        if (f.read((uint8_t*)&p.observations, 2) != 2) break;
+        int8_t br;
+        if (f.read((uint8_t*)&br, 1) != 1) break;
+        p.bestRssi = br;
+        int8_t lr;
+        if (f.read((uint8_t*)&lr, 1) != 1) break;
+        p.lastRssi = lr;
+        if (f.read((uint8_t*)&p.firstSeen, 4) != 4) break;
+        if (f.read((uint8_t*)&p.lastSeen, 4) != 4) break;
+        if (f.read((uint8_t*)p.snippet, sizeof(p.snippet)) != sizeof(p.snippet)) break;
+        g_pwna[packMac(p.bssid)] = p;
+    }
+    f.close();
+}
+
 } // namespace ah_detect
+
+void detect_persistTunables();
+
+void tof_ping(const char *n)                 { ah_detect::tof_ping(n); }
+void tof_broadcastPing()                     { ah_detect::tof_broadcastPing(); }
+void tof_processPing(const String &f, uint32_t s, uint64_t t) { ah_detect::tof_processPing(f, s, t); }
+void tof_processPong(const String &f, uint32_t s, uint64_t a, uint64_t b) { ah_detect::tof_processPong(f, s, a, b); }
+String tof_getPeersJson()                    { return ah_detect::tof_getPeersJson(); }
+void tof_clear()                             { ah_detect::tof_clear(); }
+size_t tof_peerCount()                       { return ah_detect::tof_peerCount(); }
+String tsf_getSkewJson()                     { return ah_detect::tsf_getSkewJson(); }
+void tsf_clear()                             { ah_detect::tsf_clear(); }
+size_t tsf_count()                           { return ah_detect::tsf_count(); }
+void karma_setEnabled(bool on)               { ah_detect::karma_setEnabled(on); detect_persistTunables(); }
+bool karma_isEnabled()                       { return ah_detect::karma_isEnabled(); }
+void karma_init()                            { ah_detect::karma_init(); }
+String karma_getJson()                       { return ah_detect::karma_getJson(); }
+void karma_clear()                           { ah_detect::karma_clear(); }
+size_t karma_candidateCount()                { return ah_detect::karma_candidateCount(); }
+size_t karma_confirmedCount()                { return ah_detect::karma_confirmedCount(); }
+String pwnagotchi_getJson()                  { return ah_detect::pwnagotchi_getJson(); }
+void pwnagotchi_clear()                      { ah_detect::pwnagotchi_clear(); }
+size_t pwnagotchi_count()                    { return ah_detect::pwnagotchi_count(); }
+void attacker_kick(const uint8_t *mac, const char *t) { ah_detect::attacker_kick(mac, t); }
+String attacker_getActiveHuntsJson()         { return ah_detect::attacker_getActiveHuntsJson(); }
+void attacker_clearHunts()                   { ah_detect::attacker_clearHunts(); }
+size_t attacker_huntCount()                  { return ah_detect::attacker_huntCount(); }
+void attacker_setCooldown(uint32_t ms)       { ah_detect::attacker_setCooldown(ms); detect_persistTunables(); }
+String hshk_getReconJson()                   { return ah_detect::hshk_getReconJson(); }
+void hshk_clear()                            { ah_detect::hshk_clear(); }
+size_t hshk_count()                          { return ah_detect::hshk_count(); }
+uint32_t hshk_krackEvents()                  { return ah_detect::hshk_krackEvents(); }
+String airtag_getPresenceJson()              { return ah_detect::airtag_getPresenceJson(); }
+void airtag_clear()                          { ah_detect::airtag_clear(); }
+size_t airtag_count()                        { return ah_detect::airtag_count(); }
+String tracker_getChainsJson()               { return ah_detect::tracker_getChainsJson(); }
+void tracker_clearChains()                   { ah_detect::tracker_clearChains(); }
+size_t tracker_chainCount()                  { return ah_detect::tracker_chainCount(); }
+void pg_init()                                                 { ah_detect::pg_init(); }
+uint32_t pg_computeHashFromBytes(const uint8_t *a, const uint8_t *b, uint8_t bl, const uint8_t *c, uint8_t cl) {
+    return ah_detect::pg_computeHashFromBytes(a, b, bl, c, cl);
+}
+void pg_announceLocalIdentity(uint32_t h, const char *t, int8_t r) {
+    ah_detect::pg_announceLocalIdentity(h, t, r);
+}
+String pg_getGraphJson()                     { return ah_detect::pg_getGraphJson(); }
+void pg_clear()                              { ah_detect::pg_clear(); }
+size_t pg_size()                             { return ah_detect::pg_size(); }
+void csi_init()                              { ah_detect::csi_init(); }
+void csi_enable(bool on)                     { ah_detect::csi_enable(on); detect_persistTunables(); }
+bool csi_isEnabled()                         { return ah_detect::csi_isEnabled(); }
+void csi_clear()                             { ah_detect::csi_clear(); }
+void csi_setMotionThreshold(uint16_t v)      { ah_detect::csi_setMotionThreshold(v); detect_persistTunables(); }
+uint16_t csi_getMotionThreshold()            { return ah_detect::csi_getMotionThreshold(); }
+uint32_t csi_packetsObserved()               { return ah_detect::csi_packetsObserved(); }
+uint32_t csi_motionEvents()                  { return ah_detect::csi_motionEvents(); }
+String csi_getMotionJsonl()                  { return ah_detect::csi_getMotionJsonl(); }
+String csi_getFingerprintJson()              { return ah_detect::csi_getFingerprintJson(); }
 
 // =============================================================================
 // BloomFilter impl (class declared in global scope in detect.h)
@@ -988,46 +2585,175 @@ void initializeDetect() {
     g_quorumRequired["BLETRACK"] = 2;
     g_quorumRequired["RECON"] = 2;
     loadOuiTable();
+    {
+        Preferences p;
+        if (p.begin("ahdetect", true)) {
+            uint16_t v;
+            if ((v = p.getUShort("csiThr", 0))) ah_detect::g_csiThreshQ8.store(v);
+            if ((v = p.getUShort("pmkidWin", 0))) ah_detect::g_pmkidWindow.store(v);
+            uint8_t u;
+            if ((u = p.getUChar("pmkidN", 0))) ah_detect::g_pmkidMinBssids.store(u);
+            if ((u = p.getUChar("saeN", 0))) ah_detect::g_saeUnmatchedThresh.store(u);
+            if ((v = p.getUShort("saeWin", 0))) ah_detect::g_saeWindow.store(v);
+            ah_detect::g_karmaEnabled.store(p.getBool("karmaOn", true));
+            ah_detect::g_csiEnabled.store(p.getBool("csiOn", true));
+            uint32_t w;
+            if ((w = p.getULong("trkWin", 0))) ah_detect::g_trackerWindowMs.store(w);
+            if ((w = p.getULong("huntCool", 0))) ah_detect::g_huntCooldown.store(w);
+            if ((u = p.getUChar("fragN", 0))) ah_detect::g_fragReuseThresh.store(u);
+            ah_detect::g_pmkidEnabled.store(p.getBool("pmkidOn", true));
+            ah_detect::g_eviltwinEnabled.store(p.getBool("etwOn", true));
+            ah_detect::g_ssidConfusionEnabled.store(p.getBool("scnOn", true));
+            ah_detect::g_saeEnabled.store(p.getBool("saeOn", true));
+            ah_detect::g_oweEnabled.store(p.getBool("oweOn", true));
+            ah_detect::g_fragEnabled.store(p.getBool("fragOn", false));
+            ah_detect::g_bleMalformedEnabled.store(p.getBool("blemOn", true));
+            ah_detect::g_hshkEnabled.store(p.getBool("hshkOn", true));
+            ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", true));
+            ah_detect::g_trackerEnabled.store(p.getBool("trkOn", true));
+            ah_detect::g_airtagEnabled.store(p.getBool("atgOn", true));
+            ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", true));
+            ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", true));
+            ah_detect::g_bloomGossipEnabled.store(p.getBool("blmgOn", true));
+            ah_detect::g_attackerTrilatEnabled.store(p.getBool("trlOn", true));
+            ah_detect::g_meshPmkid.store(p.getBool("mPmkid", true));
+            ah_detect::g_meshEviltwin.store(p.getBool("mEtw", true));
+            ah_detect::g_meshSsidConf.store(p.getBool("mScn", true));
+            ah_detect::g_meshSae.store(p.getBool("mSae", true));
+            ah_detect::g_meshFrag.store(p.getBool("mFrag", false));
+            ah_detect::g_meshBleMalformed.store(p.getBool("mBlem", false));
+            ah_detect::g_meshHshk.store(p.getBool("mHshk", false));
+            ah_detect::g_meshKrack.store(p.getBool("mKrack", true));
+            ah_detect::g_meshTracker.store(p.getBool("mTrk", true));
+            ah_detect::g_meshPwna.store(p.getBool("mPwna", true));
+            ah_detect::g_meshKarma.store(p.getBool("mKarma", true));
+            ah_detect::g_meshRecon.store(p.getBool("mRecon", true));
+            ah_detect::g_meshCsiMotion.store(p.getBool("mCsim", false));
+            ah_detect::g_meshAttackerHunt.store(p.getBool("mHunt", true));
+            p.end();
+        }
+    }
+    ah_detect::csi_init();
+    xTaskCreatePinnedToCore(ah_detect::csiDrainTask, "CsiDrain", 4096, NULL, 2, NULL, 1);
     Serial.println("[DETECT] Initialized");
 }
 
-void detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel) {
+void detect_persistTunables() {
+    Preferences p;
+    if (!p.begin("ahdetect", false)) return;
+    p.putUShort("csiThr", ah_detect::g_csiThreshQ8.load());
+    p.putUShort("pmkidWin", ah_detect::g_pmkidWindow.load());
+    p.putUChar("pmkidN", ah_detect::g_pmkidMinBssids.load());
+    p.putUChar("saeN", ah_detect::g_saeUnmatchedThresh.load());
+    p.putUShort("saeWin", ah_detect::g_saeWindow.load());
+    p.putUChar("fragN", ah_detect::g_fragReuseThresh.load());
+    p.putBool("karmaOn", ah_detect::g_karmaEnabled.load());
+    p.putBool("csiOn", ah_detect::g_csiEnabled.load());
+    p.putULong("trkWin", ah_detect::g_trackerWindowMs.load());
+    p.putULong("huntCool", ah_detect::g_huntCooldown.load());
+    p.putBool("pmkidOn", ah_detect::g_pmkidEnabled.load());
+    p.putBool("etwOn", ah_detect::g_eviltwinEnabled.load());
+    p.putBool("scnOn", ah_detect::g_ssidConfusionEnabled.load());
+    p.putBool("saeOn", ah_detect::g_saeEnabled.load());
+    p.putBool("oweOn", ah_detect::g_oweEnabled.load());
+    p.putBool("fragOn", ah_detect::g_fragEnabled.load());
+    p.putBool("blemOn", ah_detect::g_bleMalformedEnabled.load());
+    p.putBool("hshkOn", ah_detect::g_hshkEnabled.load());
+    p.putBool("pwnaOn", ah_detect::g_pwnaEnabled.load());
+    p.putBool("trkOn", ah_detect::g_trackerEnabled.load());
+    p.putBool("atgOn", ah_detect::g_airtagEnabled.load());
+    p.putBool("tsfOn", ah_detect::g_tsfEnabled.load());
+    p.putBool("ridOn", ah_detect::g_ridSpoofEnabled.load());
+    p.putBool("blmgOn", ah_detect::g_bloomGossipEnabled.load());
+    p.putBool("trlOn", ah_detect::g_attackerTrilatEnabled.load());
+    p.putBool("mPmkid", ah_detect::g_meshPmkid.load());
+    p.putBool("mEtw", ah_detect::g_meshEviltwin.load());
+    p.putBool("mScn", ah_detect::g_meshSsidConf.load());
+    p.putBool("mSae", ah_detect::g_meshSae.load());
+    p.putBool("mFrag", ah_detect::g_meshFrag.load());
+    p.putBool("mBlem", ah_detect::g_meshBleMalformed.load());
+    p.putBool("mHshk", ah_detect::g_meshHshk.load());
+    p.putBool("mKrack", ah_detect::g_meshKrack.load());
+    p.putBool("mTrk", ah_detect::g_meshTracker.load());
+    p.putBool("mPwna", ah_detect::g_meshPwna.load());
+    p.putBool("mKarma", ah_detect::g_meshKarma.load());
+    p.putBool("mRecon", ah_detect::g_meshRecon.load());
+    p.putBool("mCsim", ah_detect::g_meshCsiMotion.load());
+    p.putBool("mHunt", ah_detect::g_meshAttackerHunt.load());
+    p.end();
+}
+
+void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel) {
     if (!detectEnabled.load() || !detectFrameQueue) return;
     if (len < 24) return;
     uint16_t fc = (uint16_t)payload[0] | ((uint16_t)payload[1] << 8);
     uint8_t ftype = (fc >> 2) & 0x3;
     uint8_t stype = (fc >> 4) & 0xF;
-    DetectFrameEvent ev{};
+    uint8_t kind = 0;
+    bool eapolHit = false;
+    if (ftype == 2 && len >= 32) {
+        int searchEnd = (int)len - 8;
+        for (int i = 24; i < searchEnd && i < 40; ++i) {
+            if (payload[i] == 0xAA && payload[i+1] == 0xAA && payload[i+2] == 0x03 &&
+                payload[i+6] == 0x88 && payload[i+7] == 0x8E) {
+                eapolHit = true;
+                break;
+            }
+        }
+    }
+    if (ftype == 0 && stype == 8)        kind = DetectFrameEvent::BEACON_DEEP;
+    else if (ftype == 0 && stype == 5)   kind = DetectFrameEvent::PROBE_RESP;
+    else if (ftype == 0 && stype == 11)  kind = DetectFrameEvent::AUTH_SAE;
+    else if (eapolHit)                   kind = DetectFrameEvent::EAPOL;
+    else if (ftype == 2 && stype == 8)   kind = DetectFrameEvent::QOS_DATA;
+    else if (ftype == 2)                 kind = DetectFrameEvent::EAPOL;
+    else return;
+    // Backpressure: drop if queue full rather than spinning the ISR.
+    // Note: uxQueueSpacesAvailable is also safe-from-ISR on ESP-IDF FreeRTOS port.
+    if (uxQueueSpacesAvailable(detectFrameQueue) < 2) { g_droppedWifi.fetch_add(1); return; }
+    DetectFrameEvent ev;
+    ev.kind = kind;
     ev.channel = channel;
     ev.rssi = rssi;
+    ev.rxMicrosLo = 0;
     uint16_t cap = (len < sizeof(ev.payload)) ? len : (uint16_t)sizeof(ev.payload);
     memcpy(ev.payload, payload, cap);
     ev.len = cap;
-
-    if (ftype == 0 && stype == 8)        ev.kind = DetectFrameEvent::BEACON_DEEP;
-    else if (ftype == 0 && stype == 5)   ev.kind = DetectFrameEvent::PROBE_RESP;
-    else if (ftype == 0 && stype == 11)  ev.kind = DetectFrameEvent::AUTH_SAE;
-    else if (ftype == 2 && stype == 8)   ev.kind = DetectFrameEvent::QOS_DATA;
-    else if (ftype == 2)                 ev.kind = DetectFrameEvent::EAPOL;
-    else return;
-
     BaseType_t woken = pdFALSE;
     xQueueSendFromISR(detectFrameQueue, &ev, &woken);
     if (woken) portYIELD_FROM_ISR();
 }
 
+// BLE callback runs on nimble_host task — must not do heavy work here.
+// Defer to detectTask via queue. Drop on backpressure.
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
                      const char *name) {
-    onBleAdv(addr, rssi, payload, payloadLen, name);
+    if (!detectEnabled.load() || !detectFrameQueue || !addr || !payload) return;
+    if (uxQueueSpacesAvailable(detectFrameQueue) < 4) { g_droppedBle.fetch_add(1); return; }
+    DetectFrameEvent ev;
+    ev.kind = DetectFrameEvent::BLE_ADV;
+    ev.channel = 0;
+    ev.rssi = rssi;
+    ev.rxMicrosLo = 0;
+    // Layout: [0..5]=BLE addr, [6..]=adv payload. BLE adv max 31, fits.
+    memcpy(ev.payload, addr, 6);
+    uint16_t cap = (payloadLen < (sizeof(ev.payload) - 6))
+                   ? payloadLen : (uint16_t)(sizeof(ev.payload) - 6);
+    memcpy(ev.payload + 6, payload, cap);
+    ev.len = (uint16_t)(6 + cap);
+    (void)name;
+    xQueueSend(detectFrameQueue, &ev, 0);
 }
 
 void detectTask(void *pv) {
     Serial.println("[DETECT] Task started");
+    loadSnapshot();
     DetectFrameEvent ev;
-    // Skip first gossip cycle so Bloom has chance to populate during boot
     uint32_t lastGossip = millis();
     uint32_t lastPpsEpochUpdate = 0;
+    uint32_t lastAgeSweep = millis();
+    uint32_t lastPersist = millis();
     while (true) {
         if (xQueueReceive(detectFrameQueue, &ev, pdMS_TO_TICKS(100)) == pdTRUE) {
             switch (ev.kind) {
@@ -1036,6 +2762,14 @@ void detectTask(void *pv) {
                 case DetectFrameEvent::BEACON_DEEP: handleBeacon(ev); break;
                 case DetectFrameEvent::PROBE_RESP:  handleProbeResp(ev); break;
                 case DetectFrameEvent::QOS_DATA:    handleQosData(ev); break;
+                case DetectFrameEvent::BLE_ADV: {
+                    // [0..5]=addr, [6..]=payload
+                    if (ev.len >= 6) {
+                        onBleAdv(ev.payload, ev.rssi, ev.payload + 6,
+                                 (uint16_t)(ev.len - 6), nullptr);
+                    }
+                    break;
+                }
                 default: break;
             }
         }
@@ -1050,15 +2784,87 @@ void detectTask(void *pv) {
             }
         }
         // Periodic mesh gossip — Bloom filter
-        if (meshEnabled && now - lastGossip > 60000) {
+        if (meshEnabled && g_bloomGossipEnabled.load() && now - lastGossip > 300000) {
             lastGossip = now;
             detect_periodicMeshGossip();
         }
-        // Quorum aging
-        {
-            std::lock_guard<std::mutex> lk(g_mtx);
+        if (now - lastPersist > 300000) {
+            lastPersist = now;
+            persistSnapshot();
+        }
+        if (now - lastAgeSweep > 30000) {
+            lastAgeSweep = now;
+            std::lock_guard<std::recursive_mutex> lk(g_mtx);
             for (auto it = g_alerts.begin(); it != g_alerts.end(); ) {
                 if (now - it->second.firstSeen > 120000) it = g_alerts.erase(it);
+                else ++it;
+            }
+            for (auto it = g_pmkidBursts.begin(); it != g_pmkidBursts.end(); ) {
+                if (now - it->second.lastSeen > 300000) it = g_pmkidBursts.erase(it);
+                else ++it;
+            }
+            for (auto it = g_saeCounters.begin(); it != g_saeCounters.end(); ) {
+                if (now - it->second.windowStart > 60000) it = g_saeCounters.erase(it);
+                else ++it;
+            }
+            for (auto it = g_pnState.begin(); it != g_pnState.end(); ) {
+                if (now - it->second.lastSeen > 600000) it = g_pnState.erase(it);
+                else ++it;
+            }
+            for (auto it = g_apBaseline.begin(); it != g_apBaseline.end(); ) {
+                if (now - it->second.lastSeen > 3600000UL) it = g_apBaseline.erase(it);
+                else ++it;
+            }
+            for (auto it = g_tsfTrack.begin(); it != g_tsfTrack.end(); ) {
+                if (now - it->second.lastSeen > 3600000UL) it = g_tsfTrack.erase(it);
+                else ++it;
+            }
+            for (auto it = g_bleTrackers.begin(); it != g_bleTrackers.end(); ) {
+                if (now - it->second.lastSeen > 1800000UL) it = g_bleTrackers.erase(it);
+                else ++it;
+            }
+            for (auto it = g_airtag.begin(); it != g_airtag.end(); ) {
+                if (now - it->second.lastSeen > 1800000UL) it = g_airtag.erase(it);
+                else ++it;
+            }
+            for (auto it = g_chains.begin(); it != g_chains.end(); ) {
+                if (now - it->second.lastSeen > 7200000UL) it = g_chains.erase(it);
+                else ++it;
+            }
+            for (auto it = g_hunts.begin(); it != g_hunts.end(); ) {
+                if (now - it->second.lastKick > 600000UL) it = g_hunts.erase(it);
+                else ++it;
+            }
+            for (auto it = g_recon.begin(); it != g_recon.end(); ) {
+                if (now - it->second.ts > 1800000UL) it = g_recon.erase(it);
+                else ++it;
+            }
+            for (auto it = g_pwna.begin(); it != g_pwna.end(); ) {
+                if (now - it->second.lastSeen > 1800000UL) it = g_pwna.erase(it);
+                else ++it;
+            }
+            for (auto it = g_karma.begin(); it != g_karma.end(); ) {
+                if (now - it->second.lastSeen > 600000UL) { g_karmaSsids.erase(it->first); it = g_karma.erase(it); }
+                else ++it;
+            }
+            for (auto it = g_tofPeers.begin(); it != g_tofPeers.end(); ) {
+                if (now - it->second.lastSeen > 1800000UL) it = g_tofPeers.erase(it);
+                else ++it;
+            }
+            for (auto it = g_csiFp.begin(); it != g_csiFp.end(); ) {
+                if (now - it->second.lastSeen > 600000UL) it = g_csiFp.erase(it);
+                else ++it;
+            }
+            for (auto it = g_csiHist.begin(); it != g_csiHist.end(); ) {
+                if (now - it->second.lastTs > 300000UL) it = g_csiHist.erase(it);
+                else ++it;
+            }
+            for (auto it = g_pgGraph.begin(); it != g_pgGraph.end(); ) {
+                if (now - it->second.lastSeen > 3600000UL) it = g_pgGraph.erase(it);
+                else ++it;
+            }
+            for (auto it = g_hshk.begin(); it != g_hshk.end(); ) {
+                if (now - it->second.lastSeen > 1800000UL) it = g_hshk.erase(it);
                 else ++it;
             }
         }
@@ -1072,7 +2878,7 @@ void quorum_addReport(const String &type, const String &key,
                       const String &fromNode, int8_t rssi) {
     String k = type + ":" + key;
     uint32_t now = millis();
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto &c = g_alerts[k];
     if (c.firstSeen == 0) {
         c.type = type; c.key = key; c.firstSeen = now; c.fired = false;
@@ -1116,17 +2922,17 @@ void quorum_addReport(const String &type, const String &key,
 }
 
 size_t quorum_currentConfirmingNodes(const String &type, const String &key) {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_alerts.find(type + ":" + key);
     if (it == g_alerts.end()) return 0;
     return it->second.reports.size();
 }
 void quorum_setRequired(const String &type, uint8_t n) {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_quorumRequired[type] = n;
 }
 uint8_t quorum_getRequired(const String &type) {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_quorumRequired.find(type);
     return it == g_quorumRequired.end() ? 2 : it->second;
 }
@@ -1177,7 +2983,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         String uavId = rest.substring(0, p1);
         double lat = rest.substring(p1 + 1, p2).toDouble();
         double lon = rest.substring(p2 + 1, p3 > 0 ? p3 : rest.length()).toDouble();
-        std::lock_guard<std::mutex> lk(g_mtx);
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
         auto &c = g_ridClaims[uavId];
         strncpy(c.uavId, uavId.c_str(), sizeof(c.uavId) - 1);
         c.lat = lat;
@@ -1196,7 +3002,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         double lat = rest.substring(p2 + 1, p3).toDouble();
         double lon = rest.substring(p3 + 1, p4).toDouble();
         int valid = rest.substring(p4 + 1).toInt();
-        std::lock_guard<std::mutex> lk(g_mtx);
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
         auto &c = g_ridClaims[uavId];
         strncpy(c.uavId, uavId.c_str(), sizeof(c.uavId) - 1);
         RidClaim::Rx rx;
@@ -1205,6 +3011,156 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         rx.ts = millis();
         c.rxs.push_back(rx);
         if (c.rxs.size() > 16) c.rxs.erase(c.rxs.begin());
+    } else if (msg.startsWith("HSHK:")) {
+        int p1 = msg.indexOf(':', 5);
+        int p2 = msg.indexOf(':', p1 + 1);
+        int p3 = msg.indexOf(':', p2 + 1);
+        int p4 = msg.indexOf(':', p3 + 1);
+        int p5 = msg.indexOf(':', p4 + 1);
+        if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0 || p5 < 0) return;
+        String bssidS = msg.substring(5, p1);
+        String staS   = msg.substring(p1 + 1, p2);
+        int mn        = msg.substring(p2 + 1, p3).toInt();
+        uint64_t rc   = (uint64_t)strtoull(msg.substring(p3 + 1, p4).c_str(), nullptr, 10);
+        int rssi      = msg.substring(p4 + 1, p5).toInt();
+        uint8_t bssid[6], sta[6];
+        auto parse = [](const String &s, uint8_t out[6]) -> bool {
+            String t;
+            for (size_t i = 0; i < s.length(); ++i) { char c = s[i]; if (isxdigit((int)c)) t += (char)toupper(c); }
+            if (t.length() != 12) return false;
+            for (int i = 0; i < 6; i++) out[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+            return true;
+        };
+        if (!parse(bssidS, bssid) || !parse(staS, sta)) return;
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        hshkRecord(bssid, sta, (uint8_t)mn, rc, (int8_t)rssi, fromNode.c_str(), millis());
+    } else if (msg.startsWith("KRACK:")) {
+        g_krackEvents.fetch_add(1);
+    } else if (msg.startsWith("TOF_PING:")) {
+        int p1 = msg.indexOf(':', 9);
+        int p2 = msg.indexOf(':', p1 + 1);
+        if (p1 < 0 || p2 < 0) return;
+        String target = msg.substring(9, p1);
+        if (target != getNodeId() && target != "*") return;
+        uint32_t seq = (uint32_t)strtoul(msg.substring(p1 + 1, p2).c_str(), nullptr, 10);
+        uint64_t theirTxUs = strtoull(msg.substring(p2 + 1).c_str(), nullptr, 10);
+        ah_detect::tof_processPing(fromNode, seq, theirTxUs);
+    } else if (msg.startsWith("TOF_PONG:")) {
+        int p1 = msg.indexOf(':', 9);
+        int p2 = msg.indexOf(':', p1 + 1);
+        int p3 = msg.indexOf(':', p2 + 1);
+        if (p1 < 0 || p2 < 0 || p3 < 0) return;
+        String forNode = msg.substring(9, p1);
+        if (forNode != getNodeId()) return;
+        uint32_t seq = (uint32_t)strtoul(msg.substring(p1 + 1, p2).c_str(), nullptr, 10);
+        uint64_t origTx = strtoull(msg.substring(p2 + 1, p3).c_str(), nullptr, 10);
+        uint64_t theirRx = strtoull(msg.substring(p3 + 1).c_str(), nullptr, 10);
+        ah_detect::tof_processPong(fromNode, seq, origTx, theirRx);
+    } else if (msg.startsWith("ATTACKER_HUNT:")) {
+        int p1 = msg.indexOf(':', 14);
+        if (p1 < 0) return;
+        String macS = msg.substring(14, p1);
+        String type = msg.substring(p1 + 1);
+        uint8_t mac[6];
+        String t;
+        for (size_t i = 0; i < macS.length(); ++i) { char c = macS[i]; if (isxdigit((int)c)) t += (char)toupper(c); }
+        if (t.length() != 12) return;
+        for (int i = 0; i < 6; i++) mac[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+        ah_detect::attacker_kick(mac, type.c_str());
+    } else if (msg.startsWith("RECON:")) {
+        int p1 = msg.indexOf(':', 6);
+        if (p1 < 0) return;
+        String idStr = msg.substring(6, p1);
+        int score = msg.substring(p1 + 1).toInt();
+        quorum_addReport("RECON", idStr, fromNode, -50);
+        if (score >= 70) {
+            std::lock_guard<std::recursive_mutex> lk(g_mtx);
+            auto &r = g_recon[idStr];
+            strncpy(r.identityId, idStr.c_str(), sizeof(r.identityId) - 1);
+            if ((int)r.score < score) r.score = (uint8_t)score;
+            r.ts = millis();
+        }
+    } else if (msg.startsWith("FRAG:")) {
+        int p1 = msg.indexOf(':', 5);
+        if (p1 < 0) return;
+        String src = msg.substring(5, p1);
+        quorum_addReport("FRAG", src, fromNode, -60);
+    } else if (msg.startsWith("CSI_MOTION:")) {
+        int p1 = msg.indexOf(':', 11);
+        if (p1 < 0) return;
+        String src = msg.substring(11, p1);
+        quorum_addReport("CSI_MOTION", src, fromNode, -60);
+    } else if (msg.startsWith("PWNAGOTCHI:")) {
+        int p1 = msg.indexOf(':', 11);
+        if (p1 < 0) return;
+        String bssid = msg.substring(11, p1);
+        int rssi = msg.substring(p1 + 1).toInt();
+        quorum_addReport("PWNAGOTCHI", bssid, fromNode, (int8_t)rssi);
+    } else if (msg.startsWith("KARMA_CAND:") || msg.startsWith("KARMA_CONFIRMED:")) {
+        int offs = msg.startsWith("KARMA_CONFIRMED:") ? 16 : 11;
+        int p1 = msg.indexOf(':', offs);
+        if (p1 < 0) return;
+        String bssid = msg.substring(offs, p1);
+        int sec = msg.substring(p1 + 1).toInt();
+        quorum_addReport("KARMA", bssid, fromNode, (int8_t)sec);
+    } else if (msg.startsWith("TRK_LINK:")) {
+        int p1 = msg.indexOf(':', 9);
+        int p2 = msg.indexOf(':', p1 + 1);
+        int p3 = msg.indexOf(':', p2 + 1);
+        if (p1 < 0 || p2 < 0 || p3 < 0) return;
+        uint32_t cid = (uint32_t)msg.substring(9, p1).toInt();
+        String vendor = msg.substring(p1 + 1, p2);
+        String addrS  = msg.substring(p2 + 1, p3);
+        int rssi      = msg.substring(p3 + 1).toInt();
+        uint8_t addr[6];
+        {
+            String t;
+            for (size_t i = 0; i < addrS.length(); ++i) { char c = addrS[i]; if (isxdigit((int)c)) t += (char)toupper(c); }
+            if (t.length() != 12) return;
+            for (int i = 0; i < 6; i++) addr[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
+        }
+        uint32_t now = millis();
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        TrackerChain &c = g_chains[cid];
+        if (c.chainId == 0) {
+            c.chainId = cid;
+            strncpy(c.vendor, vendor.c_str(), sizeof(c.vendor) - 1);
+            c.firstSeen = now;
+            c.avgRssi = (int8_t)rssi;
+        }
+        TrackerChain::Link l{};
+        memcpy(l.addr, addr, 6);
+        l.rssi = (int8_t)rssi;
+        l.startTs = now;
+        l.endTs = now;
+        c.links.push_back(l);
+        if (c.linkCount < 255) c.linkCount++;
+        c.lastSeen = now;
+    } else if (msg.startsWith("IDHASH:")) {
+        int p1 = msg.indexOf(':', 7);
+        int p2 = msg.indexOf(':', p1 + 1);
+        if (p1 < 0 || p2 < 0) return;
+        uint32_t hash = (uint32_t)msg.substring(7, p1).toInt();
+        String trackId = msg.substring(p1 + 1, p2);
+        int rssi = msg.substring(p2 + 1).toInt();
+        uint32_t now = millis();
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
+        auto &id = g_pgGraph[hash];
+        if (id.hash == 0) {
+            id.hash = hash;
+            id.firstSeen = now;
+            id.bestRssi = (int8_t)rssi;
+            strncpy(id.localTrackId, trackId.c_str(), sizeof(id.localTrackId) - 1);
+        } else if (rssi > id.bestRssi) id.bestRssi = (int8_t)rssi;
+        if (id.sightingCount < 255) id.sightingCount++;
+        id.lastSeen = now;
+        bool found = false;
+        for (auto &n : id.nodes) if (n.nodeId == fromNode) { n.rssi = (int8_t)rssi; n.ts = now; found = true; break; }
+        if (!found) {
+            ProbeGraphIdentity::NodeSeen ns;
+            ns.nodeId = fromNode; ns.rssi = (int8_t)rssi; ns.ts = now;
+            id.nodes.push_back(ns);
+        }
     } else if (msg.startsWith("BLOOM:")) {
         // Base64-like raw 2KB filter would exceed mesh frame. We use packed-hex chunks
         // by index: BLOOM:<idx>:<128hex bytes>
@@ -1213,7 +3169,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         int idx = msg.substring(6, p1).toInt();
         String hex = msg.substring(p1 + 1);
         if (idx < 0 || idx >= (int)(BloomFilter::BYTES / 128)) return;
-        std::lock_guard<std::mutex> lk(g_mtx);
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
         uint8_t *dst = g_neighborBloom.mutableData() + idx * 128;
         for (size_t i = 0; i < 128 && i * 2 + 1 < hex.length(); ++i) {
             uint8_t b = 0;
@@ -1232,7 +3188,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         if (p1 < 0) return;
         String tgt = msg.substring(12, p1);
         String csv = msg.substring(p1 + 1);
-        std::lock_guard<std::mutex> lk(g_mtx);
+        std::lock_guard<std::recursive_mutex> lk(g_mtx);
         std::vector<uint8_t> chans;
         int s = 0;
         while (s < (int)csv.length()) {
@@ -1248,17 +3204,24 @@ void detect_processMesh(const String &fromNode, const String &msg) {
     }
 }
 
+static uint8_t g_lastBloomTxHash[BloomFilter::BYTES / 128] = {0};
 void detect_periodicMeshGossip() {
-    // Send only non-zero Bloom chunks. Empty filter = no broadcast.
-    std::lock_guard<std::mutex> lk(g_mtx);
+    if (!g_bloomGossipEnabled.load()) return;
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     const uint8_t *src = g_localBloom.data();
     size_t sent = 0;
     for (size_t idx = 0; idx < BloomFilter::BYTES / 128; ++idx) {
         bool anySet = false;
+        uint8_t chunkHash = 0;
         for (size_t i = 0; i < 128; ++i) {
-            if (src[idx * 128 + i]) { anySet = true; break; }
+            uint8_t b = src[idx * 128 + i];
+            if (b) anySet = true;
+            chunkHash ^= b;
+            chunkHash = (chunkHash << 1) | (chunkHash >> 7);
         }
         if (!anySet) continue;
+        if (chunkHash == g_lastBloomTxHash[idx]) continue;
+        g_lastBloomTxHash[idx] = chunkHash;
         String hex = String("BLOOM:") + String((unsigned)idx) + ":";
         char tmp[3];
         for (size_t i = 0; i < 128; ++i) {
@@ -1266,8 +3229,8 @@ void detect_periodicMeshGossip() {
             hex += tmp;
         }
         sendToSerial1(getNodeId() + ": " + hex, true);
-        vTaskDelay(pdMS_TO_TICKS(20));
-        if (++sent >= 4) break;  // cap per gossip cycle to limit mesh load
+        vTaskDelay(pdMS_TO_TICKS(50));
+        if (++sent >= 1) break;
     }
 }
 
@@ -1277,17 +3240,17 @@ void detect_periodicMeshGossip() {
 void detect_addLocalBaseline(const uint8_t *mac, uint32_t ieHash) {
     uint8_t buf[10]; memcpy(buf, mac, 6); memcpy(buf + 6, &ieHash, 4);
     uint32_t h = fnv1a(buf, 10);
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_localBloom.add(h);
 }
 bool detect_neighborKnows(const uint8_t *mac, uint32_t ieHash) {
     uint8_t buf[10]; memcpy(buf, mac, 6); memcpy(buf + 6, &ieHash, 4);
     uint32_t h = fnv1a(buf, 10);
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return g_neighborBloom.maybeContains(h);
 }
 String detect_getBloomStatsJson() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     size_t localPop = 0, nbrPop = 0;
     for (size_t i = 0; i < BloomFilter::BYTES; ++i) {
         for (int b = 0; b < 8; ++b) {
@@ -1307,7 +3270,7 @@ void detect_recordRidClaim(const char *uavId, double lat, double lon, float alt,
     recordRidClaim(uavId, lat, lon, alt, rssi);
 }
 String detect_getRidClaimsJson() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
     bool first = true;
     for (auto &kv : g_ridClaims) {
@@ -1339,7 +3302,8 @@ String detect_getRidClaimsJson() {
 // OUI table
 // =============================================================================
 bool loadOuiTable() {
-    if (!LittleFS.begin(false)) return false;
+    if (!LittleFS.begin(true)) return false;
+    if (!LittleFS.exists("/oui_cat.bin")) return false;
     File f = LittleFS.open("/oui_cat.bin", "r");
     if (!f) return false;
     size_t sz = f.size();
@@ -1382,7 +3346,7 @@ const char* ouiCategoryName(OuiCategory c) {
 // =============================================================================
 void recon_updateFromProbeSession(const char *identityId, uint8_t addToScore, const char *reason) {
     if (!identityId || identityId[0] == 0) return;
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto &r = g_recon[String(identityId)];
     strncpy(r.identityId, identityId, sizeof(r.identityId) - 1);
     int s = r.score + addToScore;
@@ -1396,12 +3360,13 @@ void recon_updateFromProbeSession(const char *identityId, uint8_t addToScore, co
     }
     r.ts = millis();
     if (r.score >= 70 && meshEnabled) {
-        sendToSerial1(getNodeId() + ": RECON:" + identityId + ":" + String(r.score), true);
+        if (g_meshRecon.load() && meshRateGate("RECON_" + String(identityId), 30000))
+            sendToSerial1(getNodeId() + ": RECON:" + identityId + ":" + String(r.score), true);
         quorum_addReport("RECON", String(identityId), getNodeId(), -50);
     }
 }
 String detect_getReconJson() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
     bool first = true;
     for (auto &kv : g_recon) {
@@ -1416,7 +3381,7 @@ String detect_getReconJson() {
     return out;
 }
 void detect_clearRecon() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_recon.clear();
 }
 
@@ -1435,7 +3400,7 @@ void detect_assignChannelPartition() {
     // Coordinator: split 1..14 (2.4 GHz) across confirmed mesh nodes inc. self.
     // Discovery of mesh peers piggybacks on triangulateAcks/heartbeat; we use a
     // simple fallback: any nodeId we've seen recently via quorum.
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     std::set<String> peers;
     peers.insert(getNodeId());
     for (auto &kv : g_alerts) for (auto &r : kv.second.reports) peers.insert(r.nodeId);
@@ -1464,7 +3429,7 @@ void detect_assignChannelPartition() {
     }
 }
 String detect_getChannelAssignmentJson() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "{";
     bool first = true;
     for (auto &kv : g_chanAssignments) {
@@ -1481,7 +3446,7 @@ String detect_getChannelAssignmentJson() {
     return out;
 }
 std::vector<uint8_t> detect_getMyAssignedChannels() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return g_myChannels;
 }
 void detect_setMyAssignedChannels(const String &csv) {
@@ -1495,7 +3460,7 @@ void detect_setMyAssignedChannels(const String &csv) {
         if (e < 0) break;
         s = e + 1;
     }
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_myChannels = v;
 }
 
@@ -1510,7 +3475,7 @@ static String jsonlOf(const std::vector<V> &v, Fmt fmt) {
 }
 
 String detect_getPmkidJsonl() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_pmkidLog, [](const PmkidHarvestEvent &e){
         return String("{\"src\":\"") + macStr(e.srcMac) + "\",\"bssid\":\"" + macStr(e.bssid) +
                "\",\"rssi\":" + String(e.rssi) + ",\"ch\":" + String(e.channel) +
@@ -1518,7 +3483,7 @@ String detect_getPmkidJsonl() {
     });
 }
 String detect_getEvilTwinJsonl() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_evilTwinLog, [](const EvilTwinEvent &e){
         return String("{\"bssid\":\"") + macStr(e.bssid) + "\",\"ssid\":\"" + e.ssid +
                "\",\"reason\":\"" + e.reason +
@@ -1528,7 +3493,7 @@ String detect_getEvilTwinJsonl() {
     });
 }
 String detect_getSsidConfusionJsonl() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_ssidConfusionLog, [](const SsidConfusionEvent &e){
         return String("{\"bssid\":\"") + macStr(e.bssid) + "\",\"beacon\":\"" + e.beaconSsid +
                "\",\"resp\":\"" + e.respSsid + "\",\"rssi\":" + String(e.rssi) +
@@ -1536,7 +3501,7 @@ String detect_getSsidConfusionJsonl() {
     });
 }
 String detect_getSaeDosJsonl() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_saeDosLog, [](const SaeDosEvent &e){
         return String("{\"bssid\":\"") + macStr(e.bssid) +
                "\",\"unmatched\":" + String(e.unmatchedCommits) +
@@ -1545,7 +3510,7 @@ String detect_getSaeDosJsonl() {
     });
 }
 String detect_getOweAbuseJsonl() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_oweAbuseLog, [](const OweAbuseEvent &e){
         return String("{\"open\":\"") + macStr(e.openBssid) + "\",\"owe\":\"" + macStr(e.oweBssid) +
                "\",\"ssid\":\"" + e.ssid + "\",\"rssi\":" + String(e.rssi) +
@@ -1553,7 +3518,7 @@ String detect_getOweAbuseJsonl() {
     });
 }
 String detect_getFragAttackJsonl() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_fragLog, [](const FragAttackEvent &e){
         return String("{\"src\":\"") + macStr(e.srcMac) + "\",\"tid\":" + String(e.tid) +
                ",\"reason\":\"" + e.reason +
@@ -1563,7 +3528,7 @@ String detect_getFragAttackJsonl() {
     });
 }
 String detect_getBleMalformedJsonl() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     return jsonlOf(g_bleMalformedLog, [](const BleMalformedEvent &e){
         return String("{\"addr\":\"") + macStr(e.addr) +
                "\",\"reason\":\"" + e.reason + "\",\"len\":" + String(e.payloadLen) +
@@ -1571,7 +3536,7 @@ String detect_getBleMalformedJsonl() {
     });
 }
 String detect_getQuorumStatusJson() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "{\"required\":{";
     bool first = true;
     for (auto &kv : g_quorumRequired) {
@@ -1593,7 +3558,7 @@ String detect_getQuorumStatusJson() {
     return out;
 }
 String detect_getBleTrackerJson() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
     bool first = true;
     for (auto &kv : g_bleTrackers) {
@@ -1612,20 +3577,214 @@ String detect_getBleTrackerJson() {
     return out;
 }
 void detect_clearBleTracker() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_bleTrackers.clear();
 }
+static inline String _bjson(const char *k, bool v, bool first=false) {
+    return String(first ? "\"" : ",\"") + k + "\":" + (v ? "true" : "false");
+}
+static inline String _ijson(const char *k, uint32_t v) {
+    return String(",\"") + k + "\":" + String(v);
+}
+String detect_getConfigJson() {
+    String j = "{";
+    j += _bjson("pmkid", g_pmkidEnabled.load(), true);
+    j += _bjson("eviltwin", g_eviltwinEnabled.load());
+    j += _bjson("ssid_confusion", g_ssidConfusionEnabled.load());
+    j += _bjson("sae", g_saeEnabled.load());
+    j += _bjson("owe", g_oweEnabled.load());
+    j += _bjson("frag", g_fragEnabled.load());
+    j += _bjson("ble_malformed", g_bleMalformedEnabled.load());
+    j += _bjson("hshk", g_hshkEnabled.load());
+    j += _bjson("pwna", g_pwnaEnabled.load());
+    j += _bjson("tracker", g_trackerEnabled.load());
+    j += _bjson("airtag", g_airtagEnabled.load());
+    j += _bjson("tsf", g_tsfEnabled.load());
+    j += _bjson("rid_spoof", g_ridSpoofEnabled.load());
+    j += _bjson("bloom_gossip", g_bloomGossipEnabled.load());
+    j += _bjson("attacker_trilat", g_attackerTrilatEnabled.load());
+    j += _bjson("karma", g_karmaEnabled.load());
+    j += _bjson("csi", g_csiEnabled.load());
+    j += _bjson("mesh_pmkid", g_meshPmkid.load());
+    j += _bjson("mesh_eviltwin", g_meshEviltwin.load());
+    j += _bjson("mesh_ssid_confusion", g_meshSsidConf.load());
+    j += _bjson("mesh_sae", g_meshSae.load());
+    j += _bjson("mesh_frag", g_meshFrag.load());
+    j += _bjson("mesh_ble_malformed", g_meshBleMalformed.load());
+    j += _bjson("mesh_hshk", g_meshHshk.load());
+    j += _bjson("mesh_krack", g_meshKrack.load());
+    j += _bjson("mesh_tracker", g_meshTracker.load());
+    j += _bjson("mesh_pwna", g_meshPwna.load());
+    j += _bjson("mesh_karma", g_meshKarma.load());
+    j += _bjson("mesh_recon", g_meshRecon.load());
+    j += _bjson("mesh_csi_motion", g_meshCsiMotion.load());
+    j += _bjson("mesh_attacker_hunt", g_meshAttackerHunt.load());
+    j += _ijson("csi_thresh", g_csiThreshQ8.load());
+    j += _ijson("pmkid_window", g_pmkidWindow.load());
+    j += _ijson("pmkid_min_bssids", g_pmkidMinBssids.load());
+    j += _ijson("sae_window", g_saeWindow.load());
+    j += _ijson("sae_unmatched_thresh", g_saeUnmatchedThresh.load());
+    j += _ijson("frag_reuse_thresh", g_fragReuseThresh.load());
+    j += _ijson("hunt_cooldown_ms", g_huntCooldown.load());
+    j += _ijson("tracker_window_ms", g_trackerWindowMs.load());
+    j += "}";
+    return j;
+}
+static void _setb(const String &b, const char *k, std::atomic<bool> &a) {
+    int p = b.indexOf(String("\"") + k + "\"");
+    if (p < 0) return;
+    int colon = b.indexOf(':', p);
+    if (colon < 0) return;
+    String v = b.substring(colon + 1, colon + 8);
+    v.trim();
+    a.store(v.startsWith("true") || v.startsWith("1"));
+}
+static void _seti(const String &b, const char *k, std::atomic<uint16_t> &a) {
+    int p = b.indexOf(String("\"") + k + "\"");
+    if (p < 0) return;
+    int colon = b.indexOf(':', p);
+    if (colon < 0) return;
+    int v = b.substring(colon + 1, colon + 12).toInt();
+    if (v > 0 && v <= 65535) a.store((uint16_t)v);
+}
+static void _setu8(const String &b, const char *k, std::atomic<uint8_t> &a) {
+    int p = b.indexOf(String("\"") + k + "\"");
+    if (p < 0) return;
+    int colon = b.indexOf(':', p);
+    if (colon < 0) return;
+    int v = b.substring(colon + 1, colon + 8).toInt();
+    if (v > 0 && v <= 255) a.store((uint8_t)v);
+}
+static void _setu32(const String &b, const char *k, std::atomic<uint32_t> &a) {
+    int p = b.indexOf(String("\"") + k + "\"");
+    if (p < 0) return;
+    int colon = b.indexOf(':', p);
+    if (colon < 0) return;
+    long long v = atoll(b.substring(colon + 1, colon + 16).c_str());
+    if (v > 0) a.store((uint32_t)v);
+}
+bool detect_setConfigFromJson(const String &b) {
+    _setb(b, "pmkid", g_pmkidEnabled);
+    _setb(b, "eviltwin", g_eviltwinEnabled);
+    _setb(b, "ssid_confusion", g_ssidConfusionEnabled);
+    _setb(b, "sae", g_saeEnabled);
+    _setb(b, "owe", g_oweEnabled);
+    _setb(b, "frag", g_fragEnabled);
+    _setb(b, "ble_malformed", g_bleMalformedEnabled);
+    _setb(b, "hshk", g_hshkEnabled);
+    _setb(b, "pwna", g_pwnaEnabled);
+    _setb(b, "tracker", g_trackerEnabled);
+    _setb(b, "airtag", g_airtagEnabled);
+    _setb(b, "tsf", g_tsfEnabled);
+    _setb(b, "rid_spoof", g_ridSpoofEnabled);
+    _setb(b, "bloom_gossip", g_bloomGossipEnabled);
+    _setb(b, "attacker_trilat", g_attackerTrilatEnabled);
+    _setb(b, "karma", g_karmaEnabled);
+    _setb(b, "csi", g_csiEnabled);
+    _setb(b, "mesh_pmkid", g_meshPmkid);
+    _setb(b, "mesh_eviltwin", g_meshEviltwin);
+    _setb(b, "mesh_ssid_confusion", g_meshSsidConf);
+    _setb(b, "mesh_sae", g_meshSae);
+    _setb(b, "mesh_frag", g_meshFrag);
+    _setb(b, "mesh_ble_malformed", g_meshBleMalformed);
+    _setb(b, "mesh_hshk", g_meshHshk);
+    _setb(b, "mesh_krack", g_meshKrack);
+    _setb(b, "mesh_tracker", g_meshTracker);
+    _setb(b, "mesh_pwna", g_meshPwna);
+    _setb(b, "mesh_karma", g_meshKarma);
+    _setb(b, "mesh_recon", g_meshRecon);
+    _setb(b, "mesh_csi_motion", g_meshCsiMotion);
+    _setb(b, "mesh_attacker_hunt", g_meshAttackerHunt);
+    _seti(b, "csi_thresh", g_csiThreshQ8);
+    _seti(b, "pmkid_window", g_pmkidWindow);
+    _setu8(b, "pmkid_min_bssids", g_pmkidMinBssids);
+    _seti(b, "sae_window", g_saeWindow);
+    _setu8(b, "sae_unmatched_thresh", g_saeUnmatchedThresh);
+    _setu8(b, "frag_reuse_thresh", g_fragReuseThresh);
+    _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
+    return true;
+}
+uint32_t detect_droppedWifi() { return g_droppedWifi.load(); }
+uint32_t detect_droppedBle() { return g_droppedBle.load(); }
+uint32_t detect_droppedCsi() { return g_droppedCsi.load(); }
+uint32_t detect_meshRateGated() { return g_meshGated.load(); }
+String detect_getHealthJson() {
+    UBaseType_t framesQ = detectFrameQueue ? uxQueueMessagesWaiting(detectFrameQueue) : 0;
+    UBaseType_t csiQ = g_csiQueue ? uxQueueMessagesWaiting(g_csiQueue) : 0;
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String j = "{";
+    j += "\"uptime_ms\":" + String(millis());
+    j += ",\"heap_free\":" + String((unsigned long)ESP.getFreeHeap());
+    j += ",\"heap_min\":" + String((unsigned long)ESP.getMinFreeHeap());
+    j += ",\"psram_free\":" + String((unsigned long)ESP.getFreePsram());
+    j += ",\"queues\":{\"frame\":" + String((unsigned)framesQ) +
+         ",\"csi\":" + String((unsigned)csiQ) + "}";
+    j += ",\"drops\":{\"wifi\":" + String(g_droppedWifi.load()) +
+         ",\"ble\":" + String(g_droppedBle.load()) +
+         ",\"csi\":" + String(g_droppedCsi.load()) +
+         ",\"mesh_gated\":" + String(g_meshGated.load()) + "}";
+    j += ",\"state\":{\"ap_baseline\":" + String((unsigned)g_apBaseline.size()) +
+         ",\"pmkid_bursts\":" + String((unsigned)g_pmkidBursts.size()) +
+         ",\"sae_counters\":" + String((unsigned)g_saeCounters.size()) +
+         ",\"pn_state\":" + String((unsigned)g_pnState.size()) +
+         ",\"tsf_track\":" + String((unsigned)g_tsfTrack.size()) +
+         ",\"ble_trackers\":" + String((unsigned)g_bleTrackers.size()) +
+         ",\"airtag\":" + String((unsigned)g_airtag.size()) +
+         ",\"chains\":" + String((unsigned)g_chains.size()) +
+         ",\"hshk\":" + String((unsigned)g_hshk.size()) +
+         ",\"hunts\":" + String((unsigned)g_hunts.size()) +
+         ",\"pwna\":" + String((unsigned)g_pwna.size()) +
+         ",\"karma\":" + String((unsigned)g_karma.size()) +
+         ",\"recon\":" + String((unsigned)g_recon.size()) +
+         ",\"alerts\":" + String((unsigned)g_alerts.size()) +
+         ",\"tof_peers\":" + String((unsigned)g_tofPeers.size()) +
+         ",\"csi_fp\":" + String((unsigned)g_csiFp.size()) +
+         ",\"pg_graph\":" + String((unsigned)g_pgGraph.size()) +
+         ",\"rid_claims\":" + String((unsigned)g_ridClaims.size()) + "}";
+    j += ",\"counters\":{\"csi_pkts\":" + String(g_csiPkts.load()) +
+         ",\"csi_motion\":" + String(g_csiMotion.load()) +
+         ",\"krack_events\":" + String(g_krackEvents.load()) + "}";
+    j += ",\"pps_locked\":" + String(g_ppsLocked.load() ? "true" : "false");
+    j += ",\"csi_enabled\":" + String(g_csiEnabled.load() ? "true" : "false");
+    j += ",\"karma_enabled\":" + String(g_karmaEnabled.load() ? "true" : "false");
+    j += "}";
+    return j;
+}
 void detect_clearAll() {
-    std::lock_guard<std::mutex> lk(g_mtx);
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
     g_pmkidLog.clear();
+    g_pmkidBursts.clear();
     g_evilTwinLog.clear();
     g_ssidConfusionLog.clear();
     g_saeDosLog.clear();
+    g_saeCounters.clear();
     g_oweAbuseLog.clear();
     g_fragLog.clear();
+    g_pnState.clear();
     g_bleMalformedLog.clear();
     g_ridClaims.clear();
     g_alerts.clear();
     g_bleTrackers.clear();
     g_recon.clear();
+    g_apBaseline.clear();
+    g_csiMotionLog.clear();
+    g_csiFp.clear();
+    g_csiHist.clear();
+    g_pgGraph.clear();
+    g_chains.clear();
+    g_vanished.clear();
+    g_airtag.clear();
+    g_hshk.clear();
+    g_krackEvents.store(0);
+    g_hunts.clear();
+    g_pwna.clear();
+    g_karma.clear();
+    g_karmaSsids.clear();
+    g_baitSsids.clear();
+    g_tsfTrack.clear();
+    g_tofPeers.clear();
+    g_tofPending.clear();
+    g_localBloom.clear();
+    g_neighborBloom.clear();
+    g_meshRateMap.clear();
 }

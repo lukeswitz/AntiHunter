@@ -3,6 +3,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "main.h"
+#include "detect.h"
 #include <algorithm>
 #include <ArduinoJson.h>
 #include <SD.h>
@@ -157,6 +158,9 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
     }
     String macStr = macFmt6(mac);
     uint32_t now = millis();
+
+    // Phase 2.2: feed device into local Bloom filter for mesh baseline gossip.
+    detect_addLocalBaseline(mac, 0);
 
     if (baselineCache.find(macStr) == baselineCache.end()) {
         const uint32_t effectiveLimit = (sdAvailable && sdBaselineInitialized) ?

@@ -51,6 +51,11 @@ extern QueueHandle_t droneFrameQueue;
 void droneDetectorTask(void *pv);
 void initializeDroneDetector();
 void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
+// Phase 3.2: BLE-side ODID Remote ID (ASTM F3411 over BLE 5.x). The 6-byte
+// addr is the BLE peer address; odid points at the ODID-encoded message
+// bytes (immediately after the 0x16 FA FF AD type+UUID header).
+void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
+                         const uint8_t *odid, int odidLen);
 String getDroneDetectionResults();
 String getDroneEventLog();
 void cleanupDroneData();
