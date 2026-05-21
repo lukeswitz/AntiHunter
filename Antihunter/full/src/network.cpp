@@ -258,10 +258,26 @@ void initializeNetwork()
   if (customApPass.length() < 8) customApPass = AP_PASS;
   
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(customApSsid.c_str(), customApPass.c_str(), AP_CHANNEL, 0);
+  bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
+                          AP_CHANNEL, 0, 4, false,
+                          WIFI_AUTH_WPA2_WPA3_PSK);
+  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start: %s\n", apOk ? "OK" : "FAIL");
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
+
+
+  WiFi.onEvent([](arduino_event_t *e) {
+      if (e->event_id == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
+          const uint8_t *mac = e->event_info.wifi_ap_stadisconnected.mac;
+          uint8_t aid = e->event_info.wifi_ap_stadisconnected.aid;
+          detect_onSoftApDisconnect(mac, aid);
+      } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED) {
+          const uint8_t *mac = e->event_info.wifi_ap_probereqrecved.mac;
+          int8_t rssi = e->event_info.wifi_ap_probereqrecved.rssi;
+          detect_onSoftApProbeReq(mac, rssi);
+      }
+  });
 
   // Configure WiFi to preserve AP during scans
   wifi_config_t conf;
