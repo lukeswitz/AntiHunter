@@ -1246,7 +1246,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" data-key="dos">
           <div class="card-header" onclick="toggleCollapse('detDosCard')">
             <h3><span class="sev high">dos</span>DoS Defense</h3>
             <span class="collapse-icon open" id="detDosCardIcon">▶</span>
@@ -1255,6 +1255,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div style="display:flex;gap:6px;margin-bottom:8px;">
               <button class="btn alt" onclick="detGroup('dos',true)">All On</button>
               <button class="btn alt" onclick="detGroup('dos',false)">All Off</button>
+            </div>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:11px;color:var(--mut);margin-bottom:4px;">Radio mode</div>
+              <div style="display:flex;gap:0;border:1px solid var(--bd);border-radius:6px;overflow:hidden;width:fit-content;">
+                <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
+                <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
+              </div>
+              <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin-top:4px;"></div>
             </div>
             <div id="dos-rows" style="font-size:12px;"></div>
           </div>
@@ -5169,23 +5177,44 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
         ['ASSOC_SLEEP','Assoc Sleep','assoc_sleep'],['SAE_DOS','SAE DoS','sae'],
         ['DEAUTH_AP_TARGETED','AP Deauth (event)',null]];
+      function _dosSyncMode(scan){
+        const d=document.getElementById('dos-mode-defend'), s=document.getElementById('dos-mode-scan'),
+              t=document.getElementById('dos-mode-desc');
+        if(d)d.className=scan?'btn alt':'btn primary';
+        if(s)s.className=scan?'btn primary':'btn alt';
+        if(t)t.textContent=scan?'Hopping all channels — sees attacks anywhere, but your AP clients may drop.'
+                               :'Locked to this AP’s channel — catches attacks against us, clients stay connected.';
+      }
+      async function detScanMode(scan){
+        _dosSyncMode(scan);
+        await detPostCfg({sentinel_scan:scan});
+        if(_detCfg)_detCfg.sentinel_scan=scan;
+      }
       async function renderDos(){
         const el=document.getElementById('dos-rows'); if(!el)return;
         const inc=await _jj('/api/incidents.json?limit=200')||[];
         const cfg=_detCfg||{};
+        _dosSyncMode(!!cfg.sentinel_scan);
         const nowMs=inc.reduce((m,x)=>Math.max(m,(x&&x.ts)||0),0);
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
-        let h='';
+        let h='<div style="display:grid;grid-template-columns:1fr 70px 60px 70px;gap:10px;'
+             +'font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;'
+             +'padding:0 0 6px;border-bottom:1px solid var(--bd);">'
+             +'<span>Detector</span><span style="text-align:center;">Enabled</span>'
+             +'<span style="text-align:right;">Hits</span><span style="text-align:right;">Last</span></div>';
         DOS_DETS.forEach(d=>{
           const hits=inc.filter(x=>x&&x.type===d[0]);
           const cnt=hits.length;
           const last=cnt?Math.max(...hits.map(x=>x.ts||0)):0;
-          const tog=d[2]?`<input type="checkbox" ${cfg[d[2]]?'checked':''} onchange="detPostCfg({${d[2]}:this.checked});">`
-                        :'<span style="opacity:.55;">always</span>';
-          h+=`<div style="display:grid;grid-template-columns:1fr auto 40px 70px;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd);">`
-            +`<span>${d[1]}</span><span>${tog}</span>`
-            +`<span class="num" style="text-align:right;">${cnt}</span>`
-            +`<span class="mut" style="text-align:right;font-size:11px;">${ago(last)}</span></div>`;
+          const tog=d[2]?`<input type="checkbox" style="width:18px;height:18px;" ${cfg[d[2]]?'checked':''} onchange="detPostCfg({${d[2]}:this.checked});">`
+                        :'<span style="opacity:.5;font-size:12px;">always</span>';
+          const hot=cnt>0?'color:var(--bad,#e55);font-weight:700;':'';
+          h+=`<div style="display:grid;grid-template-columns:1fr 70px 60px 70px;gap:10px;align-items:center;`
+            +`padding:9px 0;border-bottom:1px solid var(--bd);font-size:14px;">`
+            +`<span>${d[1]}</span>`
+            +`<span style="text-align:center;">${tog}</span>`
+            +`<span class="num" style="text-align:right;${hot}">${cnt}</span>`
+            +`<span class="mut" style="text-align:right;font-size:12px;">${ago(last)}</span></div>`;
         });
         el.innerHTML=h;
       }
@@ -5548,7 +5577,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       const DETECTOR_TAB_MAP = {
         'events':'live','sentinel':'live','mesh':'config','config':'config',
-        'overview':'live','rid':'detectors','recon':'detectors','trackers':'detectors',
+        'overview':'live','dos':'detectors','rid':'detectors','recon':'detectors','trackers':'detectors',
         'airtag':'detectors','csi':'detectors','karma':'detectors','hunts':'detectors',
         'handshake':'detectors','beaconforge':'detectors','pmkidforge':'detectors',
         'eapolbait':'detectors','probeflood':'detectors','assocsleep':'detectors',

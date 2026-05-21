@@ -163,6 +163,7 @@ std::atomic<bool> g_pmkidEnabled{true};
 std::atomic<bool> g_eviltwinEnabled{true};
 std::atomic<bool> g_ssidConfusionEnabled{false};
 std::atomic<bool> g_saeEnabled{false};
+std::atomic<bool> g_sentinelScanMode{false};
 std::atomic<bool> g_oweEnabled{false};
 std::atomic<bool> g_bleMalformedEnabled{false};
 std::atomic<bool> g_hshkEnabled{false};
@@ -4180,6 +4181,7 @@ void initializeDetect() {
             ah_detect::g_eviltwinEnabled.store(p.getBool("etwOn", true));
             ah_detect::g_ssidConfusionEnabled.store(p.getBool("scnOn", false));
             ah_detect::g_saeEnabled.store(p.getBool("saeOn", false));
+            ah_detect::g_sentinelScanMode.store(p.getBool("sclScan", false));
             ah_detect::g_oweEnabled.store(p.getBool("oweOn", false));
             ah_detect::g_fragEnabled.store(p.getBool("fragOn", false));
             ah_detect::g_bleMalformedEnabled.store(p.getBool("blemOn", false));
@@ -4247,8 +4249,10 @@ static TaskHandle_t g_sentinelTaskHandle = nullptr;
 
 static void sentinelAlwaysOnTask(void *pv) {
     (void)pv;
-    const uint8_t apChan = AP_CHANNEL;
-    Serial.printf("[SENTINEL] Smart-hop task started ap_ch=%u\n", (unsigned)apChan);
+    uint8_t apChan = AP_CHANNEL;
+    { uint8_t prim = 0; wifi_second_chan_t sec; if (esp_wifi_get_channel(&prim, &sec) == ESP_OK && prim) apChan = prim; }
+    Serial.printf("[SENTINEL] task started ap_ch=%u mode=%s\n", (unsigned)apChan,
+                  g_sentinelScanMode.load() ? "scan" : "pin");
     bool weOwn = false;
     while (g_sentinelUserEnabled.load() && !scanning.load()) {
         if (!weOwn) {
@@ -4263,21 +4267,33 @@ static void sentinelAlwaysOnTask(void *pv) {
             Serial.printf("[SENTINEL] Took radio: filter=%s r1=%d r2=%d r3=%d\n",
                           wantData ? "MGMT+DATA" : "MGMT", (int)r1, (int)r2, (int)r3);
         }
-        // Hop the user-configured channel list
-        std::vector<uint8_t> chans;
-        {
-            std::lock_guard<std::recursive_mutex> lk(g_mtx);
-            chans = CHANNELS;
-        }
-        if (chans.empty()) chans.push_back(apChan);
-        for (uint8_t ch : chans) {
-            if (!g_sentinelUserEnabled.load() || scanning.load()) break;
-            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-            uint32_t dwellMs = (ch == apChan) ? 400 : 120;
+        if (!g_sentinelScanMode.load()) {
+            // PIN: stay on the AP channel. Catches attacks against us, keeps AP clients
+            // associated (no hop -> no false DEAUTH_AP_TARGETED from churn).
+            esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
             uint32_t waited = 0;
-            while (waited < dwellMs && g_sentinelUserEnabled.load() && !scanning.load()) {
+            while (waited < 1000 && g_sentinelUserEnabled.load() && !scanning.load()
+                   && !g_sentinelScanMode.load()) {
                 vTaskDelay(pdMS_TO_TICKS(20));
                 waited += 20;
+            }
+        } else {
+            // SCAN: hop the configured channel list (AP channel weighted).
+            std::vector<uint8_t> chans;
+            {
+                std::lock_guard<std::recursive_mutex> lk(g_mtx);
+                chans = CHANNELS;
+            }
+            if (chans.empty()) chans.push_back(apChan);
+            for (uint8_t ch : chans) {
+                if (!g_sentinelUserEnabled.load() || scanning.load() || !g_sentinelScanMode.load()) break;
+                esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+                uint32_t dwellMs = (ch == apChan) ? 400 : 120;
+                uint32_t waited = 0;
+                while (waited < dwellMs && g_sentinelUserEnabled.load() && !scanning.load()) {
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                    waited += 20;
+                }
             }
         }
     }
@@ -4341,6 +4357,7 @@ void detect_persistTunables() {
     p.putBool("etwOn", ah_detect::g_eviltwinEnabled.load());
     p.putBool("scnOn", ah_detect::g_ssidConfusionEnabled.load());
     p.putBool("saeOn", ah_detect::g_saeEnabled.load());
+    p.putBool("sclScan", ah_detect::g_sentinelScanMode.load());
     p.putBool("oweOn", ah_detect::g_oweEnabled.load());
     p.putBool("fragOn", ah_detect::g_fragEnabled.load());
     p.putBool("blemOn", ah_detect::g_bleMalformedEnabled.load());
@@ -5527,6 +5544,7 @@ static inline String _ijson(const char *k, uint32_t v) {
 String detect_getConfigJson() {
     String j = "{";
     j += _bjson("pmkid", g_pmkidEnabled.load(), true);
+    j += _bjson("sentinel_scan", g_sentinelScanMode.load());
     j += _bjson("eviltwin", g_eviltwinEnabled.load());
     j += _bjson("ssid_confusion", g_ssidConfusionEnabled.load());
     j += _bjson("sae", g_saeEnabled.load());
@@ -5607,6 +5625,7 @@ static void _setu32(const String &b, const char *k, std::atomic<uint32_t> &a) {
 }
 bool detect_setConfigFromJson(const String &b) {
     _setb(b, "pmkid", g_pmkidEnabled);
+    _setb(b, "sentinel_scan", g_sentinelScanMode);
     _setb(b, "eviltwin", g_eviltwinEnabled);
     _setb(b, "ssid_confusion", g_ssidConfusionEnabled);
     _setb(b, "sae", g_saeEnabled);
