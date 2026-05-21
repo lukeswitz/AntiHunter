@@ -1246,6 +1246,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detDosCard')">
+            <h3><span class="sev high">dos</span>DoS Defense</h3>
+            <span class="collapse-icon open" id="detDosCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detDosCardBody">
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('dos',true)">All On</button>
+              <button class="btn alt" onclick="detGroup('dos',false)">All Off</button>
+            </div>
+            <div id="dos-rows" style="font-size:12px;"></div>
+          </div>
+        </div>
+
         <div class="card" data-key="sentinel" data-sev="high">
           <div class="card-header" onclick="toggleCollapse('detSentinelCard')">
             <h3><span class="sev high">sentinel</span>Background Sentinel</h3>
@@ -5143,7 +5157,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         catch(e){console.warn('detect: bad json line', e); return null;}
       }
       async function _jt(u){
-        try{const r=await fetch(u);return await r.text();}
+        try{const r=await fetch(u);if(!r.ok)return '';return await r.text();}
         catch(e){console.warn('detect: fetch text failed', u, e); return '';}
       }
       async function _jj(u){
@@ -5151,6 +5165,30 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         catch(e){console.warn('detect: fetch json failed', u, e); return null;}
       }
       function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
+      const DOS_DETS=[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
+        ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
+        ['ASSOC_SLEEP','Assoc Sleep','assoc_sleep'],['SAE_DOS','SAE DoS','sae'],
+        ['DEAUTH_AP_TARGETED','AP Deauth (event)',null]];
+      async function renderDos(){
+        const el=document.getElementById('dos-rows'); if(!el)return;
+        const inc=await _jj('/api/incidents.json?limit=200')||[];
+        const cfg=_detCfg||{};
+        const nowMs=inc.reduce((m,x)=>Math.max(m,(x&&x.ts)||0),0);
+        const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
+        let h='';
+        DOS_DETS.forEach(d=>{
+          const hits=inc.filter(x=>x&&x.type===d[0]);
+          const cnt=hits.length;
+          const last=cnt?Math.max(...hits.map(x=>x.ts||0)):0;
+          const tog=d[2]?`<input type="checkbox" ${cfg[d[2]]?'checked':''} onchange="detPostCfg({${d[2]}:this.checked});">`
+                        :'<span style="opacity:.55;">always</span>';
+          h+=`<div style="display:grid;grid-template-columns:1fr auto 40px 70px;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd);">`
+            +`<span>${d[1]}</span><span>${tog}</span>`
+            +`<span class="num" style="text-align:right;">${cnt}</span>`
+            +`<span class="mut" style="text-align:right;font-size:11px;">${ago(last)}</span></div>`;
+        });
+        el.innerHTML=h;
+      }
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
@@ -5204,6 +5242,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ]);
         if((rc||[]).length>0)detMarkActive('recon');
         if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
+        renderDos();
       }
       async function detectClearAll(){await fetch('/api/detect/clear_all',{method:'POST'});detectTick()}
       async function csiTick(){
@@ -5710,7 +5749,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       // NOTE: deauth detection is unconditional (no toggle); WPS/WPA3/evil_portal detectors
       // are staged and will get their own toggle keys during the detector build.
       const DET_GROUPS={
-        dos:      ['sae','assoc_sleep'],
+        dos:      ['eviltwin','sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
         recon:    ['pmkid','probe_flood','hshk'],
         ble:      ['ble_attack','ble_malformed','tracker','airtag'],
@@ -7269,38 +7308,38 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   // === tool / tool tool-fingerprint logs (NEW) ===
   server->on("/api/ble_attack.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/ble_attack.jsonl"))    r->send(SD, "/ble_attack.jsonl",    "application/x-ndjson");
-      else                                   r->send(404, "text/plain", "no events");
+      else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/probe_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/probe_flood.jsonl"))   r->send(SD, "/probe_flood.jsonl",   "application/x-ndjson");
-      else                                   r->send(404, "text/plain", "no events");
+      else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/assoc_sleep.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/assoc_sleep.jsonl"))   r->send(SD, "/assoc_sleep.jsonl",   "application/x-ndjson");
-      else                                   r->send(404, "text/plain", "no events");
+      else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/pmkid_forge.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/pmkid_forge.jsonl"))   r->send(SD, "/pmkid_forge.jsonl",   "application/x-ndjson");
-      else                                   r->send(404, "text/plain", "no events");
+      else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/eapol_bait.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/eapol_bait.jsonl"))    r->send(SD, "/eapol_bait.jsonl",    "application/x-ndjson");
-      else                                   r->send(404, "text/plain", "no events");
+      else                                   r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/deauth_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/deauth_flood.jsonl")) r->send(SD, "/deauth_flood.jsonl", "application/x-ndjson");
-      else                                  r->send(404, "text/plain", "no events");
+      else                                  r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/deauth_flood/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
       SafeSD::remove("/deauth_flood.jsonl"); r->send(200, "text/plain", "cleared");
   });
   server->on("/api/deauth_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/deauth_ap.jsonl")) r->send(SD, "/deauth_ap.jsonl", "application/x-ndjson");
-      else                               r->send(404, "text/plain", "no events");
+      else                               r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/probe_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/probe_ap.jsonl")) r->send(SD, "/probe_ap.jsonl", "application/x-ndjson");
-      else                              r->send(404, "text/plain", "no events");
+      else                              r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/ble_attack/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
       SafeSD::remove("/ble_attack.jsonl"); r->send(200, "text/plain", "cleared");
@@ -7329,7 +7368,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
   server->on("/api/incidents.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/incidents.jsonl")) r->send(SD, "/incidents.jsonl", "application/x-ndjson");
-      else                               r->send(404, "text/plain", "no events");
+      else                               r->send(200, "application/x-ndjson", "");
   });
   server->on("/api/incidents", HTTP_DELETE, [](AsyncWebServerRequest *r) {
       detect_clearIncidents();
