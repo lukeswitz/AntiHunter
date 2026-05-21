@@ -1257,6 +1257,7 @@ String getRandomizationResults() {
 }
 
 void randomizationDetectionTask(void *pv) {
+    sentinel_kill();
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
     

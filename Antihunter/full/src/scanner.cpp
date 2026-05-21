@@ -60,7 +60,7 @@ const size_t MAX_BLE_CACHE = 200;
 
 // BLE 
 NimBLEScan *pBLEScan;
-static void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
+void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
 
 // Scan intervals
 uint32_t WIFI_SCAN_INTERVAL = 4000;
@@ -87,7 +87,7 @@ RFScanConfig rfConfig = {
     .bleScanDuration = 3000,
     .preset = 1,
     .wifiChannels = "1..14",
-    .globalRssiThreshold = -90
+    .globalRssiThreshold = -95
 };
 
 const uint32_t SCAN_MESH_SLOT_CYCLE_MS = 15000;
@@ -147,14 +147,14 @@ void setRFPreset(uint8_t preset) {
             rfConfig.wifiScanInterval = 8000;
             rfConfig.bleScanInterval = 4000;
             rfConfig.bleScanDuration = 3000;
-            rfConfig.globalRssiThreshold = -95;
+            rfConfig.globalRssiThreshold = -80;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
             rfConfig.wifiScanInterval = 6000;
             rfConfig.bleScanInterval = 3000;
             rfConfig.bleScanDuration = 3000;
-            rfConfig.globalRssiThreshold = -90;
+            rfConfig.globalRssiThreshold = -95;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
@@ -236,7 +236,7 @@ void loadRFConfigFromPrefs() {
         uint32_t bsi = prefs.getUInt("bleInterval", 2000);
         uint32_t bsd = prefs.getUInt("bleDuration", 3000);
         String channels = prefs.getString("channels", "1..14");
-        int8_t rssiThreshold = prefs.getInt("globalRSSI", -90);
+        int8_t rssiThreshold = prefs.getInt("globalRSSI", -95);
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
     
@@ -609,6 +609,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     memcpy(hit.destMac, payload + 4,  6);
     memcpy(hit.srcMac,  payload + 10, 6);
     memcpy(hit.bssid,   payload + 16, 6);
+    hit.seqCtrl    = (uint16_t)(payload[22] | (payload[23] << 8));
     hit.reasonCode = (uint16_t)(payload[24] | (payload[25] << 8));
     hit.rssi       = ppkt->rx_ctrl.rssi;
     hit.channel    = ppkt->rx_ctrl.channel;
@@ -616,6 +617,17 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     hit.isDisassoc = isDisassoc;
     hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
     hit.companyId  = 0;
+    hit.toolHint   = 0;
+    // tool: FC C0 00 + reason 0x02 + seqCtrl 0xFFF0 (raw bytes 0xF0 0xFF LE).
+    // seqCtrl=0xFFF0 is FIXED non-incrementing — legit STA/AP frames increment seq.
+    // Combined with reason=2 = high-confidence tool fingerprint.
+    if (hit.reasonCode == 0x0002 && hit.seqCtrl == 0xFFF0) hit.toolHint |= 0x01;
+    // bit1 was "tool target reason in {1,4,6,7,8}" — REMOVED: these reasons are
+    // commonly used by real APs (router reboot, channel switch, etc.) so flagging
+    // them alone produces unacceptable false positives. The rate-based detector
+    // (≥20 deauths/10s in flood logic below) catches tool floods regardless.
+    // tool deauth flood: broadcast dst — informational only, not standalone alert.
+    if (hit.isBroadcast) hit.toolHint |= 0x04;
 
     BaseType_t woken = pdFALSE;
     xQueueSendFromISR(deauthQueue, &hit, &woken);
@@ -700,6 +712,7 @@ static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char
 
 void snifferScanTask(void *pv)
 {
+    sentinel_kill();
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                  (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
@@ -1490,12 +1503,42 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
         statsMap[dstMac].lastRssi = h.rssi;
     }
 
+    // Tool-fingerprint tallies — surface known attacker frameworks
+    uint32_t forgeHits = 0, bcastHits = 0;
+    for (const auto &h : deauthEntries) {
+        if (h.toolHint & 0x01) forgeHits++;
+        if (h.toolHint & 0x04) bcastHits++;
+    }
+
     std::string results = "Deauth Attack Detection Results\n";
     results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
     results += "Deauth frames: " + std::to_string(deauthTotal) + "\n";
     results += "Disassoc frames: " + std::to_string(disassocTotal) + "\n";
     results += "Total attacks: " + std::to_string(deauthEntries.size()) + "\n";
-    results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n\n";
+    results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n";
+    if (forgeHits) results += "tool fingerprint (reason=2 seq=FFF0): " + std::to_string(forgeHits) + "\n";
+    if (bcastHits)    results += "Broadcast-dst deauths: " + std::to_string(bcastHits) + " (informational)\n";
+
+    // EAPOL-capture-bait correlation: lone targeted deauth (src sent exactly 1
+    // unicast deauth, no follow-up) is the classic "knock-the-client-off and
+    // wait for re-auth" PMKID/handshake capture pattern. Count such srcs.
+    {
+        std::map<String, int> srcUnicastCount;
+        for (const auto &h : deauthEntries) {
+            if (!h.isBroadcast) {
+                srcUnicastCount[macFmt6(h.srcMac)]++;
+            }
+        }
+        uint32_t loneSrcs = 0;
+        for (const auto &kv : srcUnicastCount) {
+            if (kv.second == 1) loneSrcs++;
+        }
+        if (loneSrcs > 0) {
+            results += "EAPOL-capture-bait pattern (single targeted deauth, no follow-up): "
+                       + std::to_string(loneSrcs) + " srcs\n";
+        }
+    }
+    results += "\n";
     
     if (statsMap.empty()) {
         results += "No attacks detected.\n";
@@ -1552,6 +1595,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
 }
 
 void blueTeamTask(void *pv) {
+    sentinel_kill();
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
 
@@ -1632,6 +1676,42 @@ void blueTeamTask(void *pv) {
 
             if (deauthLog.size() < 2000) {
                 deauthLog.push_back(hit);
+            }
+
+            // Feed detect.cpp for EAPOL-capture-bait correlation (unicast only).
+            if (!hit.isBroadcast) {
+                detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
+            }
+
+            // High-confidence flood detector: ≥20 deauths from same src in 10s.
+            // (Cisco WLC default ~30; research recommends 20.)
+            static std::map<uint64_t, std::pair<uint32_t, uint16_t>> floodWin;
+            static std::set<uint64_t> floodAlerted;
+            {
+                uint64_t k = 0;
+                for (int i = 0; i < 6; ++i) k = (k << 8) | hit.srcMac[i];
+                uint32_t now = millis();
+                auto it = floodWin.find(k);
+                if (it == floodWin.end() || (now - it->second.first) > 10000) {
+                    floodWin[k] = {now, 1};
+                    floodAlerted.erase(k);
+                } else {
+                    if (it->second.second < 65535) it->second.second++;
+                    if (it->second.second >= 20 && !floodAlerted.count(k)) {
+                        floodAlerted.insert(k);
+                        String s = macFmt6(hit.srcMac);
+                        Serial.printf("[DETECT] DEAUTH_FLOOD src=%s count=%u in 10s\n",
+                                      s.c_str(), it->second.second);
+                        sendToSerial1(getNodeId() + ": DEAUTH_FLOOD:" + s + ":" +
+                                      String(it->second.second) + ":" + String(hit.rssi), true);
+                    }
+                }
+                // Bound map size — evict oldest if >64 srcs tracked.
+                if (floodWin.size() > 64) {
+                    uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
+                    for (auto &kv : floodWin) if (kv.second.first < oldest) { oldest = kv.second.first; oldestK = kv.first; }
+                    floodWin.erase(oldestK);
+                }
             }
 
             String srcMac = macFmt6(hit.srcMac);
@@ -1778,6 +1858,8 @@ void blueTeamTask(void *pv) {
             doc["reason"] = deauthHit.reasonCode;
             doc["disassoc"] = deauthHit.isDisassoc;
             doc["broadcast"] = deauthHit.isBroadcast;
+            doc["seq"] = deauthHit.seqCtrl;
+            doc["tool"] = deauthHit.toolHint;  // bit0=tool bit1=tool-target bit2=tool-flood
             String line;
             serializeJson(doc, line);
             logEventToSD("/deauth.jsonl", line);
@@ -1866,7 +1948,7 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
     return 0;
 }
 
-static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
+void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
 
@@ -2581,6 +2663,7 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
 
 void probeDetectionTask(void *pv)
 {
+    sentinel_kill();
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
 
@@ -3456,6 +3539,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
 // Scan tasks
 void listScanTask(void *pv) {
+    sentinel_kill();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (secs <= 0);
 

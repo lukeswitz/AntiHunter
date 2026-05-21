@@ -110,6 +110,8 @@ struct DeauthHit {
    bool isDisassoc;
    bool isBroadcast;
    uint16_t companyId;
+   uint16_t seqCtrl;       // tool fixed 0xFFF0
+   uint8_t toolHint;       // bit0=tool bit1=tool-target bit2=tool-flood
 };
 
 struct RFScanConfig {
