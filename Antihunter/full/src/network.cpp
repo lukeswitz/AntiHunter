@@ -518,7 +518,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="status-bar">
           <div class="status-item" id="modeStatus">WiFi</div>
           <div class="status-item idle" id="scanStatus">Idle</div>
-          <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;" title="Click to toggle Sentinel">SENT OFF</div>
+          <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;" title="Click to toggle Sentinel">SENTINEL OFF</div>
           <div class="status-item" id="gpsStatus">GPS</div>
           <div class="status-item" id="rtcStatus">RTC</div>
         </div>
@@ -1119,6 +1119,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <button class="btn alt" onclick="dataPageNext()" id="dataNextBtn">Next</button>
         </div>
       </div>
+      <div class="card">
+        <h3>Sentinel Analysis <span style="font-size:11px;color:var(--mut);">(all sessions)</span></h3>
+        <div class="data-header">
+          <select id="saType" onchange="loadSentinelAnalysis()"><option value="ALL">All types</option></select>
+          <input type="text" id="saSearch" placeholder="Search..." oninput="loadSentinelAnalysis()">
+          <button class="btn alt" onclick="refreshSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Refresh</button>
+          <a class="btn alt" href="/api/incidents.jsonl" download style="padding:8px 14px;font-size:12px;">Export</a>
+          <button class="btn danger" onclick="clearSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Clear</button>
+        </div>
+        <div id="saArea" style="overflow-x:auto;"><div class="data-empty">Open to load sentinel incidents.</div></div>
+      </div>
       </div>
 
       <!-- ===== DETECT TAB ===== -->
@@ -1187,13 +1198,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div id="det-tabs" style="display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--bord);">
           <button data-dtab="live" class="dtab active" onclick="detSetTab('live')">Live</button>
           <button data-dtab="detectors" class="dtab" onclick="detSetTab('detectors')">Detectors</button>
-          <button data-dtab="config" class="dtab" onclick="detSetTab('config')">Config</button>
+          <button data-dtab="details" class="dtab" onclick="detSetTab('details')">Details</button>
         </div>
         <style>
           #det-tabs button.dtab{background:transparent;color:var(--mut);border:none;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;}
           #det-tabs button.dtab:hover{color:var(--txt);background:rgba(255,255,255,.03);}
           #det-tabs button.dtab.active{color:var(--txt);border-bottom-color:#ea580c;}
           .dtab-hidden{display:none !important;}
+          .det-empty-hidden{display:none !important;}
           .dpill{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
           .dpill.verify{background:rgba(34,197,94,.18);color:#86efac;border:1px solid #16a34a;}
           .dpill.unver{background:rgba(234,179,8,.15);color:#fde047;border:1px solid #ca8a04;}
@@ -1233,6 +1245,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div class="stat"><div class="stat-label">Recon</div><div class="stat-value" id="d-rec">0</div></div>
               <div class="stat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
               <div class="stat"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
+              <div class="stat"><div class="stat-label">Karma</div><div class="stat-value" id="d-karma">0</div></div>
+              <div class="stat"><div class="stat-label">Auth Flood</div><div class="stat-value" id="d-authflood">0</div></div>
+              <div class="stat"><div class="stat-label">Beacon Flood</div><div class="stat-value" id="d-beaconflood">0</div></div>
             </div>
             <div style="font-size:11px;color:var(--mut);margin-bottom:8px;">
               <span class="lbl">Heap:</span><span id="d-heap" class="num">--</span>
@@ -1242,6 +1257,35 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="btn alt" onclick="detectClearAll()">Clear All State</button>
               <button class="btn alt" onclick="detectReloadOui()">Reload OUI</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" data-key="dctl">
+          <div class="card-header" onclick="toggleCollapse('detCtlCard')">
+            <h3><span class="sev info">control</span>Sentinel Control</h3>
+            <span class="collapse-icon open" id="detCtlCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detCtlCardBody">
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+              <span style="font-size:12px;">Sentinel:</span>
+              <span id="sentStatus2" style="font-weight:600;color:#888;font-size:13px;">--</span>
+              <button id="sentToggleBtn" class="btn primary" onclick="sentinelToggleHdr()">Start</button>
+            </div>
+            <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
+            <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Enable a group:</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('dos',true)">DoS</button>
+              <button class="btn alt" onclick="detGroup('rogue_ap',true)">Rogue AP</button>
+              <button class="btn alt" onclick="detGroup('recon',true)">Recon</button>
+              <button class="btn alt" onclick="detGroup('ble',true)">BLE</button>
+              <button class="btn alt" onclick="detGroup('drone',true)">Drone</button>
+              <button class="btn alt" onclick="detGroup('physical',true)">Physical</button>
+            </div>
+            <div class="det-quick">
+              <button class="btn alt" onclick="detPreset('all-on')">All On</button>
+              <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
+              <button class="btn alt" onclick="detPreset('quiet')">Quiet</button>
             </div>
           </div>
         </div>
@@ -1268,64 +1312,89 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
-        <div class="card" data-key="sentinel" data-sev="high">
-          <div class="card-header" onclick="toggleCollapse('detSentinelCard')">
-            <h3><span class="sev high">sentinel</span>Background Sentinel</h3>
-            <span class="collapse-icon open" id="detSentinelCardIcon">▶</span>
+        <div class="card" data-key="rogue">
+          <div class="card-header" onclick="toggleCollapse('detRogueCard')">
+            <h3><span class="sev high">rogue</span>Rogue AP</h3>
+            <span class="collapse-icon open" id="detRogueCardIcon">▶</span>
           </div>
-          <div class="card-body" id="detSentinelCardBody">
-            <p style="font-size:11px;color:var(--mut);margin:0 0 8px;">
-              Continuous promiscuous WiFi + BLE scan hopping ch1/6/11 with detector pipeline.
-              Disrupts SoftAP beacons during channel hop (clients may struggle to associate).
-              <strong>Default: OFF</strong>. Any manual scan start kills it — no auto-resume.
-            </p>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <span>Status:</span>
-              <span id="sentStatus" style="font-weight:600;color:#888;">--</span>
-              <button class="btn primary" id="sentStartBtn" onclick="sentinelStart()">Start Sentinel</button>
-              <button class="btn alt" id="sentStopBtn" onclick="sentinelStop()">Stop Sentinel</button>
+          <div class="card-body" id="detRogueCardBody">
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('rogue_ap',true)">All On</button>
+              <button class="btn alt" onclick="detGroup('rogue_ap',false)">All Off</button>
             </div>
+            <div id="rogue-rows"></div>
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" data-key="recongrp">
+          <div class="card-header" onclick="toggleCollapse('detReconGrpCard')">
+            <h3><span class="sev high">recon</span>Recon / Harvest</h3>
+            <span class="collapse-icon open" id="detReconGrpCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detReconGrpCardBody">
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('recon',true)">All On</button>
+              <button class="btn alt" onclick="detGroup('recon',false)">All Off</button>
+            </div>
+            <div id="recon-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="blegrp">
+          <div class="card-header" onclick="toggleCollapse('detBleGrpCard')">
+            <h3><span class="sev med">ble</span>BLE</h3>
+            <span class="collapse-icon open" id="detBleGrpCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detBleGrpCardBody">
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('ble',true)">All On</button>
+              <button class="btn alt" onclick="detGroup('ble',false)">All Off</button>
+            </div>
+            <div id="ble-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="dronegrp">
+          <div class="card-header" onclick="toggleCollapse('detDroneCard')">
+            <h3><span class="sev high">drone</span>Drone RID</h3>
+            <span class="collapse-icon open" id="detDroneCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detDroneCardBody">
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('drone',true)">All On</button>
+              <button class="btn alt" onclick="detGroup('drone',false)">All Off</button>
+            </div>
+            <div id="drone-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="physical">
+          <div class="card-header" onclick="toggleCollapse('detPhysCard')">
+            <h3><span class="sev info">phys</span>Physical Layer</h3>
+            <span class="collapse-icon open" id="detPhysCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detPhysCardBody">
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('physical',true)">All On</button>
+              <button class="btn alt" onclick="detGroup('physical',false)">All Off</button>
+            </div>
+            <div id="physical-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="meshcfg">
           <div class="card-header" onclick="toggleCollapse('detConfigCard')">
-            <h3><span class="sev info">config</span>Detector Controls</h3>
-            <span class="collapse-icon open" id="detConfigCardIcon">▶</span>
+            <h3><span class="sev info">config</span>Mesh &amp; Thresholds</h3>
+            <span class="collapse-icon" id="detConfigCardIcon">▶</span>
           </div>
           <div class="card-body" id="detConfigCardBody">
-            <p style="font-size:11px;color:var(--mut);margin:0 0 8px;">Toggle local detection and mesh broadcast per signal class. Persists across reboot.</p>
-            <p style="font-size:11px;color:var(--mut);margin:6px 0 4px;">Threat groups — enable a scenario in one tap:</p>
-            <div class="det-quick">
-              <button class="btn alt" onclick="detGroup('dos',true)">DoS Defense</button>
-              <button class="btn alt" onclick="detGroup('rogue_ap',true)">Rogue AP</button>
-              <button class="btn alt" onclick="detGroup('recon',true)">Recon / Harvest</button>
-              <button class="btn alt" onclick="detGroup('ble',true)">BLE</button>
-              <button class="btn alt" onclick="detGroup('drone',true)">Drone RID</button>
-              <button class="btn alt" onclick="detGroup('physical',true)">Physical Layer</button>
-            </div>
-            <p style="font-size:11px;color:var(--mut);margin:8px 0 4px;">Global / mesh:</p>
-            <div class="det-quick">
-              <button class="btn alt" onclick="detPreset('all-on')">All On</button>
-              <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
-              <button class="btn alt" onclick="detPreset('quiet')">Quiet Mode</button>
-              <button class="btn alt" onclick="detPreset('mesh-silent')">Mesh Silent</button>
+            <p style="font-size:11px;color:var(--mut);margin:0 0 6px;">Detector on/off lives in the group cards (Detectors tab). Here: mesh broadcast + thresholds.</p>
+            <div class="det-quick" style="margin-bottom:6px;">
               <button class="btn alt" onclick="detPreset('mesh-all')">Mesh All On</button>
+              <button class="btn alt" onclick="detPreset('mesh-silent')">Mesh Silent</button>
             </div>
             <details open>
-              <summary><span>▶</span> Attack Tool Fingerprints</summary>
-              <div id="cfg-tools"></div>
-            </details>
-            <details>
-              <summary><span>▶</span> WiFi Attack Signatures</summary>
-              <div id="cfg-wifi"></div>
-            </details>
-            <details>
-              <summary><span>▶</span> BLE Signals</summary> 
-              <div id="cfg-ble"></div>
-            </details>
-            <details>
-              <summary><span>▶</span> Mesh / Physical Layer</summary>
+              <summary><span>▶</span> Mesh Broadcast (forward detections to peers)</summary>
               <div id="cfg-mesh"></div>
             </details>
             <details>
@@ -1572,7 +1641,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         <div class="card" data-key="events" data-sev="high">
           <div class="card-header" onclick="toggleCollapse('detEventsCard')">
-            <h3><span class="sev high">high</span>Incidents (Session + Past)</h3>
+            <h3><span class="sev high">high</span>Incidents (Session)</h3>
             <span class="collapse-icon" id="detEventsCardIcon">▶</span>
           </div>
           <div class="card-body collapsed" id="detEventsCardBody">
@@ -1669,6 +1738,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (pg) pg.classList.add('active');
         window.scrollTo(0, 0);
         if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
+        if (pageName === 'data' && typeof loadSentinelAnalysis === 'function') { _saData=null; loadSentinelAnalysis(); }
       }
 
       function switchTab(tabName) {
@@ -4544,22 +4614,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const r = await fetch('/api/sentinel/status');
           if (!r.ok) return;
           const j = await r.json();
-          const el = document.getElementById('sentStatus');
-          if (j.scanning) {
-            el.textContent = 'KILLED (scan active)';
-            el.style.color = '#f99';
-          } else if (j.running) {
-            el.textContent = 'RUNNING';
-            el.style.color = '#9f9';
-          } else if (j.enabled) {
-            el.textContent = 'enabled, task not running';
-            el.style.color = '#fc6';
-          } else {
-            el.textContent = 'DISABLED';
-            el.style.color = '#888';
-          }
-          document.getElementById('sentStartBtn').disabled = j.scanning || j.running;
-          document.getElementById('sentStopBtn').disabled = !j.enabled;
+          let txt='DISABLED', col='#888';
+          if (j.scanning){txt='KILLED (scan active)';col='#f99';}
+          else if (j.running){txt='RUNNING';col='#9f9';}
+          else if (j.enabled){txt='enabled, task not running';col='#fc6';}
+          const el2=document.getElementById('sentStatus2');
+          if(el2){el2.textContent=txt;el2.style.color=col;}
+          const tb=document.getElementById('sentToggleBtn');
+          if(tb){tb.textContent=j.enabled?'Stop':'Start';tb.className=j.enabled?'btn alt':'btn primary';}
         } catch(e){ console.error('sentinelRefresh', e); }
       }
       async function sentinelStart(){
@@ -5021,6 +5083,32 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           cols:['Uptime','Node','Src','Type','Raw'],
           keys:['ts','node','src','type','raw']}
       };
+      let _saData=null;
+      function refreshSentinelAnalysis(){ _saData=null; loadSentinelAnalysis(); }
+      async function clearSentinelAnalysis(){
+        if(!confirm('Clear all sentinel incidents (RAM + SD)?'))return;
+        await fetch('/api/incidents',{method:'DELETE'}); _saData=null; loadSentinelAnalysis();
+      }
+      async function loadSentinelAnalysis(){
+        const area=document.getElementById('saArea'); if(!area)return;
+        if(!_saData){
+          const r=await fetch('/api/incidents.jsonl');
+          const t=r.ok?await r.text():'';
+          _saData=t.split('\n').filter(x=>x.trim()).map(x=>{try{return JSON.parse(x)}catch(_){return null}}).filter(x=>x);
+          const sel=document.getElementById('saType'); const cur=sel?sel.value:'ALL';
+          const types=[...new Set(_saData.map(x=>x.type).filter(Boolean))].sort();
+          if(sel){sel.innerHTML='<option value="ALL">All types</option>'+types.map(t=>`<option>${t}</option>`).join(''); sel.value=cur||'ALL';}
+        }
+        const ty=(document.getElementById('saType')||{}).value||'ALL';
+        const q=((document.getElementById('saSearch')||{}).value||'').toLowerCase();
+        let rows=_saData.filter(x=>(ty==='ALL'||x.type===ty)&&(!q||JSON.stringify(x).toLowerCase().includes(q)));
+        const total=rows.length; rows=rows.slice(-300).reverse();
+        if(!rows.length){area.innerHTML='<div class="data-empty">No incidents.</div>';return;}
+        area.innerHTML=`<div style="font-size:11px;color:var(--mut);margin-bottom:4px;">${total} incident${total!=1?'s':''}</div>`
+          +'<table class="dt"><thead><tr><th>Uptime</th><th>Node</th><th>Type</th><th>Src</th><th>Raw</th></tr></thead><tbody>'
+          +rows.map(r=>`<tr><td>${r.ts||''}</td><td>${r.node||''}</td><td style="color:#e08;">${r.type||''}</td><td>${r.src||''}</td><td>${String(r.raw||'').replace(/</g,'&lt;')}</td></tr>`).join('')
+          +'</tbody></table>';
+      }
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
         var cfg=DATA_SETS[ds];
@@ -5173,10 +5261,43 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         catch(e){console.warn('detect: fetch json failed', u, e); return null;}
       }
       function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
-      const DOS_DETS=[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
-        ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
-        ['ASSOC_SLEEP','Assoc Sleep','assoc_sleep'],['SAE_DOS','SAE DoS','sae'],
-        ['DEAUTH_AP_TARGETED','AP Deauth (event)',null]];
+      const GROUPS={
+        dos:[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
+          ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
+          ['ASSOC_SLEEP','Assoc Sleep','assoc_sleep'],['SAE_DOS','SAE DoS','sae'],
+          ['DEAUTH_AP_TARGETED','AP Deauth (event)',null]],
+        rogue:[['EVILTWIN','Evil Twin','eviltwin'],['OWE_ABUSE','OWE Abuse','owe'],
+          [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
+        recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
+          ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
+        ble:[['BLE_ATTACK','BLE Spam','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed'],
+          [['BLETRACK','TRK_LINK'],'Tracker Follow','tracker'],['AIRTAG','AirTag','airtag']],
+        drone:[['RID','RID Spoof','rid_spoof']],
+        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF Clock-Skew','tsf'],['CSI_MOTION','CSI Motion','csi']]
+      };
+      function _grpRows(dets,inc,cfg,nowMs){
+        const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
+        let h='<div style="display:grid;grid-template-columns:1fr 70px 60px 70px;gap:10px;'
+             +'font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;'
+             +'padding:0 0 6px;border-bottom:1px solid var(--bd);">'
+             +'<span>Detector</span><span style="text-align:center;">Enabled</span>'
+             +'<span style="text-align:right;">Hits</span><span style="text-align:right;">Last</span></div>';
+        dets.forEach(d=>{
+          const types=Array.isArray(d[0])?d[0]:[d[0]];
+          const hits=inc.filter(x=>x&&types.includes(x.type));
+          const cnt=hits.length;
+          const last=cnt?Math.max(...hits.map(x=>x.ts||0)):0;
+          const tog=d[2]?`<input type="checkbox" style="width:18px;height:18px;" ${cfg[d[2]]?'checked':''} onchange="detPostCfg({${d[2]}:this.checked});">`
+                        :'<span style="opacity:.5;font-size:12px;">always</span>';
+          const hot=cnt>0?'color:var(--bad,#e55);font-weight:700;':'';
+          h+=`<div style="display:grid;grid-template-columns:1fr 70px 60px 70px;gap:10px;align-items:center;`
+            +`padding:9px 0;border-bottom:1px solid var(--bd);font-size:14px;">`
+            +`<span>${d[1]}</span><span style="text-align:center;">${tog}</span>`
+            +`<span class="num" style="text-align:right;${hot}">${cnt}</span>`
+            +`<span class="mut" style="text-align:right;font-size:12px;">${ago(last)}</span></div>`;
+        });
+        return h;
+      }
       function _dosSyncMode(scan){
         const d=document.getElementById('dos-mode-defend'), s=document.getElementById('dos-mode-scan'),
               t=document.getElementById('dos-mode-desc');
@@ -5191,32 +5312,42 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(_detCfg)_detCfg.sentinel_scan=scan;
       }
       async function renderDos(){
-        const el=document.getElementById('dos-rows'); if(!el)return;
         const inc=await _jj('/api/incidents.json?limit=200')||[];
         const cfg=_detCfg||{};
         _dosSyncMode(!!cfg.sentinel_scan);
         const nowMs=inc.reduce((m,x)=>Math.max(m,(x&&x.ts)||0),0);
-        const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
-        let h='<div style="display:grid;grid-template-columns:1fr 70px 60px 70px;gap:10px;'
-             +'font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;'
-             +'padding:0 0 6px;border-bottom:1px solid var(--bd);">'
-             +'<span>Detector</span><span style="text-align:center;">Enabled</span>'
-             +'<span style="text-align:right;">Hits</span><span style="text-align:right;">Last</span></div>';
-        DOS_DETS.forEach(d=>{
-          const hits=inc.filter(x=>x&&x.type===d[0]);
-          const cnt=hits.length;
-          const last=cnt?Math.max(...hits.map(x=>x.ts||0)):0;
-          const tog=d[2]?`<input type="checkbox" style="width:18px;height:18px;" ${cfg[d[2]]?'checked':''} onchange="detPostCfg({${d[2]}:this.checked});">`
-                        :'<span style="opacity:.5;font-size:12px;">always</span>';
-          const hot=cnt>0?'color:var(--bad,#e55);font-weight:700;':'';
-          h+=`<div style="display:grid;grid-template-columns:1fr 70px 60px 70px;gap:10px;align-items:center;`
-            +`padding:9px 0;border-bottom:1px solid var(--bd);font-size:14px;">`
-            +`<span>${d[1]}</span>`
-            +`<span style="text-align:center;">${tog}</span>`
-            +`<span class="num" style="text-align:right;${hot}">${cnt}</span>`
-            +`<span class="mut" style="text-align:right;font-size:12px;">${ago(last)}</span></div>`;
-        });
-        el.innerHTML=h;
+        for(const gid in GROUPS){
+          const el=document.getElementById(gid+'-rows');
+          if(el)el.innerHTML=_grpRows(GROUPS[gid],inc,cfg,nowMs);
+        }
+        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',ble:'BLE',drone:'Drone',physical:'Physical'};
+        let qv='';
+        for(const gid in GROUPS){
+          const dets=GROUPS[gid]; let en=0,ht=0;
+          dets.forEach(d=>{
+            if(d[2]?(cfg[d[2]]===true):true)en++;
+            const types=Array.isArray(d[0])?d[0]:[d[0]];
+            ht+=inc.filter(x=>x&&types.includes(x.type)).length;
+          });
+          const hot=ht>0?'border-color:var(--bad,#e55);':'';
+          qv+=`<div style="border:1px solid var(--bd);border-radius:6px;padding:6px 8px;${hot}">`
+            +`<div style="font-size:11px;color:var(--mut);">${GLBL[gid]||gid}</div>`
+            +`<div style="font-size:13px;"><b>${en}/${dets.length}</b> on · <span style="${ht>0?'color:var(--bad,#e55);font-weight:700;':''}">${ht} hit${ht!=1?'s':''}</span></div></div>`;
+        }
+        const qe=document.getElementById('dctl-quick'); if(qe)qe.innerHTML=qv;
+        const setc=(id,types)=>{const e=document.getElementById(id);if(e)e.textContent=inc.filter(x=>x&&types.includes(x.type)).length;};
+        setc('d-karma',['KARMA_CAND','KARMA_CONFIRMED']);
+        setc('d-authflood',['AUTH_FLOOD']);
+        setc('d-beaconflood',['BEACON_FLOOD']);
+        setc('d-dauth',['DEAUTH_FLOOD','DEAUTH_FORGE','DEAUTH_AP_TARGETED']);
+        setc('d-pmkid',['PMKID_HARVEST','PMKID_FORGE']);
+        setc('d-et',['EVILTWIN']);
+        setc('d-sc',['SSID_CONFUSION']);
+        setc('d-sae',['SAE_DOS']);
+        setc('d-owe',['OWE_ABUSE']);
+        setc('d-frag',['FRAG']);
+        setc('d-blem',['BLE_MALFORMED']);
+        setc('d-hs-krack',['KRACK']);
       }
       async function detectTick(){
         const tab=document.getElementById('page-detect');
@@ -5577,14 +5708,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       const DETECTOR_TAB_MAP = {
         'events':'live','sentinel':'live','mesh':'config','config':'config',
-        'overview':'live','dos':'detectors','rid':'detectors','recon':'detectors','trackers':'detectors',
-        'airtag':'detectors','csi':'detectors','karma':'detectors','hunts':'detectors',
-        'handshake':'detectors','beaconforge':'detectors','pmkidforge':'detectors',
-        'eapolbait':'detectors','probeflood':'detectors','assocsleep':'detectors',
-        'bleattack':'detectors','probegraph':'detectors','tsf':'detectors','tof':'detectors',
-        'pmkid':'detectors','eviltwin':'detectors','ssidconf':'detectors',
-        'saedos':'detectors','oweabuse':'detectors','frag':'detectors','blemal':'detectors',
-        'pwna':'detectors','krack':'detectors'
+        'overview':'live',
+        'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
+        'blegrp':'detectors','dronegrp':'detectors','physical':'detectors','meshcfg':'detectors',
+        'rid':'details','recon':'details','trackers':'details',
+        'airtag':'details','csi':'details','karma':'details','hunts':'details',
+        'handshake':'details','beaconforge':'details','pmkidforge':'details',
+        'eapolbait':'details','probeflood':'details','assocsleep':'details',
+        'bleattack':'details','probegraph':'details','tsf':'details','tof':'details',
+        'pmkid':'details','eviltwin':'details','ssidconf':'details',
+        'saedos':'details','oweabuse':'details','frag':'details','blemal':'details',
+        'pwna':'details','krack':'details'
       };
 
       function detSetTab(tab){
@@ -5624,7 +5758,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             console.warn('detSetTab: localStorage read failed (private mode?)', storageErr);
           }
         }
-        if (saved !== 'live' && saved !== 'detectors' && saved !== 'config') saved = 'live';
+        if (saved !== 'live' && saved !== 'detectors' && saved !== 'details') saved = 'live';
         setTimeout(()=>detSetTab(saved), 50);
       }
       detTabRestore();
@@ -5743,33 +5877,26 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return `<div class="det-row"><div class="name">${label}</div>
             <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}> broadcast</label></div>`;
         }
-        const wifiHtml=DET_FEATURES_LOCAL.filter(p=>wifiKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
-        const bleHtml=DET_FEATURES_LOCAL.filter(p=>bleKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
-        const toolHtml=
-          '<div style="font-size:10px;color:var(--mut);margin-bottom:6px;line-height:1.4;">Byte-level signatures from tool + tool . Default ON — high confidence.</div>'+
-          DET_FEATURES_LOCAL.filter(p=>toolKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
-        const physHtml=rowHtml(tsfKey,'TSF Clock-Skew')+rowHtml(bloomKey,'Bloom Gossip')+
-          '<div style="margin-top:8px;color:var(--mut);font-size:11px;font-weight:600;">Mesh broadcast</div>'+
-          DET_FEATURES_MESH.map(p=>rowMesh(p[0],p[1])).join('');
-        document.getElementById('cfg-wifi').innerHTML=wifiHtml;
-        document.getElementById('cfg-ble').innerHTML=bleHtml;
-        const toolHost=document.getElementById('cfg-tools');
-        if(toolHost)toolHost.innerHTML=toolHtml;
-        document.getElementById('cfg-mesh').innerHTML=physHtml;
-        let threshHtml='';
-        DET_THRESHOLDS.forEach(t=>{
-          const v=_detCfg[t[0]]||t[2];
-          threshHtml+=`<div><label style="font-size:11px;color:var(--mut);">${t[1]}</label>
-            <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%"></div>`;
-        });
-        document.getElementById('cfg-thresh').innerHTML=threshHtml;
-        document.querySelectorAll('#cfg-wifi input,#cfg-ble input,#cfg-mesh input,#cfg-tools input').forEach(el=>{
+        const meshEl=document.getElementById('cfg-mesh');
+        if(meshEl)meshEl.innerHTML=DET_FEATURES_MESH.map(p=>rowMesh(p[0],p[1])).join('');
+        const threshEl=document.getElementById('cfg-thresh');
+        if(threshEl){
+          let threshHtml='';
+          DET_THRESHOLDS.forEach(t=>{
+            const v=_detCfg[t[0]]||t[2];
+            threshHtml+=`<div><label style="font-size:11px;color:var(--mut);">${t[1]}</label>
+              <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%"></div>`;
+          });
+          threshEl.innerHTML=threshHtml;
+        }
+        document.querySelectorAll('#cfg-mesh input').forEach(el=>{
           el.addEventListener('change',()=>detPostCfg({[el.dataset.cfg]:el.checked}));
         });
       }
       async function detPostCfg(patch){
+        Object.assign(_detCfg||(_detCfg={}),patch);
+        if(typeof renderDos==='function')renderDos();
         await fetch('/api/detect/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
-        Object.assign(_detCfg||{},patch);
       }
       // Threat-scenario groups. Keys map to existing detector toggles.
       // ssid_confusion intentionally excluded: CVE-2023-52424 is a client-side
@@ -5816,6 +5943,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function detLoadCfg(){
         _detCfg=await _jj('/api/detect/config');
         detRenderConfig();
+        if(typeof renderDos==='function')renderDos();
       }
       async function detHealthTick(){
         const tab=document.getElementById('page-detect');
@@ -5830,11 +5958,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const tab=document.getElementById('page-detect');
         return tab&&tab.classList.contains('active');
       }
+      function renderDetailsVisibility(){
+        try{
+          document.querySelectorAll('#page-detect .card').forEach(c=>{
+            if(DETECTOR_TAB_MAP[c.dataset.key||'']!=='details')return;
+            const body=c.querySelector('.card-body'); if(!body)return;
+            let txt='';
+            body.querySelectorAll('pre,table,.det-table').forEach(e=>txt+=e.textContent||'');
+            const t=txt.trim();
+            const empty=(t===''||/^[-\s\[\]]*$/.test(t));
+            c.classList.toggle('det-empty-hidden', empty);
+          });
+        }catch(e){console.warn('renderDetailsVisibility',e);}
+      }
       function detAllTicks(){
         if(!detTabActive())return;
         detectTick();csiTick();pgTick();trkTick();atTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
         bfTick();pfTick();ebTick();pflTick();asTick();baTick();
+        setTimeout(renderDetailsVisibility,300);
       }
       async function _jsonl(path){
         try{const r=await fetch(path);if(!r.ok)return [];const t=await r.text();
