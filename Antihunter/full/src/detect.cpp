@@ -864,7 +864,36 @@ static void handleBeacon(const DetectFrameEvent &e) {
     const uint8_t *ie = p + 36;
     uint16_t ieLen = e.len - 36;
 
-    // tool/tool beacon-spam fingerprint (no baseline needed — fires on first frame).
+    // Evil-twin-of-us: any non-self BSSID beaconing OUR SSID is a clone of our AP.
+    if (wantEvil) {
+        char ssidSelf[33] = {0};
+        extractSSID(ie, ieLen, ssidSelf, sizeof(ssidSelf));
+        if (ssidSelf[0] && isSelfSsid(ssidSelf) && !isSelfMac(bssid) && !isSelfMac(p + 10)) {
+            static std::map<uint64_t, uint32_t> s_selfCloneSeen;
+            uint64_t ck = packMac(bssid);
+            uint32_t nowc = millis();
+            auto sit = s_selfCloneSeen.find(ck);
+            if (sit == s_selfCloneSeen.end() || (nowc - sit->second) > 30000) {
+                if (s_selfCloneSeen.size() >= 32) s_selfCloneSeen.erase(s_selfCloneSeen.begin());
+                s_selfCloneSeen[ck] = nowc;
+                const char *rsn = hasOpenAuth(ie, ieLen) ? "SELF_CLONE_OPEN" : "SELF_CLONE";
+                char bb[18];
+                snprintf(bb, sizeof(bb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
+                Serial.printf("[DETECT] EVILTWIN src=%s reason=%s (clone of our AP)\n", bb, rsn);
+                char lb[220];
+                snprintf(lb, sizeof(lb),
+                         "{\"bssid\":\"%s\",\"ssid\":\"%s\",\"reason\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
+                         bb, ssidSelf, rsn, (int)e.rssi, (unsigned)e.channel, (unsigned)nowc);
+                logEventToSD("/eviltwin.jsonl", String(lb));
+                ::detect_logIncident(String("EVILTWIN:") + bb + ":" + rsn, bb);
+                quorum_addReport("EVILTWIN", String(bb), getNodeId(), e.rssi);
+                attacker_kick(bssid, "EVILTWIN");
+                if (meshEnabled && g_meshEviltwin.load() && meshRateGate(String("ETW_SELF_") + bb, 30000))
+                    sendToSerial1(getNodeId() + ": EVILTWIN:" + bb + ":" + rsn + ":" + String((int)e.rssi), true);
+            }
+        }
+    }
     if (wantEvil) {
         const char *forgeReason = classifyBeaconForgery(p, e.len);
         if (forgeReason) {
@@ -1143,6 +1172,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                      getNodeId().c_str(), bs, ev.reason, (int)ev.rssi);
             sendToSerial1(String(meshMsg), true);
         }
+        ::detect_logIncident(String("EVILTWIN:") + bsStr + ":" + ev.reason, bs);
         quorum_addReport("EVILTWIN", bsStr, getNodeId(), ev.rssi);
         b.lastEvilEmitMs = now;
         b.tsfViolStreak = 0;
@@ -1175,6 +1205,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                              "{\"open_bssid\":\"%s\",\"owe_bssid\":\"%s\",\"ssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                              obBuf, owbBuf, ssid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                     logEventToSD("/owe_abuse.jsonl", String(lineBuf));
+                    ::detect_logIncident(String("OWE_ABUSE:") + obBuf + ":" + ssid, obBuf);
                     break;
                 }
             }
@@ -2725,6 +2756,8 @@ void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi)
     if (shouldEmitBait) {
         lk.unlock();
         karmaEmitBait(emitBssid);
+        Serial.printf("[DETECT] KARMA_CAND bssid=%s distinct_ssids=%u\n", macStr(emitBssid).c_str(), (unsigned)emitDistinctSsids);
+        ::detect_logIncident(String("KARMA_CAND:") + macStr(emitBssid) + ":" + String(emitDistinctSsids), macStr(emitBssid).c_str());
         if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CAND_" + macStr(emitBssid), 60000)) {
             sendToSerial1(getNodeId() + ": KARMA_CAND:" + macStr(emitBssid) +
                           ":" + String(emitDistinctSsids), true);
@@ -2743,15 +2776,19 @@ bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi) {
                 memcpy(cand.bssid, bssid, 6);
                 cand.firstSseen = millis();
             }
+            bool wasConfirmed = cand.confirmed;
             cand.confirmed = true;
             cand.lastSeen = millis();
             strncpy(cand.lastSsid, ssid, sizeof(cand.lastSsid) - 1);
-            if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
-                sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) +
-                              ":" + String(rssi), true);
+            if (!wasConfirmed) {   // emit once per BSSID — karma answers every bait, would storm otherwise
+                Serial.printf("[DETECT] KARMA_CONFIRMED bssid=%s ssid=%s rssi=%d\n", macStr(bssid).c_str(), ssid, (int)rssi);
+                ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), macStr(bssid).c_str());
+                if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
+                    sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) + ":" + String(rssi), true);
+                }
+                quorum_addReport("KARMA", macStr(bssid), getNodeId(), rssi);
+                attacker_kick(bssid, "KARMA");
             }
-            quorum_addReport("KARMA", macStr(bssid), getNodeId(), rssi);
-            attacker_kick(bssid, "KARMA");
             return true;
         }
     }
@@ -4266,6 +4303,12 @@ static void sentinelAlwaysOnTask(void *pv) {
             weOwn = true;
             Serial.printf("[SENTINEL] Took radio: filter=%s r1=%d r2=%d r3=%d\n",
                           wantData ? "MGMT+DATA" : "MGMT", (int)r1, (int)r2, (int)r3);
+        }
+        // Proactive KARMA bait: fake-SSID probe; any AP that answers = karma.
+        static uint32_t s_lastBait = 0;
+        if (g_karmaEnabled.load() && (millis() - s_lastBait > 8000)) {
+            s_lastBait = millis();
+            karmaEmitBait(nullptr);
         }
         if (!g_sentinelScanMode.load()) {
             // PIN: stay on the AP channel. Catches attacks against us, keeps AP clients
