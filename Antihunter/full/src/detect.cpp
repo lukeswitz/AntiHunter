@@ -713,9 +713,14 @@ static uint32_t g_beaconFloodWinStart = 0;
 static uint32_t g_beaconFloodLastEmit = 0;
 static bool     g_beaconFloodActive = false;
 static constexpr uint32_t BEACON_FLOOD_WIN_MS    = 10000;
-static constexpr size_t   BEACON_FLOOD_DISTINCT  = 25;     // distinct BSSIDs/10s = flood
+static constexpr size_t   BEACON_FLOOD_DISTINCT  = 40;     // distinct NEAR BSSIDs/10s
 static constexpr size_t   BEACON_FLOOD_MAP_CAP   = 256;
 static constexpr uint32_t BEACON_FLOOD_COOLDOWN  = 10000;
+// Only count beacons stronger than this. A beacon-spam attacker is in the room
+// (-10..-40 dBm in tests); ambient/neighbor APs at -70..-90 are NOT spam. Without
+// this gate a dense RF area trivially shows 25+ distinct BSSIDs -> false positive
+// (observed firing at rssi=-82/-86). Gating to near beacons kills that FP.
+static constexpr int8_t   BEACON_FLOOD_RSSI_MIN  = -65;
 
 // Common Espressif OUI prefixes — found in nearly every tool/tool build
 // because they run on ESP32-S3/C3. Used as confidence bump for Evil-Portal.
@@ -798,7 +803,10 @@ static void handleBeacon(const DetectFrameEvent &e) {
     bool isLaaBssid = (bssid_early[0] & 0x02) != 0;
 
     // --- Beacon-flood detection (distinct-BSSID churn). Runs before per-detector
-    // gates so it catches spam regardless of which detectors are on. ---
+    // gates so it catches spam regardless of which detectors are on.
+    // CRITICAL: once a flood is active, do NOT keep logging/processing each spam
+    // beacon — that per-frame String/SD/map work is what exhausts heap and crashes.
+    // Detect once, alert (rate-gated), then bail out of the whole handler. ---
     {
         uint64_t bk = packMac(bssid_early);
         uint32_t tnow = millis();
@@ -808,27 +816,36 @@ static void handleBeacon(const DetectFrameEvent &e) {
             g_beaconFloodBssids.clear();
             g_beaconFloodActive = false;
         }
-        if (g_beaconFloodBssids.size() < BEACON_FLOOD_MAP_CAP) g_beaconFloodBssids.insert(bk);
-        if (g_beaconFloodBssids.size() >= BEACON_FLOOD_DISTINCT) {
-            g_beaconFloodActive = true;   // suppress evil-twin emits while flooding
+        if (!g_beaconFloodActive) {
+            // Only count NEAR beacons. Ambient/neighbor APs (weak RSSI) are not spam.
+            if (e.rssi >= BEACON_FLOOD_RSSI_MIN) {
+                g_beaconFloodBssids.insert(bk);
+                if (g_beaconFloodBssids.size() >= BEACON_FLOOD_DISTINCT) {
+                    g_beaconFloodActive = true;
+                    g_beaconFloodBssids.clear();   // free the set; flag carries state
+                }
+            }
+        }
+        if (g_beaconFloodActive) {
+            // Rate-gated alert; everything else about this beacon is skipped.
             if (g_beaconFloodLastEmit == 0 || (tnow - g_beaconFloodLastEmit) > BEACON_FLOOD_COOLDOWN) {
                 g_beaconFloodLastEmit = tnow;
-                Serial.printf("[DETECT] BEACON_FLOOD distinct_bssid=%u in %ums ch=%u\n",
-                              (unsigned)g_beaconFloodBssids.size(),
-                              (unsigned)(tnow - g_beaconFloodWinStart), (unsigned)e.channel);
-                char lb[200];
+                Serial.printf("[DETECT] BEACON_FLOOD active ch=%u rssi=%d\n",
+                              (unsigned)e.channel, (int)e.rssi);
+                char lb[160];
                 snprintf(lb, sizeof(lb),
                          "{\"distinct_bssid\":%u,\"win_ms\":%u,\"ch\":%u,\"rssi\":%d,\"reason\":\"BEACON_FLOOD\",\"ts\":%u}",
-                         (unsigned)g_beaconFloodBssids.size(), (unsigned)BEACON_FLOOD_WIN_MS,
+                         (unsigned)BEACON_FLOOD_DISTINCT, (unsigned)BEACON_FLOOD_WIN_MS,
                          (unsigned)e.channel, (int)e.rssi, (unsigned)tnow);
                 logEventToSD("/eviltwin.jsonl", String(lb));
                 if (meshEnabled && g_meshEviltwin.load() && meshRateGate(String("BEACON_FLOOD"), 30000)) {
-                    char mb[80];
-                    snprintf(mb, sizeof(mb), "%s: BEACON_FLOOD:%u:%d",
-                             getNodeId().c_str(), (unsigned)g_beaconFloodBssids.size(), (int)e.rssi);
+                    char mb[64];
+                    snprintf(mb, sizeof(mb), "%s: BEACON_FLOOD:%d",
+                             getNodeId().c_str(), (int)e.rssi);
                     sendToSerial1(String(mb), true);
                 }
             }
+            return;   // skip ALL per-frame work during flood -> no heap storm
         }
     }
 
@@ -1401,24 +1418,39 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         }
     }
     if (forgeFingerprint && !(selfSrc && sentinelHop)) {
-        char srcBuf[18];
-        snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
-                 src[0],src[1],src[2],src[3],src[4],src[5]);
-        String srcS(srcBuf);
-        if (meshEnabled && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
+        // Detection emit is INDEPENDENT of mesh. A targeted/low-rate deauth never
+        // trips the flood counter, so the static tool fingerprint is the only
+        // signal — it must alert even with mesh off. Own per-src cooldown (10s).
+        static std::map<uint64_t, uint32_t> g_forgeLastEmit;
+        static constexpr size_t MAX_FORGE_EMIT_MAP = 64;
+        uint64_t fk = packMac(src);
+        auto fit = g_forgeLastEmit.find(fk);
+        bool emitOk = (fit == g_forgeLastEmit.end()) || ((now - fit->second) > 10000);
+        if (emitOk) {
+            if (g_forgeLastEmit.size() >= MAX_FORGE_EMIT_MAP) g_forgeLastEmit.erase(g_forgeLastEmit.begin());
+            g_forgeLastEmit[fk] = now;
+            char srcBuf[18];
+            snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     src[0],src[1],src[2],src[3],src[4],src[5]);
+            String srcS(srcBuf);
             Serial.printf("[DETECT] DEAUTH_FORGE tool=%s src=%s (reason=%u seq=0x%04X dur=0x%04X%s)\n",
                           toolTag, srcBuf, (unsigned)reason, seqCtrl, durLE,
                           selfSrc ? " IMPERSONATION" : "");
-            char meshBuf[96];
-            snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FORGE:%s:%s:%d",
-                     getNodeId().c_str(), srcBuf, toolTag, (int)e.rssi);
-            sendToSerial1(String(meshBuf), true);
             char lineBuf[260];
             snprintf(lineBuf, sizeof(lineBuf),
                      "{\"src\":\"%s\",\"tool\":\"%s\",\"class\":\"static\",\"reason\":%u,\"seq\":%u,\"dur\":%u,\"self_impersonation\":%s,\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                      srcBuf, toolTag, (unsigned)reason, (unsigned)seqCtrl, (unsigned)durLE,
                      selfSrc ? "true" : "false", (int)e.rssi, (unsigned)e.channel, (unsigned)now);
             logEventToSD("/deauth_flood.jsonl", String(lineBuf));
+            quorum_addReport("DEAUTH_FORGE", srcS, getNodeId(), e.rssi);
+            attacker_kick(src, "DEAUTH_FORGE");
+            // Mesh forwarding is separate/additional.
+            if (meshEnabled && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
+                char meshBuf[96];
+                snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FORGE:%s:%s:%d",
+                         getNodeId().c_str(), srcBuf, toolTag, (int)e.rssi);
+                sendToSerial1(String(meshBuf), true);
+            }
         }
     }
 }
@@ -4065,7 +4097,11 @@ std::atomic<uint32_t> tracker_follow_gap_ms{30UL * 60UL * 1000UL};
 std::atomic<uint8_t>  tracker_follow_min_sightings{3};
 
 void initializeDetect() {
-    detectFrameQueue = xQueueCreate(64, sizeof(DetectFrameEvent));
+    // 24 deep (was 64). Each entry is sizeof(DetectFrameEvent) (~266B with the
+    // 256B payload), so 64 cost ~17KB internal SRAM on a board that idles ~33KB
+    // free. 24 (~6.4KB) frees ~10KB headroom; the consumer task drains fast and
+    // backpressure drops cleanly under flood (detect-once logic already gates).
+    detectFrameQueue = xQueueCreate(24, sizeof(DetectFrameEvent));
     g_detectFrameQueue = detectFrameQueue;
     g_quorumRequired["PMKID"] = 2;
     g_quorumRequired["EVILTWIN"] = 2;
@@ -4163,11 +4199,26 @@ void initializeDetect() {
     }
     ah_detect::csi_init();
     xTaskCreatePinnedToCore(ah_detect::csiDrainTask, "CsiDrain", 4096, NULL, 2, NULL, 1);
+    // Fresh-session reset: truncate working detection logs so the Overview counts
+    // start at 0 each boot (a stale/corrupt line otherwise shows phantom counts).
+    // Cross-session history is preserved separately in /incidents.jsonl.
+    {
+        static const char *kBootClear[] = {
+            "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl",
+            "/sae_dos.jsonl", "/pmkid.jsonl", "/pmkid_forge.jsonl", "/eviltwin.jsonl",
+            "/ssid_confusion.jsonl", "/owe_abuse.jsonl", "/fragattack.jsonl",
+            "/ble_malformed.jsonl", "/ble_attack.jsonl", "/probe_flood.jsonl"
+        };
+        for (const char *pth : kBootClear) {
+            if (SafeSD::exists(pth)) SafeSD::remove(pth);
+        }
+    }
     Serial.println("[DETECT] Initialized");
 }
 
 extern std::atomic<bool> scanning;
 extern void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
+extern std::vector<uint8_t> CHANNELS;   // user-configured scan channel list
 
 static std::atomic<bool> g_sentinelAlwaysOnActive{false};
 static std::atomic<bool> g_sentinelUserEnabled{false};
@@ -4176,17 +4227,11 @@ static TaskHandle_t g_sentinelTaskHandle = nullptr;
 static void sentinelAlwaysOnTask(void *pv) {
     (void)pv;
     const uint8_t apChan = AP_CHANNEL;
-    const uint8_t offChans[] = {1, 11};
-    size_t offIdx = 0;
     Serial.printf("[SENTINEL] Smart-hop task started ap_ch=%u\n", (unsigned)apChan);
     bool weOwn = false;
     while (g_sentinelUserEnabled.load() && !scanning.load()) {
         if (!weOwn) {
-            // DATA frames flood the RX path and exhaust heap on busy channels.
-            // Only capture DATA when a data-consuming detector is on (PMKID/handshake/frag).
-            // All DoS/Rogue-AP/probe/beacon detectors are management-frame only.
-            bool wantData = g_pmkidEnabled.load() || g_hshkEnabled.load() ||
-                            g_fragEnabled.load();
+            bool wantData = g_pmkidEnabled.load() || g_hshkEnabled.load() || g_fragEnabled.load();
             wifi_promiscuous_filter_t filter = {};
             filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT;
             if (wantData) filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_DATA;
@@ -4197,15 +4242,23 @@ static void sentinelAlwaysOnTask(void *pv) {
             Serial.printf("[SENTINEL] Took radio: filter=%s r1=%d r2=%d r3=%d\n",
                           wantData ? "MGMT+DATA" : "MGMT", (int)r1, (int)r2, (int)r3);
         }
-        esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
-        for (int i = 0; i < 8 && g_sentinelUserEnabled.load() && !scanning.load(); ++i) {
-            vTaskDelay(pdMS_TO_TICKS(100));
+        // Hop the user-configured channel list
+        std::vector<uint8_t> chans;
+        {
+            std::lock_guard<std::recursive_mutex> lk(g_mtx);
+            chans = CHANNELS;
         }
-        if (!g_sentinelUserEnabled.load() || scanning.load()) break;
-        uint8_t off = offChans[offIdx];
-        offIdx = (offIdx + 1) % (sizeof(offChans) / sizeof(offChans[0]));
-        esp_wifi_set_channel(off, WIFI_SECOND_CHAN_NONE);
-        vTaskDelay(pdMS_TO_TICKS(60));
+        if (chans.empty()) chans.push_back(apChan);
+        for (uint8_t ch : chans) {
+            if (!g_sentinelUserEnabled.load() || scanning.load()) break;
+            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+            uint32_t dwellMs = (ch == apChan) ? 400 : 120;
+            uint32_t waited = 0;
+            while (waited < dwellMs && g_sentinelUserEnabled.load() && !scanning.load()) {
+                vTaskDelay(pdMS_TO_TICKS(20));
+                waited += 20;
+            }
+        }
     }
     if (weOwn) {
         esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
@@ -4244,6 +4297,9 @@ bool sentinel_isUserEnabled() { return g_sentinelUserEnabled.load(); }
 bool sentinel_isRunning() { return g_sentinelAlwaysOnActive.load(); }
 
 void sentinel_loadUserPref() {
+    // Sentinel OFF at boot. (Auto-enabling here started promiscuous during setup,
+    // before radioStartBLE() -> NimBLE esp_timer_create OOM'd -> boot crash loop.
+    // Enable via UI after boot, or wire a deferred start AFTER BLE init if needed.)
     g_sentinelUserEnabled.store(false);
 }
 
@@ -4319,9 +4375,11 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
     else if (ftype == 0 && (stype == 0 || stype == 2)) kind = DetectFrameEvent::ASSOC_REQ;
     else if (ftype == 0 && (stype == 10 || stype == 12)) kind = DetectFrameEvent::DEAUTH;
     else if (ftype == 0 && stype == 11)  kind = DetectFrameEvent::AUTH_SAE;
-    else if (eapolHit)                   kind = DetectFrameEvent::EAPOL;
-    else if (ftype == 2 && stype == 8)   kind = DetectFrameEvent::QOS_DATA;
-    else if (ftype == 2)                 kind = DetectFrameEvent::EAPOL;
+    else if (eapolHit)                   kind = DetectFrameEvent::EAPOL;   // PMKID/handshake — keep
+    // QoS data only when frag detection is on; otherwise normal data traffic
+    // floods the queue. All other data frames are dropped here at the ISR — the
+    // old catch-all (enqueue every data frame as EAPOL) is what hung DATA capture.
+    else if (ftype == 2 && stype == 8 && g_fragEnabled.load()) kind = DetectFrameEvent::QOS_DATA;
     else return;
     // Backpressure: drop if queue full rather than spinning the ISR.
     // Note: uxQueueSpacesAvailable is also safe-from-ISR on ESP-IDF FreeRTOS port.
