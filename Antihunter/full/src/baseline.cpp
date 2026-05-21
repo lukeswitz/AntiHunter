@@ -340,6 +340,7 @@ uint32_t calculateOptimalCacheSize() {
 }
 
 void baselineDetectionTask(void *pv) {
+    sentinel_kill();
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
 

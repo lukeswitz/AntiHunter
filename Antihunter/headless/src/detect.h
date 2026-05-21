@@ -97,7 +97,10 @@ struct DetectFrameEvent {
         BEACON_DEEP = 3,  // beacon for evil-twin/OWE analysis
         QOS_DATA = 4,     // QoS data frame for A-MSDU PN check
         PROBE_RESP = 5,   // probe response for SSID confusion
-        BLE_ADV = 6       // BLE adv (deferred from NimBLE callback)
+        BLE_ADV = 6,      // BLE adv (deferred from NimBLE callback)
+        PROBE_REQ = 7,    // probe request — tool probe-flood fingerprint
+        DEAUTH = 8,       // deauth/disassoc — tool/tool tool fingerprint
+        ASSOC_REQ = 9     // association request — tool assoc-sleep fingerprint
     };
     uint8_t kind;
     uint8_t channel;
@@ -210,6 +213,19 @@ void detectTask(void *pv);
 // Sniffer hook — called from sniffer_cb (IRAM, must be brief / ISR-safe)
 void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel);
 
+void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel);
+
+void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode);
+void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi);
+
+void sentinel_startAlwaysOn();
+void sentinel_kill();
+void sentinel_setUserEnabled(bool on);
+bool sentinel_isUserEnabled();
+bool sentinel_isRunning();
+void sentinel_loadUserPref();
+void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid);
+
 // BLE hook — called from BLE scan onResult
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
@@ -218,6 +234,12 @@ void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
 // Mesh
 void detect_processMesh(const String &fromNode, const String &msg);
 void detect_periodicMeshGossip();
+
+// Unified incidents log — all detector mesh msgs from local TX + peer RX.
+// Persisted to /incidents.jsonl on SD + small in-RAM ring (200 entries).
+void detect_logIncident(const String &raw, const char *src);
+String detect_getIncidentsJson(size_t maxEntries);
+void detect_clearIncidents();
 
 // Quorum
 void quorum_addReport(const String &type, const String &key,

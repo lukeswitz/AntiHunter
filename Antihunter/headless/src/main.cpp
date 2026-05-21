@@ -196,8 +196,9 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
-    // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)
-    esp_log_level_set("vfs_api", ESP_LOG_NONE);
+    // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)/gpio
+    // esp_log_level_set("vfs_api", ESP_LOG_NONE);
+    // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== Antihunter [Headless] Boot ===");
 
     delay(400);
@@ -231,11 +232,27 @@ void setup() {
     csi_enable(true);
     initializeGpsPps(21);
     xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
+    {
+        uint8_t selfMac[6];
+        esp_wifi_get_mac(WIFI_IF_AP, selfMac);
+        detect_setSelfApIdentity(selfMac, nullptr);
+        Serial.printf("[SENTINEL] self-filter mac=%02X:%02X:%02X:%02X:%02X:%02X\n",
+                      selfMac[0],selfMac[1],selfMac[2],selfMac[3],selfMac[4],selfMac[5]);
+    }
+    sentinel_loadUserPref();
+    if (sentinel_isUserEnabled()) {
+        sentinel_startAlwaysOn();
+        extern void radioStartBLE();
+        radioStartBLE();
+        Serial.println("[SENTINEL] BLE always-on scan started");
+    } else {
+        Serial.println("[SENTINEL] Disabled (user toggle off)");
+    }
 
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.4 BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());

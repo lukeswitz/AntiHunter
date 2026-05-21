@@ -143,6 +143,11 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 }
 
 bool sendToSerial1(const String &message, bool canDelay) {
+    {
+        int sep = message.indexOf(": ");
+        String body = (sep > 0) ? message.substring(sep + 2) : message;
+        detect_logIncident(body, "local");
+    }
     if (serial1Mutex == nullptr) {
         return false;
     }
@@ -513,6 +518,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="status-bar">
           <div class="status-item" id="modeStatus">WiFi</div>
           <div class="status-item idle" id="scanStatus">Idle</div>
+          <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;" title="Click to toggle Sentinel">SENT OFF</div>
           <div class="status-item" id="gpsStatus">GPS</div>
           <div class="status-item" id="rtcStatus">RTC</div>
         </div>
@@ -824,9 +830,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="" id="detectionCardBody">
           <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
           <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px;align-items:center;">
-            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-90" 
+            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-95" 
                   oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'">
-            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
+            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-95 dBm</span>
           </div>
           <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
 
@@ -1097,6 +1103,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <option value="vibrations">Vibration Events</option>
             <option value="baseline">Baseline Stats</option>
             <option value="syslog">System Log</option>
+            <option value="incidents">Sentinel Incidents (all sessions)</option>
           </select>
           <input type="text" id="dataSearch" placeholder="Search..." oninput="onDataSearch()">
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
@@ -1177,7 +1184,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         <div id="det-banner"><div style="font-size:10px;color:#fca5a5;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">ACTIVE ALERTS</div><div id="det-banner-body"></div></div>
 
-        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <div id="det-tabs" style="display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--bord);">
+          <button data-dtab="live" class="dtab active" onclick="detSetTab('live')">Live</button>
+          <button data-dtab="detectors" class="dtab" onclick="detSetTab('detectors')">Detectors</button>
+          <button data-dtab="config" class="dtab" onclick="detSetTab('config')">Config</button>
+        </div>
+        <style>
+          #det-tabs button.dtab{background:transparent;color:var(--mut);border:none;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;}
+          #det-tabs button.dtab:hover{color:var(--txt);background:rgba(255,255,255,.03);}
+          #det-tabs button.dtab.active{color:var(--txt);border-bottom-color:#ea580c;}
+          .dtab-hidden{display:none !important;}
+          .dpill{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
+          .dpill.verify{background:rgba(34,197,94,.18);color:#86efac;border:1px solid #16a34a;}
+          .dpill.unver{background:rgba(234,179,8,.15);color:#fde047;border:1px solid #ca8a04;}
+          .dpill.off{background:rgba(156,163,175,.12);color:#9ca3af;border:1px solid #4b5563;}
+          .dpill.fire{background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid #dc2626;animation:dpulse 1.2s ease-in-out infinite;}
+          @keyframes dpulse{0%,100%{opacity:1}50%{opacity:.45}}
+        </style>
+
+        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
           <input id="det-filter" placeholder="Filter (e.g. csi, airtag, karma)" oninput="detApplyFilters()">
           <div class="det-chips" id="det-chips">
             <span class="det-chip all" data-sev="all">All</span>
@@ -1196,6 +1221,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
           <div class="card-body" id="detOverviewCardBody">
             <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;">
+              <div class="stat"><div class="stat-label">Deauth</div><div class="stat-value" id="d-dauth">0</div></div>
               <div class="stat"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
               <div class="stat"><div class="stat-label">Evil-Twin</div><div class="stat-value" id="d-et">0</div></div>
               <div class="stat"><div class="stat-label">SSID Conf</div><div class="stat-value" id="d-sc">0</div></div>
@@ -1220,6 +1246,26 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
+        <div class="card" data-key="sentinel" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detSentinelCard')">
+            <h3><span class="sev high">sentinel</span>Background Sentinel</h3>
+            <span class="collapse-icon open" id="detSentinelCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detSentinelCardBody">
+            <p style="font-size:11px;color:var(--mut);margin:0 0 8px;">
+              Continuous promiscuous WiFi + BLE scan hopping ch1/6/11 with detector pipeline.
+              Disrupts SoftAP beacons during channel hop (clients may struggle to associate).
+              <strong>Default: OFF</strong>. Any manual scan start kills it — no auto-resume.
+            </p>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <span>Status:</span>
+              <span id="sentStatus" style="font-weight:600;color:#888;">--</span>
+              <button class="btn primary" id="sentStartBtn" onclick="sentinelStart()">Start Sentinel</button>
+              <button class="btn alt" id="sentStopBtn" onclick="sentinelStop()">Stop Sentinel</button>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-header" onclick="toggleCollapse('detConfigCard')">
             <h3><span class="sev info">config</span>Detector Controls</h3>
@@ -1227,6 +1273,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
           <div class="card-body" id="detConfigCardBody">
             <p style="font-size:11px;color:var(--mut);margin:0 0 8px;">Toggle local detection and mesh broadcast per signal class. Persists across reboot.</p>
+            <p style="font-size:11px;color:var(--mut);margin:6px 0 4px;">Threat groups — enable a scenario in one tap:</p>
+            <div class="det-quick">
+              <button class="btn alt" onclick="detGroup('dos',true)">DoS Defense</button>
+              <button class="btn alt" onclick="detGroup('rogue_ap',true)">Rogue AP</button>
+              <button class="btn alt" onclick="detGroup('recon',true)">Recon / Harvest</button>
+              <button class="btn alt" onclick="detGroup('ble',true)">BLE</button>
+              <button class="btn alt" onclick="detGroup('drone',true)">Drone RID</button>
+              <button class="btn alt" onclick="detGroup('physical',true)">Physical Layer</button>
+            </div>
+            <p style="font-size:11px;color:var(--mut);margin:8px 0 4px;">Global / mesh:</p>
             <div class="det-quick">
               <button class="btn alt" onclick="detPreset('all-on')">All On</button>
               <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
@@ -1235,11 +1291,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <button class="btn alt" onclick="detPreset('mesh-all')">Mesh All On</button>
             </div>
             <details open>
+              <summary><span>▶</span> Attack Tool Fingerprints</summary>
+              <div id="cfg-tools"></div>
+            </details>
+            <details>
               <summary><span>▶</span> WiFi Attack Signatures</summary>
               <div id="cfg-wifi"></div>
             </details>
             <details>
-              <summary><span>▶</span> BLE Signals</summary>
+              <summary><span>▶</span> BLE Signals</summary> 
               <div id="cfg-ble"></div>
             </details>
             <details>
@@ -1385,6 +1445,72 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
+        <div class="card" data-key="bcnforge" data-sev="high" title="Beacon spam fingerprints: static TSF 83 51 F7 8F, BI=1000 TU + LAA src, multicast src MAC, CSA count=0xFF, Espressif Evil-Portal, SSID rotate >=3 distinct/30s same BSSID">
+          <div class="card-header" onclick="toggleCollapse('detBcnForgeCard')">
+            <h3><span class="sev high">high</span>Beacon Forgery <span class="num" id="bf-n">0</span></h3>
+            <span class="collapse-icon" id="detBcnForgeCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detBcnForgeCardBody">
+            <button class="btn alt" onclick="bfClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="bf-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="pmkidforge" data-sev="crit" title="tool forged PMKID: KDE DD 14 00 0F AC 04 + fixed bytes 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF 11">
+          <div class="card-header" onclick="toggleCollapse('detPmkidForgeCard')">
+            <h3><span class="sev crit">crit</span>PMKID Forgery <span class="num" id="pf-n">0</span></h3>
+            <span class="collapse-icon" id="detPmkidForgeCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detPmkidForgeCardBody">
+            <button class="btn alt" onclick="pfClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pf-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="eapolbait" data-sev="crit" title="EAPOL capture-bait: single targeted deauth (<=3 frames) followed by EAPOL handshake from same STA. high confidence if latency <=2s">
+          <div class="card-header" onclick="toggleCollapse('detEapolBaitCard')">
+            <h3><span class="sev crit">crit</span>EAPOL Capture-Bait <span class="num" id="eb-n">0</span></h3>
+            <span class="collapse-icon" id="detEapolBaitCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detEapolBaitCardBody">
+            <button class="btn alt" onclick="ebClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="eb-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="probeflood" data-sev="high" title="tool probe attack: seqCtrl=0x0001 + HT-Cap IE 0x2D in probe-req. Behavioral fallback: >=40 distinct src MACs probing same SSID within 5s window">
+          <div class="card-header" onclick="toggleCollapse('detProbeFloodCard')">
+            <h3><span class="sev high">high</span>Probe Flood <span class="num" id="pfl-n">0</span></h3>
+            <span class="collapse-icon" id="detProbeFloodCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detProbeFloodCardBody">
+            <button class="btn alt" onclick="pflClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="pfl-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="assocsleep" data-sev="high" title="tool assoc-sleep: assoc-request frames with PM bit set in FC byte 1. Fires if >=4 distinct src MACs send to same BSSID within 5s">
+          <div class="card-header" onclick="toggleCollapse('detAssocSleepCard')">
+            <h3><span class="sev high">high</span>Assoc-Sleep <span class="num" id="as-n">0</span></h3>
+            <span class="collapse-icon" id="detAssocSleepCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detAssocSleepCardBody">
+            <button class="btn alt" onclick="asClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="as-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="bleattack" data-sev="high" title="tool/tool BLE attack tool fingerprints: SourApple FF 4C 00 0F 05 C0/C1, AppleJuice 4C 00 04 04 2A, Samsung FF 75 00 01 00 02, SwiftPair FF 06 00 03 00 80, FastPair 16 2C FE 00 B7 27, Flipper 0x0FBA, AirTag replay (same payload from >=2 MACs)">
+          <div class="card-header" onclick="toggleCollapse('detBleAttackCard')">
+            <h3><span class="sev high">high</span>BLE Attack Tools <span class="num" id="ba-n">0</span></h3>
+            <span class="collapse-icon" id="detBleAttackCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detBleAttackCardBody">
+            <button class="btn alt" onclick="baClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="ba-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
         <div class="card" data-key="probegraph" data-sev="info">
           <div class="card-header" onclick="toggleCollapse('detPgCard')">
             <h3><span class="sev info">info</span>Probe-Graph (mesh) <span class="num" id="pg-n">0</span></h3>
@@ -1424,11 +1550,61 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         <div class="card" data-key="events" data-sev="high">
           <div class="card-header" onclick="toggleCollapse('detEventsCard')">
-            <h3><span class="sev high">high</span>Live Event Stream</h3>
+            <h3><span class="sev high">high</span>Incidents (Session + Past)</h3>
             <span class="collapse-icon" id="detEventsCardIcon">▶</span>
           </div>
           <div class="card-body collapsed" id="detEventsCardBody">
-            <pre id="d-stream" class="log-pre" style="max-height:300px;">--</pre>
+            <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+              <label style="font-size:12px;opacity:0.7;">Filter:</label>
+              <select id="incFilter" style="background:#0a0a0a;color:#e8e8e8;border:1px solid #3a3a4a;padding:4px 8px;">
+                <option value="">ALL</option>
+                <option>DEAUTH_FORGE</option>
+                <option>DEAUTH_FLOOD</option>
+                <option>EVILTWIN</option>
+                <option>KARMA_CAND</option>
+                <option>KARMA_CONFIRMED</option>
+                <option>BEACON_FORGE</option>
+                <option>PMKID_HARVEST</option>
+                <option>PMKID_FORGE</option>
+                <option>EAPOL_BAIT</option>
+                <option>PROBE_FLOOD</option>
+                <option>ASSOC_SLEEP</option>
+                <option>BLE_ATTACK</option>
+                <option>BLETRACK</option>
+                <option>SAE_DOS</option>
+                <option>OWE_ABUSE</option>
+                <option>SSID_CONFUSION</option>
+                <option>FRAG</option>
+                <option>KRACK</option>
+                <option>PWNAGOTCHI</option>
+                <option>ATTACKER_HUNT</option>
+                <option>RECON</option>
+              </select>
+              <label style="font-size:12px;opacity:0.7;">Source:</label>
+              <select id="incSrc" style="background:#0a0a0a;color:#e8e8e8;border:1px solid #3a3a4a;padding:4px 8px;">
+                <option value="">ALL</option>
+                <option value="local">Local only</option>
+                <option value="peer">Peers only</option>
+              </select>
+              <button onclick="loadIncidents()" style="background:#1a2a3a;color:#9bf;border:1px solid #3a4a5a;padding:4px 10px;cursor:pointer;">Refresh</button>
+              <button onclick="downloadIncidents()" style="background:#1a2a3a;color:#9bf;border:1px solid #3a4a5a;padding:4px 10px;cursor:pointer;">Download .jsonl</button>
+              <button onclick="clearIncidents()" style="background:#3a1a1a;color:#f99;border:1px solid #5a3a3a;padding:4px 10px;cursor:pointer;">Clear All</button>
+              <span id="incCount" style="font-size:12px;opacity:0.6;margin-left:auto;">--</span>
+            </div>
+            <div style="max-height:380px;overflow-y:auto;border:1px solid #2a2a3a;">
+              <table id="incTable" style="width:100%;border-collapse:collapse;font-size:12px;font-family:monospace;">
+                <thead style="position:sticky;top:0;background:#0a0a14;">
+                  <tr>
+                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:80px;">Uptime</th>
+                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:50px;">Node</th>
+                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:50px;">Src</th>
+                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:170px;">Type</th>
+                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;">Raw</th>
+                  </tr>
+                </thead>
+                <tbody id="incBody"><tr><td colspan="5" style="padding:12px;opacity:0.5;">Loading…</td></tr></tbody>
+              </table>
+            </div>
           </div>
         </div>
         </div><!-- /det-grid -->
@@ -1549,8 +1725,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           try {
             const r = await fetch('/rf-config');
             const cfg = await r.json();
-            document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -90;
-            document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -90) + ' dBm';
+            document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -95;
+            document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -95) + ' dBm';
             document.getElementById('rfPreset').value = cfg.preset;
             document.getElementById('wifiChannelTime').value = cfg.wifiChannelTime;
             document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
@@ -4284,7 +4460,98 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           tickRunning = false;
         }
       }
-      
+
+      // === Incidents panel ===
+      function fmtIncUptime(ms){
+        const s = Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+        if (h>0) return h+':'+String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+        return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+      }
+      function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+      async function loadIncidents(){
+        try {
+          const r = await fetch('/api/incidents.json?limit=200');
+          if (!r.ok) return;
+          const arr = await r.json();
+          const ftype = document.getElementById('incFilter').value;
+          const fsrc  = document.getElementById('incSrc').value;
+          const body = document.getElementById('incBody');
+          const filtered = arr.slice().reverse().filter(e =>
+            (!ftype || e.type === ftype) &&
+            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local'))
+          );
+          document.getElementById('incCount').textContent = filtered.length + ' / ' + arr.length + ' total';
+          if (filtered.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" style="padding:12px;opacity:0.5;">No incidents</td></tr>';
+            return;
+          }
+          let html = '';
+          for (const e of filtered) {
+            const isPeer = e.src && e.src !== 'local';
+            const srcColor = isPeer ? '#fc6' : '#9bf';
+            const typeColor = e.type.startsWith('DEAUTH') ? '#f99'
+                            : e.type.startsWith('EVILTWIN') ? '#fc6'
+                            : e.type.startsWith('KARMA') ? '#f9f'
+                            : e.type.startsWith('PMKID') ? '#9fc'
+                            : e.type.startsWith('BLE') ? '#9cf'
+                            : '#ccc';
+            html += '<tr style="border-bottom:1px solid #1a1a2a;">'
+                  + '<td style="padding:4px 6px;color:#888;">'+ fmtIncUptime(e.ts) +'</td>'
+                  + '<td style="padding:4px 6px;color:#ccc;">'+ esc(e.node) +'</td>'
+                  + '<td style="padding:4px 6px;color:'+srcColor+';">'+ esc(e.src) +'</td>'
+                  + '<td style="padding:4px 6px;color:'+typeColor+';">'+ esc(e.type) +'</td>'
+                  + '<td style="padding:4px 6px;color:#bbb;word-break:break-all;">'+ esc(e.raw) +'</td>'
+                  + '</tr>';
+          }
+          body.innerHTML = html;
+        } catch(e){ console.error('loadIncidents', e); }
+      }
+      function downloadIncidents(){ window.open('/api/incidents.jsonl', '_blank'); }
+      async function clearIncidents(){
+        if (!confirm('Clear all incidents (RAM ring + SD file)?')) return;
+        await fetch('/api/incidents', {method:'DELETE'});
+        loadIncidents();
+      }
+      document.getElementById('incFilter').addEventListener('change', loadIncidents);
+      document.getElementById('incSrc').addEventListener('change', loadIncidents);
+      setInterval(loadIncidents, 2000);
+      loadIncidents();
+
+      async function sentinelRefresh(){
+        try {
+          const r = await fetch('/api/sentinel/status');
+          if (!r.ok) return;
+          const j = await r.json();
+          const el = document.getElementById('sentStatus');
+          if (j.scanning) {
+            el.textContent = 'KILLED (scan active)';
+            el.style.color = '#f99';
+          } else if (j.running) {
+            el.textContent = 'RUNNING';
+            el.style.color = '#9f9';
+          } else if (j.enabled) {
+            el.textContent = 'enabled, task not running';
+            el.style.color = '#fc6';
+          } else {
+            el.textContent = 'DISABLED';
+            el.style.color = '#888';
+          }
+          document.getElementById('sentStartBtn').disabled = j.scanning || j.running;
+          document.getElementById('sentStopBtn').disabled = !j.enabled;
+        } catch(e){ console.error('sentinelRefresh', e); }
+      }
+      async function sentinelStart(){
+        const r = await fetch('/api/sentinel/start', {method:'POST'});
+        if (!r.ok) alert('Start failed: ' + await r.text());
+        sentinelRefresh();
+      }
+      async function sentinelStop(){
+        await fetch('/api/sentinel/stop', {method:'POST'});
+        sentinelRefresh();
+      }
+      setInterval(sentinelRefresh, 4000);
+      sentinelRefresh();
+
       document.getElementById('triangulate').addEventListener('change', e => {
         document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
         const secsInput = document.querySelector('input[name="secs"]');
@@ -4727,7 +4994,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           keys:['t','uptime_ms','lat','lon']},
         baseline:{url:'/baseline/stats',clear:null,fmt:'baseline',cols:[],keys:[]},
         syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',
-          cols:['Time','Message'],keys:['_time','_msg']}
+          cols:['Time','Message'],keys:['_time','_msg']},
+        incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',
+          cols:['Uptime','Node','Src','Type','Raw'],
+          keys:['ts','node','src','type','raw']}
       };
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
@@ -4884,15 +5154,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,bm,q,b,p,rid,tr,rc,ch]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,tr,rc,ch]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
-          _jt('/api/ble_malformed.jsonl'),
+          _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
           _jj('/api/rid_claims'),_jj('/api/ble_tracker'),_jj('/api/recon'),
           _jj('/api/channel_partition')
         ]);
+        const dEl = document.getElementById('d-dauth');
+        if (dEl) dEl.textContent = _countLines(df);
         document.getElementById('d-pmkid').textContent=_countLines(pm);
         document.getElementById('d-et').textContent=_countLines(et);
         document.getElementById('d-sc').textContent=_countLines(sc);
@@ -4930,7 +5202,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           {key:'ts',label:'Age',get:r=>_ago(r.ts)},
           {key:'raw',label:'Detail',get:r=>r.raw}
         ]);
-        if(evtRows.length>0)detMarkActive('events');
         if((rc||[]).length>0)detMarkActive('recon');
         if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
       }
@@ -5118,15 +5389,96 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
         cards.forEach(c=>parent.appendChild(c));
       }
+      const _detPageLoadMs = Date.now();
+
+      async function sentinelToggleHdr(){
+        try {
+          const sr = await fetch('/api/sentinel/status');
+          if (!sr.ok) return;
+          const s = await sr.json();
+          const url = s.enabled ? '/api/sentinel/stop' : '/api/sentinel/start';
+          const rr = await fetch(url, {method:'POST'});
+          if (!rr.ok) {
+            alert('Sentinel toggle failed: ' + await rr.text());
+          }
+          sentinelHdrRefresh();
+        } catch (err) {
+          console.warn('sentinelToggleHdr failed', err);
+        }
+      }
+      async function sentinelHdrRefresh(){
+        try {
+          const r = await fetch('/api/sentinel/status');
+          if (!r.ok) return;
+          const s = await r.json();
+          const el = document.getElementById('sentStatusHdr');
+          if (!el) return;
+          if (s.scanning) {
+            el.textContent = 'SENT KILL';
+            el.style.color = '#fca5a5';
+            el.style.borderColor = '#dc2626';
+          } else if (s.running) {
+            el.textContent = 'SENTINEL ON';
+            el.style.color = '#86efac';
+            el.style.borderColor = '#16a34a';
+          } else {
+            el.textContent = 'SENTINEL IDLE';
+            el.style.color = '';
+            el.style.borderColor = '';
+          }
+        } catch (err) {
+          console.warn('sentinelHdrRefresh failed', err);
+        }
+      }
+      setInterval(sentinelHdrRefresh, 4000);
+      setTimeout(sentinelHdrRefresh, 700);
       function detMarkActive(key){
         _detLastActivity[key]=Date.now();
+        if (Date.now() - _detPageLoadMs < 10000) return;
         const card=document.querySelector('#page-detect .card[data-key="'+key+'"]');
         if(card){const sev=card.dataset.sev||'';if(sev==='crit'||sev==='high')detPushAlert(key,card);}
       }
+
+      const VERIFIED_DETECTORS = new Set(['events','sentinel','overview','mesh','pmkid','eviltwin']);
+      const DETECTOR_TOGGLE_KEYS = {
+        'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
+        'oweabuse':'oweOn','frag':'fragOn','blemal':'blemOn','karma':'karmaOn',
+        'pwna':'pwnaOn','trackers':'trkOn','airtag':'atgOn','tsf':'tsfOn',
+        'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn','bleattack':'blatkOn',
+        'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
+        'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn','csi':'csiOn'
+      };
+      let _detToggleState = {};
+      async function detRefreshToggleState(){
+        try {
+          const r = await fetch('/api/detect/config');
+          if (!r.ok) return;
+          _detToggleState = await r.json();
+          detApplyStatusPills();
+        } catch (fetchErr) {
+          console.warn('detRefreshToggleState failed', fetchErr);
+        }
+      }
+      function detApplyStatusPills(){
+        document.querySelectorAll('#page-detect .card[data-key] .dpill').forEach(p=>p.remove());
+      }
+      setInterval(detRefreshToggleState, 10000);
+      setTimeout(detRefreshToggleState, 600);
       const _detAlerts=[];
       function detPushAlert(key,card){
         const title=card.querySelector('.card-header h3');
-        const txt=title?title.textContent.replace(/\\s+/g,' ').trim():key;
+        let txt=key;
+        if(title){
+          const clone=title.cloneNode(true);
+          clone.querySelectorAll('.sev,.num,.dpill').forEach(n=>n.remove());
+          txt=clone.textContent.replace(/\\s+/g,' ').trim();
+          if(!txt)txt=key;
+        }
+        const toggleKey=DETECTOR_TOGGLE_KEYS[key];
+        if(toggleKey){
+          if(!_detToggleState || Object.keys(_detToggleState).length===0)return;
+          if(_detToggleState[toggleKey]!==true)return;
+        }
         const sev=card.dataset.sev||'med';
         const exists=_detAlerts.find(a=>a.key===key);
         if(exists){exists.ts=Date.now();return;}
@@ -5148,12 +5500,67 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const escapedKey = a.key.replace(/'/g, "\\'");
           
           return `<div class="bn-row" onclick="detJump('${escapedKey}')">` +
-          `<span class="sev ${a.sev}">${a.sev}</span>` +
-          `<span class="bn-when">${when}</span>` +
+          `<span class="sev ${a.sev}" style="margin-right:6px;">${a.sev}</span>` +
+          `<span class="bn-when" style="margin-right:8px;">${when}</span>` +
           `<span class="bn-msg">${a.txt}</span></div>`;
         }).join('');
       }
       setInterval(detRenderBanner,5000);
+
+      const DETECTOR_TAB_MAP = {
+        'events':'live','sentinel':'live','mesh':'config','config':'config',
+        'overview':'live','rid':'detectors','recon':'detectors','trackers':'detectors',
+        'airtag':'detectors','csi':'detectors','karma':'detectors','hunts':'detectors',
+        'handshake':'detectors','beaconforge':'detectors','pmkidforge':'detectors',
+        'eapolbait':'detectors','probeflood':'detectors','assocsleep':'detectors',
+        'bleattack':'detectors','probegraph':'detectors','tsf':'detectors','tof':'detectors',
+        'pmkid':'detectors','eviltwin':'detectors','ssidconf':'detectors',
+        'saedos':'detectors','oweabuse':'detectors','frag':'detectors','blemal':'detectors',
+        'pwna':'detectors','krack':'detectors'
+      };
+
+      function detSetTab(tab){
+        document.querySelectorAll('#det-tabs button.dtab').forEach(b=>{
+          b.classList.toggle('active', b.dataset.dtab===tab);
+        });
+        document.querySelectorAll('#page-detect .card').forEach(c=>{
+          const key=c.dataset.key||'';
+          let cardTab=DETECTOR_TAB_MAP[key];
+          if(!cardTab){
+            const txt=(c.querySelector('h3')?.textContent||'').toLowerCase();
+            if(txt.includes('detector controls')||txt.includes('threshold'))cardTab='config';
+            else if(txt.includes('overview'))cardTab='live';
+            else if(txt.includes('mesh defense'))cardTab='config';
+            else cardTab='detectors';
+          }
+          c.classList.toggle('dtab-hidden', cardTab!==tab);
+        });
+        document.querySelectorAll('[data-dtab-target]').forEach(el=>{
+          const allowed=el.dataset.dtabTarget.split(',');
+          el.classList.toggle('dtab-hidden', !allowed.includes(tab));
+        });
+        if (window.localStorage) {
+          try {
+            localStorage.setItem('detTab', tab);
+          } catch (storageErr) {
+            console.warn('detSetTab: localStorage write failed (private mode?)', storageErr);
+          }
+        }
+      }
+      function detTabRestore(){
+        let saved = 'live';
+        if (window.localStorage) {
+          try {
+            saved = localStorage.getItem('detTab') || 'live';
+          } catch (storageErr) {
+            console.warn('detSetTab: localStorage read failed (private mode?)', storageErr);
+          }
+        }
+        if (saved !== 'live' && saved !== 'detectors' && saved !== 'config') saved = 'live';
+        setTimeout(()=>detSetTab(saved), 50);
+      }
+      detTabRestore();
+
       function detJump(key){
         const card=document.querySelector('#page-detect .card[data-key="'+key+'"]');
         if(!card)return;
@@ -5222,13 +5629,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return Math.floor(s/3600)+'h';
       }
       const DET_FEATURES_LOCAL=[
-        ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin'],['ssid_confusion','SSID Confusion'],
+        ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
         ['ble_malformed','BLE Malformed'],['hshk','Handshake Reconstruction'],
-        ['tracker','BLE Tracker'],['airtag','AirTag'],
+        ['tracker','BLE Tracker'],['airtag','AirTag (+ Replay)'],
         ['tsf','TSF Clock-Skew'],['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
-        ['karma','KARMA Bait'],['csi','CSI Presence']
+        ['karma','KARMA Bait'],['csi','CSI Presence'],
+        ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep'],
+        ['ble_attack','BLE Attack Tools']
       ];
       const DET_FEATURES_MESH=[
         ['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil-Twin'],['mesh_ssid_confusion','SSID Conf'],
@@ -5249,6 +5658,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let _detCfg=null;
       function detRenderConfig(){
         if(!_detCfg)return;
+        // Tool-fingerprint detectors (tool/tool byte/behavior matches) split out
+        // for clarity. Re-classifying probe_flood + assoc_sleep + ble_attack here.
+        const toolKeys=['probe_flood','assoc_sleep','ble_attack'];
         const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof'];
         const bleKeys=['ble_malformed','tracker','airtag','karma','csi'];
         const meshKeys=DET_FEATURES_MESH.map(x=>x[0]);
@@ -5265,11 +5677,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         const wifiHtml=DET_FEATURES_LOCAL.filter(p=>wifiKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
         const bleHtml=DET_FEATURES_LOCAL.filter(p=>bleKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
+        const toolHtml=
+          '<div style="font-size:10px;color:var(--mut);margin-bottom:6px;line-height:1.4;">Byte-level signatures from tool + tool . Default ON — high confidence.</div>'+
+          DET_FEATURES_LOCAL.filter(p=>toolKeys.includes(p[0])).map(p=>rowHtml(p[0],p[1])).join('');
         const physHtml=rowHtml(tsfKey,'TSF Clock-Skew')+rowHtml(bloomKey,'Bloom Gossip')+
           '<div style="margin-top:8px;color:var(--mut);font-size:11px;font-weight:600;">Mesh broadcast</div>'+
           DET_FEATURES_MESH.map(p=>rowMesh(p[0],p[1])).join('');
         document.getElementById('cfg-wifi').innerHTML=wifiHtml;
         document.getElementById('cfg-ble').innerHTML=bleHtml;
+        const toolHost=document.getElementById('cfg-tools');
+        if(toolHost)toolHost.innerHTML=toolHtml;
         document.getElementById('cfg-mesh').innerHTML=physHtml;
         let threshHtml='';
         DET_THRESHOLDS.forEach(t=>{
@@ -5278,7 +5695,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%"></div>`;
         });
         document.getElementById('cfg-thresh').innerHTML=threshHtml;
-        document.querySelectorAll('#cfg-wifi input,#cfg-ble input,#cfg-mesh input').forEach(el=>{
+        document.querySelectorAll('#cfg-wifi input,#cfg-ble input,#cfg-mesh input,#cfg-tools input').forEach(el=>{
           el.addEventListener('change',()=>detPostCfg({[el.dataset.cfg]:el.checked}));
         });
       }
@@ -5286,19 +5703,37 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         await fetch('/api/detect/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
         Object.assign(_detCfg||{},patch);
       }
+      // Threat-scenario groups. Keys map to existing detector toggles.
+      // ssid_confusion intentionally excluded: CVE-2023-52424 is a client-side
+      // supplicant flaw, not observable from an AP-side sniffer (see docs/detector-verification.md).
+      // bloom_gossip + attacker_trilat are infra/response actions, not detectors -> excluded from groups.
+      // NOTE: deauth detection is unconditional (no toggle); WPS/WPA3/evil_portal detectors
+      // are staged and will get their own toggle keys during the detector build.
+      const DET_GROUPS={
+        dos:      ['sae','assoc_sleep'],
+        rogue_ap: ['eviltwin','owe','karma'],
+        recon:    ['pmkid','probe_flood','hshk'],
+        ble:      ['ble_attack','ble_malformed','tracker','airtag'],
+        drone:    ['rid_spoof'],
+        physical: ['frag','tsf','csi']
+      };
+      const DET_ALL_LOCAL=['pmkid','eviltwin','sae','owe','frag','ble_malformed','hshk',
+        'tracker','airtag','tsf','rid_spoof','karma','csi','probe_flood','assoc_sleep','ble_attack'];
+      const DET_ALL_MESH=['mesh_pmkid','mesh_eviltwin','mesh_sae','mesh_frag','mesh_ble_malformed',
+        'mesh_hshk','mesh_krack','mesh_tracker','mesh_karma','mesh_recon','mesh_csi_motion','mesh_attacker_hunt'];
+      // Turn a single threat group on or off (members only; leaves other detectors untouched).
+      async function detGroup(group,on){
+        const members=DET_GROUPS[group]; if(!members) return;
+        const patch={}; members.forEach(k=>patch[k]=!!on);
+        await detPostCfg(patch); await detLoadCfg();
+      }
       async function detPreset(name){
-        const all_local={pmkid:true,eviltwin:true,ssid_confusion:true,sae:true,owe:true,frag:false,
-          ble_malformed:true,hshk:true,tracker:true,airtag:true,tsf:true,rid_spoof:true,
-          bloom_gossip:true,attacker_trilat:true,karma:true,csi:true};
-        const all_mesh={mesh_pmkid:true,mesh_eviltwin:true,mesh_ssid_confusion:true,mesh_sae:true,
-          mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false,mesh_krack:true,mesh_tracker:true,
-          mesh_karma:true,mesh_recon:true,mesh_csi_motion:false,mesh_attacker_hunt:true};
         let patch={};
-        if(name==='all-on'){patch=Object.assign({},all_local,all_mesh);patch.frag=true;patch.mesh_frag=true;patch.mesh_csi_motion=true;patch.mesh_ble_malformed=true;patch.mesh_hshk=true;}
-        else if(name==='all-off'){Object.keys(all_local).forEach(k=>patch[k]=false);Object.keys(all_mesh).forEach(k=>patch[k]=false);}
-        else if(name==='quiet'){patch={frag:false,ble_malformed:false,tsf:false,bloom_gossip:false,csi:false,mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false,mesh_csi_motion:false};}
-        else if(name==='mesh-silent'){Object.keys(all_mesh).forEach(k=>patch[k]=false);}
-        else if(name==='mesh-all'){Object.keys(all_mesh).forEach(k=>patch[k]=true);}
+        if(name==='all-on'){DET_ALL_LOCAL.forEach(k=>patch[k]=true);DET_ALL_MESH.forEach(k=>patch[k]=true);}
+        else if(name==='all-off'){DET_ALL_LOCAL.forEach(k=>patch[k]=false);DET_ALL_MESH.forEach(k=>patch[k]=false);}
+        else if(name==='quiet'){patch={frag:false,ble_malformed:false,tsf:false,csi:false,mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false,mesh_csi_motion:false};}
+        else if(name==='mesh-silent'){DET_ALL_MESH.forEach(k=>patch[k]=false);}
+        else if(name==='mesh-all'){DET_ALL_MESH.forEach(k=>patch[k]=true);}
         await detPostCfg(patch);
         await detLoadCfg();
       }
@@ -5331,7 +5766,62 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(!detTabActive())return;
         detectTick();csiTick();pgTick();trkTick();atTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
+        bfTick();pfTick();ebTick();pflTick();asTick();baTick();
       }
+      async function _jsonl(path){
+        try{const r=await fetch(path);if(!r.ok)return [];const t=await r.text();
+          return t.split('\n').filter(x=>x.trim()).map(x=>{try{return JSON.parse(x)}catch(_){return null}}).filter(x=>x);}
+        catch(_){return []}
+      }
+      function _renderJsonl(elId,arr,cols){
+        const el=document.getElementById(elId);if(!el)return;
+        if(arr.length===0){el.textContent='--';return;}
+        const rows=arr.slice(-50).reverse().map(r=>cols.map(c=>{const v=r[c];return v===undefined?'':String(v)}).join(' | '));
+        el.textContent=cols.join(' | ')+'\n'+rows.join('\n');
+      }
+      async function bfTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/eviltwin.jsonl');
+        const forge=a.filter(r=>r.reason&&r.reason.indexOf('FORGE_')===0);
+        document.getElementById('bf-n').textContent=forge.length;
+        _renderJsonl('bf-pre',forge,['ts','bssid','ssid','reason','rssi','ch']);
+        if(forge.length>0)detMarkActive('bcnforge');
+      }
+      async function bfClear(){await fetch('/api/eviltwin/clear',{method:'POST'});bfTick();}
+      async function pfTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/pmkid_forge.jsonl');
+        document.getElementById('pf-n').textContent=a.length;
+        _renderJsonl('pf-pre',a,['ts','src','sta','keyinfo','rssi','ch']);
+        if(a.length>0)detMarkActive('pmkidforge');
+      }
+      async function pfClear(){await fetch('/api/pmkid_forge/clear',{method:'POST'});pfTick();}
+      async function ebTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/eapol_bait.jsonl');
+        document.getElementById('eb-n').textContent=a.length;
+        _renderJsonl('eb-pre',a,['ts','src','sta','deauth_count','latency_ms','confidence','rssi']);
+        if(a.length>0)detMarkActive('eapolbait');
+      }
+      async function ebClear(){await fetch('/api/eapol_bait/clear',{method:'POST'});ebTick();}
+      async function pflTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/probe_flood.jsonl');
+        document.getElementById('pfl-n').textContent=a.length;
+        _renderJsonl('pfl-pre',a,['ts','ssid','hits','distinct_src','rssi','reason']);
+        if(a.length>0)detMarkActive('probeflood');
+      }
+      async function pflClear(){await fetch('/api/probe_flood/clear',{method:'POST'});pflTick();}
+      async function asTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/assoc_sleep.jsonl');
+        document.getElementById('as-n').textContent=a.length;
+        _renderJsonl('as-pre',a,['ts','bssid','distinct_src','rssi','ch']);
+        if(a.length>0)detMarkActive('assocsleep');
+      }
+      async function asClear(){await fetch('/api/assoc_sleep/clear',{method:'POST'});asTick();}
+      async function baTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/ble_attack.jsonl');
+        document.getElementById('ba-n').textContent=a.length;
+        _renderJsonl('ba-pre',a,['ts','tool','addr','family','rssi','reason']);
+        if(a.length>0)detMarkActive('bleattack');
+      }
+      async function baClear(){await fetch('/api/ble_attack/clear',{method:'POST'});baTick();}
       async function detectAssignChannels(){await fetch('/api/channel_partition',{method:'POST'});detectTick()}
       async function detectClearTrackers(){await fetch('/api/ble_tracker/clear',{method:'POST'});detectTick()}
       async function detectClearRecon(){await fetch('/api/recon/clear',{method:'POST'});detectTick()}
@@ -6774,6 +7264,125 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
   server->on("/api/ble_malformed.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/x-ndjson", detect_getBleMalformedJsonl());
+  });
+
+  // === tool / tool tool-fingerprint logs (NEW) ===
+  server->on("/api/ble_attack.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/ble_attack.jsonl"))    r->send(SD, "/ble_attack.jsonl",    "application/x-ndjson");
+      else                                   r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/probe_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/probe_flood.jsonl"))   r->send(SD, "/probe_flood.jsonl",   "application/x-ndjson");
+      else                                   r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/assoc_sleep.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/assoc_sleep.jsonl"))   r->send(SD, "/assoc_sleep.jsonl",   "application/x-ndjson");
+      else                                   r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/pmkid_forge.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/pmkid_forge.jsonl"))   r->send(SD, "/pmkid_forge.jsonl",   "application/x-ndjson");
+      else                                   r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/eapol_bait.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/eapol_bait.jsonl"))    r->send(SD, "/eapol_bait.jsonl",    "application/x-ndjson");
+      else                                   r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/deauth_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/deauth_flood.jsonl")) r->send(SD, "/deauth_flood.jsonl", "application/x-ndjson");
+      else                                  r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/deauth_flood/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/deauth_flood.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/deauth_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/deauth_ap.jsonl")) r->send(SD, "/deauth_ap.jsonl", "application/x-ndjson");
+      else                               r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/probe_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/probe_ap.jsonl")) r->send(SD, "/probe_ap.jsonl", "application/x-ndjson");
+      else                              r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/ble_attack/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/ble_attack.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/probe_flood/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/probe_flood.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/assoc_sleep/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/assoc_sleep.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/pmkid_forge/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/pmkid_forge.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/eapol_bait/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/eapol_bait.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+
+  // === Unified incidents log (all detector events local+peer) ===
+  server->on("/api/incidents.json", HTTP_GET, [](AsyncWebServerRequest *r) {
+      size_t maxN = 200;
+      if (r->hasParam("limit")) {
+          int v = r->getParam("limit")->value().toInt();
+          if (v > 0 && v <= 200) maxN = (size_t)v;
+      }
+      r->send(200, "application/json", detect_getIncidentsJson(maxN));
+  });
+  server->on("/api/incidents.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/incidents.jsonl")) r->send(SD, "/incidents.jsonl", "application/x-ndjson");
+      else                               r->send(404, "text/plain", "no events");
+  });
+  server->on("/api/incidents", HTTP_DELETE, [](AsyncWebServerRequest *r) {
+      detect_clearIncidents();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/incidents/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearIncidents();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/sentinel/status", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"enabled\":") + (sentinel_isUserEnabled() ? "true" : "false") +
+                 ",\"running\":" + (sentinel_isRunning() ? "true" : "false") +
+                 ",\"scanning\":" + (scanning.load() ? "true" : "false") + "}";
+      r->send(200, "application/json", j);
+  });
+  server->on("/api/sentinel/start", HTTP_POST, [](AsyncWebServerRequest *r) {
+      if (scanning.load()) {
+          r->send(409, "text/plain", "cannot start: scan active");
+          return;
+      }
+      sentinel_setUserEnabled(true);
+      r->send(200, "text/plain", "started (WiFi-only — BLE separate endpoint)");
+  });
+  server->on("/api/sentinel/ble/start", HTTP_POST, [](AsyncWebServerRequest *r) {
+      if (ESP.getFreeHeap() < 60000) {
+          r->send(409, "text/plain", "insufficient heap for BLE controller init");
+          return;
+      }
+      extern void radioStartBLE();
+      radioStartBLE();
+      r->send(200, "text/plain", "BLE scan started");
+  });
+  server->on("/api/sentinel/stop", HTTP_POST, [](AsyncWebServerRequest *r) {
+      sentinel_setUserEnabled(false);
+      r->send(200, "text/plain", "stopped");
+  });
+
+  server->on("/api/detect/verbose", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"verbose\":") + (detect_isVerbose() ? "true" : "false") +
+                 ",\"mesh_peers\":" + String((unsigned)detect_meshPeerCount()) + "}";
+      r->send(200, "application/json", j);
+  });
+  server->on("/api/detect/verbose/on", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_setVerbose(true);
+      r->send(200, "text/plain", "verbose on");
+  });
+  server->on("/api/detect/verbose/off", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_setVerbose(false);
+      r->send(200, "text/plain", "verbose off");
+  });
+  server->on("/api/eviltwin/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/eviltwin.jsonl"); r->send(200, "text/plain", "cleared");
   });
 
   // Phase 2 mesh / quorum / bloom / channel

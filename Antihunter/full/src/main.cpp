@@ -197,8 +197,12 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
+    
     // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)
-    esp_log_level_set("vfs_api", ESP_LOG_NONE);
+    // SD SPI driver installs GPIO ISR service first; subsequent gpio_install_isr_service
+    // esp_log_level_set("vfs_api", ESP_LOG_NONE);
+    // esp_log_level_set("gpio", ESP_LOG_NONE);
+
     Serial.println("\n=== Antihunter [FULL] Boot ===");
 
     delay(400);
@@ -224,21 +228,44 @@ void setup() {
     delay(1000);
     initializeRTC();
     delay(500);
+    
     initializeVibrationSensor();
-initializeScanner();
-
-    // Phase 1-3 detect module (attack-sig + mesh-coord + BLE perimeter)
+    delay(50);
+    initializeScanner();
+    delay(50);
     initializeDetect();
-    csi_enable(true);
-    // Optional: enable GPS PPS on free GPIO. Wire GPS PPS to GPIO 21 (D5
-    // analogue free on XIAO S3 when GPS RX/TX are on 44/43). -1 disables.
+    delay(50);
+    csi_enable(false);
+ 
     initializeGpsPps(21);
     xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
+    {
+        uint8_t selfMac[6];
+        esp_wifi_get_mac(WIFI_IF_AP, selfMac);
+        String ssid = prefs.getString("apSsid", AP_SSID);
+        if (ssid.length() == 0) ssid = AP_SSID;
+        detect_setSelfApIdentity(selfMac, ssid.c_str());
+        Serial.printf("[SENTINEL] self-filter mac=%02X:%02X:%02X:%02X:%02X:%02X ssid=%s\n",
+                      selfMac[0],selfMac[1],selfMac[2],selfMac[3],selfMac[4],selfMac[5], ssid.c_str());
+    }
+    sentinel_loadUserPref();
+    if (sentinel_isUserEnabled()) {
+        sentinel_startAlwaysOn();
+        if (ESP.getFreeHeap() >= 60000) {
+            extern void radioStartBLE();
+            radioStartBLE();
+            Serial.println("[SENTINEL] BLE always-on scan started");
+        } else {
+            Serial.printf("[SENTINEL] BLE skipped: heap %u below 60000\n", (unsigned)ESP.getFreeHeap());
+        }
+    } else {
+        Serial.println("[SENTINEL] Disabled (user toggle off)");
+    }
 
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.4 BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BOOT COMPLETE =====");
 
     String currentSsid = prefs.getString("apSsid", AP_SSID);
     String currentPass = prefs.getString("apPass", AP_PASS);
@@ -279,13 +306,11 @@ void loop() {
 
         sendBatterySaverHeartbeat();
 
-        // Reduced GPS polling - once per minute in battery saver mode
         if (millis() - lastGPSPollBatterySaver > 60000) {
             updateGPSLocation();
             lastGPSPollBatterySaver = millis();
         }
-
-        // Check vibration alerts (security feature, keep active)
+        
         checkAndSendVibrationAlert();
 
         // Tamper detection still active

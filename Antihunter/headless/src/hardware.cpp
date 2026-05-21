@@ -307,7 +307,7 @@ void initializeHardware()
         prefs.putUInt("blDuration", 300000);
         prefs.putInt("blRssi", -70);
         prefs.putUInt("rfPreset", 1);
-        prefs.putInt("globalRSSI", -90);
+        prefs.putInt("globalRSSI", -95);
         prefs.putUInt("wifiChanTime", 120);
         prefs.putUInt("wifiInterval", 5000);
         prefs.putUInt("bleInterval", 2000);
@@ -554,7 +554,7 @@ void loadConfiguration() {
             uint32_t bsd = doc["bleScanDuration"].as<uint32_t>();
             String channels = doc.containsKey("channels") && doc["channels"].is<String>() ?
                             doc["channels"].as<String>() : "1..14";
-            int8_t rssiThreshold = doc["globalRssiThreshold"] | -90;
+            int8_t rssiThreshold = doc["globalRssiThreshold"] | -95;
             setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
         }
     }
@@ -864,7 +864,6 @@ void sendGPSLockStatus(bool locked) {
     String gpsMsg = getNodeId() + ": GPS: ";
     gpsMsg += (locked ? "LOCKED" : "LOST");
     if (locked) {
-        gpsMsg += " Location=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
         gpsMsg += " Satellites:" + String(gps.satellites.isValid() ? gps.satellites.value() : 0);
         gpsMsg += " HDOP:" + String(gps.hdop.isValid() ? gps.hdop.hdop() : 99.9, 2);
     }
@@ -1656,7 +1655,7 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     Serial.println("[BATTERY_SAVER] BLE disabled");
 
     // Reduce CPU frequency to 80MHz for power saving
-    esp_pm_config_esp32s3_t pm_config = {
+    esp_pm_config_t pm_config = {
         .max_freq_mhz = 80,
         .min_freq_mhz = 80,
         .light_sleep_enable = true
@@ -1688,7 +1687,7 @@ void exitBatterySaver() {
     Serial.println("[BATTERY_SAVER] Exiting battery saver mode...");
 
     // Restore CPU frequency to 240MHz
-    esp_pm_config_esp32s3_t pm_config = {
+    esp_pm_config_t pm_config = {
         .max_freq_mhz = 240,
         .min_freq_mhz = 80,
         .light_sleep_enable = false

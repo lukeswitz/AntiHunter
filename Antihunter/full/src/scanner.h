@@ -111,6 +111,10 @@ struct DeauthHit {
    bool isDisassoc;
    bool isBroadcast;
    uint16_t companyId;
+   uint16_t seqCtrl;       // raw bytes 22-23 — forge fingerprint fixed 0xF0FF
+   uint8_t toolHint;       // bit0=tool(seq=0xF0FF + reason 2)
+                           // bit1=tool(reason in {1,4,6,7,8} + randomized seq)
+                           // bit2=tool burst flood (broadcast dst)
 };
 
 struct RFScanConfig {

@@ -4,6 +4,7 @@
 #include "hardware.h"
 #include "scanner.h"
 #include "main.h"
+#include "detect.h"
 #include <RTClib.h>
 #include <algorithm>
 #include <esp_timer.h>
@@ -175,6 +176,12 @@ bool sendToSerial1(const String &message, bool canDelay) {
     delay(50);
 
     xSemaphoreGive(serial1Mutex);
+
+    {
+        int sep = message.indexOf(": ");
+        String body = (sep > 0) ? message.substring(sep + 2) : message;
+        detect_logIncident(body, "local");
+    }
 
     if (!isPriority) {
         rateLimiter.consume(msgLen);
