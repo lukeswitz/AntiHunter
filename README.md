@@ -19,12 +19,17 @@
 </p>
 
 > [!NOTE]
-> **Standalone FW (AP/Mesh) also integrates with the [AntiHunter Command Center Pro](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
->
-> Early Release: Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
+> **Standalone FW, optional integration with [AntiHunter Command Center Pro](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
 
-### News:
-`Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+
+> Beta channel has new features in development. Potential stability issues and unexpected behavior may occur.
+
+### News & Links:
+- `2026 January` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+- `2026 April` - Undercode Testing: [AntiHunter Unleashed](https://undercodetesting.com/antihunter-unleashed-building-a-low-cost-distributed-wireless-defense-mesh-for-real-time-threat-detection-video/) IDS 
+- `2026 May` - Stable release v1.0. Beta channel added.
+
+---
 
 # Table of Contents
 
