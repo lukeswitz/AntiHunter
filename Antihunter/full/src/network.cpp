@@ -277,6 +277,8 @@ void initializeNetwork()
           const uint8_t *mac = e->event_info.wifi_ap_stadisconnected.mac;
           uint8_t aid = e->event_info.wifi_ap_stadisconnected.aid;
           detect_onSoftApDisconnect(mac, aid);
+      } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
+          detect_onSoftApConnect(e->event_info.wifi_ap_staconnected.mac);
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED) {
           const uint8_t *mac = e->event_info.wifi_ap_probereqrecved.mac;
           int8_t rssi = e->event_info.wifi_ap_probereqrecved.rssi;
@@ -1261,17 +1263,34 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
+        <div class="card" data-key="apclients">
+          <div class="card-header" onclick="toggleCollapse('apClientsCard')">
+            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(associated with this AP — not threats)</span></h3>
+            <span class="collapse-icon open" id="apClientsCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="apClientsCardBody">
+            <div id="apClientsArea" style="overflow-x:auto;"><div style="color:var(--mut);font-size:12px;">No clients yet.</div></div>
+          </div>
+        </div>
+
         <div class="card" data-key="dctl">
           <div class="card-header" onclick="toggleCollapse('detCtlCard')">
             <h3><span class="sev info">control</span>Sentinel Control</h3>
             <span class="collapse-icon open" id="detCtlCardIcon">▶</span>
           </div>
           <div class="card-body" id="detCtlCardBody">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
               <span style="font-size:12px;">Sentinel:</span>
               <span id="sentStatus2" style="font-weight:600;color:#888;font-size:13px;">--</span>
               <button id="sentToggleBtn" class="btn primary" onclick="sentinelToggleHdr()">Start</button>
+              <span style="font-size:11px;color:var(--mut);margin-left:8px;">Radio:</span>
+              <div style="display:flex;gap:0;border:1px solid var(--bd);border-radius:6px;overflow:hidden;">
+                <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
+                <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
+              </div>
+              <button id="sentVerboseBtn" class="btn alt" style="margin-left:8px;" onclick="detVerboseToggle()" title="Per-frame [VERIFY-*] serial diagnostics">Verbose: --</button>
             </div>
+            <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin:-4px 0 10px;"></div>
             <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
             <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Enable a group:</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:8px;">
@@ -1299,14 +1318,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div style="display:flex;gap:6px;margin-bottom:8px;">
               <button class="btn alt" onclick="detGroup('dos',true)">All On</button>
               <button class="btn alt" onclick="detGroup('dos',false)">All Off</button>
-            </div>
-            <div style="margin-bottom:10px;">
-              <div style="font-size:11px;color:var(--mut);margin-bottom:4px;">Radio mode</div>
-              <div style="display:flex;gap:0;border:1px solid var(--bd);border-radius:6px;overflow:hidden;width:fit-content;">
-                <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
-                <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
-              </div>
-              <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin-top:4px;"></div>
             </div>
             <div id="dos-rows" style="font-size:12px;"></div>
           </div>
@@ -4609,6 +4620,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       setInterval(loadIncidents, 2000);
       loadIncidents();
 
+      async function detVerboseToggle(){
+        try{
+          const vr=await fetch('/api/detect/verbose'); const cur=vr.ok?(await vr.json()).verbose:false;
+          await fetch('/api/detect/verbose/'+(cur?'off':'on'),{method:'POST'});
+          sentinelRefresh();
+        }catch(e){console.warn('detVerboseToggle',e);}
+      }
       async function sentinelRefresh(){
         try {
           const r = await fetch('/api/sentinel/status');
@@ -4622,6 +4640,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if(el2){el2.textContent=txt;el2.style.color=col;}
           const tb=document.getElementById('sentToggleBtn');
           if(tb){tb.textContent=j.enabled?'Stop':'Start';tb.className=j.enabled?'btn alt':'btn primary';}
+          try{const vr=await fetch('/api/detect/verbose');if(vr.ok){const vj=await vr.json();const vb=document.getElementById('sentVerboseBtn');if(vb){vb.textContent='Verbose: '+(vj.verbose?'ON':'off');vb.className=vj.verbose?'btn primary':'btn alt';vb.style.marginLeft='8px';}}}catch(e){console.warn('verbose state',e);}
         } catch(e){ console.error('sentinelRefresh', e); }
       }
       async function sentinelStart(){
@@ -5708,7 +5727,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       const DETECTOR_TAB_MAP = {
         'events':'live','sentinel':'live','mesh':'config','config':'config',
-        'overview':'live',
+        'overview':'live','apclients':'live',
         'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
         'blegrp':'detectors','dronegrp':'detectors','physical':'detectors','meshcfg':'detectors',
         'rid':'details','recon':'details','trackers':'details',
@@ -5971,11 +5990,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           });
         }catch(e){console.warn('renderDetailsVisibility',e);}
       }
+      async function apClientsTick(){
+        try{
+          const r=await fetch('/api/apclients.json'); if(!r.ok)return;
+          const a=await r.json(); const el=document.getElementById('apClientsArea'); if(!el)return;
+          if(!a.length){el.innerHTML='<div style="color:var(--mut);font-size:12px;">No clients yet.</div>';return;}
+          const ago=ms=>ms<60000?Math.round(ms/1000)+'s':Math.round(ms/60000)+'m';
+          el.innerHTML='<table class="dt"><thead><tr><th>Client MAC</th><th>Assoc #</th><th>First</th><th>Last</th></tr></thead><tbody>'
+            +a.map(c=>`<tr><td style="color:#bbf7d0;">${c.mac}</td><td>${c.assoc}</td><td>${ago(c.first_ms_ago)} ago</td><td>${ago(c.last_ms_ago)} ago</td></tr>`).join('')
+            +'</tbody></table>';
+        }catch(e){console.warn('apClientsTick',e);}
+      }
       function detAllTicks(){
         if(!detTabActive())return;
         detectTick();csiTick();pgTick();trkTick();atTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
-        bfTick();pfTick();ebTick();pflTick();asTick();baTick();
+        bfTick();pfTick();ebTick();pflTick();asTick();baTick();apClientsTick();
         setTimeout(renderDetailsVisibility,300);
       }
       async function _jsonl(path){
@@ -7511,6 +7541,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/api/probe_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       if (SD.exists("/probe_ap.jsonl")) r->send(SD, "/probe_ap.jsonl", "application/x-ndjson");
       else                              r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/apclients.json", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getApClientsJson());
   });
   server->on("/api/ble_attack/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
       SafeSD::remove("/ble_attack.jsonl"); r->send(200, "text/plain", "cleared");
