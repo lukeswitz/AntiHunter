@@ -832,6 +832,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                 g_beaconFloodLastEmit = tnow;
                 Serial.printf("[DETECT] BEACON_FLOOD active ch=%u rssi=%d\n",
                               (unsigned)e.channel, (int)e.rssi);
+                ::detect_logIncident(String("BEACON_FLOOD:ch") + String(e.channel) + ":" + String((int)e.rssi) + "dBm", nullptr);
                 char lb[160];
                 snprintf(lb, sizeof(lb),
                          "{\"distinct_bssid\":%u,\"win_ms\":%u,\"ch\":%u,\"rssi\":%d,\"reason\":\"BEACON_FLOOD\",\"ts\":%u}",
@@ -1394,6 +1395,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                              getNodeId().c_str(), sb, behavTool, (int)e.rssi);
                     sendToSerial1(String(mb), true);
                 }
+                ::detect_logIncident(String("DEAUTH_FORGE:") + sb + ":" + behavTool, sb);
                 quorum_addReport("DEAUTH_FORGE", String(sb), getNodeId(), e.rssi);
                 attacker_kick(src, "DEAUTH_FORGE");
             }
@@ -1422,6 +1424,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                          getNodeId().c_str(), srcBuf, (unsigned)r.count, (int)e.rssi);
                 sendToSerial1(String(meshBuf), true);
             }
+            ::detect_logIncident(String("DEAUTH_FLOOD:") + srcS + ":" + String(r.count), srcBuf);
             quorum_addReport("DEAUTH_FLOOD", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FLOOD");
         }
@@ -1451,6 +1454,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                      srcBuf, toolTag, (unsigned)reason, (unsigned)seqCtrl, (unsigned)durLE,
                      selfSrc ? "true" : "false", (int)e.rssi, (unsigned)e.channel, (unsigned)now);
             logEventToSD("/deauth_flood.jsonl", String(lineBuf));
+            ::detect_logIncident(String("DEAUTH_FORGE:") + srcS + ":" + toolTag, srcBuf);
             quorum_addReport("DEAUTH_FORGE", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FORGE");
             // Mesh forwarding is separate/additional.
@@ -1514,6 +1518,7 @@ static void handleAssocReq(const DetectFrameEvent &e) {
                  getNodeId().c_str(), bsBuf, (unsigned)w.distinctSrc.size(), (int)w.bestRssi);
         sendToSerial1(String(meshBuf), true);
     }
+    ::detect_logIncident(String("ASSOC_SLEEP:") + bs + ":" + String((unsigned)w.distinctSrc.size()), bsBuf);
     quorum_addReport("ASSOC_SLEEP", bs, getNodeId(), w.bestRssi);
 }
 
@@ -1757,8 +1762,12 @@ static void handleAuthSae(const DetectFrameEvent &e) {
     if (e.len < 30) return;
     const uint8_t *p = e.payload;
     uint16_t algo = (uint16_t)p[24] | ((uint16_t)p[25] << 8);
+    if (::g_detectVerbose.load()) {
+        uint16_t vseq = (uint16_t)p[26] | ((uint16_t)p[27] << 8);
+        Serial.printf("[VERIFY-AUTH] algo=%u seq=%u ch=%u rssi=%d saeOn=%d\n",
+                      algo, vseq, (unsigned)e.channel, (int)e.rssi, (int)g_saeEnabled.load());
+    }
 
-    // --- Open-system Auth flood (mdk4 mode a). Always-on, independent of SAE toggle. ---
     if (algo == 0) {
         const uint8_t *src   = p + 10;
         const uint8_t *bss   = p + 16;
@@ -1790,6 +1799,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
             Serial.printf("[DETECT] AUTH_FLOOD bssid=%s distinct_src=%u frames=%u in %ums\n",
                           bsBuf, (unsigned)w.distinctSrc.size(), (unsigned)w.frames,
                           (unsigned)(tnow - w.windowStartMs));
+            ::detect_logIncident(String("AUTH_FLOOD:") + bs + ":" + String((unsigned)w.distinctSrc.size()) + ":" + String((int)w.bestRssi), bsBuf);
             char lb[260];
             snprintf(lb, sizeof(lb),
                      "{\"bssid\":\"%s\",\"distinct_src\":%u,\"frames\":%u,\"win_ms\":%u,\"rssi\":%d,\"ch\":%u,\"reason\":\"AUTH_DOS\",\"ts\":%u}",
@@ -1849,6 +1859,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
                  bsBuf, (unsigned)unmatched, (int)e.rssi, (unsigned)e.channel,
                  (unsigned)c.windowStart, (unsigned)now);
         logEventToSD("/sae_dos.jsonl", String(lineBuf));
+        ::detect_logIncident(String("SAE_DOS:") + bs + ":" + String((unsigned)unmatched), bsBuf);
         if (meshEnabled && g_meshSae.load() && meshRateGate(String("SAE_DOS_") + bs, 10000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: SAE_DOS:%s:%u",
@@ -3922,7 +3933,8 @@ static bool isDetectorPrefix(const String &type) {
         "BEACON_FORGE","PMKID_HARVEST","PMKID_FORGE","EAPOL_BAIT","PROBE_FLOOD",
         "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","BLE_ATTACK","BLETRACK","SAE_DOS",
         "OWE_ABUSE","SSID_CONFUSION","FRAG","CSI_MOTION","KRACK","PWNAGOTCHI",
-        "ATTACKER_HUNT","RECON","TRK_LINK","HSHK",
+        "ATTACKER_HUNT","RECON","TRK_LINK","HSHK","DEAUTH_AP_TARGETED",
+        "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD",
         nullptr
     };
     for (const char **p = kPrefixes; *p; ++p) {
@@ -3943,7 +3955,7 @@ void detect_logIncident(const String &raw, const char *src) {
         "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","BLE_ATTACK","BLETRACK","SAE_DOS",
         "OWE_ABUSE","SSID_CONFUSION","FRAG","CSI_MOTION","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","TRK_LINK","HSHK","DEAUTH_AP_TARGETED",
-        "PROBE_FLOOD_AP", nullptr
+        "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD", nullptr
     };
     bool matched = false;
     for (const char **p = kPrefixesFast; *p; ++p) {
@@ -4211,9 +4223,6 @@ void initializeDetect() {
     }
     ah_detect::csi_init();
     xTaskCreatePinnedToCore(ah_detect::csiDrainTask, "CsiDrain", 4096, NULL, 2, NULL, 1);
-    // Fresh-session reset: truncate working detection logs so the Overview counts
-    // start at 0 each boot (a stale/corrupt line otherwise shows phantom counts).
-    // Cross-session history is preserved separately in /incidents.jsonl.
     {
         static const char *kBootClear[] = {
             "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl",
@@ -4679,6 +4688,7 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
         String body = String("DEAUTH_AP_TARGETED:") + mc + ":" + String(reasonCode) + ":" + String(g_softApDeauth.count);
         Serial.printf("[DETECT] %s (AP under deauth - %u disconnects in %ums)\n",
                       body.c_str(), g_softApDeauth.count, (unsigned)(now - g_softApDeauth.winStartMs));
+        ::detect_logIncident(body, mc);
         if (meshEnabled) {
             sendToSerial1(getNodeId() + ": " + body, true);
         }
