@@ -1271,6 +1271,7 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
 struct AssocSleepWindow {
     uint32_t windowStartMs;
     std::set<uint64_t> distinctSrc;
+    uint16_t frames;
     int8_t bestRssi;
     uint8_t channel;
     bool alerted;
@@ -1278,7 +1279,8 @@ struct AssocSleepWindow {
 static std::map<uint64_t, AssocSleepWindow> g_assocSleep;
 static constexpr size_t MAX_ASSOC_SLEEP_MAP = 32;
 static constexpr uint16_t ASSOC_SLEEP_WIN_MS = 5000;
-static constexpr uint8_t  ASSOC_SLEEP_THRESH = 4;
+static constexpr uint8_t  ASSOC_SLEEP_THRESH = 4;   // distinct spoofed src (multi-client)
+static constexpr uint16_t ASSOC_SLEEP_FRAMES = 8;   // PM-bit assoc-req rate (catches 1-MAC flood)
 static std::atomic<bool> g_assocSleepEnabled{true};
 
 struct DeauthRateEntry {
@@ -1290,12 +1292,14 @@ struct DeauthRateEntry {
     uint8_t  sawtoothHits;   // consecutive 0..63 incrementing seqs (bettercap)
     uint8_t  lastSubtype;    // 0x0C deauth / 0x0A disassoc
     uint8_t  altHits;        // consecutive deauth<->disassoc alternations (mdk4)
+    uint8_t  reason7Hits;    // reason=7 + dur=0x013A frames (aireplay/bettercap class)
     bool     toolAlerted;    // emitted a per-tool forge alert this window
 };
 static std::map<uint64_t, DeauthRateEntry> g_deauthRate;
 static constexpr size_t MAX_DEAUTH_RATE_MAP = 64;
 static constexpr uint32_t DEAUTH_FLOOD_WIN_MS = 10000;
 static constexpr uint16_t DEAUTH_FLOOD_THRESH = 20;
+static std::atomic<uint32_t> g_lastRealDeauthMs{0};
 
 // Classify a deauth/disassoc frame against verified per-tool source fingerprints.
 // Returns a static tool tag or nullptr. Single-frame static checks only.
@@ -1304,10 +1308,9 @@ static constexpr uint16_t DEAUTH_FLOOD_THRESH = 20;
 static const char *classifyDeauthTool(uint16_t reason, uint16_t seqCtrl, uint16_t durLE) {
     // ESP32Marauder WiFiScan.h:491 — reason=2, seqCtrl=0xFFF0 (fixed)
     if (reason == 0x0002 && seqCtrl == 0xFFF0) return "MARAUDER";
-    // mdk4 mode m (Michael TKIP shutdown) — reason 14 MIC-failure; unique, never legit in bursts
     if (reason == 0x000E) return "MICHAEL_TKIP";
-    // aircrack-ng aireplay-ng.c:88 — duration 0x013A hardcoded + reason 7 (default)
-    if (durLE == 0x013A && reason == 0x0007) return "AIREPLAY";
+    // reason=7+dur=0x013A is shared by aireplay AND bettercap — resolved behaviorally
+    // (sawtooth->BETTERCAP, sustained-no-sawtooth->AIREPLAY), not statically.
     return nullptr;
 }
 
@@ -1318,6 +1321,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
     const uint8_t *src = p + 10;
     bool selfSrc = isSelfMac(src);
     bool sentinelHop = ::sentinel_isRunning();
+    if (!selfSrc) g_lastRealDeauthMs.store(millis());
     uint16_t durLE   = (uint16_t)p[2]  | ((uint16_t)p[3]  << 8);
     uint16_t seqCtrl = (uint16_t)p[22] | ((uint16_t)p[23] << 8);
     uint16_t seqNum  = seqCtrl >> 4;
@@ -1364,10 +1368,15 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             if (r.altHits < 255) r.altHits++;
         }
         r.lastSubtype = subtype;
+        if (reason == 0x0007 && durLE == 0x013A) {
+            if (r.reason7Hits < 255) r.reason7Hits++;
+        }
         if (!r.toolAlerted && !(selfSrc && sentinelHop)) {
             const char *behavTool = nullptr;
-            if (r.sawtoothHits >= 8) behavTool = "BETTERCAP";
-            else if (r.altHits >= 6) behavTool = "MDK4";
+            if (r.altHits >= 6) behavTool = "MDK4";                 // deauth/disassoc alt
+            // aireplay & bettercap both emit reason=7+dur=0x013A; sawtooth is lost to
+            // frame-drop/hopping so they're not reliably distinguishable -> shared tag.
+            else if (r.reason7Hits >= 12 || r.sawtoothHits >= 8) behavTool = "AIREPLAY/BETTERCAP";
             if (behavTool) {
                 r.toolAlerted = true;
                 char sb[18];
@@ -1477,14 +1486,17 @@ static void handleAssocReq(const DetectFrameEvent &e) {
         w.bestRssi = e.rssi;
         w.channel = e.channel;
         w.alerted = false;
+        w.frames = 1;
         w.distinctSrc.insert(srcK);
         g_assocSleep[bssK] = w;
         return;
     }
     AssocSleepWindow &w = it->second;
     w.distinctSrc.insert(srcK);
+    if (w.frames < 65535) w.frames++;
     if (e.rssi > w.bestRssi) w.bestRssi = e.rssi;
-    if (w.alerted || w.distinctSrc.size() < ASSOC_SLEEP_THRESH) return;
+    // Fire on PM-bit assoc-req RATE (1-MAC flood) OR distinct-src fan-out (multi-client).
+    if (w.alerted || (w.frames < ASSOC_SLEEP_FRAMES && w.distinctSrc.size() < ASSOC_SLEEP_THRESH)) return;
     w.alerted = true;
     char bsBuf[18];
     snprintf(bsBuf, sizeof(bsBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -4658,7 +4670,8 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
     Serial.printf("[AP] STA disconnect mac=%02X:%02X:%02X:%02X:%02X:%02X reason=%u count=%u/%ums\n",
                   clientMac[0],clientMac[1],clientMac[2],clientMac[3],clientMac[4],clientMac[5],
                   reasonCode, g_softApDeauth.count, (unsigned)(now - g_softApDeauth.winStartMs));
-    if (!g_softApDeauth.alerted && g_softApDeauth.count >= SOFTAP_DEAUTH_THRESH) {
+    bool deauthFrameSeen = (now - g_lastRealDeauthMs.load()) < 3000;
+    if (!g_softApDeauth.alerted && g_softApDeauth.count >= SOFTAP_DEAUTH_THRESH && deauthFrameSeen) {
         g_softApDeauth.alerted = true;
         char mc[18];
         snprintf(mc, sizeof(mc), "%02X:%02X:%02X:%02X:%02X:%02X",
