@@ -288,6 +288,13 @@ void loop() {
     static unsigned long lastGPSPollBatterySaver = 0;  // cppcheck-suppress variableScope
     static unsigned long lastHeapCheck = 0;
 
+    // TEMP TESTING: deferred sentinel auto-start (after boot+BLE init, no radio race).
+    static bool sentinelKicked = false;
+    if (!sentinelKicked && millis() > 5000) {
+        sentinelKicked = true;
+        sentinel_setUserEnabled(true);
+    }
+
     // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
         String cmd = Serial.readStringUntil('\n');
