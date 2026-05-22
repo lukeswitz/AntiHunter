@@ -2195,12 +2195,21 @@ static void radioStartWiFi()
     
     WiFi.mode(WIFI_MODE_STA);
     delay(500);
-    
+
+    {
+        uint8_t rnd[6];
+        rnd[0] = (uint8_t)((esp_random() & 0xFE) | 0x02);   // locally-administered, unicast
+        for (int i = 1; i < 6; ++i) rnd[i] = (uint8_t)(esp_random() & 0xFF);
+        esp_wifi_set_mac(WIFI_IF_STA, rnd);                 // must precede esp_wifi_start
+        Serial.printf("[RADIO] Randomized STA MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                      rnd[0], rnd[1], rnd[2], rnd[3], rnd[4], rnd[5]);
+    }
+
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
-    
+
     err = esp_wifi_start();
     if (err != ESP_OK) {
         Serial.printf("[RADIO] WiFi start error: %d\n", err);

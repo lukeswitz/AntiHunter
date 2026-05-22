@@ -242,9 +242,6 @@ void setup() {
     sentinel_loadUserPref();
     if (sentinel_isUserEnabled()) {
         sentinel_startAlwaysOn();
-        extern void radioStartBLE();
-        radioStartBLE();
-        Serial.println("[SENTINEL] BLE always-on scan started");
     } else {
         Serial.println("[SENTINEL] Disabled (user toggle off)");
     }
@@ -255,7 +252,7 @@ void setup() {
     Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
-    Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
+    Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
     delay(2000);
 }
 

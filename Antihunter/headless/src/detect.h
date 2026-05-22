@@ -216,7 +216,13 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel);
 
 void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode);
+void detect_onSoftApConnect(const uint8_t *clientMac);
+String detect_getApClientsJson();
 void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi);
+
+void detect_setVerbose(bool on);
+bool detect_isVerbose();
+size_t detect_meshPeerCount();
 
 void sentinel_startAlwaysOn();
 void sentinel_kill();
@@ -237,6 +243,7 @@ void detect_periodicMeshGossip();
 
 // Unified incidents log — all detector mesh msgs from local TX + peer RX.
 // Persisted to /incidents.jsonl on SD + small in-RAM ring (200 entries).
+// raw = mesh line WITHOUT leading nodeId; src = "local" or peer node id.
 void detect_logIncident(const String &raw, const char *src);
 String detect_getIncidentsJson(size_t maxEntries);
 void detect_clearIncidents();

@@ -198,10 +198,9 @@ void initializeNetwork()
   Serial.println("Initializing mesh UART...");
   initializeMesh();
   delay(150);
-  
-  randomizeMacAddress();
-  delay(50);
-  
+
+  // STA MAC is randomized when WiFi actually starts (sentinel bring-up / radioStartWiFi);
+  // randomizing here is a no-op because the WiFi stack is not yet initialized.
   Serial.println("Headless mesh mode ready");
 }
 
@@ -633,6 +632,112 @@ static void handleStatus(const String &command)
               gpsLat, gpsLon, hdop);
   }
   sendToSerial1(String(status_msg), true);
+}
+
+static void handleSentinelOn(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(true);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:ON run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelOff(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(false);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:OFF", true);
+}
+
+static void handleSentinelStatus(const String &command)
+{
+  (void)command;
+  sendToSerial1(nodeId + ": SENTINEL_STATUS: en=" + String(sentinel_isUserEnabled() ? 1 : 0) +
+                " run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelMode(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_MODE:"));
+  v.trim();
+  bool scan = v.equalsIgnoreCase("scan");
+  bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
+  sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
+}
+
+// Threat-scenario detector groups — keys mirror the full webui DET_GROUPS.
+// deauth/beacon/auth detectors are unconditional (no toggle) and not grouped.
+static const char *groupMembers(const String &name)
+{
+  if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
+  if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
+  if (name == "recon")                       return "pmkid,probe_flood,hshk";
+  if (name == "physical" || name == "phys")  return "frag,tsf,csi";
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,csi";
+  return nullptr;
+}
+
+static void handleGroup(const String &command)
+{
+  int c1 = command.indexOf(':');
+  int c2 = command.indexOf(':', c1 + 1);
+  if (c1 < 0 || c2 < 0) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:syntax", true); return; }
+  String name = command.substring(c1 + 1, c2); name.trim(); name.toLowerCase();
+  String act = command.substring(c2 + 1); act.trim(); act.toLowerCase();
+  bool on = (act == "on" || act == "1" || act == "true");
+  bool off = (act == "off" || act == "0" || act == "false");
+  if (!on && !off) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:onoff", true); return; }
+  const char *members = groupMembers(name);
+  if (!members) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:unknown_group", true); return; }
+
+  String json = "{"; bool first = true;
+  String m = members; int start = 0;
+  while (start <= (int)m.length()) {
+    int comma = m.indexOf(',', start);
+    String key = (comma < 0) ? m.substring(start) : m.substring(start, comma);
+    key.trim();
+    if (key.length()) { if (!first) json += ","; json += "\"" + key + "\":" + (on ? "true" : "false"); first = false; }
+    if (comma < 0) break;
+    start = comma + 1;
+  }
+  json += "}";
+
+  bool ok = detect_setConfigFromJson(json);
+  if (ok) detect_persistTunables();
+  sendToSerial1(nodeId + ": GROUP_ACK:" + (ok ? "OK:" : "FAIL:") + name + ":" + (on ? "on" : "off"), true);
+}
+
+static void handleDetectCfg(const String &command)
+{
+  String json = command.substring(strlen("DETECT_CFG:"));
+  json.trim();
+  bool ok = detect_setConfigFromJson(json);
+  if (ok) detect_persistTunables();
+  sendToSerial1(nodeId + ": DETECT_CFG_ACK:" + (ok ? "OK" : "FAIL"), true);
+}
+
+static void handleDetectCfgGet(const String &command)
+{
+  (void)command;
+  String cfg = detect_getConfigJson();
+  Serial.println("[DETECT] config: " + cfg);
+  sendToSerial1(nodeId + ": DETECT_CFG_LEN:" + String(cfg.length()) + " (see serial)", true);
+}
+
+static void handleIncidents(const String &command)
+{
+  size_t n = 20;
+  int c = command.indexOf(':');
+  if (c >= 0) { long v = command.substring(c + 1).toInt(); if (v > 0 && v <= 200) n = (size_t)v; }
+  String inc = detect_getIncidentsJson(n);
+  Serial.println("[DETECT] incidents: " + inc);
+  sendToSerial1(nodeId + ": INCIDENTS_LEN:" + String(inc.length()) + " (see serial)", true);
+}
+
+static void handleIncidentsClear(const String &command)
+{
+  (void)command;
+  detect_clearIncidents();
+  sendToSerial1(nodeId + ": INCIDENTS_CLEAR_ACK:OK", true);
 }
 
 static void handleVibrationStatus(const String &command)
@@ -1295,6 +1400,15 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
   else if (command == "PROBE_STOP")                   handleProbeStop(command);
   else if (command.startsWith("STOP"))                handleStop(command);
+  else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
+  else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
+  else if (command.startsWith("SENTINEL_STATUS"))     handleSentinelStatus(command);
+  else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
+  else if (command.startsWith("GROUP:"))              handleGroup(command);
+  else if (command.startsWith("DETECT_CFG_GET"))      handleDetectCfgGet(command);
+  else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
+  else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
+  else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
   else if (command.startsWith("STATUS"))              handleStatus(command);
   else if (command.startsWith("VIBRATION_STATUS"))    handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
