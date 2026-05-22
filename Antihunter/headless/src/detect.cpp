@@ -65,8 +65,6 @@ static void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
                               const uint8_t *ie, uint16_t ieLen);
 void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi);
 bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi);
-static void tsfObserve(const uint8_t *bssid, uint64_t tsf, uint16_t beaconInterval,
-                       const char *ssid, uint32_t now);
 
 // =============================================================================
 // State
@@ -115,6 +113,11 @@ struct ApBaseline {
     uint32_t lastEvilEmitMs;
     uint8_t tsfViolStreak;
     uint32_t tsfViolWindowMs;
+    uint8_t  chanA;            // two most-recent distinct channels this BSSID
+    uint8_t  chanB;            // beaconed on — both live => evil twin (2 radios)
+    uint32_t chanAMs;
+    uint32_t chanBMs;
+    uint32_t lastMultichEmitMs;
 };
 std::map<uint64_t, ApBaseline> g_apBaseline;
 std::vector<EvilTwinEvent> g_evilTwinLog;
@@ -148,13 +151,25 @@ static constexpr uint32_t AUTH_FLOOD_WIN_MS  = 5000;
 static constexpr uint16_t AUTH_FLOOD_DISTINCT_SRC = 16;  // spoofed-MAC fan-out
 static constexpr uint16_t AUTH_FLOOD_FRAMES  = 60;        // raw rate floor in window
 
-// FragAttacks PN tracking — key = (srcMac<<8 | tid)
+// CCMP PN tracking for whole-frame replay — key = (srcMac<<4 | tid)
 struct PnState {
     uint32_t lastPN;
     uint32_t lastSeen;
     uint8_t  reuseCount;
 };
 std::map<uint64_t, PnState> g_pnState;
+// In-progress fragmented-MSDU tracking for real FragAttacks signatures
+// (CVE-2020-26146 non-consecutive PN, CVE-2020-26147 mixed enc/plaintext) —
+// key = (srcMac<<4 | tid). Passive: reads FC MoreFrag + seq-ctrl frag# + CCMP PN.
+struct FragMsdu {
+    uint16_t seqNum;
+    uint8_t  lastFrag;
+    uint32_t lastFragPN;
+    bool     started;
+    bool     firstProtected;
+    uint32_t lastSeen;
+};
+std::map<uint64_t, FragMsdu> g_fragMsdu;
 std::vector<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
 std::atomic<uint8_t> g_fragReuseThresh{2};
@@ -1044,12 +1059,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
         return;
     }
 
-    if (wantTsf && !isLaaBssid) {
-        char ssidLocal[33] = {0};
-        extractSSID(ie, ieLen, ssidLocal, sizeof(ssidLocal));
-        std::lock_guard<std::recursive_mutex> lkT(g_mtx);
-        tsfObserve(bssid, tsf, beaconInt, ssidLocal, millis());
-    }
     if (!wantEvil && !wantOwe) return;
 
     char ssid[33] = {0};
@@ -1091,6 +1100,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
         b.hasOweTransition = hasOweTrans;
         if (hasOweTrans) memcpy(b.oweTransitionBssid, oweTransBssid, 6);
         b.lastSeen = now;
+        b.chanA = e.channel;
+        b.chanAMs = now;
         g_apBaseline[k] = b;
 
         uint8_t hbuf[10];
@@ -1102,31 +1113,37 @@ static void handleBeacon(const DetectFrameEvent &e) {
 
     ApBaseline &b = it->second;
 
+    // Evil-twin via channel multiplicity: same BSSID beaconing on >=2 distinct
+    // channels within 5s => two radios (scan mode only; pin mode sees one channel).
+    // A legit CSA channel move is one-way (old channel goes silent) so both stamps
+    // cannot stay fresh together. Spoof-proof, no precise timing needed.
+    bool twinMultich = false;
+    if (wantTsf) {
+        uint8_t ch = e.channel;
+        if (ch == b.chanA)      b.chanAMs = now;
+        else if (ch == b.chanB) b.chanBMs = now;
+        else if (b.chanA == 0)  { b.chanA = ch; b.chanAMs = now; }
+        else if (b.chanB == 0)  { b.chanB = ch; b.chanBMs = now; }
+        else {
+            if (b.chanAMs <= b.chanBMs) { b.chanA = ch; b.chanAMs = now; }
+            else                        { b.chanB = ch; b.chanBMs = now; }
+        }
+        bool bothFresh = b.chanA && b.chanB && b.chanA != b.chanB &&
+                         (now - b.chanAMs < 5000UL) && (now - b.chanBMs < 5000UL);
+        bool emitOk = (b.lastMultichEmitMs == 0) || ((now - b.lastMultichEmitMs) >= 300000UL);
+        if (bothFresh && emitOk && !g_beaconFloodActive) {
+            twinMultich = true;
+            b.lastMultichEmitMs = now;
+        }
+    }
+
     // Freshness gate: if baseline sample is stale (>30s old) we cannot trust
     // a TSF compare — channel-hop gap, AP rekey, or buffer-reorder dominates.
-    // Update baseline and skip anomaly detection for this beacon.
     bool baselineStale = (b.lastTSFSampleMs == 0) || ((now - b.lastTSFSampleMs) > 30000UL);
 
-    // TSF anomaly: TSF should monotonically increase; or restart (cloned AP reboot)
-    bool tsfRestart = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL); // >1000s jump back
-    bool tsfNonMonoRaw = !baselineStale && (tsf < b.lastTSF) && !tsfRestart && ((b.lastTSF - tsf) > 5000000ULL);
-
-    // Streak gate: require 2+ TSF-nonmono observations within 30s before emitting.
-    // Single-shot rejected — most are buggy LAA APs, reorder, or transient.
-    bool tsfNonMono = false;
-    if (tsfNonMonoRaw) {
-        if (b.tsfViolWindowMs == 0 || (now - b.tsfViolWindowMs) > 30000UL) {
-            b.tsfViolStreak = 1;
-            b.tsfViolWindowMs = now;
-        } else {
-            if (b.tsfViolStreak < 255) b.tsfViolStreak++;
-            if (b.tsfViolStreak >= 2) tsfNonMono = true;
-        }
-    } else if (!baselineStale) {
-        // monotonic beacon resets streak
-        b.tsfViolStreak = 0;
-        b.tsfViolWindowMs = 0;
-    }
+    // TSF_RESTART: TSF jumped back to ~0 (cloned-AP reboot / re-init).
+    bool tsfRestart = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL);
+    bool tsfNonMono = twinMultich;
 
     // Beacon-interval drift permil
     uint16_t driftPermil = 0;
@@ -1137,7 +1154,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
     }
     bool intervalDrift = false;
     bool ieDrift = false;
-    tsfRestart = false;
 
     struct SsidWatch {
         uint32_t winStartMs;
@@ -1200,13 +1216,13 @@ static void handleBeacon(const DetectFrameEvent &e) {
         }
     }
 
-    uint32_t cooldownMs = (tsfNonMono || ssidCollision) ? 300000UL : 60000UL;
+    uint32_t cooldownMs = (tsfNonMono || tsfRestart || ssidCollision) ? 300000UL : 60000UL;
     bool cooldownOk = (b.lastEvilEmitMs == 0) || ((now - b.lastEvilEmitMs) >= cooldownMs);
 
     // Suppress evil-twin emit during an active beacon flood: SSID collisions and
     // TSF anomalies under flood are spam artifacts (random BSSIDs reusing SSIDs),
     // not a real twin. BEACON_FLOOD already reported the attack.
-    if ((tsfNonMono || ssidCollision) && cooldownOk && !g_beaconFloodActive) {
+    if ((tsfNonMono || tsfRestart || ssidCollision) && cooldownOk && !g_beaconFloodActive) {
         EvilTwinEvent ev{};
         memcpy(ev.bssid, bssid, 6);
         strncpy(ev.ssid, ssid, sizeof(ev.ssid) - 1);
@@ -1220,7 +1236,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
         ev.channel = e.channel;
         ev.ts = now;
         if (ssidCollision) strncpy(ev.reason, "SSID_COLLISION", sizeof(ev.reason) - 1);
-        else strncpy(ev.reason, "TSF_NONMONO", sizeof(ev.reason) - 1);
+        else if (tsfRestart) strncpy(ev.reason, "TSF_RESTART", sizeof(ev.reason) - 1);
+        else strncpy(ev.reason, "TWIN_MULTICH", sizeof(ev.reason) - 1);
 
         g_evilTwinLog.push_back(ev);
         if (g_evilTwinLog.size() > MAX_ET_LOG) g_evilTwinLog.erase(g_evilTwinLog.begin());
@@ -2005,91 +2022,134 @@ static void handleAuthSae(const DetectFrameEvent &e) {
 // FragAttacks A-MSDU + PN reuse
 // =============================================================================
 static void handleQosData(const DetectFrameEvent &e) {
-    if (e.len < 38) return;
+    if (e.len < 26) return;
     const uint8_t *p = e.payload;
     uint16_t fc = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
     uint8_t stype = (fc >> 4) & 0xF;
     uint8_t ftype = (fc >> 2) & 0x3;
     if (ftype != 2 || stype != 8) return;
+    if (!g_fragEnabled.load()) return;
+    if ((fc >> 11) & 1) return;                 // Retry: retransmits legitimately repeat PN/frag
     uint8_t toDs   = (fc >> 8) & 1;
     uint8_t fromDs = (fc >> 9) & 1;
     uint8_t protectedBit = (fc >> 14) & 1;
-    if (!protectedBit) return;
+    uint8_t moreFrag = (fc >> 10) & 1;
     const uint8_t *a1 = p + 4;
-    if (a1[0] & 0x01) return;
+    if (a1[0] & 0x01) return;                   // unicast only
     const uint8_t *a2 = p + 10;
+    uint16_t seqctrl = (uint16_t)p[22] | ((uint16_t)p[23] << 8);
+    uint8_t  fragNum = seqctrl & 0x0F;
+    uint16_t seqNum  = seqctrl >> 4;
     uint8_t hdrLen = 24 + 2;
     bool fourAddr = (toDs == 1 && fromDs == 1);
     if (fourAddr) hdrLen += 6;
-    if ((int)e.len < hdrLen + 8) return;
+    if ((int)e.len < hdrLen) return;
     uint8_t qos0 = p[hdrLen - 2];
     uint8_t tid = qos0 & 0x0F;
     uint8_t aMsdu = (qos0 >> 7) & 1;
 
-    const uint8_t *cc = p + hdrLen;
-    if (!(cc[3] & 0x20)) return;
-    uint32_t pn32 = ((uint32_t)cc[5] << 24) | ((uint32_t)cc[4] << 16) |
-                    ((uint32_t)cc[1] << 8)  |  cc[0];
+    // CCMP PN only present on Protected frames with ext-IV set.
+    bool havePN = false;
+    uint32_t pn32 = 0;
+    if (protectedBit && (int)e.len >= hdrLen + 8) {
+        const uint8_t *cc = p + hdrLen;
+        if (cc[3] & 0x20) {
+            pn32 = ((uint32_t)cc[5] << 24) | ((uint32_t)cc[4] << 16) |
+                   ((uint32_t)cc[1] << 8)  |  cc[0];
+            havePN = true;
+        }
+    }
 
-    if ((fc >> 11) & 1) return;
-    if (!g_fragEnabled.load()) return;
     uint64_t key = (packMac(a2) << 4) | tid;
     uint32_t now = millis();
-
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    auto it = g_pnState.find(key);
-    if (it == g_pnState.end()) {
-        if (g_pnState.size() >= 64) {
-            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_pnState) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
-            g_pnState.erase(oldestK);
-        }
-        g_pnState[key] = {pn32, now, 0};
-        return;
-    }
-    uint32_t lastPN = it->second.lastPN;
-    bool exactReuse = (pn32 <= lastPN);
-    if (exactReuse) {
-        if (it->second.reuseCount < 255) it->second.reuseCount++;
-    } else {
-        it->second.reuseCount = 0;
-    }
-    bool sustainedReuse = it->second.reuseCount >= g_fragReuseThresh.load();
-    bool fired = false;
-    FragAttackEvent ev{};
-    memcpy(ev.srcMac, a2, 6);
-    ev.tid = tid;
-    ev.lastPN = lastPN;
-    ev.observedPN = pn32;
-    ev.rssi = e.rssi;
-    ev.channel = e.channel;
-    ev.ts = now;
-    if (sustainedReuse) { strncpy(ev.reason, "PN_REUSE", sizeof(ev.reason) - 1); fired = true; it->second.reuseCount = 0; }
-    if (aMsdu && sustainedReuse) {
-        strncpy(ev.reason, "AMSDU_BAD", sizeof(ev.reason) - 1);
-    }
-    if (fired) {
+
+    char srcBuf[18];
+    snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
+             a2[0],a2[1],a2[2],a2[3],a2[4],a2[5]);
+    auto fireFrag = [&](const char *reason, uint32_t lastPN, uint32_t obsPN) {
+        FragAttackEvent ev{};
+        memcpy(ev.srcMac, a2, 6);
+        ev.tid = tid; ev.lastPN = lastPN; ev.observedPN = obsPN;
+        ev.rssi = e.rssi; ev.channel = e.channel; ev.ts = now;
+        strncpy(ev.reason, reason, sizeof(ev.reason) - 1);
         g_fragLog.push_back(ev);
         if (g_fragLog.size() > MAX_FRAG_LOG) g_fragLog.erase(g_fragLog.begin());
-        char srcBuf[18];
-        snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
-                 a2[0],a2[1],a2[2],a2[3],a2[4],a2[5]);
-        String src(srcBuf);
         char lineBuf[260];
         snprintf(lineBuf, sizeof(lineBuf),
                  "{\"src\":\"%s\",\"tid\":%u,\"reason\":\"%s\",\"last_pn\":%u,\"obs_pn\":%u,\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-                 srcBuf, (unsigned)tid, ev.reason, (unsigned)ev.lastPN,
-                 (unsigned)ev.observedPN, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
+                 srcBuf, (unsigned)tid, reason, (unsigned)lastPN,
+                 (unsigned)obsPN, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
         logEventToSD("/fragattack.jsonl", String(lineBuf));
-        if (meshEnabled && g_meshFrag.load() && meshRateGate(String("FRAG_") + src, 30000)) {
+        if (meshEnabled && g_meshFrag.load() && meshRateGate(String("FRAG_") + srcBuf + reason, 30000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: FRAG:%s:%s",
-                     getNodeId().c_str(), srcBuf, ev.reason);
+                     getNodeId().c_str(), srcBuf, reason);
             sendToSerial1(String(meshBuf), true);
         }
+    };
+
+    // --- Real FragAttacks: fragmented-MSDU PN-gap (CVE-2020-26146) + mixed
+    //     encrypted/plaintext fragments (CVE-2020-26147). Passive, header-only.
+    bool isFragment = moreFrag || fragNum > 0;
+    if (isFragment) {
+        auto fit = g_fragMsdu.find(key);
+        if (fit == g_fragMsdu.end()) {
+            if (g_fragMsdu.size() >= 64) {
+                uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+                for (auto &kv : g_fragMsdu) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+                g_fragMsdu.erase(oldestK);
+            }
+            g_fragMsdu[key] = FragMsdu{};
+            fit = g_fragMsdu.find(key);
+        }
+        FragMsdu &fm = fit->second;
+        if (fragNum == 0) {
+            fm.seqNum = seqNum; fm.lastFrag = 0;
+            fm.lastFragPN = havePN ? pn32 : 0;
+            fm.firstProtected = protectedBit;
+            fm.started = moreFrag;          // only a real MSDU if more fragments follow
+            fm.lastSeen = now;
+        } else if (fm.started && fm.seqNum == seqNum && fragNum == (uint16_t)fm.lastFrag + 1) {
+            if (protectedBit != fm.firstProtected) {
+                fireFrag("MIXED_PLAIN", 0, 0);          // CVE-2020-26147
+            } else if (havePN && fm.firstProtected && pn32 != fm.lastFragPN + 1) {
+                fireFrag("PN_GAP", fm.lastFragPN, pn32); // CVE-2020-26146
+            }
+            fm.lastFrag = fragNum;
+            if (havePN) fm.lastFragPN = pn32;
+            fm.lastSeen = now;
+            if (!moreFrag) fm.started = false;
+        } else {
+            fm.started = false;                          // out-of-order / unrelated
+        }
     }
-    it->second.lastPN = pn32;
-    it->second.lastSeen = now;
+
+    // --- Whole-frame CCMP replay (PN non-increasing on a non-fragmented frame).
+    if (havePN && !isFragment) {
+        auto it = g_pnState.find(key);
+        if (it == g_pnState.end()) {
+            if (g_pnState.size() >= 64) {
+                uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+                for (auto &kv : g_pnState) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+                g_pnState.erase(oldestK);
+            }
+            g_pnState[key] = {pn32, now, 0};
+            return;
+        }
+        uint32_t lastPN = it->second.lastPN;
+        if (pn32 <= lastPN) {
+            if (it->second.reuseCount < 255) it->second.reuseCount++;
+        } else {
+            it->second.reuseCount = 0;
+        }
+        if (it->second.reuseCount >= g_fragReuseThresh.load()) {
+            fireFrag(aMsdu ? "AMSDU_BAD" : "PN_REPLAY", lastPN, pn32);
+            it->second.reuseCount = 0;
+        }
+        it->second.lastPN = pn32;
+        it->second.lastSeen = now;
+    }
 }
 
 // =============================================================================
@@ -2659,109 +2719,45 @@ size_t tof_peerCount() {
 // =============================================================================
 // Feature 10/11: TSF clock-skew fingerprint
 // =============================================================================
-struct TsfTrack {
-    uint64_t prevTsf;
-    uint64_t prevRxUs;
-    uint16_t beaconInterval;
-    float ppmEstimate;
-    int32_t lastSkewUs;
-    uint32_t samples;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
-    char ssid[33];
-};
-static std::map<uint64_t, TsfTrack> g_tsfTrack;
-static constexpr size_t MAX_TSF_TRACK = 200;
-
-static void tsfObserve(const uint8_t *bssid, uint64_t tsf, uint16_t beaconInterval,
-                       const char *ssid, uint32_t nowMs) {
-    uint64_t nowUs = esp_timer_get_time();
-    uint64_t k = packMac(bssid);
-    auto tit = g_tsfTrack.find(k);
-    if (tit == g_tsfTrack.end()) {
-        if (g_tsfTrack.size() >= MAX_TSF_TRACK) {
-            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_tsfTrack) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
-            g_tsfTrack.erase(oldestK);
-        }
-        TsfTrack nt{};
-        nt.prevTsf = tsf;
-        nt.prevRxUs = nowUs;
-        nt.beaconInterval = beaconInterval;
-        nt.firstSeen = nowMs;
-        strncpy(nt.ssid, ssid ? ssid : "", sizeof(nt.ssid) - 1);
-        nt.samples = 1;
-        nt.lastSeen = nowMs;
-        g_tsfTrack[k] = nt;
-        return;
-    }
-    TsfTrack &t = tit->second;
-    if (tsf <= t.prevTsf) {
-        t.prevTsf = tsf;
-        t.prevRxUs = nowUs;
-        t.lastSeen = nowMs;
-        return;
-    }
-    uint64_t actualDelta = tsf - t.prevTsf;
-    uint64_t rxDeltaUs = nowUs - t.prevRxUs;
-    if (rxDeltaUs < 50000ULL || rxDeltaUs > 60000000ULL) {
-        t.prevTsf = tsf;
-        t.prevRxUs = nowUs;
-        t.lastSeen = nowMs;
-        return;
-    }
-    int64_t skew = (int64_t)actualDelta - (int64_t)rxDeltaUs;
-    if (skew > 200000 || skew < -200000) {
-        t.prevTsf = tsf;
-        t.prevRxUs = nowUs;
-        t.lastSeen = nowMs;
-        return;
-    }
-    float ppm = ((float)skew / (float)rxDeltaUs) * 1e6f;
-    if (ppm > 500.0f || ppm < -500.0f) {
-        t.prevTsf = tsf;
-        t.prevRxUs = nowUs;
-        t.lastSeen = nowMs;
-        return;
-    }
-    t.ppmEstimate = (t.ppmEstimate * (float)(t.samples - 1) + ppm) / (float)t.samples;
-    t.lastSkewUs = (int32_t)skew;
-    if (t.samples < UINT32_MAX) t.samples++;
-    t.prevTsf = tsf;
-    t.prevRxUs = nowUs;
-    t.beaconInterval = beaconInterval;
-    strncpy(t.ssid, ssid ? ssid : "", sizeof(t.ssid) - 1);
-    t.lastSeen = nowMs;
-}
-
+// Evil-twin via channel multiplicity: same BSSID on >=2 channels (scan mode) =
+// two radios. Tracked inline in g_apBaseline (chanA/chanB). Replaced the
+// unreliable, attacker-spoofable clock-skew approach. JSON reports per-BSSID
+// channel observations.
 String tsf_getSkewJson() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
     bool first = true;
-    for (auto &kv : g_tsfTrack) {
-        if (kv.second.samples < 3) continue;
+    for (auto &kv : g_apBaseline) {
+        const ApBaseline &b = kv.second;
+        if (b.chanA == 0) continue;
         if (!first) out += ",";
         first = false;
         uint8_t bssid[6];
         unpackMac(kv.first, bssid);
         out += "{\"bssid\":\"" + macStr(bssid) + "\"" +
-               ",\"ssid\":\"" + String(kv.second.ssid) + "\"" +
-               ",\"ppm\":" + String(kv.second.ppmEstimate, 2) +
-               ",\"last_skew_us\":" + String(kv.second.lastSkewUs) +
-               ",\"samples\":" + String(kv.second.samples) +
-               ",\"first\":" + String(kv.second.firstSeen) +
-               ",\"last\":" + String(kv.second.lastSeen) + "}";
+               ",\"ssid\":\"" + String(b.ssid) + "\"" +
+               ",\"chan_a\":" + String((unsigned)b.chanA) +
+               ",\"chan_b\":" + String((unsigned)b.chanB) +
+               ",\"chan_a_ms\":" + String(b.chanAMs) +
+               ",\"chan_b_ms\":" + String(b.chanBMs) +
+               ",\"last\":" + String(b.lastSeen) + "}";
     }
     out += "]";
     return out;
 }
 void tsf_clear() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    g_tsfTrack.clear();
+    for (auto &kv : g_apBaseline) {
+        kv.second.chanA = kv.second.chanB = 0;
+        kv.second.chanAMs = kv.second.chanBMs = 0;
+        kv.second.lastMultichEmitMs = 0;
+    }
 }
 size_t tsf_count() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    return g_tsfTrack.size();
+    size_t n = 0;
+    for (auto &kv : g_apBaseline) if (kv.second.chanA != 0) n++;
+    return n;
 }
 
 // =============================================================================
@@ -3694,7 +3690,7 @@ String pg_getGraphJson() {
 // =============================================================================
 static constexpr const char *SNAP_PATH = "/detect_state.bin";
 static constexpr uint32_t SNAP_MAGIC = 0xA111EDD1;
-static constexpr uint16_t SNAP_VER   = 2;
+static constexpr uint16_t SNAP_VER   = 3;
 
 struct SnapHeader {
     uint32_t magic;
@@ -3719,7 +3715,7 @@ static void persistSnapshot() {
     h.chains = g_chains.size();
     h.airtag = g_airtag.size();
     h.recon  = g_recon.size();
-    h.tsf    = g_tsfTrack.size();
+    h.tsf    = 0;
     h.pwna   = g_pwna.size();
     f.write((const uint8_t*)&h, sizeof(h));
     for (auto &kv : g_chains) {
@@ -3763,17 +3759,6 @@ static void persistSnapshot() {
         f.write(&kv.second.score, 1);
         f.write((const uint8_t*)kv.second.reasons, 96);
         f.write((const uint8_t*)&kv.second.ts, 4);
-    }
-    for (auto &kv : g_tsfTrack) {
-        uint64_t mac = kv.first;
-        f.write((const uint8_t*)&mac, 8);
-        float ppm = kv.second.ppmEstimate;
-        f.write((const uint8_t*)&ppm, 4);
-        uint32_t n = kv.second.samples;
-        f.write((const uint8_t*)&n, 4);
-        f.write((const uint8_t*)kv.second.ssid, 33);
-        f.write((const uint8_t*)&kv.second.firstSeen, 4);
-        f.write((const uint8_t*)&kv.second.lastSeen, 4);
     }
     for (auto &kv : g_pwna) {
         f.write(kv.second.bssid, 6);
@@ -3856,17 +3841,6 @@ static void loadSnapshot() {
         if (f.read((uint8_t*)&r.ts, 4) != 4) break;
         strncpy(r.identityId, id, 9);
         g_recon[String(id)] = r;
-    }
-    for (uint32_t i = 0; i < h.tsf; ++i) {
-        uint64_t mac;
-        if (f.read((uint8_t*)&mac, 8) != 8) break;
-        TsfTrack t{};
-        if (f.read((uint8_t*)&t.ppmEstimate, 4) != 4) break;
-        if (f.read((uint8_t*)&t.samples, 4) != 4) break;
-        if (f.read((uint8_t*)t.ssid, 33) != 33) break;
-        if (f.read((uint8_t*)&t.firstSeen, 4) != 4) break;
-        if (f.read((uint8_t*)&t.lastSeen, 4) != 4) break;
-        if (t.samples > 0) g_tsfTrack[mac] = t;
     }
     for (uint32_t i = 0; i < h.pwna; ++i) {
         PwnagotchiSighting p{};
@@ -4523,10 +4497,6 @@ void detectTask(void *pv) {
             }
             for (auto it = g_apBaseline.begin(); it != g_apBaseline.end(); ) {
                 if (now - it->second.lastSeen > 3600000UL) it = g_apBaseline.erase(it);
-                else ++it;
-            }
-            for (auto it = g_tsfTrack.begin(); it != g_tsfTrack.end(); ) {
-                if (now - it->second.lastSeen > 3600000UL) it = g_tsfTrack.erase(it);
                 else ++it;
             }
             for (auto it = g_bleTrackers.begin(); it != g_bleTrackers.end(); ) {
@@ -5665,7 +5635,7 @@ String detect_getHealthJson() {
          ",\"pmkid_bursts\":" + String((unsigned)g_pmkidBursts.size()) +
          ",\"sae_counters\":" + String((unsigned)g_saeCounters.size()) +
          ",\"pn_state\":" + String((unsigned)g_pnState.size()) +
-         ",\"tsf_track\":" + String((unsigned)g_tsfTrack.size()) +
+         ",\"frag_msdu\":" + String((unsigned)g_fragMsdu.size()) +
          ",\"ble_trackers\":" + String((unsigned)g_bleTrackers.size()) +
          ",\"airtag\":" + String((unsigned)g_airtag.size()) +
          ",\"chains\":" + String((unsigned)g_chains.size()) +
@@ -5718,7 +5688,6 @@ void detect_clearAll() {
     g_karma.clear();
     g_karmaSsids.clear();
     g_baitSsids.clear();
-    g_tsfTrack.clear();
     g_tofPeers.clear();
     g_tofPending.clear();
     g_localBloom.clear();
