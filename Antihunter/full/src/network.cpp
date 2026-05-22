@@ -1235,21 +1235,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
           <div class="card-body" id="detOverviewCardBody">
             <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;">
-              <div class="stat"><div class="stat-label">Deauth</div><div class="stat-value" id="d-dauth">0</div></div>
-              <div class="stat"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
-              <div class="stat"><div class="stat-label">Evil-Twin</div><div class="stat-value" id="d-et">0</div></div>
-              <div class="stat"><div class="stat-label">SSID Conf</div><div class="stat-value" id="d-sc">0</div></div>
-              <div class="stat"><div class="stat-label">SAE DoS</div><div class="stat-value" id="d-sae">0</div></div>
-              <div class="stat"><div class="stat-label">OWE Abuse</div><div class="stat-value" id="d-owe">0</div></div>
-              <div class="stat"><div class="stat-label">FragAttacks</div><div class="stat-value" id="d-frag">0</div></div>
-              <div class="stat"><div class="stat-label">BLE Malformed</div><div class="stat-value" id="d-blem">0</div></div>
-              <div class="stat"><div class="stat-label">BLE Trackers</div><div class="stat-value" id="d-trk">0</div></div>
-              <div class="stat"><div class="stat-label">Recon</div><div class="stat-value" id="d-rec">0</div></div>
-              <div class="stat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
-              <div class="stat"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
-              <div class="stat"><div class="stat-label">Karma</div><div class="stat-value" id="d-karma">0</div></div>
-              <div class="stat"><div class="stat-label">Auth Flood</div><div class="stat-value" id="d-authflood">0</div></div>
-              <div class="stat"><div class="stat-label">Beacon Flood</div><div class="stat-value" id="d-beaconflood">0</div></div>
+              <div class="stat" data-cfg="always"><div class="stat-label">Deauth</div><div class="stat-value" id="d-dauth">0</div></div>
+              <div class="stat" data-cfg="pmkid"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
+              <div class="stat" data-cfg="eviltwin"><div class="stat-label">Evil-Twin</div><div class="stat-value" id="d-et">0</div></div>
+              <div class="stat" data-cfg="ssid_confusion"><div class="stat-label">SSID Conf</div><div class="stat-value" id="d-sc">0</div></div>
+              <div class="stat" data-cfg="sae"><div class="stat-label">SAE DoS</div><div class="stat-value" id="d-sae">0</div></div>
+              <div class="stat" data-cfg="owe"><div class="stat-label">OWE Abuse</div><div class="stat-value" id="d-owe">0</div></div>
+              <div class="stat" data-cfg="frag"><div class="stat-label">FragAttacks</div><div class="stat-value" id="d-frag">0</div></div>
+              <div class="stat" data-cfg="ble_malformed"><div class="stat-label">BLE Malformed</div><div class="stat-value" id="d-blem">0</div></div>
+              <div class="stat" data-cfg="tracker,airtag"><div class="stat-label">BLE Trackers</div><div class="stat-value" id="d-trk">0</div></div>
+              <div class="stat" data-cfg="pmkid,probe_flood,hshk"><div class="stat-label">Recon</div><div class="stat-value" id="d-rec">0</div></div>
+              <div class="stat" data-cfg="attacker_trilat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
+              <div class="stat" data-cfg="always"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
+              <div class="stat" data-cfg="karma"><div class="stat-label">Karma</div><div class="stat-value" id="d-karma">0</div></div>
+              <div class="stat" data-cfg="always"><div class="stat-label">Auth Flood</div><div class="stat-value" id="d-authflood">0</div></div>
+              <div class="stat" data-cfg="eviltwin"><div class="stat-label">Beacon Flood</div><div class="stat-value" id="d-beaconflood">0</div></div>
             </div>
             <div style="font-size:11px;color:var(--mut);margin-bottom:8px;">
               <span class="lbl">Heap:</span><span id="d-heap" class="num">--</span>
@@ -1288,18 +1288,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
                 <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
               </div>
-              <button id="sentVerboseBtn" class="btn alt" style="margin-left:8px;" onclick="detVerboseToggle()" title="Per-frame [VERIFY-*] serial diagnostics">Verbose: --</button>
             </div>
             <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin:-4px 0 10px;"></div>
             <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
-            <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Enable a group:</p>
+            <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Toggle a group:</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:8px;">
-              <button class="btn alt" onclick="detGroup('dos',true)">DoS</button>
-              <button class="btn alt" onclick="detGroup('rogue_ap',true)">Rogue AP</button>
-              <button class="btn alt" onclick="detGroup('recon',true)">Recon</button>
-              <button class="btn alt" onclick="detGroup('ble',true)">BLE</button>
-              <button class="btn alt" onclick="detGroup('drone',true)">Drone</button>
-              <button class="btn alt" onclick="detGroup('physical',true)">Physical</button>
+              <button id="grpchip-dos" class="btn alt" onclick="detGroupToggle('dos')">DoS</button>
+              <button id="grpchip-rogue_ap" class="btn alt" onclick="detGroupToggle('rogue_ap')">Rogue AP</button>
+              <button id="grpchip-recon" class="btn alt" onclick="detGroupToggle('recon')">Recon</button>
+              <button id="grpchip-ble" class="btn alt" onclick="detGroupToggle('ble')">BLE</button>
+              <button id="grpchip-drone" class="btn alt" onclick="detGroupToggle('drone')">Drone</button>
+              <button id="grpchip-physical" class="btn alt" onclick="detGroupToggle('physical')">Physical</button>
             </div>
             <div class="det-quick">
               <button class="btn alt" onclick="detPreset('all-on')">All On</button>
@@ -4620,16 +4619,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       setInterval(loadIncidents, 2000);
       loadIncidents();
 
-      async function detVerboseToggle(){
-        try{
-          const vr=await fetch('/api/detect/verbose'); const cur=vr.ok?(await vr.json()).verbose:false;
-          await fetch('/api/detect/verbose/'+(cur?'off':'on'),{method:'POST'});
-          sentinelRefresh();
-        }catch(e){console.warn('detVerboseToggle',e);}
-      }
       async function sentinelRefresh(){
         try {
-          const r = await fetch('/api/sentinel/status');
+          const r = await fetch('/api/sentinel/status',{cache:'no-store'});
           if (!r.ok) return;
           const j = await r.json();
           let txt='DISABLED', col='#888';
@@ -4640,7 +4632,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if(el2){el2.textContent=txt;el2.style.color=col;}
           const tb=document.getElementById('sentToggleBtn');
           if(tb){tb.textContent=j.enabled?'Stop':'Start';tb.className=j.enabled?'btn alt':'btn primary';}
-          try{const vr=await fetch('/api/detect/verbose');if(vr.ok){const vj=await vr.json();const vb=document.getElementById('sentVerboseBtn');if(vb){vb.textContent='Verbose: '+(vj.verbose?'ON':'off');vb.className=vj.verbose?'btn primary':'btn alt';vb.style.marginLeft='8px';}}}catch(e){console.warn('verbose state',e);}
         } catch(e){ console.error('sentinelRefresh', e); }
       }
       async function sentinelStart(){
@@ -5290,7 +5281,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
         ble:[['BLE_ATTACK','BLE Spam','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed'],
-          [['BLETRACK','TRK_LINK'],'Tracker Follow','tracker'],['AIRTAG','AirTag','airtag']],
+          [['BLETRACK','TRK_LINK'],'Tracker Follow','tracker'],['AIRTAG','AirTag','airtag'],
+          [['BLE_FLIPPER','BLE_SKIMMER','BLE_FLOCK','BLE_META'],'BLE Devices (skimmer/flipper/flock/meta)','ble_device']],
         drone:[['RID','RID Spoof','rid_spoof']],
         physical:[['FRAG','FragAttacks','frag'],['TSF','TSF Clock-Skew','tsf'],['CSI_MOTION','CSI Motion','csi']]
       };
@@ -5330,6 +5322,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         await detPostCfg({sentinel_scan:scan});
         if(_detCfg)_detCfg.sentinel_scan=scan;
       }
+      function _grpChipState(cfg){
+        if(typeof DET_GROUPS==='undefined')return;
+        for(const g in DET_GROUPS){
+          const c=document.getElementById('grpchip-'+g);
+          if(c)c.className=DET_GROUPS[g].some(k=>(cfg||{})[k])?'btn primary':'btn alt';
+        }
+      }
       async function renderDos(){
         const inc=await _jj('/api/incidents.json?limit=200')||[];
         const cfg=_detCfg||{};
@@ -5354,6 +5353,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             +`<div style="font-size:13px;"><b>${en}/${dets.length}</b> on · <span style="${ht>0?'color:var(--bad,#e55);font-weight:700;':''}">${ht} hit${ht!=1?'s':''}</span></div></div>`;
         }
         const qe=document.getElementById('dctl-quick'); if(qe)qe.innerHTML=qv;
+        _grpChipState(cfg);
         const setc=(id,types)=>{const e=document.getElementById(id);if(e)e.textContent=inc.filter(x=>x&&types.includes(x.type)).length;};
         setc('d-karma',['KARMA_CAND','KARMA_CONFIRMED']);
         setc('d-authflood',['AUTH_FLOOD']);
@@ -5367,6 +5367,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         setc('d-frag',['FRAG']);
         setc('d-blem',['BLE_MALFORMED']);
         setc('d-hs-krack',['KRACK']);
+        _overviewVisibility(cfg);
+      }
+      // Hide overview stats whose detector is disabled AND has zero hits.
+      // 'always' stats and any stat with a non-zero count stay visible.
+      function _overviewVisibility(cfg){
+        cfg=cfg||_detCfg||{};
+        document.querySelectorAll('#detOverviewCardBody .stat[data-cfg]').forEach(el=>{
+          const keys=el.dataset.cfg;
+          const ve=el.querySelector('.stat-value');
+          const cnt=ve?(parseInt(ve.textContent,10)||0):0;
+          const enabled=keys==='always'||keys.split(',').some(k=>cfg[k]===true);
+          el.style.display=(enabled||cnt>0)?'':'none';
+        });
       }
       async function detectTick(){
         const tab=document.getElementById('page-detect');
@@ -5609,24 +5622,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       const _detPageLoadMs = Date.now();
 
+      let _sentToggleBusy=false;
       async function sentinelToggleHdr(){
+        if(_sentToggleBusy) return;
+        _sentToggleBusy=true;
         try {
-          const sr = await fetch('/api/sentinel/status');
+          const sr = await fetch('/api/sentinel/status',{cache:'no-store'});
           if (!sr.ok) return;
           const s = await sr.json();
           const url = s.enabled ? '/api/sentinel/stop' : '/api/sentinel/start';
-          const rr = await fetch(url, {method:'POST'});
-          if (!rr.ok) {
-            alert('Sentinel toggle failed: ' + await rr.text());
-          }
-          sentinelHdrRefresh();
+          const rr = await fetch(url, {method:'POST',cache:'no-store'});
+          if (!rr.ok) alert('Sentinel toggle failed: ' + await rr.text());
+          await new Promise(r=>setTimeout(r,500));
+          await sentinelHdrRefresh();
+          if (typeof sentinelRefresh==='function') await sentinelRefresh();
         } catch (err) {
           console.warn('sentinelToggleHdr failed', err);
-        }
+        } finally { _sentToggleBusy=false; }
       }
       async function sentinelHdrRefresh(){
         try {
-          const r = await fetch('/api/sentinel/status');
+          const r = await fetch('/api/sentinel/status',{cache:'no-store'});
           if (!r.ok) return;
           const s = await r.json();
           const el = document.getElementById('sentStatusHdr');
@@ -5648,7 +5664,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           console.warn('sentinelHdrRefresh failed', err);
         }
       }
-      setInterval(sentinelHdrRefresh, 4000);
+      setInterval(()=>{sentinelHdrRefresh(); if(typeof sentinelRefresh==='function')sentinelRefresh();}, 4000);
       setTimeout(sentinelHdrRefresh, 700);
       function detMarkActive(key){
         _detLastActivity[key]=Date.now();
@@ -5732,7 +5748,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'blegrp':'detectors','dronegrp':'detectors','physical':'detectors','meshcfg':'detectors',
         'rid':'details','recon':'details','trackers':'details',
         'airtag':'details','csi':'details','karma':'details','hunts':'details',
-        'handshake':'details','beaconforge':'details','pmkidforge':'details',
+        'handshake':'details','bcnforge':'details','pmkidforge':'details',
         'eapolbait':'details','probeflood':'details','assocsleep':'details',
         'bleattack':'details','probegraph':'details','tsf':'details','tof':'details',
         'pmkid':'details','eviltwin':'details','ssidconf':'details',
@@ -5740,21 +5756,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'pwna':'details','krack':'details'
       };
 
+      function _detCardTab(c){
+        const key=c.dataset.key||'';
+        let cardTab=DETECTOR_TAB_MAP[key];
+        if(!cardTab){
+          const txt=(c.querySelector('h3')?.textContent||'').toLowerCase();
+          if(txt.includes('detector controls')||txt.includes('threshold'))cardTab='config';
+          else if(txt.includes('overview'))cardTab='live';
+          else if(txt.includes('mesh defense'))cardTab='config';
+          else if(c.dataset.sev&&key!=='events')cardTab='details';
+          else cardTab='detectors';
+        }
+        return cardTab;
+      }
       function detSetTab(tab){
         document.querySelectorAll('#det-tabs button.dtab').forEach(b=>{
           b.classList.toggle('active', b.dataset.dtab===tab);
         });
         document.querySelectorAll('#page-detect .card').forEach(c=>{
-          const key=c.dataset.key||'';
-          let cardTab=DETECTOR_TAB_MAP[key];
-          if(!cardTab){
-            const txt=(c.querySelector('h3')?.textContent||'').toLowerCase();
-            if(txt.includes('detector controls')||txt.includes('threshold'))cardTab='config';
-            else if(txt.includes('overview'))cardTab='live';
-            else if(txt.includes('mesh defense'))cardTab='config';
-            else cardTab='detectors';
-          }
-          c.classList.toggle('dtab-hidden', cardTab!==tab);
+          c.classList.toggle('dtab-hidden', _detCardTab(c)!==tab);
         });
         document.querySelectorAll('[data-dtab-target]').forEach(el=>{
           const allowed=el.dataset.dtabTarget.split(',');
@@ -5874,6 +5894,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['sae_window','SAE Window (ms)',1000,60000],
         ['sae_unmatched_thresh','SAE Unmatched',3,50],
         ['frag_reuse_thresh','FragAttacks Reuse Count',2,32],
+        ['probe_single_thresh','Probe Flood: 1-MAC probes /5s',10,500],
+        ['probe_rand_total','Probe Flood: randomized total /5s',10,1000],
+        ['probe_rand_distinct','Probe Flood: randomized distinct MACs /5s',5,500],
         ['hunt_cooldown_ms','Hunt Cooldown (ms)',5000,600000]
       ];
       let _detCfg=null;
@@ -5927,7 +5950,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         dos:      ['eviltwin','sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
         recon:    ['pmkid','probe_flood','hshk'],
-        ble:      ['ble_attack','ble_malformed','tracker','airtag'],
+        ble:      ['ble_attack','ble_malformed','tracker','airtag','ble_device'],
         drone:    ['rid_spoof'],
         physical: ['frag','tsf','csi']
       };
@@ -5936,6 +5959,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const DET_ALL_MESH=['mesh_pmkid','mesh_eviltwin','mesh_sae','mesh_frag','mesh_ble_malformed',
         'mesh_hshk','mesh_krack','mesh_tracker','mesh_karma','mesh_recon','mesh_csi_motion','mesh_attacker_hunt'];
       // Turn a single threat group on or off (members only; leaves other detectors untouched).
+      async function detGroupToggle(group){
+        const members=DET_GROUPS[group]; if(!members) return;
+        const cfg=_detCfg||{};
+        const anyOn=members.some(k=>cfg[k]);
+        await detGroup(group, !anyOn);
+      }
       async function detGroup(group,on){
         const members=DET_GROUPS[group]; if(!members) return;
         const patch={}; members.forEach(k=>patch[k]=!!on);
@@ -5980,7 +6009,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function renderDetailsVisibility(){
         try{
           document.querySelectorAll('#page-detect .card').forEach(c=>{
-            if(DETECTOR_TAB_MAP[c.dataset.key||'']!=='details')return;
+            if(_detCardTab(c)!=='details')return;
             const body=c.querySelector('.card-body'); if(!body)return;
             let txt='';
             body.querySelectorAll('pre,table,.det-table').forEach(e=>txt+=e.textContent||'');

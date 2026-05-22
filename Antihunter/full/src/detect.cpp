@@ -1644,6 +1644,9 @@ static constexpr size_t MAX_PROBE_FLOOD_MAP = 64;
 static constexpr uint16_t PROBE_FLOOD_WIN_MS = 5000;
 static constexpr uint16_t PROBE_FLOOD_THRESH = 10;
 static std::atomic<bool> g_probeFloodEnabled{true};
+static std::atomic<uint16_t> g_probeSingleMacThresh{60};   // 1 src >= N probes/5s
+static std::atomic<uint16_t> g_probeRandTotalThresh{80};   // randomized flood total/5s
+static std::atomic<uint16_t> g_probeRandDistinctThresh{60};// randomized flood distinct MAC/5s
 
 static bool probeReqHasHT(const uint8_t *ies, uint16_t ieLen) {
     uint16_t off = 0;
@@ -1727,8 +1730,8 @@ static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, u
     if (sc < 65535) sc++;
     if (g_probeGlobal.srcCount.size() > 512) g_probeGlobal.srcCount.erase(g_probeGlobal.srcCount.begin());
     if (g_probeGlobal.alerted) return;
-    bool randomized = g_probeGlobal.total >= 80 && g_probeGlobal.srcCount.size() >= 60;  // mdk4 random-MAC
-    bool singleMac  = sc >= 30;                                                            // Marauder/single src
+    bool randomized = g_probeGlobal.total >= g_probeRandTotalThresh.load() && g_probeGlobal.srcCount.size() >= g_probeRandDistinctThresh.load();
+    bool singleMac  = sc >= g_probeSingleMacThresh.load();
     if (!randomized && !singleMac) return;
     g_probeGlobal.alerted = true;
     const char *kind = randomized ? "RANDOMIZED" : "SINGLE_MAC";
@@ -4478,9 +4481,6 @@ bool sentinel_isUserEnabled() { return g_sentinelUserEnabled.load(); }
 bool sentinel_isRunning() { return g_sentinelAlwaysOnActive.load(); }
 
 void sentinel_loadUserPref() {
-    // Sentinel OFF at boot. (Auto-enabling here started promiscuous during setup,
-    // before radioStartBLE() -> NimBLE esp_timer_create OOM'd -> boot crash loop.
-    // Enable via UI after boot, or wire a deferred start AFTER BLE init if needed.)
     g_sentinelUserEnabled.store(false);
 }
 

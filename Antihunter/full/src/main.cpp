@@ -250,14 +250,7 @@ void setup() {
     }
     sentinel_loadUserPref();
     if (sentinel_isUserEnabled()) {
-        sentinel_startAlwaysOn();
-        if (ESP.getFreeHeap() >= 60000) {
-            extern void radioStartBLE();
-            radioStartBLE();
-            Serial.println("[SENTINEL] BLE always-on scan started");
-        } else {
-            Serial.printf("[SENTINEL] BLE skipped: heap %u below 60000\n", (unsigned)ESP.getFreeHeap());
-        }
+        sentinel_startAlwaysOn();   // task reconciles BLE scan when BLE detectors enabled
     } else {
         Serial.println("[SENTINEL] Disabled (user toggle off)");
     }
@@ -287,13 +280,6 @@ void loop() {
     static unsigned long lastHbSend = 0;
     static unsigned long lastGPSPollBatterySaver = 0;  // cppcheck-suppress variableScope
     static unsigned long lastHeapCheck = 0;
-
-    // TEMP TESTING: deferred sentinel auto-start (after boot+BLE init, no radio race).
-    static bool sentinelKicked = false;
-    if (!sentinelKicked && millis() > 5000) {
-        sentinelKicked = true;
-        sentinel_setUserEnabled(true);
-    }
 
     // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
