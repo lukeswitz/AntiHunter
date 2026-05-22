@@ -65,7 +65,6 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("EVILTWIN:") ||
                 toProcess.startsWith("SSID_CONFUSION:") ||
                 toProcess.startsWith("SAE_DOS:") ||
-                toProcess.startsWith("BLETRACK:") ||
                 toProcess.startsWith("RECON:") ||
                 toProcess.startsWith("RID_CLAIM:") ||
                 toProcess.startsWith("RID_RX:") ||
@@ -73,8 +72,6 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("CHAN_ASSIGN:") ||
                 toProcess.startsWith("FRAG:") ||
                 toProcess.startsWith("IDHASH:") ||
-                toProcess.startsWith("CSI_MOTION:") ||
-                toProcess.startsWith("TRK_LINK:") ||
                 toProcess.startsWith("HSHK:") ||
                 toProcess.startsWith("KRACK:") ||
                 toProcess.startsWith("ATTACKER_HUNT:") ||
@@ -236,7 +233,6 @@ void setup() {
 
     // Phase 1-3 detect module
     initializeDetect();
-    csi_enable(true);
     initializeGpsPps(21);
     xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
     {

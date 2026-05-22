@@ -499,61 +499,13 @@ String pg_getGraphJson();
 void pg_clear();
 size_t pg_size();
 
-// =============================================================================
-// Feature 1+8: CSI Presence / Motion / RF Fingerprint
-// =============================================================================
-// ESP32-S3 exposes per-packet Channel State Information via esp_wifi_set_csi_rx_cb.
-// We capture amplitude per subcarrier, compute rolling variance, detect motion
-// when variance crosses threshold. Per-source-MAC amplitude profile = radio
-// physical-layer fingerprint surviving MAC randomization.
-
-struct CsiSnapshot {
-    uint8_t srcMac[6];
-    int8_t rssi;
-    uint8_t channel;
-    uint8_t bandwidth;       // 0=20MHz, 1=40MHz
-    uint8_t firstWord;       // L-LTF / HT-LTF marker
-    uint8_t numSubcarriers;  // typically 52 (20MHz) or 114 (40MHz)
-    int16_t amp[64];         // amplitude proxy (sqrt(I^2+Q^2)) — clipped to 64 subcarriers
-    uint32_t ts;
-};
-
-struct CsiMotionEvent {
-    uint8_t srcMac[6];
-    uint16_t varianceQ8;     // running variance in Q8 fixed-point
-    int8_t rssi;
-    uint8_t channel;
-    uint32_t ts;
-    char zone[8];            // "near" / "mid" / "far" by RSSI bucket
-};
-
-struct CsiFingerprint {
-    uint8_t srcMac[6];
-    uint16_t profileHash;
-    uint32_t observations;
-    int8_t avgRssi;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
-};
-
-void csi_init();
-void csi_enable(bool on);
-bool csi_isEnabled();
-String csi_getMotionJsonl();
-String csi_getFingerprintJson();
-void csi_clear();
 String detect_getHealthJson();
 String detect_getConfigJson();
 bool   detect_setConfigFromJson(const String &body);
 void   detect_persistTunables();
 uint32_t detect_droppedWifi();
 uint32_t detect_droppedBle();
-uint32_t detect_droppedCsi();
 uint32_t detect_meshRateGated();
-void csi_setMotionThreshold(uint16_t varQ8);
-uint16_t csi_getMotionThreshold();
-uint32_t csi_packetsObserved();
-uint32_t csi_motionEvents();
 
 // PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);
