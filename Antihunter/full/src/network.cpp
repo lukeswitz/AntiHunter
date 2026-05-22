@@ -1296,8 +1296,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <button id="grpchip-dos" class="btn alt" onclick="detGroupToggle('dos')">DoS</button>
               <button id="grpchip-rogue_ap" class="btn alt" onclick="detGroupToggle('rogue_ap')">Rogue AP</button>
               <button id="grpchip-recon" class="btn alt" onclick="detGroupToggle('recon')">Recon</button>
-              <button id="grpchip-ble" class="btn alt" onclick="detGroupToggle('ble')">BLE</button>
-              <button id="grpchip-drone" class="btn alt" onclick="detGroupToggle('drone')">Drone</button>
               <button id="grpchip-physical" class="btn alt" onclick="detGroupToggle('physical')">Physical</button>
             </div>
             <div class="det-quick">
@@ -1347,34 +1345,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <button class="btn alt" onclick="detGroup('recon',false)">All Off</button>
             </div>
             <div id="recon-rows"></div>
-          </div>
-        </div>
-
-        <div class="card" data-key="blegrp">
-          <div class="card-header" onclick="toggleCollapse('detBleGrpCard')">
-            <h3><span class="sev med">ble</span>BLE</h3>
-            <span class="collapse-icon open" id="detBleGrpCardIcon">▶</span>
-          </div>
-          <div class="card-body" id="detBleGrpCardBody">
-            <div style="display:flex;gap:6px;margin-bottom:8px;">
-              <button class="btn alt" onclick="detGroup('ble',true)">All On</button>
-              <button class="btn alt" onclick="detGroup('ble',false)">All Off</button>
-            </div>
-            <div id="ble-rows"></div>
-          </div>
-        </div>
-
-        <div class="card" data-key="dronegrp">
-          <div class="card-header" onclick="toggleCollapse('detDroneCard')">
-            <h3><span class="sev high">drone</span>Drone RID</h3>
-            <span class="collapse-icon open" id="detDroneCardIcon">▶</span>
-          </div>
-          <div class="card-body" id="detDroneCardBody">
-            <div style="display:flex;gap:6px;margin-bottom:8px;">
-              <button class="btn alt" onclick="detGroup('drone',true)">All On</button>
-              <button class="btn alt" onclick="detGroup('drone',false)">All Off</button>
-            </div>
-            <div id="drone-rows"></div>
           </div>
         </div>
 
@@ -5280,10 +5250,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
-        ble:[['BLE_ATTACK','BLE Spam','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed'],
-          [['BLETRACK','TRK_LINK'],'Tracker Follow','tracker'],['AIRTAG','AirTag','airtag'],
-          [['BLE_FLIPPER','BLE_SKIMMER','BLE_FLOCK','BLE_META'],'BLE Devices (skimmer/flipper/flock/meta)','ble_device']],
-        drone:[['RID','RID Spoof','rid_spoof']],
         physical:[['FRAG','FragAttacks','frag'],['TSF','TSF Clock-Skew','tsf'],['CSI_MOTION','CSI Motion','csi']]
       };
       function _grpRows(dets,inc,cfg,nowMs){
@@ -5338,7 +5304,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const el=document.getElementById(gid+'-rows');
           if(el)el.innerHTML=_grpRows(GROUPS[gid],inc,cfg,nowMs);
         }
-        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',ble:'BLE',drone:'Drone',physical:'Physical'};
+        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical'};
         let qv='';
         for(const gid in GROUPS){
           const dets=GROUPS[gid]; let en=0,ht=0;
@@ -5950,12 +5916,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         dos:      ['eviltwin','sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
         recon:    ['pmkid','probe_flood','hshk'],
-        ble:      ['ble_attack','ble_malformed','tracker','airtag','ble_device'],
-        drone:    ['rid_spoof'],
         physical: ['frag','tsf','csi']
       };
-      const DET_ALL_LOCAL=['pmkid','eviltwin','sae','owe','frag','ble_malformed','hshk',
-        'tracker','airtag','tsf','rid_spoof','karma','csi','probe_flood','assoc_sleep','ble_attack'];
+      const DET_ALL_LOCAL=['pmkid','eviltwin','sae','owe','frag','hshk',
+        'tsf','karma','csi','probe_flood','assoc_sleep'];
       const DET_ALL_MESH=['mesh_pmkid','mesh_eviltwin','mesh_sae','mesh_frag','mesh_ble_malformed',
         'mesh_hshk','mesh_krack','mesh_tracker','mesh_karma','mesh_recon','mesh_csi_motion','mesh_attacker_hunt'];
       // Turn a single threat group on or off (members only; leaves other detectors untouched).

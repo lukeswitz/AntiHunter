@@ -4312,6 +4312,9 @@ void initializeDetect() {
             if ((u = p.getUChar("pmkidN", 0))) ah_detect::g_pmkidMinBssids.store(u);
             if ((u = p.getUChar("saeN", 0))) ah_detect::g_saeUnmatchedThresh.store(u);
             if ((v = p.getUShort("saeWin", 0))) ah_detect::g_saeWindow.store(v);
+            if ((v = p.getUShort("pflSng", 0))) ah_detect::g_probeSingleMacThresh.store(v);
+            if ((v = p.getUShort("pflRTot", 0))) ah_detect::g_probeRandTotalThresh.store(v);
+            if ((v = p.getUShort("pflRDst", 0))) ah_detect::g_probeRandDistinctThresh.store(v);
             ah_detect::g_karmaEnabled.store(p.getBool("karmaOn", false));
             ah_detect::g_csiEnabled.store(p.getBool("csiOn", false));
             uint32_t w;
@@ -4390,6 +4393,35 @@ static TaskHandle_t g_sentinelTaskHandle = nullptr;
 
 static void sentinelAlwaysOnTask(void *pv) {
     (void)pv;
+    bool sentinelStartedWifi = false;
+    {
+        wifi_mode_t wm;
+        if (esp_wifi_get_mode(&wm) != ESP_OK) {
+            wifi_init_config_t icfg = WIFI_INIT_CONFIG_DEFAULT();
+            bool up = (esp_wifi_init(&icfg) == ESP_OK) && (esp_wifi_set_mode(WIFI_MODE_STA) == ESP_OK);
+            if (up) {
+                uint8_t rnd[6];
+                rnd[0] = (uint8_t)((esp_random() & 0xFE) | 0x02);   // locally-administered, unicast
+                for (int i = 1; i < 6; ++i) rnd[i] = (uint8_t)(esp_random() & 0xFF);
+                esp_wifi_set_mac(WIFI_IF_STA, rnd);                 // must precede esp_wifi_start
+                up = (esp_wifi_start() == ESP_OK);
+            }
+            if (up) {
+                sentinelStartedWifi = true;
+                vTaskDelay(pdMS_TO_TICKS(200));
+                uint8_t sm[6];
+                if (esp_wifi_get_mac(WIFI_IF_STA, sm) == ESP_OK) {
+                    ah_detect::detect_setSelfApIdentity(sm, (const char *)nullptr);
+                    Serial.printf("[SENTINEL] Brought up STA WiFi (randomized) mac=%02X:%02X:%02X:%02X:%02X:%02X\n",
+                                  sm[0], sm[1], sm[2], sm[3], sm[4], sm[5]);
+                } else {
+                    Serial.println("[SENTINEL] Brought up STA WiFi (no SoftAP present)");
+                }
+            } else {
+                Serial.println("[SENTINEL] WiFi bring-up FAILED — capture unavailable");
+            }
+        }
+    }
     uint8_t apChan = AP_CHANNEL;
     { uint8_t prim = 0; wifi_second_chan_t sec; if (esp_wifi_get_channel(&prim, &sec) == ESP_OK && prim) apChan = prim; }
     Serial.printf("[SENTINEL] task started ap_ch=%u mode=%s\n", (unsigned)apChan,
@@ -4448,6 +4480,11 @@ static void sentinelAlwaysOnTask(void *pv) {
         esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
         esp_wifi_set_promiscuous(false);
     }
+    if (sentinelStartedWifi) {
+        esp_wifi_stop();
+        esp_wifi_deinit();
+        Serial.println("[SENTINEL] Released STA WiFi");
+    }
     Serial.println("[SENTINEL] Task exiting (disabled or scan started)");
     g_sentinelTaskHandle = nullptr;
     g_sentinelAlwaysOnActive.store(false);
@@ -4468,6 +4505,7 @@ void sentinel_kill() {
 
 void sentinel_setUserEnabled(bool on) {
     bool prev = g_sentinelUserEnabled.exchange(on);
+    { Preferences p; if (p.begin("ahdetect", false)) { p.putBool("sentEn", on); p.end(); } }
     if (!on && prev) {
         esp_wifi_set_promiscuous(false);
         Serial.println("[SENTINEL] Stop requested — promiscuous released immediately");
@@ -4481,7 +4519,10 @@ bool sentinel_isUserEnabled() { return g_sentinelUserEnabled.load(); }
 bool sentinel_isRunning() { return g_sentinelAlwaysOnActive.load(); }
 
 void sentinel_loadUserPref() {
-    g_sentinelUserEnabled.store(false);
+    bool on = false;
+    Preferences p;
+    if (p.begin("ahdetect", true)) { on = p.getBool("sentEn", false); p.end(); }
+    g_sentinelUserEnabled.store(on);
 }
 
 void detect_persistTunables() {
@@ -4492,6 +4533,9 @@ void detect_persistTunables() {
     p.putUChar("pmkidN", ah_detect::g_pmkidMinBssids.load());
     p.putUChar("saeN", ah_detect::g_saeUnmatchedThresh.load());
     p.putUShort("saeWin", ah_detect::g_saeWindow.load());
+    p.putUShort("pflSng", ah_detect::g_probeSingleMacThresh.load());
+    p.putUShort("pflRTot", ah_detect::g_probeRandTotalThresh.load());
+    p.putUShort("pflRDst", ah_detect::g_probeRandDistinctThresh.load());
     p.putUChar("fragN", ah_detect::g_fragReuseThresh.load());
     p.putBool("karmaOn", ah_detect::g_karmaEnabled.load());
     p.putBool("csiOn", ah_detect::g_csiEnabled.load());
@@ -5769,6 +5813,9 @@ String detect_getConfigJson() {
     j += _ijson("sae_window", g_saeWindow.load());
     j += _ijson("sae_unmatched_thresh", g_saeUnmatchedThresh.load());
     j += _ijson("frag_reuse_thresh", g_fragReuseThresh.load());
+    j += _ijson("probe_single_thresh", g_probeSingleMacThresh.load());
+    j += _ijson("probe_rand_total", g_probeRandTotalThresh.load());
+    j += _ijson("probe_rand_distinct", g_probeRandDistinctThresh.load());
     j += _ijson("hunt_cooldown_ms", g_huntCooldown.load());
     j += _ijson("tracker_window_ms", g_trackerWindowMs.load());
     j += "}";
@@ -5849,6 +5896,9 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "sae_window", g_saeWindow);
     _setu8(b, "sae_unmatched_thresh", g_saeUnmatchedThresh);
     _setu8(b, "frag_reuse_thresh", g_fragReuseThresh);
+    _seti(b, "probe_single_thresh", g_probeSingleMacThresh);
+    _seti(b, "probe_rand_total", g_probeRandTotalThresh);
+    _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
     return true;
 }
