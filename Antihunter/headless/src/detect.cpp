@@ -12,6 +12,8 @@
 #include <esp_attr.h>
 #include <esp_wifi.h>
 #include <esp_wifi_types.h>
+#include <esp_event.h>
+#include <esp_netif.h>
 #include <driver/gpio.h>
 #include <math.h>
 #include <ArduinoJson.h>
@@ -2801,7 +2803,9 @@ static void karmaEmitBait(const uint8_t *targetBssid) {
     memcpy(frame + 26 + ssidLen, kSupportedRates, sizeof(kSupportedRates));
     size_t total = 26 + ssidLen + sizeof(kSupportedRates);
 
-    esp_err_t err = esp_wifi_80211_tx(WIFI_IF_AP, frame, total, false);
+    wifi_mode_t wmode = WIFI_MODE_NULL;
+    wifi_interface_t txif = (esp_wifi_get_mode(&wmode) == ESP_OK && wmode == WIFI_MODE_STA) ? WIFI_IF_STA : WIFI_IF_AP;
+    esp_err_t err = esp_wifi_80211_tx(txif, frame, total, false);
     (void)err;
 
     if (g_baitSsids.size() >= MAX_BAIT) g_baitSsids.erase(g_baitSsids.begin());
@@ -4404,6 +4408,8 @@ static void sentinelAlwaysOnTask(void *pv) {
     {
         wifi_mode_t wm;
         if (esp_wifi_get_mode(&wm) != ESP_OK) {
+            (void)esp_netif_init();
+            (void)esp_event_loop_create_default();
             wifi_init_config_t icfg = WIFI_INIT_CONFIG_DEFAULT();
             bool up = (esp_wifi_init(&icfg) == ESP_OK) && (esp_wifi_set_mode(WIFI_MODE_STA) == ESP_OK);
             if (up) {
