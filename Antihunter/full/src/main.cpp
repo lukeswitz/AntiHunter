@@ -66,7 +66,6 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("EVILTWIN:") ||
                 toProcess.startsWith("SSID_CONFUSION:") ||
                 toProcess.startsWith("SAE_DOS:") ||
-                toProcess.startsWith("BLETRACK:") ||
                 toProcess.startsWith("RECON:") ||
                 toProcess.startsWith("RID_CLAIM:") ||
                 toProcess.startsWith("RID_RX:") ||
@@ -74,8 +73,6 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("CHAN_ASSIGN:") ||
                 toProcess.startsWith("FRAG:") ||
                 toProcess.startsWith("IDHASH:") ||
-                toProcess.startsWith("CSI_MOTION:") ||
-                toProcess.startsWith("TRK_LINK:") ||
                 toProcess.startsWith("HSHK:") ||
                 toProcess.startsWith("KRACK:") ||
                 toProcess.startsWith("ATTACKER_HUNT:") ||
@@ -237,8 +234,6 @@ void setup() {
     delay(50);
     initializeDetect();
     delay(50);
-    csi_enable(false);
- 
     initializeGpsPps(21);
     xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
     {
@@ -252,7 +247,7 @@ void setup() {
     }
     sentinel_loadUserPref();
     if (sentinel_isUserEnabled()) {
-        sentinel_startAlwaysOn();   // task reconciles BLE scan when BLE detectors enabled
+        sentinel_startAlwaysOn();
     } else {
         Serial.println("[SENTINEL] Disabled (user toggle off)");
     }

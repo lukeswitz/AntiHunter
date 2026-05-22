@@ -1217,7 +1217,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </style>
 
         <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
-          <input id="det-filter" placeholder="Filter (e.g. csi, airtag, karma)" oninput="detApplyFilters()">
+          <input id="det-filter" placeholder="Filter (e.g. airtag, karma, frag)" oninput="detApplyFilters()">
           <div class="det-chips" id="det-chips">
             <span class="det-chip all" data-sev="all">All</span>
             <span class="det-chip crit" data-sev="crit">Crit</span>
@@ -1455,29 +1455,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
-        <div class="card" data-key="csi" data-sev="med">
-          <div class="card-header" onclick="toggleCollapse('detCsiCard')">
-            <h3><span class="sev med">med</span>CSI Presence &amp; Motion</h3>
-            <span class="collapse-icon" id="detCsiCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="detCsiCardBody">
-            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px;">
-              <div class="stat"><div class="stat-label">Enabled</div><div class="stat-value" id="csi-on">--</div></div>
-              <div class="stat"><div class="stat-label">Packets</div><div class="stat-value" id="csi-pk">0</div></div>
-              <div class="stat"><div class="stat-label">Motion</div><div class="stat-value" id="csi-mv">0</div></div>
-              <div class="stat"><div class="stat-label">Thresh Q8</div><div class="stat-value" id="csi-th">--</div></div>
-              <div class="stat"><div class="stat-label">FPs</div><div class="stat-value" id="csi-fp">0</div></div>
-            </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-              <input id="csi-thresh-in" type="number" min="100" max="10000" placeholder="Threshold" style="width:130px;">
-              <button class="btn alt" onclick="csiSetThresh()">Set</button>
-              <button class="btn alt" onclick="csiClear()">Clear</button>
-            </div>
-            <details><summary><span>▶</span> Motion Events</summary><pre id="csi-motion" class="log-pre">--</pre></details>
-            <details><summary><span>▶</span> RF Fingerprints</summary><pre id="csi-fp-pre" class="log-pre">--</pre></details>
-          </div>
-        </div>
-
         <div class="card" data-key="karma" data-sev="crit">
           <div class="card-header" onclick="toggleCollapse('detKarmaCard')">
             <h3><span class="sev crit">crit</span>KARMA Probe-Bait</h3>
@@ -1640,11 +1617,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option>EAPOL_BAIT</option>
                 <option>PROBE_FLOOD</option>
                 <option>ASSOC_SLEEP</option>
-                <option>BLE_ATTACK</option>
-                <option>BLETRACK</option>
                 <option>SAE_DOS</option>
                 <option>OWE_ABUSE</option>
-                <option>SSID_CONFUSION</option>
                 <option>FRAG</option>
                 <option>KRACK</option>
                 <option>PWNAGOTCHI</option>
@@ -5250,7 +5224,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
-        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF Clock-Skew','tsf'],['CSI_MOTION','CSI Motion','csi']]
+        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF Clock-Skew','tsf']]
       };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
@@ -5403,42 +5377,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         renderDos();
       }
       async function detectClearAll(){await fetch('/api/detect/clear_all',{method:'POST'});detectTick()}
-      async function csiTick(){
-        if(!detTabActive())return;
-        const [stats,mot,fp]=await Promise.all([
-          _jj('/api/csi/stats'),_jt('/api/csi/motion.jsonl'),_jj('/api/csi/fingerprints')
-        ]);
-        if(stats){
-          document.getElementById('csi-on').textContent=stats.enabled?'YES':'no';
-          document.getElementById('csi-pk').textContent=stats.pkts;
-          document.getElementById('csi-mv').textContent=stats.motion_events;
-          document.getElementById('csi-th').textContent=stats.thresh_q8;
-        }
-        document.getElementById('csi-fp').textContent=(fp||[]).length;
-        const motionRows=(mot||'').split('\n').filter(l=>l.trim()).map(l=>{try{return JSON.parse(l)}catch(e){return null}}).filter(x=>x);
-        detRenderTable('csi-motion',motionRows.slice(-25).reverse(),[
-          {key:'ts',label:'Age',get:r=>_ago(r.ts)},
-          {key:'src',label:'Source'},{key:'var',label:'Var Q8'},
-          {key:'rssi',label:'RSSI'},{key:'ch',label:'Ch'},{key:'zone',label:'Zone'}
-        ]);
-        detRenderTable('csi-fp-pre',fp||[],[
-          {key:'src',label:'Source'},{key:'hash',label:'Hash'},
-          {key:'obs',label:'Obs'},{key:'avg_rssi',label:'Avg RSSI'},
-          {key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        if(motionRows.length>0)detMarkActive('csi');
-      }
-      async function csiToggle(on){
-        const fd=new FormData();fd.append('on',on);
-        await fetch('/api/csi/enable',{method:'POST',body:fd});csiTick();
-      }
-      async function csiSetThresh(){
-        const v=document.getElementById('csi-thresh-in').value;
-        if(!v)return;
-        const fd=new FormData();fd.append('v',v);
-        await fetch('/api/csi/threshold',{method:'POST',body:fd});csiTick();
-      }
-      async function csiClear(){await fetch('/api/csi/clear',{method:'POST'});csiTick();}
       async function pgTick(){
         if(!detTabActive())return;
         const pg=await _jj('/api/probegraph');
@@ -5646,7 +5584,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'pwna':'pwnaOn','trackers':'trkOn','airtag':'atgOn','tsf':'tsfOn',
         'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn','bleattack':'blatkOn',
         'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
-        'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn','csi':'csiOn'
+        'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn'
       };
       let _detToggleState = {};
       async function detRefreshToggleState(){
@@ -5711,9 +5649,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'events':'live','sentinel':'live','mesh':'config','config':'config',
         'overview':'live','apclients':'live',
         'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
-        'blegrp':'detectors','dronegrp':'detectors','physical':'detectors','meshcfg':'detectors',
+        'physical':'detectors','meshcfg':'detectors',
         'rid':'details','recon':'details','trackers':'details',
-        'airtag':'details','csi':'details','karma':'details','hunts':'details',
+        'airtag':'details','karma':'details','hunts':'details',
         'handshake':'details','bcnforge':'details','pmkidforge':'details',
         'eapolbait':'details','probeflood':'details','assocsleep':'details',
         'bleattack':'details','probegraph':'details','tsf':'details','tof':'details',
@@ -5842,7 +5780,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['tracker','BLE Tracker'],['airtag','AirTag (+ Replay)'],
         ['tsf','TSF Clock-Skew'],['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
-        ['karma','KARMA Bait'],['csi','CSI Presence'],
+        ['karma','KARMA Bait'],
         ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep'],
         ['ble_attack','BLE Attack Tools']
       ];
@@ -5851,10 +5789,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['mesh_sae','SAE'],['mesh_frag','FragAttacks'],['mesh_ble_malformed','BLE Malformed'],
         ['mesh_hshk','Handshakes'],['mesh_krack','KRACK'],['mesh_tracker','Tracker'],
         ['mesh_karma','KARMA'],['mesh_recon','Recon'],
-        ['mesh_csi_motion','CSI Motion'],['mesh_attacker_hunt','Attacker Hunt']
+        ['mesh_attacker_hunt','Attacker Hunt']
       ];
       const DET_THRESHOLDS=[
-        ['csi_thresh','CSI Threshold Q8',100,10000],
         ['pmkid_window','PMKID Window (ms)',1000,60000],
         ['pmkid_min_bssids','PMKID Min BSSIDs',2,10],
         ['sae_window','SAE Window (ms)',1000,60000],
@@ -5872,7 +5809,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         // for clarity. Re-classifying probe_flood + assoc_sleep + ble_attack here.
         const toolKeys=['probe_flood','assoc_sleep','ble_attack'];
         const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof'];
-        const bleKeys=['ble_malformed','tracker','airtag','karma','csi'];
+        const bleKeys=['ble_malformed','tracker','airtag','karma'];
         const meshKeys=DET_FEATURES_MESH.map(x=>x[0]);
         const tsfKey='tsf';const bloomKey='bloom_gossip';
         function rowHtml(k,label){
@@ -5916,12 +5853,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         dos:      ['eviltwin','sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
         recon:    ['pmkid','probe_flood','hshk'],
-        physical: ['frag','tsf','csi']
+        physical: ['frag','tsf']
       };
       const DET_ALL_LOCAL=['pmkid','eviltwin','sae','owe','frag','hshk',
-        'tsf','karma','csi','probe_flood','assoc_sleep'];
+        'tsf','karma','probe_flood','assoc_sleep'];
       const DET_ALL_MESH=['mesh_pmkid','mesh_eviltwin','mesh_sae','mesh_frag','mesh_ble_malformed',
-        'mesh_hshk','mesh_krack','mesh_tracker','mesh_karma','mesh_recon','mesh_csi_motion','mesh_attacker_hunt'];
+        'mesh_hshk','mesh_krack','mesh_tracker','mesh_karma','mesh_recon','mesh_attacker_hunt'];
       // Turn a single threat group on or off (members only; leaves other detectors untouched).
       async function detGroupToggle(group){
         const members=DET_GROUPS[group]; if(!members) return;
@@ -5938,7 +5875,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let patch={};
         if(name==='all-on'){DET_ALL_LOCAL.forEach(k=>patch[k]=true);DET_ALL_MESH.forEach(k=>patch[k]=true);}
         else if(name==='all-off'){DET_ALL_LOCAL.forEach(k=>patch[k]=false);DET_ALL_MESH.forEach(k=>patch[k]=false);}
-        else if(name==='quiet'){patch={frag:false,ble_malformed:false,tsf:false,csi:false,mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false,mesh_csi_motion:false};}
+        else if(name==='quiet'){patch={frag:false,ble_malformed:false,tsf:false,mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false};}
         else if(name==='mesh-silent'){DET_ALL_MESH.forEach(k=>patch[k]=false);}
         else if(name==='mesh-all'){DET_ALL_MESH.forEach(k=>patch[k]=true);}
         await detPostCfg(patch);
@@ -5963,7 +5900,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const h=await _jj('/api/detect/health');
         if(!h)return;
         document.getElementById('d-heap').textContent=Math.round(h.heap_free/1024)+'K (min '+Math.round(h.heap_min/1024)+'K)';
-        document.getElementById('d-drops').textContent='wifi:'+h.drops.wifi+' ble:'+h.drops.ble+' csi:'+h.drops.csi;
+        document.getElementById('d-drops').textContent='wifi:'+h.drops.wifi+' ble:'+h.drops.ble;
         document.getElementById('d-mgated').textContent=h.drops.mesh_gated;
       }
       function detTabActive(){
@@ -5996,7 +5933,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       function detAllTicks(){
         if(!detTabActive())return;
-        detectTick();csiTick();pgTick();trkTick();atTick();hsTick();
+        detectTick();pgTick();trkTick();atTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
         bfTick();pfTick();ebTick();pflTick();asTick();baTick();apClientsTick();
         setTimeout(renderDetailsVisibility,300);
@@ -7696,36 +7633,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             acc = "";
         }
     });
-
-  server->on("/api/csi/motion.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "application/x-ndjson", csi_getMotionJsonl());
-  });
-  server->on("/api/csi/fingerprints", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "application/json", csi_getFingerprintJson());
-  });
-  server->on("/api/csi/stats", HTTP_GET, [](AsyncWebServerRequest *r) {
-      String j = String("{\"enabled\":") + (csi_isEnabled() ? "true" : "false") +
-                 ",\"pkts\":" + String(csi_packetsObserved()) +
-                 ",\"motion_events\":" + String(csi_motionEvents()) +
-                 ",\"thresh_q8\":" + String(csi_getMotionThreshold()) + "}";
-      r->send(200, "application/json", j);
-  });
-  server->on("/api/csi/enable", HTTP_POST, [](AsyncWebServerRequest *r) {
-      bool on = true;
-      if (r->hasParam("on", true)) on = r->getParam("on", true)->value().toInt() != 0;
-      csi_enable(on);
-      r->send(200, "application/json", on ? "{\"enabled\":true}" : "{\"enabled\":false}");
-  });
-  server->on("/api/csi/threshold", HTTP_POST, [](AsyncWebServerRequest *r) {
-      uint16_t v = 1500;
-      if (r->hasParam("v", true)) v = (uint16_t)r->getParam("v", true)->value().toInt();
-      csi_setMotionThreshold(v);
-      r->send(200, "application/json", "{\"ok\":true}");
-  });
-  server->on("/api/csi/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
-      csi_clear();
-      r->send(200, "text/plain", "cleared");
-  });
 
   server->on("/api/probegraph", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", pg_getGraphJson());

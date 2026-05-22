@@ -157,7 +157,7 @@ struct PnState {
 std::map<uint64_t, PnState> g_pnState;
 std::vector<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
-std::atomic<uint8_t> g_fragReuseThresh{8};
+std::atomic<uint8_t> g_fragReuseThresh{2};
 
 // Per-feature enable (local detection on/off)
 std::atomic<bool> g_karmaEnabled{false};
@@ -190,7 +190,6 @@ std::atomic<bool> g_meshTracker{true};
 std::atomic<bool> g_meshPwna{true};
 std::atomic<bool> g_meshKarma{true};
 std::atomic<bool> g_meshRecon{true};
-std::atomic<bool> g_meshCsiMotion{false};
 std::atomic<bool> g_meshAttackerHunt{true};
 
 // BLE malformed
@@ -263,7 +262,6 @@ static inline String macStr(const uint8_t *m) {
 static std::map<String, uint32_t> g_meshRateMap;
 static std::atomic<uint32_t> g_droppedWifi{0};
 static std::atomic<uint32_t> g_droppedBle{0};
-static std::atomic<uint32_t> g_droppedCsi{0};
 static std::atomic<uint32_t> g_meshGated{0};
 static bool meshRateGate(const String &type, uint32_t minIntervalMs) {
     uint32_t now = millis();
@@ -2033,6 +2031,7 @@ static void handleQosData(const DetectFrameEvent &e) {
     uint32_t pn32 = ((uint32_t)cc[5] << 24) | ((uint32_t)cc[4] << 16) |
                     ((uint32_t)cc[1] << 8)  |  cc[0];
 
+    if ((fc >> 11) & 1) return;
     if (!g_fragEnabled.load()) return;
     uint64_t key = (packMac(a2) << 4) | tid;
     uint32_t now = millis();
@@ -2049,7 +2048,7 @@ static void handleQosData(const DetectFrameEvent &e) {
         return;
     }
     uint32_t lastPN = it->second.lastPN;
-    bool exactReuse = (pn32 == lastPN);
+    bool exactReuse = (pn32 <= lastPN);
     if (exactReuse) {
         if (it->second.reuseCount < 255) it->second.reuseCount++;
     } else {
@@ -3691,191 +3690,6 @@ String pg_getGraphJson() {
 }
 
 // =============================================================================
-// Feature 1+8: CSI Presence / Motion / RF Fingerprint
-// =============================================================================
-static QueueHandle_t g_csiQueue = nullptr;
-static std::atomic<bool> g_csiEnabled{false};
-static std::atomic<uint32_t> g_csiPkts{0};
-static std::atomic<uint32_t> g_csiMotion{0};
-static std::atomic<uint16_t> g_csiThreshQ8{1500};
-static std::vector<CsiMotionEvent> g_csiMotionLog;
-static std::map<uint64_t, CsiFingerprint> g_csiFp;
-
-struct CsiHistory {
-    int16_t prevAmp[64];
-    uint16_t varQ8;
-    uint8_t valid;
-    uint32_t lastTs;
-};
-static std::map<uint64_t, CsiHistory> g_csiHist;
-static constexpr size_t MAX_CSI_MOTION_LOG = 80;
-static constexpr size_t MAX_CSI_FP = 200;
-
-static void IRAM_ATTR csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
-    (void)ctx;
-    if (!info || !info->buf || info->len < 8) return;
-    if (!g_csiQueue) return;
-    CsiSnapshot snap{};
-    memcpy(snap.srcMac, info->mac, 6);
-    snap.rssi = info->rx_ctrl.rssi;
-    snap.channel = info->rx_ctrl.channel;
-    snap.bandwidth = info->rx_ctrl.cwb;
-    snap.ts = info->rx_ctrl.timestamp;
-    int8_t *src = info->buf;
-    int n = info->len / 2;
-    if (n > 64) n = 64;
-    snap.numSubcarriers = (uint8_t)n;
-    for (int i = 0; i < n; ++i) {
-        int8_t I = src[i * 2];
-        int8_t Q = src[i * 2 + 1];
-        int32_t mag2 = (int32_t)I * I + (int32_t)Q * Q;
-        int32_t m = mag2;
-        int32_t r = 0;
-        for (int b = 14; b >= 0; --b) {
-            int32_t t = r + (1 << b);
-            if (t * t <= m) r = t;
-        }
-        snap.amp[i] = (int16_t)r;
-    }
-    if (uxQueueSpacesAvailable(g_csiQueue) < 1) { g_droppedCsi.fetch_add(1); return; }
-    BaseType_t woken = pdFALSE;
-    xQueueSendFromISR(g_csiQueue, &snap, &woken);
-    if (woken) portYIELD_FROM_ISR();
-}
-
-static void csiProcess(const CsiSnapshot &s) {
-    g_csiPkts.fetch_add(1);
-    uint64_t k = packMac(s.srcMac);
-    uint32_t now = millis();
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    CsiHistory &h = g_csiHist[k];
-    if (h.valid) {
-        int32_t accum = 0;
-        uint8_t cnt = s.numSubcarriers < 52 ? s.numSubcarriers : 52;
-        for (uint8_t i = 0; i < cnt; ++i) {
-            int32_t d = (int32_t)s.amp[i] - (int32_t)h.prevAmp[i];
-            accum += d * d;
-        }
-        uint32_t mean = (cnt > 0) ? (uint32_t)(accum / cnt) : 0;
-        uint16_t varQ8 = (mean > 0xFFFF) ? 0xFFFF : (uint16_t)mean;
-        h.varQ8 = (uint16_t)(((uint32_t)h.varQ8 * 7 + varQ8) / 8);
-        uint16_t thresh = g_csiThreshQ8.load();
-        if (h.varQ8 > thresh && (now - h.lastTs) > 500) {
-            CsiMotionEvent ev{};
-            memcpy(ev.srcMac, s.srcMac, 6);
-            ev.varianceQ8 = h.varQ8;
-            ev.rssi = s.rssi;
-            ev.channel = s.channel;
-            ev.ts = now;
-            if (s.rssi > -55) strncpy(ev.zone, "near", sizeof(ev.zone) - 1);
-            else if (s.rssi > -75) strncpy(ev.zone, "mid", sizeof(ev.zone) - 1);
-            else strncpy(ev.zone, "far", sizeof(ev.zone) - 1);
-            g_csiMotionLog.push_back(ev);
-            if (g_csiMotionLog.size() > MAX_CSI_MOTION_LOG) g_csiMotionLog.erase(g_csiMotionLog.begin());
-            g_csiMotion.fetch_add(1);
-            h.lastTs = now;
-            if (meshEnabled) {
-                if (g_meshCsiMotion.load() && meshRateGate("CSI_MOTION_" + macStr(s.srcMac), 5000))
-                    sendToSerial1(getNodeId() + ": CSI_MOTION:" + macStr(s.srcMac) +
-                                  ":" + String(h.varQ8) + ":" + String(s.rssi) + ":" + ev.zone, true);
-            }
-        }
-    }
-    uint8_t cap = s.numSubcarriers < 64 ? s.numSubcarriers : 64;
-    memcpy(h.prevAmp, s.amp, cap * sizeof(int16_t));
-    h.valid = 1;
-
-    if (g_csiFp.size() < MAX_CSI_FP) {
-        CsiFingerprint &fp = g_csiFp[k];
-        if (fp.observations == 0) {
-            memcpy(fp.srcMac, s.srcMac, 6);
-            fp.firstSeen = now;
-        }
-        uint32_t fh = 0x811C9DC5;
-        for (uint8_t i = 0; i < cap; ++i) {
-            uint8_t q = (uint8_t)(s.amp[i] >> 2);
-            fh ^= q; fh *= 16777619u;
-        }
-        fp.profileHash = (uint16_t)(fh ^ (fh >> 16));
-        uint32_t n = fp.observations;
-        fp.avgRssi = (int8_t)(((int32_t)fp.avgRssi * (int32_t)n + s.rssi) / (int32_t)(n + 1));
-        fp.observations = n + 1;
-        fp.lastSeen = now;
-    }
-}
-
-void csi_init() {
-    if (!g_csiQueue) g_csiQueue = xQueueCreate(48, sizeof(CsiSnapshot));
-    wifi_csi_config_t cfg = {
-        .lltf_en = true,
-        .htltf_en = true,
-        .stbc_htltf2_en = true,
-        .ltf_merge_en = true,
-        .channel_filter_en = true,
-        .manu_scale = false,
-        .shift = 0,
-    };
-    esp_wifi_set_csi_config(&cfg);
-    esp_wifi_set_csi_rx_cb(csi_rx_cb, nullptr);
-}
-void csi_enable(bool on) {
-    esp_wifi_set_csi(on);
-    g_csiEnabled.store(on);
-}
-bool csi_isEnabled() { return g_csiEnabled.load(); }
-void csi_clear() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    g_csiMotionLog.clear();
-    g_csiFp.clear();
-    g_csiHist.clear();
-    g_csiPkts.store(0);
-    g_csiMotion.store(0);
-}
-void csi_setMotionThreshold(uint16_t v) { g_csiThreshQ8.store(v); }
-uint16_t csi_getMotionThreshold() { return g_csiThreshQ8.load(); }
-uint32_t csi_packetsObserved() { return g_csiPkts.load(); }
-uint32_t csi_motionEvents() { return g_csiMotion.load(); }
-String csi_getMotionJsonl() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    String out;
-    for (auto &e : g_csiMotionLog) {
-        out += String("{\"src\":\"") + macStr(e.srcMac) +
-               "\",\"var\":" + String(e.varianceQ8) +
-               ",\"rssi\":" + String(e.rssi) +
-               ",\"ch\":" + String(e.channel) +
-               ",\"zone\":\"" + e.zone +
-               "\",\"ts\":" + String(e.ts) + "}\n";
-    }
-    return out;
-}
-String csi_getFingerprintJson() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    String out = "[";
-    bool first = true;
-    for (auto &kv : g_csiFp) {
-        if (!first) out += ",";
-        first = false;
-        out += "{\"src\":\"" + macStr(kv.second.srcMac) +
-               "\",\"hash\":" + String(kv.second.profileHash) +
-               ",\"obs\":" + String((unsigned)kv.second.observations) +
-               ",\"avg_rssi\":" + String(kv.second.avgRssi) +
-               ",\"first\":" + String(kv.second.firstSeen) +
-               ",\"last\":" + String(kv.second.lastSeen) + "}";
-    }
-    out += "]";
-    return out;
-}
-
-void csiDrainTask(void *pv) {
-    CsiSnapshot s;
-    while (true) {
-        if (g_csiQueue && xQueueReceive(g_csiQueue, &s, pdMS_TO_TICKS(200)) == pdTRUE) {
-            csiProcess(s);
-        }
-    }
-}
-
-// =============================================================================
 // Persistence (SD snapshot of mid-term state across reboot)
 // =============================================================================
 static constexpr const char *SNAP_PATH = "/detect_state.bin";
@@ -4085,7 +3899,7 @@ static bool isDetectorPrefix(const String &type) {
         "DEAUTH_FORGE","DEAUTH_FLOOD","EVILTWIN","KARMA_CAND","KARMA_CONFIRMED",
         "BEACON_FORGE","PMKID_HARVEST","PMKID_FORGE","EAPOL_BAIT","PROBE_FLOOD",
         "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","BLE_ATTACK","BLETRACK","SAE_DOS",
-        "OWE_ABUSE","SSID_CONFUSION","FRAG","CSI_MOTION","KRACK","PWNAGOTCHI",
+        "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","TRK_LINK","HSHK","DEAUTH_AP_TARGETED",
         "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD",
         nullptr
@@ -4106,7 +3920,7 @@ void detect_logIncident(const String &raw, const char *src) {
         "DEAUTH_FORGE","DEAUTH_FLOOD","EVILTWIN","KARMA_CAND","KARMA_CONFIRMED",
         "BEACON_FORGE","PMKID_HARVEST","PMKID_FORGE","EAPOL_BAIT","PROBE_FLOOD",
         "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","BLE_ATTACK","BLETRACK","SAE_DOS",
-        "OWE_ABUSE","SSID_CONFUSION","FRAG","CSI_MOTION","KRACK","PWNAGOTCHI",
+        "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","TRK_LINK","HSHK","DEAUTH_AP_TARGETED",
         "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD", nullptr
     };
@@ -4219,16 +4033,6 @@ void pg_announceLocalIdentity(uint32_t h, const char *t, int8_t r) {
 String pg_getGraphJson()                     { return ah_detect::pg_getGraphJson(); }
 void pg_clear()                              { ah_detect::pg_clear(); }
 size_t pg_size()                             { return ah_detect::pg_size(); }
-void csi_init()                              { ah_detect::csi_init(); }
-void csi_enable(bool on)                     { ah_detect::csi_enable(on); detect_persistTunables(); }
-bool csi_isEnabled()                         { return ah_detect::csi_isEnabled(); }
-void csi_clear()                             { ah_detect::csi_clear(); }
-void csi_setMotionThreshold(uint16_t v)      { ah_detect::csi_setMotionThreshold(v); detect_persistTunables(); }
-uint16_t csi_getMotionThreshold()            { return ah_detect::csi_getMotionThreshold(); }
-uint32_t csi_packetsObserved()               { return ah_detect::csi_packetsObserved(); }
-uint32_t csi_motionEvents()                  { return ah_detect::csi_motionEvents(); }
-String csi_getMotionJsonl()                  { return ah_detect::csi_getMotionJsonl(); }
-String csi_getFingerprintJson()              { return ah_detect::csi_getFingerprintJson(); }
 
 // =============================================================================
 // BloomFilter impl (class declared in global scope in detect.h)
@@ -4311,13 +4115,11 @@ void initializeDetect() {
                     p.putBool("ridOn", false);
                     p.putBool("blmgOn", false);
                     p.putBool("karmaOn", false);
-                    p.putBool("csiOn", false);
                     p.putBool("detMig5", true);
                     Serial.println("[NVS] Migration v5: tool-fingerprint detectors ON (pmkid,etw,probe-flood,assoc-sleep,ble-attack)");
                 }
             }
             uint16_t v;
-            if ((v = p.getUShort("csiThr", 0))) ah_detect::g_csiThreshQ8.store(v);
             if ((v = p.getUShort("pmkidWin", 0))) ah_detect::g_pmkidWindow.store(v);
             uint8_t u;
             if ((u = p.getUChar("pmkidN", 0))) ah_detect::g_pmkidMinBssids.store(u);
@@ -4327,7 +4129,6 @@ void initializeDetect() {
             if ((v = p.getUShort("pflRTot", 0))) ah_detect::g_probeRandTotalThresh.store(v);
             if ((v = p.getUShort("pflRDst", 0))) ah_detect::g_probeRandDistinctThresh.store(v);
             ah_detect::g_karmaEnabled.store(p.getBool("karmaOn", false));
-            ah_detect::g_csiEnabled.store(p.getBool("csiOn", false));
             uint32_t w;
             if ((w = p.getULong("trkWin", 0))) ah_detect::g_trackerWindowMs.store(w);
             if ((w = p.getULong("huntCool", 0))) ah_detect::g_huntCooldown.store(w);
@@ -4370,7 +4171,6 @@ void initializeDetect() {
             ah_detect::g_meshPwna.store(p.getBool("mPwna", true));
             ah_detect::g_meshKarma.store(p.getBool("mKarma", true));
             ah_detect::g_meshRecon.store(p.getBool("mRecon", true));
-            ah_detect::g_meshCsiMotion.store(p.getBool("mCsim", false));
             ah_detect::g_meshAttackerHunt.store(p.getBool("mHunt", true));
             ah_detect::g_probeFloodEnabled.store(p.getBool("pflOn", true));
             ah_detect::g_assocSleepEnabled.store(p.getBool("aslOn", true));
@@ -4378,8 +4178,6 @@ void initializeDetect() {
             p.end();
         }
     }
-    ah_detect::csi_init();
-    xTaskCreatePinnedToCore(ah_detect::csiDrainTask, "CsiDrain", 4096, NULL, 2, NULL, 1);
     {
         static const char *kBootClear[] = {
             "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl",
@@ -4541,7 +4339,6 @@ void sentinel_loadUserPref() {
 void detect_persistTunables() {
     Preferences p;
     if (!p.begin("ahdetect", false)) return;
-    p.putUShort("csiThr", ah_detect::g_csiThreshQ8.load());
     p.putUShort("pmkidWin", ah_detect::g_pmkidWindow.load());
     p.putUChar("pmkidN", ah_detect::g_pmkidMinBssids.load());
     p.putUChar("saeN", ah_detect::g_saeUnmatchedThresh.load());
@@ -4551,7 +4348,6 @@ void detect_persistTunables() {
     p.putUShort("pflRDst", ah_detect::g_probeRandDistinctThresh.load());
     p.putUChar("fragN", ah_detect::g_fragReuseThresh.load());
     p.putBool("karmaOn", ah_detect::g_karmaEnabled.load());
-    p.putBool("csiOn", ah_detect::g_csiEnabled.load());
     p.putULong("trkWin", ah_detect::g_trackerWindowMs.load());
     p.putULong("huntCool", ah_detect::g_huntCooldown.load());
     p.putBool("pmkidOn", ah_detect::g_pmkidEnabled.load());
@@ -4585,7 +4381,6 @@ void detect_persistTunables() {
     p.putBool("mPwna", ah_detect::g_meshPwna.load());
     p.putBool("mKarma", ah_detect::g_meshKarma.load());
     p.putBool("mRecon", ah_detect::g_meshRecon.load());
-    p.putBool("mCsim", ah_detect::g_meshCsiMotion.load());
     p.putBool("mHunt", ah_detect::g_meshAttackerHunt.load());
     p.end();
 }
@@ -4764,14 +4559,6 @@ void detectTask(void *pv) {
             }
             for (auto it = g_tofPeers.begin(); it != g_tofPeers.end(); ) {
                 if (now - it->second.lastSeen > 1800000UL) it = g_tofPeers.erase(it);
-                else ++it;
-            }
-            for (auto it = g_csiFp.begin(); it != g_csiFp.end(); ) {
-                if (now - it->second.lastSeen > 600000UL) it = g_csiFp.erase(it);
-                else ++it;
-            }
-            for (auto it = g_csiHist.begin(); it != g_csiHist.end(); ) {
-                if (now - it->second.lastTs > 300000UL) it = g_csiHist.erase(it);
                 else ++it;
             }
             for (auto it = g_pgGraph.begin(); it != g_pgGraph.end(); ) {
@@ -5213,11 +5000,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         if (p1 < 0) return;
         String src = msg.substring(5, p1);
         quorum_addReport("FRAG", src, fromNode, -60);
-    } else if (msg.startsWith("CSI_MOTION:")) {
-        int p1 = msg.indexOf(':', 11);
-        if (p1 < 0) return;
-        String src = msg.substring(11, p1);
-        quorum_addReport("CSI_MOTION", src, fromNode, -60);
     } else if (msg.startsWith("PWNAGOTCHI:")) {
         int p1 = msg.indexOf(':', 11);
         if (p1 < 0) return;
@@ -5812,7 +5594,6 @@ String detect_getConfigJson() {
     j += _bjson("bloom_gossip", g_bloomGossipEnabled.load());
     j += _bjson("attacker_trilat", g_attackerTrilatEnabled.load());
     j += _bjson("karma", g_karmaEnabled.load());
-    j += _bjson("csi", g_csiEnabled.load());
     j += _bjson("mesh_pmkid", g_meshPmkid.load());
     j += _bjson("mesh_eviltwin", g_meshEviltwin.load());
     j += _bjson("mesh_ssid_confusion", g_meshSsidConf.load());
@@ -5825,13 +5606,11 @@ String detect_getConfigJson() {
     j += _bjson("mesh_pwna", g_meshPwna.load());
     j += _bjson("mesh_karma", g_meshKarma.load());
     j += _bjson("mesh_recon", g_meshRecon.load());
-    j += _bjson("mesh_csi_motion", g_meshCsiMotion.load());
     j += _bjson("mesh_attacker_hunt", g_meshAttackerHunt.load());
     // New tool-fingerprint detector toggles (tool/tool signatures)
     j += _bjson("probe_flood", g_probeFloodEnabled.load());
     j += _bjson("assoc_sleep", g_assocSleepEnabled.load());
     j += _bjson("ble_attack",  g_bleAttackEnabled.load());
-    j += _ijson("csi_thresh", g_csiThreshQ8.load());
     j += _ijson("pmkid_window", g_pmkidWindow.load());
     j += _ijson("pmkid_min_bssids", g_pmkidMinBssids.load());
     j += _ijson("sae_window", g_saeWindow.load());
@@ -5896,7 +5675,6 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "bloom_gossip", g_bloomGossipEnabled);
     _setb(b, "attacker_trilat", g_attackerTrilatEnabled);
     _setb(b, "karma", g_karmaEnabled);
-    _setb(b, "csi", g_csiEnabled);
     _setb(b, "mesh_pmkid", g_meshPmkid);
     _setb(b, "mesh_eviltwin", g_meshEviltwin);
     _setb(b, "mesh_ssid_confusion", g_meshSsidConf);
@@ -5909,12 +5687,10 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "mesh_pwna", g_meshPwna);
     _setb(b, "mesh_karma", g_meshKarma);
     _setb(b, "mesh_recon", g_meshRecon);
-    _setb(b, "mesh_csi_motion", g_meshCsiMotion);
     _setb(b, "mesh_attacker_hunt", g_meshAttackerHunt);
     _setb(b, "probe_flood", g_probeFloodEnabled);
     _setb(b, "assoc_sleep", g_assocSleepEnabled);
     _setb(b, "ble_attack",  g_bleAttackEnabled);
-    _seti(b, "csi_thresh", g_csiThreshQ8);
     _seti(b, "pmkid_window", g_pmkidWindow);
     _setu8(b, "pmkid_min_bssids", g_pmkidMinBssids);
     _seti(b, "sae_window", g_saeWindow);
@@ -5928,22 +5704,18 @@ bool detect_setConfigFromJson(const String &b) {
 }
 uint32_t detect_droppedWifi() { return g_droppedWifi.load(); }
 uint32_t detect_droppedBle() { return g_droppedBle.load(); }
-uint32_t detect_droppedCsi() { return g_droppedCsi.load(); }
 uint32_t detect_meshRateGated() { return g_meshGated.load(); }
 String detect_getHealthJson() {
     UBaseType_t framesQ = detectFrameQueue ? uxQueueMessagesWaiting(detectFrameQueue) : 0;
-    UBaseType_t csiQ = g_csiQueue ? uxQueueMessagesWaiting(g_csiQueue) : 0;
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String j = "{";
     j += "\"uptime_ms\":" + String(millis());
     j += ",\"heap_free\":" + String((unsigned long)ESP.getFreeHeap());
     j += ",\"heap_min\":" + String((unsigned long)ESP.getMinFreeHeap());
     j += ",\"psram_free\":" + String((unsigned long)ESP.getFreePsram());
-    j += ",\"queues\":{\"frame\":" + String((unsigned)framesQ) +
-         ",\"csi\":" + String((unsigned)csiQ) + "}";
+    j += ",\"queues\":{\"frame\":" + String((unsigned)framesQ) + "}";
     j += ",\"drops\":{\"wifi\":" + String(g_droppedWifi.load()) +
          ",\"ble\":" + String(g_droppedBle.load()) +
-         ",\"csi\":" + String(g_droppedCsi.load()) +
          ",\"mesh_gated\":" + String(g_meshGated.load()) + "}";
     j += ",\"state\":{\"ap_baseline\":" + String((unsigned)g_apBaseline.size()) +
          ",\"pmkid_bursts\":" + String((unsigned)g_pmkidBursts.size()) +
@@ -5960,7 +5732,6 @@ String detect_getHealthJson() {
          ",\"recon\":" + String((unsigned)g_recon.size()) +
          ",\"alerts\":" + String((unsigned)g_alerts.size()) +
          ",\"tof_peers\":" + String((unsigned)g_tofPeers.size()) +
-         ",\"csi_fp\":" + String((unsigned)g_csiFp.size()) +
          ",\"pg_graph\":" + String((unsigned)g_pgGraph.size()) +
          ",\"rid_claims\":" + String((unsigned)g_ridClaims.size()) +
          ",\"probe_flood\":" + String((unsigned)g_probeFlood.size()) +
@@ -5969,11 +5740,8 @@ String detect_getHealthJson() {
          ",\"beacon_forge\":" + String((unsigned)g_beaconForgeFired.size()) +
          ",\"ble_attack\":" + String((unsigned)g_bleAttackLog.size()) +
          ",\"airtag_replay\":" + String((unsigned)g_airtagReplay.size()) + "}";
-    j += ",\"counters\":{\"csi_pkts\":" + String(g_csiPkts.load()) +
-         ",\"csi_motion\":" + String(g_csiMotion.load()) +
-         ",\"krack_events\":" + String(g_krackEvents.load()) + "}";
+    j += ",\"counters\":{\"krack_events\":" + String(g_krackEvents.load()) + "}";
     j += ",\"pps_locked\":" + String(g_ppsLocked.load() ? "true" : "false");
-    j += ",\"csi_enabled\":" + String(g_csiEnabled.load() ? "true" : "false");
     j += ",\"karma_enabled\":" + String(g_karmaEnabled.load() ? "true" : "false");
     j += "}";
     return j;
@@ -5995,9 +5763,6 @@ void detect_clearAll() {
     g_bleTrackers.clear();
     g_recon.clear();
     g_apBaseline.clear();
-    g_csiMotionLog.clear();
-    g_csiFp.clear();
-    g_csiHist.clear();
     g_pgGraph.clear();
     g_chains.clear();
     g_vanished.clear();
