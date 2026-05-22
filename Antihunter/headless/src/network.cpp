@@ -673,7 +673,8 @@ static const char *groupMembers(const String &name)
   if (name == "recon")                       return "pmkid,probe_flood,hshk";
   if (name == "physical" || name == "phys")  return "frag,tsf,jam";
   if (name == "mesh")                        return "mesh_guard";
-  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard";
+  if (name == "ble")                         return "ble_attack,ble_malformed,tracker,airtag";
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard,ble_attack,ble_malformed,tracker,airtag";
   return nullptr;
 }
 

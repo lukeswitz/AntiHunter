@@ -5132,6 +5132,17 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         String bssid = msg.substring(offs, p1);
         int sec = msg.substring(p1 + 1).toInt();
         quorum_addReport("KARMA", bssid, fromNode, (int8_t)sec);
+    } else if (msg.startsWith("BLE_ATTACK:")) {
+        int last = msg.lastIndexOf(':');
+        String key = (last > 11) ? msg.substring(11, last) : msg.substring(11);
+        int rssi = (last > 0) ? msg.substring(last + 1).toInt() : -60;
+        quorum_addReport("BLE_ATTACK", key, fromNode, (int8_t)rssi);
+    } else if (msg.startsWith("BLETRACK:")) {
+        int last = msg.lastIndexOf(':');
+        String key = (last > 9) ? msg.substring(9, last) : msg.substring(9);
+        quorum_addReport("BLETRACK", key, fromNode, -60);
+    } else if (msg.startsWith("TRK_LINK:")) {
+        quorum_addReport("TRK_LINK", msg.substring(9), fromNode, -60);
     } else if (msg.startsWith("IDHASH:")) {
         int p1 = msg.indexOf(':', 7);
         int p2 = msg.indexOf(':', p1 + 1);
