@@ -63,8 +63,14 @@ void uartForwardTask(void *parameter) {
           } else {
             if (toProcess.startsWith("PMKID_HARVEST:") ||
                 toProcess.startsWith("EVILTWIN:") ||
-                toProcess.startsWith("SSID_CONFUSION:") ||
                 toProcess.startsWith("SAE_DOS:") ||
+                toProcess.startsWith("DEAUTH_FLOOD:") ||
+                toProcess.startsWith("BEACON_FORGE:") ||
+                toProcess.startsWith("PMKID_FORGE:") ||
+                toProcess.startsWith("EAPOL_BAIT:") ||
+                toProcess.startsWith("PROBE_FLOOD:") ||
+                toProcess.startsWith("PROBE_FLOOD_BEHAVE:") ||
+                toProcess.startsWith("ASSOC_SLEEP:") ||
                 toProcess.startsWith("RECON:") ||
                 toProcess.startsWith("RID_CLAIM:") ||
                 toProcess.startsWith("RID_RX:") ||

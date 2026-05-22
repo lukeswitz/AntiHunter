@@ -4792,17 +4792,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         quorum_addReport("BEACON_FORGE", bssid, fromNode, (int8_t)rssi);
         return;
     }
-    if (msg.startsWith("BLE_ATTACK:")) {
-        // BLE_ATTACK:<tool>:<addr>:<rssi>
-        int p1 = msg.indexOf(':', 11);
-        int p2 = msg.indexOf(':', p1 + 1);
-        int p3 = msg.indexOf(':', p2 + 1);
-        if (p1 < 0 || p2 < 0 || p3 < 0) return;
-        String addr = msg.substring(p1 + 1, p2);
-        int rssi = msg.substring(p3 + 1).toInt();
-        quorum_addReport("BLE_ATTACK", addr, fromNode, (int8_t)rssi);
-        return;
-    }
     if (msg.startsWith("PMKID_FORGE:")) {
         // PMKID_FORGE:<src>:<sta>:<rssi>
         int p1 = msg.indexOf(':', 12);
@@ -4871,23 +4860,11 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         if (p2 < 0) return;
         int rssi = msg.substring(p2 + 1).toInt();
         quorum_addReport("EVILTWIN", bssid, fromNode, (int8_t)rssi);
-    } else if (msg.startsWith("SSID_CONFUSION:")) {
-        int p1 = msg.indexOf(':', 15);
-        if (p1 < 0) return;
-        String bssid = msg.substring(15, p1);
-        int rssi = msg.substring(p1 + 1).toInt();
-        quorum_addReport("SSIDCONF", bssid, fromNode, (int8_t)rssi);
     } else if (msg.startsWith("SAE_DOS:")) {
         int p1 = msg.indexOf(':', 8);
         if (p1 < 0) return;
         String bssid = msg.substring(8, p1);
         quorum_addReport("SAE_DOS", bssid, fromNode, -50);
-    } else if (msg.startsWith("BLETRACK:")) {
-        int p1 = msg.indexOf(':', 9);
-        int p2 = msg.indexOf(':', p1 + 1);
-        if (p1 < 0 || p2 < 0) return;
-        String addr = msg.substring(9, p1);
-        quorum_addReport("BLETRACK", addr, fromNode, -60);
     } else if (msg.startsWith("RID_CLAIM:")) {
         // uavId:lat:lon:alt
         String rest = msg.substring(10);
@@ -5013,39 +4990,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         String bssid = msg.substring(offs, p1);
         int sec = msg.substring(p1 + 1).toInt();
         quorum_addReport("KARMA", bssid, fromNode, (int8_t)sec);
-    } else if (msg.startsWith("TRK_LINK:")) {
-        int p1 = msg.indexOf(':', 9);
-        int p2 = msg.indexOf(':', p1 + 1);
-        int p3 = msg.indexOf(':', p2 + 1);
-        if (p1 < 0 || p2 < 0 || p3 < 0) return;
-        uint32_t cid = (uint32_t)msg.substring(9, p1).toInt();
-        String vendor = msg.substring(p1 + 1, p2);
-        String addrS  = msg.substring(p2 + 1, p3);
-        int rssi      = msg.substring(p3 + 1).toInt();
-        uint8_t addr[6];
-        {
-            String t;
-            for (size_t i = 0; i < addrS.length(); ++i) { char c = addrS[i]; if (isxdigit((int)c)) t += (char)toupper(c); }
-            if (t.length() != 12) return;
-            for (int i = 0; i < 6; i++) addr[i] = (uint8_t)strtoul(t.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
-        }
-        uint32_t now = millis();
-        std::lock_guard<std::recursive_mutex> lk(g_mtx);
-        TrackerChain &c = g_chains[cid];
-        if (c.chainId == 0) {
-            c.chainId = cid;
-            strncpy(c.vendor, vendor.c_str(), sizeof(c.vendor) - 1);
-            c.firstSeen = now;
-            c.avgRssi = (int8_t)rssi;
-        }
-        TrackerChain::Link l{};
-        memcpy(l.addr, addr, 6);
-        l.rssi = (int8_t)rssi;
-        l.startTs = now;
-        l.endTs = now;
-        c.links.push_back(l);
-        if (c.linkCount < 255) c.linkCount++;
-        c.lastSeen = now;
     } else if (msg.startsWith("IDHASH:")) {
         int p1 = msg.indexOf(':', 7);
         int p2 = msg.indexOf(':', p1 + 1);
