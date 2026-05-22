@@ -1191,7 +1191,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
           </div>
           <div style="font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5;">
-            Persistent RF surveillance with adversary tracking. Beyond signal detection: validates Remote ID claims via mesh geometry, scores hostile recon behavior, correlates BLE tracker rotation chains, audits handshake captures, fingerprints attacker tools, cross-verifies threats across mesh nodes.
+            Persistent WiFi RF surveillance with adversary tracking. Beyond signal detection: validates Remote ID claims via mesh geometry, scores hostile recon behavior, audits handshake captures, fingerprints attacker tools, cross-verifies threats across mesh nodes.
           </div>
         </div>
 
@@ -1242,8 +1242,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div class="stat" data-cfg="sae"><div class="stat-label">SAE DoS</div><div class="stat-value" id="d-sae">0</div></div>
               <div class="stat" data-cfg="owe"><div class="stat-label">OWE Abuse</div><div class="stat-value" id="d-owe">0</div></div>
               <div class="stat" data-cfg="frag"><div class="stat-label">FragAttacks</div><div class="stat-value" id="d-frag">0</div></div>
-              <div class="stat" data-cfg="ble_malformed"><div class="stat-label">BLE Malformed</div><div class="stat-value" id="d-blem">0</div></div>
-              <div class="stat" data-cfg="tracker,airtag"><div class="stat-label">BLE Trackers</div><div class="stat-value" id="d-trk">0</div></div>
               <div class="stat" data-cfg="pmkid,probe_flood,hshk"><div class="stat-label">Recon</div><div class="stat-value" id="d-rec">0</div></div>
               <div class="stat" data-cfg="attacker_trilat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
               <div class="stat" data-cfg="always"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
@@ -1429,32 +1427,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
-        <div class="card" data-key="trackers" data-sev="med">
-          <div class="card-header" onclick="toggleCollapse('detTrackerCard')">
-            <h3><span class="sev med">med</span>BLE Trackers</h3>
-            <span class="collapse-icon" id="detTrackerCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="detTrackerCardBody">
-            <button class="btn alt" onclick="detectClearTrackers()" style="margin-bottom:6px;">Clear Watchlist</button>
-            <details open><summary><span>▶</span> Watchlist (latest)</summary><pre id="d-trkpre" class="log-pre">--</pre></details>
-            <details><summary><span>▶</span> Rotation Chains <span class="num" id="trk-n">0</span></summary>
-              <button class="btn alt" onclick="trkClear()" style="margin:6px 0;">Clear Chains</button>
-              <pre id="trk-pre" class="log-pre">--</pre>
-            </details>
-          </div>
-        </div>
-
-        <div class="card" data-key="airtag" data-sev="med">
-          <div class="card-header" onclick="toggleCollapse('detAirtagCard')">
-            <h3><span class="sev med">med</span>AirTag Owner-Presence <span class="num" id="at-n">0</span></h3>
-            <span class="collapse-icon" id="detAirtagCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="detAirtagCardBody">
-            <button class="btn alt" onclick="atClear()" style="margin-bottom:6px;">Clear</button>
-            <pre id="at-pre" class="log-pre">--</pre>
-          </div>
-        </div>
-
         <div class="card" data-key="karma" data-sev="crit">
           <div class="card-header" onclick="toggleCollapse('detKarmaCard')">
             <h3><span class="sev crit">crit</span>KARMA Probe-Bait</h3>
@@ -1545,17 +1517,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div class="card-body collapsed" id="detAssocSleepCardBody">
             <button class="btn alt" onclick="asClear()" style="margin-bottom:6px;">Clear</button>
             <pre id="as-pre" class="log-pre">--</pre>
-          </div>
-        </div>
-
-        <div class="card" data-key="bleattack" data-sev="high" title="tool/tool BLE attack tool fingerprints: SourApple FF 4C 00 0F 05 C0/C1, AppleJuice 4C 00 04 04 2A, Samsung FF 75 00 01 00 02, SwiftPair FF 06 00 03 00 80, FastPair 16 2C FE 00 B7 27, Flipper 0x0FBA, AirTag replay (same payload from >=2 MACs)">
-          <div class="card-header" onclick="toggleCollapse('detBleAttackCard')">
-            <h3><span class="sev high">high</span>BLE Attack Tools <span class="num" id="ba-n">0</span></h3>
-            <span class="collapse-icon" id="detBleAttackCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="detBleAttackCardBody">
-            <button class="btn alt" onclick="baClear()" style="margin-bottom:6px;">Clear</button>
-            <pre id="ba-pre" class="log-pre">--</pre>
           </div>
         </div>
 
@@ -5057,11 +5018,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const q=((document.getElementById('saSearch')||{}).value||'').toLowerCase();
         let rows=_saData.filter(x=>(ty==='ALL'||x.type===ty)&&(!q||JSON.stringify(x).toLowerCase().includes(q)));
         const total=rows.length; rows=rows.slice(-300).reverse();
-        if(!rows.length){area.innerHTML='<div class="data-empty">No incidents.</div>';return;}
-        area.innerHTML=`<div style="font-size:11px;color:var(--mut);margin-bottom:4px;">${total} incident${total!=1?'s':''}</div>`
-          +'<table class="dt"><thead><tr><th>Uptime</th><th>Node</th><th>Type</th><th>Src</th><th>Raw</th></tr></thead><tbody>'
-          +rows.map(r=>`<tr><td>${r.ts||''}</td><td>${r.node||''}</td><td style="color:#e08;">${r.type||''}</td><td>${r.src||''}</td><td>${String(r.raw||'').replace(/</g,'&lt;')}</td></tr>`).join('')
+        // Per-type breakdown over the search-filtered set (ignores type filter so
+        // you can see the whole distribution while drilled into one type).
+        const base=_saData.filter(x=>!q||JSON.stringify(x).toLowerCase().includes(q));
+        const counts={}; base.forEach(x=>{const t=x.type||'?';counts[t]=(counts[t]||0)+1;});
+        const SEVC={crit:'#fca5a5',high:'#fdba74',med:'#fde68a',info:'#cbd5e1'};
+        const breakdown=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).map(t=>{
+          const sv=_saSev(t); const on=(ty===t);
+          return `<span onclick="(()=>{const s=document.getElementById('saType');if(s){s.value='${on?'ALL':t}';loadSentinelAnalysis();}})()" style="cursor:pointer;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid ${SEVC[sv]};color:${SEVC[sv]};background:${on?'rgba(255,255,255,.12)':'transparent'};">${t} ${counts[t]}</span>`;
+        }).join(' ');
+        if(!rows.length){area.innerHTML=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${breakdown}</div><div class="data-empty">No incidents.</div>`;return;}
+        area.innerHTML=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${breakdown}</div>`
+          +`<div style="font-size:11px;color:var(--mut);margin-bottom:4px;">${total} incident${total!=1?'s':''}${ty!=='ALL'?' · '+ty:''}</div>`
+          +'<table class="dt"><thead><tr><th>Uptime</th><th>Sev</th><th>Node</th><th>Type</th><th>Src</th><th>Raw</th></tr></thead><tbody>'
+          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td>${r.ts||''}</td><td style="color:${SEVC[sv]};font-weight:700;">${sv.toUpperCase()}</td><td>${r.node||''}</td><td style="color:#e08;">${r.type||''}</td><td>${r.src||''}</td><td>${String(r.raw||'').replace(/</g,'&lt;')}</td></tr>`;}).join('')
           +'</tbody></table>';
+      }
+      // Prefix-based severity for sentinel incident types (mirrors detector card sev).
+      function _saSev(t){
+        t=(t||'').toUpperCase();
+        if(/^(PMKID|SAE_DOS|KARMA|EAPOL_BAIT|KRACK|PMKID_FORGE|ATTACKER)/.test(t))return 'crit';
+        if(/^(DEAUTH|BEACON|EVILTWIN|SSID_CONFUSION|PROBE_FLOOD|OWE_ABUSE|RID)/.test(t))return 'high';
+        if(/^(FRAG|ASSOC_SLEEP)/.test(t))return 'med';
+        return 'info';
       }
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
@@ -5305,8 +5284,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         setc('d-sae',['SAE_DOS']);
         setc('d-owe',['OWE_ABUSE']);
         setc('d-frag',['FRAG']);
-        setc('d-blem',['BLE_MALFORMED']);
-        setc('d-hs-krack',['KRACK']);
         _overviewVisibility(cfg);
       }
       // Hide overview stats whose detector is disabled AND has zero hits.
@@ -5324,13 +5301,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,tr,rc,ch]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,df,q,b,p,rid,rc,ch]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
-          _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
+          _jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
-          _jj('/api/rid_claims'),_jj('/api/ble_tracker'),_jj('/api/recon'),
+          _jj('/api/rid_claims'),_jj('/api/recon'),
           _jj('/api/channel_partition')
         ]);
         const dEl = document.getElementById('d-dauth');
@@ -5341,8 +5318,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('d-sae').textContent=_countLines(sa);
         document.getElementById('d-owe').textContent=_countLines(ow);
         document.getElementById('d-frag').textContent=_countLines(fr);
-        document.getElementById('d-blem').textContent=_countLines(bm);
-        document.getElementById('d-trk').textContent=(tr||[]).length;
         document.getElementById('d-rec').textContent=(rc||[]).length;
         document.getElementById('d-pps').textContent=p?(p.locked?'YES':'no')+' edge='+p.last_edge:'--';
         document.getElementById('d-bl').textContent=b?(b.local_bits_set+' / '+b.capacity_bits):'--';
@@ -5364,7 +5339,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         parseLines(pm,'PMKID','crit');parseLines(et,'EvilTwin','high');parseLines(sc,'SSIDConf','high');
         parseLines(sa,'SAE','high');parseLines(ow,'OWE','med');parseLines(fr,'Frag','med');
-        parseLines(bm,'BLEMalformed','med');
         evtRows.sort((a,b)=>(b.ts||0)-(a.ts||0));
         detRenderTable('d-stream',evtRows.slice(0,40),[
           {key:'kind',label:'Type'},
@@ -5390,43 +5364,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(n>0)detMarkActive('probegraph');
       }
       async function pgClear(){await fetch('/api/probegraph/clear',{method:'POST'});pgTick();}
-      async function trkTick(){
-        if(!detTabActive())return;
-        const [chains,watch]=await Promise.all([_jj('/api/tracker_chains'),_jj('/api/ble_tracker')]);
-        const n=(chains||[]).length;
-        document.getElementById('trk-n').textContent=n;
-        detRenderTable('trk-pre',chains||[],[
-          {key:'chain',label:'Chain'},{key:'vendor',label:'Vendor'},
-          {key:'links',label:'Links'},{key:'avg_rssi',label:'Avg RSSI'},
-          {key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        detRenderTable('d-trkpre',watch||[],[
-          {key:'addr',label:'Addr'},{key:'vendor',label:'Vendor'},
-          {key:'sightings',label:'Sight'},{key:'avg_rssi',label:'RSSI'},
-          {key:'score',label:'Score'},{key:'last_seen',label:'Last',get:r=>_ago(r.last_seen)}
-        ]);
-        if(n>0||(watch||[]).length>0)detMarkActive('trackers');
-      }
-      async function trkClear(){await fetch('/api/tracker_chains/clear',{method:'POST'});trkTick();}
-      async function atTick(){
-        if(!detTabActive())return;
-        const a=await _jj('/api/airtag_presence');
-        const n=(a||[]).length;
-        document.getElementById('at-n').textContent=n;
-        detRenderTable('at-pre',a||[],[
-          {key:'addr',label:'Addr'},{key:'owner_nearby',label:'Owner'},
-          {key:'battery',label:'Battery'},{key:'observations',label:'Obs'},
-          {key:'last_rssi',label:'RSSI'},{key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        if(n>0)detMarkActive('airtag');
-      }
-      async function atClear(){await fetch('/api/airtag_presence/clear',{method:'POST'});atTick();}
       async function hsTick(){
         if(!detTabActive())return;
         const [r,s]=await Promise.all([_jj('/api/handshakes'),_jj('/api/handshakes/stats')]);
         if(s){
           document.getElementById('hs-n').textContent=s.count;
-          const ko=document.getElementById('d-hs-krack'); if(ko)ko.textContent=s.krack_events;
+          const ko=document.getElementById('d-hs-krack'); if(ko)ko.textContent=s.krack_events||0;
         }
         const rows=(r||[]).map(x=>Object.assign({mask:['','M1','M2','M3','M4','M1M2','M1M3','M1-3','M4o','M1M4','M2M4','M1-3M4','M3M4','M1M3M4','M2-4','M1-4'][x.seen_mask&15]||x.seen_mask},x));
         detRenderTable('hs-pre',rows,[
@@ -5580,9 +5523,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const VERIFIED_DETECTORS = new Set(['events','sentinel','overview','mesh','pmkid','eviltwin']);
       const DETECTOR_TOGGLE_KEYS = {
         'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
-        'oweabuse':'oweOn','frag':'fragOn','blemal':'blemOn','karma':'karmaOn',
-        'pwna':'pwnaOn','trackers':'trkOn','airtag':'atgOn','tsf':'tsfOn',
-        'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn','bleattack':'blatkOn',
+        'oweabuse':'oweOn','frag':'fragOn','karma':'karmaOn',
+        'pwna':'pwnaOn','tsf':'tsfOn',
+        'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn',
         'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
         'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn'
       };
@@ -5650,13 +5593,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'overview':'live','apclients':'live',
         'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
         'physical':'detectors','meshcfg':'detectors',
-        'rid':'details','recon':'details','trackers':'details',
-        'airtag':'details','karma':'details','hunts':'details',
+        'rid':'details','recon':'details','karma':'details','hunts':'details',
         'handshake':'details','bcnforge':'details','pmkidforge':'details',
         'eapolbait':'details','probeflood':'details','assocsleep':'details',
-        'bleattack':'details','probegraph':'details','tsf':'details','tof':'details',
+        'probegraph':'details','tsf':'details','tof':'details',
         'pmkid':'details','eviltwin':'details','ssidconf':'details',
-        'saedos':'details','oweabuse':'details','frag':'details','blemal':'details',
+        'saedos':'details','oweabuse':'details','frag':'details',
         'pwna':'details','krack':'details'
       };
 
@@ -5776,18 +5718,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const DET_FEATURES_LOCAL=[
         ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
-        ['ble_malformed','BLE Malformed'],['hshk','Handshake Reconstruction'],
-        ['tracker','BLE Tracker'],['airtag','AirTag (+ Replay)'],
-        ['tsf','TSF Clock-Skew'],['rid_spoof','RID Spoof Validator'],
+        ['hshk','Handshake Reconstruction'],
+        ['tsf','TSF / Evil-Twin'],['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
         ['karma','KARMA Bait'],
-        ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep'],
-        ['ble_attack','BLE Attack Tools']
+        ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep']
       ];
       const DET_FEATURES_MESH=[
         ['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil-Twin'],['mesh_ssid_confusion','SSID Conf'],
-        ['mesh_sae','SAE'],['mesh_frag','FragAttacks'],['mesh_ble_malformed','BLE Malformed'],
-        ['mesh_hshk','Handshakes'],['mesh_krack','KRACK'],['mesh_tracker','Tracker'],
+        ['mesh_sae','SAE'],['mesh_frag','FragAttacks'],
+        ['mesh_hshk','Handshakes'],['mesh_krack','KRACK'],
         ['mesh_karma','KARMA'],['mesh_recon','Recon'],
         ['mesh_attacker_hunt','Attacker Hunt']
       ];
@@ -5806,10 +5746,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function detRenderConfig(){
         if(!_detCfg)return;
         // Tool-fingerprint detectors (tool/tool byte/behavior matches) split out
-        // for clarity. Re-classifying probe_flood + assoc_sleep + ble_attack here.
-        const toolKeys=['probe_flood','assoc_sleep','ble_attack'];
-        const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof'];
-        const bleKeys=['ble_malformed','tracker','airtag','karma'];
+        // for clarity. Re-classifying probe_flood + assoc_sleep here.
+        const toolKeys=['probe_flood','assoc_sleep'];
+        const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof','karma'];
         const meshKeys=DET_FEATURES_MESH.map(x=>x[0]);
         const tsfKey='tsf';const bloomKey='bloom_gossip';
         function rowHtml(k,label){
@@ -5857,8 +5796,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       };
       const DET_ALL_LOCAL=['pmkid','eviltwin','sae','owe','frag','hshk',
         'tsf','karma','probe_flood','assoc_sleep'];
-      const DET_ALL_MESH=['mesh_pmkid','mesh_eviltwin','mesh_sae','mesh_frag','mesh_ble_malformed',
-        'mesh_hshk','mesh_krack','mesh_tracker','mesh_karma','mesh_recon','mesh_attacker_hunt'];
+      const DET_ALL_MESH=['mesh_pmkid','mesh_eviltwin','mesh_sae','mesh_frag',
+        'mesh_hshk','mesh_krack','mesh_karma','mesh_recon','mesh_attacker_hunt'];
       // Turn a single threat group on or off (members only; leaves other detectors untouched).
       async function detGroupToggle(group){
         const members=DET_GROUPS[group]; if(!members) return;
@@ -5875,7 +5814,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let patch={};
         if(name==='all-on'){DET_ALL_LOCAL.forEach(k=>patch[k]=true);DET_ALL_MESH.forEach(k=>patch[k]=true);}
         else if(name==='all-off'){DET_ALL_LOCAL.forEach(k=>patch[k]=false);DET_ALL_MESH.forEach(k=>patch[k]=false);}
-        else if(name==='quiet'){patch={frag:false,ble_malformed:false,tsf:false,mesh_frag:false,mesh_ble_malformed:false,mesh_hshk:false};}
+        else if(name==='quiet'){patch={frag:false,tsf:false,mesh_frag:false,mesh_hshk:false};}
         else if(name==='mesh-silent'){DET_ALL_MESH.forEach(k=>patch[k]=false);}
         else if(name==='mesh-all'){DET_ALL_MESH.forEach(k=>patch[k]=true);}
         await detPostCfg(patch);
@@ -5933,9 +5872,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       function detAllTicks(){
         if(!detTabActive())return;
-        detectTick();pgTick();trkTick();atTick();hsTick();
+        detectTick();pgTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
-        bfTick();pfTick();ebTick();pflTick();asTick();baTick();apClientsTick();
+        bfTick();pfTick();ebTick();pflTick();asTick();apClientsTick();
         setTimeout(renderDetailsVisibility,300);
       }
       async function _jsonl(path){
@@ -5985,15 +5924,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(a.length>0)detMarkActive('assocsleep');
       }
       async function asClear(){await fetch('/api/assoc_sleep/clear',{method:'POST'});asTick();}
-      async function baTick(){if(!detTabActive())return;
-        const a=await _jsonl('/api/ble_attack.jsonl');
-        document.getElementById('ba-n').textContent=a.length;
-        _renderJsonl('ba-pre',a,['ts','tool','addr','family','rssi','reason']);
-        if(a.length>0)detMarkActive('bleattack');
-      }
-      async function baClear(){await fetch('/api/ble_attack/clear',{method:'POST'});baTick();}
       async function detectAssignChannels(){await fetch('/api/channel_partition',{method:'POST'});detectTick()}
-      async function detectClearTrackers(){await fetch('/api/ble_tracker/clear',{method:'POST'});detectTick()}
       async function detectClearRecon(){await fetch('/api/recon/clear',{method:'POST'});detectTick()}
       async function detectReloadOui(){await fetch('/api/oui/reload',{method:'POST'});detectTick()}
       detLoadCfg();
