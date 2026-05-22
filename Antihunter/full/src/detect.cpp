@@ -193,6 +193,21 @@ static uint32_t g_jamEverValid[14] = {0};
 static uint32_t g_jamLastEmit[14]  = {0};
 static uint32_t g_jamLastEval = 0;
 
+// Mesh-channel disruption guard (text-layer, AntiHunter's own Meshtastic channel).
+// Detects: self-ID spoof (we receive our own node id), channel flood (inbound rate),
+// privileged-command injection from a sender with no benign history. Alerts log
+// LOCALLY only (never re-broadcast — would amplify a flood). Replay/malformed
+// dropped (weak/FP-prone).
+std::atomic<bool> g_meshGuardEnabled{false};
+static std::set<String> g_meshPeers;          // senders seen issuing benign lines
+static std::map<String,uint8_t> g_meshSeenCnt; // benign-line count per sender
+static uint32_t g_meshInbWinMs = 0;
+static uint32_t g_meshInbCount = 0;
+static uint32_t g_meshLastFloodMs = 0;
+static uint32_t g_meshLastSpoofMs = 0;
+static uint32_t g_meshLastInjectMs = 0;
+static uint32_t g_meshGuardHits = 0;
+
 // Per-feature enable (local detection on/off)
 std::atomic<bool> g_karmaEnabled{false};
 std::atomic<bool> g_pmkidEnabled{true};
@@ -4134,6 +4149,7 @@ void initializeDetect() {
             ah_detect::g_oweEnabled.store(p.getBool("oweOn", false));
             ah_detect::g_fragEnabled.store(p.getBool("fragOn", false));
             ah_detect::g_jamEnabled.store(p.getBool("jamOn", false));
+            ah_detect::g_meshGuardEnabled.store(p.getBool("mgdOn", false));
             ah_detect::g_bleMalformedEnabled.store(p.getBool("blemOn", false));
             ah_detect::g_hshkEnabled.store(p.getBool("hshkOn", false));
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", false));
@@ -4353,6 +4369,7 @@ void detect_persistTunables() {
     p.putBool("oweOn", ah_detect::g_oweEnabled.load());
     p.putBool("fragOn", ah_detect::g_fragEnabled.load());
     p.putBool("jamOn", ah_detect::g_jamEnabled.load());
+    p.putBool("mgdOn", ah_detect::g_meshGuardEnabled.load());
     p.putBool("blemOn", ah_detect::g_bleMalformedEnabled.load());
     p.putBool("hshkOn", ah_detect::g_hshkEnabled.load());
     p.putBool("pwnaOn", ah_detect::g_pwnaEnabled.load());
@@ -4518,6 +4535,67 @@ String jamming_getJson() {
     }
     out += "]";
     return out;
+}
+
+// Mesh-channel disruption observer — called from uartForwardTask for EVERY inbound
+// mesh line (sender + body), before prefix dispatch. Local-only alerts.
+void mesh_observeInbound(const String &sender, const String &body) {
+    if (!g_meshGuardEnabled.load()) return;
+    uint32_t now = millis();
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+
+    if (g_meshInbWinMs == 0 || (now - g_meshInbWinMs) > 10000UL) { g_meshInbWinMs = now; g_meshInbCount = 0; }
+    g_meshInbCount++;
+
+    auto emit = [&](const String &line) {
+        g_meshGuardHits++;
+        logEventToSD("/meshguard.jsonl", String("{\"ts\":") + now + ",\"evt\":\"" + line + "\"}");
+        ::detect_logIncident(line, "local");
+        Serial.printf("[DETECT] %s\n", line.c_str());
+    };
+
+    // 1. self-ID spoof: receiving our OWN node id inbound = impersonation (~0 FP)
+    String self = getNodeId();
+    if (sender.length() && sender == self) {
+        if (g_meshLastSpoofMs == 0 || (now - g_meshLastSpoofMs) >= 30000UL) {
+            g_meshLastSpoofMs = now;
+            emit(String("MESH_SPOOF_SELF:") + sender);
+        }
+        return;
+    }
+
+    // 2. channel flood (inbound rate DoS)
+    if (g_meshInbCount >= 40) {
+        if (g_meshLastFloodMs == 0 || (now - g_meshLastFloodMs) >= 60000UL) {
+            g_meshLastFloodMs = now;
+            emit(String("MESH_FLOOD:") + String(g_meshInbCount));
+        }
+    }
+
+    // 3. privileged-command injection from a sender with no benign history
+    bool isCmd = body.startsWith("TRIANGULATE") || body.startsWith("TRI_") ||
+                 body.startsWith("TIME_SYNC_REQ") || body.startsWith("@ALL");
+    if (isCmd) {
+        uint8_t hist = g_meshSeenCnt.count(sender) ? g_meshSeenCnt[sender] : 0;
+        if (sender.length() && hist < 2) {
+            if (g_meshLastInjectMs == 0 || (now - g_meshLastInjectMs) >= 30000UL) {
+                g_meshLastInjectMs = now;
+                emit(String("MESH_CMD_INJECT:") + sender + ":" + body.substring(0, 16));
+            }
+        }
+    } else if (sender.length()) {
+        if (g_meshSeenCnt.size() >= 32 && !g_meshSeenCnt.count(sender)) g_meshSeenCnt.clear();
+        uint8_t &c = g_meshSeenCnt[sender];
+        if (c < 255) c++;
+        g_meshPeers.insert(sender);
+    }
+}
+
+String meshguard_getJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    return String("{\"hits\":") + g_meshGuardHits +
+           ",\"peers\":" + String((unsigned)g_meshPeers.size()) +
+           ",\"inb_10s\":" + g_meshInbCount + "}";
 }
 
 void detectTask(void *pv) {
@@ -5593,6 +5671,7 @@ String detect_getConfigJson() {
     j += _bjson("owe", g_oweEnabled.load());
     j += _bjson("frag", g_fragEnabled.load());
     j += _bjson("jam", g_jamEnabled.load());
+    j += _bjson("mesh_guard", g_meshGuardEnabled.load());
     j += _bjson("ble_malformed", g_bleMalformedEnabled.load());
     j += _bjson("hshk", g_hshkEnabled.load());
     j += _bjson("pwna", g_pwnaEnabled.load());
@@ -5675,6 +5754,7 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "owe", g_oweEnabled);
     _setb(b, "frag", g_fragEnabled);
     _setb(b, "jam", g_jamEnabled);
+    _setb(b, "mesh_guard", g_meshGuardEnabled);
     _setb(b, "ble_malformed", g_bleMalformedEnabled);
     _setb(b, "hshk", g_hshkEnabled);
     _setb(b, "pwna", g_pwnaEnabled);

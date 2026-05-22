@@ -58,6 +58,8 @@ void uartForwardTask(void *parameter) {
             toProcess = meshBuffer.substring(colonPos + 2);
           }
 
+          mesh_observeInbound(senderId, toProcess);
+
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
           } else {

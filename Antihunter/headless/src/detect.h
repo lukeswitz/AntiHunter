@@ -218,6 +218,10 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
 void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
 String jamming_getJson();
 
+// Mesh-channel disruption guard — called per inbound mesh line from uartForwardTask.
+void mesh_observeInbound(const String &sender, const String &body);
+String meshguard_getJson();
+
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel);
 
 void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode);
