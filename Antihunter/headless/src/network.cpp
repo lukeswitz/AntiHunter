@@ -671,8 +671,8 @@ static const char *groupMembers(const String &name)
   if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
   if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
   if (name == "recon")                       return "pmkid,probe_flood,hshk";
-  if (name == "physical" || name == "phys")  return "frag,tsf";
-  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf";
+  if (name == "physical" || name == "phys")  return "frag,tsf,jam";
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam";
   return nullptr;
 }
 

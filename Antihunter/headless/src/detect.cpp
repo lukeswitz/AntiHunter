@@ -174,6 +174,25 @@ std::vector<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
 std::atomic<uint8_t> g_fragReuseThresh{2};
 
+// WiFi-LAYER interference detection (Xu MobiHoc'05 PDR-vs-RSSI consistency).
+// Per-channel 1s window: interference => collapsed PDR (CRC-fail frames) WHILE
+// error-frame RSSI stays strong AND channel was alive. Weak-signal loss (low
+// RSSI+low PDR) and idle channels are excluded. Needs FCSFAIL in the promiscuous
+// filter to see CRC fails.
+// SCOPE/LIMIT (honest): this only catches interference that still produces 802.11
+// energy the ESP32 PHY tries to decode (deceptive/flood jammers, heavy collisions).
+// It does NOT detect RF carrier jammers — nRF24/CC1101 CW or GFSK-flood (e.g. Bruce
+// fw) and constant-AWGN blackout emit NO 802.11 frames -> zero RX -> looks idle.
+// There is no CCA/energy-detect API on ESP32 WiFi. Detecting those needs a second
+// radio (nRF24 RPD channel sweep, WatchDog-2.4 method) — not present on this HW.
+std::atomic<bool>     g_jamEnabled{false};
+static std::atomic<uint32_t> g_jamValid[14];
+static std::atomic<uint32_t> g_jamErr[14];
+static std::atomic<int32_t>  g_jamErrRssi[14];
+static uint32_t g_jamEverValid[14] = {0};
+static uint32_t g_jamLastEmit[14]  = {0};
+static uint32_t g_jamLastEval = 0;
+
 // Per-feature enable (local detection on/off)
 std::atomic<bool> g_karmaEnabled{false};
 std::atomic<bool> g_pmkidEnabled{true};
@@ -4114,6 +4133,7 @@ void initializeDetect() {
             ah_detect::g_sentinelScanMode.store(false);   // always boot in pin; scan is runtime-only (hopping breaks own AP -> lockout)
             ah_detect::g_oweEnabled.store(p.getBool("oweOn", false));
             ah_detect::g_fragEnabled.store(p.getBool("fragOn", false));
+            ah_detect::g_jamEnabled.store(p.getBool("jamOn", false));
             ah_detect::g_bleMalformedEnabled.store(p.getBool("blemOn", false));
             ah_detect::g_hshkEnabled.store(p.getBool("hshkOn", false));
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", false));
@@ -4218,6 +4238,7 @@ static void sentinelAlwaysOnTask(void *pv) {
             wifi_promiscuous_filter_t filter = {};
             filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT;
             if (wantData) filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_DATA;
+            if (g_jamEnabled.load()) filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_FCSFAIL;
             esp_err_t r1 = esp_wifi_set_promiscuous_filter(&filter);
             esp_err_t r2 = esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
             esp_err_t r3 = esp_wifi_set_promiscuous(true);
@@ -4331,6 +4352,7 @@ void detect_persistTunables() {
     p.putBool("sclScan", ah_detect::g_sentinelScanMode.load());
     p.putBool("oweOn", ah_detect::g_oweEnabled.load());
     p.putBool("fragOn", ah_detect::g_fragEnabled.load());
+    p.putBool("jamOn", ah_detect::g_jamEnabled.load());
     p.putBool("blemOn", ah_detect::g_bleMalformedEnabled.load());
     p.putBool("hshkOn", ah_detect::g_hshkEnabled.load());
     p.putBool("pwnaOn", ah_detect::g_pwnaEnabled.load());
@@ -4427,6 +4449,77 @@ void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
     xQueueSend(detectFrameQueue, &ev, 0);
 }
 
+// PHY-stat hook for jamming detection — called from sniffer_cb for EVERY packet
+// (incl. CRC-fail). ISR-context: cheap atomic increments only. rxState!=0 = PHY/
+// CRC error frame (ESP-IDF sniffer dumps these when FCSFAIL filter set).
+void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel) {
+    if (!g_jamEnabled.load(std::memory_order_relaxed)) return;
+    if (channel < 1 || channel > 13) return;
+    if (rxState == 0) {
+        g_jamValid[channel].fetch_add(1, std::memory_order_relaxed);
+    } else {
+        g_jamErr[channel].fetch_add(1, std::memory_order_relaxed);
+        g_jamErrRssi[channel].fetch_add(rssi, std::memory_order_relaxed);
+    }
+}
+
+// Per-channel jamming eval — self-gated to 1s, called each detectTask iteration.
+static void jammingEval(uint32_t now) {
+    if (!g_jamEnabled.load()) return;
+    if (now - g_jamLastEval < 1000) return;
+    g_jamLastEval = now;
+    for (uint8_t ch = 1; ch <= 13; ch++) {
+        uint32_t v = g_jamValid[ch].exchange(0);
+        uint32_t e = g_jamErr[ch].exchange(0);
+        int32_t ersum = g_jamErrRssi[ch].exchange(0);
+        uint32_t tot = v + e;
+        if (v > 0) g_jamEverValid[ch] = now;
+        if (tot < 20) continue;                         // idle / low traffic -> no decision
+        float pdr = (float)v / (float)tot;
+        int8_t avgErrRssi = e ? (int8_t)(ersum / (int32_t)e) : -128;
+        bool aliveRecently = g_jamEverValid[ch] && (now - g_jamEverValid[ch] < 30000UL);
+        // Jammed = PDR collapsed WHILE error-frame energy strong AND channel alive.
+        bool jam = pdr < 0.3f && e >= 15 && avgErrRssi > -70 && aliveRecently;
+        bool cooldownOk = !g_jamLastEmit[ch] || (now - g_jamLastEmit[ch] >= 60000UL);
+        if (jam && cooldownOk) {
+            g_jamLastEmit[ch] = now;
+            uint8_t pdrPct = (uint8_t)(pdr * 100.0f);
+            char line[160];
+            snprintf(line, sizeof(line),
+                "{\"ch\":%u,\"pdr\":%u,\"err\":%u,\"valid\":%u,\"err_rssi\":%d,\"ts\":%u}",
+                (unsigned)ch, (unsigned)pdrPct, (unsigned)e, (unsigned)v, (int)avgErrRssi, (unsigned)now);
+            logEventToSD("/jamming.jsonl", String(line));
+            char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
+            ::detect_logIncident(String("JAMMING:") + bch + ":" + String((unsigned)pdrPct) + ":" + String((unsigned)e), bch);
+            quorum_addReport("JAMMING", String(bch), getNodeId(), avgErrRssi);
+            if (meshEnabled && meshRateGate(String("JAM_") + bch, 60000)) {
+                char mb[80];
+                snprintf(mb, sizeof(mb), "%s: JAMMING:%u:%u:%u",
+                         getNodeId().c_str(), (unsigned)ch, (unsigned)pdrPct, (unsigned)e);
+                sendToSerial1(String(mb), true);
+            }
+            Serial.printf("[DETECT] JAMMING ch=%u pdr=%u%% err=%u err_rssi=%d\n",
+                          (unsigned)ch, (unsigned)pdrPct, (unsigned)e, (int)avgErrRssi);
+        }
+    }
+}
+
+String jamming_getJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "[";
+    bool first = true;
+    for (uint8_t ch = 1; ch <= 13; ch++) {
+        if (g_jamLastEmit[ch] == 0) continue;
+        if (!first) out += ",";
+        first = false;
+        out += "{\"ch\":" + String((unsigned)ch) +
+               ",\"last_emit\":" + String(g_jamLastEmit[ch]) +
+               ",\"last_alive\":" + String(g_jamEverValid[ch]) + "}";
+    }
+    out += "]";
+    return out;
+}
+
 void detectTask(void *pv) {
     Serial.println("[DETECT] Task started");
     loadSnapshot();
@@ -4436,6 +4529,7 @@ void detectTask(void *pv) {
     uint32_t lastAgeSweep = millis();
     uint32_t lastPersist = millis();
     while (true) {
+        jammingEval(millis());
         if (xQueueReceive(detectFrameQueue, &ev, pdMS_TO_TICKS(100)) == pdTRUE) {
             switch (ev.kind) {
                 case DetectFrameEvent::EAPOL:       handleEAPOL(ev); break;
@@ -5498,6 +5592,7 @@ String detect_getConfigJson() {
     j += _bjson("sae", g_saeEnabled.load());
     j += _bjson("owe", g_oweEnabled.load());
     j += _bjson("frag", g_fragEnabled.load());
+    j += _bjson("jam", g_jamEnabled.load());
     j += _bjson("ble_malformed", g_bleMalformedEnabled.load());
     j += _bjson("hshk", g_hshkEnabled.load());
     j += _bjson("pwna", g_pwnaEnabled.load());
@@ -5579,6 +5674,7 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "sae", g_saeEnabled);
     _setb(b, "owe", g_oweEnabled);
     _setb(b, "frag", g_fragEnabled);
+    _setb(b, "jam", g_jamEnabled);
     _setb(b, "ble_malformed", g_bleMalformedEnabled);
     _setb(b, "hshk", g_hshkEnabled);
     _setb(b, "pwna", g_pwnaEnabled);

@@ -1533,12 +1533,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         <div class="card" data-key="tsf" data-sev="info">
           <div class="card-header" onclick="toggleCollapse('detTsfCard')">
-            <h3><span class="sev info">info</span>TSF Clock-Skew <span class="num" id="tsf-n">0</span></h3>
+            <h3><span class="sev info">info</span>TSF / Evil-Twin <span class="num" id="tsf-n">0</span></h3>
             <span class="collapse-icon" id="detTsfCardIcon">▶</span>
           </div>
           <div class="card-body collapsed" id="detTsfCardBody">
             <button class="btn alt" onclick="tsfClear()" style="margin-bottom:6px;">Clear</button>
             <pre id="tsf-pre" class="log-pre">--</pre>
+          </div>
+        </div>
+
+        <div class="card" data-key="jamming" data-sev="high" title="WiFi-layer interference only: per-channel PDR-vs-RSSI consistency (CRC-fail flood + strong error RSSI + collapsed PDR on a live channel). Does NOT detect nRF24/CC1101 RF carrier jammers (e.g. Bruce CW/flood) or constant-AWGN blackout — those emit no 802.11 frames and need a second radio (nRF24 RPD sweep).">
+          <div class="card-header" onclick="toggleCollapse('detJamCard')">
+            <h3><span class="sev high">high</span>WiFi Interference <span class="num" id="jam-n">0</span></h3>
+            <span class="collapse-icon" id="detJamCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detJamCardBody">
+            <button class="btn alt" onclick="jamClear()" style="margin-bottom:6px;">Clear</button>
+            <pre id="jam-pre" class="log-pre">--</pre>
           </div>
         </div>
 
@@ -5203,7 +5214,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
-        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF Clock-Skew','tsf']]
+        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','WiFi Interf (L2)','jam']]
       };
       function _grpRows(dets,inc,cfg,nowMs){
         const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
@@ -5415,11 +5426,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('tsf-n').textContent=(t||[]).length;
         detRenderTable('tsf-pre',t||[],[
           {key:'bssid',label:'BSSID'},{key:'ssid',label:'SSID'},
-          {key:'ppm',label:'PPM'},{key:'samples',label:'N'},
+          {key:'chan_a',label:'Ch A'},{key:'chan_b',label:'Ch B'},
           {key:'last',label:'Last',get:r=>_ago(r.last)}
         ]);
       }
       async function tsfClear(){await fetch('/api/tsf_skew/clear',{method:'POST'});tsfTick();}
+      async function jammingTick(){
+        if(!detTabActive())return;
+        const a=await _jsonl('/api/jamming.jsonl');
+        document.getElementById('jam-n').textContent=a.length;
+        _renderJsonl('jam-pre',a,['ts','ch','pdr','err','valid','err_rssi']);
+        if(a.length>0)detMarkActive('jamming');
+      }
+      async function jamClear(){await fetch('/api/jamming/clear',{method:'POST'});jammingTick();}
       async function tofTick(){
         if(!detTabActive())return;
         const t=await _jj('/api/tof');
@@ -5524,7 +5543,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const DETECTOR_TOGGLE_KEYS = {
         'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
         'oweabuse':'oweOn','frag':'fragOn','karma':'karmaOn',
-        'pwna':'pwnaOn','tsf':'tsfOn',
+        'pwna':'pwnaOn','tsf':'tsfOn','jamming':'jamOn',
         'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn',
         'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
         'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn'
@@ -5596,7 +5615,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'rid':'details','recon':'details','karma':'details','hunts':'details',
         'handshake':'details','bcnforge':'details','pmkidforge':'details',
         'eapolbait':'details','probeflood':'details','assocsleep':'details',
-        'probegraph':'details','tsf':'details','tof':'details',
+        'probegraph':'details','tsf':'details','jamming':'details','tof':'details',
         'pmkid':'details','eviltwin':'details','ssidconf':'details',
         'saedos':'details','oweabuse':'details','frag':'details',
         'pwna':'details','krack':'details'
@@ -5719,7 +5738,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
         ['hshk','Handshake Reconstruction'],
-        ['tsf','TSF / Evil-Twin'],['rid_spoof','RID Spoof Validator'],
+        ['tsf','TSF / Evil-Twin'],['jam','WiFi Interference (L2)'],['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
         ['karma','KARMA Bait'],
         ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep']
@@ -5792,7 +5811,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         dos:      ['eviltwin','sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
         recon:    ['pmkid','probe_flood','hshk'],
-        physical: ['frag','tsf']
+        physical: ['frag','tsf','jam']
       };
       const DET_ALL_LOCAL=['pmkid','eviltwin','sae','owe','frag','hshk',
         'tsf','karma','probe_flood','assoc_sleep'];
@@ -5874,7 +5893,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(!detTabActive())return;
         detectTick();pgTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
-        bfTick();pfTick();ebTick();pflTick();asTick();apClientsTick();
+        bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();apClientsTick();
         setTimeout(renderDetailsVisibility,300);
       }
       async function _jsonl(path){
@@ -7365,6 +7384,13 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   });
   server->on("/api/ble_malformed.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/x-ndjson", detect_getBleMalformedJsonl());
+  });
+  server->on("/api/jamming.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/jamming.jsonl")) r->send(SD, "/jamming.jsonl", "application/x-ndjson");
+      else r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/jamming/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/jamming.jsonl"); r->send(200, "text/plain", "cleared");
   });
 
   // === tool / tool tool-fingerprint logs (NEW) ===

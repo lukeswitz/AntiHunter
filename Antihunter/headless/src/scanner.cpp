@@ -1890,6 +1890,10 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 
     const wifi_promiscuous_pkt_t *ppkt = static_cast<const wifi_promiscuous_pkt_t *>(buf);
 
+    // Jamming PHY-stat: feed EVERY packet (incl. CRC-fail / short error frames)
+    // before any length/rssi gate, so PDR-vs-error accounting sees the failures.
+    detect_onPhyStat(ppkt->rx_ctrl.rx_state, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
+
     if (ppkt->rx_ctrl.sig_len < 24) {
         return;
     }
