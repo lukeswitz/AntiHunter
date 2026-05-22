@@ -12,6 +12,7 @@
 #include <HardwareSerial.h>
 #include "esp_wifi.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 
 
 Preferences prefs;
@@ -201,6 +202,12 @@ void setup() {
     // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== Antihunter [Headless] Boot ===");
 
+    if (psramFound()) {
+        heap_caps_malloc_extmem_enable(1024);
+        Serial.printf("[MEM] PSRAM heap routing on (>1024B -> PSRAM). psram_free=%u internal_free=%u\n",
+                      (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    }
+
     delay(400);
     initializeHardware();
     delay(10);
@@ -328,7 +335,7 @@ void loop() {
 
     if (millis() - lastHeapCheck > 30000) {
         uint32_t freeHeap = ESP.getFreeHeap();
-        if (freeHeap < 50000) {
+        if (freeHeap < 25000) {
             Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
         }
         lastHeapCheck = millis();

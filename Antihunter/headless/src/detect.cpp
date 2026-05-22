@@ -2476,6 +2476,13 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
     if (!uavId || uavId[0] == 0) return;
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    static constexpr size_t MAX_RID_CLAIMS = 64;
+    if (g_ridClaims.find(uavId) == g_ridClaims.end() && g_ridClaims.size() >= MAX_RID_CLAIMS) {
+        auto oldest = g_ridClaims.begin();
+        for (auto it = g_ridClaims.begin(); it != g_ridClaims.end(); ++it)
+            if (it->second.ts < oldest->second.ts) oldest = it;
+        g_ridClaims.erase(oldest);
+    }
     auto &c = g_ridClaims[uavId];
     strncpy(c.uavId, uavId, sizeof(c.uavId) - 1);
     c.lat = lat;
@@ -5344,7 +5351,18 @@ static constexpr uint32_t MESH_PEER_TIMEOUT_MS = 120000;
 void _detect_recordMeshPeer(const String &fromNode) {
     if (fromNode.length() == 0 || fromNode == getNodeId()) return;
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    g_meshPeerLastSeen[fromNode] = millis();
+    uint32_t now = millis();
+    for (auto it = g_meshPeerLastSeen.begin(); it != g_meshPeerLastSeen.end(); ) {
+        if ((now - it->second) > MESH_PEER_TIMEOUT_MS) it = g_meshPeerLastSeen.erase(it);
+        else ++it;
+    }
+    if (g_meshPeerLastSeen.find(fromNode) == g_meshPeerLastSeen.end() && g_meshPeerLastSeen.size() >= 64) {
+        auto oldest = g_meshPeerLastSeen.begin();
+        for (auto it = g_meshPeerLastSeen.begin(); it != g_meshPeerLastSeen.end(); ++it)
+            if (it->second < oldest->second) oldest = it;
+        g_meshPeerLastSeen.erase(oldest);
+    }
+    g_meshPeerLastSeen[fromNode] = now;
 }
 static bool hasMeshPeer() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
