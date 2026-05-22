@@ -86,6 +86,9 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("PWNAGOTCHI:") ||
                 toProcess.startsWith("KARMA_CAND:") ||
                 toProcess.startsWith("KARMA_CONFIRMED:") ||
+                toProcess.startsWith("BLE_ATTACK:") ||
+                toProcess.startsWith("BLETRACK:") ||
+                toProcess.startsWith("TRK_LINK:") ||
                 toProcess.startsWith("TOF_PING:") ||
                 toProcess.startsWith("TOF_PONG:")) {
               detect_processMesh(senderId, toProcess);
