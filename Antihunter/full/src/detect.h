@@ -213,6 +213,11 @@ void detectTask(void *pv);
 // Sniffer hook — called from sniffer_cb (IRAM, must be brief / ISR-safe)
 void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel);
 
+// PHY-stat hook for 2.4GHz jamming detection — called per packet from sniffer_cb
+// (incl. CRC-fail frames when FCSFAIL filter is set). ISR-safe.
+void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
+String jamming_getJson();
+
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel);
 
 void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode);
