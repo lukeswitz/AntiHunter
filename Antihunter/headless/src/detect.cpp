@@ -241,6 +241,11 @@ std::atomic<bool> g_meshPwna{true};
 std::atomic<bool> g_meshKarma{true};
 std::atomic<bool> g_meshRecon{true};
 std::atomic<bool> g_meshAttackerHunt{true};
+std::atomic<bool> g_meshDeauth{true};
+std::atomic<bool> g_meshAssocSleep{true};
+std::atomic<bool> g_meshProbeFlood{true};
+std::atomic<bool> g_meshEapolBait{true};
+std::atomic<bool> g_meshJam{true};
 
 // BLE malformed
 std::vector<BleMalformedEvent> g_bleMalformedLog;
@@ -563,7 +568,7 @@ void detect_correlateEapolBait(const uint8_t *sta, int8_t rssi, uint8_t channel)
                  confidence, (int)rssi, (unsigned)channel, (unsigned)now);
         String line(lineBuf);
         logEventToSD("/eapol_bait.jsonl", line);
-        if (meshEnabled && meshRateGate("EAPOL_BAIT_" + srcS + "_" + dstS, 60000)) {
+        if (meshEnabled && g_meshEapolBait.load() && meshRateGate("EAPOL_BAIT_" + srcS + "_" + dstS, 60000)) {
             sendToSerial1(getNodeId() + ": EAPOL_BAIT:" + srcS + ":" + dstS +
                           ":" + String(w.deauthCount) + ":" + String(rssi) +
                           ":" + confidence, true);
@@ -1560,7 +1565,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                      (unsigned)reason, (unsigned)seqCtrl, isBroadcast ? "true" : "false",
                      (int)e.rssi, (unsigned)e.channel, (unsigned)now);
             logEventToSD("/deauth_flood.jsonl", String(lineBuf));
-            if (meshEnabled && meshRateGate(String("DEAUTH_FLOOD_") + srcS, 30000)) {
+            if (meshEnabled && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FLOOD_") + srcS, 30000)) {
                 char meshBuf[80];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FLOOD:%s:%u:%d",
                          getNodeId().c_str(), srcBuf, (unsigned)r.count, (int)e.rssi);
@@ -1651,7 +1656,7 @@ static void handleAssocReq(const DetectFrameEvent &e) {
              bsBuf, (unsigned)w.distinctSrc.size(), (unsigned)ASSOC_SLEEP_WIN_MS,
              (int)w.bestRssi, (unsigned)w.channel, (unsigned)now);
     logEventToSD("/assoc_sleep.jsonl", String(lineBuf));
-    if (meshEnabled && meshRateGate(String("ASSOC_SLEEP_") + bs, 30000)) {
+    if (meshEnabled && g_meshAssocSleep.load() && meshRateGate(String("ASSOC_SLEEP_") + bs, 30000)) {
         char meshBuf[80];
         snprintf(meshBuf, sizeof(meshBuf), "%s: ASSOC_SLEEP:%s:%u:%d",
                  getNodeId().c_str(), bsBuf, (unsigned)w.distinctSrc.size(), (int)w.bestRssi);
@@ -1853,7 +1858,7 @@ static void handleProbeReq(const DetectFrameEvent &e) {
                  ",\"ts\":" + String(now) + "}";
     logEventToSD("/probe_flood.jsonl", msg);
     ::detect_logIncident(String("PROBE_FLOOD:") + w.ssid + ":" + String(w.hits), w.ssid);
-    if (meshEnabled && meshRateGate("PROBE_FLOOD_" + String((uint32_t)key, HEX), 30000)) {
+    if (meshEnabled && g_meshProbeFlood.load() && meshRateGate("PROBE_FLOOD_" + String((uint32_t)key, HEX), 30000)) {
         sendToSerial1(getNodeId() + ": PROBE_FLOOD:" + w.ssid + ":" + String(w.hits) + ":" + String(w.bestRssi), true);
     }
     quorum_addReport("PROBE_FLOOD", String(w.ssid), getNodeId(), w.bestRssi);
@@ -3041,10 +3046,8 @@ static void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
     s.lastSeen = now;
     pwnagotchiExtractSnippet(ie, ieLen, s.snippet, sizeof(s.snippet));
 
-    if (meshEnabled) {
-        if (g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
-            sendToSerial1(getNodeId() + ": PWNAGOTCHI:" + macStr(bssid) + ":" + String(rssi), true);
-    }
+    if (meshEnabled && g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
+        sendToSerial1(getNodeId() + ": PWNAGOTCHI:" + macStr(bssid) + ":" + String(rssi), true);
     quorum_addReport("PWNAGOTCHI", macStr(bssid), getNodeId(), rssi);
     attacker_kick(bssid, "PWNAGOTCHI");
 }
@@ -4196,6 +4199,11 @@ void initializeDetect() {
             ah_detect::g_meshKarma.store(p.getBool("mKarma", true));
             ah_detect::g_meshRecon.store(p.getBool("mRecon", true));
             ah_detect::g_meshAttackerHunt.store(p.getBool("mHunt", true));
+            ah_detect::g_meshDeauth.store(p.getBool("mDeauth", true));
+            ah_detect::g_meshAssocSleep.store(p.getBool("mAssoc", true));
+            ah_detect::g_meshProbeFlood.store(p.getBool("mProbe", true));
+            ah_detect::g_meshEapolBait.store(p.getBool("mEapol", true));
+            ah_detect::g_meshJam.store(p.getBool("mJam", true));
             ah_detect::g_probeFloodEnabled.store(p.getBool("pflOn", true));
             ah_detect::g_assocSleepEnabled.store(p.getBool("aslOn", true));
             ah_detect::g_bleAttackEnabled.store(p.getBool("blatkOn", true));
@@ -4422,6 +4430,11 @@ void detect_persistTunables() {
     p.putBool("mKarma", ah_detect::g_meshKarma.load());
     p.putBool("mRecon", ah_detect::g_meshRecon.load());
     p.putBool("mHunt", ah_detect::g_meshAttackerHunt.load());
+    p.putBool("mDeauth", ah_detect::g_meshDeauth.load());
+    p.putBool("mAssoc", ah_detect::g_meshAssocSleep.load());
+    p.putBool("mProbe", ah_detect::g_meshProbeFlood.load());
+    p.putBool("mEapol", ah_detect::g_meshEapolBait.load());
+    p.putBool("mJam", ah_detect::g_meshJam.load());
     p.end();
 }
 
@@ -4536,7 +4549,7 @@ static void jammingEval(uint32_t now) {
             char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
             ::detect_logIncident(String("JAMMING:") + bch + ":" + String((unsigned)pdrPct) + ":" + String((unsigned)e), bch);
             quorum_addReport("JAMMING", String(bch), getNodeId(), avgErrRssi);
-            if (meshEnabled && meshRateGate(String("JAM_") + bch, 60000)) {
+            if (meshEnabled && g_meshJam.load() && meshRateGate(String("JAM_") + bch, 60000)) {
                 char mb[80];
                 snprintf(mb, sizeof(mb), "%s: JAMMING:%u:%u:%u",
                          getNodeId().c_str(), (unsigned)ch, (unsigned)pdrPct, (unsigned)e);
@@ -4868,7 +4881,7 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
         Serial.printf("[DETECT] %s (AP under deauth - %u disconnects in %ums)\n",
                       body.c_str(), g_softApDeauth.count, (unsigned)(now - g_softApDeauth.winStartMs));
         ::detect_logIncident(body, mc);
-        if (meshEnabled) {
+        if (meshEnabled && g_meshDeauth.load()) {
             sendToSerial1(getNodeId() + ": " + body, true);
         }
         String line = String("{\"client\":\"") + mc +
@@ -4937,7 +4950,7 @@ void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi) {
         Serial.printf("[DETECT] PROBE_FLOOD_AP distinct=%u in %ums rssi=%d\n",
                       (unsigned)g_softApProbe.srcCounts.size(),
                       (unsigned)(now - g_softApProbe.winStartMs), (int)rssi);
-        if (meshEnabled) {
+        if (meshEnabled && g_meshProbeFlood.load()) {
             sendToSerial1(getNodeId() + ": PROBE_FLOOD_AP:" + String((unsigned)g_softApProbe.srcCounts.size()) +
                           ":" + String((int)rssi), true);
         }
@@ -5732,6 +5745,11 @@ String detect_getConfigJson() {
     j += _bjson("mesh_karma", g_meshKarma.load());
     j += _bjson("mesh_recon", g_meshRecon.load());
     j += _bjson("mesh_attacker_hunt", g_meshAttackerHunt.load());
+    j += _bjson("mesh_deauth", g_meshDeauth.load());
+    j += _bjson("mesh_assoc_sleep", g_meshAssocSleep.load());
+    j += _bjson("mesh_probe_flood", g_meshProbeFlood.load());
+    j += _bjson("mesh_eapol_bait", g_meshEapolBait.load());
+    j += _bjson("mesh_jam", g_meshJam.load());
     // New tool-fingerprint detector toggles (tool/tool signatures)
     j += _bjson("probe_flood", g_probeFloodEnabled.load());
     j += _bjson("assoc_sleep", g_assocSleepEnabled.load());
@@ -5815,6 +5833,11 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "mesh_karma", g_meshKarma);
     _setb(b, "mesh_recon", g_meshRecon);
     _setb(b, "mesh_attacker_hunt", g_meshAttackerHunt);
+    _setb(b, "mesh_deauth", g_meshDeauth);
+    _setb(b, "mesh_assoc_sleep", g_meshAssocSleep);
+    _setb(b, "mesh_probe_flood", g_meshProbeFlood);
+    _setb(b, "mesh_eapol_bait", g_meshEapolBait);
+    _setb(b, "mesh_jam", g_meshJam);
     _setb(b, "probe_flood", g_probeFloodEnabled);
     _setb(b, "assoc_sleep", g_assocSleepEnabled);
     _setb(b, "ble_attack",  g_bleAttackEnabled);
