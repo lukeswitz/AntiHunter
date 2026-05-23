@@ -5736,13 +5736,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep']
       ];
       const DET_FEATURES_MESH=[
-        ['mesh_deauth','Deauth Flood'],['mesh_assoc_sleep','Assoc Sleep'],
-        ['mesh_probe_flood','Probe Flood'],['mesh_eapol_bait','EAPOL Bait'],
-        ['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil-Twin'],['mesh_ssid_confusion','SSID Conf'],
-        ['mesh_sae','SAE'],['mesh_frag','FragAttacks'],
-        ['mesh_hshk','Handshakes'],['mesh_krack','KRACK'],
-        ['mesh_karma','KARMA'],['mesh_pwna','Pwnagotchi'],['mesh_recon','Recon'],
-        ['mesh_attacker_hunt','Attacker Hunt'],['mesh_jam','Jamming']
+        ['mesh_deauth','Deauth'],['mesh_beacon','Beacon Flood'],
+        ['mesh_auth','Auth Flood'],['mesh_assoc_sleep','Assoc Sleep'],
+        ['mesh_sae','SAE DoS'],['mesh_eviltwin','Evil-Twin'],
+        ['mesh_owe','OWE Abuse'],['mesh_karma','Karma'],
+        ['mesh_pmkid','PMKID'],['mesh_probe_flood','Probe Flood'],
+        ['mesh_hshk','Handshake/KRACK'],['mesh_frag','FragAttacks'],
+        ['mesh_tsf','TSF Twin'],['mesh_jam','WiFi Jamming'],
+        ['mesh_guard','Mesh Disruption']
       ];
       const DET_THRESHOLDS=[
         ['pmkid_window','PMKID Window (ms)',1000,60000],
@@ -5810,9 +5811,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ble:      ['ble_attack','ble_malformed','tracker','airtag']
       };
       const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];
-      const DET_ALL_MESH=['mesh_deauth','mesh_assoc_sleep','mesh_probe_flood','mesh_eapol_bait',
-        'mesh_pmkid','mesh_eviltwin','mesh_ssid_confusion','mesh_sae','mesh_frag',
-        'mesh_hshk','mesh_krack','mesh_karma','mesh_pwna','mesh_recon','mesh_attacker_hunt','mesh_jam'];
+      const DET_ALL_MESH=['mesh_deauth','mesh_beacon','mesh_auth','mesh_assoc_sleep',
+        'mesh_sae','mesh_eviltwin','mesh_owe','mesh_karma','mesh_pmkid',
+        'mesh_probe_flood','mesh_hshk','mesh_frag','mesh_tsf','mesh_jam','mesh_guard'];
       // Turn a single threat group on or off (members only; leaves other detectors untouched).
       async function detGroupToggle(group){
         const members=DET_GROUPS[group]; if(!members) return;

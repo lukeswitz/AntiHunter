@@ -1688,7 +1688,7 @@ void blueTeamTask(void *pv) {
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
 
-            if (meshEnabled && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+            if (meshEnabled && ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String meshAlert = getNodeId() + ": ATTACK: " + alert;
                 if (gpsValid) {
                     if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
@@ -1711,7 +1711,7 @@ void blueTeamTask(void *pv) {
                 String dstMac = macFmt6(entry.destMac);
                 String attackKey = srcMac + "->" + dstMac;
                 
-                if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+                if (ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                     String attackMsg = getNodeId() + ": ATTACK: ";
                     attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
                     attackMsg += " " + srcMac + "->" + dstMac;
@@ -1812,12 +1812,12 @@ void blueTeamTask(void *pv) {
             String dstMac = macFmt6(entry.destMac);
             String attackKey = srcMac + "->" + dstMac;
             
-            if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+            if (ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String attackMsg = getNodeId() + ": ATTACK: ";
                 attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
                 attackMsg += " " + srcMac + "->" + dstMac;
                 attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
-                
+
                 if (attackMsg.length() <= MAX_MESH_SIZE) {
                     if (sendToSerial1(attackMsg, true)) {
                         transmittedAttacks.insert(attackKey);

@@ -547,10 +547,20 @@ extern QueueHandle_t detectFrameQueue;
 // Per-feature mesh broadcast flags (for use in scanner.cpp / other TUs)
 namespace ah_detect {
 extern std::atomic<bool> g_meshDeauth;
+extern std::atomic<bool> g_meshBeacon;
+extern std::atomic<bool> g_meshAuth;
 extern std::atomic<bool> g_meshAssocSleep;
+extern std::atomic<bool> g_meshSae;
+extern std::atomic<bool> g_meshEviltwin;
+extern std::atomic<bool> g_meshOwe;
+extern std::atomic<bool> g_meshKarma;
+extern std::atomic<bool> g_meshPmkid;
 extern std::atomic<bool> g_meshProbeFlood;
-extern std::atomic<bool> g_meshEapolBait;
+extern std::atomic<bool> g_meshHshk;
+extern std::atomic<bool> g_meshFrag;
+extern std::atomic<bool> g_meshTsf;
 extern std::atomic<bool> g_meshJam;
+extern std::atomic<bool> g_meshGuard;
 } // namespace ah_detect
 
 // Tunables (config-exposed)
