@@ -12,31 +12,50 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       with:
         fetch-depth: 0
 
-    - name: Get version from tag
+    - name: Get version + channel from tag
       id: get_version
       run: |
-        echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        TAG="${GITHUB_REF#refs/tags/}"
+        echo "version=${TAG}" >> $GITHUB_OUTPUT
+        # Beta channel: tags matching v*-beta* (e.g. v1.2.0-beta, v1.2.0-beta3) -> beta branch
+        # Stable channel: plain v* (e.g. v1.2.0) -> main branch
+        if [[ "$TAG" == *-beta* ]]; then
+          echo "channel=beta" >> $GITHUB_OUTPUT
+          echo "branch=beta" >> $GITHUB_OUTPUT
+          echo "prerelease=true" >> $GITHUB_OUTPUT
+        else
+          echo "channel=stable" >> $GITHUB_OUTPUT
+          echo "branch=main" >> $GITHUB_OUTPUT
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Set up Python
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
       with:
         python-version: '3.11'
 
     - name: Cache PlatformIO
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306  # v5.0.3
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
       with:
-        path: ~/.platformio
-        key: platformio-${{ hashFiles('platformio.ini') }}
+        path: |
+          ~/.platformio
+          .pio
+        key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
 
     - name: Install PlatformIO
       run: pip install --upgrade platformio
 
-    - name: Build
-      run: pio run
+    - name: Build AntiHunter-full
+      run: pio run -e AntiHunter-full
+
+    - name: Build AntiHunter-headless
+      run: pio run -e AntiHunter-headless
 
     - name: Prepare release artifacts
       run: |
@@ -54,41 +73,57 @@ jobs:
 
     - name: Update Dist bins and web flasher manifests
       run: |
-        VERSION=${{ steps.get_version.outputs.version }}
-        RAW="https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist"
+        VERSION="${{ steps.get_version.outputs.version }}"
+        BRANCH="${{ steps.get_version.outputs.branch }}"
+        RAW="https://raw.githubusercontent.com/lukeswitz/AntiHunter/${BRANCH}/Dist"
+
+        # Remove old versioned bins; keep bootloader, partitions, flashAntihunter.sh
+        rm -f Dist/antihunter-*.bin
 
         cp .pio/build/AntiHunter-full/firmware.bin "Dist/antihunter-full-${VERSION}.bin"
         cp .pio/build/AntiHunter-headless/firmware.bin "Dist/antihunter-headless-${VERSION}.bin"
 
+        mkdir -p docs/flasher
+
         for VARIANT in full headless; do
-          cat > "docs/flasher/manifest-${VARIANT}.json" <<EOF
-        {
-          "name": "AntiHunter $(echo ${VARIANT} | sed 's/^./\U&/') (${VERSION})",
-          "new_install_prompt_erase": true,
-          "builds": [
-            {
-              "chipFamily": "ESP32-S3",
-              "parts": [
-                { "path": "${RAW}/bootloader.bin", "offset": 0 },
-                { "path": "${RAW}/partitions.bin", "offset": 32768 },
-                { "path": "${RAW}/antihunter-${VARIANT}-${VERSION}.bin", "offset": 65536 }
-              ]
-            }
-          ]
-        }
-        EOF
+          VARIANT_TITLE="$(echo "${VARIANT}" | sed 's/^./\U&/')"
+          printf '{\n  "name": "AntiHunter %s (%s)",\n  "new_install_prompt_erase": true,\n  "builds": [\n    {\n      "chipFamily": "ESP32-S3",\n      "parts": [\n        { "path": "%s/bootloader.bin", "offset": 0 },\n        { "path": "%s/partitions.bin", "offset": 32768 },\n        { "path": "%s/antihunter-%s-%s.bin", "offset": 65536 }\n      ]\n    }\n  ]\n}\n' \
+            "${VARIANT_TITLE}" "${VERSION}" \
+            "${RAW}" "${RAW}" "${RAW}" "${VARIANT}" "${VERSION}" \
+            > "docs/flasher/manifest-${VARIANT}.json"
         done
 
-    - name: Commit updated Dist and manifests
+    - name: Checkout channel branch and apply artifacts
       run: |
+        BRANCH="${{ steps.get_version.outputs.branch }}"
+        VERSION="${{ steps.get_version.outputs.version }}"
+
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add Dist/*.bin docs/flasher/manifest-*.json
-        git diff --cached --quiet || git commit -m "dist: update bins and flasher manifests for ${{ steps.get_version.outputs.version }}"
-        git push origin HEAD:main
+
+        # Stash the built artifacts so we can switch branches
+        cp -r Dist /tmp/ah-dist
+        cp -r docs/flasher /tmp/ah-flasher
+
+        # Checkout the channel branch (already fetched via fetch-depth: 0)
+        git checkout "${BRANCH}"
+
+        # Apply artifacts onto the branch
+        rm -f Dist/antihunter-*.bin
+        cp /tmp/ah-dist/antihunter-*.bin Dist/
+        mkdir -p docs/flasher
+        cp /tmp/ah-flasher/manifest-*.json docs/flasher/
+
+        git add Dist/antihunter-*.bin docs/flasher/manifest-*.json
+        git diff --cached --quiet && echo "No changes to commit" && exit 0
+        git commit -m "dist: update bins and flasher manifests for ${VERSION} (${{ steps.get_version.outputs.channel }})"
+        git push origin "${BRANCH}"
 
     - name: Create Release
       uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2.6.1
       with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        name: ${{ steps.get_version.outputs.version }}
         files: release/*
-        prerelease: true
+        prerelease: ${{ steps.get_version.outputs.prerelease }}
+        generate_release_notes: true

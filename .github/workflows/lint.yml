@@ -4,9 +4,9 @@ permissions:
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, beta ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, beta ]
 
 jobs:
   cppcheck:
