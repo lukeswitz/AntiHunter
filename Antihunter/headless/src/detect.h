@@ -238,6 +238,7 @@ void sentinel_kill();
 void sentinel_setUserEnabled(bool on);
 bool sentinel_isUserEnabled();
 bool sentinel_isRunning();
+bool sentinel_yieldAndWait(uint32_t timeoutMs);
 void sentinel_loadUserPref();
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid);
 

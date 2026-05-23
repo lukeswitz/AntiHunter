@@ -2264,20 +2264,33 @@ struct BleAttackSig {
     const char *tool;
     const char *family;
 };
+// Verified 2026-05-22 against REAL source: Bruce src/modules/ble/ble_spam.cpp +
+// apple_spam.cpp (Samsung_Data/Google_Data/data_airpods*) and ESP32Marauder
+// WiFiScan.cpp. Match on the structural invariant only — Bruce/Marauder randomize
+// the model byte + MAC per advert, so any fixed-model byte never matches.
+// CAVEAT: FastPair (FE2C) + Apple proximity also appear on LEGIT nearby devices →
+// these FP on real AirPods/Fast-Pair once per (addr,30s) dedup window. True spam vs
+// legit needs rotating-MAC rate-gating (NOT implemented — flagged).
 static const BleAttackSig BLE_ATTACK_SIGS[] = {
-    // Sour Apple / Apple Actions — `FF 4C 00 0F 05 C0` (tool) or `FF 4C 00 0F 05 C1` (tool)
-    {{0xFF, 0x4C, 0x00, 0x0F, 0x05, 0xC0}, 6, "SourApple_TypeA",   "apple_action"},
-    {{0xFF, 0x4C, 0x00, 0x0F, 0x05, 0xC1}, 6, "SourApple_TypeB",      "apple_action"},
-    // Apple Juice / HomePod Continuity bait — `4C 00 04 04 2A 00 00 00 0F 05`
-    {{0x4C, 0x00, 0x04, 0x04, 0x2A, 0x00, 0x00, 0x00, 0x0F, 0x05}, 10, "AppleJuice_Continuity", "apple_continuity"},
-    // Samsung BLE Spam — `FF 75 00 01 00 02 00 01 01 FF`
-    {{0xFF, 0x75, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x01, 0xFF}, 10, "Samsung_Spam",         "samsung"},
-    // Microsoft Swift Pair — `FF 06 00 03 00 80`
-    {{0xFF, 0x06, 0x00, 0x03, 0x00, 0x80}, 6, "Microsoft_SwiftPair",  "swiftpair"},
-    // Flipper Zero spoof — `FF BA 0F 4C 75 67 26 E1 80` (mfg ID 0x0FBA + payload prefix)
-    {{0xFF, 0xBA, 0x0F, 0x4C, 0x75, 0x67, 0x26, 0xE1, 0x80}, 9, "Flipper_Spoof",        "flipper"},
-    // Google Fast Pair — tool hardcoded model ID 0x00B727: `16 2C FE 00 B7 27`
-    {{0x16, 0x2C, 0xFE, 0x00, 0xB7, 0x27}, 6, "FastPair_TypeA",    "fastpair"},
+    // Apple nearby-action (SourApple/AppleJuice legacy) — mfg FF 4C00, continuity type 0x0F len 0x05
+    {{0xFF, 0x4C, 0x00, 0x0F, 0x05, 0xC0}, 6, "Apple_NearbyAction_C0", "apple_action"},
+    {{0xFF, 0x4C, 0x00, 0x0F, 0x05, 0xC1}, 6, "Apple_NearbyAction_C1", "apple_action"},
+    // Apple proximity-pairing (Bruce apple_spam.cpp:12 AirPods/Beats) — FF 4C00, type 0x07 len 0x19
+    {{0xFF, 0x4C, 0x00, 0x07, 0x19}, 5, "Apple_Proximity", "apple_proximity"},
+    // Apple proximity-pairing (Marauder WiFiScan.cpp:125 Devices variant) — type 0x07 len 0x0F
+    {{0xFF, 0x4C, 0x00, 0x07, 0x0F}, 5, "Apple_Proximity_Dev", "apple_proximity"},
+    // Apple AppleTV/Setup (Bruce apple_spam.cpp:42 + ble_spam.cpp:143 AppleJuice v1) — type 0x04 len 0x04 0x2A
+    {{0xFF, 0x4C, 0x00, 0x04, 0x04, 0x2A}, 6, "Apple_AppleTV_Setup", "apple_action"},
+    // Apple HID Magic-Keyboard spoof (Bruce BLE_Suite.cpp:455 setManufacturerData {4C 00 02 00}) — iBeacon type 0x02 len 0x00 (real iBeacon len is 0x15 → 0x00 is the spoof tell)
+    {{0xFF, 0x4C, 0x00, 0x02, 0x00}, 5, "Apple_HID_Spoof", "apple_hid"},
+    // Samsung — mfg FF 75 00 (Samsung_Data[1..10], model byte randomized so stop at FF)
+    {{0xFF, 0x75, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x01, 0xFF}, 10, "Samsung_Spam", "samsung"},
+    // Microsoft Swift Pair — mfg FF 06 00, CDP beacon 03 00 80
+    {{0xFF, 0x06, 0x00, 0x03, 0x00, 0x80}, 6, "Microsoft_SwiftPair", "swiftpair"},
+    // Flipper — manufacturer ID 0x0FBA (FF BA 0F). Model/payload randomized → ID only.
+    {{0xFF, 0xBA, 0x0F}, 3, "Flipper_Spoof", "flipper"},
+    // Google Fast Pair — service-data AD (0x16) UUID 0xFE2C. Model is android_models[rand()] → UUID only.
+    {{0x16, 0x2C, 0xFE}, 3, "FastPair", "fastpair"},
 };
 static constexpr size_t BLE_ATTACK_SIG_COUNT = sizeof(BLE_ATTACK_SIGS) / sizeof(BLE_ATTACK_SIGS[0]);
 
@@ -2291,7 +2304,7 @@ struct BleAttackEvent {
 static std::vector<BleAttackEvent> g_bleAttackLog;
 static constexpr size_t MAX_BLE_ATTACK_LOG = 100;
 static std::map<uint64_t, uint32_t> g_bleAttackSeen;  // suppress duplicate (addr,tool) within 30s
-static std::atomic<bool> g_bleAttackEnabled{true};
+static std::atomic<bool> g_bleAttackEnabled{false};  // off by default — BLE coexist starves heap on full (AP+webserver); enable explicitly via ble group
 
 static bool bleScanForSig(const uint8_t *payload, uint16_t len, const BleAttackSig &sig) {
     if (len < sig.patLen) return false;
@@ -2341,6 +2354,21 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
     (void)name;
     if (!g_detectEnabled.load()) return;
     uint32_t now = millis();
+
+    {
+        static uint32_t s_bleSeen = 0;
+        static uint32_t s_lastDiag = 0;
+        s_bleSeen++;
+        if (g_bleAttackEnabled.load() && (now - s_lastDiag > 2000)) {
+            s_lastDiag = now;
+            char hex[40];
+            int n = (len < 16 ? len : 16), o = 0;
+            for (int i = 0; i < n && o < (int)sizeof(hex) - 3; i++)
+                o += snprintf(hex + o, sizeof(hex) - o, "%02X", payload ? payload[i] : 0);
+            Serial.printf("[BLE_DIAG] seen=%lu rssi=%d len=%u head=%s\n",
+                          (unsigned long)s_bleSeen, (int)rssi, (unsigned)len, hex);
+        }
+    }
 
     // tool/tool BLE attack-tool fingerprint scan — strong byte matches.
     if (g_bleAttackEnabled.load() && payload && len >= 6) {
@@ -4339,6 +4367,19 @@ void sentinel_setUserEnabled(bool on) {
 
 bool sentinel_isUserEnabled() { return g_sentinelUserEnabled.load(); }
 bool sentinel_isRunning() { return g_sentinelAlwaysOnActive.load(); }
+
+bool sentinel_yieldAndWait(uint32_t timeoutMs) {
+    bool wasRunning = g_sentinelAlwaysOnActive.load() || g_sentinelUserEnabled.load();
+    if (!wasRunning) return false;
+    g_sentinelUserEnabled.store(false);
+    esp_wifi_set_promiscuous(false);
+    uint32_t start = millis();
+    while (g_sentinelAlwaysOnActive.load() && (millis() - start) < timeoutMs) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    Serial.printf("[SENTINEL] Yielded radio for scan (released in %lums)\n", (unsigned long)(millis() - start));
+    return wasRunning;
+}
 
 void sentinel_loadUserPref() {
     bool on = false;

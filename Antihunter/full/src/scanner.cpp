@@ -3577,6 +3577,7 @@ void listScanTask(void *pv) {
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
+    sentinel_yieldAndWait(1500);
     // Note: lastResults already set to "Target scan starting..." above (line ~2197)
     // Do NOT clear it here — that creates a race where tick() sees "None yet."
     lastScanStart = millis();
