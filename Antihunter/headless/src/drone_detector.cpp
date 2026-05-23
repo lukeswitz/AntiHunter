@@ -333,6 +333,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     if (!droneDetectionEnabled || !addr || !odid || odidLen < 1) return;
     if (rssi < rfConfig.globalRssiThreshold) return;
     DroneDetection drone;
+    // cppcheck-suppress memsetClassFloat
     memset(&drone, 0, sizeof(drone));
     memcpy(drone.mac, addr, 6);
     drone.rssi = rssi;
@@ -340,7 +341,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     drone.lastSeen = millis();
     ODID_UAS_Data uasData;
     odid_initUasData(&uasData);
-    int skip = (odidLen >= 1) ? 1 : 0;
+    int skip = 1;
     if (odidLen - skip < 1) return;
     if (odid_message_process_pack(&uasData,
                                   const_cast<uint8_t*>(odid + skip),

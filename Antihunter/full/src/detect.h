@@ -210,12 +210,13 @@ extern std::atomic<bool> detectEnabled;
 void initializeDetect();
 void detectTask(void *pv);
 
-// Sniffer hook — called from sniffer_cb (IRAM, must be brief / ISR-safe)
-void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel);
+// Sniffer hook — called from sniffer_cb (IRAM, must be brief / ISR-safe).
+// IRAM_ATTR lives on the definition only (on both decl+def, GCC assigns conflicting .iram1 sections).
+void detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel);
 
 // PHY-stat hook for 2.4GHz jamming detection — called per packet from sniffer_cb
 // (incl. CRC-fail frames when FCSFAIL filter is set). ISR-safe.
-void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
+void detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
 String jamming_getJson();
 
 // Mesh-channel disruption guard — called per inbound mesh line from uartForwardTask.

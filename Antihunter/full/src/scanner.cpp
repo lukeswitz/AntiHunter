@@ -1529,10 +1529,8 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
                 srcUnicastCount[macFmt6(h.srcMac)]++;
             }
         }
-        uint32_t loneSrcs = 0;
-        for (const auto &kv : srcUnicastCount) {
-            if (kv.second == 1) loneSrcs++;
-        }
+        uint32_t loneSrcs = static_cast<uint32_t>(std::count_if(srcUnicastCount.begin(), srcUnicastCount.end(),
+            [](const auto &kv) { return kv.second == 1; }));
         if (loneSrcs > 0) {
             results += "EAPOL-capture-bait pattern (single targeted deauth, no follow-up): "
                        + std::to_string(loneSrcs) + " srcs\n";
@@ -1686,11 +1684,10 @@ void blueTeamTask(void *pv) {
             // High-confidence flood detector: ≥20 deauths from same src in 10s.
             // (Cisco WLC default ~30; research recommends 20.)
             static std::map<uint64_t, std::pair<uint32_t, uint16_t>> floodWin;
-            static std::set<uint64_t> floodAlerted;
             {
+                static std::set<uint64_t> floodAlerted;
                 uint64_t k = 0;
                 for (int i = 0; i < 6; ++i) k = (k << 8) | hit.srcMac[i];
-                uint32_t now = millis();
                 auto it = floodWin.find(k);
                 if (it == floodWin.end() || (now - it->second.first) > 10000) {
                     floodWin[k] = {now, 1};
@@ -1709,7 +1706,7 @@ void blueTeamTask(void *pv) {
                 // Bound map size — evict oldest if >64 srcs tracked.
                 if (floodWin.size() > 64) {
                     uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
-                    for (auto &kv : floodWin) if (kv.second.first < oldest) { oldest = kv.second.first; oldestK = kv.first; }
+                    for (const auto &kv : floodWin) if (kv.second.first < oldest) { oldest = kv.second.first; oldestK = kv.first; }
                     floodWin.erase(oldestK);
                 }
             }

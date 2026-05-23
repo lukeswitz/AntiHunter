@@ -1212,8 +1212,8 @@ void logEventToSD(const char* path, const String& jsonLine) {
     // rotation reads) can drain heap to an abort. Below the floor, drop the write
     // rather than crash — the detector still counted/alerted in RAM. Protects
     // EVERY detector log path in one place.
-    static uint32_t s_lastHeapWarnMs = 0;
     if (ESP.getFreeHeap() < 20000) {
+        static uint32_t s_lastHeapWarnMs = 0;
         uint32_t nowMs = millis();
         if (nowMs - s_lastHeapWarnMs > 5000) {
             s_lastHeapWarnMs = nowMs;

@@ -19,6 +19,7 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <algorithm>
+#include <numeric>
 #include <deque>
 
 extern std::atomic<bool> g_detectVerbose;
@@ -323,7 +324,7 @@ static bool meshRateGate(const String &type, uint32_t minIntervalMs) {
     if (g_meshRateMap.size() > 256) {
         String oldestK;
         uint32_t oldestT = UINT32_MAX;
-        for (auto &kv : g_meshRateMap) if (kv.second < oldestT) { oldestT = kv.second; oldestK = kv.first; }
+        for (const auto &kv : g_meshRateMap) if (kv.second < oldestT) { oldestT = kv.second; oldestK = kv.first; }
         g_meshRateMap.erase(oldestK);
     }
     return true;
@@ -1011,8 +1012,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                     sendToSerial1(getNodeId() + ": EVILTWIN:" + bb + ":" + rsn + ":" + String((int)e.rssi), true);
             }
         }
-    }
-    if (wantEvil) {
+
         const char *forgeReason = classifyBeaconForgery(p, e.len);
         if (forgeReason) {
             char ssidLocal[33] = {0};
@@ -1112,7 +1112,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
     if (g_apBaseline.size() >= MAX_AP_BASELINE && g_apBaseline.find(k) == g_apBaseline.end()) {
         uint32_t oldestTs = UINT32_MAX;
         uint64_t oldestK = 0;
-        for (auto &kv : g_apBaseline) {
+        for (const auto &kv : g_apBaseline) {
             if (kv.second.lastSeen < oldestTs) {
                 oldestTs = kv.second.lastSeen;
                 oldestK = kv.first;
@@ -1179,16 +1179,6 @@ static void handleBeacon(const DetectFrameEvent &e) {
     bool tsfRestart = !baselineStale && (tsf < b.lastTSF) && ((b.lastTSF - tsf) > 1000000000ULL);
     bool tsfNonMono = twinMultich;
 
-    // Beacon-interval drift permil
-    uint16_t driftPermil = 0;
-    if (!baselineStale && b.beaconInterval > 0 && beaconInt > 0) {
-        int32_t d = (int32_t)beaconInt - (int32_t)b.beaconInterval;
-        if (d < 0) d = -d;
-        driftPermil = (uint16_t)((1000UL * d) / b.beaconInterval);
-    }
-    bool intervalDrift = false;
-    bool ieDrift = false;
-
     struct SsidWatch {
         uint32_t winStartMs;
         uint8_t streak;
@@ -1207,13 +1197,13 @@ static void handleBeacon(const DetectFrameEvent &e) {
     uint32_t bssidOui = ((uint32_t)bssid[0] << 16) | ((uint32_t)bssid[1] << 8) | (uint32_t)bssid[2];
 
     if (ssid[0] != 0 && !isSelfSsid(ssid)) {
-        uint64_t ssidHash = fnv1a((const uint8_t*)ssid, strlen(ssid));
+        uint64_t ssidHash = fnv1a(reinterpret_cast<const uint8_t*>(ssid), strlen(ssid));
         auto sit = g_ssidWatch.find(ssidHash);
         if (sit == g_ssidWatch.end()) {
             if (g_ssidWatch.size() >= MAX_SSID_TRACK) {
                 uint32_t oldestTs = UINT32_MAX;
                 uint64_t oldestK = 0;
-                for (auto &kv : g_ssidWatch) {
+                for (const auto &kv : g_ssidWatch) {
                     if (kv.second.winStartMs < oldestTs) { oldestTs = kv.second.winStartMs; oldestK = kv.first; }
                 }
                 if (oldestK) g_ssidWatch.erase(oldestK);
@@ -1302,8 +1292,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
     // OWE transition abuse: open beacon on SSID that matches an OWE-tagged BSSID without
     // being its declared transition partner.
     if (isOpen && !hasOweTrans) {
-        for (auto &kv : g_apBaseline) {
-            ApBaseline &other = kv.second;
+        for (const auto &kv : g_apBaseline) {
+            const ApBaseline &other = kv.second;
             if (other.hasOweTransition && strcmp(other.ssid, ssid) == 0) {
                 if (memcmp(other.oweTransitionBssid, bssid, 6) != 0) {
                     OweAbuseEvent ev{};
@@ -1495,7 +1485,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
     if (it == g_deauthRate.end() || (now - it->second.winStartMs) > DEAUTH_FLOOD_WIN_MS) {
         if (g_deauthRate.size() >= MAX_DEAUTH_RATE_MAP) {
             uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
-            for (auto &kv : g_deauthRate) if (kv.second.winStartMs < oldest) { oldest = kv.second.winStartMs; oldestK = kv.first; }
+            for (const auto &kv : g_deauthRate) if (kv.second.winStartMs < oldest) { oldest = kv.second.winStartMs; oldestK = kv.first; }
             g_deauthRate.erase(oldestK);
         }
         DeauthRateEntry ne{};
@@ -1623,10 +1613,8 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
 static void handleAssocReq(const DetectFrameEvent &e) {
     if (!g_assocSleepEnabled.load() && !g_pmkidEnabled.load()) return;
     if (e.len < 28) return;
-    // Count ALL assoc-reqs (PM bit no longer gates): PM-bit = sleep-mode forgery,
+    // Count ALL assoc-reqs: PM-bit = sleep-mode forgery,
     // high rate w/o PM = PMKID/handshake harvest flood (angryoxide/hcxdumptool).
-    uint8_t fc1 = e.payload[1];
-    bool pmBit = (fc1 & 0x10) != 0;
     const uint8_t *src   = e.payload + 10;
     const uint8_t *bssid = e.payload + 16;
     uint64_t bssK = packMac(bssid);
@@ -2131,7 +2119,7 @@ static void handleQosData(const DetectFrameEvent &e) {
         if (fit == g_fragMsdu.end()) {
             if (g_fragMsdu.size() >= 64) {
                 uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-                for (auto &kv : g_fragMsdu) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+                for (const auto &kv : g_fragMsdu) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
                 g_fragMsdu.erase(oldestK);
             }
             g_fragMsdu[key] = FragMsdu{};
@@ -2165,7 +2153,7 @@ static void handleQosData(const DetectFrameEvent &e) {
         if (it == g_pnState.end()) {
             if (g_pnState.size() >= 64) {
                 uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-                for (auto &kv : g_pnState) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+                for (const auto &kv : g_pnState) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
                 g_pnState.erase(oldestK);
             }
             g_pnState[key] = {pn32, now, 0};
@@ -2514,7 +2502,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
         if (g_bleTrackers.size() >= MAX_TRACKER_MAP) {
             // evict oldest
             uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_bleTrackers) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            for (const auto &kv : g_bleTrackers) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
             g_bleTrackers.erase(oldestK);
         }
         BleTrackerSighting s{};
@@ -2544,7 +2532,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
     s.avgRssi = (int8_t)(((int)s.avgRssi * 7 + rssi) / 8);
     int diff = rssi - s.avgRssi;
     if (diff < 0) diff = -diff;
-    if (diff > 4) s.rssiVarN = (s.rssiVarN < 250) ? s.rssiVarN + 1 : s.rssiVarN;
+    if (diff > 4) s.rssiVarN = (s.rssiVarN < 120) ? s.rssiVarN + 1 : s.rssiVarN;
 
     // Persistence score: time-window-based
     uint32_t windowDur = now - s.firstSeen;
@@ -2601,9 +2589,8 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     static constexpr size_t MAX_RID_CLAIMS = 64;
     if (g_ridClaims.find(uavId) == g_ridClaims.end() && g_ridClaims.size() >= MAX_RID_CLAIMS) {
-        auto oldest = g_ridClaims.begin();
-        for (auto it = g_ridClaims.begin(); it != g_ridClaims.end(); ++it)
-            if (it->second.ts < oldest->second.ts) oldest = it;
+        auto oldest = std::min_element(g_ridClaims.begin(), g_ridClaims.end(),
+            [](const auto &a, const auto &b) { return a.second.ts < b.second.ts; });
         g_ridClaims.erase(oldest);
     }
     auto &c = g_ridClaims[uavId];
@@ -2633,11 +2620,11 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
         sendToSerial1(String(buf), true);
     }
 
-    int gpsCount = 0;
-    bool geomViolation = false;
-    bool anyClose = false;
-    for (auto &rx2 : c.rxs) if (rx2.hasGps) gpsCount++;
+    int gpsCount = static_cast<int>(std::count_if(c.rxs.begin(), c.rxs.end(),
+        [](const RidClaim::Rx &rx2) { return rx2.hasGps; }));
     if (gpsCount >= 2) {
+        bool geomViolation = false;
+        bool anyClose = false;
         for (auto &rx2 : c.rxs) {
             if (!rx2.hasGps) continue;
             float claimedDist = haversineMeters(rx2.nodeLat, rx2.nodeLon, lat, lon);
@@ -2707,7 +2694,7 @@ void tof_processPong(const String &fromNode, uint32_t seqHint, uint64_t origTxEc
         if (it->seqId == seqHint &&
             (String(it->target) == fromNode || String(it->target) == "*")) {
             origTxUs = it->txUs;
-            it = g_tofPending.erase(it);
+            g_tofPending.erase(it);
             matched = true;
             break;
         }
@@ -2718,7 +2705,7 @@ void tof_processPong(const String &fromNode, uint32_t seqHint, uint64_t origTxEc
     uint64_t totalRtt = rxUs - origTxUs;
     uint64_t netRtt = totalRtt;
     if (theirRxUs > origTxEcho && origTxEcho > 0) {
-        uint64_t remoteProc = (theirRxUs > origTxEcho) ? (theirRxUs - origTxEcho) : 0;
+        uint64_t remoteProc = theirRxUs - origTxEcho;
         if (remoteProc < totalRtt) netRtt = totalRtt - remoteProc;
     }
 
@@ -2727,7 +2714,7 @@ void tof_processPong(const String &fromNode, uint32_t seqHint, uint64_t origTxEc
         if (g_tofPeers.size() >= MAX_TOF_PEERS) {
             String oldestKey;
             uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_tofPeers) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestKey = kv.first; }
+            for (const auto &kv : g_tofPeers) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestKey = kv.first; }
             if (oldestKey.length()) g_tofPeers.erase(oldestKey);
         }
         TofPeer np{};
@@ -2789,7 +2776,7 @@ String tsf_getSkewJson() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
     bool first = true;
-    for (auto &kv : g_apBaseline) {
+    for (const auto &kv : g_apBaseline) {
         const ApBaseline &b = kv.second;
         if (b.chanA == 0) continue;
         if (!first) out += ",";
@@ -2817,9 +2804,8 @@ void tsf_clear() {
 }
 size_t tsf_count() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    size_t n = 0;
-    for (auto &kv : g_apBaseline) if (kv.second.chanA != 0) n++;
-    return n;
+    return std::count_if(g_apBaseline.begin(), g_apBaseline.end(),
+        [](const auto &kv) { return kv.second.chanA != 0; });
 }
 
 // =============================================================================
@@ -2887,7 +2873,7 @@ void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi)
     if (kit == g_karma.end()) {
         if (g_karma.size() >= MAX_KARMA) {
             uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_karma) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            for (const auto &kv : g_karma) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
             g_karma.erase(oldestK);
             g_karmaSsids.erase(oldestK);
         }
@@ -2940,31 +2926,28 @@ void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi)
 bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi) {
     if (!ssid || !bssid) return false;
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    for (auto &s : g_baitSsids) {
-        if (s == ssid) {
-            uint64_t k = packMac(bssid);
-            auto &cand = g_karma[k];
-            if (cand.firstSseen == 0) {
-                memcpy(cand.bssid, bssid, 6);
-                cand.firstSseen = millis();
-            }
-            bool wasConfirmed = cand.confirmed;
-            cand.confirmed = true;
-            cand.lastSeen = millis();
-            strncpy(cand.lastSsid, ssid, sizeof(cand.lastSsid) - 1);
-            if (!wasConfirmed) {   // emit once per BSSID — karma answers every bait, would storm otherwise
-                Serial.printf("[DETECT] KARMA_CONFIRMED bssid=%s ssid=%s rssi=%d\n", macStr(bssid).c_str(), ssid, (int)rssi);
-                ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), macStr(bssid).c_str());
-                if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
-                    sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) + ":" + String(rssi), true);
-                }
-                quorum_addReport("KARMA", macStr(bssid), getNodeId(), rssi);
-                attacker_kick(bssid, "KARMA");
-            }
-            return true;
-        }
+    if (std::find(g_baitSsids.begin(), g_baitSsids.end(), String(ssid)) == g_baitSsids.end())
+        return false;
+    uint64_t k = packMac(bssid);
+    auto &cand = g_karma[k];
+    if (cand.firstSseen == 0) {
+        memcpy(cand.bssid, bssid, 6);
+        cand.firstSseen = millis();
     }
-    return false;
+    bool wasConfirmed = cand.confirmed;
+    cand.confirmed = true;
+    cand.lastSeen = millis();
+    strncpy(cand.lastSsid, ssid, sizeof(cand.lastSsid) - 1);
+    if (!wasConfirmed) {   // emit once per BSSID — karma answers every bait, would storm otherwise
+        Serial.printf("[DETECT] KARMA_CONFIRMED bssid=%s ssid=%s rssi=%d\n", macStr(bssid).c_str(), ssid, (int)rssi);
+        ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), macStr(bssid).c_str());
+        if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
+            sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) + ":" + String(rssi), true);
+        }
+        quorum_addReport("KARMA", macStr(bssid), getNodeId(), rssi);
+        attacker_kick(bssid, "KARMA");
+    }
+    return true;
 }
 
 String karma_getJson() {
@@ -2997,9 +2980,8 @@ size_t karma_candidateCount() {
 }
 size_t karma_confirmedCount() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    size_t n = 0;
-    for (auto &kv : g_karma) if (kv.second.confirmed) n++;
-    return n;
+    return std::count_if(g_karma.begin(), g_karma.end(),
+        [](const auto &kv) { return kv.second.confirmed; });
 }
 
 // =============================================================================
@@ -3042,7 +3024,7 @@ static void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
     if (sit == g_pwna.end()) {
         if (g_pwna.size() >= MAX_PWNA) {
             uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_pwna) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            for (const auto &kv : g_pwna) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
             g_pwna.erase(oldestK);
         }
         PwnagotchiSighting ns{};
@@ -3122,7 +3104,7 @@ void attacker_kick(const uint8_t *mac, const char *attackType) {
         uint32_t priorStartedAt = (it != g_hunts.end()) ? it->second.startedAt : now;
         if (it == g_hunts.end() && g_hunts.size() >= MAX_HUNTS) {
             uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_hunts) if (kv.second.lastKick < oldestT) { oldestT = kv.second.lastKick; oldestK = kv.first; }
+            for (const auto &kv : g_hunts) if (kv.second.lastKick < oldestT) { oldestT = kv.second.lastKick; oldestK = kv.first; }
             g_hunts.erase(oldestK);
         }
         AttackerHunt h{};
@@ -3203,7 +3185,7 @@ static void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
     if (it == g_hshk.end()) {
         if (g_hshk.size() >= MAX_HSHK) {
             uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_hshk) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            for (const auto &kv : g_hshk) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
             g_hshk.erase(oldestK);
         }
         HandshakeReconstruction r{};
@@ -3218,18 +3200,17 @@ static void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
     }
     HandshakeReconstruction &r = it->second;
     if (msgNum == 3) {
-        for (auto &f : r.fragments) {
-            if (f.msgNum == 3 && f.replayCtr == replayCtr) {
-                if (r.krackEvents < 255) r.krackEvents++;
-                g_krackEvents.fetch_add(1);
-                if (meshEnabled && g_meshKrack.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
-                    sendToSerial1(getNodeId() + ": KRACK:" + macStr(bssid) + ":" + macStr(sta) +
-                                  ":" + String((unsigned long)replayCtr), true);
-                }
-                quorum_addReport("KRACK", macStr(bssid) + "/" + macStr(sta), getNodeId(), rssi);
-                attacker_kick(bssid, "KRACK");
-                break;
+        auto kfit = std::find_if(r.fragments.begin(), r.fragments.end(),
+            [replayCtr](const HandshakeFragment &frag) { return frag.msgNum == 3 && frag.replayCtr == replayCtr; });
+        if (kfit != r.fragments.end()) {
+            if (r.krackEvents < 255) r.krackEvents++;
+            g_krackEvents.fetch_add(1);
+            if (meshEnabled && g_meshKrack.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
+                sendToSerial1(getNodeId() + ": KRACK:" + macStr(bssid) + ":" + macStr(sta) +
+                              ":" + String((unsigned long)replayCtr), true);
             }
+            quorum_addReport("KRACK", macStr(bssid) + "/" + macStr(sta), getNodeId(), rssi);
+            attacker_kick(bssid, "KRACK");
         }
     }
     HandshakeFragment f{};
@@ -3367,7 +3348,7 @@ static void airtagReplayPersist(uint32_t pHash, const uint8_t *firstMac, const u
     memcpy(rec.firstAddr, firstMac, 6);
     if (altMac) memcpy(rec.altAddr, altMac, 6);
     rec.firstSeenMs = firstSeenMs;
-    f.write((const uint8_t *)&rec, sizeof(rec));
+    f.write(reinterpret_cast<const uint8_t*>(&rec), sizeof(rec));
     f.close();
 }
 
@@ -3383,7 +3364,7 @@ static void airtagReplayLoadFromSD() {
     size_t skip = (recCount - toRead) * sizeof(AirTagReplaySdRec);
     if (skip) f.seek(skip, SeekSet);
     AirTagReplaySdRec rec;
-    while (toRead-- && f.read((uint8_t *)&rec, sizeof(rec)) == sizeof(rec)) {
+    while (toRead-- && f.read(reinterpret_cast<uint8_t*>(&rec), sizeof(rec)) == sizeof(rec)) {
         if (g_airtagReplay.size() >= MAX_AIRTAG_REPLAY_MAP) break;
         AirTagReplayEntry ne{};
         ne.firstAddr = packMac(rec.firstAddr);
@@ -3425,7 +3406,7 @@ static void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *paylo
             if (g_airtagReplay.size() >= MAX_AIRTAG_REPLAY_MAP) {
                 // Evict oldest entry by firstSeenMs.
                 uint32_t oldest = UINT32_MAX; uint32_t oldestKey = 0;
-                for (auto &kv : g_airtagReplay) if (kv.second.firstSeenMs < oldest) { oldest = kv.second.firstSeenMs; oldestKey = kv.first; }
+                for (const auto &kv : g_airtagReplay) if (kv.second.firstSeenMs < oldest) { oldest = kv.second.firstSeenMs; oldestKey = kv.first; }
                 g_airtagReplay.erase(oldestKey);
             }
             AirTagReplayEntry ne{};
@@ -3472,7 +3453,7 @@ static void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *paylo
     if (ait == g_airtag.end()) {
         if (g_airtag.size() >= MAX_AIRTAG) {
             uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (auto &kv : g_airtag) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+            for (const auto &kv : g_airtag) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
             g_airtag.erase(oldestK);
         }
         AirTagPresence np{};
@@ -3570,7 +3551,7 @@ static uint32_t trackerTryLinkRotation(const uint8_t *addr, const char *vendor, 
             if (cid == 0) {
                 if (g_chains.size() >= MAX_CHAINS) {
                     uint32_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-                    for (auto &kv : g_chains) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
+                    for (const auto &kv : g_chains) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
                     g_chains.erase(oldestK);
                 }
                 cid = g_chainSeq++;
@@ -3697,10 +3678,12 @@ void pg_announceLocalIdentity(uint32_t hash, const char *localTrackId, int8_t rs
         if (id.sightingCount < 255) id.sightingCount++;
     }
     id.lastSeen = now;
-    bool selfPresent = false;
     String me = getNodeId();
-    for (auto &n : id.nodes) if (n.nodeId == me) { n.rssi = rssi; n.ts = now; selfPresent = true; break; }
-    if (!selfPresent) {
+    auto selfIt = std::find_if(id.nodes.begin(), id.nodes.end(),
+        [&me](const ProbeGraphIdentity::NodeSeen &n) { return n.nodeId == me; });
+    if (selfIt != id.nodes.end()) {
+        selfIt->rssi = rssi; selfIt->ts = now;
+    } else {
         ProbeGraphIdentity::NodeSeen ns;
         ns.nodeId = me; ns.rssi = rssi; ns.ts = now;
         id.nodes.push_back(ns);
@@ -3757,7 +3740,7 @@ static constexpr uint16_t SNAP_VER   = 3;
 struct SnapHeader {
     uint32_t magic;
     uint16_t ver;
-    uint16_t reserved;
+    uint16_t _pad;
     uint32_t chains;
     uint32_t airtag;
     uint32_t recon;
@@ -3774,30 +3757,31 @@ static void persistSnapshot() {
     SnapHeader h{};
     h.magic = SNAP_MAGIC;
     h.ver = SNAP_VER;
+    h._pad = 0;
     h.chains = g_chains.size();
     h.airtag = g_airtag.size();
     h.recon  = g_recon.size();
     h.tsf    = 0;
     h.pwna   = g_pwna.size();
-    f.write((const uint8_t*)&h, sizeof(h));
+    f.write(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
     for (auto &kv : g_chains) {
         uint32_t cid = kv.second.chainId;
-        f.write((const uint8_t*)&cid, 4);
-        f.write((const uint8_t*)kv.second.vendor, 16);
+        f.write(reinterpret_cast<const uint8_t*>(&cid), 4);
+        f.write(reinterpret_cast<const uint8_t*>(kv.second.vendor), 16);
         int8_t avg = kv.second.avgRssi;
-        f.write((const uint8_t*)&avg, 1);
-        uint8_t lc = (kv.second.links.size() > 8) ? 8 : (uint8_t)kv.second.links.size();
+        f.write(reinterpret_cast<const uint8_t*>(&avg), 1);
+        uint8_t lc = (kv.second.links.size() > 8) ? 8 : static_cast<uint8_t>(kv.second.links.size());
         f.write(&lc, 1);
-        f.write((const uint8_t*)&kv.second.firstSeen, 4);
-        f.write((const uint8_t*)&kv.second.lastSeen, 4);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.firstSeen), 4);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.lastSeen), 4);
         size_t writtenLinks = 0;
         for (auto &lnk : kv.second.links) {
             if (writtenLinks >= 8) break;
             f.write(lnk.addr, 6);
             int8_t lr = lnk.rssi;
-            f.write((const uint8_t*)&lr, 1);
-            f.write((const uint8_t*)&lnk.startTs, 4);
-            f.write((const uint8_t*)&lnk.endTs, 4);
+            f.write(reinterpret_cast<const uint8_t*>(&lr), 1);
+            f.write(reinterpret_cast<const uint8_t*>(&lnk.startTs), 4);
+            f.write(reinterpret_cast<const uint8_t*>(&lnk.endTs), 4);
             writtenLinks++;
         }
     }
@@ -3805,33 +3789,33 @@ static void persistSnapshot() {
         f.write(kv.second.addr, 6);
         f.write(&kv.second.lastStatusByte, 1);
         uint16_t obs = kv.second.observations;
-        f.write((const uint8_t*)&obs, 2);
+        f.write(reinterpret_cast<const uint8_t*>(&obs), 2);
         uint16_t mc = kv.second.maintainedCount;
-        f.write((const uint8_t*)&mc, 2);
+        f.write(reinterpret_cast<const uint8_t*>(&mc), 2);
         f.write(&kv.second.batteryLastSeen, 1);
         int8_t rs = kv.second.lastRssi;
-        f.write((const uint8_t*)&rs, 1);
-        f.write((const uint8_t*)&kv.second.firstSeen, 4);
-        f.write((const uint8_t*)&kv.second.lastSeen, 4);
+        f.write(reinterpret_cast<const uint8_t*>(&rs), 1);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.firstSeen), 4);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.lastSeen), 4);
     }
     for (auto &kv : g_recon) {
         char id[10] = {0};
         strncpy(id, kv.second.identityId, 9);
-        f.write((const uint8_t*)id, 10);
+        f.write(reinterpret_cast<const uint8_t*>(id), 10);
         f.write(&kv.second.score, 1);
-        f.write((const uint8_t*)kv.second.reasons, 96);
-        f.write((const uint8_t*)&kv.second.ts, 4);
+        f.write(reinterpret_cast<const uint8_t*>(kv.second.reasons), 96);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.ts), 4);
     }
     for (auto &kv : g_pwna) {
         f.write(kv.second.bssid, 6);
-        f.write((const uint8_t*)&kv.second.observations, 2);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.observations), 2);
         int8_t br = kv.second.bestRssi;
-        f.write((const uint8_t*)&br, 1);
+        f.write(reinterpret_cast<const uint8_t*>(&br), 1);
         int8_t lr = kv.second.lastRssi;
-        f.write((const uint8_t*)&lr, 1);
-        f.write((const uint8_t*)&kv.second.firstSeen, 4);
-        f.write((const uint8_t*)&kv.second.lastSeen, 4);
-        f.write((const uint8_t*)kv.second.snippet, sizeof(kv.second.snippet));
+        f.write(reinterpret_cast<const uint8_t*>(&lr), 1);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.firstSeen), 4);
+        f.write(reinterpret_cast<const uint8_t*>(&kv.second.lastSeen), 4);
+        f.write(reinterpret_cast<const uint8_t*>(kv.second.snippet), sizeof(kv.second.snippet));
     }
     f.close();
     if (SD.exists(SNAP_PATH)) SD.remove(SNAP_PATH);
@@ -3844,18 +3828,18 @@ static void loadSnapshot() {
     File f = SD.open(SNAP_PATH, FILE_READ);
     if (!f) return;
     SnapHeader h{};
-    if (f.read((uint8_t*)&h, sizeof(h)) != sizeof(h)) { f.close(); return; }
+    if (f.read(reinterpret_cast<uint8_t*>(&h), sizeof(h)) != sizeof(h)) { f.close(); return; }
     if (h.magic != SNAP_MAGIC || h.ver != SNAP_VER) { f.close(); return; }
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     for (uint32_t i = 0; i < h.chains; ++i) {
         uint32_t cid; char vendor[16]; int8_t avg; uint8_t lc;
         uint32_t first, last;
-        if (f.read((uint8_t*)&cid, 4) != 4) break;
-        if (f.read((uint8_t*)vendor, 16) != 16) break;
-        if (f.read((uint8_t*)&avg, 1) != 1) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&cid), 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(vendor), 16) != 16) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&avg), 1) != 1) break;
         if (f.read(&lc, 1) != 1) break;
-        if (f.read((uint8_t*)&first, 4) != 4) break;
-        if (f.read((uint8_t*)&last, 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&first), 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&last), 4) != 4) break;
         TrackerChain c{};
         c.chainId = cid;
         memcpy(c.vendor, vendor, 16);
@@ -3867,10 +3851,10 @@ static void loadSnapshot() {
             TrackerChain::Link lnk{};
             if (f.read(lnk.addr, 6) != 6) { c.linkCount = lidx; break; }
             int8_t lr;
-            if (f.read((uint8_t*)&lr, 1) != 1) { c.linkCount = lidx; break; }
+            if (f.read(reinterpret_cast<uint8_t*>(&lr), 1) != 1) { c.linkCount = lidx; break; }
             lnk.rssi = lr;
-            if (f.read((uint8_t*)&lnk.startTs, 4) != 4) { c.linkCount = lidx; break; }
-            if (f.read((uint8_t*)&lnk.endTs, 4) != 4) { c.linkCount = lidx; break; }
+            if (f.read(reinterpret_cast<uint8_t*>(&lnk.startTs), 4) != 4) { c.linkCount = lidx; break; }
+            if (f.read(reinterpret_cast<uint8_t*>(&lnk.endTs), 4) != 4) { c.linkCount = lidx; break; }
             c.links.push_back(lnk);
         }
         g_chains[cid] = c;
@@ -3881,42 +3865,42 @@ static void loadSnapshot() {
         if (f.read(p.addr, 6) != 6) break;
         if (f.read(&p.lastStatusByte, 1) != 1) break;
         uint16_t obs, mc;
-        if (f.read((uint8_t*)&obs, 2) != 2) break;
-        if (f.read((uint8_t*)&mc, 2) != 2) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&obs), 2) != 2) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&mc), 2) != 2) break;
         if (f.read(&p.batteryLastSeen, 1) != 1) break;
         int8_t rs;
-        if (f.read((uint8_t*)&rs, 1) != 1) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&rs), 1) != 1) break;
         p.observations = obs;
         p.maintainedCount = mc;
         p.lastRssi = rs;
-        if (f.read((uint8_t*)&p.firstSeen, 4) != 4) break;
-        if (f.read((uint8_t*)&p.lastSeen, 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&p.firstSeen), 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&p.lastSeen), 4) != 4) break;
         p.isFindMy = true;
         g_airtag[packMac(p.addr)] = p;
     }
     for (uint32_t i = 0; i < h.recon; ++i) {
         char id[10] = {0};
         ReconAlert r{};
-        if (f.read((uint8_t*)id, 10) != 10) break;
+        if (f.read(reinterpret_cast<uint8_t*>(id), 10) != 10) break;
         if (f.read(&r.score, 1) != 1) break;
-        if (f.read((uint8_t*)r.reasons, 96) != 96) break;
-        if (f.read((uint8_t*)&r.ts, 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(r.reasons), 96) != 96) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&r.ts), 4) != 4) break;
         strncpy(r.identityId, id, 9);
         g_recon[String(id)] = r;
     }
     for (uint32_t i = 0; i < h.pwna; ++i) {
         PwnagotchiSighting p{};
         if (f.read(p.bssid, 6) != 6) break;
-        if (f.read((uint8_t*)&p.observations, 2) != 2) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&p.observations), 2) != 2) break;
         int8_t br;
-        if (f.read((uint8_t*)&br, 1) != 1) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&br), 1) != 1) break;
         p.bestRssi = br;
         int8_t lr;
-        if (f.read((uint8_t*)&lr, 1) != 1) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&lr), 1) != 1) break;
         p.lastRssi = lr;
-        if (f.read((uint8_t*)&p.firstSeen, 4) != 4) break;
-        if (f.read((uint8_t*)&p.lastSeen, 4) != 4) break;
-        if (f.read((uint8_t*)p.snippet, sizeof(p.snippet)) != sizeof(p.snippet)) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&p.firstSeen), 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&p.lastSeen), 4) != 4) break;
+        if (f.read(reinterpret_cast<uint8_t*>(p.snippet), sizeof(p.snippet)) != sizeof(p.snippet)) break;
         g_pwna[packMac(p.bssid)] = p;
     }
     f.close();
@@ -4770,9 +4754,11 @@ void quorum_addReport(const String &type, const String &key,
     if (c.firstSeen == 0) {
         c.type = type; c.key = key; c.firstSeen = now; c.fired = false;
     }
-    bool seen = false;
-    for (auto &r : c.reports) if (r.nodeId == fromNode) { seen = true; r.rssi = rssi; r.ts = now; break; }
-    if (!seen) {
+    auto rIt = std::find_if(c.reports.begin(), c.reports.end(),
+        [&fromNode](const AlertCandidate::Report &r) { return r.nodeId == fromNode; });
+    if (rIt != c.reports.end()) {
+        rIt->rssi = rssi; rIt->ts = now;
+    } else {
         AlertCandidate::Report r;
         r.nodeId = fromNode; r.rssi = rssi; r.ts = now;
         c.reports.push_back(r);
@@ -4781,9 +4767,11 @@ void quorum_addReport(const String &type, const String &key,
     if (!c.fired && c.reports.size() >= need) {
         // Krum-lite: drop most-divergent when N>=5
         std::vector<int> rssis;
-        for (auto &r : c.reports) rssis.push_back(r.rssi);
+        rssis.reserve(c.reports.size());
+        std::transform(c.reports.begin(), c.reports.end(), std::back_inserter(rssis),
+            [](const AlertCandidate::Report &r) { return static_cast<int>(r.rssi); });
         if (rssis.size() >= 5) {
-            int sum = 0; for (int v : rssis) sum += v;
+            int sum = std::accumulate(rssis.begin(), rssis.end(), 0);
             int mean = sum / (int)rssis.size();
             int worstIdx = 0; int worstD = -1;
             for (size_t i = 0; i < rssis.size(); ++i) {
@@ -4902,7 +4890,7 @@ void detect_onSoftApConnect(const uint8_t *clientMac) {
     uint64_t k = packMac(clientMac);
     if (g_apClients.find(k) == g_apClients.end() && g_apClients.size() >= 64) {
         uint32_t oldest = UINT32_MAX; uint64_t ok = 0;
-        for (auto &kv : g_apClients) if (kv.second.lastSeen < oldest) { oldest = kv.second.lastSeen; ok = kv.first; }
+        for (const auto &kv : g_apClients) if (kv.second.lastSeen < oldest) { oldest = kv.second.lastSeen; ok = kv.first; }
         if (ok) g_apClients.erase(ok);
     }
     auto &c = g_apClients[k];
@@ -5204,11 +5192,13 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         } else if (rssi > id.bestRssi) id.bestRssi = (int8_t)rssi;
         if (id.sightingCount < 255) id.sightingCount++;
         id.lastSeen = now;
-        bool found = false;
-        for (auto &n : id.nodes) if (n.nodeId == fromNode) { n.rssi = (int8_t)rssi; n.ts = now; found = true; break; }
-        if (!found) {
+        auto nIt = std::find_if(id.nodes.begin(), id.nodes.end(),
+            [&fromNode](const ProbeGraphIdentity::NodeSeen &n) { return n.nodeId == fromNode; });
+        if (nIt != id.nodes.end()) {
+            nIt->rssi = static_cast<int8_t>(rssi); nIt->ts = now;
+        } else {
             ProbeGraphIdentity::NodeSeen ns;
-            ns.nodeId = fromNode; ns.rssi = (int8_t)rssi; ns.ts = now;
+            ns.nodeId = fromNode; ns.rssi = static_cast<int8_t>(rssi); ns.ts = now;
             id.nodes.push_back(ns);
         }
     } else if (msg.startsWith("BLOOM:")) {
@@ -5285,9 +5275,8 @@ void _detect_recordMeshPeer(const String &fromNode) {
         else ++it;
     }
     if (g_meshPeerLastSeen.find(fromNode) == g_meshPeerLastSeen.end() && g_meshPeerLastSeen.size() >= 64) {
-        auto oldest = g_meshPeerLastSeen.begin();
-        for (auto it = g_meshPeerLastSeen.begin(); it != g_meshPeerLastSeen.end(); ++it)
-            if (it->second < oldest->second) oldest = it;
+        auto oldest = std::min_element(g_meshPeerLastSeen.begin(), g_meshPeerLastSeen.end(),
+            [](const auto &a, const auto &b) { return a.second < b.second; });
         g_meshPeerLastSeen.erase(oldest);
     }
     g_meshPeerLastSeen[fromNode] = now;
@@ -5295,19 +5284,14 @@ void _detect_recordMeshPeer(const String &fromNode) {
 static bool hasMeshPeer() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     uint32_t now = millis();
-    for (auto &kv : g_meshPeerLastSeen) {
-        if ((now - kv.second) < MESH_PEER_TIMEOUT_MS) return true;
-    }
-    return false;
+    return std::any_of(g_meshPeerLastSeen.begin(), g_meshPeerLastSeen.end(),
+        [now](const auto &kv) { return (now - kv.second) < MESH_PEER_TIMEOUT_MS; });
 }
 size_t detect_meshPeerCount() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     uint32_t now = millis();
-    size_t n = 0;
-    for (auto &kv : g_meshPeerLastSeen) {
-        if ((now - kv.second) < MESH_PEER_TIMEOUT_MS) n++;
-    }
-    return n;
+    return static_cast<size_t>(std::count_if(g_meshPeerLastSeen.begin(), g_meshPeerLastSeen.end(),
+        [now](const auto &kv) { return (now - kv.second) < MESH_PEER_TIMEOUT_MS; }));
 }
 
 std::atomic<bool> g_detectVerbose{false};
@@ -5322,7 +5306,6 @@ void detect_periodicMeshGossip() {
     }
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     const uint8_t *src = g_localBloom.data();
-    size_t sent = 0;
     for (size_t idx = 0; idx < BloomFilter::BYTES / 128; ++idx) {
         uint16_t nonzero = 0;
         uint8_t chunkHash = 0;
@@ -5359,7 +5342,7 @@ void detect_periodicMeshGossip() {
         }
         sendToSerial1(getNodeId() + ": BLOOM:" + String((unsigned)idx) + ":" + body, true);
         vTaskDelay(pdMS_TO_TICKS(50));
-        if (++sent >= 1) break;
+        break;
     }
 }
 
@@ -5441,7 +5424,7 @@ bool loadOuiTable() {
     g_ouiTable.reserve(n);
     for (size_t i = 0; i < n; ++i) {
         OuiTableEntry e;
-        if (f.read((uint8_t*)&e, sizeof(e)) != sizeof(e)) break;
+        if (f.read(reinterpret_cast<uint8_t*>(&e), sizeof(e)) != sizeof(e)) break;
         g_ouiTable.push_back(e);
     }
     f.close();
