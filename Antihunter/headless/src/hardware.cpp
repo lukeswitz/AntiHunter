@@ -1,6 +1,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "baseline.h"
+#include "detect.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -499,7 +500,7 @@ void loadConfiguration() {
         config += "}";
     }
 
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, config);
 
     if (error) {
@@ -688,6 +689,20 @@ void loadConfiguration() {
         prefs.putBool("vibEnabled", vibrationEnabled);
     }
 
+    if (doc.containsKey("sentinelBoot")) {
+        bool sb = doc["sentinelBoot"].as<bool>();
+        prefs.putBool("sentBoot", sb);
+        Serial.printf("[CONFIG] sentinelBoot=%s\n", sb ? "on" : "off");
+    }
+
+    if (doc.containsKey("detectors") && doc["detectors"].is<JsonObject>()) {
+        String dj;
+        serializeJson(doc["detectors"], dj);
+        detect_setConfigFromJson(dj);
+        detect_persistTunables();
+        Serial.println("[CONFIG] Detector/sentinel config applied + persisted");
+    }
+
     Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
@@ -763,7 +778,7 @@ bool waitForInitialConfig() {
     
     Serial.println("[CONFIG] Received config, validating...");
     
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, configBuffer);
     
     if (error) {

@@ -2,6 +2,7 @@
 #include "network.h"
 #include "baseline.h"
 #include "triangulation.h"
+#include "detect.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -504,7 +505,7 @@ void loadConfiguration() {
         config += "}";
     }
 
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, config);
 
     if (error) {
@@ -707,6 +708,20 @@ void loadConfiguration() {
         prefs.putBool("vibEnabled", vibrationEnabled);
     }
 
+    if (doc.containsKey("sentinelBoot")) {
+        bool sb = doc["sentinelBoot"].as<bool>();
+        prefs.putBool("sentBoot", sb);
+        Serial.printf("[CONFIG] sentinelBoot=%s\n", sb ? "on" : "off");
+    }
+
+    if (doc.containsKey("detectors") && doc["detectors"].is<JsonObject>()) {
+        String dj;
+        serializeJson(doc["detectors"], dj);
+        detect_setConfigFromJson(dj);
+        detect_persistTunables();
+        Serial.println("[CONFIG] Detector/sentinel config applied + persisted");
+    }
+
     Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
@@ -782,7 +797,7 @@ bool waitForInitialConfig() {
     
     Serial.println("[CONFIG] Received config, validating...");
     
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, configBuffer);
     
     if (error) {
@@ -852,6 +867,12 @@ String getDiagnostics() {
     snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02u:%02u:%02u", uptime_hours, uptime_minutes, uptime_seconds);
     s += "Up:" + String(uptimeBuffer) + "\n";
     s += "Scan Mode: " + modeStr + "\n";
+    String activeRadio;
+    if (scanning) activeRadio = modeStr;
+    else if (blueTeamTaskHandle) activeRadio = "WiFi";
+    else if (sentinel_isRunning()) activeRadio = "WiFi";
+    else activeRadio = "Idle";
+    s += "Active Radio: " + activeRadio + "\n";
     s += "WiFi Frames: " + String((unsigned)framesSeen) + "\n";
     s += "BLE Frames: " + String((unsigned)bleFramesSeen) + "\n";
     s += "Devices Found: " + String(totalHits) + "\n";

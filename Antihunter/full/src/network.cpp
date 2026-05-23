@@ -1180,7 +1180,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
           </div>
           <div style="font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5;">
-            Persistent WiFi RF surveillance with adversary tracking. Beyond signal detection: validates Remote ID claims via mesh geometry, scores hostile recon behavior, audits handshake captures, fingerprints attacker tools, cross-verifies threats across mesh nodes.
+            Passive WiFi monitoring that flags attacker-tool activity — deauth and beacon floods, auth and assoc-sleep DoS, SAE commit floods, karma and evil-twin APs, and PMKID/handshake capture attempts — and broadcasts detections to mesh peers.
           </div>
         </div>
 
@@ -1277,6 +1277,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <div class="stat" data-cfg="karma"><div class="stat-label">Karma</div><div class="stat-value" id="d-karma">0</div></div>
               <div class="stat" data-cfg="always" title="mdk4 auth-DoS: open-system Auth flood from many spoofed MACs"><div class="stat-label">Auth-DoS</div><div class="stat-value" id="d-authflood">0</div></div>
               <div class="stat" data-cfg="eviltwin"><div class="stat-label">Beacon Flood</div><div class="stat-value" id="d-beaconflood">0</div></div>
+              <div class="stat" data-cfg="assoc_sleep"><div class="stat-label">Assoc Sleep</div><div class="stat-value" id="d-asl">0</div></div>
+              <div class="stat" data-cfg="probe_flood"><div class="stat-label">Probe Flood</div><div class="stat-value" id="d-pfl">0</div></div>
+              <div class="stat" data-cfg="tsf"><div class="stat-label">TSF / Twin</div><div class="stat-value" id="d-tsf">0</div></div>
+              <div class="stat" data-cfg="jam"><div class="stat-label">WiFi Jam</div><div class="stat-value" id="d-jam">0</div></div>
+              <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Guard</div><div class="stat-value" id="d-mgd">0</div></div>
+              <div class="stat" data-cfg="pwna"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pwna">0</div></div>
+              <div class="stat" data-cfg="rid_spoof"><div class="stat-label">RID Spoof</div><div class="stat-value" id="d-rid-ov">0</div></div>
             </div>
             <div style="font-size:11px;color:var(--mut);margin-bottom:8px;">
               <span class="lbl">Heap:</span><span id="d-heap" class="num">--</span>
@@ -1469,8 +1476,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
           <div class="card-body collapsed" id="detEventsCardBody">
             <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
-              <label style="font-size:12px;opacity:0.7;">Filter:</label>
-              <select id="incFilter" style="background:#0a0a0a;color:#e8e8e8;border:1px solid #3a3a4a;padding:4px 8px;">
+              <label style="font-size:12px;color:var(--mut);margin:0;">Filter:</label>
+              <select id="incFilter" style="width:auto;padding:6px 10px;font-size:12px;">
                 <option value="">ALL</option>
                 <option>DEAUTH_FORGE</option>
                 <option>DEAUTH_FLOOD</option>
@@ -1491,29 +1498,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option>ATTACKER_HUNT</option>
                 <option>RECON</option>
               </select>
-              <label style="font-size:12px;opacity:0.7;">Source:</label>
-              <select id="incSrc" style="background:#0a0a0a;color:#e8e8e8;border:1px solid #3a3a4a;padding:4px 8px;">
+              <label style="font-size:12px;color:var(--mut);margin:0;">Source:</label>
+              <select id="incSrc" style="width:auto;padding:6px 10px;font-size:12px;">
                 <option value="">ALL</option>
                 <option value="local">Local only</option>
                 <option value="peer">Peers only</option>
               </select>
-              <button onclick="loadIncidents()" style="background:#1a2a3a;color:#9bf;border:1px solid #3a4a5a;padding:4px 10px;cursor:pointer;">Refresh</button>
-              <button onclick="downloadIncidents()" style="background:#1a2a3a;color:#9bf;border:1px solid #3a4a5a;padding:4px 10px;cursor:pointer;">Download .jsonl</button>
-              <button onclick="clearIncidents()" style="background:#3a1a1a;color:#f99;border:1px solid #5a3a3a;padding:4px 10px;cursor:pointer;">Clear All</button>
-              <span id="incCount" style="font-size:12px;opacity:0.6;margin-left:auto;">--</span>
+              <button class="btn alt" onclick="loadIncidents()" style="padding:6px 12px;font-size:12px;">Refresh</button>
+              <button class="btn alt" onclick="downloadIncidents()" style="padding:6px 12px;font-size:12px;">Download .jsonl</button>
+              <button class="btn danger" onclick="clearIncidents()" style="padding:6px 12px;font-size:12px;">Clear All</button>
+              <span id="incCount" style="font-size:12px;color:var(--mut);margin-left:auto;">--</span>
             </div>
-            <div style="max-height:380px;overflow-y:auto;border:1px solid #2a2a3a;">
-              <table id="incTable" style="width:100%;border-collapse:collapse;font-size:12px;font-family:monospace;">
-                <thead style="position:sticky;top:0;background:#0a0a14;">
+            <div class="sa-wrap" style="max-height:380px;">
+              <table class="sa-tbl" id="incTable">
+                <thead>
                   <tr>
-                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:80px;">Uptime</th>
-                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:50px;">Node</th>
-                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:50px;">Src</th>
-                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;width:170px;">Type</th>
-                    <th style="text-align:left;padding:6px;border-bottom:1px solid #3a3a4a;">Raw</th>
+                    <th style="width:90px;">Time</th>
+                    <th style="width:54px;">Node</th>
+                    <th style="width:64px;">Src</th>
+                    <th style="width:170px;">Type</th>
+                    <th>Detail</th>
                   </tr>
                 </thead>
-                <tbody id="incBody"><tr><td colspan="5" style="padding:12px;opacity:0.5;">Loading…</td></tr></tbody>
+                <tbody id="incBody"><tr><td colspan="5" style="padding:12px;color:var(--mut);">Loading…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -2597,9 +2604,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
         }
 
+        const activeMatch = diagText.match(/Active Radio: ([^\n]+)/);
         const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
-        if (modeMatch) {
-            document.getElementById('modeStatus').innerText = modeMatch[1];
+        const ms = document.getElementById('modeStatus');
+        if (ms) {
+            const active = activeMatch ? activeMatch[1].trim() : (modeMatch ? modeMatch[1].trim() : 'Idle');
+            ms.innerText = active;
+            ms.classList.toggle('active', active !== 'Idle');
         }
         
         if (diagText.includes('GPS: Locked')) {
@@ -2620,36 +2631,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
         
       function updateModeStatus() {
-        const scanModeSelect = document.querySelector('#s select[name="mode"]');
-        const detectionModeSelect = document.getElementById('detectionMode');
-        const randomizationModeSelect = document.getElementById('randomizationMode');
-        const deviceScanModeSelect = document.getElementById('deviceScanMode');
-        const probeScanModeSelect = document.getElementById('probeScanMode');
-        const modeStatus = document.getElementById('modeStatus');
-
-        let currentMode = '0';
-
-        const detectionMethod = detectionModeSelect?.value;
-
-        if (detectionMethod === 'randomization-detection' && randomizationModeSelect?.offsetParent !== null) {
-          currentMode = randomizationModeSelect.value;
-        } else if (detectionMethod === 'device-scan' && deviceScanModeSelect?.offsetParent !== null) {
-          currentMode = deviceScanModeSelect.value;
-        } else if (detectionMethod === 'probe-scan' && probeScanModeSelect?.offsetParent !== null) {
-          currentMode = probeScanModeSelect.value;
-        } else if (scanModeSelect) {
-          currentMode = scanModeSelect.value;
-        }
-        
-        const modeText = {
-          '0': 'WiFi',
-          '1': 'BLE',
-          '2': 'WiFi+BLE'
-        };
-        
-        if (modeStatus) {
-          modeStatus.innerText = modeText[currentMode] || 'WiFi';
-        }
+        // Header mode badge reflects the ACTUAL active radio (Active Radio from /diag),
+        // not the planned scan-mode select. No-op kept for existing callers.
       }
       
       async function saveAutoEraseConfig() {
@@ -4380,6 +4363,39 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
       }
       function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+      function _atkColor(t){
+        t=(t||'').toUpperCase();
+        if(t.startsWith('DEAUTH'))return '#ef4444';
+        if(t.startsWith('EVILTWIN'))return '#f97316';
+        if(t.startsWith('KARMA'))return '#ec4899';
+        if(t.startsWith('PMKID'))return '#14b8a6';
+        if(t.startsWith('SAE'))return '#eab308';
+        if(t.startsWith('BEACON'))return '#f59e0b';
+        if(t.startsWith('AUTH_FLOOD'))return '#fb7185';
+        if(t.startsWith('ASSOC'))return '#a855f7';
+        if(t.startsWith('PROBE')||t==='RECON')return '#38bdf8';
+        if(t.startsWith('HSHK')||t.startsWith('KRACK'))return '#84cc16';
+        if(t.startsWith('OWE'))return '#22d3ee';
+        if(t.startsWith('FRAG'))return '#c084fc';
+        if(t.startsWith('TSF'))return '#2dd4bf';
+        if(t.startsWith('JAM'))return '#f43f5e';
+        if(t.startsWith('MESH'))return '#818cf8';
+        if(t.startsWith('PWNA'))return '#fbbf24';
+        if(t.startsWith('ATTACKER'))return '#fb923c';
+        if(t.startsWith('SSID'))return '#fcd34d';
+        if(t.startsWith('BLE')||t.startsWith('AIRTAG')||t.startsWith('TRACK'))return '#94a3b8';
+        return '#9ca3af';
+      }
+      function _incWhen(e){
+        if(e.epoch&&e.epoch>946684800){const d=new Date(e.epoch*1000);return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+        return fmtIncUptime(e.ts||0)+' up';
+      }
+      function _incDetail(e){
+        let d=e.raw||'';
+        if(e.type&&d.startsWith(e.type+':'))d=d.slice(e.type.length+1);
+        if(e.src&&e.src!=='local'&&d.startsWith(e.src))d=d.slice(e.src.length).replace(/^:/,'');
+        return d;
+      }
       async function loadIncidents(){
         try {
           const r = await fetch('/api/incidents.json?limit=200');
@@ -4394,25 +4410,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           );
           document.getElementById('incCount').textContent = filtered.length + ' / ' + arr.length + ' total';
           if (filtered.length === 0) {
-            body.innerHTML = '<tr><td colspan="5" style="padding:12px;opacity:0.5;">No incidents</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" style="padding:12px;color:var(--mut);">No incidents</td></tr>';
             return;
           }
           let html = '';
           for (const e of filtered) {
-            const isPeer = e.src && e.src !== 'local';
-            const srcColor = isPeer ? '#fc6' : '#9bf';
-            const typeColor = e.type.startsWith('DEAUTH') ? '#f99'
-                            : e.type.startsWith('EVILTWIN') ? '#fc6'
-                            : e.type.startsWith('KARMA') ? '#f9f'
-                            : e.type.startsWith('PMKID') ? '#9fc'
-                            : e.type.startsWith('BLE') ? '#9cf'
-                            : '#ccc';
-            html += '<tr style="border-bottom:1px solid #1a1a2a;">'
-                  + '<td style="padding:4px 6px;color:#888;">'+ fmtIncUptime(e.ts) +'</td>'
-                  + '<td style="padding:4px 6px;color:#ccc;">'+ esc(e.node) +'</td>'
-                  + '<td style="padding:4px 6px;color:'+srcColor+';">'+ esc(e.src) +'</td>'
-                  + '<td style="padding:4px 6px;color:'+typeColor+';">'+ esc(e.type) +'</td>'
-                  + '<td style="padding:4px 6px;color:#bbb;word-break:break-all;">'+ esc(e.raw) +'</td>'
+            html += '<tr>'
+                  + '<td class="sa-when">'+ esc(_incWhen(e)) +'</td>'
+                  + '<td><span class="sa-node">'+ esc(e.node) +'</span></td>'
+                  + '<td class="sa-mac">'+ esc(e.src) +'</td>'
+                  + '<td style="font-weight:600;color:'+_atkColor(e.type)+';">'+ esc(e.type) +'</td>'
+                  + '<td class="sa-detail">'+ esc(_incDetail(e)) +'</td>'
                   + '</tr>';
           }
           body.innerHTML = html;
@@ -4952,7 +4960,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         area.innerHTML=chipBar
           +`<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">${total} incident${total!=1?'s':''}${ty!=='ALL'?' · '+ty:''}</div>`
           +'<div class="sa-wrap"><table class="sa-tbl"><thead><tr><th>Time</th><th>Sev</th><th>Type</th><th>Source</th><th>Detail</th><th>Node</th></tr></thead><tbody>'
-          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type">${esc(r.type)}</td><td class="sa-mac">${esc(r.src||'local')}</td><td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
+          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td><td class="sa-mac">${esc(r.src||'local')}</td><td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
           +'</tbody></table></div>';
       }
       // Prefix-based severity for sentinel incident types (mirrors detector card sev).
@@ -5209,7 +5217,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         setc('d-sae',['SAE_DOS']);
         setc('d-owe',['OWE_ABUSE']);
         setc('d-frag',['FRAG']);
-        setc('d-blem',['BLE_MALFORMED']);
+        setc('d-asl',['ASSOC_SLEEP']);
+        setc('d-pfl',['PROBE_FLOOD','PROBE_FLOOD_BEHAVE','PROBE_FLOOD_AP']);
+        setc('d-tsf',['TSF']);
+        setc('d-jam',['JAM']);
+        setc('d-mgd',['MESH_SPOOF_SELF','MESH_FLOOD','MESH_CMD_INJECT']);
+        setc('d-pwna',['PWNAGOTCHI']);
+        setc('d-rid-ov',['RID']);
         _overviewVisibility(cfg);
       }
       // Hide overview stats whose detector is disabled AND has zero hits.
@@ -5771,7 +5785,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       // NOTE: deauth detection is unconditional (no toggle); WPS/WPA3/evil_portal detectors
       // are staged and will get their own toggle keys during the detector build.
       const DET_GROUPS={
-        dos:      ['eviltwin','sae','assoc_sleep'],
+        dos:      ['sae','assoc_sleep'],
         rogue_ap: ['eviltwin','owe','karma'],
         recon:    ['pmkid','probe_flood','hshk'],
         physical: ['frag','tsf','jam'],
