@@ -1175,7 +1175,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           @media (max-width:720px){#det-grid{grid-template-columns:1fr}}
         </style>
 
-        <div style="margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(127,29,29,.15),rgba(234,88,12,.08));border:1px solid var(--bord);border-radius:10px;">
+        <div style="margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08));border:1px solid var(--bord);border-radius:10px;">
           <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
             <h2 style="margin:0;font-size:20px;letter-spacing:-0.01em;color:var(--txt);">Sentinel</h2>
             <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
@@ -1534,7 +1534,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       <!-- ===== /DETECT TAB ===== -->
 
-      <div align="center" class="footer">v0.9.5 | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v0.9.5 Beta | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
