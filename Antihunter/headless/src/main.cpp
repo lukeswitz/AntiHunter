@@ -258,7 +258,7 @@ void setup() {
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 HEADLESS BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
