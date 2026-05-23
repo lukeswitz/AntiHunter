@@ -253,7 +253,12 @@ void setup() {
         Serial.printf("[SENTINEL] self-filter mac=%02X:%02X:%02X:%02X:%02X:%02X\n",
                       selfMac[0],selfMac[1],selfMac[2],selfMac[3],selfMac[4],selfMac[5]);
     }
-    Serial.println("[SENTINEL] OFF on boot");
+    if (prefs.getBool("sentBoot", false)) {
+        sentinel_setUserEnabled(true);
+        Serial.println("[SENTINEL] Boot-enable ON (persisted) — starting sentinel");
+    } else {
+        Serial.println("[SENTINEL] OFF on boot (enable manually)");
+    }
 
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
