@@ -664,6 +664,16 @@ static void handleSentinelMode(const String &command)
   sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
 }
 
+static void handleSentinelBoot(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_BOOT:"));
+  v.trim();
+  bool on = (v.toInt() != 0) || v.equalsIgnoreCase("on");
+  Preferences p;
+  if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
+  sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
+}
+
 // Threat-scenario detector groups — keys mirror the full webui DET_GROUPS.
 // deauth/beacon/auth detectors are unconditional (no toggle) and not grouped.
 static const char *groupMembers(const String &name)
@@ -1406,6 +1416,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
   else if (command.startsWith("SENTINEL_STATUS"))     handleSentinelStatus(command);
   else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
+  else if (command.startsWith("SENTINEL_BOOT:"))      handleSentinelBoot(command);
   else if (command.startsWith("GROUP:"))              handleGroup(command);
   else if (command.startsWith("DETECT_CFG_GET"))      handleDetectCfgGet(command);
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
