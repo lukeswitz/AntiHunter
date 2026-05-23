@@ -414,7 +414,7 @@ Flash and configure directly from your browser -- no tools to install. Requires 
 ### CLI Flash
 
 ```bash
-curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/flashAntihunter.sh
 chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
