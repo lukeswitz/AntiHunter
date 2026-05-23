@@ -257,7 +257,10 @@ void initializeNetwork()
   if (customApPass.length() < 8) customApPass = AP_PASS;
   
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(customApSsid.c_str(), customApPass.c_str(), AP_CHANNEL, 0);
+  bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
+                          AP_CHANNEL, 0, 4, false,
+                          WIFI_AUTH_WPA2_WPA3_PSK);
+  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start: %s\n", apOk ? "OK" : "FAIL");
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
