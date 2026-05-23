@@ -3,8 +3,8 @@ set -e
 
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 FIRMWARE_OPTIONS=(
-    "AntiHunter AP (With WiFi AP) - v0.9.4 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter-full-v0.9.4.bin"
-    "AntiHunter Headless - (Mesh only) v0.9.4 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/main/Dist/antihunter-headless-v0.9.4.bin"
+    "AntiHunter AP (With WiFi AP) - v0.9.5 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/beta/Dist/antihunter-full-v0.9.5-beta1.bin"
+    "AntiHunter Headless - (Mesh only) v0.9.5 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/beta/Dist/antihunter-headless-v0.9.5-beta1.bin"
 )
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
