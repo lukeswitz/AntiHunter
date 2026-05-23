@@ -3,8 +3,8 @@
 [![Code Quality](https://github.com/lukeswitz/AntiHunter/actions/workflows/lint.yml/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/lint.yml)
 [![PlatformIO CI](https://github.com/lukeswitz/AntiHunter/actions/workflows/platformio.yml/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/platformio.yml)
 [![CodeQL](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/lukeswitz/AntiHunter/actions/workflows/github-code-scanning/codeql)
-[![Stable](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?label=stable&color=2ea44f)](https://github.com/lukeswitz/AntiHunter/releases/latest)
-[![Beta](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?include_prereleases&label=beta&color=orange)](https://github.com/lukeswitz/AntiHunter/releases)
+[![Stable](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?filter=!*-beta*&label=stable&color=2ea44f)](https://github.com/lukeswitz/AntiHunter/releases/latest)
+[![Beta](https://img.shields.io/github/v/release/lukeswitz/AntiHunter?include_prereleases&filter=*-beta*&label=beta&color=orange)](https://github.com/lukeswitz/AntiHunter/releases)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 </div>
 
@@ -19,11 +19,10 @@
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
 </p>
 
-> [!NOTE]
-> **Standalone FW, optional integration with [AntiHunter Command Center Pro](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
 
-
-> Beta channel has new features in development. Potential stability issues and unexpected behavior may occur.
+> **Optional integration with [AntiHunter Command Center Pro](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
+> 
+>  [Beta channel](https://github.com/lukeswitz/AntiHunter/tree/beta) has new features in development. Potential stability issues and unexpected behavior may occur.
 
 ### News & Links:
 - `2026 January` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
