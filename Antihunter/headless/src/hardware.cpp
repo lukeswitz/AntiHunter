@@ -885,6 +885,8 @@ void updateGPSLocation() {
             lastDataTime = millis();
 
             bool nowLocked = gps.location.isValid();
+            bool fixReady = nowLocked && gps.satellites.isValid() && gps.satellites.value() > 0
+                            && gps.hdop.isValid() && gps.hdop.hdop() > 0;
 
             if (nowLocked) {
                 if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
@@ -895,24 +897,24 @@ void updateGPSLocation() {
                 }
                 lastGPSData = "Lat: " + String(gpsLat, 6)
                             + ", Lon: " + String(gpsLon, 6)
-                            + " (" + String((millis() - lastDataTime) / 1000) 
+                            + " (" + String((millis() - lastDataTime) / 1000)
                             + "s ago)";
-                
-                if (!wasLocked && nowLocked) {
+
+                if (!wasLocked && fixReady) {
                     sendGPSLockStatus(true);
                 }
             } else {
                 gpsValid = false;
-                lastGPSData = "No valid GPS fix (" 
+                lastGPSData = "No valid GPS fix ("
                             + String((millis() - lastDataTime) / 1000)
                             + "s ago)";
-                
+
                 if (wasLocked) {
                     sendGPSLockStatus(false);
                 }
             }
-            
-            wasLocked = nowLocked;
+
+            wasLocked = fixReady;
         }
     }
 
