@@ -24,6 +24,7 @@
 > Early Release: Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
 
 ### News:
+`May 2026` - New **Sentinel** counterintel layer — passive WiFi attack detection. See [Sentinel](#g-sentinel--counterintel-engine).
 `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 # Table of Contents
@@ -66,6 +67,7 @@
 | **Baseline Anomaly Detection** | Learn-then-alert: spots new, missing, and changed devices | WiFi + BLE |
 | **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
+| **Sentinel Counterintel** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID) | WiFi beacon/NAN |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
 | **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
@@ -201,6 +203,33 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
+### G. Sentinel — Counterintel Engine
+
+Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
+
+Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+
+**Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
+
+Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
+
+| Group | Detectors | How they're caught |
+|---|---|---|
+| **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS | Fixed/rotated deauth seqCtrl + reason codes, impersonation bursts, beacon-spam rate + static templates, open-system auth flood, assoc-req PM-bit floods, SAE commit floods (algo 3 / txn 1) |
+| **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Clone of our own AP (SSID/BSSID collision); OWE-transition downgrade; bait-probe answered by an AP that never beacons that SSID |
+| **Recon** | PMKID harvest, probe flood, handshake capture | Orphaned-M1 / KDE PMKID solicitation; fixed-seq + behavioral probe spam (≥15 MACs/SSID/5s); forced & passive EAPOL M1–M4 capture |
+| **Physical** | FragAttacks, TSF / multi-channel twin, WiFi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
+| **Mesh disruption** | Self-spoof, channel flood, command injection | Own node-id seen inbound; inbound rate DoS; privileged command from a sender with no benign history (the node's own Meshtastic channel) |
+
+**Field-verified on hardware** (confirmed firing against the live tools above): deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
+
+**Experimental** (implemented + signature-grounded, hardware field-test pending): OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, WiFi interference, mesh disruption.
+
+**Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
+
+**Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
+
+**Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
 ---
 
 ## Secure Data Destruction
@@ -247,8 +276,8 @@ Tamper detection and emergency data wiping.
 
 | Preset | WiFi Chan Time | WiFi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
 |--------|----------------|---------------|--------------|--------------|----------------|----------|
-| Relaxed | 300ms | 8000ms | 4000ms | 3000ms | -80 dBm | Low power, stealthy |
-| Balanced | 160ms | 6000ms | 3000ms | 3000ms | -90 dBm | General use (default) |
+| Relaxed | 300ms | 8000ms | 4000ms | 3000ms | -80 dBm | Low power |
+| Balanced | 160ms | 6000ms | 3000ms | 3000ms | -95 dBm | General use (default) |
 | Aggressive | 110ms | 4000ms | 2000ms | 2000ms | -70 dBm | Fast detection, high coverage |
 | Custom | User-defined | User-defined | User-defined | User-defined | User-defined | Fine-tuned |
 
@@ -371,15 +400,17 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 Flash and configure directly from your browser -- no tools to install. Requires Chrome or Edge on desktop.
 
-1. **[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, plug in your ESP32-S3, and click Connect & Flash. 
+1. **[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, choose a **Release Channel** (Stable or Beta), plug in your ESP32-S3, and click Connect & Flash.
 
+- The channel selector pulls the matching firmware from the `stable` or `beta` release branch.
 - Choose "Erase Device" during process if upgrading from pre v0.9.2 firmware or to clear saved settings from flash memory.
 
    > Preferences are also saved and synced to/from SD storage. If corrupted, the settings will self-heal. 
 
 2. Optional: After flashing, set the configuration choices and press send to device. 
 
-   - Use it to change settings without using the device (especially useful for headless FW).  
+   - Use it to change settings without using the device (especially useful for headless FW).
+   - The **Sentinel & Detectors** section configures the full detection engine: persistent *Start Sentinel on Boot*, radio mode, every detector enable/disable, mesh-broadcast flags, and detector thresholds — full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting.
 
 ### CLI Flash
 
@@ -466,6 +497,15 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
+
+### Sentinel
+
+| Command | Parameters | Example |
+|---------|------------|---------|
+| `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
+| `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
+| `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
+| `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -619,6 +659,26 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 | `/allowlist-export` | GET | Export allowlist |
 | `/allowlist-save` | POST | Save allowlist |
 | `/api/time` | POST | Set RTC time from Unix timestamp |
+
+</details>
+
+<details>
+<summary>Sentinel / Detection Endpoints</summary>
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/detect/config` | GET | Current detector config (JSON: every detector enable, mesh-broadcast flag, threshold) |
+| `/api/detect/config` | POST | Set detector config. JSON body of `{key:bool/int}` — same keys returned by GET (e.g. `pmkid`, `eviltwin`, `sae`, `karma`, `probe_flood`, `assoc_sleep`, `mesh_*` flags, thresholds). The Web Flasher/Configurator sends these under a nested `detectors` object at flash time. |
+| `/api/detect/health` | GET | Detector runtime health (heap, queue depth, drops, per-detector counts) |
+| `/api/sentinel/status` | GET | Sentinel running state |
+| `/api/sentinel/start` / `/api/sentinel/stop` | POST | Start/stop the Sentinel engine |
+| `/api/incidents.json` | GET | Recent incident ring (JSON) |
+| `/api/incidents.jsonl` | GET | Full incident log from SD (JSONL) |
+| `/api/incidents` | DELETE | Clear all incidents (RAM + SD) |
+
+Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds — `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
+
+Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pref `sentBoot` — auto-starts the Sentinel at power-on when true.
 
 </details>
 

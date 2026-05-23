@@ -563,9 +563,10 @@ chmod +x flashAntihunter.sh
 
     function updateManifest() {
       const variant = selectedFirmware === 'full' ? 'full' : 'headless';
-      // CI (release.yml) commits per-variant manifests to each channel branch
-      // (stable/beta) with the correct version + bin paths already baked in.
-      const url = `https://raw.githubusercontent.com/${REPO}/${selectedChannel}/docs/flasher/manifest-${variant}.json`;
+      // CI (release.yml) commits per-variant manifests to each channel's branch:
+      // stable channel -> main branch, beta channel -> beta branch.
+      const ref = (selectedChannel === 'beta') ? 'beta' : 'main';
+      const url = `https://raw.githubusercontent.com/${REPO}/${ref}/docs/flasher/manifest-${variant}.json`;
       document.getElementById('flashBtn').setAttribute('manifest', url);
     }
 
