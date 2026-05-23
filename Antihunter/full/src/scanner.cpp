@@ -1699,6 +1699,7 @@ void blueTeamTask(void *pv) {
                         String s = macFmt6(hit.srcMac);
                         Serial.printf("[DETECT] DEAUTH_FLOOD src=%s count=%u in 10s\n",
                                       s.c_str(), it->second.second);
+                        if (meshEnabled && ah_detect::g_meshDeauth.load())
                         sendToSerial1(getNodeId() + ": DEAUTH_FLOOD:" + s + ":" +
                                       String(it->second.second) + ":" + String(hit.rssi), true);
                     }

@@ -544,6 +544,15 @@ void   detect_clearAll();
 // External queues (filled from ISR)
 extern QueueHandle_t detectFrameQueue;
 
+// Per-feature mesh broadcast flags (for use in scanner.cpp / other TUs)
+namespace ah_detect {
+extern std::atomic<bool> g_meshDeauth;
+extern std::atomic<bool> g_meshAssocSleep;
+extern std::atomic<bool> g_meshProbeFlood;
+extern std::atomic<bool> g_meshEapolBait;
+extern std::atomic<bool> g_meshJam;
+} // namespace ah_detect
+
 // Tunables (config-exposed)
 extern std::atomic<uint16_t> pmkid_burst_window_ms;
 extern std::atomic<uint8_t>  pmkid_burst_min_bssids;
