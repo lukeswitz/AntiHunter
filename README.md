@@ -419,7 +419,9 @@ chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
 
-Use `-c` to configure device parameters during flash, `-e` to erase flash first.
+The script first asks for a **release channel** (Stable or Beta), then Full or Headless. Stable pulls from `main`, Beta from `beta`.
+
+Use `-c` to configure device parameters during flash, `-e` to erase flash first, `-l` to list available firmware.
 
 **Post-flash:**
 

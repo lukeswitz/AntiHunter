@@ -2,10 +2,39 @@
 set -e
 
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
-FIRMWARE_OPTIONS=(
-    "AntiHunter AP (With WiFi AP) - v0.9.5 Beta :https://github.com/lukeswitz/AntiHunter/raw/refs/heads/beta/Dist/antihunter-full-v0.9.5-beta1.bin"
-    "AntiHunter Headless - (Mesh only) v0.9.5 Beta:https://github.com/lukeswitz/AntiHunter/raw/refs/heads/beta/Dist/antihunter-headless-v0.9.5-beta1.bin"
-)
+
+STABLE_BRANCH="main"
+STABLE_VERSION="v0.9.5"
+BETA_BRANCH="beta"
+BETA_VERSION="v0.9.5-beta1"
+
+FIRMWARE_OPTIONS=()
+
+select_channel() {
+    if [ ${#FIRMWARE_OPTIONS[@]} -gt 0 ]; then
+        return
+    fi
+    local branch version label
+    echo "Release channel:"
+    echo "  1. Stable ($STABLE_VERSION) - tested, recommended"
+    echo "  2. Beta ($BETA_VERSION) - newest features, may be unstable"
+    echo ""
+    while true; do
+        read -p "Select channel (1-2) [default: 1]: " ch
+        ch=${ch:-1}
+        case "$ch" in
+            1) branch="$STABLE_BRANCH"; version="$STABLE_VERSION"; label="Stable"; break ;;
+            2) branch="$BETA_BRANCH"; version="$BETA_VERSION"; label="Beta"; break ;;
+            *) echo "Invalid selection. Enter 1 or 2." ;;
+        esac
+    done
+    local base="https://github.com/lukeswitz/AntiHunter/raw/refs/heads/$branch/Dist"
+    FIRMWARE_OPTIONS=(
+        "AntiHunter AP (With WiFi AP) - $version $label:$base/antihunter-full-$version.bin"
+        "AntiHunter Headless - (Mesh only) $version $label:$base/antihunter-headless-$version.bin"
+    )
+    echo ""
+}
 ESPTOOL_DIR="esptool"
 CUSTOM_BIN=""
 CONFIG_MODE=false
@@ -190,6 +219,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -l|--list)
+            select_channel
             echo "Available firmware options:"
             for option in "${FIRMWARE_OPTIONS[@]}"; do
                 echo "  ${option%%:*}"
@@ -259,6 +289,7 @@ if [ -n "$CUSTOM_BIN" ]; then
         exit 1
     fi
 else
+    select_channel
     declare -a options_array
     for i in "${!FIRMWARE_OPTIONS[@]}"; do
         echo "$((i+1)). ${FIRMWARE_OPTIONS[$i]%%:*}"
