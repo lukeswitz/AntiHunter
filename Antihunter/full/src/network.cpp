@@ -391,6 +391,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--glow)}
       .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em}
       .stat-value{color:var(--txt);font-size:24px;font-weight:800;letter-spacing:-0.02em}
+      .stat{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:14px 10px;border:1px solid var(--bord);border-radius:10px;background:var(--accbg);}
       .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
       .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:18px;padding:4px 0}
       .card-header:hover h3{color:var(--acc)}
@@ -1153,11 +1154,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           #det-banner .bn-msg{flex:1;color:var(--txt)}
           .det-chips{display:flex;gap:6px;flex-wrap:wrap}
           .det-chip{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid transparent;user-select:none;text-transform:uppercase;letter-spacing:.3px}
-          .det-chip.all{background:var(--surf);color:var(--mut);border-color:var(--bord)}
-          .det-chip.crit{background:rgba(127,29,29,.25);color:#fca5a5;border-color:#7f1d1d}
-          .det-chip.high{background:rgba(234,88,12,.22);color:#fdba74;border-color:#ea580c}
-          .det-chip.med{background:rgba(202,138,4,.22);color:#fde68a;border-color:#ca8a04}
-          .det-chip.info{background:rgba(51,65,85,.4);color:#cbd5e1;border-color:#334155}
+          .det-chip.all{background:var(--accbg);color:var(--mut);border-color:var(--bord)}
+          .det-chip.crit{background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.45)}
+          .det-chip.high{background:rgba(249,115,22,.12);color:#f97316;border-color:rgba(249,115,22,.45)}
+          .det-chip.med{background:rgba(234,179,8,.14);color:#ca8a04;border-color:rgba(234,179,8,.45)}
+          .det-chip.info{background:rgba(14,165,233,.12);color:#0ea5e9;border-color:rgba(14,165,233,.45)}
           .det-chip.firing{box-shadow:0 0 0 2px rgba(255,255,255,.15) inset}
           .det-chip.off{opacity:.35}
           #page-detect table.dt{width:100%;border-collapse:collapse;font-size:11px;margin:4px 0}
@@ -1215,7 +1216,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .don-pill{font-size:9px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:10px;background:var(--accbg);color:var(--succ);border:1px solid var(--bord);}
           .dsw{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;}
           .dsw input{opacity:0;width:0;height:0;position:absolute;margin:0;}
-          .dsw-s{position:absolute;inset:0;background:var(--bord);border-radius:20px;transition:.2s;}
+          .dsw-s{position:absolute;inset:0;background:rgba(120,128,160,.45);border:1px solid var(--bord);border-radius:20px;transition:.2s;}
           .dsw-s:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.4);}
           .dsw input:checked+.dsw-s{background:var(--succ);}
           .dsw input:checked+.dsw-s:before{transform:translateX(16px);}
@@ -1244,18 +1245,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .dpill.fire{background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid #dc2626;animation:dpulse 1.2s ease-in-out infinite;}
           @keyframes dpulse{0%,100%{opacity:1}50%{opacity:.45}}
         </style>
-
-        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
-          <input id="det-filter" placeholder="Filter (e.g. airtag, karma, frag)" oninput="detApplyFilters()">
-          <div class="det-chips" id="det-chips">
-            <span class="det-chip all" data-sev="all">All</span>
-            <span class="det-chip crit" data-sev="crit">Crit</span>
-            <span class="det-chip high" data-sev="high">High</span>
-            <span class="det-chip med" data-sev="med">Med</span>
-            <span class="det-chip info" data-sev="info">Info</span>
-            <span class="det-chip" data-sev="firing" style="background:rgba(34,197,94,.2);color:#86efac;border:1px solid #16a34a;">Firing</span>
-          </div>
-        </div>
 
         <div class="card">
           <div class="card-header" onclick="toggleCollapse('detOverviewCard')">
@@ -1298,7 +1287,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         <div class="card" data-key="apclients">
           <div class="card-header" onclick="toggleCollapse('apClientsCard')">
-            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(associated with this AP — not threats)</span></h3>
+            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(associated with this AP)</span></h3>
             <span class="collapse-icon open" id="apClientsCardIcon">▶</span>
           </div>
           <div class="card-body" id="apClientsCardBody">
@@ -1339,6 +1328,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
               <button class="btn alt" onclick="detPreset('quiet')">Quiet</button>
             </div>
+          </div>
+        </div>
+
+        <div style="margin:4px 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
+          <input id="det-filter" placeholder="Filter (e.g. airtag, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
+          <div class="det-chips" id="det-chips">
+            <span class="det-chip all" data-sev="all">All</span>
+            <span class="det-chip crit" data-sev="crit">Crit</span>
+            <span class="det-chip high" data-sev="high">High</span>
+            <span class="det-chip med" data-sev="med">Med</span>
+            <span class="det-chip info" data-sev="info">Info</span>
+            <span class="det-chip" data-sev="firing" style="background:rgba(34,197,94,.14);color:#16a34a;border:1px solid rgba(34,197,94,.45);">Firing</span>
           </div>
         </div>
 
@@ -4953,7 +4954,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         };
         const breakdown=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).map(t=>{
           const sv=_saSev(t); const on=(ty===t);
-          return `<span class="sa-chip" style="border-color:${SEVC[sv]};color:${on?'#fff':SEVC[sv]};background:${on?SEVC[sv]+'33':'transparent'};" onclick="(()=>{const s=document.getElementById('saType');if(s){s.value='${on?'ALL':t}';loadSentinelAnalysis();}})()">${t} ${counts[t]}</span>`;
+          return `<span class="sa-chip" style="border-color:${SEVC[sv]};color:${on?'#fff':SEVC[sv]};background:${on?SEVC[sv]+'33':'transparent'};" onclick="(()=>{const s=document.getElementById('saType');if(s){s.value='${on?'ALL':t}';loadSentinelAnalysis();}})()">${esc(t.replace(/_/g,' '))}<span style="opacity:.6;margin-left:6px;">${counts[t]}</span></span>`;
         }).join('');
         const chipBar=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${breakdown}</div>`;
         if(!rows.length){area.innerHTML=chipBar+'<div class="data-empty">No incidents.</div>';return;}
@@ -5166,8 +5167,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               t=document.getElementById('dos-mode-desc');
         if(d)d.className=scan?'btn alt':'btn primary';
         if(s)s.className=scan?'btn primary':'btn alt';
-        if(t)t.textContent=scan?'Hopping all channels — sees attacks anywhere, but your AP clients may drop.'
-                               :'Locked to this AP’s channel — catches attacks against us, clients stay connected.';
+        if(t)t.textContent=scan?'Hopping all channels — sees attacks on set WiFi channels (AP clients may drop).'
+                               :'Locked to this AP’s channel — catches attacks against us. (Stable)';
       }
       async function detScanMode(scan){
         _dosSyncMode(scan);
