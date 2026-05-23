@@ -227,25 +227,31 @@ std::atomic<bool> g_ridSpoofEnabled{false};
 std::atomic<bool> g_bloomGossipEnabled{false};
 std::atomic<bool> g_attackerTrilatEnabled{false};
 
-// Per-feature mesh broadcast (separate from local detection)
-std::atomic<bool> g_meshPmkid{true};
-std::atomic<bool> g_meshEviltwin{true};
+// Per-feature mesh broadcast — 15 flags for 19 canonical events
+std::atomic<bool> g_meshDeauth{true};      // DEAUTH_FORGE, DEAUTH_FLOOD, DEAUTH_AP_TARGETED
+std::atomic<bool> g_meshBeacon{true};      // BEACON_FLOOD
+std::atomic<bool> g_meshAuth{true};        // AUTH_FLOOD
+std::atomic<bool> g_meshAssocSleep{true};  // ASSOC_SLEEP
+std::atomic<bool> g_meshSae{true};         // SAE_DOS
+std::atomic<bool> g_meshEviltwin{true};    // EVILTWIN
+std::atomic<bool> g_meshOwe{true};         // OWE_ABUSE
+std::atomic<bool> g_meshKarma{true};       // KARMA_CAND, KARMA_CONFIRMED
+std::atomic<bool> g_meshPmkid{true};       // PMKID_HARVEST, PMKID_FORGE
+std::atomic<bool> g_meshProbeFlood{true};  // PROBE_FLOOD, PROBE_FLOOD_AP
+std::atomic<bool> g_meshHshk{true};        // HSHK, KRACK
+std::atomic<bool> g_meshFrag{true};        // FRAG
+std::atomic<bool> g_meshTsf{true};         // TSF (EVILTWIN w/ TSF reason)
+std::atomic<bool> g_meshJam{true};         // JAM
+std::atomic<bool> g_meshGuard{true};       // MESH_SPOOF_SELF, MESH_FLOOD, MESH_CMD_INJECT
+// Legacy atomics kept to avoid linker break — not in UI
 std::atomic<bool> g_meshSsidConf{true};
-std::atomic<bool> g_meshSae{true};
-std::atomic<bool> g_meshFrag{false};
 std::atomic<bool> g_meshBleMalformed{false};
-std::atomic<bool> g_meshHshk{false};
 std::atomic<bool> g_meshKrack{true};
 std::atomic<bool> g_meshTracker{true};
 std::atomic<bool> g_meshPwna{true};
-std::atomic<bool> g_meshKarma{true};
 std::atomic<bool> g_meshRecon{true};
 std::atomic<bool> g_meshAttackerHunt{true};
-std::atomic<bool> g_meshDeauth{true};
-std::atomic<bool> g_meshAssocSleep{true};
-std::atomic<bool> g_meshProbeFlood{true};
 std::atomic<bool> g_meshEapolBait{true};
-std::atomic<bool> g_meshJam{true};
 
 // BLE malformed
 std::vector<BleMalformedEvent> g_bleMalformedLog;
@@ -964,7 +970,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                          (unsigned)BEACON_FLOOD_DISTINCT, (unsigned)BEACON_FLOOD_WIN_MS,
                          (unsigned)e.channel, (int)e.rssi, (unsigned)tnow);
                 logEventToSD("/eviltwin.jsonl", String(lb));
-                if (meshEnabled && g_meshEviltwin.load() && meshRateGate(String("BEACON_FLOOD"), 30000)) {
+                if (meshEnabled && g_meshBeacon.load() && meshRateGate(String("BEACON_FLOOD"), 30000)) {
                     char mb[64];
                     snprintf(mb, sizeof(mb), "%s: BEACON_FLOOD:%d",
                              getNodeId().c_str(), (int)e.rssi);
@@ -1281,7 +1287,9 @@ static void handleBeacon(const DetectFrameEvent &e) {
                  (int)ev.rssi, (unsigned)ev.channel, (unsigned)now);
         logEventToSD("/eviltwin.jsonl", String(jsonLine));
         String bsStr(bs);
-        if (meshEnabled && g_meshEviltwin.load() && meshRateGate(String("EVILTWIN_") + bsStr, 10000)) {
+        bool isTsfReason = (tsfRestart || tsfNonMono) && !ssidCollision;
+        bool meshFlag = isTsfReason ? g_meshTsf.load() : g_meshEviltwin.load();
+        if (meshEnabled && meshFlag && meshRateGate(String("EVILTWIN_") + bsStr, 10000)) {
             char meshMsg[80];
             snprintf(meshMsg, sizeof(meshMsg), "%s: EVILTWIN:%s:%s:%d",
                      getNodeId().c_str(), bs, ev.reason, (int)ev.rssi);
@@ -1321,6 +1329,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
                              obBuf, owbBuf, ssid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                     logEventToSD("/owe_abuse.jsonl", String(lineBuf));
                     ::detect_logIncident(String("OWE_ABUSE:") + obBuf + ":" + ssid, obBuf);
+                    if (meshEnabled && g_meshOwe.load() && meshRateGate(String("OWE_ABUSE_") + obBuf, 30000))
+                        sendToSerial1(getNodeId() + ": OWE_ABUSE:" + obBuf + ":" + ssid + ":" + String((int)e.rssi), true);
                     break;
                 }
             }
@@ -1535,7 +1545,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                          "{\"src\":\"%s\",\"tool\":\"%s\",\"class\":\"behavioral\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                          sb, behavTool, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                 logEventToSD("/deauth_flood.jsonl", String(lb));
-                if (meshEnabled && meshRateGate(String("DEAUTH_TOOL_") + sb, 30000)) {
+                if (meshEnabled && g_meshDeauth.load() && meshRateGate(String("DEAUTH_TOOL_") + sb, 30000)) {
                     char mb[80];
                     snprintf(mb, sizeof(mb), "%s: DEAUTH_FORGE:%s:%s:%d",
                              getNodeId().c_str(), sb, behavTool, (int)e.rssi);
@@ -1605,7 +1615,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             quorum_addReport("DEAUTH_FORGE", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FORGE");
             // Mesh forwarding is separate/additional.
-            if (meshEnabled && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
+            if (meshEnabled && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
                 char meshBuf[96];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FORGE:%s:%s:%d",
                          getNodeId().c_str(), srcBuf, toolTag, (int)e.rssi);
@@ -1980,7 +1990,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
                      bsBuf, (unsigned)w.distinctSrc.size(), (unsigned)w.frames,
                      (unsigned)AUTH_FLOOD_WIN_MS, (int)w.bestRssi, (unsigned)w.channel, (unsigned)tnow);
             logEventToSD("/sae_dos.jsonl", String(lb));
-            if (meshEnabled && g_meshSae.load() && meshRateGate(String("AUTH_FLOOD_") + bs, 30000)) {
+            if (meshEnabled && g_meshAuth.load() && meshRateGate(String("AUTH_FLOOD_") + bs, 30000)) {
                 char mb[80];
                 snprintf(mb, sizeof(mb), "%s: AUTH_FLOOD:%s:%u:%d",
                          getNodeId().c_str(), bsBuf, (unsigned)w.distinctSrc.size(), (int)w.bestRssi);
@@ -3208,7 +3218,7 @@ static void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
         if (kfit != r.fragments.end()) {
             if (r.krackEvents < 255) r.krackEvents++;
             g_krackEvents.fetch_add(1);
-            if (meshEnabled && g_meshKrack.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
+            if (meshEnabled && g_meshHshk.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
                 sendToSerial1(getNodeId() + ": KRACK:" + macStr(bssid) + ":" + macStr(sta) +
                               ":" + String((unsigned long)replayCtr), true);
             }
@@ -4186,24 +4196,21 @@ void initializeDetect() {
                     ah_detect::g_attackerTrilatEnabled.store(p.getBool("trlOn", false));
                 }
             }
-            ah_detect::g_meshPmkid.store(p.getBool("mPmkid", true));
-            ah_detect::g_meshEviltwin.store(p.getBool("mEtw", true));
-            ah_detect::g_meshSsidConf.store(p.getBool("mScn", true));
-            ah_detect::g_meshSae.store(p.getBool("mSae", true));
-            ah_detect::g_meshFrag.store(p.getBool("mFrag", false));
-            ah_detect::g_meshBleMalformed.store(p.getBool("mBlem", false));
-            ah_detect::g_meshHshk.store(p.getBool("mHshk", false));
-            ah_detect::g_meshKrack.store(p.getBool("mKrack", true));
-            ah_detect::g_meshTracker.store(p.getBool("mTrk", true));
-            ah_detect::g_meshPwna.store(p.getBool("mPwna", true));
-            ah_detect::g_meshKarma.store(p.getBool("mKarma", true));
-            ah_detect::g_meshRecon.store(p.getBool("mRecon", true));
-            ah_detect::g_meshAttackerHunt.store(p.getBool("mHunt", true));
             ah_detect::g_meshDeauth.store(p.getBool("mDeauth", true));
+            ah_detect::g_meshBeacon.store(p.getBool("mBeacon", true));
+            ah_detect::g_meshAuth.store(p.getBool("mAuth", true));
             ah_detect::g_meshAssocSleep.store(p.getBool("mAssoc", true));
+            ah_detect::g_meshSae.store(p.getBool("mSae", true));
+            ah_detect::g_meshEviltwin.store(p.getBool("mEtw", true));
+            ah_detect::g_meshOwe.store(p.getBool("mOwe", true));
+            ah_detect::g_meshKarma.store(p.getBool("mKarma", true));
+            ah_detect::g_meshPmkid.store(p.getBool("mPmkid", true));
             ah_detect::g_meshProbeFlood.store(p.getBool("mProbe", true));
-            ah_detect::g_meshEapolBait.store(p.getBool("mEapol", true));
+            ah_detect::g_meshHshk.store(p.getBool("mHshk", true));
+            ah_detect::g_meshFrag.store(p.getBool("mFrag", true));
+            ah_detect::g_meshTsf.store(p.getBool("mTsf", true));
             ah_detect::g_meshJam.store(p.getBool("mJam", true));
+            ah_detect::g_meshGuard.store(p.getBool("mGuard", true));
             ah_detect::g_probeFloodEnabled.store(p.getBool("pflOn", true));
             ah_detect::g_assocSleepEnabled.store(p.getBool("aslOn", true));
             ah_detect::g_bleAttackEnabled.store(p.getBool("blatkOn", true));
@@ -4414,27 +4421,24 @@ void detect_persistTunables() {
     p.putBool("ridOn", ah_detect::g_ridSpoofEnabled.load());
     p.putBool("blmgOn", ah_detect::g_bloomGossipEnabled.load());
     p.putBool("trlOn", ah_detect::g_attackerTrilatEnabled.load());
-    p.putBool("mPmkid", ah_detect::g_meshPmkid.load());
-    p.putBool("mEtw", ah_detect::g_meshEviltwin.load());
-    p.putBool("mScn", ah_detect::g_meshSsidConf.load());
+    p.putBool("mDeauth", ah_detect::g_meshDeauth.load());
+    p.putBool("mBeacon", ah_detect::g_meshBeacon.load());
+    p.putBool("mAuth", ah_detect::g_meshAuth.load());
+    p.putBool("mAssoc", ah_detect::g_meshAssocSleep.load());
     p.putBool("mSae", ah_detect::g_meshSae.load());
-    p.putBool("mFrag", ah_detect::g_meshFrag.load());
-    p.putBool("mBlem", ah_detect::g_meshBleMalformed.load());
+    p.putBool("mEtw", ah_detect::g_meshEviltwin.load());
+    p.putBool("mOwe", ah_detect::g_meshOwe.load());
+    p.putBool("mKarma", ah_detect::g_meshKarma.load());
+    p.putBool("mPmkid", ah_detect::g_meshPmkid.load());
+    p.putBool("mProbe", ah_detect::g_meshProbeFlood.load());
     p.putBool("mHshk", ah_detect::g_meshHshk.load());
-    p.putBool("mKrack", ah_detect::g_meshKrack.load());
+    p.putBool("mFrag", ah_detect::g_meshFrag.load());
+    p.putBool("mTsf", ah_detect::g_meshTsf.load());
+    p.putBool("mJam", ah_detect::g_meshJam.load());
+    p.putBool("mGuard", ah_detect::g_meshGuard.load());
     p.putBool("pflOn",   ah_detect::g_probeFloodEnabled.load());
     p.putBool("aslOn",   ah_detect::g_assocSleepEnabled.load());
     p.putBool("blatkOn", ah_detect::g_bleAttackEnabled.load());
-    p.putBool("mTrk", ah_detect::g_meshTracker.load());
-    p.putBool("mPwna", ah_detect::g_meshPwna.load());
-    p.putBool("mKarma", ah_detect::g_meshKarma.load());
-    p.putBool("mRecon", ah_detect::g_meshRecon.load());
-    p.putBool("mHunt", ah_detect::g_meshAttackerHunt.load());
-    p.putBool("mDeauth", ah_detect::g_meshDeauth.load());
-    p.putBool("mAssoc", ah_detect::g_meshAssocSleep.load());
-    p.putBool("mProbe", ah_detect::g_meshProbeFlood.load());
-    p.putBool("mEapol", ah_detect::g_meshEapolBait.load());
-    p.putBool("mJam", ah_detect::g_meshJam.load());
     p.end();
 }
 
@@ -4592,6 +4596,8 @@ void mesh_observeInbound(const String &sender, const String &body) {
         logEventToSD("/meshguard.jsonl", String("{\"ts\":") + now + ",\"evt\":\"" + line + "\"}");
         ::detect_logIncident(line, "local");
         Serial.printf("[DETECT] %s\n", line.c_str());
+        if (meshEnabled && g_meshGuard.load() && meshRateGate(String("MGD_") + line.substring(0, 20), 30000))
+            sendToSerial1(getNodeId() + ": " + line, true);
     };
 
     // 1. self-ID spoof: receiving our OWN node id inbound = impersonation (~0 FP)
@@ -5732,24 +5738,21 @@ String detect_getConfigJson() {
     j += _bjson("bloom_gossip", g_bloomGossipEnabled.load());
     j += _bjson("attacker_trilat", g_attackerTrilatEnabled.load());
     j += _bjson("karma", g_karmaEnabled.load());
-    j += _bjson("mesh_pmkid", g_meshPmkid.load());
-    j += _bjson("mesh_eviltwin", g_meshEviltwin.load());
-    j += _bjson("mesh_ssid_confusion", g_meshSsidConf.load());
-    j += _bjson("mesh_sae", g_meshSae.load());
-    j += _bjson("mesh_frag", g_meshFrag.load());
-    j += _bjson("mesh_ble_malformed", g_meshBleMalformed.load());
-    j += _bjson("mesh_hshk", g_meshHshk.load());
-    j += _bjson("mesh_krack", g_meshKrack.load());
-    j += _bjson("mesh_tracker", g_meshTracker.load());
-    j += _bjson("mesh_pwna", g_meshPwna.load());
-    j += _bjson("mesh_karma", g_meshKarma.load());
-    j += _bjson("mesh_recon", g_meshRecon.load());
-    j += _bjson("mesh_attacker_hunt", g_meshAttackerHunt.load());
     j += _bjson("mesh_deauth", g_meshDeauth.load());
+    j += _bjson("mesh_beacon", g_meshBeacon.load());
+    j += _bjson("mesh_auth", g_meshAuth.load());
     j += _bjson("mesh_assoc_sleep", g_meshAssocSleep.load());
+    j += _bjson("mesh_sae", g_meshSae.load());
+    j += _bjson("mesh_eviltwin", g_meshEviltwin.load());
+    j += _bjson("mesh_owe", g_meshOwe.load());
+    j += _bjson("mesh_karma", g_meshKarma.load());
+    j += _bjson("mesh_pmkid", g_meshPmkid.load());
     j += _bjson("mesh_probe_flood", g_meshProbeFlood.load());
-    j += _bjson("mesh_eapol_bait", g_meshEapolBait.load());
+    j += _bjson("mesh_hshk", g_meshHshk.load());
+    j += _bjson("mesh_frag", g_meshFrag.load());
+    j += _bjson("mesh_tsf", g_meshTsf.load());
     j += _bjson("mesh_jam", g_meshJam.load());
+    j += _bjson("mesh_guard", g_meshGuardEnabled.load());
     // New tool-fingerprint detector toggles (tool/tool signatures)
     j += _bjson("probe_flood", g_probeFloodEnabled.load());
     j += _bjson("assoc_sleep", g_assocSleepEnabled.load());
@@ -5820,24 +5823,21 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "bloom_gossip", g_bloomGossipEnabled);
     _setb(b, "attacker_trilat", g_attackerTrilatEnabled);
     _setb(b, "karma", g_karmaEnabled);
-    _setb(b, "mesh_pmkid", g_meshPmkid);
-    _setb(b, "mesh_eviltwin", g_meshEviltwin);
-    _setb(b, "mesh_ssid_confusion", g_meshSsidConf);
-    _setb(b, "mesh_sae", g_meshSae);
-    _setb(b, "mesh_frag", g_meshFrag);
-    _setb(b, "mesh_ble_malformed", g_meshBleMalformed);
-    _setb(b, "mesh_hshk", g_meshHshk);
-    _setb(b, "mesh_krack", g_meshKrack);
-    _setb(b, "mesh_tracker", g_meshTracker);
-    _setb(b, "mesh_pwna", g_meshPwna);
-    _setb(b, "mesh_karma", g_meshKarma);
-    _setb(b, "mesh_recon", g_meshRecon);
-    _setb(b, "mesh_attacker_hunt", g_meshAttackerHunt);
     _setb(b, "mesh_deauth", g_meshDeauth);
+    _setb(b, "mesh_beacon", g_meshBeacon);
+    _setb(b, "mesh_auth", g_meshAuth);
     _setb(b, "mesh_assoc_sleep", g_meshAssocSleep);
+    _setb(b, "mesh_sae", g_meshSae);
+    _setb(b, "mesh_eviltwin", g_meshEviltwin);
+    _setb(b, "mesh_owe", g_meshOwe);
+    _setb(b, "mesh_karma", g_meshKarma);
+    _setb(b, "mesh_pmkid", g_meshPmkid);
     _setb(b, "mesh_probe_flood", g_meshProbeFlood);
-    _setb(b, "mesh_eapol_bait", g_meshEapolBait);
+    _setb(b, "mesh_hshk", g_meshHshk);
+    _setb(b, "mesh_frag", g_meshFrag);
+    _setb(b, "mesh_tsf", g_meshTsf);
     _setb(b, "mesh_jam", g_meshJam);
+    _setb(b, "mesh_guard", g_meshGuardEnabled);
     _setb(b, "probe_flood", g_probeFloodEnabled);
     _setb(b, "assoc_sleep", g_assocSleepEnabled);
     _setb(b, "ble_attack",  g_bleAttackEnabled);
