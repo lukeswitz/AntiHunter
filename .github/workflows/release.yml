@@ -62,8 +62,9 @@ jobs:
         mkdir -p release
         cp .pio/build/AntiHunter-full/firmware.bin release/antihunter-full-${{ steps.get_version.outputs.version }}.bin
         cp .pio/build/AntiHunter-headless/firmware.bin release/antihunter-headless-${{ steps.get_version.outputs.version }}.bin
-        cp Dist/bootloader.bin release/
-        cp Dist/partitions.bin release/
+        # bootloader + partitions MUST come from the fresh build (IDF/core version must match the app)
+        cp .pio/build/AntiHunter-full/bootloader.bin release/
+        cp .pio/build/AntiHunter-full/partitions.bin release/
         cp Dist/flashAntihunter.sh release/
 
     - name: Generate checksums
@@ -82,6 +83,9 @@ jobs:
 
         cp .pio/build/AntiHunter-full/firmware.bin "Dist/antihunter-full-${VERSION}.bin"
         cp .pio/build/AntiHunter-headless/firmware.bin "Dist/antihunter-headless-${VERSION}.bin"
+        # refresh bootloader + partitions from the build so they match the app's IDF/core
+        cp .pio/build/AntiHunter-full/bootloader.bin Dist/bootloader.bin
+        cp .pio/build/AntiHunter-full/partitions.bin Dist/partitions.bin
 
         mkdir -p docs/flasher
 
@@ -111,10 +115,11 @@ jobs:
         # Apply artifacts onto the branch
         rm -f Dist/antihunter-*.bin
         cp /tmp/ah-dist/antihunter-*.bin Dist/
+        cp /tmp/ah-dist/bootloader.bin /tmp/ah-dist/partitions.bin Dist/
         mkdir -p docs/flasher
         cp /tmp/ah-flasher/manifest-*.json docs/flasher/
 
-        git add Dist/antihunter-*.bin docs/flasher/manifest-*.json
+        git add Dist/antihunter-*.bin Dist/bootloader.bin Dist/partitions.bin docs/flasher/manifest-*.json
         git diff --cached --quiet && echo "No changes to commit" && exit 0
         git commit -m "dist: update bins and flasher manifests for ${VERSION} (${{ steps.get_version.outputs.channel }})"
         git push origin "${BRANCH}"
