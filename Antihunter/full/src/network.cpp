@@ -1101,7 +1101,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       </div>
 
-      <div class="footer">AntiHunter DIGINODE v0.9.4 | Node: <span id="footerNodeId">--</span></div>
+      <div class="footer">  v0.9.5 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
