@@ -3972,11 +3972,13 @@ void detect_logIncident(const String &raw, const char *src) {
     if (!isDetectorPrefix(type)) return;
 
     uint32_t now = millis();
+    time_t ep = getRTCEpoch();
     String node = getNodeId();
     String escRaw = raw;
     escRaw.replace("\\", "\\\\");
     escRaw.replace("\"", "\\\"");
     String line = String("{\"ts\":") + String(now) +
+                  ",\"epoch\":" + String((uint32_t)ep) +
                   ",\"node\":\"" + node +
                   "\",\"src\":\"" + (src ? src : "local") +
                   "\",\"type\":\"" + type +
