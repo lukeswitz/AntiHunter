@@ -256,7 +256,7 @@ void setup() {
         Serial.printf("[SENTINEL] self-filter mac=%02X:%02X:%02X:%02X:%02X:%02X ssid=%s\n",
                       selfMac[0],selfMac[1],selfMac[2],selfMac[3],selfMac[4],selfMac[5], ssid.c_str());
     }
-    Serial.println("[SENTINEL] Off at boot (enable manually; not persisted)");
+    Serial.println("[SENTINEL] OFF on boot");
 
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
