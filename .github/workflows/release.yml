@@ -38,15 +38,13 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Cache PlatformIO
+    - name: Cache PlatformIO toolchain
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
       with:
-        path: |
-          ~/.platformio
-          .pio
-        key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+        path: ~/.platformio
+        key: ${{ runner.os }}-pio-release-${{ hashFiles('platformio.ini') }}
         restore-keys: |
-          ${{ runner.os }}-pio-
+          ${{ runner.os }}-pio-release-
 
     - name: Install PlatformIO
       run: pip install --upgrade platformio
@@ -56,6 +54,11 @@ jobs:
 
     - name: Build AntiHunter-headless
       run: pio run -e AntiHunter-headless
+
+    - name: Verify firmware binaries exist
+      run: |
+        test -f .pio/build/AntiHunter-full/firmware.bin || { echo "ERROR: full firmware.bin missing after build"; exit 1; }
+        test -f .pio/build/AntiHunter-headless/firmware.bin || { echo "ERROR: headless firmware.bin missing after build"; exit 1; }
 
     - name: Prepare release artifacts
       run: |
