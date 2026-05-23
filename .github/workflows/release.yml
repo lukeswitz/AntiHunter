@@ -73,6 +73,8 @@ jobs:
         cp .pio/build/AntiHunter-full/firmware.bin "Dist/antihunter-full-${VERSION}.bin"
         cp .pio/build/AntiHunter-headless/firmware.bin "Dist/antihunter-headless-${VERSION}.bin"
 
+        mkdir -p docs/flasher
+
         for VARIANT in full headless; do
           cat > "docs/flasher/manifest-${VARIANT}.json" <<EOF
         {

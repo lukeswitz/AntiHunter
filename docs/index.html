@@ -252,6 +252,14 @@
         After flashing, use the serial terminal below to send configuration.
       </div>
 
+      <div style="max-width:320px;margin:0 auto 14px;">
+        <label>Release Channel</label>
+        <select id="cfgChannel" onchange="selectChannel(this.value)">
+          <option value="stable">Stable (recommended)</option>
+          <option value="beta">Beta (latest — may be unstable)</option>
+        </select>
+      </div>
+
       <div class="flash-area">
         <esp-web-install-button id="flashBtn">
           <button class="btn primary" slot="activate" style="font-size:16px;padding:16px 40px">
@@ -450,6 +458,38 @@
           </div>
         </div>
 
+        <hr>
+        <p style="font-size:12px;color:var(--mut);margin:8px 0;text-transform:uppercase;font-weight:600">Sentinel &amp; Detectors</p>
+        <div class="cfg-grid">
+          <div>
+            <label>Start Sentinel on Boot</label>
+            <select id="cfgSentinelBoot">
+              <option value="">Default (off, manual)</option>
+              <option value="1">On — persist &amp; auto-start</option>
+              <option value="0">Off</option>
+            </select>
+            <div class="cfg-note">Persists across reboot when On</div>
+          </div>
+          <div>
+            <label>Sentinel Radio Mode</label>
+            <select id="cfgSentinelScan">
+              <option value="">Default</option>
+              <option value="0">Defend AP (pin channel)</option>
+              <option value="1">Scan all channels</option>
+            </select>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--mut);margin:10px 0 4px">Detector enables (leave Default to keep firmware setting)</p>
+        <div class="cfg-grid" id="cfgDetEnables"></div>
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--mut)">Mesh broadcast flags</summary>
+          <div class="cfg-grid" id="cfgDetMesh" style="margin-top:8px"></div>
+        </details>
+        <details style="margin-top:8px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--mut)">Detector thresholds</summary>
+          <div class="cfg-grid" id="cfgDetThresh" style="margin-top:8px"></div>
+        </details>
+
         </div>
       </details>
 
@@ -500,6 +540,7 @@ chmod +x flashAntihunter.sh
     const BAUD = 115200;
 
     let selectedFirmware = 'full';
+    let selectedChannel = 'stable';
     let latestVersion = null;
     let port = null;
     let reader = null;
@@ -515,27 +556,17 @@ chmod +x flashAntihunter.sh
       updateManifest();
     }
 
+    function selectChannel(c) {
+      selectedChannel = (c === 'beta') ? 'beta' : 'stable';
+      updateManifest();
+    }
+
     function updateManifest() {
-      const ver = latestVersion || FALLBACK_VERSION;
       const variant = selectedFirmware === 'full' ? 'full' : 'headless';
-      const name = selectedFirmware === 'full'
-        ? 'AntiHunter Full (WiFi AP + WebUI)'
-        : 'AntiHunter Headless (Mesh Only)';
-      const base = `https://raw.githubusercontent.com/${REPO}/main/Dist`;
-      const manifest = {
-        name,
-        new_install_prompt_erase: true,
-        builds: [{
-          chipFamily: 'ESP32-S3',
-          parts: [
-            { path: `${base}/bootloader.bin`, offset: 0 },
-            { path: `${base}/partitions.bin`, offset: 32768 },
-            { path: `${base}/antihunter-${variant}-${ver}.bin`, offset: 65536 }
-          ]
-        }]
-      };
-      const dataUri = 'data:application/json;base64,' + btoa(JSON.stringify(manifest));
-      document.getElementById('flashBtn').setAttribute('manifest', dataUri);
+      // CI (release.yml) commits per-variant manifests to each channel branch
+      // (stable/beta) with the correct version + bin paths already baked in.
+      const url = `https://raw.githubusercontent.com/${REPO}/${selectedChannel}/docs/flasher/manifest-${variant}.json`;
+      document.getElementById('flashBtn').setAttribute('manifest', url);
     }
 
     /* -- Terminal -- */
@@ -569,6 +600,16 @@ chmod +x flashAntihunter.sh
       await port.setSignals({ dataTerminalReady: false, requestToSend: false });
     }
 
+    const SENT_ENABLES=[['eviltwin','Evil Twin'],['owe','OWE Abuse'],['karma','Karma'],['pmkid','PMKID Harvest'],['probe_flood','Probe Flood'],['hshk','Handshake / KRACK'],['sae','SAE DoS'],['assoc_sleep','Assoc Sleep'],['frag','FragAttacks'],['tsf','TSF / Evil-Twin'],['jam','WiFi Jamming'],['mesh_guard','Mesh Guard']];
+    const SENT_MESH=[['mesh_pmkid','PMKID'],['mesh_eviltwin','Evil Twin'],['mesh_sae','SAE'],['mesh_frag','Frag'],['mesh_hshk','Handshake'],['mesh_krack','KRACK'],['mesh_karma','Karma'],['mesh_recon','Recon']];
+    const SENT_THRESH=[['pmkid_window','PMKID Window (ms)'],['pmkid_min_bssids','PMKID Min BSSIDs'],['sae_window','SAE Window (ms)'],['sae_unmatched_thresh','SAE Unmatched'],['frag_reuse_thresh','Frag PN Reuse'],['probe_single_thresh','Probe Single-MAC'],['probe_rand_total','Probe Rand Total'],['probe_rand_distinct','Probe Rand Distinct']];
+    function renderSentinelCfg(){
+      const tri=id=>`<select id="${id}"><option value="">Default</option><option value="1">On</option><option value="0">Off</option></select>`;
+      const en=document.getElementById('cfgDetEnables'); if(en)en.innerHTML=SENT_ENABLES.map(([k,l])=>`<div><label>${l}</label>${tri('den_'+k)}</div>`).join('');
+      const ms=document.getElementById('cfgDetMesh'); if(ms)ms.innerHTML=SENT_MESH.map(([k,l])=>`<div><label>${l}</label>${tri('dms_'+k)}</div>`).join('');
+      const th=document.getElementById('cfgDetThresh'); if(th)th.innerHTML=SENT_THRESH.map(([k,l])=>`<div><label>${l}</label><input type="number" id="dth_${k}" placeholder="default" min="0"></div>`).join('');
+    }
+    renderSentinelCfg();
     function buildConfigJson() {
       const cfg = {};
       function str(id, key) { const v = document.getElementById(id).value.trim(); if (v) cfg[key] = v; }
@@ -610,6 +651,17 @@ chmod +x flashAntihunter.sh
         const apPass = document.getElementById('cfgApPass').value.trim();
         if (apPass && apPass.length >= 8) cfg.apPass = apPass;
       }
+
+      const sb = document.getElementById('cfgSentinelBoot').value;
+      if (sb !== '') cfg.sentinelBoot = (sb === '1');
+      const det = {};
+      const ss = document.getElementById('cfgSentinelScan').value;
+      if (ss !== '') det.sentinel_scan = (ss === '1');
+      SENT_ENABLES.forEach(([k]) => { const e = document.getElementById('den_' + k); if (e && e.value !== '') det[k] = (e.value === '1'); });
+      SENT_MESH.forEach(([k]) => { const e = document.getElementById('dms_' + k); if (e && e.value !== '') det[k] = (e.value === '1'); });
+      SENT_THRESH.forEach(([k]) => { const e = document.getElementById('dth_' + k); if (e && e.value.trim() !== '') det[k] = parseInt(e.value, 10); });
+      if (Object.keys(det).length) cfg.detectors = det;
+
       return cfg;
     }
 
