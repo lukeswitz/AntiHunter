@@ -206,11 +206,14 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 
 Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
 
+
 Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
 
 **Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
 
 Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
+
+<img width="1535" height="1711" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
 
 | Group | Detectors | How they're caught |
 |---|---|---|
