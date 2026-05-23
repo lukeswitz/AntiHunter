@@ -350,7 +350,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     // ODID over BLE uses the same packed-message encoding as WiFi NAN payload.
     // The first byte of the ODID adv is a sequence counter for ASTM F3411;
     // skip it before passing to the standard pack parser.
-    int skip = (odidLen >= 1) ? 1 : 0;
+    int skip = 1;
     if (odidLen - skip < 1) return;
     if (odid_message_process_pack(&uasData,
                                   const_cast<uint8_t*>(odid + skip),

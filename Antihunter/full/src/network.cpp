@@ -7788,7 +7788,7 @@ async function clearAll(){await fetch('/api/detect/clear_all',{method:'POST'});t
 async function assignChannels(){await fetch('/api/channel_partition',{method:'POST'});tick()}
 tick();setInterval(tick,3000);
 </script></body></html>)HTML";
-      r->send(200, "text/html", (const uint8_t*)HTML, strlen_P(HTML));
+      r->send(200, "text/html", reinterpret_cast<const uint8_t*>(HTML), strlen_P(HTML));
   });
 
   server->begin();
