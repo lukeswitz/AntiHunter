@@ -19,14 +19,12 @@
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
 </p>
 
-> [!NOTE]
-> **Standalone FW (AP/Mesh) also integrates with the [AntiHunter Command Center Pro](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**
->
-> Early Release: Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
+> Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
 
 ### News:
-`May 2026` - New **Sentinel** counterintel layer — passive WiFi attack detection. See [Sentinel](#g-sentinel--counterintel-engine).
-`Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+
+- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection.
+- `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 # Table of Contents
 
