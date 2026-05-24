@@ -31,6 +31,8 @@
 
 ---
 
+
+
 # Table of Contents
 
 1. [Overview](#overview)
@@ -46,9 +48,14 @@
 11. [Acknowledgments](#acknowledgments)
 12. [Legal](#legal-disclaimer)
 
+<img width="1200" height="1152" alt="IMG_6831" src="https://github.com/user-attachments/assets/724ba170-72bb-432b-973e-e2be5efe8987" />
+
+
 ---
 
 ## Overview
+
+
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
 - ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
@@ -294,6 +301,8 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
 
 ### Assembling the PCB
+
+<img width="1000" height="1030" alt="IMG_6829" src="https://github.com/user-attachments/assets/0153d5d9-45cf-4387-a2d4-28ec901930f5" />
  
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
