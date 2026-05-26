@@ -42,11 +42,12 @@
 5. [RF Configuration](#rf-configuration)
 6. [System Architecture](#system-architecture)
 7. [Hardware](#hardware)
-8. [Getting Started](#getting-started)
-9. [Mesh Commands](#mesh-commands)
-10. [API Reference](#api-reference)
-11. [Acknowledgments](#acknowledgments)
-12. [Legal](#legal-disclaimer)
+    - [Assembling the PCB](#assembling-the-pcb)
+9. [Getting Started](#getting-started)
+10. [Mesh Commands](#mesh-commands)
+11. [API Reference](#api-reference)
+12. [Acknowledgments](#acknowledgments)
+13. [Legal](#legal-disclaimer)
 
 <img width="1200" height="1152" alt="IMG_6831" src="https://github.com/user-attachments/assets/724ba170-72bb-432b-973e-e2be5efe8987" />
 
@@ -303,8 +304,10 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 ### Assembling the PCB
 
 <img width="1000" height="1030" alt="IMG_6829" src="https://github.com/user-attachments/assets/0153d5d9-45cf-4387-a2d4-28ec901930f5" />
+
+- [Welcome Letter - Intro to DIGINODE PCB](https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/beta/hw/Prototype_STL_Files/ahwelcome.txt)
  
-- Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
+- [Assembly Manual: DIGINODE PCB](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ### Core Components
 
