@@ -16,7 +16,10 @@
 <div align="center">
   <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
 </div>
+<div align="center">
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+  <a href="https://lectronz.com/stores/antihunter" alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
+</div>
 </p>
 
 
@@ -28,7 +31,6 @@
 - `2026 January` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 - `2026 April` - Undercode Testing: [AntiHunter Unleashed: Mesh IDS](https://undercodetesting.com/antihunter-unleashed-building-a-low-cost-distributed-wireless-defense-mesh-for-real-time-threat-detection-video/)  
 
-<a href="https://lectronz.com/stores/antihunter" alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
 
 ---
 
@@ -74,6 +76,7 @@
 | Feature | What it does | Scan modes |
 |---------|-------------|------------|
 | **Target Scan** | MAC/OUI/SSID watchlist with instant mesh alerts | WiFi, BLE, or both |
+| **Sentinel Counterintel** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot **(BETA)**| WiFi promiscuous |
 | **Device Scanner** | Captures all nearby WiFi and BLE devices with RSSI, channels, names | WiFi, BLE, or both |
 | **Probe Request Scanner** | Passive sniffer -- reveals SSIDs devices are searching for | WiFi, BLE, or both |
 | **Ghost SSID Detection** | Flags probed SSIDs with no responding AP nearby | Probe / Device scan |
@@ -89,7 +92,7 @@
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
-<img width="959" height="1398" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
+<!-- <img width="959" height="1398" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" /> -->
 
 
 ### Use Cases
@@ -110,10 +113,9 @@
 
 ### 1. Target Scan
 
-<img width="1179" height="797" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
-
-
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
+
+<img width="1179" height="797" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
 
 - WiFi-only, BLE-only, or combined scanning
 - Global allowlist filters out known devices
@@ -214,6 +216,38 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - MAC randomization detection (locally-administered bit check)
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
+
+
+### G. Sentinel — Counterintel Engine
+
+Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
+
+
+Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+
+**Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
+
+Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
+
+<img width="1535" height="1711" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
+
+| Group | Detectors | How they're caught |
+|---|---|---|
+| **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS | Fixed/rotated deauth seqCtrl + reason codes, impersonation bursts, beacon-spam rate + static templates, open-system auth flood, assoc-req PM-bit floods, SAE commit floods (algo 3 / txn 1) |
+| **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Clone of our own AP (SSID/BSSID collision); OWE-transition downgrade; bait-probe answered by an AP that never beacons that SSID |
+| **Recon** | PMKID harvest, probe flood, handshake capture | Orphaned-M1 / KDE PMKID solicitation; fixed-seq + behavioral probe spam (≥15 MACs/SSID/5s); forced & passive EAPOL M1–M4 capture |
+| **Physical** | FragAttacks, TSF / multi-channel twin, WiFi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
+| **Mesh disruption** | Self-spoof, channel flood, command injection | Own node-id seen inbound; inbound rate DoS; privileged command from a sender with no benign history (the node's own Meshtastic channel) |
+
+**Field-verified on hardware** (confirmed firing against the live tools above): deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
+
+**Experimental** (implemented + signature-grounded, hardware field-test pending): OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, WiFi interference, mesh disruption.
+
+**Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
+
+**Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
+
+**Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
 
 ---
 
