@@ -26,8 +26,9 @@
 
 ### News & Links:
 - `2026 January` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
-- `2026 April` - Undercode Testing: [AntiHunter Unleashed](https://undercodetesting.com/antihunter-unleashed-building-a-low-cost-distributed-wireless-defense-mesh-for-real-time-threat-detection-video/) IDS 
-- `2026 May` - Stable release v1.0. Beta channel added.
+- `2026 April` - Undercode Testing: [AntiHunter Unleashed: Mesh IDS](https://undercodetesting.com/antihunter-unleashed-building-a-low-cost-distributed-wireless-defense-mesh-for-real-time-threat-detection-video/)  
+
+<a href="https://lectronz.com/stores/antihunter" alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
 
 ---
 
