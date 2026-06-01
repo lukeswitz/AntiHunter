@@ -2,9 +2,10 @@
 ██╔══██╗████╗  ██║╚══██╔══╝██║██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
 ███████║██╔██╗ ██║   ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
 ██╔══██║██║╚██╗██║   ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
-██║  ██║██║ ╚██╗██║  ██║   ██║██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
+██║  ██║██║ ╚██╗█║   ██║   ██║██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
 ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
                               D I G I   N O D E
+
 
 ================================================================================
   WELCOME, OPERATOR
@@ -16,6 +17,7 @@ endpoint, GPS, RTC, tamper sensing.
 
 Want the full experience? Add the enclosure, antennas, and power kit for a
 deployable field unit.
+
 
 ================================================================================
   [01]  BUILD IT
@@ -77,7 +79,7 @@ Pick one method:
 
 
 ================================================================================
-  [04]  CONFIGURE  (optional)
+  [04]  CONFIGURE
 ================================================================================
 
 Tune device settings from the same web tool, send mesh commands later, or
@@ -95,24 +97,27 @@ Unregulated input can damage the board components.
 
 
 ================================================================================
-  [05]  LEVEL UP
+  [05]  TIPS AND REFERENCE 
 ================================================================================
 
   >> Turn off the public mesh channel; use your own encrypted channel as primary
   >> Disable Bluetooth on the radio for quieter field ops
   >> Pull the screen on the Heltec V3 to save power
+  >> Use a little petroleum jelly on the TPU seals if in extreme conditions
 
   DOCS / MESH COMMANDS / API / FEATURES
     https://github.com/lukeswitz/AntiHunter
 
   BETA CHANNEL
-    Early features like the Sentinel attack monitor before they hit stable.
+    Early features to test before they hit stable
 
   COMMAND CENTER PRO
-    Multi-node oversight with TAK, MQTT, ADSB integration.
+    Multi-site federation with TAK, MQTT, ADSB integration
+    Perimeter deployment strategy tool
     https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO
 
-Fully open source. Write your own mesh commands. Wire in your IDS.
+Fully open source; Write your own mesh commands, Wire in your IDS.
+
 Make it yours.
 
 
