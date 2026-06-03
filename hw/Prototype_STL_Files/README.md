@@ -12,7 +12,6 @@ External GPS, UPS board/DIY 2S 18650
 
 - Accommodates UPS board with fast/side charger options
 - Use without rear power case for dev/compact form
-- Radar mod extension for AH RADAR Node
 - TPU seals for housing and GPS antenna
 - USBC, GPS SMA and housing TPU seals
 - Front lid with open/closed fan options
