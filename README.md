@@ -343,8 +343,8 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 <img width="1000" height="1030" alt="IMG_6829" src="https://github.com/user-attachments/assets/0153d5d9-45cf-4387-a2d4-28ec901930f5" />
 
 - [Welcome Letter - Intro to DIGINODE PCB](https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/beta/hw/Prototype_STL_Files/ahwelcome.txt)
- 
 - [Assembly Manual: DIGINODE PCB](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
+- [BOM - Links](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/BOM-Links.md)
 
 ### Core Components
 
