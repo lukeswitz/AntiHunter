@@ -1,4 +1,4 @@
-# AntiHunter DIGI Node — BOM Links
+## DIGI Node — BOM Links
 > [!NOTE]
 > No affiliate links. These links are for reference only and may change.
 
@@ -10,7 +10,8 @@
 
 | Qty | Part | Image | MFR | AMZN | ALI / ALT |
 |:---:|------|:---:|------|------|-----------|
-| 1× | **Seeed XIAO ESP32-S3** (2.4 GHz)<br>*Buy the plain S3 — "Sense" is a different board* | <img width="110" src="https://github.com/user-attachments/assets/dc604cfc-e287-4b28-bfd1-295ce3369aac" /> | [Seeed Studio](https://www.seeedstudio.com/XIAO-ESP32S3-p-5627.html) | [Search](https://www.amazon.com/s?k=Seeed+XIAO+ESP32-S3) | [Search](https://www.aliexpress.com/w/wholesale-XIAO-ESP32-S3.html) |
+| 1× | **DIGI PCB**  | <img width="1536" height="1536" alt="image" src="https://github.com/user-attachments/assets/2e751f6c-10bf-4e51-998e-12eb651063cc" /> | [AntiHunter - Lectronz Store](https://lectronz.com/products/antihunter-diginode-24ghz-wifible-pcb-only) |   |
+ 1× | **Seeed XIAO ESP32-S3** (2.4 GHz)<br>*Buy the plain S3 — "Sense" is a different board* | <img width="110" src="https://github.com/user-attachments/assets/dc604cfc-e287-4b28-bfd1-295ce3369aac" /> | [Seeed Studio](https://www.seeedstudio.com/XIAO-ESP32S3-p-5627.html) | [Search](https://www.amazon.com/s?k=Seeed+XIAO+ESP32-S3) | [Search](https://www.aliexpress.com/w/wholesale-XIAO-ESP32-S3.html) |
 | 1× | **Heltec WiFi LoRa 32 V3.2**<br>*T114 alt — V3.2 preferred · Band: 863–870 EU / 902–928 US* | <img width="110" src="https://github.com/user-attachments/assets/e375ae03-d0e3-4463-9e6a-dd2401609090" /> | [Heltec](https://heltec.org/project/wifi-lora-32-v3/) · [Datasheet](https://resource.heltec.cn/download/WiFi_LoRa_32_V3/HTIT-WB32LA_V3.2.pdf) | [Search](https://www.amazon.com/s?k=heltec+v3&i=electronics&crid=2DU09XJ5HC24F&sprefix=heltec+v3%2Celectronics%2C245&ref=nb_sb_noss_1) | [Search](https://www.aliexpress.com/w/wholesale-Heltec-WiFi-LoRa-32-V3.html) |
 | 1× | **ATGM336H GPS Module**<br>*AT6558, L1-band, NMEA0183* | <img width="110" src="https://github.com/user-attachments/assets/01396d7c-80f3-420b-8faf-f50b9ff42d42" /> | Commodity (AT6558) | [View](https://www.amazon.com/DWEII-Dual-Mode-Satellite-Positioning-Replacement/dp/B0B68C1W94/ref=sr_1_2?crid=1BIHLTX2D3Q8G&dib=eyJ2IjoiMSJ9._va0qNlb7f2IDJS0x_jvVHX8xcGx6iiLMNmwU0RB_PGok1ekmwTHfY0OI4jTp6s4Imkg8G-eQ6Nl07JPFTtBfchyTWXrSkKQXnUFaH8LTVuTyj6LBpfhVDewZlh-kxQeU1SWopQbhLirJqXIvjwaFo7n_hK0azY7D4k0iiaM06SxYNcpojHe3nNClcBAHLn4W03WiJxNN8etlzRgH1zrg65pv5FkGG7zH9cx24sFjm3eh6gFnbGsmogpGlArcx14VMVpZhjfKPaRL0o6a0lkA-DFXjiKfo2pwRW7-DFueIk.w59Du-qq6cBOpVpC9FWPaRVvfhw2eJ-b_bZN-Hn3y9s&dib_tag=se&keywords=ATGM336H&qid=1780583983&s=electronics&sprefix=atgm336h%2Celectronics%2C276&th=1) | [Search](https://www.aliexpress.com/w/wholesale-ATGM336H.html) · [ElectroDragon](https://www.electrodragon.com/product/gnss-module-atgm336h/) |
 | 1× | **DS3231 RTC Module** | <img width="110" src="https://github.com/user-attachments/assets/99f5f8a3-5754-4787-a304-628279f13e48" /> | Analog Devices DS3231 | [View](https://amazon.com/dp/B08X4H3NBR) | [View](https://www.aliexpress.us/item/2251832129568616.html) |
