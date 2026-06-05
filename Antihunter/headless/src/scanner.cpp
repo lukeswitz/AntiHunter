@@ -715,9 +715,33 @@ static ProbeDevicesMap probeDevices;
 static std::mutex probeMutex;
 static StringSetPsram uniqueSsids;
 static StringSetPsram respondedSsids;
-static void addProbeSsid(ProbeDevice &dev, const char *ssid);
+static void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse = false);
 static bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
 static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize);
+
+static String sanitizeAscii(const char *s, size_t maxLen) {
+    String out;
+    out.reserve(maxLen);
+    for (size_t i = 0; i < maxLen && s[i]; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c >= 0x20 && c <= 0x7E && c != '"' && c != '\\' && c != '<' && c != '>' && c != '&') {
+            out += (char)c;
+        }
+    }
+    return out;
+}
+
+static std::string sanitizeAsciiStd(const char *s, size_t maxLen) {
+    std::string out;
+    out.reserve(maxLen);
+    for (size_t i = 0; i < maxLen && s[i]; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c >= 0x20 && c <= 0x7E && c != '"' && c != '\\' && c != '<' && c != '>' && c != '&') {
+            out += (char)c;
+        }
+    }
+    return out;
+}
 
 void snifferScanTask(void *pv)
 {
@@ -1153,19 +1177,23 @@ void snifferScanTask(void *pv)
                         if (pd.isRandomized) {
                             results += " Rand";
                         } else if (pd.vendor[0]) {
-                            results += " " + std::string(pd.vendor);
+                            std::string v = sanitizeAsciiStd(pd.vendor, sizeof(pd.vendor));
+                            if (!v.empty()) results += " " + v;
                         }
                         if (pd.ssidCount > 0) {
-                            results += " probes:";
+                            bool any = false;
                             for (uint8_t si = 0; si < pd.ssidCount; si++) {
-                                if (si > 0) results += ",";
-                                String s = String(pd.ssids[si]);
-                                bool ghost = respondedSsids.find(s) == respondedSsids.end();
-                                results += (ghost ? "~\"" : "\"") + std::string(pd.ssids[si]) + "\"";
+                                std::string s = sanitizeAsciiStd(pd.ssids[si], 33);
+                                if (s.empty()) continue;
+                                if (!any) { results += " probes:"; any = true; }
+                                else results += ",";
+                                bool ghost = respondedSsids.find(String(pd.ssids[si])) == respondedSsids.end();
+                                results += (ghost ? "~\"" : "\"") + s + "\"";
                             }
                         }
                         if (pd.respondingSSID[0]) {
-                            results += " AP=\"" + std::string(pd.respondingSSID) + "\"";
+                            std::string rs = sanitizeAsciiStd(pd.respondingSSID, sizeof(pd.respondingSSID));
+                            if (!rs.empty()) results += " AP=\"" + rs + "\"";
                         }
                         results += " x" + std::to_string(pd.probeCount) + "\n";
                     }
@@ -1356,19 +1384,30 @@ void snifferScanTask(void *pv)
                     ProbeDevice &pd = pp.second;
                     results += std::string(pp.first.c_str());
                     if (pd.isRandomized) results += " Rand";
-                    else if (pd.vendor[0]) results += " " + std::string(pd.vendor);
+                    else if (pd.vendor[0]) {
+                        std::string v = sanitizeAsciiStd(pd.vendor, sizeof(pd.vendor));
+                        if (!v.empty()) results += " " + v;
+                    }
                     if (pd.ssidCount > 0) {
-                        results += " probes:";
+                        bool any = false;
                         for (uint8_t si = 0; si < pd.ssidCount; si++) {
-                            if (si > 0) results += ",";
-                            String s = String(pd.ssids[si]);
-                            bool ghost = respondedSsids.find(s) == respondedSsids.end();
-                            results += (ghost ? "~\"" : "\"") + std::string(pd.ssids[si]) + "\"";
+                            std::string s = sanitizeAsciiStd(pd.ssids[si], 33);
+                            if (s.empty()) continue;
+                            if (!any) { results += " probes:"; any = true; }
+                            else results += ",";
+                            bool ghost = respondedSsids.find(String(pd.ssids[si])) == respondedSsids.end();
+                            results += (ghost ? "~\"" : "\"") + s + "\"";
                         }
                     }
                     if (pd.respondingSSID[0]) {
-                        results += " AP=\"" + std::string(pd.respondingSSID) + "\"";
-                        if (pd.respondingAP[0]) results += " APBSSID=" + std::string(pd.respondingAP);
+                        std::string rs = sanitizeAsciiStd(pd.respondingSSID, sizeof(pd.respondingSSID));
+                        if (!rs.empty()) {
+                            results += " AP=\"" + rs + "\"";
+                            if (pd.respondingAP[0]) {
+                                std::string rap = sanitizeAsciiStd(pd.respondingAP, sizeof(pd.respondingAP));
+                                if (!rap.empty()) results += " APBSSID=" + rap;
+                            }
+                        }
                     }
                     results += " x" + std::to_string(pd.probeCount) + "\n";
                 }
@@ -1950,7 +1989,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 actualChannel = ppkt->rx_ctrl.channel;
             }
 
-            if (randomizationDetectionEnabled) {
+            if (randomizationDetectionEnabled && stype == 4) {
                 processProbeRequest(sa, ppkt->rx_ctrl.rssi, actualChannel,
                                 payload, ppkt->rx_ctrl.sig_len);
             }
@@ -2552,16 +2591,24 @@ static std::atomic<uint32_t> probeHitCount(0);
 static StringU32MapPsram probeHitCooldowns;
 static const uint32_t PROBE_HIT_COOLDOWN_MS = 60000;
 
-static void addProbeSsid(ProbeDevice &dev, const char *ssid)
+static void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse)
 {
     if (!ssid || ssid[0] == '\0') return;
     for (uint8_t i = 0; i < dev.ssidCount; i++) {
         if (strcasecmp(dev.ssids[i], ssid) == 0) return;
     }
-    if (dev.ssidCount < 4) {
+    if (dev.ssidCount < 8) {
         strncpy(dev.ssids[dev.ssidCount], ssid, 32);
         dev.ssids[dev.ssidCount][32] = '\0';
         dev.ssidCount++;
+        return;
+    }
+    if (fromResponse) {
+        for (uint8_t i = 1; i < 8; i++) {
+            memcpy(dev.ssids[i - 1], dev.ssids[i], 33);
+        }
+        strncpy(dev.ssids[7], ssid, 32);
+        dev.ssids[7][32] = '\0';
     }
 }
 
@@ -2759,7 +2806,7 @@ void probeDetectionTask(void *pv)
                     if (respSsid[0]) {
                         strncpy(dev.respondingSSID, respSsid, 32);
                         dev.respondingSSID[32] = '\0';
-                        addProbeSsid(dev, respSsid);
+                        addProbeSsid(dev, respSsid, true);
                         uniqueSsids.insert(String(respSsid));
                         respondedSsids.insert(String(respSsid));
                     }
@@ -3070,26 +3117,34 @@ String getProbeResults()
         if (dev.isRandomized) {
             results += "Randomized";
         } else if (dev.vendor[0]) {
-            results += String(dev.vendor);
+            String v = sanitizeAscii(dev.vendor, sizeof(dev.vendor));
+            if (v.length() > 0) results += v;
         }
 
-        // SSIDs this device is probing for (~prefix = ghost, no AP nearby)
         if (dev.ssidCount > 0) {
-            results += " probes:";
+            bool any = false;
             for (uint8_t i = 0; i < dev.ssidCount; i++) {
-                if (i > 0) results += ",";
-                String s = String(dev.ssids[i]);
-                bool ghost = respondedSsids.find(s) == respondedSsids.end();
+                String s = sanitizeAscii(dev.ssids[i], 33);
+                if (s.length() == 0) continue;
+                if (!any) { results += " probes:"; any = true; }
+                else results += ",";
+                bool ghost = respondedSsids.find(String(dev.ssids[i])) == respondedSsids.end();
                 results += (ghost ? "~\"" : "\"") + s + "\"";
             }
+            if (!any) results += " (wildcard)";
         } else {
             results += " (wildcard)";
         }
 
-        // Probe response intelligence — what AP responded
         if (dev.respondingSSID[0]) {
-            results += " AP=\"" + String(dev.respondingSSID) + "\"";
-            if (dev.respondingAP[0]) results += " APBSSID=" + String(dev.respondingAP);
+            String rs = sanitizeAscii(dev.respondingSSID, sizeof(dev.respondingSSID));
+            if (rs.length() > 0) {
+                results += " AP=\"" + rs + "\"";
+                if (dev.respondingAP[0]) {
+                    String rap = sanitizeAscii(dev.respondingAP, sizeof(dev.respondingAP));
+                    if (rap.length() > 0) results += " APBSSID=" + rap;
+                }
+            }
         }
 
         // Probe count this session
@@ -3291,7 +3346,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
             for (uint8_t j = 0; j < e.ssidCount; j++) {
                 if (strcasecmp(e.ssids[j], dev.ssids[i]) == 0) { found = true; break; }
             }
-            if (!found && e.ssidCount < 4) {
+            if (!found && e.ssidCount < 8) {
                 strncpy(e.ssids[e.ssidCount], dev.ssids[i], 32);
                 e.ssids[e.ssidCount][32] = '\0';
                 e.ssidCount++;
@@ -3321,7 +3376,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
         e.isRandomized = dev.isRandomized;
         strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
         e.ssidCount = 0;
-        for (uint8_t i = 0; i < dev.ssidCount && e.ssidCount < 4; i++) {
+        for (uint8_t i = 0; i < dev.ssidCount && e.ssidCount < 8; i++) {
             strncpy(e.ssids[e.ssidCount], dev.ssids[i], 32);
             e.ssids[e.ssidCount][32] = '\0';
             e.ssidCount++;

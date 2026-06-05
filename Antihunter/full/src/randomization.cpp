@@ -1183,6 +1183,18 @@ void resetRandomizationDetection() {
     identityIdCounter = 0;
 }
 
+static String sanitizeAscii(const char *s, size_t maxLen) {
+    String out;
+    out.reserve(maxLen);
+    for (size_t i = 0; i < maxLen && s[i]; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c >= 0x20 && c <= 0x7E && c != '"' && c != '\\' && c != '<' && c != '>' && c != '&') {
+            out += (char)c;
+        }
+    }
+    return out;
+}
+
 String getRandomizationResults() {
     std::lock_guard<std::mutex> lock(randMutex);
 
@@ -1211,10 +1223,12 @@ String getRandomizationResults() {
         results += "Track ID: " + String(identity.identityId) + "\n";
         results += "  Type: " + String(identity.isBLE ? "BLE" : "WiFi") + "\n";
         if (identity.deviceName[0] != '\0') {
-            results += "  Name: " + String(identity.deviceName) + "\n";
+            String name = sanitizeAscii(identity.deviceName, sizeof(identity.deviceName));
+            if (name.length() > 0) results += "  Name: " + name + "\n";
         }
         if (!identity.isBLE && identity.probedSSID[0] != '\0') {
-            results += "  SSID: " + String(identity.probedSSID) + "\n";
+            String ssid = sanitizeAscii(identity.probedSSID, sizeof(identity.probedSSID));
+            if (ssid.length() > 0) results += "  SSID: " + ssid + "\n";
         }
         if (identity.isBLE && identity.mfrDataLen >= 2) {
             uint16_t cid = static_cast<uint16_t>(identity.mfrData[0]) | (static_cast<uint16_t>(identity.mfrData[1]) << 8);
