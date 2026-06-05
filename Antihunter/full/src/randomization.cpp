@@ -876,7 +876,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     if (bestScore >= confidenceThreshold && !bestIdentityKey.isEmpty()) {
         DeviceIdentity& identity = deviceIdentities[bestIdentityKey];
         
-        if (identity.macs.size() >= 50) return;
+        if (identity.macs.size() >= MAX_LINKED_MACS_PER_IDENTITY) return;
         
         if(sessionIsMinimal && !identity.signature.hasMinimalSignature) {
             memcpy(identity.signature.ieFingerprintMinimal, session.fingerprint, sizeof(session.fingerprint));
@@ -975,9 +975,24 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         
      } else {
         if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
-            return;
+            String lruKey;
+            uint32_t oldestSeen = UINT32_MAX;
+            for (const auto& entry : deviceIdentities) {
+                if (entry.second.lastSeen < oldestSeen) {
+                    oldestSeen = entry.second.lastSeen;
+                    lruKey = entry.first;
+                }
+            }
+            if (!lruKey.isEmpty()) {
+                Serial.printf("[RAND] LRU evict %s (age:%lums) to admit new identity\n",
+                              deviceIdentities[lruKey].identityId,
+                              (unsigned long)(now - oldestSeen));
+                deviceIdentities.erase(lruKey);
+            } else {
+                return;
+            }
         }
-        
+
         for (const auto& existingEntry : deviceIdentities) {
             const DeviceIdentity& existingIdentity = existingEntry.second;
             for (const auto& existingMac : existingIdentity.macs) {
@@ -1295,6 +1310,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t startTime = millis();
     uint32_t nextStatus = startTime + 5000;
     uint32_t nextCleanup = startTime + 10000;
+    uint32_t nextTrackCleanup = startTime + 60000;
     uint32_t nextResultsUpdate = startTime + 2000;
     uint32_t lastBLEScan = 0;
     uint32_t lastMeshUpdate = 0;
@@ -1645,6 +1661,11 @@ void randomizationDetectionTask(void *pv) {
             nextCleanup += 30000;
         }
 
+        if (static_cast<int32_t>(millis() - nextTrackCleanup) >= 0) {
+            cleanupStaleTracks();
+            nextTrackCleanup += 60000;
+        }
+
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
@@ -1818,7 +1839,7 @@ void loadDeviceIdentities() {
         uint32_t macCount = 0;
         if (file.read(reinterpret_cast<uint8_t*>(&macCount), sizeof(macCount)) != sizeof(macCount)) break;
         
-        if (macCount > 50) break;
+        if (macCount > MAX_LINKED_MACS_PER_IDENTITY) break;
         
         for (uint32_t j = 0; j < macCount; j++) {
             uint8_t macBytes[6];
