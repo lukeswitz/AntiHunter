@@ -173,7 +173,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
     Serial.printf("[MESH TX] %s\n", message.c_str());
 
     Serial1.flush();
-    delay(50);
 
     xSemaphoreGive(serial1Mutex);
 
@@ -182,6 +181,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
         String body = (sep > 0) ? message.substring(sep + 2) : message;
         detect_logIncident(body, "local");
     }
+    delay(50);
 
     if (!isPriority) {
         rateLimiter.consume(msgLen);
@@ -219,6 +219,10 @@ unsigned long getMeshSendInterval() {
 }
 
 void initializeMesh() {
+    if (serial1Mutex == nullptr) {
+        serial1Mutex = xSemaphoreCreateMutex();
+    }
+
     Serial1.end();
     delay(100);
 
@@ -233,8 +237,6 @@ void initializeMesh() {
     }
 
     delay(500);
-
-    serial1Mutex = xSemaphoreCreateMutex();
 
     Serial.println("[MESH] UART initialized");
     Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
