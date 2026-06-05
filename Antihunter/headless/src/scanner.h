@@ -61,7 +61,7 @@ struct ProbeDevice {
     uint32_t firstSeen;
     uint32_t lastSeen;
     uint32_t probeCount;
-    char ssids[4][33];
+    char ssids[8][33];
     uint8_t ssidCount;
     bool isRandomized;
     bool isTargetHit;
@@ -85,7 +85,7 @@ struct ProbeDBEntry {
     uint32_t firstEpoch;
     uint32_t lastEpoch;
     uint16_t sessionCount;
-    char ssids[4][33];
+    char ssids[8][33];
     uint8_t ssidCount;
     int8_t bestRssi;
     char vendor[16];
