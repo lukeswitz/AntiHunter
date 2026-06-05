@@ -13,3 +13,5 @@
 *.weaudit
 
 demo.html
+
+idf_component.yml
