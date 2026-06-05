@@ -197,7 +197,7 @@ Detects drones broadcasting Remote ID per FAA/EASA standards. Supports ODID/ASTM
 
 Links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
 
-- Up to 30 simultaneous identities, 50 linked MACs each
+- Up to 256 simultaneous identities, 128 linked MACs each (LRU eviction of oldest identity at cap; stale tracks pruned every 60s)
 - Dual signature support (full and minimal IE patterns)
 - Confidence-based linking with adaptive thresholds
 - Detects global MAC leaks and WiFi-BLE correlation
