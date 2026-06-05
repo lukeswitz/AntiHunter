@@ -176,8 +176,8 @@ void setup() {
     Serial.println("\n=== Antihunter [FULL] Boot ===");
 
     if (psramFound()) {
-        heap_caps_malloc_extmem_enable(64);
-        Serial.printf("[MEM] PSRAM heap routing on (>=64B -> PSRAM). psram_free=%u internal_free=%u\n",
+        heap_caps_malloc_extmem_enable(512);
+        Serial.printf("[MEM] PSRAM heap routing on (>=512B -> PSRAM). psram_free=%u internal_free=%u\n",
                       (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
 
@@ -210,7 +210,7 @@ void setup() {
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.6 BOOT COMPLETE =====");
 
     String currentSsid = prefs.getString("apSsid", AP_SSID);
     String currentPass = prefs.getString("apPass", AP_PASS);
