@@ -19,9 +19,9 @@ struct PsramAllocator {
 
     PsramAllocator() noexcept = default;
     template <typename U>
-    PsramAllocator(const PsramAllocator<U>&) noexcept {}
+    explicit PsramAllocator(const PsramAllocator<U>&) noexcept {}
 
-    T* allocate(size_type n) {
+    static T* allocate(size_type n) {
         if (n == 0) return nullptr;
         if (n > std::numeric_limits<size_type>::max() / sizeof(T)) {
             throw std::bad_alloc();
@@ -34,7 +34,7 @@ struct PsramAllocator {
         return static_cast<T*>(p);
     }
 
-    void deallocate(T* p, size_type) noexcept {
+    static void deallocate(T* p, size_type) noexcept {
         if (p) heap_caps_free(p);
     }
 

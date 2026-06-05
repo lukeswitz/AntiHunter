@@ -160,7 +160,7 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
         std::vector<String> snapshot;
         if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             snapshot.reserve(terminalBuffer.size());
-            for (const auto &line : terminalBuffer) snapshot.push_back(line);
+            snapshot.insert(snapshot.end(), terminalBuffer.begin(), terminalBuffer.end());
             xSemaphoreGive(terminalBufferMutex);
         }
         for (const auto &line : snapshot) {
