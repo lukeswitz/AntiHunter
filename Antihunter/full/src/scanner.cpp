@@ -2830,8 +2830,6 @@ void probeDetectionTask(void *pv)
     uint32_t lastDebug = startTime;
     uint32_t totalDrained = 0;
 
-    Serial.printf("[PROBE] Queue handle=%p enabled=%d\n", probeRequestQueue, (int)probeDetectionEnabled.load());
-
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
 
@@ -3061,16 +3059,7 @@ void probeDetectionTask(void *pv)
             lastDBSave = millis();
         }
 
-        // Debug: print queue stats every 5s
-        if ((millis() - lastDebug) >= 5000) {
-            UBaseType_t qWaiting = uxQueueMessagesWaiting(probeRequestQueue);
-            Serial.printf("[PROBE-DBG] drained=%u qWaiting=%u devices=%u probes=%u\n",
-                          totalDrained, (uint32_t)qWaiting,
-                          probeDevices.size(), (uint32_t)totalProbeCount);
-            lastDebug = millis();
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     probeDetectionEnabled = false;
