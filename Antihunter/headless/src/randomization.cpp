@@ -18,13 +18,14 @@
 extern "C" {
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
+#include "esp_heap_caps.h"
 }
 
 extern NimBLEScan *pBLEScan;
 
 bool randomizationDetectionEnabled = false;
-std::map<String, ProbeSession> activeSessions;
-std::map<String, DeviceIdentity> deviceIdentities;
+ActiveSessionsMap activeSessions;
+DeviceIdentitiesMap deviceIdentities;
 uint32_t identityIdCounter = 0;
 QueueHandle_t probeRequestQueue = nullptr;
 QueueHandle_t authFrameQueue = nullptr;
@@ -38,7 +39,9 @@ extern void radioStartSTA();
 extern void radioStopSTA();
 extern std::atomic<bool> scanning;
 extern void radioStartBLE();
+extern bool radioStartBLEChecked();
 extern void radioStopBLE();
+extern std::atomic<bool> meshTxDraining;
 
 std::mutex randMutex;
 
@@ -967,6 +970,12 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                      sessionIsMinimal ? "MIN" : "FULL");
         
      } else {
+        if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 16384) {
+            Serial.printf("[RAND] Heap-gate: skip new identity (internal:%u psram:%u)\n",
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+            return;
+        }
         if (deviceIdentities.size() >= MAX_DEVICE_TRACKS) {
             String lruKey;
             uint32_t oldestSeen = UINT32_MAX;
@@ -1144,9 +1153,14 @@ void resetRandomizationDetection() {
 String getRandomizationResults() {
     std::lock_guard<std::mutex> lock(randMutex);
 
-    String results = "MAC Randomization Detection Results\n";
+    const size_t identityCount = deviceIdentities.size();
+    const size_t reserveBytes = 1024 + std::min<size_t>(identityCount, 100) * 512;
+
+    String results;
+    results.reserve(reserveBytes);
+    results = "MAC Randomization Detection Results\n";
     results += "Active Sessions: " + String(activeSessions.size()) + "\n";
-    results += "Device Identities: " + String(deviceIdentities.size()) + "\n\n";
+    results += "Device Identities: " + String(identityCount) + "\n\n";
 
     const int MAX_IDENTITIES = 100;
     int count = 0;
@@ -1217,55 +1231,70 @@ void randomizationDetectionTask(void *pv) {
     bool forever = (duration <= 0);
     
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
-    
-    if (authFrameQueue) {
-        vQueueDelete(authFrameQueue);
-        authFrameQueue = nullptr;
-    }
-    authFrameQueue = xQueueCreate(32, sizeof(AuthFrameEvent));
 
-    if (probeRequestQueue) {
-        vQueueDelete(probeRequestQueue);
-        probeRequestQueue = nullptr;
-        vTaskDelay(pdMS_TO_TICKS(100));
+    if (!probeRequestQueue || !authFrameQueue) {
+        Serial.printf("[RAND] FATAL: queues not allocated at boot (probe=%p auth=%p heap=%u), aborting\n",
+                      probeRequestQueue, authFrameQueue, ESP.getFreeHeap());
+        scanning = false;
+        workerTaskHandle = nullptr;
+        vTaskDelete(nullptr);
+        return;
     }
+    xQueueReset(probeRequestQueue);
+    xQueueReset(authFrameQueue);
 
-    probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
-    if (!probeRequestQueue) {
-        Serial.printf("[RAND] FATAL: Failed to create queue (heap: %u)\n", ESP.getFreeHeap());
-        vTaskDelay(pdMS_TO_TICKS(200));
-        
-        probeRequestQueue = xQueueCreate(128, sizeof(ProbeRequestEvent));
-        if (!probeRequestQueue) {
-            Serial.printf("[RAND] FATAL: Queue creation failed twice (heap: %u), aborting\n", ESP.getFreeHeap());
+    {
+        uint32_t waitStart = millis();
+        while (meshTxDraining.load() && (millis() - waitStart) < 8000) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        if (meshTxDraining.load()) {
+            Serial.println("[RAND] Abort: prior mesh drain >8s");
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = "Randomization detection failed - prior scan drain timeout\n";
+            scanning = false;
             workerTaskHandle = nullptr;
             vTaskDelete(nullptr);
             return;
         }
-        Serial.printf("[RAND] Reduced queue created (128 entries, heap: %u)\n", ESP.getFreeHeap());
-    } else {
-        Serial.printf("[RAND] Queue created (256 entries, heap: %u)\n", ESP.getFreeHeap());
     }
 
-    loadDeviceIdentities();
-
-    std::set<String> transmittedIdentities;
-    
     {
         std::lock_guard<std::mutex> lock(randMutex);
         activeSessions.clear();
-        deviceIdentities.clear();
     }
-    
+    loadDeviceIdentities();
+    cleanupStaleTracks();
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        Serial.printf("[RAND] Loaded %u persistent identities after stale cleanup (internal:%u psram:%u)\n",
+                      (unsigned)deviceIdentities.size(),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    }
+
+    IdentityKeySet transmittedIdentities;
+
     Serial.println("[RAND] Starting radios...");
     vTaskDelay(pdMS_TO_TICKS(100));
-    
+
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
+        if (currentScanMode == SCAN_BOTH && !pBLEScan) {
+            Serial.println("[RAND] BLE init NULL during radioStartSTA, continuing WiFi-only");
+        }
     } else if (currentScanMode == SCAN_BLE) {
         vTaskDelay(pdMS_TO_TICKS(100));
-        radioStartBLE();
+        if (!radioStartBLEChecked()) {
+            Serial.println("[RAND] Abort: BLE init failed in BLE-only mode");
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = "Randomization detection failed - BLE init error\n";
+            scanning = false;
+            workerTaskHandle = nullptr;
+            vTaskDelete(nullptr);
+            return;
+        }
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     
@@ -1400,23 +1429,17 @@ void randomizationDetectionTask(void *pv) {
         
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
             pBLEScan && (millis() - lastBLEScan >= BLE_SCAN_INTERVAL)) {
-            
             lastBLEScan = millis();
-            
-            if (pBLEScan->isScanning()) {
-                pBLEScan->stop();
-                vTaskDelay(pdMS_TO_TICKS(100));
+
+            if (!pBLEScan->isScanning()) {
+                pBLEScan->start(0, false);
+                vTaskDelay(pdMS_TO_TICKS(50));
             }
-            
-            bool scanStarted = pBLEScan->start(rfConfig.bleScanDuration, false);
-            
-            if (scanStarted) {
-                vTaskDelay(pdMS_TO_TICKS(rfConfig.bleScanDuration));
-                
-                NimBLEScanResults scanResults = pBLEScan->getResults();
-                Serial.printf("[RAND BLE] Scan results: %d devices\n", scanResults.getCount());
-                
-                if (scanResults.getCount() > 0) {
+
+            NimBLEScanResults scanResults = pBLEScan->getResults(0, false);
+            Serial.printf("[RAND BLE] Continuous scan accumulated %d devices\n", scanResults.getCount());
+
+            if (scanResults.getCount() > 0) {
                     std::lock_guard<std::mutex> lock(randMutex);
                     
                     for (int i = 0; i < scanResults.getCount(); i++) {
@@ -1511,12 +1534,9 @@ void randomizationDetectionTask(void *pv) {
                         }
                     }
                 }
-                pBLEScan->clearResults();
-            } else {
-                Serial.printf("[RAND BLE] Scan start FAILED!\n");
-            }
+            pBLEScan->clearResults();
         }
-        
+
         if (static_cast<int32_t>(millis() - nextStatus) >= 0) {
             uint32_t now = millis();
             std::vector<ProbeSession*> toProcess;
@@ -1658,34 +1678,59 @@ void randomizationDetectionTask(void *pv) {
     }
     
     randomizationDetectionEnabled = false;
-    scanning = false;
 
     radioStopSTA();
     delay(100);
-    
-    Serial.println("[RAND] Processing all remaining sessions...");
-    {
-        std::lock_guard<std::mutex> lock(randMutex);
-        for (auto& entry : activeSessions) {
-            if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac)) {
-                linkSessionToTrackBehavioral(entry.second);
+
+    if (!stopRequested) {
+        Serial.println("[RAND] Processing remaining sessions (heap-gated)...");
+        std::vector<ProbeSession*> toLink;
+        {
+            std::lock_guard<std::mutex> lock(randMutex);
+            toLink.reserve(activeSessions.size());
+            for (auto& entry : activeSessions) {
+                if (!entry.second.linkedToIdentity && isRandomizedMAC(entry.second.mac)) {
+                    toLink.push_back(&entry.second);
+                }
             }
         }
+        uint32_t linked = 0, skipped = 0;
+        for (auto* session : toLink) {
+            if (stopRequested) break;
+            if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 16384) {
+                Serial.printf("[RAND] End-of-scan heap-gate hit (internal:%u), skipping %u remaining\n",
+                              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                              (unsigned)(toLink.size() - linked - skipped));
+                skipped = toLink.size() - linked;
+                break;
+            }
+            linkSessionToTrackBehavioral(*session);
+            linked++;
+        }
+        Serial.printf("[RAND] End-of-scan linked %u, skipped %u (internal:%u psram:%u)\n",
+                      linked, skipped,
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    } else {
+        Serial.println("[RAND] Stopped — skipping end-of-scan processing");
     }
 
     saveDeviceIdentities();
-    
-    if (authFrameQueue) {
-        vQueueDelete(authFrameQueue);
-        authFrameQueue = nullptr;
+
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        activeSessions.clear();
     }
 
-    if (probeRequestQueue) {
-        vQueueDelete(probeRequestQueue);
-        probeRequestQueue = nullptr;
-    }
+    transmittedIdentities.clear();
 
-    Serial.println("[RAND] Detection complete, results stored");
+    scanning = false;
+    if (probeRequestQueue) xQueueReset(probeRequestQueue);
+    if (authFrameQueue)    xQueueReset(authFrameQueue);
+
+    Serial.printf("[RAND] Complete (internal:%u psram:%u)\n",
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -1736,9 +1781,11 @@ void saveDeviceIdentities() {
 void loadDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
     if (!SafeSD::exists("/rand_identities.dat")) return;
-    
+
     std::lock_guard<std::mutex> lock(randMutex);
-    
+
+    deviceIdentities.clear();
+
     File file = SafeSD::open("/rand_identities.dat", FILE_READ);
     if (!file) {
         Serial.println("[RAND] Failed to open identities file");
