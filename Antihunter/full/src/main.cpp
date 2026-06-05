@@ -33,9 +33,12 @@ void uartForwardTask(void *parameter) {
     String rxChunk = "";
     uint32_t lastRxMicros = 0;
     if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-      while (Serial1.available()) {
+      const size_t MAX_DRAIN_BYTES = 256;
+      size_t drained = 0;
+      while (Serial1.available() && drained < MAX_DRAIN_BYTES) {
         rxChunk += (char)Serial1.read();
         lastRxMicros = micros();
+        drained++;
       }
       xSemaphoreGive(serial1Mutex);
     }
