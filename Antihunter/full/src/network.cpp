@@ -2341,6 +2341,39 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return 'var(--mut)';
       }
 
+      function isRandomMac(mac) {
+        if (!mac || mac.length < 2) return false;
+        const b = parseInt(mac.substr(0, 2), 16);
+        if (isNaN(b)) return false;
+        return (b & 0x02) !== 0 && (b & 0x01) === 0;
+      }
+
+      let identityMap = {};
+      let identityMapFetchedAt = 0;
+      async function refreshIdentityMap(force) {
+        const now = Date.now();
+        if (!force && (now - identityMapFetchedAt) < 8000) return;
+        identityMapFetchedAt = now;
+        const r = await fetch('/api/identity-map').catch(err => { console.warn('identity-map fetch failed', err); return null; });
+        if (!r || !r.ok) return;
+        const j = await r.json().catch(err => { console.warn('identity-map parse failed', err); return null; });
+        if (j) identityMap = j;
+      }
+
+      function identityBadge(mac) {
+        if (!mac) return '';
+        const id = identityMap[mac.toUpperCase()];
+        if (!id) return '';
+        return '<span title="Linked to identity ' + id + ' by randomization scanner" style="background:var(--c-known);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;margin-left:6px;vertical-align:middle;letter-spacing:0.5px;font-family:monospace;">' + id + '</span>';
+      }
+
+      function randBadge(mac) {
+        const linked = identityBadge(mac);
+        if (linked) return linked;
+        if (!isRandomMac(mac)) return '';
+        return '<span title="Locally-administered (randomized) MAC" style="background:var(--c-rand);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;margin-left:6px;vertical-align:middle;letter-spacing:0.5px;">RAND</span>';
+      }
+
       function parseAndStyleResults(text) {
         if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
           return '<div style="color:var(--mut);padding:20px;text-align:center;">No scan data yet.</div>';
@@ -2385,7 +2418,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           
           if (targetMatch) {
             html += '<div style="margin:8px 0;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-family:monospace;color:var(--acc);font-size:13px;font-weight:600;">';
-            html += 'TARGET: ' + targetMatch[1];
+            html += 'TARGET: ' + targetMatch[1] + randBadge(targetMatch[1]);
             html += '</div>';
           }
           
@@ -2761,7 +2794,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<details data-type="' + deviceType + '" style="background:var(--surf);border:1px solid var(--bord);border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bord)\'">';
           html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
           html += '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">';
-          if (anchorMac) html += '<span style="font-family:monospace;font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>';
+          if (anchorMac) html += '<span style="font-family:monospace;font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>' + randBadge(anchorMac);
           html += '<span style="background:' + (isBLE ? 'var(--c-ble-bg)' : 'var(--c-wifi-bg)') + ';color:' + (isBLE ? 'var(--c-ble)' : 'var(--c-wifi)') + ';padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + deviceType + '</span>';
           if (nameMatch) html += '<span style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
           if (ssidMatch) html += '<span style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
@@ -2880,7 +2913,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             macs.forEach((mac) => {
               const isFirst = mac === anchorMac;
               html += '<div style="background:var(--surf);border:1px solid var(--bord);border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isFirst ? 'var(--acc)' : 'var(--mut)') + ';display:flex;justify-content:space-between;align-items:center;">';
-              html += '<span>' + mac + '</span>';
+              html += '<span>' + mac + randBadge(mac) + '</span>';
               if (isFirst) html += '<span style="font-size:7px;padding:2px 5px;background:var(--bg);border:1px solid var(--succ);border-radius:2px;color:var(--succ);font-weight:600;">ANCHOR</span>';
               html += '</div>';
             });
@@ -2915,7 +2948,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           let c = '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
           c += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
           c += '<div>';
-          c += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + '</div>';
+          c += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + randBadge(mac) + '</div>';
           if (name && name !== 'Unknown') c += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
           c += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
           c += '</div>';
@@ -2961,7 +2994,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
               html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid var(--warn);margin-bottom:10px;">';
               html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:8px;">';
-              html += '<div style="font-family:monospace;font-size:14px;color:var(--txt);">' + mac + '</div>';
+              html += '<div style="font-family:monospace;font-size:14px;color:var(--txt);">' + mac + randBadge(mac) + '</div>';
               html += '<span style="background:' + typeColor + ';color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
               html += '</div>';
               html += '<div style="display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px;flex-wrap:wrap;">';
@@ -3041,7 +3074,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             currentTargetHtml = '<div style="background:var(--surf);padding:16px;border-radius:8px;border:1px solid var(--warn);margin-bottom:12px;">';
             currentTargetHtml += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + target + '</div>';
+            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + target + (isBroadcast ? '' : randBadge(target)) + '</div>';
             if (isBroadcast) {
               currentTargetHtml += '<span style="background:var(--warn);color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
             }
@@ -3079,7 +3112,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (sourceMatch) {
               const [_, source, count] = sourceMatch;
               currentTargetHtml += '<div style="padding:6px;font-family:monospace;font-size:12px;color:var(--txt);border-bottom:1px solid var(--bord);">';
-              currentTargetHtml += '<span style="color:var(--warn);">←</span> ' + source + ' <span style="color:var(--mut);">(' + count + ' attacks)</span>';
+              currentTargetHtml += '<span style="color:var(--warn);">←</span> ' + source + randBadge(source) + ' <span style="color:var(--mut);">(' + count + ' attacks)</span>';
               currentTargetHtml += '</div>';
             }
           }
@@ -3140,7 +3173,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           
           html += '<div style="background:var(--surf);padding:18px;border-radius:8px;border:1px solid var(--acc);margin-bottom:12px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-          html += '<div style="font-family:monospace;font-size:15px;color:var(--acc);">' + macMatch[1] + '</div>';
+          html += '<div style="font-family:monospace;font-size:15px;color:var(--acc);">' + macMatch[1] + randBadge(macMatch[1]) + '</div>';
           if (rssiMatch) html += '<span style="color:var(--mut);font-size:12px;">RSSI: <strong style="color:var(--txt);">' + rssiMatch[1] + ' dBm</strong></span>';
           html += '</div>';
           
@@ -3264,9 +3297,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             // Top row: MAC + vendor + status badges
             html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
             html += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);">' + (macM ? macM[1] : '') + '</span>';
-            if (vendor === 'Randomized') {
-              html += '<span style="background:var(--c-rand);color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">RAND</span>';
-            } else if (vendor) {
+            if (macM) html += randBadge(macM[1]);
+            if (vendor && vendor !== 'Randomized' && !(macM && isRandomMac(macM[1]))) {
               html += '<span style="color:var(--mut);">' + vendor + '</span>';
             }
             html += '<span style="color:var(--mut);">' + (rssiM ? rssiM[1] + 'dBm' : '') + '</span>';
@@ -3294,7 +3326,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             // Third row: Responding AP (from probe response intelligence)
             if (apM) {
               html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:3px;font-size:10px;color:var(--c-ap);">AP responded: <strong>' + apM[1] + '</strong>';
-              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>';
+              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
               html += '</div>';
             }
 
@@ -3368,9 +3400,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const border = isRand ? 'var(--c-rand)' : 'var(--bord)';
               h += '<div style="padding:6px 10px;border-bottom:1px solid var(--bord);font-size:11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">';
               h += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);min-width:140px;">' + d.mac + '</span>';
-              if (isRand) {
-                h += '<span style="background:var(--c-rand);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
-              } else if (d.vendor) {
+              h += randBadge(d.mac);
+              if (d.vendor && !isRandomMac(d.mac)) {
                 h += '<span style="color:var(--mut);font-size:10px;">' + d.vendor + '</span>';
               }
               h += '<span style="color:var(--mut);font-size:10px;">' + d.rssi + 'dBm</span>';
@@ -3439,7 +3470,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
           html += '<div>';
-          html += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + '</div>';
+          html += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + randBadge(mac) + '</div>';
           html += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
           html += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
           html += '</div>';
@@ -3469,8 +3500,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '<div style="padding:6px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;">';
             html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
             if (macM) html += '<span style="font-family:monospace;font-weight:bold;">' + macM[1] + '</span>';
-            if (isRand) html += '<span style="background:var(--c-rand);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">RAND</span>';
-            else if (vendor) html += '<span style="color:var(--mut);">' + vendor + '</span>';
+            if (macM) html += randBadge(macM[1]);
+            if (vendor && !(macM && isRandomMac(macM[1]))) html += '<span style="color:var(--mut);">' + vendor + '</span>';
             if (countM) html += '<span style="color:var(--acc);">x' + countM[1] + '</span>';
             html += '</div>';
             if (probesM) {
@@ -3489,7 +3520,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
             if (apM) {
               html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:2px;font-size:9px;color:var(--c-ap);">AP responded: <strong>' + apM[1] + '</strong>';
-              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>';
+              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
               html += '</div>';
             }
             html += '</div>';
@@ -3781,6 +3812,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         tickRunning = true;
         tickStart = Date.now();
         try {
+          refreshIdentityMap(false);
           const diagResponse = await fetch('/diag').catch(() => null);
           if (!diagResponse) return;
           const diagText = await diagResponse.text();
@@ -4523,6 +4555,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       // Initialize
+      refreshIdentityMap(true);
       load();
       updatePrivacyBtn();
       setInterval(updateBatterySaverStatus, 5000);
@@ -5544,6 +5577,29 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       
       json += "]";
       r->send(200, "application/json", json);
+  });
+
+  server->on("/api/identity-map", HTTP_GET, [](AsyncWebServerRequest *r) {
+      std::lock_guard<std::mutex> lock(randMutex);
+      String json = "{";
+      bool first = true;
+      for (const auto& entry : deviceIdentities) {
+          const DeviceIdentity& id = entry.second;
+          for (const auto& mac : id.macs) {
+              if (!first) json += ",";
+              first = false;
+              json += "\"" + macFmt6(mac.bytes.data()) + "\":\"" + String(id.identityId) + "\"";
+          }
+          if (id.hasKnownGlobalMac) {
+              if (!first) json += ",";
+              first = false;
+              json += "\"" + macFmt6(id.knownGlobalMac) + "\":\"" + String(id.identityId) + "\"";
+          }
+      }
+      json += "}";
+      AsyncWebServerResponse* res = r->beginResponse(200, "application/json", json);
+      res->addHeader("Cache-Control", "no-store");
+      r->send(res);
   });
 
   server->on("/allowlist-export", HTTP_GET, [](AsyncWebServerRequest *r)
