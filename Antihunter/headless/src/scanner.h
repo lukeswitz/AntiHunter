@@ -7,7 +7,14 @@
 #include <atomic>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/idf_additions.h"
 #include "randomization.h"
+
+static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint32_t stack,
+                                       void *arg, UBaseType_t prio, TaskHandle_t *handle,
+                                       BaseType_t core) {
+    return xTaskCreatePinnedToCore(fn, name, stack, arg, prio, handle, core);
+}
 
 struct Hit {
    uint8_t mac[6];
@@ -16,6 +23,13 @@ struct Hit {
    char name[32];
    bool isBLE;
 };
+
+using UniqueMacsSet = std::set<String, std::less<String>, PsramAllocator<String>>;
+using DeviceLastSeenMap = std::map<String, uint32_t, std::less<String>,
+    PsramAllocator<std::pair<const String, uint32_t>>>;
+using HitsVecPsram = std::vector<Hit, PsramAllocator<Hit>>;
+using StringStringMapPsram = std::map<String, String, std::less<String>,
+    PsramAllocator<std::pair<const String, String>>>;
 
 struct DeauthStats {
     String srcMac;
@@ -132,6 +146,9 @@ int8_t getGlobalRssiThreshold();
 void setGlobalRssiThreshold(int8_t threshold);
 
 extern TaskHandle_t workerTaskHandle;
+extern std::atomic<bool> meshTxDraining;
+bool isRadioBusyOrDraining();
+void initBLEOnce();
 
 // Allowlist
 extern std::vector<Allowlist> allowlist;
@@ -205,6 +222,7 @@ void radioStopSTA();
 void radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
 void radioStopListScan();
 void radioStartBLE();
+bool radioStartBLEChecked();
 void radioStopBLE();
 
 // Safe queue functions (mutex protected)

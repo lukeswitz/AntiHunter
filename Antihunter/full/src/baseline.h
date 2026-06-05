@@ -6,6 +6,7 @@
 #include <list>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "psram_allocator.h"
 
 // Baseline structures
 struct BaselineDevice {
@@ -84,7 +85,9 @@ extern QueueHandle_t anomalyQueue;
 extern int8_t baselineRssiThreshold;
 extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
-extern std::map<String, DeviceHistory> deviceHistory;
+using DeviceHistoryMapPsram = std::map<String, DeviceHistory, std::less<String>,
+    PsramAllocator<std::pair<const String, DeviceHistory>>>;
+extern DeviceHistoryMapPsram deviceHistory;
 extern uint32_t deviceAbsenceThreshold;
 extern uint32_t reappearanceAlertWindow;
 extern int8_t significantRssiChange;

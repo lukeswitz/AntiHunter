@@ -53,7 +53,7 @@ const unsigned long PER_TARGET_MIN_INTERVAL = 30000;  // 30 seconds per target
 // Scanner vars
 extern std::atomic<bool> scanning;
 extern std::atomic<int> totalHits;
-extern std::set<String> uniqueMacs;
+extern UniqueMacsSet uniqueMacs;
 
 // Module refs
 extern Preferences prefs;
@@ -70,8 +70,10 @@ extern void randomizeMacAddress();
 // WebSocket for terminal
 AsyncWebSocket ws("/terminal");
 static std::deque<String> terminalBuffer;
-static const size_t TERMINAL_BUFFER_SIZE = 500;
+static const size_t TERMINAL_BUFFER_SIZE = 50;
 static bool terminalClientsConnected = false;
+static SemaphoreHandle_t terminalBufferMutex = nullptr;
+static std::atomic<uint32_t> terminalDroppedCount(0);
 
 // T114 handling
 SerialRateLimiter rateLimiter;
@@ -113,24 +115,55 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 
 
 void broadcastToTerminal(const String &message) {
-    if (!terminalClientsConnected || ws.count() == 0) return;
-    
     String timestamped = "[" + getRTCTimeString() + "] " + message;
-    ws.textAll(timestamped);
-    
-    terminalBuffer.push_back(timestamped);
-    if (terminalBuffer.size() > TERMINAL_BUFFER_SIZE) {
-        terminalBuffer.pop_front();
+
+    if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+        terminalBuffer.push_back(timestamped);
+        if (terminalBuffer.size() > TERMINAL_BUFFER_SIZE) {
+            terminalBuffer.pop_front();
+        }
+        xSemaphoreGive(terminalBufferMutex);
     }
+
+    if (!terminalClientsConnected || ws.count() == 0) return;
+
+    if (!ws.availableForWriteAll()) {
+        terminalDroppedCount.fetch_add(1);
+        uint32_t dropped = terminalDroppedCount.load();
+        if ((dropped & 0x3F) == 1) {
+            Serial.printf("[TERM] ws backpressure: dropped %u messages\n", dropped);
+        }
+        return;
+    }
+
+    ws.textAll(timestamped);
 }
 
-void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
+void randTrimTerminalBuffer() {
+    if (!terminalBufferMutex) return;
+    if (xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    const size_t TRIM_TARGET = 100;
+    while (terminalBuffer.size() > TRIM_TARGET) {
+        terminalBuffer.pop_front();
+    }
+    terminalBuffer.shrink_to_fit();
+    xSemaphoreGive(terminalBufferMutex);
+}
+
+void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
                      AwsEventType type, void *arg, uint8_t *data, size_t len) {
     if (type == WS_EVT_CONNECT) {
         Serial.printf("[TERMINAL] Client connected: %u\n", client->id());
         terminalClientsConnected = true;
-        
-        for (const auto &line : terminalBuffer) {
+
+        std::vector<String> snapshot;
+        if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            snapshot.reserve(terminalBuffer.size());
+            for (const auto &line : terminalBuffer) snapshot.push_back(line);
+            xSemaphoreGive(terminalBufferMutex);
+        }
+        for (const auto &line : snapshot) {
+            if (!client->canSend()) break;
             client->text(line);
         }
     } else if (type == WS_EVT_DISCONNECT) {
@@ -240,6 +273,9 @@ void restart_callback(void* arg) {
 void initializeNetwork()
 {
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
+  if (!terminalBufferMutex) {
+    terminalBufferMutex = xSemaphoreCreateMutex();
+  }
   Serial.println("Initializing mesh UART...");
   initializeMesh();
 
@@ -4570,6 +4606,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 </html>
 )HTML";
 
+void registerRemainingRoutes();
+
 void startWebServer()
 {
   if (!server)
@@ -4655,7 +4693,7 @@ void startWebServer()
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req) {
       // Radio-busy guard: reject if any scan task is already running
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
           req->send(409, "text/plain", "Radio busy - stop current scan first");
           return;
       }
@@ -4728,7 +4766,7 @@ void startWebServer()
       
       if (!workerTaskHandle) {
           scanning = true;
-          xTaskCreatePinnedToCore(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+          ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
       }
   });
 
@@ -4881,7 +4919,11 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
       req->send(200, "text/plain", "Scan stopped");
   });
+  registerRemainingRoutes();
+}
 
+
+void registerRemainingRoutes() {
   server->on("/api/time", HTTP_POST, [](AsyncWebServerRequest *req) {
       if (!req->hasParam("epoch", true)) {
           req->send(400, "text/plain", "Missing epoch");
@@ -5039,7 +5081,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req)
              {
         // Radio-busy guard: reject if any scan task is already running
-        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
             req->send(409, "text/plain", "Radio busy - stop current scan first");
             return;
         }
@@ -5064,7 +5106,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         
         if (!workerTaskHandle) {
             scanning = true;
-            xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
+            ahCreateTask(droneDetectorTask, "drone", 12288,
                                   reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
                                   1, &workerTaskHandle, 1);
         } });
@@ -5263,7 +5305,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
         // Radio-busy guard: reject if any scan task is already running
-        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
             req->send(409, "text/plain", "Radio busy - stop current scan first");
             return;
         }
@@ -5281,7 +5323,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             
             if (!blueTeamTaskHandle) {
                 scanning = true;
-                xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1);
+                ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1);
             }
 
         } else if (detection == "baseline") {
@@ -5296,7 +5338,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             if (!workerTaskHandle) {
                 currentScanMode = SCAN_BOTH;
                 scanning = true;
-                xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
+                ahCreateTask(baselineDetectionTask, "baseline", 12288,
                                     reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
                                     1, &workerTaskHandle, 1);
             }
@@ -5329,7 +5371,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                     std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                     antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
                 }
-                xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
+                ahCreateTask(randomizationDetectionTask, "randdetect", 8192,
                                     reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
                                     1, &workerTaskHandle, 1);
             }
@@ -5361,14 +5403,14 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                 if (req->hasParam("captureProbes", true)) {
                     probeDetectionEnabled = true;
                     if (probeRequestQueue == nullptr) {
-                        probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
+                        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
                     } else {
                         xQueueReset(probeRequestQueue);
                     }
                 }
 
                 scanning = true;
-                xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
+                ahCreateTask(snifferScanTask, "sniffer", 12288,
                                     reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
                                     1, &workerTaskHandle, 1);
             }
@@ -5400,7 +5442,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
                 currentScanMode = (ScanMode)scanMode;
                 scanning = true;
                 probeBroadcastAll.store(broadcastAll);
-                xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
+                ahCreateTask(probeDetectionTask, "probedet", 8192,
                                     reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
                                     1, &workerTaskHandle, 1);
             }
@@ -5417,7 +5459,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
             if (!workerTaskHandle) {
                 currentScanMode = SCAN_WIFI;
                 scanning = true;
-                xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
+                ahCreateTask(droneDetectorTask, "drone", 12288,
                                     reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
                                     1, &workerTaskHandle, 1);
             }
@@ -5618,7 +5660,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/triangulate/start", HTTP_POST, [](AsyncWebServerRequest *req) {
       // Radio-busy guard: reject if any scan task is already running
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
           req->send(409, "text/plain", "Radio busy - stop current scan first");
           return;
       }
@@ -6204,7 +6246,7 @@ static void handleScanStart(const String &command)
 
     if (mode >= 0 && mode <= 2)
     {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
         Serial.println("[MESH] Radio busy, rejecting SCAN_START");
         sendToSerial1(nodeId + ": SCAN_ACK:BUSY", true);
       } else {
@@ -6212,7 +6254,7 @@ static void handleScanStart(const String &command)
         parseChannelsCSV(channels);
         stopRequested = false;
         scanning = true;
-        xTaskCreatePinnedToCore(listScanTask, "scan", 8192,
+        ahCreateTask(listScanTask, "scan", 8192,
                                 reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
         Serial.printf("[MESH] Started scan via mesh command\n");
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
@@ -6238,13 +6280,13 @@ static void handleBaselineStart(const String &command)
     secs = 60;
   }
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
     Serial.println("[MESH] Radio busy, rejecting BASELINE_START");
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
     stopRequested = false;
     scanning = true;
-    xTaskCreatePinnedToCore(baselineDetectionTask, "baseline", 12288,
+    ahCreateTask(baselineDetectionTask, "baseline", 12288,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
@@ -6298,14 +6340,14 @@ static void handleDeviceScanStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
       scanning = true;
-      xTaskCreatePinnedToCore(snifferScanTask, "sniffer", 12288,
+      ahCreateTask(snifferScanTask, "sniffer", 12288,
                               reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
       Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
@@ -6332,14 +6374,14 @@ static void handleDroneStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
     Serial.println("[MESH] Radio busy, rejecting DRONE_START");
     sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
   } else {
     currentScanMode = SCAN_WIFI;
     stopRequested = false;
     scanning = true;
-    xTaskCreatePinnedToCore(droneDetectorTask, "drone", 12288,
+    ahCreateTask(droneDetectorTask, "drone", 12288,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
     Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
@@ -6365,13 +6407,13 @@ static void handleDeauthStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
     Serial.println("[MESH] Radio busy, rejecting DEAUTH_START");
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
     stopRequested = false;
     scanning = true;
-    xTaskCreatePinnedToCore(blueTeamTask, "blueteam", 12288,
+    ahCreateTask(blueTeamTask, "blueteam", 12288,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1);
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
@@ -6401,14 +6443,14 @@ static void handleRandomizationStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
       Serial.println("[MESH] Radio busy, rejecting RANDOMIZATION_START");
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:BUSY", true);
     } else {
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
       scanning = true;
-      xTaskCreatePinnedToCore(randomizationDetectionTask, "randdetect", 8192,
+      ahCreateTask(randomizationDetectionTask, "randdetect", 8192,
                               reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
       Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
@@ -6453,7 +6495,7 @@ static void handleProbeStart(const String &command)
 
   if (mode < 0 || mode > 2) return;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
     sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
   } else {
@@ -6461,7 +6503,7 @@ static void handleProbeStart(const String &command)
     stopRequested = false;
     scanning = true;
     probeBroadcastAll.store(broadcastAll, std::memory_order_relaxed);
-    xTaskCreatePinnedToCore(probeDetectionTask, "probedet", 8192,
+    ahCreateTask(probeDetectionTask, "probedet", 8192,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
     Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
     sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
@@ -6966,7 +7008,7 @@ static void handleTriCycleStart(const String &command)
     } else {
       scanning = true;
       Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
-      xTaskCreatePinnedToCore(listScanTask, "triangulate", 8192,
+      ahCreateTask(listScanTask, "triangulate", 8192,
                              reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1);
     }
   }

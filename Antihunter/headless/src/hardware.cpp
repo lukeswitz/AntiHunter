@@ -51,7 +51,7 @@ extern std::atomic<bool> scanning;
 extern std::atomic<int> totalHits;
 extern std::atomic<uint32_t> framesSeen;
 extern std::atomic<uint32_t> bleFramesSeen;
-extern std::set<String> uniqueMacs;
+extern UniqueMacsSet uniqueMacs;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
 extern String macFmt6(const uint8_t *m);

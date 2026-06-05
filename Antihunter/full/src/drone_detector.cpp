@@ -38,14 +38,14 @@ extern void sendMeshNotification(const Hit &hit);
 
 void initializeDroneDetector() {
     if (droneFrameQueue) {
-        vQueueDelete(droneFrameQueue);
+        vQueueDeleteWithCaps(droneFrameQueue);
     }
-    droneFrameQueue = xQueueCreate(8, sizeof(DroneFrameEvent));
+    droneFrameQueue = xQueueCreateWithCaps(8, sizeof(DroneFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
     if (droneQueue) {
-        vQueueDelete(droneQueue);
+        vQueueDeleteWithCaps(droneQueue);
     }
-    droneQueue = xQueueCreate(64, sizeof(DroneDetection));
+    droneQueue = xQueueCreateWithCaps(64, sizeof(DroneDetection), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     detectedDrones.clear();
     droneEventLog.clear();
     droneDetectionCount = 0;
@@ -549,7 +549,7 @@ void droneDetectorTask(void *pv)
     scanning = false;
 
     if (droneFrameQueue) {
-        vQueueDelete(droneFrameQueue);
+        vQueueDeleteWithCaps(droneFrameQueue);
         droneFrameQueue = nullptr;
     }
 
