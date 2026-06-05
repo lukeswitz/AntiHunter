@@ -173,8 +173,8 @@ void setup() {
     Serial.println("\n=== Antihunter [FULL] Boot ===");
 
     if (psramFound()) {
-        heap_caps_malloc_extmem_enable(1024);
-        Serial.printf("[MEM] PSRAM heap routing on (>1024B -> PSRAM). psram_free=%u internal_free=%u\n",
+        heap_caps_malloc_extmem_enable(64);
+        Serial.printf("[MEM] PSRAM heap routing on (>=64B -> PSRAM). psram_free=%u internal_free=%u\n",
                       (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
 

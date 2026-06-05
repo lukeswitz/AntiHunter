@@ -24,6 +24,7 @@ extern "C"
 #include "esp_wifi_types.h"
 #include "esp_timer.h"
 #include "esp_coexist.h"
+#include "esp_heap_caps.h"
 }
 
 // RF handlers
@@ -40,17 +41,17 @@ std::atomic<bool> probeDetectionEnabled(false);
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
-std::set<String> uniqueMacs;
+UniqueMacsSet uniqueMacs;
 portMUX_TYPE uniqueMacsMux = portMUX_INITIALIZER_UNLOCKED;
-std::map<String, uint32_t> deviceLastSeen;
+DeviceLastSeenMap deviceLastSeen;
 const uint32_t DEDUPE_WINDOW = 30000;
-std::vector<Hit> hitsLog;
+HitsVecPsram hitsLog;
 static esp_timer_handle_t hopTimer = nullptr;
 static uint32_t lastScanStart = 0, lastScanEnd = 0;
 uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
-static std::map<String, String> apCache;
-static std::map<String, String> bleDeviceCache;
+static StringStringMapPsram apCache;
+static StringStringMapPsram bleDeviceCache;
 
 static portMUX_TYPE rfConfigMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -67,11 +68,21 @@ uint32_t BLE_SCAN_INTERVAL = 2000;
 
 // Scanner status variables
 std::atomic<bool> scanning(false);
+std::atomic<bool> meshTxDraining(false);
 std::atomic<int> totalHits(0);
 std::atomic<uint32_t> framesSeen(0);
 std::atomic<uint32_t> bleFramesSeen(0);
 
-std::map<String, DeviceHistory> deviceHistory;
+
+bool isRadioBusyOrDraining() {
+    extern TaskHandle_t blueTeamTaskHandle;
+    extern std::atomic<bool> triangulationActive;
+    return scanning.load() || workerTaskHandle != nullptr ||
+           blueTeamTaskHandle != nullptr || triangulationActive.load() ||
+           meshTxDraining.load();
+}
+
+DeviceHistoryMapPsram deviceHistory;
 uint32_t deviceAbsenceThreshold = 120000;
 uint32_t reappearanceAlertWindow = 300000;
 int8_t significantRssiChange = 20;
@@ -446,7 +457,7 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
     }
 
     // cppcheck-suppress shadowVariable
-    extern std::map<String, DeviceIdentity> deviceIdentities;
+    extern DeviceIdentitiesMap deviceIdentities;
     // cppcheck-suppress shadowVariable
     extern std::mutex randMutex;
 
@@ -680,10 +691,15 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
 };
 
 // Forward declarations for probe system (defined later, needed by snifferScanTask)
-static std::map<String, ProbeDevice> probeDevices;
+using ProbeDevicesMap = std::map<String, ProbeDevice, std::less<String>,
+    PsramAllocator<std::pair<const String, ProbeDevice>>>;
+using StringSetPsram = std::set<String, std::less<String>, PsramAllocator<String>>;
+using StringU32MapPsram = std::map<String, uint32_t, std::less<String>,
+    PsramAllocator<std::pair<const String, uint32_t>>>;
+static ProbeDevicesMap probeDevices;
 static std::mutex probeMutex;
-static std::set<String> uniqueSsids;
-static std::set<String> respondedSsids;  // SSIDs confirmed nearby (AP sent probe response)
+static StringSetPsram uniqueSsids;
+static StringSetPsram respondedSsids;
 static void addProbeSsid(ProbeDevice &dev, const char *ssid);
 static bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
 static bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize);
@@ -1084,7 +1100,7 @@ void snifferScanTask(void *pv)
                       "\nUnique devices: " + std::to_string(uniqueMacs.size()) +
                       "\nTarget Hits: " + std::to_string(totalHits) + "\n\n";
             
-            std::vector<Hit> sortedHits = hitsLog;
+            HitsVecPsram sortedHits = hitsLog;
             std::sort(sortedHits.begin(), sortedHits.end(), 
                      [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
             
@@ -1150,13 +1166,11 @@ void snifferScanTask(void *pv)
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    if (bleScan)
+    if (bleScan && bleScan->isScanning())
     {
         bleScan->stop();
         delay(100);
-        pBLEScan = nullptr;
-        BLEDevice::deinit(false);
-        delay(200);
+        bleScan->clearResults();
     }
 
     // Save probe data to SD if captureProbes was enabled
@@ -1189,7 +1203,7 @@ void snifferScanTask(void *pv)
             "Target Hits: " + std::to_string(totalHits) + "\n" +
             "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n\n";
 
-        std::vector<Hit> sortedHits = hitsLog;
+        HitsVecPsram sortedHits = hitsLog;
         std::sort(sortedHits.begin(), sortedHits.end(),
                 [](const Hit& a, const Hit& b) { return a.rssi > b.rssi; });
 
@@ -1269,15 +1283,16 @@ void snifferScanTask(void *pv)
 
     // Move scan data to locals so the scanner handle can be released immediately,
     // allowing new scans to start while this task finishes mesh TX.
-    std::map<String, String> meshApCache = std::move(apCache);
-    std::map<String, String> meshBleCache = std::move(bleDeviceCache);
-    std::vector<Hit> meshHitsLog = std::move(hitsLog);
+    StringStringMapPsram meshApCache = std::move(apCache);
+    StringStringMapPsram meshBleCache = std::move(bleDeviceCache);
+    HitsVecPsram meshHitsLog = std::move(hitsLog);
     uint32_t meshApCount = meshApCache.size();
     uint32_t meshBleCount = meshBleCache.size();
     uint32_t meshUniqueCount = uniqueMacs.size();
     uint32_t meshTotalHits = totalHits.load();
 
     workerTaskHandle = nullptr;
+    meshTxDraining = true;
 
     if (meshEnabled)
     {
@@ -1407,6 +1422,7 @@ void snifferScanTask(void *pv)
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
+    meshTxDraining = false;
     vTaskDelete(nullptr);
 }
 
@@ -1556,10 +1572,10 @@ void blueTeamTask(void *pv) {
     scanning = true;
 
     if (deauthQueue) {
-        vQueueDelete(deauthQueue);
+        vQueueDeleteWithCaps(deauthQueue);
     }
 
-    deauthQueue = xQueueCreate(256, sizeof(DeauthHit));
+    deauthQueue = xQueueCreateWithCaps(256, sizeof(DeauthHit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!deauthQueue) {
         Serial.println("[BLUE] FATAL: Queue creation failed");
         scanning = false;
@@ -1735,7 +1751,7 @@ void blueTeamTask(void *pv) {
         DeauthHit dummy;
         while (xQueueReceive(deauthQueue, &dummy, 0) == pdTRUE) {
         }
-        vQueueDelete(deauthQueue);
+        vQueueDeleteWithCaps(deauthQueue);
         deauthQueue = nullptr;
     }
 
@@ -2208,32 +2224,85 @@ static void radioStopWiFi()
 
 void radioStopBLE()
 {
-    if (pBLEScan)
+    if (pBLEScan && pBLEScan->isScanning())
     {
         pBLEScan->stop();
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(100));
         pBLEScan->clearResults();
-        BLEDevice::deinit(true);
-        pBLEScan = nullptr;
     }
 }
 
+static volatile bool bleInitDone = false;
+static volatile bool bleInitFailed = false;
+
+static void bleInitTask(void *pv) {
+    Serial.printf("[BLE_INIT] core=%d heap=%u largest=%u\n",
+                  xPortGetCoreID(),
+                  (unsigned)ESP.getFreeHeap(),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    BLEDevice::init("");
+    pBLEScan = BLEDevice::getScan();
+    if (!pBLEScan) {
+        Serial.println("[BLE_INIT] getScan() returned NULL");
+        bleInitFailed = true;
+        bleInitDone = true;
+        vTaskDelete(NULL);
+        return;
+    }
+    pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
+    pBLEScan->setActiveScan(true);
+    pBLEScan->setDuplicateFilter(false);
+    Serial.printf("[BLE_INIT] ready (heap=%u psram=%u)\n",
+                  (unsigned)ESP.getFreeHeap(),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    bleInitDone = true;
+    vTaskDelete(NULL);
+}
+
+void initBLEOnce() {
+    if (bleInitDone) return;
+    TaskHandle_t h = nullptr;
+    BaseType_t r = xTaskCreatePinnedToCore(
+        bleInitTask, "ble_init", 8192, nullptr, 5, &h, 0);
+    if (r != pdPASS) {
+        Serial.println("[BLE_INIT] task create failed");
+        bleInitFailed = true;
+        bleInitDone = true;
+        return;
+    }
+    uint32_t waitStart = millis();
+    while (!bleInitDone && (millis() - waitStart) < 8000) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    if (!bleInitDone) {
+        Serial.println("[BLE_INIT] timeout");
+        bleInitFailed = true;
+        bleInitDone = true;
+    }
+}
 
 void radioStartBLE()
 {
-    if (pBLEScan) {
-        radioStopBLE();
-        vTaskDelay(pdMS_TO_TICKS(100));
+    (void)radioStartBLEChecked();
+}
+
+bool radioStartBLEChecked()
+{
+    initBLEOnce();
+    if (!pBLEScan || bleInitFailed) {
+        Serial.println("[RADIO] BLE not available");
+        return false;
     }
-    
-    BLEDevice::init("");
-    pBLEScan = BLEDevice::getScan();
-    pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
-    pBLEScan->setActiveScan(true);
+    if (pBLEScan->isScanning()) {
+        return true;
+    }
     pBLEScan->setInterval(rfConfig.bleScanInterval / 10);
     pBLEScan->setWindow((rfConfig.bleScanInterval / 10) - 10);
-    pBLEScan->setDuplicateFilter(false);
-    pBLEScan->start(0, false);
+    if (!pBLEScan->start(0, false)) {
+        Serial.println("[RADIO] BLE scan start returned false");
+        return false;
+    }
+    return true;
 }
 
 
@@ -2275,7 +2344,7 @@ void safeMacQueueDelete() {
     if (macQueueMutex == nullptr) return;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
         if (macQueue != nullptr) {
-            vQueueDelete(macQueue);
+            vQueueDeleteWithCaps(macQueue);
             macQueue = nullptr;
         }
         xSemaphoreGive(macQueueMutex);
@@ -2288,11 +2357,11 @@ bool safeMacQueueCreate(size_t queueSize) {
     if (macQueueMutex == nullptr) return false;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
         if (macQueue != nullptr) {
-            vQueueDelete(macQueue);
+            vQueueDeleteWithCaps(macQueue);
             macQueue = nullptr;
         }
         vTaskDelay(pdMS_TO_TICKS(50));
-        macQueue = xQueueCreate(queueSize, sizeof(Hit));
+        macQueue = xQueueCreateWithCaps(queueSize, sizeof(Hit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         xSemaphoreGive(macQueueMutex);
         return (macQueue != nullptr);
     }
@@ -2316,16 +2385,12 @@ void radioStopSTA() {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    // Stop BLE if active
-    if (pBLEScan) {
+    if (pBLEScan && pBLEScan->isScanning()) {
         pBLEScan->stop();
-        vTaskDelay(pdMS_TO_TICKS(200));
-        BLEDevice::deinit(false);
-        pBLEScan = nullptr;
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(100));
+        pBLEScan->clearResults();
     }
 
-    // Restore AP channel 
     esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
     vTaskDelay(pdMS_TO_TICKS(50));
 
@@ -2416,16 +2481,12 @@ void radioStopListScan() {
     WiFi.scanDelete();
     vTaskDelay(pdMS_TO_TICKS(50));
 
-    // Stop BLE if active
-    if (pBLEScan) {
+    if (pBLEScan && pBLEScan->isScanning()) {
         pBLEScan->stop();
-        vTaskDelay(pdMS_TO_TICKS(200));
-        BLEDevice::deinit(false);
-        pBLEScan = nullptr;
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(100));
+        pBLEScan->clearResults();
     }
 
-    // Reset WiFi to AP_STA mode
     WiFi.mode(WIFI_AP_STA);
     vTaskDelay(pdMS_TO_TICKS(100));
 
@@ -2434,7 +2495,7 @@ void radioStopListScan() {
 
 static std::atomic<uint32_t> totalProbeCount(0);
 static std::atomic<uint32_t> probeHitCount(0);
-static std::map<String, uint32_t> probeHitCooldowns;
+static StringU32MapPsram probeHitCooldowns;
 static const uint32_t PROBE_HIT_COOLDOWN_MS = 60000;
 
 static void addProbeSsid(ProbeDevice &dev, const char *ssid)
@@ -2582,7 +2643,7 @@ void probeDetectionTask(void *pv)
     }
 
     if (probeRequestQueue == nullptr) {
-        probeRequestQueue = xQueueCreate(256, sizeof(ProbeRequestEvent));
+        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     } else {
         xQueueReset(probeRequestQueue);
     }
@@ -3291,6 +3352,27 @@ void initializeScanner()
 
     loadProbeDB();
     Serial.printf("Loaded %u probe devices from DB\n", getProbeDBSize());
+
+    if (!probeRequestQueue) {
+        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (probeRequestQueue) {
+            Serial.printf("[INIT] probeRequestQueue PSRAM (256 entries, internal:%u psram:%u)\n",
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        } else {
+            Serial.println("[INIT] probeRequestQueue alloc failed at boot");
+        }
+    }
+    if (!authFrameQueue) {
+        authFrameQueue = xQueueCreateWithCaps(64, sizeof(AuthFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (authFrameQueue) {
+            Serial.printf("[INIT] authFrameQueue PSRAM (64 entries, internal:%u psram:%u)\n",
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        } else {
+            Serial.println("[INIT] authFrameQueue alloc failed at boot");
+        }
+    }
 }
 
 static void resetTriAccumulator(const uint8_t* mac) {
@@ -4157,12 +4239,14 @@ void listScanTask(void *pv) {
         }
     }
     
-    // Use list scan stop (handles BLE cleanup internally)
     radioStopListScan();
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    // Clean up macQueue using safe function to prevent race conditions
     safeMacQueueDelete();
+
+    seenTargets.clear();
+    transmittedDevices.clear();
+    localDeviceLastSeen.clear();
 
     vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;
