@@ -514,7 +514,7 @@ void coordinatorSetupTask(void *parameter) {
     vTaskDelay(pdMS_TO_TICKS(500));
 
     if (!workerTaskHandle) {
-        xTaskCreatePinnedToCore(
+        ahCreateTask(
             listScanTask,
             "triangulate",
             8192,
@@ -648,7 +648,7 @@ void startTriangulation(const String &targetMac, int duration) {
 
     // Create async task to collect ACKs and start scanning (avoids blocking web handler)
     if (!coordinatorSetupTaskHandle) {
-        xTaskCreatePinnedToCore(
+        ahCreateTask(
             coordinatorSetupTask,
             "triCoordSetup",
             4096,
@@ -1761,7 +1761,7 @@ void calibratePathLoss(const String &targetMac, float knownDistance) {
     params->distance = knownDistance;
 
     // Create calibration task on core 1
-    BaseType_t result = xTaskCreatePinnedToCore(
+    BaseType_t result = ahCreateTask(
         calibrationTask,
         "calibrate",
         8192,

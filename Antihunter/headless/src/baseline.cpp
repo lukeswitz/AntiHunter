@@ -348,8 +348,8 @@ void baselineDetectionTask(void *pv) {
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
 
-    if (anomalyQueue) vQueueDelete(anomalyQueue);
-    anomalyQueue = xQueueCreate(256, sizeof(AnomalyHit));
+    if (anomalyQueue) vQueueDeleteWithCaps(anomalyQueue);
+    anomalyQueue = xQueueCreateWithCaps(256, sizeof(AnomalyHit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!anomalyQueue) {
         Serial.println("[BASELINE] FATAL: anomalyQueue creation failed");
         scanning = false;
@@ -357,11 +357,11 @@ void baselineDetectionTask(void *pv) {
         return;
     }
 
-    if (macQueue) vQueueDelete(macQueue);
-    macQueue = xQueueCreate(512, sizeof(Hit));
+    if (macQueue) vQueueDeleteWithCaps(macQueue);
+    macQueue = xQueueCreateWithCaps(512, sizeof(Hit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!macQueue) {
         Serial.println("[BASELINE] FATAL: macQueue creation failed");
-        vQueueDelete(anomalyQueue);
+        vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;
         scanning = false;
         vTaskDelete(NULL);
@@ -565,11 +565,11 @@ void baselineDetectionTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(200));
         
         if (macQueue) {
-            vQueueDelete(macQueue);
+            vQueueDeleteWithCaps(macQueue);
             macQueue = nullptr;
         }
         if (anomalyQueue) {
-            vQueueDelete(anomalyQueue);
+            vQueueDeleteWithCaps(anomalyQueue);
             anomalyQueue = nullptr;
         }
         
@@ -825,11 +825,11 @@ void baselineDetectionTask(void *pv) {
     }
 
     if (macQueue) {
-        vQueueDelete(macQueue);
+        vQueueDeleteWithCaps(macQueue);
         macQueue = nullptr;
     }
     if (anomalyQueue) {
-        vQueueDelete(anomalyQueue);
+        vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;
     }
 

@@ -1,11 +1,13 @@
 #pragma once
 #include <Arduino.h>
 #include <map>
+#include <set>
 #include <vector>
 #include <array>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include <mutex>
+#include "psram_allocator.h"
 
 class NimBLEAdvertisedDevice;
 
@@ -146,9 +148,15 @@ struct AuthFrameEvent {
     uint16_t len;
 };
 
+using ActiveSessionsMap = std::map<String, ProbeSession, std::less<String>,
+    PsramAllocator<std::pair<const String, ProbeSession>>>;
+using DeviceIdentitiesMap = std::map<String, DeviceIdentity, std::less<String>,
+    PsramAllocator<std::pair<const String, DeviceIdentity>>>;
+using IdentityKeySet = std::set<String, std::less<String>, PsramAllocator<String>>;
+
 extern bool randomizationDetectionEnabled;
-extern std::map<String, ProbeSession> activeSessions;
-extern std::map<String, DeviceIdentity> deviceIdentities;
+extern ActiveSessionsMap activeSessions;
+extern DeviceIdentitiesMap deviceIdentities;
 extern uint32_t identityIdCounter;
 extern std::mutex randMutex;
 extern QueueHandle_t authFrameQueue;
