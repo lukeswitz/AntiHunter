@@ -887,16 +887,12 @@ String getDiagnostics() {
     }
     
     if (sdAvailable) {
-        if (millis() - lastSDTime > 30000 || cachedSDInfo.length() == 0) {
+        if (millis() - lastSDTime > 300000 || cachedSDInfo.length() == 0) {
             lastSDTime = millis();
             cachedSDInfo = "";
 
             uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-            uint64_t totalBytes = SD.totalBytes();
-            uint64_t usedBytes = SD.usedBytes();
-            uint64_t freeBytes = totalBytes - usedBytes;
 
-            // Get log file size
             uint32_t logSize = 0;
             File logFile = SafeSD::open("/antihunter.log", FILE_READ);
             if (logFile) {
@@ -905,8 +901,6 @@ String getDiagnostics() {
             }
 
             cachedSDInfo = "SD Card: " + String(cardSize) + "MB | ";
-            cachedSDInfo += "Used: " + String(usedBytes / (1024 * 1024)) + "MB | ";
-            cachedSDInfo += "Free: " + String(freeBytes / (1024 * 1024)) + "MB | ";
             if (logSize < 1024) {
                 cachedSDInfo += "Log: " + String(logSize) + " bytes\n";
             } else {
