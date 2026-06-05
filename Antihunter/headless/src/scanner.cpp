@@ -73,10 +73,9 @@ std::atomic<int> totalHits(0);
 std::atomic<uint32_t> framesSeen(0);
 std::atomic<uint32_t> bleFramesSeen(0);
 
+extern TaskHandle_t blueTeamTaskHandle;
 
 bool isRadioBusyOrDraining() {
-    extern TaskHandle_t blueTeamTaskHandle;
-    extern std::atomic<bool> triangulationActive;
     return scanning.load() || workerTaskHandle != nullptr ||
            blueTeamTaskHandle != nullptr || triangulationActive.load() ||
            meshTxDraining.load();
@@ -271,7 +270,6 @@ extern Preferences prefs;
 extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
-extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern bool isZeroOrBroadcast(const uint8_t *mac);
