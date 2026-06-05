@@ -1138,7 +1138,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       </div>
 
-      <div class="footer">  v0.9.5 | Node: <span id="footerNodeId">--</span></div>
+      <div class="footer" align="center">>  v0.9.6 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
@@ -4887,11 +4887,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         status = "SD card: Not available";
     } else {
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-        uint64_t totalBytes = SD.totalBytes();
-        uint64_t usedBytes = SD.usedBytes();
-        uint64_t freeBytes = totalBytes - usedBytes;
 
-        // Get log file size
         uint32_t logSize = 0;
         File logFile = SafeSD::open("/antihunter.log", FILE_READ);
         if (logFile) {
@@ -4901,9 +4897,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
         status = "SD Card: Available\n";
         status += "Card Size: " + String(cardSize) + " MB\n";
-        status += "Total Space: " + String(totalBytes / (1024 * 1024)) + " MB\n";
-        status += "Used Space: " + String(usedBytes / (1024 * 1024)) + " MB\n";
-        status += "Free Space: " + String(freeBytes / (1024 * 1024)) + " MB\n";
         status += "Log File Size: " + String(logSize / 1024) + " KB (" + String(logSize) + " bytes)";
     }
     r->send(200, "text/plain", status); });
