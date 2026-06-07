@@ -13,8 +13,19 @@
 #include <map>
 #include <set>
 #include <mutex>
+#include <deque>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "psram_allocator.h"
+
+template <typename K, typename V>
+using PsramMap = std::map<K, V, std::less<K>, PsramAllocator<std::pair<const K, V>>>;
+template <typename T>
+using PsramSet = std::set<T, std::less<T>, PsramAllocator<T>>;
+template <typename T>
+using PsramVec = std::vector<T, PsramAllocator<T>>;
+template <typename T>
+using PsramDeque = std::deque<T, PsramAllocator<T>>;
 
 // =============================================================================
 // Phase 1 — Attack-signature event types
@@ -122,7 +133,7 @@ struct AlertCandidate {
         int8_t rssi;
         uint32_t ts;
     };
-    std::vector<Report> reports;
+    PsramVec<Report> reports;
     uint32_t firstSeen;
     bool fired;
 };
@@ -141,7 +152,7 @@ struct RidClaim {
         bool hasGps;
         uint32_t ts;
     };
-    std::vector<Rx> rxs;
+    PsramVec<Rx> rxs;
     bool verified;
     bool insufficient;
 };
@@ -417,7 +428,7 @@ struct HandshakeReconstruction {
     uint32_t firstSeen;
     uint32_t lastSeen;
     uint8_t krackEvents;
-    std::vector<HandshakeFragment> fragments;
+    PsramVec<HandshakeFragment> fragments;
 };
 
 String hshk_getReconJson();
@@ -472,7 +483,7 @@ struct TrackerChain {
         uint32_t startTs;
         uint32_t endTs;
     };
-    std::vector<Link> links;
+    PsramVec<Link> links;
 };
 
 String tracker_getChainsJson();
@@ -499,7 +510,7 @@ struct ProbeGraphIdentity {
         int8_t rssi;
         uint32_t ts;
     };
-    std::vector<NodeSeen> nodes;
+    PsramVec<NodeSeen> nodes;
 };
 
 void pg_init();
