@@ -91,11 +91,11 @@ std::recursive_mutex g_mtx;
 
 // PMKID burst tracking — per src MAC, list of (bssid, ts)
 struct PmkidBurst {
-    std::map<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
+    PsramMap<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
     uint32_t lastSeen;
 };
-std::map<uint64_t, PmkidBurst> g_pmkidBursts;
-std::vector<PmkidHarvestEvent> g_pmkidLog;
+PsramMap<uint64_t, PmkidBurst> g_pmkidBursts;
+PsramVec<PmkidHarvestEvent> g_pmkidLog;
 
 // Evil-twin baseline (per BSSID)
 struct ApBaseline {
@@ -120,10 +120,10 @@ struct ApBaseline {
     uint32_t chanBMs;
     uint32_t lastMultichEmitMs;
 };
-std::map<uint64_t, ApBaseline> g_apBaseline;
-std::vector<EvilTwinEvent> g_evilTwinLog;
-std::vector<SsidConfusionEvent> g_ssidConfusionLog;
-std::vector<OweAbuseEvent> g_oweAbuseLog;
+PsramMap<uint64_t, ApBaseline> g_apBaseline;
+PsramVec<EvilTwinEvent> g_evilTwinLog;
+PsramVec<SsidConfusionEvent> g_ssidConfusionLog;
+PsramVec<OweAbuseEvent> g_oweAbuseLog;
 
 // SAE tracking
 struct SaeCounter {
@@ -132,8 +132,8 @@ struct SaeCounter {
     uint32_t windowStart;
     bool alerted;
 };
-std::map<uint64_t, SaeCounter> g_saeCounters;
-std::vector<SaeDosEvent> g_saeDosLog;
+PsramMap<uint64_t, SaeCounter> g_saeCounters;
+PsramVec<SaeDosEvent> g_saeDosLog;
 
 // Auth-frame flood (mdk4 mode a / Auth-DoS): open-system Auth (algo=0) flooded
 // to one BSSID from many spoofed src MACs, none completing association.
@@ -141,12 +141,12 @@ std::vector<SaeDosEvent> g_saeDosLog;
 struct AuthFloodWindow {
     uint32_t windowStartMs;
     uint16_t frames;
-    std::set<uint64_t> distinctSrc;
+    PsramSet<uint64_t> distinctSrc;
     int8_t   bestRssi;
     uint8_t  channel;
     bool     alerted;
 };
-std::map<uint64_t, AuthFloodWindow> g_authFlood;
+PsramMap<uint64_t, AuthFloodWindow> g_authFlood;
 static constexpr size_t   MAX_AUTH_FLOOD_MAP = 32;
 static constexpr uint32_t AUTH_FLOOD_WIN_MS  = 5000;
 static constexpr uint16_t AUTH_FLOOD_DISTINCT_SRC = 16;  // spoofed-MAC fan-out
@@ -158,7 +158,7 @@ struct PnState {
     uint32_t lastSeen;
     uint8_t  reuseCount;
 };
-std::map<uint64_t, PnState> g_pnState;
+PsramMap<uint64_t, PnState> g_pnState;
 // In-progress fragmented-MSDU tracking for real FragAttacks signatures
 // (CVE-2020-26146 non-consecutive PN, CVE-2020-26147 mixed enc/plaintext) —
 // key = (srcMac<<4 | tid). Passive: reads FC MoreFrag + seq-ctrl frag# + CCMP PN.
@@ -170,8 +170,8 @@ struct FragMsdu {
     bool     firstProtected;
     uint32_t lastSeen;
 };
-std::map<uint64_t, FragMsdu> g_fragMsdu;
-std::vector<FragAttackEvent> g_fragLog;
+PsramMap<uint64_t, FragMsdu> g_fragMsdu;
+PsramVec<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
 std::atomic<uint8_t> g_fragReuseThresh{2};
 
@@ -200,8 +200,8 @@ static uint32_t g_jamLastEval = 0;
 // LOCALLY only (never re-broadcast — would amplify a flood). Replay/malformed
 // dropped (weak/FP-prone).
 std::atomic<bool> g_meshGuardEnabled{false};
-static std::set<String> g_meshPeers;          // senders seen issuing benign lines
-static std::map<String,uint8_t> g_meshSeenCnt; // benign-line count per sender
+static PsramSet<String> g_meshPeers;          // senders seen issuing benign lines
+static PsramMap<String,uint8_t> g_meshSeenCnt; // benign-line count per sender
 static uint32_t g_meshInbWinMs = 0;
 static uint32_t g_meshInbCount = 0;
 static uint32_t g_meshLastFloodMs = 0;
@@ -254,20 +254,20 @@ std::atomic<bool> g_meshAttackerHunt{true};
 std::atomic<bool> g_meshEapolBait{true};
 
 // BLE malformed
-std::vector<BleMalformedEvent> g_bleMalformedLog;
+PsramVec<BleMalformedEvent> g_bleMalformedLog;
 
 // BLE tracker
-std::map<uint64_t, BleTrackerSighting> g_bleTrackers;
+PsramMap<uint64_t, BleTrackerSighting> g_bleTrackers;
 
 // Recon
-std::map<String, ReconAlert> g_recon;
+PsramMap<String, ReconAlert> g_recon;
 
 // RID claims (mesh-cooperative validation)
-std::map<String, RidClaim> g_ridClaims;  // key = uavId
+PsramMap<String, RidClaim> g_ridClaims;  // key = uavId
 
 // Quorum
-std::map<String, AlertCandidate> g_alerts;  // key = type+":"+key
-std::map<String, uint8_t> g_quorumRequired;
+PsramMap<String, AlertCandidate> g_alerts;  // key = type+":"+key
+PsramMap<String, uint8_t> g_quorumRequired;
 
 // Bloom — local + neighbor union
 BloomFilter g_localBloom;
@@ -282,14 +282,14 @@ std::atomic<bool> g_ppsLocked{false};
 
 // Channel partition (per-node assigned set; coordinator drives via mesh)
 std::vector<uint8_t> g_myChannels;
-std::map<String, std::vector<uint8_t>> g_chanAssignments;
+PsramMap<String, std::vector<uint8_t>> g_chanAssignments;
 
 // OUI category table
 struct OuiTableEntry {
     uint8_t oui[3];
     uint8_t cat;
 } __attribute__((packed));
-std::vector<OuiTableEntry> g_ouiTable;
+PsramVec<OuiTableEntry> g_ouiTable;
 
 // Log caps
 static constexpr size_t MAX_PMKID_LOG = 100;
@@ -320,7 +320,7 @@ static inline String macStr(const uint8_t *m) {
     return String(buf);
 }
 
-static std::map<String, uint32_t> g_meshRateMap;
+static PsramMap<String, uint32_t> g_meshRateMap;
 static std::atomic<uint32_t> g_droppedWifi{0};
 static std::atomic<uint32_t> g_droppedBle{0};
 static std::atomic<uint32_t> g_meshGated{0};
@@ -502,7 +502,7 @@ struct DeauthWitness {
     uint8_t deauthCount;  // increments on repeat from same src
     bool alerted;
 };
-static std::vector<DeauthWitness> g_deauthWitness;
+static PsramVec<DeauthWitness> g_deauthWitness;
 static constexpr size_t MAX_DEAUTH_WITNESS = 32;
 static constexpr uint32_t EAPOL_BAIT_WINDOW_MS = 30000;
 
@@ -695,7 +695,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         for (int n = eapolOff + 17; n < eapolOff + 49; ++n) { if (e.payload[n] != 0) { zeroNonce = false; break; } }
         if (zeroNonce) {
             const uint8_t *src = e.payload + 10;
-            static std::map<uint64_t, uint32_t> s_fakeM1;
+            static PsramMap<uint64_t, uint32_t> s_fakeM1;
             uint64_t fk = packMac(src); uint32_t nowm = millis();
             auto fit = s_fakeM1.find(fk);
             if (fit == s_fakeM1.end() || (nowm - fit->second) > 30000) {
@@ -736,7 +736,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         // attack only if FORCED (recent deauth) on a THIRD-PARTY AP; self-AP = legit client
         bool forced = (now - g_lastRealDeauthMs.load()) < 8000;
         if (forced && !isSelfMac(bssid)) {
-            static std::map<uint64_t,uint32_t> s_hshkInc;
+            static PsramMap<uint64_t,uint32_t> s_hshkInc;
             uint64_t hk = packMac(bssid);
             auto hit = s_hshkInc.find(hk);
             if (hit == s_hshkInc.end() || (now - hit->second) > 10000) {
@@ -766,7 +766,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
             bool nz = false;
             for (int j = 0; j < 16; ++j) if (body[i + 6 + j]) { nz = true; break; }
             if (!nz) break;
-            static std::map<uint64_t,uint32_t> s_pmkidKde;
+            static PsramMap<uint64_t,uint32_t> s_pmkidKde;
             uint64_t kk = packMac(bssid); uint32_t nk = millis();
             auto kit = s_pmkidKde.find(kk);
             if (kit == s_pmkidKde.end() || (nk - kit->second) > 10000) {
@@ -836,7 +836,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
 // tool + tool static beacon-spam template fingerprint at TSF bytes 24-31.
 // Both tools ship with this exact constant burned into their beacon template.
 static const uint8_t BEACON_FORGERY_TSF[8] = {0x83, 0x51, 0xF7, 0x8F, 0x0F, 0x00, 0x00, 0x00};
-static std::map<uint64_t, uint32_t> g_beaconForgeFired;  // bssid -> reason mask seen
+static PsramMap<uint64_t, uint32_t> g_beaconForgeFired;  // bssid -> reason mask seen
 static constexpr size_t MAX_BEACON_FORGE_MAP = 64;
 
 // Beacon-flood detector: counts DISTINCT BSSIDs seen in a rolling window.
@@ -844,7 +844,7 @@ static constexpr size_t MAX_BEACON_FORGE_MAP = 64;
 // BSSIDs/sec. This catches ALL beacon-flood tools (template-independent) and,
 // while active, suppresses evil-twin/SSID-collision emits (those collisions are
 // spam artifacts, not a real twin) -> fixes beacon-spam-as-EVILTWIN misclassify.
-static std::set<uint64_t> g_beaconFloodBssids;
+static PsramSet<uint64_t> g_beaconFloodBssids;
 static uint32_t g_beaconFloodWinStart = 0;
 static uint32_t g_beaconFloodLastEmit = 0;
 static bool     g_beaconFloodActive = false;
@@ -999,7 +999,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
         char ssidSelf[33] = {0};
         extractSSID(ie, ieLen, ssidSelf, sizeof(ssidSelf));
         if (ssidSelf[0] && isSelfSsid(ssidSelf) && !isSelfMac(bssid) && !isSelfMac(p + 10)) {
-            static std::map<uint64_t, uint32_t> s_selfCloneSeen;
+            static PsramMap<uint64_t, uint32_t> s_selfCloneSeen;
             uint64_t ck = packMac(bssid);
             uint32_t nowc = millis();
             auto sit = s_selfCloneSeen.find(ck);
@@ -1059,7 +1059,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
         //
         // Skip if Multi-BSSID IE (tag 71) is present — 802.11v/ax feature lets
         // one AP advertise multiple SSIDs from one BSSID legitimately.
-        static std::map<uint64_t, std::pair<uint32_t, std::set<String>>> g_beaconSsidRotate;
+        static PsramMap<uint64_t, std::pair<uint32_t, PsramSet<String>>> g_beaconSsidRotate;
         static constexpr size_t MAX_BEACON_ROTATE_MAP = 64;
         static constexpr uint32_t BEACON_ROTATE_WIN_MS = 5000;
         static constexpr uint8_t  BEACON_ROTATE_THRESH = 12;
@@ -1085,7 +1085,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                 if (g_beaconSsidRotate.size() >= MAX_BEACON_ROTATE_MAP) {
                     g_beaconSsidRotate.erase(g_beaconSsidRotate.begin());
                 }
-                g_beaconSsidRotate[srcK] = {now2, std::set<String>{String(ssidLocal2)}};
+                g_beaconSsidRotate[srcK] = {now2, PsramSet<String>{String(ssidLocal2)}};
             } else {
                 rit->second.second.insert(String(ssidLocal2));
                 if (rit->second.second.size() == BEACON_ROTATE_THRESH) {
@@ -1193,11 +1193,11 @@ static void handleBeacon(const DetectFrameEvent &e) {
     struct SsidWatch {
         uint32_t winStartMs;
         uint8_t streak;
-        std::set<uint32_t> ouis;
-        std::set<uint64_t> bssids;
+        PsramSet<uint32_t> ouis;
+        PsramSet<uint64_t> bssids;
         uint32_t lastFiredMs;
     };
-    static std::map<uint64_t, SsidWatch> g_ssidWatch;
+    static PsramMap<uint64_t, SsidWatch> g_ssidWatch;
     static constexpr size_t MAX_SSID_TRACK = 48;
     static constexpr uint32_t SSID_COLLISION_WIN_MS = 60000;
     static constexpr uint32_t SSID_FIRE_COOLDOWN_MS = 600000;
@@ -1428,13 +1428,13 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
 // =============================================================================
 struct AssocSleepWindow {
     uint32_t windowStartMs;
-    std::set<uint64_t> distinctSrc;
+    PsramSet<uint64_t> distinctSrc;
     uint16_t frames;
     int8_t bestRssi;
     uint8_t channel;
     bool alerted;
 };
-static std::map<uint64_t, AssocSleepWindow> g_assocSleep;
+static PsramMap<uint64_t, AssocSleepWindow> g_assocSleep;
 static constexpr size_t MAX_ASSOC_SLEEP_MAP = 32;
 static constexpr uint16_t ASSOC_SLEEP_WIN_MS = 5000;
 static constexpr uint8_t  ASSOC_SLEEP_THRESH = 4;   // distinct spoofed src (multi-client)
@@ -1453,7 +1453,7 @@ struct DeauthRateEntry {
     uint8_t  reason7Hits;    // reason=7 + dur=0x013A frames (aireplay/bettercap class)
     bool     toolAlerted;    // emitted a per-tool forge alert this window
 };
-static std::map<uint64_t, DeauthRateEntry> g_deauthRate;
+static PsramMap<uint64_t, DeauthRateEntry> g_deauthRate;
 static constexpr size_t MAX_DEAUTH_RATE_MAP = 64;
 static constexpr uint32_t DEAUTH_FLOOD_WIN_MS = 10000;
 static constexpr uint16_t DEAUTH_FLOOD_THRESH = 20;
@@ -1590,7 +1590,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         // Detection emit is INDEPENDENT of mesh. A targeted/low-rate deauth never
         // trips the flood counter, so the static tool fingerprint is the only
         // signal — it must alert even with mesh off. Own per-src cooldown (10s).
-        static std::map<uint64_t, uint32_t> g_forgeLastEmit;
+        static PsramMap<uint64_t, uint32_t> g_forgeLastEmit;
         static constexpr size_t MAX_FORGE_EMIT_MAP = 64;
         uint64_t fk = packMac(src);
         auto fit = g_forgeLastEmit.find(fk);
@@ -1693,7 +1693,7 @@ struct ProbeFloodWindow {
     bool     alerted;
     char     ssid[33];
 };
-static std::map<uint64_t, ProbeFloodWindow> g_probeFlood;  // key = packMac(srcMac & 0xFEFFFFFFFFFF) — collapse LAA
+static PsramMap<uint64_t, ProbeFloodWindow> g_probeFlood;  // key = packMac(srcMac & 0xFEFFFFFFFFFF) — collapse LAA
 static constexpr size_t MAX_PROBE_FLOOD_MAP = 64;
 static constexpr uint16_t PROBE_FLOOD_WIN_MS = 5000;
 static constexpr uint16_t PROBE_FLOOD_THRESH = 10;
@@ -1718,13 +1718,13 @@ static bool probeReqHasHT(const uint8_t *ies, uint16_t ieLen) {
 // Catches probe-flood variants that don't use the fixed seq=0x0001 fingerprint.
 struct ProbeBehaveWindow {
     uint32_t windowStartMs;
-    std::set<uint64_t> distinctSrc;
+    PsramSet<uint64_t> distinctSrc;
     int8_t bestRssi;
     uint8_t channel;
     bool alerted;
     char ssid[33];
 };
-static std::map<uint64_t, ProbeBehaveWindow> g_probeBehave;
+static PsramMap<uint64_t, ProbeBehaveWindow> g_probeBehave;
 static constexpr size_t MAX_PROBE_BEHAVE_MAP = 64;
 static constexpr uint16_t PROBE_BEHAVE_WIN_MS = 5000;
 // Threshold from academic IDS research: >40 distinct MACs probing same SSID in 5s
@@ -1772,7 +1772,7 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
 }
 
 // Global probe-rate flood: RANDOMIZED (mdk4 unique-MAC) or SINGLE_MAC (Marauder)
-struct ProbeGlobalWin { uint32_t winMs; uint16_t total; bool alerted; std::map<uint64_t,uint16_t> srcCount; };
+struct ProbeGlobalWin { uint32_t winMs; uint16_t total; bool alerted; PsramMap<uint64_t,uint16_t> srcCount; };
 static ProbeGlobalWin g_probeGlobal{0,0,false,{}};
 static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, uint32_t now) {
     if (now - g_probeGlobal.winMs > 5000) {
@@ -2304,9 +2304,9 @@ struct BleAttackEvent {
     char tool[32];
     char family[24];
 };
-static std::vector<BleAttackEvent> g_bleAttackLog;
+static PsramVec<BleAttackEvent> g_bleAttackLog;
 static constexpr size_t MAX_BLE_ATTACK_LOG = 100;
-static std::map<uint64_t, uint32_t> g_bleAttackSeen;  // suppress duplicate (addr,tool) within 30s
+static PsramMap<uint64_t, uint32_t> g_bleAttackSeen;  // suppress duplicate (addr,tool) within 30s
 static std::atomic<bool> g_bleAttackEnabled{false};  // off by default — BLE coexist starves heap on full (AP+webserver); enable explicitly via ble group
 
 static bool bleScanForSig(const uint8_t *payload, uint16_t len, const BleAttackSig &sig) {
@@ -2389,7 +2389,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
         // distinct (m1,m2,m3) tuples from same source addr in a 5s window.
         // >=3 distinct model IDs from one addr → bait.
         static uint32_t fpWinStart = 0;
-        static std::set<uint32_t> fpModels;
+        static PsramSet<uint32_t> fpModels;
         static uint64_t fpAddr = 0;
         static bool fpAlerted = false;
         static const uint8_t FP_HDR[3] = {0x16, 0x2C, 0xFE};
@@ -2427,8 +2427,8 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
         // from rotating MACs. Research: real Apple devices never cycle types — one
         // device, one type, stable. 3+ distinct types from different MACs in 1s = impossible legit.
         static uint32_t iosWinStart = 0;
-        static std::set<uint8_t>  iosTypes;
-        static std::set<uint64_t> iosAddrs;
+        static PsramSet<uint8_t>  iosTypes;
+        static PsramSet<uint64_t> iosAddrs;
         static bool iosAlerted = false;
         static const uint8_t IOS_HDR[6] = {0xFF, 0x4C, 0x00, 0x07, 0x19, 0x07};
         for (uint16_t i = 0; i + 6 < len; ++i) {
@@ -2663,8 +2663,8 @@ struct TofPendingPing {
     uint64_t txUs;
     char target[16];
 };
-static std::map<String, TofPeer> g_tofPeers;
-static std::vector<TofPendingPing> g_tofPending;
+static PsramMap<String, TofPeer> g_tofPeers;
+static PsramVec<TofPendingPing> g_tofPending;
 static std::atomic<uint32_t> g_tofSeq{1};
 static constexpr size_t MAX_TOF_PENDING = 16;
 static constexpr size_t MAX_TOF_PEERS   = 32;
@@ -2826,9 +2826,9 @@ size_t tsf_count() {
 // =============================================================================
 // Feature 9: Reactive KARMA probe-bait
 // =============================================================================
-static std::map<uint64_t, KarmaCandidate> g_karma;
-static std::map<uint64_t, std::set<String>> g_karmaSsids;
-static std::vector<String> g_baitSsids;
+static PsramMap<uint64_t, KarmaCandidate> g_karma;
+static PsramMap<uint64_t, PsramSet<String>> g_karmaSsids;
+static PsramVec<String> g_baitSsids;
 // g_karmaEnabled declared earlier
 static constexpr uint8_t  KARMA_DISTINCT_THRESHOLD = 2;
 static constexpr uint32_t KARMA_WINDOW_MS = 60000;
@@ -3003,7 +3003,7 @@ size_t karma_confirmedCount() {
 // Feature 7: Pwnagotchi swarm detect
 // =============================================================================
 static const uint8_t PWNAGOTCHI_ADDR2[6] = {0xDE,0xAD,0xBE,0xEF,0xDE,0xAD};
-static std::map<uint64_t, PwnagotchiSighting> g_pwna;
+static PsramMap<uint64_t, PwnagotchiSighting> g_pwna;
 static constexpr size_t MAX_PWNA = 32;
 
 static bool isPwnagotchiBeacon(const uint8_t *frame, uint16_t len) {
@@ -3098,7 +3098,7 @@ struct AttackerHunt {
     uint32_t startedAt;
     uint32_t lastKick;
 };
-static std::map<uint64_t, AttackerHunt> g_hunts;
+static PsramMap<uint64_t, AttackerHunt> g_hunts;
 static std::atomic<uint32_t> g_huntCooldown{60000};
 static constexpr size_t MAX_HUNTS = 32;
 
@@ -3164,7 +3164,7 @@ void attacker_setCooldown(uint32_t ms) { g_huntCooldown.store(ms); }
 // =============================================================================
 // Feature 5: Distributed 4-way handshake reconstruction + KRACK
 // =============================================================================
-static std::map<uint64_t, HandshakeReconstruction> g_hshk;
+static PsramMap<uint64_t, HandshakeReconstruction> g_hshk;
 static std::atomic<uint32_t> g_krackEvents{0};
 static constexpr size_t MAX_HSHK = 48;
 static constexpr size_t MAX_HSHK_FRAGS = 16;
@@ -3284,7 +3284,7 @@ uint32_t hshk_krackEvents() { return g_krackEvents.load(); }
 // =============================================================================
 // Feature 4: AirTag owner-presence inference + battery
 // =============================================================================
-static std::map<uint64_t, AirTagPresence> g_airtag;
+static PsramMap<uint64_t, AirTagPresence> g_airtag;
 static constexpr size_t MAX_AIRTAG = 120;
 
 static bool airtagDecode(const uint8_t *adv, uint16_t len, uint8_t &statusOut) {
@@ -3319,11 +3319,11 @@ static bool airtagDecode(const uint8_t *adv, uint16_t len, uint8_t &statusOut) {
 struct AirTagReplayEntry {
     uint64_t firstAddr;
     uint32_t firstSeenMs;
-    std::set<uint64_t> seenAddrs;
+    PsramSet<uint64_t> seenAddrs;
     bool alerted;
     bool persisted;  // already on SD — skip re-write
 };
-static std::map<uint32_t, AirTagReplayEntry> g_airtagReplay;
+static PsramMap<uint32_t, AirTagReplayEntry> g_airtagReplay;
 static constexpr size_t MAX_AIRTAG_REPLAY_MAP = 128;
 static constexpr const char *AIRTAG_REPLAY_SD_PATH = "/airtag_replay.bin";
 static constexpr size_t MAX_AIRTAG_REPLAY_SD_RECORDS = 256;
@@ -3539,8 +3539,8 @@ struct VanishedTracker {
     uint32_t vanishedAt;
     uint32_t chainId;
 };
-static std::vector<VanishedTracker> g_vanished;
-static std::map<uint32_t, TrackerChain> g_chains;
+static PsramVec<VanishedTracker> g_vanished;
+static PsramMap<uint32_t, TrackerChain> g_chains;
 static uint32_t g_chainSeq = 1;
 static constexpr uint32_t TRACKER_VANISH_MS    = 60000;
 static constexpr uint32_t TRACKER_LINK_WINDOW  = 90000;
@@ -3664,7 +3664,7 @@ size_t tracker_chainCount() {
 // =============================================================================
 // Feature 2: Probe-graph identity correlator
 // =============================================================================
-static std::map<uint32_t, ProbeGraphIdentity> g_pgGraph;
+static PsramMap<uint32_t, ProbeGraphIdentity> g_pgGraph;
 
 uint32_t pg_computeHashFromBytes(const uint8_t *ieFp12, const uint8_t *ieOrderBytes,
                                  uint8_t ieOrderLen, const uint8_t *chanSeq, uint8_t chanSeqLen) {
@@ -3923,7 +3923,7 @@ static void loadSnapshot() {
 // Unified incidents log — captures every detector mesh line (local TX + peer RX)
 // to /incidents.jsonl on SD + small in-RAM ring for fast UI render.
 // =============================================================================
-static std::deque<String> g_incidentRing;
+static PsramDeque<String> g_incidentRing;
 static std::recursive_mutex g_incidentMtx;
 static constexpr size_t MAX_INCIDENT_RING = 200;
 
@@ -4117,7 +4117,7 @@ void initializeDetect() {
     // 256B payload), so 64 cost ~17KB internal SRAM on a board that idles ~33KB
     // free. 24 (~6.4KB) frees ~10KB headroom; the consumer task drains fast and
     // backpressure drops cleanly under flood (detect-once logic already gates).
-    detectFrameQueue = xQueueCreate(24, sizeof(DetectFrameEvent));
+    detectFrameQueue = xQueueCreateWithCaps(24, sizeof(DetectFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     g_detectFrameQueue = detectFrameQueue;
     g_quorumRequired["PMKID"] = 2;
     g_quorumRequired["EVILTWIN"] = 2;
@@ -4346,8 +4346,8 @@ void sentinel_startAlwaysOn() {
     if (!g_sentinelUserEnabled.load()) return;
     if (scanning.load()) return;
     if (g_sentinelAlwaysOnActive.exchange(true)) return;
-    xTaskCreatePinnedToCore(sentinelAlwaysOnTask, "Sentinel", 4096, NULL, 2,
-                            &g_sentinelTaskHandle, 1);
+    ahCreateTask(sentinelAlwaysOnTask, "Sentinel", 4096, NULL, 2,
+                 &g_sentinelTaskHandle, 1);
 }
 
 void sentinel_kill() {
@@ -4855,7 +4855,7 @@ namespace {
     static constexpr uint32_t SOFTAP_DEAUTH_WIN_MS = 10000;
     static constexpr uint16_t SOFTAP_DEAUTH_THRESH = 3;
     struct SoftApProbeState {
-        std::map<uint64_t, uint16_t> srcCounts;
+        PsramMap<uint64_t, uint16_t> srcCounts;
         uint32_t winStartMs;
         bool alerted;
     } g_softApProbe;
@@ -4900,7 +4900,7 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
 }
 
 struct ApClientInfo { uint32_t firstSeen; uint32_t lastSeen; uint32_t assocCount; };
-static std::map<uint64_t, ApClientInfo> g_apClients;
+static PsramMap<uint64_t, ApClientInfo> g_apClients;
 
 void detect_onSoftApConnect(const uint8_t *clientMac) {
     if (!clientMac) return;
@@ -5283,7 +5283,7 @@ void detect_processMesh(const String &fromNode, const String &msg) {
 }
 
 static uint8_t g_lastBloomTxHash[BloomFilter::BYTES / 128] = {0};
-static std::map<String, uint32_t> g_meshPeerLastSeen;
+static PsramMap<String, uint32_t> g_meshPeerLastSeen;
 static constexpr uint32_t MESH_PEER_TIMEOUT_MS = 120000;
 void _detect_recordMeshPeer(const String &fromNode) {
     if (fromNode.length() == 0 || fromNode == getNodeId()) return;
@@ -5599,7 +5599,7 @@ void detect_setMyAssignedChannels(const String &csv) {
 // JSON getters
 // =============================================================================
 template<class V, class Fmt>
-static String jsonlOf(const std::vector<V> &v, Fmt fmt) {
+static String jsonlOf(const PsramVec<V> &v, Fmt fmt) {
     String out;
     for (auto &x : v) { out += fmt(x); out += "\n"; }
     return out;
