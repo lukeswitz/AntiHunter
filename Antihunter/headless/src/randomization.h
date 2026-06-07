@@ -82,7 +82,7 @@ struct ProbeSession {
     int8_t rssiSum;
     int8_t rssiMin;
     int8_t rssiMax;
-    std::vector<int8_t> rssiReadings;
+    std::vector<int8_t, PsramAllocator<int8_t>> rssiReadings;
     
     uint8_t primaryChannel;
     uint32_t channelMask;
@@ -107,7 +107,7 @@ struct ProbeSession {
 
 struct DeviceIdentity {
     char identityId[10];
-    std::vector<MacAddress> macs;
+    std::vector<MacAddress, PsramAllocator<MacAddress>> macs;
     BehavioralSignature signature;
     uint32_t firstSeen;
     uint32_t lastSeen;
