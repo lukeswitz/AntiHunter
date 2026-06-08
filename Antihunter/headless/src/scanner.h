@@ -159,6 +159,11 @@ bool meshShouldSendMac(const String& mac);
 void meshMarkMacSent(const String& mac);
 void meshDedupClear();
 uint32_t meshDedupCount();
+void setMeshDedupTtlSec(uint32_t sec);
+uint32_t getMeshDedupTtlSec();
+extern const uint32_t MESH_DEDUP_TTL_MIN_S;
+extern const uint32_t MESH_DEDUP_TTL_MAX_S;
+extern const uint32_t MESH_DEDUP_TTL_DEFAULT_S;
 
 // Allowlist
 extern std::vector<Allowlist> allowlist;

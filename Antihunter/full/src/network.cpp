@@ -962,7 +962,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
                 <button class="btn" onclick="saveMeshInterval()">Save</button>
               </div>
-              
+
+              <label title="Skip rebroadcasting same MAC over LoRa within this window. 0 = disable (every scan broadcasts every device). Default 300s.">Mesh Dedup TTL (sec, 0=off)</label>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
+                <input type="number" id="meshDedupTtl" min="0" max="3600" step="30" value="300" style="flex:1;">
+                <button class="btn" onclick="saveDedupTtl()">Save</button>
+                <button class="btn alt" onclick="clearDedup()">Clear Cache</button>
+              </div>
+              <div id="dedupCacheInfo" style="font-size:11px;color:var(--mut);margin-bottom:12px;">Cache: 0 MACs tracked</div>
+
               <div style="display:flex;gap:8px;">
                 <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
                 <a class="btn" href="/gps" data-ajax="false" style="flex:1;">GPS</a>
@@ -1650,7 +1658,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           loadRFConfig();
           loadWiFiConfig();
           loadMeshInterval();
-        } catch (e) {}
+          loadDedupTtl();
+        } catch (e) { console.error('[CONFIG] settings panel load failed:', e); }
       }
 
       async function loadNodeId() {
@@ -1740,7 +1749,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast('Invalid interval: must be 1500-30000ms', 'error');
           return;
         }
-        
+
         try {
           const r = await fetch('/mesh-interval', {
             method: 'POST',
@@ -1751,6 +1760,49 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast(data, 'success');
         } catch(e) {
           toast('Failed to save mesh interval', 'error');
+        }
+      }
+
+      async function loadDedupTtl() {
+        try {
+          const r = await fetch('/mesh-dedup-ttl');
+          const data = await r.json();
+          document.getElementById('meshDedupTtl').value = data.ttl;
+          const info = document.getElementById('dedupCacheInfo');
+          if (info) info.innerText = 'Cache: ' + data.count + ' MACs tracked' + (data.ttl == 0 ? ' (dedup DISABLED)' : '');
+        } catch(e) {
+          console.error('[CONFIG] loadDedupTtl failed:', e);
+        }
+      }
+
+      async function saveDedupTtl() {
+        const ttl = parseInt(document.getElementById('meshDedupTtl').value);
+        if (isNaN(ttl) || ttl < 0 || ttl > 3600) {
+          toast('Invalid TTL: must be 0-3600 (0=disable)', 'error');
+          return;
+        }
+        try {
+          const r = await fetch('/mesh-dedup-ttl', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'ttl=' + ttl
+          });
+          const data = await r.text();
+          toast(data, 'success');
+          loadDedupTtl();
+        } catch(e) {
+          toast('Failed to save dedup TTL', 'error');
+        }
+      }
+
+      async function clearDedup() {
+        try {
+          const r = await fetch('/mesh-dedup-clear', { method: 'POST' });
+          const data = await r.text();
+          toast(data, 'success');
+          loadDedupTtl();
+        } catch(e) {
+          toast('Failed to clear dedup cache', 'error');
         }
       }
 
@@ -3207,13 +3259,36 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function parseRandomizationResults(text) {
         const headerMatch = text.match(/Active Sessions: (\d+)/);
         const identitiesMatch = text.match(/Device Identities: (\d+)/);
+        const pendingMatch = text.match(/Pending Sessions: WiFi (\d+) BLE (\d+)/);
 
         let html = '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
         html += '<div style="font-size:13px;color:var(--txt);margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">MAC RANDOMIZATION DETECTION</div>';
-        html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);">';
+        html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);flex-wrap:wrap;">';
         if (headerMatch) html += '<span>Sessions: <strong style="color:var(--txt);">' + headerMatch[1] + '</strong></span>';
         if (identitiesMatch) html += '<span>Identities: <strong style="color:var(--txt);">' + identitiesMatch[1] + '</strong></span>';
+        if (pendingMatch) html += '<span>Pending: <strong style="color:var(--warn);">WiFi ' + pendingMatch[1] + ' / BLE ' + pendingMatch[2] + '</strong></span>';
         html += '</div></div>';
+
+        const liveLines = text.match(/Live session:[^\n]+/g);
+        if (liveLines && liveLines.length > 0) {
+          html += '<div style="margin-bottom:16px;padding:10px;background:var(--surf);border:1px dashed var(--bord);border-radius:8px;">';
+          html += '<div style="font-size:10px;color:var(--mut);margin-bottom:6px;letter-spacing:0.5px;">LIVE SESSIONS (fingerprinting in progress)</div>';
+          html += '<div style="display:grid;gap:4px;">';
+          liveLines.forEach(line => {
+            const m = line.match(/Live session:\s*([A-F0-9:]+)\s+(WiFi|BLE)\s+probes=(\d+)\s+rssi=(-?\d+)(?:\s+ch=([\d,+]+))?/);
+            if (!m) return;
+            const mac = m[1], typ = m[2], probes = m[3], rssi = m[4], chs = m[5] || '';
+            const isBLE = typ === 'BLE';
+            html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;font-size:11px;">';
+            html += '<span style="font-family:monospace;color:var(--acc);font-weight:600;">' + mac + '</span>' + randBadge(mac);
+            html += '<span style="background:' + (isBLE ? 'var(--c-ble-bg)' : 'var(--c-wifi-bg)') + ';color:' + (isBLE ? 'var(--c-ble)' : 'var(--c-wifi)') + ';padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;">' + typ + '</span>';
+            html += '<span style="color:var(--mut);">probes <strong style="color:var(--txt);">' + probes + '</strong></span>';
+            html += '<span style="color:var(--mut);">rssi <strong style="color:var(--txt);">' + rssi + '</strong> dBm</span>';
+            if (chs) html += '<span style="color:var(--mut);">ch <strong style="color:var(--txt);">' + chs + '</strong></span>';
+            html += '</div>';
+          });
+          html += '</div></div>';
+        }
 
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
 
@@ -3298,10 +3373,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + probesMatch[1] + '</div>';
             html += '</div>';
           }
-          if (channelMatch) {
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">CHANNEL</div>';
-            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + channelMatch[1] + '</div>';
+          if (channelMatch && !isBLE) {
+            const chNum = parseInt(channelMatch[1]);
+            const valid = chNum >= 1 && chNum <= 14;
+            html += '<div title="WiFi 2.4 GHz channel scanner was tuned to when the first probe from this device was received. WiFi clients probe across many channels — Channel Sequence below shows the full set." style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">WIFI CH (first probe)</div>';
+            html += '<div style="font-size:14px;color:' + (valid ? 'var(--txt)' : 'var(--dang)') + ';font-weight:600;">CH ' + chNum + ' <span style="font-size:9px;color:var(--mut);font-weight:400;">2.4 GHz</span></div>';
             html += '</div>';
           }
           if (rssiMatch) {
@@ -3332,7 +3409,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '</div>';
           }
           if (channelsMatch) {
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
+            html += '<div title="Number of distinct channels device was observed probing on." style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
             html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">UNIQUE CHANNELS</div>';
             html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + channelsMatch[1] + '</div>';
             html += '</div>';
@@ -5202,6 +5279,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       initTerminal();
       loadBaselineAnomalyConfig();
       loadMeshInterval();
+      loadDedupTtl();
       updateAutoEraseStatus();
       setInterval(tick, 2000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
@@ -6640,6 +6718,37 @@ void registerRemainingRoutes() {
   server->on("/mesh-interval", HTTP_GET, [](AsyncWebServerRequest *req) {
     String json = "{\"interval\":" + String(meshSendInterval) + "}";
     req->send(200, "application/json", json);
+  });
+
+  server->on("/mesh-dedup-ttl", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String json = "{\"ttl\":" + String(getMeshDedupTtlSec()) +
+                  ",\"min\":" + String(MESH_DEDUP_TTL_MIN_S) +
+                  ",\"max\":" + String(MESH_DEDUP_TTL_MAX_S) +
+                  ",\"count\":" + String(meshDedupCount()) + "}";
+    req->send(200, "application/json", json);
+  });
+
+  server->on("/mesh-dedup-ttl", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("ttl", true)) {
+      req->send(400, "text/plain", "Missing ttl parameter (0=disabled, 1-3600 seconds)");
+      return;
+    }
+    long ttl = req->getParam("ttl", true)->value().toInt();
+    if (ttl < 0 || ttl > (long)MESH_DEDUP_TTL_MAX_S) {
+      req->send(400, "text/plain", "ttl must be 0-3600 (0=disable, value=seconds)");
+      return;
+    }
+    setMeshDedupTtlSec((uint32_t)ttl);
+    prefs.putUInt("meshDedupTtl", (uint32_t)ttl);
+    saveConfiguration();
+    String msg = "Mesh dedup TTL set to " + String(ttl) + "s";
+    if (ttl == 0) msg += " (dedup DISABLED — every scan broadcasts every device)";
+    req->send(200, "text/plain", msg);
+  });
+
+  server->on("/mesh-dedup-clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+    meshDedupClear();
+    req->send(200, "text/plain", "Dedup cache cleared");
   });
 
   server->on("/mesh/drain/status", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -8178,6 +8287,20 @@ static void handleConfigTargets(const String &command)
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
 }
 
+static void handleConfigDedupTtl(const String &command)
+{
+  long ttl = command.substring(17).toInt();
+  if (ttl < 0 || ttl > (long)MESH_DEDUP_TTL_MAX_S) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:DEDUP_TTL:INVALID", true);
+    return;
+  }
+  setMeshDedupTtlSec((uint32_t)ttl);
+  prefs.putUInt("meshDedupTtl", (uint32_t)ttl);
+  saveConfiguration();
+  Serial.printf("[MESH] Mesh dedup TTL set to %lds\n", ttl);
+  sendToSerial1(nodeId + ": CONFIG_ACK:DEDUP_TTL:" + String(ttl), true);
+}
+
 static void handleConfigNodeId(const String &command)
 {
   Serial.printf("[DEBUG] CONFIG_NODEID block ENTERED\n");
@@ -9214,6 +9337,7 @@ void processCommand(const String &command, const String &targetId = "")
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n",
                 command.length(), command.c_str());
   if (command.startsWith("CONFIG_CHANNELS:"))          handleConfigChannels(command);
+  else if (command.startsWith("CONFIG_DEDUP_TTL:"))     handleConfigDedupTtl(command);
   else if (command.startsWith("CONFIG_TARGETS:"))       handleConfigTargets(command);
   else if (command.startsWith("CONFIG_NODEID:"))        handleConfigNodeId(command);
   else if (command.startsWith("CONFIG_RSSI:"))          handleConfigRssi(command);

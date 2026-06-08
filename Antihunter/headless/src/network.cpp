@@ -371,6 +371,20 @@ static void handleConfigTargets(const String &command)
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
 }
 
+static void handleConfigDedupTtl(const String &command)
+{
+  long ttl = command.substring(21).toInt();
+  if (ttl < 0 || ttl > (long)MESH_DEDUP_TTL_MAX_S) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:DEDUP_TTL:INVALID", true);
+    return;
+  }
+  setMeshDedupTtlSec((uint32_t)ttl);
+  prefs.putUInt("meshDedupTtl", (uint32_t)ttl);
+  saveConfiguration();
+  Serial.printf("[MESH] Mesh dedup TTL set to %lds\n", ttl);
+  sendToSerial1(nodeId + ": CONFIG_ACK:DEDUP_TTL:" + String(ttl), true);
+}
+
 static void handleConfigNodeId(const String &command)
 {
   Serial.printf("[DEBUG] CONFIG_NODEID block ENTERED\n");
@@ -1516,6 +1530,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("CONFIG_TARGETS:"))     handleConfigTargets(command);
   else if (command.startsWith("CONFIG_NODEID:"))      handleConfigNodeId(command);
   else if (command.startsWith("CONFIG_RSSI:"))        handleConfigRssi(command);
+  else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
   else if (command.startsWith("BASELINE_STATUS"))     handleBaselineStatus(command);

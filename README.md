@@ -463,6 +463,35 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing.
 - **Rate limiting**: 3s intervals (configurable)
 - **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
 
+### Mesh TX Architecture (v0.9.5+)
+
+Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, 200 bytes per 3 s ≈ 67 B/s).
+
+**Consequences**:
+- Starting a new scan never waits on prior scan's mesh TX. Drain happens in background.
+- `/stop` (web UI or mesh STOP command) flushes the queue immediately (cancels pending TX).
+- Header badge `Mesh TX K/N` shows live drain progress; auto-hides when queue empty.
+
+### Cross-Scan Dedup
+
+To save airtime on repeated scans of the same RF environment, broadcast `DEVICE:` messages are deduplicated by MAC address with a configurable TTL.
+
+| Setting | Effect |
+|---------|--------|
+| `meshDedupTtl = 0` (disabled) | Every scan broadcasts every observed device. No skip. |
+| `meshDedupTtl = 300` (5 min, default) | If a MAC was broadcast in the last 5 min, skip it on subsequent scans within that window. |
+| `meshDedupTtl = 3600` (1 hr max) | Hourly per-MAC airtime cap. Tightest savings. |
+
+**Applies only to**: sniffer + baseline `DEVICE:` broadcasts. Never applied to triangulation (`T_F:/T_C:/T_D:` need multi-RSSI), anomaly alerts (`ANOMALY:`, `DEVICE_DISAPPEARED:`, etc.), drone alerts (`DRONE:`), attack alerts (`DEAUTH_FLOOD:`, `ATTACK:`), summaries (`SCAN_DONE:`, `BLUE_DONE:`, etc.), or randomization identities (`IDENTITY:`).
+
+**SCAN_DONE reporting**: with dedup enabled, `TX=N DUP=M` reflects N MACs broadcast this scan window and M MACs skipped due to dedup. Total unique devices observed = `U=N+M` (approximately).
+
+**Configure via**:
+- Web UI: Network Settings → Mesh Dedup TTL
+- HTTP: `POST /mesh-dedup-ttl?ttl=N` where N is seconds (0=disable)
+- Mesh: `@ALL CONFIG_DEDUP_TTL:N` (sec)
+- Clear cache: `POST /mesh-dedup-clear` (forces all MACs to re-broadcast on next scan)
+
 ## Mesh Commands
 
 All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
@@ -485,6 +514,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_NODEID` | 2-5 alphanumeric ID | `@AH01 CONFIG_NODEID:AH02` |
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
+| `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
 
 ### Scanning
 

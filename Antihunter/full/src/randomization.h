@@ -86,6 +86,8 @@ struct ProbeSession {
     
     uint8_t primaryChannel;
     uint32_t channelMask;
+    uint8_t channelsSeenSeq[20];
+    uint8_t channelsSeenCount;
     uint16_t fingerprint[6];
     IEOrderSignature ieOrder;
     
