@@ -1927,8 +1927,6 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
     const uint8_t *ie = payload + ieStart;
     uint16_t ieLen = length - ieStart;
     uint16_t offset = 0;
-    uint8_t dsChan = 0;
-    uint8_t htChan = 0;
 
     while (offset + 2 <= ieLen) {
         uint8_t tag = ie[offset];
@@ -1936,20 +1934,13 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
 
         if (offset + 2 + len > ieLen) break;
 
-        // Tag 3 = DS Parameter Set (2.4 GHz only) — 1 byte primary channel
         if (tag == 3 && len == 1) {
-            dsChan = ie[offset + 2];
-        }
-        // Tag 61 = HT Operation IE (2.4/5 GHz) — byte 0 = primary channel
-        else if (tag == 61 && len >= 1) {
-            htChan = ie[offset + 2];
+            return ie[offset + 2];
         }
 
         offset += 2 + len;
     }
 
-    if (dsChan) return dsChan;
-    if (htChan) return htChan;
     return 0;
 }
 
