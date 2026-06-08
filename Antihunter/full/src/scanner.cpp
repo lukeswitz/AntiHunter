@@ -601,6 +601,13 @@ bool matchesSsid(const char *ssid)
 
 static inline bool matchesMac(const uint8_t *mac)
 {
+    bool allFF = true, allZero = true;
+    for (int i = 0; i < 6; i++) {
+        if (mac[i] != 0xFF) allFF = false;
+        if (mac[i] != 0x00) allZero = false;
+    }
+    if (allFF || allZero) return false;
+
     for (const auto &t : targets)
     {
         if (t.len == 0 && strlen(t.identityId) > 0) {
@@ -823,6 +830,12 @@ void snifferScanTask(void *pv)
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
+    uint32_t wifiInterval = WIFI_SCAN_INTERVAL;
+    uint32_t bleInterval = BLE_SCAN_INTERVAL;
+    if (currentScanMode == SCAN_BOTH) {
+        wifiInterval = min(WIFI_SCAN_INTERVAL, BLE_SCAN_INTERVAL);
+    }
+
     scanning = true;
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -857,7 +870,7 @@ void snifferScanTask(void *pv)
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
-            (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
+            (millis() - lastWiFiScan >= wifiInterval || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
@@ -932,7 +945,7 @@ void snifferScanTask(void *pv)
         }
 
         if (bleScan && (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
-            (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0))
+            (millis() - lastBLEScan >= bleInterval || lastBLEScan == 0))
         {
             lastBLEScan = millis();
 

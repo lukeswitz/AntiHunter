@@ -603,6 +603,13 @@ bool matchesSsid(const char *ssid)
 
 static inline bool matchesMac(const uint8_t *mac)
 {
+    bool allFF = true, allZero = true;
+    for (int i = 0; i < 6; i++) {
+        if (mac[i] != 0xFF) allFF = false;
+        if (mac[i] != 0x00) allZero = false;
+    }
+    if (allFF || allZero) return false;
+
     for (const auto &t : targets)
     {
         if (t.len == 0 && strlen(t.identityId) > 0) {

@@ -225,7 +225,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
         }
     }
 
-    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(100);
+    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(1000);
     if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
         Serial.printf("[MESH] Mutex timeout\n");
         return false;
@@ -1089,6 +1089,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
           </div>
 
+        </div>
+      </div>
+
+      <!-- Factory Wipe -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCollapse('factoryWipeCard')">
+          <h3>Factory Wipe</h3>
+          <span class="collapse-icon" id="factoryWipeCardIcon">&#9654;</span>
+        </div>
+        <div class="card-body collapsed" id="factoryWipeCardBody">
+          <div class="banner">WARNING: Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</div>
+          <div style="margin-top:10px;font-size:11px;color:var(--mut);line-height:1.5;">
+            Removes: probedb, probes, deauth, drones, vibrations, baseline, syslog, incidents, sentinel state, randdet identities, all logs.<br>
+            Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.
+          </div>
+          <label style="margin-top:12px;font-size:11px;">Type FACTORY_WIPE to confirm</label>
+          <input type="text" id="factoryWipeConfirm" placeholder="FACTORY_WIPE" autocomplete="off">
+          <button class="btn danger" type="button" onclick="requestFactoryWipe()" style="width:100%;margin-top:8px;">WIPE EVERYTHING</button>
+          <div id="factoryWipeStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
         </div>
       </div>
 
@@ -3259,36 +3278,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function parseRandomizationResults(text) {
         const headerMatch = text.match(/Active Sessions: (\d+)/);
         const identitiesMatch = text.match(/Device Identities: (\d+)/);
-        const pendingMatch = text.match(/Pending Sessions: WiFi (\d+) BLE (\d+)/);
 
         let html = '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        html += '<div style="font-size:13px;color:var(--txt);margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">MAC RANDOMIZATION DETECTION</div>';
-        html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);flex-wrap:wrap;">';
+        html += '<div style="font-size:13px;color:var(--txt);margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">RANDOMIZED DEVICE TRACER</div>';
+        html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);">';
         if (headerMatch) html += '<span>Sessions: <strong style="color:var(--txt);">' + headerMatch[1] + '</strong></span>';
-        if (identitiesMatch) html += '<span>Identities: <strong style="color:var(--txt);">' + identitiesMatch[1] + '</strong></span>';
-        if (pendingMatch) html += '<span>Pending: <strong style="color:var(--warn);">WiFi ' + pendingMatch[1] + ' / BLE ' + pendingMatch[2] + '</strong></span>';
+        if (identitiesMatch) html += '<span>Linked: <strong style="color:var(--txt);">' + identitiesMatch[1] + '</strong></span>';
         html += '</div></div>';
-
-        const liveLines = text.match(/Live session:[^\n]+/g);
-        if (liveLines && liveLines.length > 0) {
-          html += '<div style="margin-bottom:16px;padding:10px;background:var(--surf);border:1px dashed var(--bord);border-radius:8px;">';
-          html += '<div style="font-size:10px;color:var(--mut);margin-bottom:6px;letter-spacing:0.5px;">LIVE SESSIONS (fingerprinting in progress)</div>';
-          html += '<div style="display:grid;gap:4px;">';
-          liveLines.forEach(line => {
-            const m = line.match(/Live session:\s*([A-F0-9:]+)\s+(WiFi|BLE)\s+probes=(\d+)\s+rssi=(-?\d+)(?:\s+ch=([\d,+]+))?/);
-            if (!m) return;
-            const mac = m[1], typ = m[2], probes = m[3], rssi = m[4], chs = m[5] || '';
-            const isBLE = typ === 'BLE';
-            html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;font-size:11px;">';
-            html += '<span style="font-family:monospace;color:var(--acc);font-weight:600;">' + mac + '</span>' + randBadge(mac);
-            html += '<span style="background:' + (isBLE ? 'var(--c-ble-bg)' : 'var(--c-wifi-bg)') + ';color:' + (isBLE ? 'var(--c-ble)' : 'var(--c-wifi)') + ';padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;">' + typ + '</span>';
-            html += '<span style="color:var(--mut);">probes <strong style="color:var(--txt);">' + probes + '</strong></span>';
-            html += '<span style="color:var(--mut);">rssi <strong style="color:var(--txt);">' + rssi + '</strong> dBm</span>';
-            if (chs) html += '<span style="color:var(--mut);">ch <strong style="color:var(--txt);">' + chs + '</strong></span>';
-            html += '</div>';
-          });
-          html += '</div></div>';
-        }
 
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
 
@@ -3298,7 +3294,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const nameMatch        = block.match(/Name:\s*([^\n]+)/);
           const ssidMatch        = block.match(/SSID:\s*([^\n]+)/);
           const rssiMatch        = block.match(/RSSI: avg ([-\d]+) dBm\s+min ([-\d]+)\s+max ([-\d]+)/);
-          const channelMatch     = block.match(/Channel:\s*(\d+)/);
           const probesMatch      = block.match(/Probes:\s*(\d+)/);
           const macsMatch        = block.match(/MACs linked:\s*(\d+)/);
           const confMatch        = block.match(/Confidence:\s*([\d.]+)/);
@@ -3371,14 +3366,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
             html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">PROBES</div>';
             html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + probesMatch[1] + '</div>';
-            html += '</div>';
-          }
-          if (channelMatch && !isBLE) {
-            const chNum = parseInt(channelMatch[1]);
-            const valid = chNum >= 1 && chNum <= 14;
-            html += '<div title="WiFi 2.4 GHz channel scanner was tuned to when the first probe from this device was received. WiFi clients probe across many channels — Channel Sequence below shows the full set." style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">WIFI CH (first probe)</div>';
-            html += '<div style="font-size:14px;color:' + (valid ? 'var(--txt)' : 'var(--dang)') + ';font-weight:600;">CH ' + chNum + ' <span style="font-size:9px;color:var(--mut);font-weight:400;">2.4 GHz</span></div>';
             html += '</div>';
           }
           if (rssiMatch) {
@@ -4280,6 +4267,30 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }, 1000); // Check every second for faster feedback
       }
       
+      function requestFactoryWipe() {
+        const code = document.getElementById('factoryWipeConfirm').value;
+        if (code !== 'FACTORY_WIPE') {
+          toast('Type FACTORY_WIPE exactly to confirm', 'error');
+          return;
+        }
+        if (!window.confirm('FINAL WARNING: Wipes ALL SD data + resets NVS. Device will reboot. Proceed?')) {
+          return;
+        }
+        toast('Factory wipe started...', 'warning');
+        fetch('/factory-wipe', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'confirm=' + encodeURIComponent(code)
+        }).then(response => response.text()).then(data => {
+          const el = document.getElementById('factoryWipeStatus');
+          el.style.display = 'block';
+          el.innerHTML = '<pre>' + data + '</pre>';
+          toast('Wipe complete — rebooting', 'success');
+        }).catch(error => {
+          toast('Wipe error: ' + error, 'error');
+        });
+      }
+
       function requestErase() {
         const confirm = document.getElementById('eraseConfirm').value;
         if (confirm !== 'WIPE_ALL_DATA') {
@@ -4704,7 +4715,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         sniffer: { inProgress: false, lastSubmit: 0, cooldown: 1000 }
       };
 
-      document.getElementById('s').addEventListener('submit', e => {
+      // Unified clear-on-start: wipes the results panel + server-side lastResults
+      // BEFORE the new scan's POST so the prior scan's content cannot leak through
+      // a tick() that fires between the UI clear and the new task's initial write.
+      async function prepScanStart(starterText) {
+        const el = document.getElementById('r');
+        if (el && !el.contains(document.activeElement)) {
+          lastResultsText = '';
+          el.innerHTML = parseAndStyleResults(starterText || 'Scan starting...\n');
+          switchPage('results');
+        }
+        try {
+          await fetch('/clear-results', { method: 'POST' });
+        } catch (err) {
+          console.warn('[SCAN] /clear-results failed (continuing — UI was already cleared):', err);
+        }
+      }
+
+      document.getElementById('s').addEventListener('submit', async e => {
           e.preventDefault();
 
           if (isRadioBusy()) return;
@@ -4761,13 +4789,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               };
           }
 
-          const resultsElScan = document.getElementById('r');
-          if (resultsElScan && !resultsElScan.contains(document.activeElement)) {
-              lastResultsText = '';
+          {
               const modeVal = parseInt(document.querySelector('#s select[name="mode"]')?.value ?? '2');
               const modeLabel = ['WiFi', 'BLE', 'WiFi+BLE'][modeVal] ?? 'WiFi+BLE';
-              resultsElScan.innerHTML = parseAndStyleResults('Target scan starting...\nMode: ' + modeLabel + '\n');
-              switchPage('results');
+              await prepScanStart('Target scan starting...\nMode: ' + modeLabel + '\n');
           }
 
           fetch('/scan', {
@@ -4863,7 +4888,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       });
 
-      document.getElementById('sniffer').addEventListener('submit', e => {
+      document.getElementById('sniffer').addEventListener('submit', async e => {
         e.preventDefault();
 
         if (isRadioBusy()) return;
@@ -4933,11 +4958,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }, 500);
         };
 
-        const resultsElSniffer = document.getElementById('r');
-        if (resultsElSniffer && !resultsElSniffer.contains(document.activeElement)) {
-            lastResultsText = '';
-            resultsElSniffer.innerHTML = parseAndStyleResults('Scan starting...\n');
-            switchPage('results');
+        {
+            const starterLabel = detMethodLabels[detectionMethod] || 'Scan';
+            await prepScanStart(starterLabel + ' starting...\n');
         }
 
         if (detectionMethod === 'baseline') {
@@ -5065,7 +5088,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',
           cols:['MAC','Vendor','RSSI','Sessions','Seen','First','Last','SSIDs','Rand'],
           keys:['mac','vendor','rssi','sessions','seen','first','last','ssids','rand']},
-        probes:{url:'/api/probes.jsonl',clear:null,fmt:'jsonl',
+        probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',
           cols:['Time','MAC','RSSI','Ch','Count','Vendor','SSIDs','Rand','Hit'],
           keys:['t','mac','rssi','ch','cnt','v','ss','rand','hit']},
         deauth:{url:'/api/deauth.jsonl',clear:'/api/deauth/clear',fmt:'jsonl',
@@ -5077,7 +5100,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         vibrations:{url:'/api/vibrations.jsonl',clear:'/api/vibrations/clear',fmt:'jsonl',
           cols:['Time','Uptime','Lat','Lon'],
           keys:['t','uptime_ms','lat','lon']},
-        baseline:{url:'/baseline/stats',clear:null,fmt:'baseline',cols:[],keys:[]},
+        baseline:{url:'/baseline/stats',clear:'/baseline/reset',fmt:'baseline',cols:[],keys:[]},
         syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',
           cols:['Time','Message'],keys:['_time','_msg']},
         incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',
@@ -6813,6 +6836,26 @@ void registerRemainingRoutes() {
     cancelTamperErase();
     req->send(200, "text/plain", "Tamper erase cancelled"); });
 
+  server->on("/factory-wipe", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("confirm", true)) {
+        req->send(400, "text/plain", "Missing confirm");
+        return;
+    }
+    if (req->getParam("confirm", true)->value() != "FACTORY_WIPE") {
+        req->send(400, "text/plain", "Invalid confirm code");
+        return;
+    }
+    req->send(200, "text/plain", "Factory wipe initiated — device will reboot");
+    xTaskCreate([](void*) {
+        delay(800); // let response flush
+        Serial.println("[FACTORY] Wipe requested");
+        bool ok = performSecureWipe();
+        Serial.printf("[FACTORY] Wipe %s — rebooting\n", ok ? "OK" : "FAILED");
+        delay(300);
+        ESP.restart();
+    }, "factory_wipe", 8192, nullptr, 1, NULL);
+  });
+
   server->on("/secure/status", HTTP_GET, [](AsyncWebServerRequest *req) {
       String status = tamperEraseActive ? 
           "TAMPER_ACTIVE:" + String((autoEraseDelay - (millis() - tamperSequenceStart))/1000) + "s" : 
@@ -7477,6 +7520,12 @@ void registerRemainingRoutes() {
       } else {
           req->send(404, "text/plain", "No probe log file");
       }
+  });
+
+  server->on("/api/probes/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+      SafeSD::remove("/probes.jsonl");
+      SafeSD::remove("/probes_old.jsonl");
+      req->send(200, "text/plain", "Probe log cleared");
   });
 
   // --- Data tab API endpoints ---
