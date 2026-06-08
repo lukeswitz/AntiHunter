@@ -16,6 +16,7 @@
 #include "network.h"
 #include "triangulation.h"
 #include "baseline.h"
+#include "detect.h"
 #include "main.h"
 
 extern "C"
@@ -60,7 +61,7 @@ const size_t MAX_BLE_CACHE = 200;
 
 // BLE 
 NimBLEScan *pBLEScan;
-static void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
+void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
 
 // Scan intervals
 uint32_t WIFI_SCAN_INTERVAL = 4000;
@@ -69,6 +70,9 @@ uint32_t BLE_SCAN_INTERVAL = 2000;
 // Scanner status variables
 std::atomic<bool> scanning(false);
 std::atomic<bool> meshTxDraining(false);
+std::atomic<uint32_t> meshDrainSent(0);
+std::atomic<uint32_t> meshDrainTotal(0);
+std::atomic<bool> stopMeshDrain(false);
 std::atomic<int> totalHits(0);
 std::atomic<uint32_t> framesSeen(0);
 std::atomic<uint32_t> bleFramesSeen(0);
@@ -96,13 +100,48 @@ RFScanConfig rfConfig = {
     .bleScanDuration = 3000,
     .preset = 1,
     .wifiChannels = "1..14",
-    .globalRssiThreshold = -90
+    .globalRssiThreshold = -95
 };
 
 const uint32_t SCAN_MESH_SLOT_CYCLE_MS = 15000;
 const uint32_t SCAN_MESH_NUM_SLOTS = 5;
 const uint32_t SCAN_MESH_SLOT_DURATION_MS = SCAN_MESH_SLOT_CYCLE_MS / SCAN_MESH_NUM_SLOTS;
-const uint32_t SLOT_GUARD_MS = 200;  // Guard time at slot boundaries
+const uint32_t SLOT_GUARD_MS = 200;
+
+const uint32_t MESH_DEDUP_TTL_MS = 300000;
+const size_t MESH_DEDUP_MAX_ENTRIES = 5000;
+static std::map<String, uint32_t, std::less<String>,
+    PsramAllocator<std::pair<const String, uint32_t>>> g_meshSentMacs;
+static std::mutex g_meshSentMacsMutex;
+
+bool meshShouldSendMac(const String& mac) {
+    std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
+    auto it = g_meshSentMacs.find(mac);
+    if (it == g_meshSentMacs.end()) return true;
+    return (millis() - it->second) >= MESH_DEDUP_TTL_MS;
+}
+
+void meshMarkMacSent(const String& mac) {
+    std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
+    g_meshSentMacs[mac] = millis();
+    if (g_meshSentMacs.size() > MESH_DEDUP_MAX_ENTRIES) {
+        uint32_t now = millis();
+        for (auto it = g_meshSentMacs.begin(); it != g_meshSentMacs.end();) {
+            if (now - it->second >= MESH_DEDUP_TTL_MS) it = g_meshSentMacs.erase(it);
+            else ++it;
+        }
+    }
+}
+
+void meshDedupClear() {
+    std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
+    g_meshSentMacs.clear();
+}
+
+uint32_t meshDedupCount() {
+    std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
+    return g_meshSentMacs.size();
+}
 static uint32_t scanMeshCycleStartTime = 0;
 
 static uint8_t getScanNodeSlot() {
@@ -156,14 +195,14 @@ void setRFPreset(uint8_t preset) {
             rfConfig.wifiScanInterval = 8000;
             rfConfig.bleScanInterval = 4000;
             rfConfig.bleScanDuration = 3000;
-            rfConfig.globalRssiThreshold = -95;
+            rfConfig.globalRssiThreshold = -80;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
             rfConfig.wifiScanInterval = 6000;
             rfConfig.bleScanInterval = 3000;
             rfConfig.bleScanDuration = 3000;
-            rfConfig.globalRssiThreshold = -90;
+            rfConfig.globalRssiThreshold = -95;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
@@ -245,7 +284,7 @@ void loadRFConfigFromPrefs() {
         uint32_t bsi = prefs.getUInt("bleInterval", 2000);
         uint32_t bsd = prefs.getUInt("bleDuration", 3000);
         String channels = prefs.getString("channels", "1..14");
-        int8_t rssiThreshold = prefs.getInt("globalRSSI", -90);
+        int8_t rssiThreshold = prefs.getInt("globalRSSI", -95);
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
     
@@ -617,6 +656,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     memcpy(hit.destMac, payload + 4,  6);
     memcpy(hit.srcMac,  payload + 10, 6);
     memcpy(hit.bssid,   payload + 16, 6);
+    hit.seqCtrl    = (uint16_t)(payload[22] | (payload[23] << 8));
     hit.reasonCode = (uint16_t)(payload[24] | (payload[25] << 8));
     hit.rssi       = ppkt->rx_ctrl.rssi;
     hit.channel    = ppkt->rx_ctrl.channel;
@@ -624,6 +664,17 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     hit.isDisassoc = isDisassoc;
     hit.isBroadcast = (memcmp(hit.destMac, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) == 0);
     hit.companyId  = 0;
+    hit.toolHint   = 0;
+    // tool: FC C0 00 + reason 0x02 + seqCtrl 0xFFF0 (raw bytes 0xF0 0xFF LE).
+    // seqCtrl=0xFFF0 is FIXED non-incrementing — legit STA/AP frames increment seq.
+    // Combined with reason=2 = high-confidence tool fingerprint.
+    if (hit.reasonCode == 0x0002 && hit.seqCtrl == 0xFFF0) hit.toolHint |= 0x01;
+    // bit1 was "tool target reason in {1,4,6,7,8}" — REMOVED: these reasons are
+    // commonly used by real APs (router reboot, channel switch, etc.) so flagging
+    // them alone produces unacceptable false positives. The rate-based detector
+    // (≥20 deauths/10s in flood logic below) catches tool floods regardless.
+    // tool deauth flood: broadcast dst — informational only, not standalone alert.
+    if (hit.isBroadcast) hit.toolHint |= 0x04;
 
     BaseType_t woken = pdFALSE;
     xQueueSendFromISR(deauthQueue, &hit, &woken);
@@ -645,6 +696,15 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
         NimBLEAddress addr = advertisedDevice->getAddress();
         String macStr = addr.toString().c_str();
         if (!parseMac6(macStr, mac)) return;
+
+        // Phase 1.7 / 3.1 / 3.2: feed BLE adv into detect module via queue.
+        // All heavy work (tracker scoring, ODID decode, malformed check)
+        // happens in detectTask context — not here in nimble_host callback.
+        {
+            std::vector<uint8_t> payload = advertisedDevice->getPayload();
+            detect_onBleAdv(mac, rssi, payload.data(),
+                            (uint16_t)payload.size(), nullptr);
+        }
 
         String deviceName = "Unknown";
         if (advertisedDevice->haveName()) {
@@ -728,6 +788,7 @@ static std::string sanitizeAsciiStd(const char *s, size_t maxLen) {
 
 void snifferScanTask(void *pv)
 {
+    sentinel_kill();
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                  (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
@@ -768,7 +829,9 @@ void snifferScanTask(void *pv)
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
-    unsigned long nextResultsUpdate = millis() + 2000;
+    // Fire first in-progress results write on first loop iteration so the UI
+    // moves off the "Scan starting..." placeholder within ~1 tick.
+    unsigned long nextResultsUpdate = millis();
     
     std::set<String> transmittedDevices;
 
@@ -939,19 +1002,16 @@ void snifferScanTask(void *pv)
             }
         }
 
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL && canSendInSlot())
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
         {
             lastMeshUpdate = millis();
-            uint32_t sentThisCycle = 0;
 
             for (const auto& entry : apCache)
             {
-                // Check we have enough time remaining in slot with guard margin
-                if (!canSendInSlot()) break;
                 String macStr = entry.first;
                 String ssid = entry.second;
 
-                if (transmittedDevices.find(macStr) == transmittedDevices.end())
+                if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr))
                 {
                     String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " W ";
 
@@ -972,14 +1032,9 @@ void snifferScanTask(void *pv)
                     }
 
                     if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                        if (sendToSerial1(deviceMsg, true)) {
+                        if (meshEnqueue(deviceMsg)) {
                             transmittedDevices.insert(macStr);
-                            sentThisCycle++;
-
-                            // Refill tokens periodically to maintain throughput
-                            if (sentThisCycle % 3 == 0) {
-                                rateLimiter.refillTokens();
-                            }
+                            meshMarkMacSent(macStr);
                         }
                     }
                 }
@@ -987,12 +1042,10 @@ void snifferScanTask(void *pv)
 
             for (const auto& entry : bleDeviceCache)
             {
-                // Check we have enough time remaining in slot with guard margin
-                if (!canSendInSlot()) break;
                 String macStr = entry.first;
                 String name = entry.second;
 
-                if (transmittedDevices.find(macStr) == transmittedDevices.end())
+                if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr))
                 {
                     String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " B ";
 
@@ -1010,14 +1063,9 @@ void snifferScanTask(void *pv)
                     }
 
                     if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                        if (sendToSerial1(deviceMsg, true)) {
+                        if (meshEnqueue(deviceMsg)) {
                             transmittedDevices.insert(macStr);
-                            sentThisCycle++;
-
-                            // Refill tokens periodically to maintain throughput
-                            if (sentThisCycle % 3 == 0) {
-                                rateLimiter.refillTokens();
-                            }
+                            meshMarkMacSent(macStr);
                         }
                     }
                 }
@@ -1188,7 +1236,7 @@ void snifferScanTask(void *pv)
             }
 
             antihunter::lastResults = results;
-            nextResultsUpdate = millis() + 5000;
+            nextResultsUpdate = millis() + 1500;
         }
 
         Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
@@ -1325,148 +1373,73 @@ void snifferScanTask(void *pv)
         antihunter::lastResults = results;
     }
 
-    // Move scan data to locals so the scanner handle can be released immediately,
-    // allowing new scans to start while this task finishes mesh TX.
-    StringStringMapPsram meshApCache = std::move(apCache);
-    StringStringMapPsram meshBleCache = std::move(bleDeviceCache);
-    HitsVecPsram meshHitsLog = std::move(hitsLog);
-    uint32_t meshApCount = meshApCache.size();
-    uint32_t meshBleCount = meshBleCache.size();
-    uint32_t meshUniqueCount = uniqueMacs.size();
-    uint32_t meshTotalHits = totalHits.load();
+    uint32_t enqueuedDevices = 0;
+    uint32_t skippedDevices = 0;
+
+    if (meshEnabled) {
+        for (const auto& entry : apCache) {
+            if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
+            if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
+            String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
+            int8_t bestRssi = -128;
+            uint8_t bestCh = 0;
+            for (const auto& hit : hitsLog) {
+                String hitMac = macFmt6(hit.mac);
+                if (hitMac == entry.first && hit.rssi > bestRssi) {
+                    bestRssi = hit.rssi;
+                    bestCh = hit.ch;
+                }
+            }
+            deviceMsg += String(bestRssi);
+            if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+            if (entry.second.length() > 0 && entry.second != "[Hidden]") {
+                deviceMsg += " N:" + entry.second.substring(0, 30);
+            }
+            if (deviceMsg.length() <= MAX_MESH_SIZE && meshEnqueue(deviceMsg)) {
+                transmittedDevices.insert(entry.first);
+                meshMarkMacSent(entry.first);
+                enqueuedDevices++;
+            }
+        }
+
+        for (const auto& entry : bleDeviceCache) {
+            if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
+            if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
+            String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
+            int8_t bestRssi = -128;
+            for (const auto& hit : hitsLog) {
+                String hitMac = macFmt6(hit.mac);
+                if (hitMac == entry.first && hit.isBLE && hit.rssi > bestRssi) {
+                    bestRssi = hit.rssi;
+                }
+            }
+            deviceMsg += String(bestRssi);
+            if (entry.second.length() > 0 && entry.second != "Unknown") {
+                deviceMsg += " N:" + entry.second.substring(0, 30);
+            }
+            if (deviceMsg.length() <= MAX_MESH_SIZE && meshEnqueue(deviceMsg)) {
+                transmittedDevices.insert(entry.first);
+                meshMarkMacSent(entry.first);
+                enqueuedDevices++;
+            }
+        }
+
+        if (!stopRequested) {
+            uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
+            uint32_t totalTx = transmittedDevices.size();
+            String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
+                            " B=" + String(bleDeviceCache.size()) +
+                            " U=" + String(uniqueMacs.size()) +
+                            " H=" + String(totalHits) +
+                            " TX=" + String(totalTx) +
+                            " DUP=" + String(skippedDevices);
+            meshEnqueue(summary);
+            Serial.printf("[SNIFFER] Scan complete: total %u/%u devices enqueued (%u from this final pass, %u dedup-skipped)\n",
+                         totalTx, totalDevices, enqueuedDevices, skippedDevices);
+        }
+    }
 
     workerTaskHandle = nullptr;
-    meshTxDraining = true;
-
-    if (meshEnabled)
-    {
-        uint32_t totalExpectedDevices = meshApCount + meshBleCount;
-        uint32_t devicesBeforeFinal = transmittedDevices.size();
-
-        Serial.printf("[SNIFFER] Scan complete - transmitting final batch\n");
-        Serial.printf("[SNIFFER] Already sent: %d/%d devices\n", devicesBeforeFinal, totalExpectedDevices);
-
-        // Helper lambda to wait for our slot with guard time
-        auto waitForSlot = []() {
-            uint32_t waitStart = millis();
-            while (!canSendInSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
-                vTaskDelay(pdMS_TO_TICKS(50));
-            }
-            // Small delay after entering slot to let bus settle
-            if (canSendInSlot()) {
-                delay(100);
-            }
-        };
-
-        // Wait for our slot before starting
-        waitForSlot();
-        rateLimiter.flush();
-
-        for (const auto& entry : meshApCache)
-        {
-            // If slot time is running low, wait for next slot
-            if (!canSendInSlot()) {
-                Serial.println("[SNIFFER] Slot boundary - waiting for next slot");
-                waitForSlot();
-                rateLimiter.flush();
-            }
-            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
-            {
-                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
-                int8_t bestRssi = -128;
-                uint8_t bestCh = 0;
-                for (const auto& hit : meshHitsLog) {
-                    String hitMac = macFmt6(hit.mac);
-                    if (hitMac == entry.first && hit.rssi > bestRssi) {
-                        bestRssi = hit.rssi;
-                        bestCh = hit.ch;
-                    }
-                }
-                deviceMsg += String(bestRssi);
-                if (bestCh > 0) deviceMsg += " C" + String(bestCh);
-                if (entry.second.length() > 0 && entry.second != "[Hidden]") {
-                    deviceMsg += " N:" + entry.second.substring(0, 30);
-                }
-                if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                    if (sendToSerial1(deviceMsg, true)) {
-                        transmittedDevices.insert(entry.first);
-                    }
-                }
-            }
-        }
-
-        for (const auto& entry : meshBleCache)
-        {
-            // If slot time is running low, wait for next slot
-            if (!canSendInSlot()) {
-                Serial.println("[SNIFFER] Slot boundary - waiting for next slot");
-                waitForSlot();
-                rateLimiter.flush();
-            }
-            if (transmittedDevices.find(entry.first) == transmittedDevices.end())
-            {
-                String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
-                int8_t bestRssi = -128;
-                for (const auto& hit : meshHitsLog) {
-                    String hitMac = macFmt6(hit.mac);
-                    if (hitMac == entry.first && hit.isBLE && hit.rssi > bestRssi) {
-                        bestRssi = hit.rssi;
-                    }
-                }
-                deviceMsg += String(bestRssi);
-                if (entry.second.length() > 0 && entry.second != "Unknown") {
-                    deviceMsg += " N:" + entry.second.substring(0, 30);
-                }
-                if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                    if (sendToSerial1(deviceMsg, true)) {
-                        transmittedDevices.insert(entry.first);
-                    }
-                }
-            }
-        }
-
-        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-            Serial1.flush();
-            xSemaphoreGive(serial1Mutex);
-        }
-        delay(100);
-
-        uint32_t finalTransmitted = transmittedDevices.size();
-        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
-
-        Serial.printf("[SNIFFER] Final transmission complete: %d/%d devices sent, %d pending\n",
-                     finalTransmitted, totalExpectedDevices, finalRemaining);
-    }
-
-    if (meshEnabled && !stopRequested)
-    {
-        uint32_t totalExpectedDevices = meshApCount + meshBleCount;
-        uint32_t finalTransmitted = transmittedDevices.size();
-        uint32_t finalRemaining = totalExpectedDevices - finalTransmitted;
-
-        // Wait for our slot with guard time before sending summary
-        uint32_t waitStart = millis();
-        while (!canSendInSlot() && (millis() - waitStart < SCAN_MESH_SLOT_CYCLE_MS)) {
-            vTaskDelay(pdMS_TO_TICKS(50));
-        }
-
-        String summary = getNodeId() + ": SCAN_DONE: W=" + String(meshApCount) +
-                        " B=" + String(meshBleCount) +
-                        " U=" + String(meshUniqueCount) +
-                        " H=" + String(meshTotalHits) +
-                        " TX=" + String(finalTransmitted) +
-                        " PEND=" + String(finalRemaining);
-
-        sendToSerial1(summary, true);
-        Serial.println("[SNIFFER] Scan complete summary transmitted");
-
-        if (finalRemaining > 0) {
-            Serial.printf("[SNIFFER] WARNING: %d devices not transmitted\n", finalRemaining);
-        }
-    }
-
-    vTaskDelay(pdMS_TO_TICKS(100));
-    meshTxDraining = false;
     vTaskDelete(nullptr);
 }
 
@@ -1538,12 +1511,40 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
         statsMap[dstMac].lastRssi = h.rssi;
     }
 
+    // Tool-fingerprint tallies — surface known attacker frameworks
+    uint32_t forgeHits = 0, bcastHits = 0;
+    for (const auto &h : deauthEntries) {
+        if (h.toolHint & 0x01) forgeHits++;
+        if (h.toolHint & 0x04) bcastHits++;
+    }
+
     std::string results = "Deauth Attack Detection Results\n";
     results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
     results += "Deauth frames: " + std::to_string(deauthTotal) + "\n";
     results += "Disassoc frames: " + std::to_string(disassocTotal) + "\n";
     results += "Total attacks: " + std::to_string(deauthEntries.size()) + "\n";
-    results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n\n";
+    results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n";
+    if (forgeHits) results += "tool fingerprint (reason=2 seq=FFF0): " + std::to_string(forgeHits) + "\n";
+    if (bcastHits)    results += "Broadcast-dst deauths: " + std::to_string(bcastHits) + " (informational)\n";
+
+    // EAPOL-capture-bait correlation: lone targeted deauth (src sent exactly 1
+    // unicast deauth, no follow-up) is the classic "knock-the-client-off and
+    // wait for re-auth" PMKID/handshake capture pattern. Count such srcs.
+    {
+        std::map<String, int> srcUnicastCount;
+        for (const auto &h : deauthEntries) {
+            if (!h.isBroadcast) {
+                srcUnicastCount[macFmt6(h.srcMac)]++;
+            }
+        }
+        uint32_t loneSrcs = static_cast<uint32_t>(std::count_if(srcUnicastCount.begin(), srcUnicastCount.end(),
+            [](const auto &kv) { return kv.second == 1; }));
+        if (loneSrcs > 0) {
+            results += "EAPOL-capture-bait pattern (single targeted deauth, no follow-up): "
+                       + std::to_string(loneSrcs) + " srcs\n";
+        }
+    }
+    results += "\n";
     
     if (statsMap.empty()) {
         results += "No attacks detected.\n";
@@ -1600,6 +1601,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
 }
 
 void blueTeamTask(void *pv) {
+    sentinel_kill();
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
 
@@ -1682,6 +1684,42 @@ void blueTeamTask(void *pv) {
                 deauthLog.push_back(hit);
             }
 
+            // Feed detect.cpp for EAPOL-capture-bait correlation (unicast only).
+            if (!hit.isBroadcast) {
+                detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
+            }
+
+            // High-confidence flood detector: ≥20 deauths from same src in 10s.
+            // (Cisco WLC default ~30; research recommends 20.)
+            static std::map<uint64_t, std::pair<uint32_t, uint16_t>> floodWin;
+            {
+                static std::set<uint64_t> floodAlerted;
+                uint64_t k = 0;
+                for (int i = 0; i < 6; ++i) k = (k << 8) | hit.srcMac[i];
+                auto it = floodWin.find(k);
+                if (it == floodWin.end() || (now - it->second.first) > 10000) {
+                    floodWin[k] = {now, 1};
+                    floodAlerted.erase(k);
+                } else {
+                    if (it->second.second < 65535) it->second.second++;
+                    if (it->second.second >= 20 && !floodAlerted.count(k)) {
+                        floodAlerted.insert(k);
+                        String s = macFmt6(hit.srcMac);
+                        Serial.printf("[DETECT] DEAUTH_FLOOD src=%s count=%u in 10s\n",
+                                      s.c_str(), it->second.second);
+                        if (meshEnabled && ah_detect::g_meshDeauth.load())
+                        meshEnqueue(getNodeId() + ": DEAUTH_FLOOD:" + s + ":" +
+                                    String(it->second.second) + ":" + String(hit.rssi));
+                    }
+                }
+                // Bound map size — evict oldest if >64 srcs tracked.
+                if (floodWin.size() > 64) {
+                    uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
+                    for (const auto &kv : floodWin) if (kv.second.first < oldest) { oldest = kv.second.first; oldestK = kv.first; }
+                    floodWin.erase(oldestK);
+                }
+            }
+
             String srcMac = macFmt6(hit.srcMac);
             String attackKey = srcMac + "->" + dstMac;
             
@@ -1697,7 +1735,7 @@ void blueTeamTask(void *pv) {
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
 
-            if (meshEnabled && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+            if (meshEnabled && ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String meshAlert = getNodeId() + ": ATTACK: " + alert;
                 if (gpsValid) {
                     if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
@@ -1705,35 +1743,28 @@ void blueTeamTask(void *pv) {
                         xSemaphoreGive(gpsMutex);
                     }
                 }
-                if (sendToSerial1(meshAlert, false)) {
+                if (meshEnqueue(meshAlert)) {
                     transmittedAttacks.insert(attackKey);
                 }
             }
         }
-        
+
         if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DEAUTH_UPDATE_INTERVAL)) {
             lastMeshUpdate = millis();
-            
-            int sentThisCycle = 0;
+
             for (const auto& entry : deauthLog) {
                 String srcMac = macFmt6(entry.srcMac);
                 String dstMac = macFmt6(entry.destMac);
                 String attackKey = srcMac + "->" + dstMac;
-                
-                if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+
+                if (ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                     String attackMsg = getNodeId() + ": ATTACK: ";
                     attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
                     attackMsg += " " + srcMac + "->" + dstMac;
                     attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
-                    
-                    if (attackMsg.length() <= MAX_MESH_SIZE && sendToSerial1(attackMsg, true)) {
+
+                    if (attackMsg.length() <= MAX_MESH_SIZE && meshEnqueue(attackMsg)) {
                         transmittedAttacks.insert(attackKey);
-                        sentThisCycle++;
-                        
-                        if (sentThisCycle % 2 == 0) {
-                            delay(1000);
-                            rateLimiter.refillTokens();
-                        }
                     }
                 }
             }
@@ -1826,6 +1857,8 @@ void blueTeamTask(void *pv) {
             doc["reason"] = deauthHit.reasonCode;
             doc["disassoc"] = deauthHit.isDisassoc;
             doc["broadcast"] = deauthHit.isBroadcast;
+            doc["seq"] = deauthHit.seqCtrl;
+            doc["tool"] = deauthHit.toolHint;  // bit0=tool bit1=tool-target bit2=tool-flood
             String line;
             serializeJson(doc, line);
             logEventToSD("/deauth.jsonl", line);
@@ -1834,52 +1867,33 @@ void blueTeamTask(void *pv) {
     }
 
     if (meshEnabled && !stopRequested) {
-        Serial.printf("[BLUE] Scan complete - transmitting final batch\n");
-        rateLimiter.flush();
-        delay(100);
-        
+        uint32_t enqueued = 0;
         for (const auto& entry : deauthLog) {
             String srcMac = macFmt6(entry.srcMac);
             String dstMac = macFmt6(entry.destMac);
             String attackKey = srcMac + "->" + dstMac;
-            
-            if (transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
+
+            if (ah_detect::g_meshDeauth.load() && transmittedAttacks.find(attackKey) == transmittedAttacks.end()) {
                 String attackMsg = getNodeId() + ": ATTACK: ";
                 attackMsg += String(entry.isDisassoc ? "DISASSOC" : "DEAUTH");
                 attackMsg += " " + srcMac + "->" + dstMac;
                 attackMsg += " R" + String(entry.rssi) + " C" + String(entry.channel);
-                
-                if (attackMsg.length() <= MAX_MESH_SIZE) {
-                    if (sendToSerial1(attackMsg, true)) {
-                        transmittedAttacks.insert(attackKey);
-                    }
+
+                if (attackMsg.length() <= MAX_MESH_SIZE && meshEnqueue(attackMsg)) {
+                    transmittedAttacks.insert(attackKey);
+                    enqueued++;
                 }
             }
         }
 
-        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-            Serial1.flush();
-            xSemaphoreGive(serial1Mutex);
-        }
-        delay(100);
-
         uint32_t totalAttacks = deauthLog.size();
-        uint32_t finalTransmitted = transmittedAttacks.size();
-        uint32_t finalRemaining = totalAttacks - finalTransmitted;
-        
         String summary = getNodeId() + ": DEAUTH_DONE: Total=" + String(deauthCount + disassocCount) +
                         " Deauth=" + String(deauthCount) +
                         " Disassoc=" + String(disassocCount) +
-                        " TX=" + String(finalTransmitted) +
-                        " PEND=" + String(finalRemaining);
-        
-        sendToSerial1(summary, true);
-        Serial.printf("[BLUE] Detection complete: %d/%d attacks transmitted, %d pending\n",
-                     finalTransmitted, totalAttacks, finalRemaining);
-        
-        if (finalRemaining > 0) {
-            Serial.printf("[BLUE] WARNING: %d attacks not transmitted\n", finalRemaining);
-        }
+                        " TX=" + String(transmittedAttacks.size());
+        meshEnqueue(summary);
+        Serial.printf("[BLUE] Detection complete: enqueued %u (total %u attacks)\n",
+                     enqueued, totalAttacks);
     }
 
     Serial.println("[BLUE] Deauth detection stopped cleanly");
@@ -1914,11 +1928,15 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
     return 0;
 }
 
-static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
+void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
 
     const wifi_promiscuous_pkt_t *ppkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
+
+    // Jamming PHY-stat: feed EVERY packet (incl. CRC-fail / short error frames)
+    // before any length/rssi gate, so PDR-vs-error accounting sees the failures.
+    detect_onPhyStat(ppkt->rx_ctrl.rx_state, ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
 
     if (ppkt->rx_ctrl.sig_len < 24) {
         return;
@@ -2058,6 +2076,13 @@ static void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     }
 
     detectDeauthFrame(ppkt);
+
+    // Phase 1: attack-signature detectors (PMKID, evil-twin, SSID confusion,
+    // SAE DoS, OWE abuse, FragAttacks PN reuse). Enqueues to detect task,
+    // ISR-safe (xQueueSendFromISR inside).
+    detect_onWifiFrame(ppkt->payload, ppkt->rx_ctrl.sig_len,
+                       ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
+
     framesSeen = framesSeen + 1;
 
     const uint8_t *p = ppkt->payload;
@@ -2669,12 +2694,13 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
     }
 
     if (msg.length() <= static_cast<size_t>(MAX_MESH_SIZE)) {
-        sendToSerial1(msg, true);
+        meshEnqueue(msg);
     }
 }
 
 void probeDetectionTask(void *pv)
 {
+    sentinel_kill();
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
 
@@ -2728,7 +2754,9 @@ void probeDetectionTask(void *pv)
 
         ProbeRequestEvent event;
         int processedCount = 0;
-        while (xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 60) {
+        // Drain aggressively each loop — queue is 256 deep, ISR fills fast.
+        // Higher cap = lower latency from probe RX → UI update.
+        while (xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 200) {
             totalDrained++;
             processedCount++;
 
@@ -3565,6 +3593,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
 // Scan tasks
 void listScanTask(void *pv) {
+    sentinel_kill();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (secs <= 0);
 
@@ -3598,6 +3627,7 @@ void listScanTask(void *pv) {
     framesSeen = 0;
     bleFramesSeen = 0;
     scanning = true;
+    sentinel_yieldAndWait(1500);
     // Note: lastResults already set to "Target scan starting..." above (line ~2197)
     // Do NOT clear it here — that creates a race where tick() sees "None yet."
     lastScanStart = millis();
@@ -4279,9 +4309,9 @@ void listScanTask(void *pv) {
                         " TX=" + String(finalTransmitted) +
                         " PEND=" + String(finalRemaining);
         
-        sendToSerial1(summary, true);
-        Serial.println("[SCAN] List scan summary transmitted");
-        
+        meshEnqueue(summary);
+        Serial.println("[SCAN] List scan summary enqueued");
+
         if (finalRemaining > 0) {
             Serial.printf("[SCAN] WARNING: %d targets not transmitted\n", finalRemaining);
         }

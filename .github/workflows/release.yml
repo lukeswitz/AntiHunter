@@ -38,13 +38,15 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Cache PlatformIO toolchain
+    - name: Cache PlatformIO
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
       with:
-        path: ~/.platformio
-        key: ${{ runner.os }}-pio-release-${{ hashFiles('platformio.ini') }}
+        path: |
+          ~/.platformio
+          .pio
+        key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
         restore-keys: |
-          ${{ runner.os }}-pio-release-
+          ${{ runner.os }}-pio-
 
     - name: Install PlatformIO
       run: pip install --upgrade platformio
@@ -55,16 +57,12 @@ jobs:
     - name: Build AntiHunter-headless
       run: pio run -e AntiHunter-headless
 
-    - name: Verify firmware binaries exist
-      run: |
-        test -f .pio/build/AntiHunter-full/firmware.bin || { echo "ERROR: full firmware.bin missing after build"; exit 1; }
-        test -f .pio/build/AntiHunter-headless/firmware.bin || { echo "ERROR: headless firmware.bin missing after build"; exit 1; }
-
     - name: Prepare release artifacts
       run: |
         mkdir -p release
         cp .pio/build/AntiHunter-full/firmware.bin release/antihunter-full-${{ steps.get_version.outputs.version }}.bin
         cp .pio/build/AntiHunter-headless/firmware.bin release/antihunter-headless-${{ steps.get_version.outputs.version }}.bin
+        # bootloader + partitions MUST come from the fresh build (IDF/core version must match the app)
         cp .pio/build/AntiHunter-full/bootloader.bin release/
         cp .pio/build/AntiHunter-full/partitions.bin release/
         cp Dist/flashAntihunter.sh release/

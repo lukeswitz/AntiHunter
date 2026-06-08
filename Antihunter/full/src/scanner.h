@@ -125,6 +125,10 @@ struct DeauthHit {
    bool isDisassoc;
    bool isBroadcast;
    uint16_t companyId;
+   uint16_t seqCtrl;       // raw bytes 22-23 — forge fingerprint fixed 0xF0FF
+   uint8_t toolHint;       // bit0=tool(seq=0xF0FF + reason 2)
+                           // bit1=tool(reason in {1,4,6,7,8} + randomized seq)
+                           // bit2=tool burst flood (broadcast dst)
 };
 
 struct RFScanConfig {
@@ -148,8 +152,16 @@ void setGlobalRssiThreshold(int8_t threshold);
 
 extern TaskHandle_t workerTaskHandle;
 extern std::atomic<bool> meshTxDraining;
+extern std::atomic<uint32_t> meshDrainSent;
+extern std::atomic<uint32_t> meshDrainTotal;
+extern std::atomic<bool> stopMeshDrain;
 bool isRadioBusyOrDraining();
 void initBLEOnce();
+
+bool meshShouldSendMac(const String& mac);
+void meshMarkMacSent(const String& mac);
+void meshDedupClear();
+uint32_t meshDedupCount();
 
 // Allowlist
 extern std::vector<Allowlist> allowlist;

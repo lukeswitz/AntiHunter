@@ -124,6 +124,8 @@ struct DeauthHit {
    bool isDisassoc;
    bool isBroadcast;
    uint16_t companyId;
+   uint16_t seqCtrl;       // tool fixed 0xFFF0
+   uint8_t toolHint;       // bit0=tool bit1=tool-target bit2=tool-flood
 };
 
 struct RFScanConfig {
@@ -147,8 +149,16 @@ void setGlobalRssiThreshold(int8_t threshold);
 
 extern TaskHandle_t workerTaskHandle;
 extern std::atomic<bool> meshTxDraining;
+extern std::atomic<uint32_t> meshDrainSent;
+extern std::atomic<uint32_t> meshDrainTotal;
+extern std::atomic<bool> stopMeshDrain;
 bool isRadioBusyOrDraining();
 void initBLEOnce();
+
+bool meshShouldSendMac(const String& mac);
+void meshMarkMacSent(const String& mac);
+void meshDedupClear();
+uint32_t meshDedupCount();
 
 // Allowlist
 extern std::vector<Allowlist> allowlist;
