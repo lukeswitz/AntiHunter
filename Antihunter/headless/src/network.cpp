@@ -245,11 +245,11 @@ bool meshEnqueue(const String &msg, bool priority) {
         Serial.printf("[MESH] Queue full, dropped: %s\n", msg.substring(0, 50).c_str());
         return false;
     }
+    meshDrainTotal.fetch_add(1);
     uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
     uint32_t prev = meshTxDepthHigh.load();
     while (depth > prev && !meshTxDepthHigh.compare_exchange_weak(prev, depth)) {}
     meshTxDraining.store(depth > 0);
-    meshDrainTotal.store(meshTxDepthHigh.load());
     return true;
 }
 
@@ -290,15 +290,26 @@ static void meshTxTask(void *pv) {
             uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
             if (depth == 0) {
                 meshTxDraining.store(false);
-                meshTxDepthHigh.store(0);
-                meshDrainSent.store(0);
-                meshDrainTotal.store(0);
+                uint32_t sent = meshDrainSent.load();
+                uint32_t total = meshDrainTotal.load();
+                if (sent >= total) {
+                    meshTxDepthHigh.store(0);
+                    meshDrainSent.store(0);
+                    meshDrainTotal.store(0);
+                }
             } else {
                 meshTxDraining.store(true);
             }
         } else {
             if (uxQueueMessagesWaiting(meshTxQueue) == 0) {
                 meshTxDraining.store(false);
+                uint32_t sent = meshDrainSent.load();
+                uint32_t total = meshDrainTotal.load();
+                if (sent >= total && total > 0) {
+                    meshTxDepthHigh.store(0);
+                    meshDrainSent.store(0);
+                    meshDrainTotal.store(0);
+                }
             }
         }
     }
