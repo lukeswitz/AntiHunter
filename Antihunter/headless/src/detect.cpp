@@ -1257,7 +1257,9 @@ static void handleBeacon(const DetectFrameEvent &e) {
     // Suppress evil-twin emit during an active beacon flood: SSID collisions and
     // TSF anomalies under flood are spam artifacts (random BSSIDs reusing SSIDs),
     // not a real twin. BEACON_FLOOD already reported the attack.
-    if ((tsfNonMono || tsfRestart || ssidCollision) && cooldownOk && !g_beaconFloodActive) {
+    bool anySignal = tsfNonMono || tsfRestart || ssidCollision;
+    bool meshWorthy = tsfNonMono || ssidCollision;
+    if (anySignal && cooldownOk && !g_beaconFloodActive) {
         EvilTwinEvent ev{};
         memcpy(ev.bssid, bssid, 6);
         strncpy(ev.ssid, ssid, sizeof(ev.ssid) - 1);
@@ -1271,8 +1273,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
         ev.channel = e.channel;
         ev.ts = now;
         if (ssidCollision) strncpy(ev.reason, "SSID_COLLISION", sizeof(ev.reason) - 1);
-        else if (tsfRestart) strncpy(ev.reason, "TSF_RESTART", sizeof(ev.reason) - 1);
-        else strncpy(ev.reason, "TWIN_MULTICH", sizeof(ev.reason) - 1);
+        else if (tsfNonMono) strncpy(ev.reason, "TWIN_MULTICH", sizeof(ev.reason) - 1);
+        else strncpy(ev.reason, "TSF_RESTART", sizeof(ev.reason) - 1);
 
         g_evilTwinLog.push_back(ev);
         if (g_evilTwinLog.size() > MAX_ET_LOG) g_evilTwinLog.erase(g_evilTwinLog.begin());
@@ -1287,16 +1289,18 @@ static void handleBeacon(const DetectFrameEvent &e) {
                  (int)ev.rssi, (unsigned)ev.channel, (unsigned)now);
         logEventToSD("/eviltwin.jsonl", String(jsonLine));
         String bsStr(bs);
-        bool isTsfReason = (tsfRestart || tsfNonMono) && !ssidCollision;
-        bool meshFlag = isTsfReason ? g_meshTsf.load() : g_meshEviltwin.load();
-        if (meshEnabled && sentinel_isRunning() && meshFlag && meshRateGate(String("EVILTWIN_") + bsStr, 10000)) {
-            char meshMsg[80];
-            snprintf(meshMsg, sizeof(meshMsg), "%s: EVILTWIN:%s:%s:%d",
-                     getNodeId().c_str(), bs, ev.reason, (int)ev.rssi);
-            sendToSerial1(String(meshMsg), true);
+        if (meshWorthy) {
+            bool isTsfReason = tsfNonMono && !ssidCollision;
+            bool meshFlag = isTsfReason ? g_meshTsf.load() : g_meshEviltwin.load();
+            if (meshEnabled && sentinel_isRunning() && meshFlag && meshRateGate(String("EVILTWIN_") + bsStr, 10000)) {
+                char meshMsg[80];
+                snprintf(meshMsg, sizeof(meshMsg), "%s: EVILTWIN:%s:%s:%d",
+                         getNodeId().c_str(), bs, ev.reason, (int)ev.rssi);
+                sendToSerial1(String(meshMsg), true);
+            }
+            ::detect_logIncident(String("EVILTWIN:") + bsStr + ":" + ev.reason, bs);
+            quorum_addReport("EVILTWIN", bsStr, getNodeId(), ev.rssi);
         }
-        ::detect_logIncident(String("EVILTWIN:") + bsStr + ":" + ev.reason, bs);
-        quorum_addReport("EVILTWIN", bsStr, getNodeId(), ev.rssi);
         b.lastEvilEmitMs = now;
         b.tsfViolStreak = 0;
         b.tsfViolWindowMs = 0;
