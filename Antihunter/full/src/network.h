@@ -8,9 +8,9 @@
 // T114 v2 rate limiter for Serial Module
 class SerialRateLimiter {
 private:
-    static const uint32_t MAX_TOKENS = 200;
+    static const uint32_t MAX_TOKENS = 100;
     static const uint32_t REFILL_INTERVAL = 3000;
-    static const uint32_t TOKENS_PER_REFILL = 200;
+    static const uint32_t TOKENS_PER_REFILL = 100;
     
     uint32_t tokens;
     unsigned long lastRefill;
@@ -25,6 +25,10 @@ public:
 };
 
 bool sendToSerial1(const String &message, bool canDelay = true);
+bool meshEnqueue(const String &msg, bool priority = false);
+void meshTxFlushQueue();
+uint32_t meshTxQueueDepth();
+uint32_t meshTxDroppedCount();
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
 extern const int MAX_MESH_SIZE;

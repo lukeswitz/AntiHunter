@@ -218,6 +218,92 @@ unsigned long getMeshSendInterval() {
     return meshSendInterval;
 }
 
+struct MeshTxItem {
+    char msg[MAX_MESH_SIZE + 8];
+    bool priority;
+};
+
+QueueHandle_t meshTxQueue = nullptr;
+TaskHandle_t meshTxTaskHandle = nullptr;
+std::atomic<uint32_t> meshTxDepthHigh(0);
+std::atomic<uint32_t> meshTxSentLifetime(0);
+std::atomic<uint32_t> meshTxDroppedFull(0);
+
+static const uint16_t MESH_TX_QUEUE_DEPTH = 256;
+
+bool meshEnqueue(const String &msg, bool priority) {
+    if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
+    if (meshTxQueue == nullptr) {
+        return sendToSerial1(msg, priority);
+    }
+    MeshTxItem item;
+    strncpy(item.msg, msg.c_str(), sizeof(item.msg) - 1);
+    item.msg[sizeof(item.msg) - 1] = '\0';
+    item.priority = priority;
+    if (xQueueSend(meshTxQueue, &item, 0) != pdTRUE) {
+        meshTxDroppedFull.fetch_add(1);
+        Serial.printf("[MESH] Queue full, dropped: %s\n", msg.substring(0, 50).c_str());
+        return false;
+    }
+    uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
+    uint32_t prev = meshTxDepthHigh.load();
+    while (depth > prev && !meshTxDepthHigh.compare_exchange_weak(prev, depth)) {}
+    meshTxDraining.store(depth > 0);
+    meshDrainTotal.store(meshTxDepthHigh.load());
+    return true;
+}
+
+uint32_t meshTxQueueDepth() {
+    if (meshTxQueue == nullptr) return 0;
+    return uxQueueMessagesWaiting(meshTxQueue);
+}
+
+uint32_t meshTxDroppedCount() {
+    return meshTxDroppedFull.load();
+}
+
+void meshTxFlushQueue() {
+    if (meshTxQueue == nullptr) return;
+    xQueueReset(meshTxQueue);
+    meshTxDepthHigh.store(0);
+    meshTxDraining.store(false);
+    meshDrainSent.store(0);
+    meshDrainTotal.store(0);
+    Serial.println("[MESH] TX queue flushed");
+}
+
+static void meshTxTask(void *pv) {
+    (void)pv;
+    Serial.println("[MESH] TX task started");
+    MeshTxItem item;
+    for (;;) {
+        if (stopMeshDrain.load()) {
+            meshTxFlushQueue();
+            stopMeshDrain.store(false);
+        }
+        if (xQueueReceive(meshTxQueue, &item, pdMS_TO_TICKS(1000)) == pdTRUE) {
+            String msg(item.msg);
+            if (sendToSerial1(msg, true)) {
+                meshTxSentLifetime.fetch_add(1);
+                meshDrainSent.fetch_add(1);
+            }
+            uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
+            if (depth == 0) {
+                meshTxDraining.store(false);
+                meshTxDepthHigh.store(0);
+                meshDrainSent.store(0);
+                meshDrainTotal.store(0);
+            } else {
+                meshTxDraining.store(true);
+            }
+        } else {
+            if (uxQueueMessagesWaiting(meshTxQueue) == 0) {
+                meshTxDraining.store(false);
+            }
+        }
+    }
+}
+
 void initializeMesh() {
     if (serial1Mutex == nullptr) {
         serial1Mutex = xSemaphoreCreateMutex();
@@ -238,8 +324,20 @@ void initializeMesh() {
 
     delay(500);
 
+    if (meshTxQueue == nullptr) {
+        meshTxQueue = xQueueCreateWithCaps(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (meshTxQueue == nullptr) {
+            Serial.println("[MESH] PSRAM queue alloc failed, falling back to internal heap");
+            meshTxQueue = xQueueCreate(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem));
+        }
+    }
+    if (meshTxTaskHandle == nullptr && meshTxQueue != nullptr) {
+        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 4096, nullptr, 1, &meshTxTaskHandle, 1);
+    }
+
     Serial.println("[MESH] UART initialized");
-    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
+    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d, queue=%u\n",
+                  MESH_RX_PIN, MESH_TX_PIN, MESH_TX_QUEUE_DEPTH);
 }
 
 // --- Command Handlers ---
@@ -322,7 +420,7 @@ static void handleScanStart(const String &command)
 
     if (mode >= 0 && mode <= 2)
     {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
         Serial.println("[MESH] Radio busy, rejecting SCAN_START");
         sendToSerial1(nodeId + ": SCAN_ACK:BUSY", true);
       } else {
@@ -356,7 +454,7 @@ static void handleBaselineStart(const String &command)
     secs = 60;
   }
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting BASELINE_START");
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
@@ -415,7 +513,7 @@ static void handleDeviceScanStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
@@ -459,7 +557,7 @@ static void handleDroneStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DRONE_START");
     sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
   } else {
@@ -492,7 +590,7 @@ static void handleDeauthStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DEAUTH_START");
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
@@ -528,7 +626,7 @@ static void handleRandomizationStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting RANDOMIZATION_START");
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:BUSY", true);
     } else {
@@ -580,7 +678,7 @@ static void handleProbeStart(const String &command)
 
   if (mode < 0 || mode > 2) return;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
     sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
   } else {
@@ -605,6 +703,9 @@ static void handleProbeStop(const String &command)
 static void handleStop(const String &command)
 {
   stopRequested = true;
+  if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
+    stopMeshDrain.store(true);
+  }
   Serial.println("[MESH] Stop command received via mesh");
   sendToSerial1(nodeId + ": STOP_ACK:OK", true);
 }

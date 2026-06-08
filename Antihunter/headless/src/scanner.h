@@ -149,8 +149,16 @@ void setGlobalRssiThreshold(int8_t threshold);
 
 extern TaskHandle_t workerTaskHandle;
 extern std::atomic<bool> meshTxDraining;
+extern std::atomic<uint32_t> meshDrainSent;
+extern std::atomic<uint32_t> meshDrainTotal;
+extern std::atomic<bool> stopMeshDrain;
 bool isRadioBusyOrDraining();
 void initBLEOnce();
+
+bool meshShouldSendMac(const String& mac);
+void meshMarkMacSent(const String& mac);
+void meshDedupClear();
+uint32_t meshDedupCount();
 
 // Allowlist
 extern std::vector<Allowlist> allowlist;
