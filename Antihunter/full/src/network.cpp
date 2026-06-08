@@ -5564,7 +5564,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const s = await r.json();
           const el = document.getElementById('sentStatusHdr');
           if (!el) return;
-          if (s.scanning) {
+          if (!s.enabled) {
+            el.textContent = 'SENTINEL IDLE';
+            el.style.color = '';
+            el.style.borderColor = '';
+          } else if (s.scanning) {
             el.textContent = 'SENTINEL PAUSED (SCAN)';
             el.style.color = '#fca5a5';
             el.style.borderColor = '#dc2626';
