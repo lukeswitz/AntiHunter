@@ -4447,7 +4447,7 @@ void detect_persistTunables() {
 }
 
 void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel) {
-    if (!detectEnabled.load() || !detectFrameQueue) return;
+    if (!sentinel_isUserEnabled() || !detectEnabled.load() || !detectFrameQueue) return;
     if (len < 24) return;
     uint16_t fc = (uint16_t)payload[0] | ((uint16_t)payload[1] << 8);
     uint8_t ftype = (fc >> 2) & 0x3;
@@ -4497,7 +4497,7 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
                      const char *name) {
-    if (!detectEnabled.load() || !detectFrameQueue || !addr || !payload) return;
+    if (!sentinel_isUserEnabled() || !detectEnabled.load() || !detectFrameQueue || !addr || !payload) return;
     if (uxQueueSpacesAvailable(detectFrameQueue) < 4) { g_droppedBle.fetch_add(1); return; }
     DetectFrameEvent ev;
     ev.kind = DetectFrameEvent::BLE_ADV;
@@ -4518,7 +4518,7 @@ void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
 // (incl. CRC-fail). ISR-context: cheap atomic increments only. rxState!=0 = PHY/
 // CRC error frame (ESP-IDF sniffer dumps these when FCSFAIL filter set).
 void IRAM_ATTR detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel) {
-    if (!g_jamEnabled.load(std::memory_order_relaxed)) return;
+    if (!sentinel_isUserEnabled() || !g_jamEnabled.load(std::memory_order_relaxed)) return;
     if (channel < 1 || channel > 13) return;
     if (rxState == 0) {
         g_jamValid[channel].fetch_add(1, std::memory_order_relaxed);
