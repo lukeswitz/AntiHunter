@@ -574,7 +574,7 @@ void detect_correlateEapolBait(const uint8_t *sta, int8_t rssi, uint8_t channel)
                  confidence, (int)rssi, (unsigned)channel, (unsigned)now);
         String line(lineBuf);
         logEventToSD("/eapol_bait.jsonl", line);
-        if (meshEnabled && g_meshEapolBait.load() && meshRateGate("EAPOL_BAIT_" + srcS + "_" + dstS, 60000)) {
+        if (meshEnabled && sentinel_isRunning() && g_meshEapolBait.load() && meshRateGate("EAPOL_BAIT_" + srcS + "_" + dstS, 60000)) {
             sendToSerial1(getNodeId() + ": EAPOL_BAIT:" + srcS + ":" + dstS +
                           ":" + String(w.deauthCount) + ":" + String(rssi) +
                           ":" + confidence, true);
@@ -746,7 +746,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                 ::detect_logIncident(String("HSHK:") + macStr(bssid) + ":" + macStr(sta), macStr(bssid).c_str());
             }
         }
-        if (forced && meshEnabled && g_meshHshk.load() && meshRateGate("HSHK", 1000)) {
+        if (forced && meshEnabled && sentinel_isRunning() && g_meshHshk.load() && meshRateGate("HSHK", 1000)) {
             sendToSerial1(getNodeId() + ": HSHK:" + macStr(bssid) + ":" + macStr(sta) +
                           ":" + String(msgNum) + ":" + String((unsigned long)replayCtr) +
                           ":" + String(e.rssi), true);
@@ -818,7 +818,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                  (unsigned)b.bssidTs.size(), broadcastDest ? "true" : "false");
         logEventToSD("/pmkid.jsonl", String(lineBuf));
         ::detect_logIncident(String("PMKID_HARVEST:") + sr + ":" + bs, srBuf);
-        if (meshEnabled && g_meshPmkid.load() && meshRateGate("PMKID_HARVEST", 5000)) {
+        if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() && meshRateGate("PMKID_HARVEST", 5000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: PMKID_HARVEST:%s:%s:%d",
                      getNodeId().c_str(), srBuf, bsBuf, (int)ev.rssi);
@@ -970,7 +970,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                          (unsigned)BEACON_FLOOD_DISTINCT, (unsigned)BEACON_FLOOD_WIN_MS,
                          (unsigned)e.channel, (int)e.rssi, (unsigned)tnow);
                 logEventToSD("/eviltwin.jsonl", String(lb));
-                if (meshEnabled && g_meshBeacon.load() && meshRateGate(String("BEACON_FLOOD"), 30000)) {
+                if (meshEnabled && sentinel_isRunning() && g_meshBeacon.load() && meshRateGate(String("BEACON_FLOOD"), 30000)) {
                     char mb[64];
                     snprintf(mb, sizeof(mb), "%s: BEACON_FLOOD:%d",
                              getNodeId().c_str(), (int)e.rssi);
@@ -1019,7 +1019,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                 ::detect_logIncident(String("EVILTWIN:") + bb + ":" + rsn, bb);
                 quorum_addReport("EVILTWIN", String(bb), getNodeId(), e.rssi);
                 attacker_kick(bssid, "EVILTWIN");
-                if (meshEnabled && g_meshEviltwin.load() && meshRateGate(String("ETW_SELF_") + bb, 30000))
+                if (meshEnabled && sentinel_isRunning() && g_meshEviltwin.load() && meshRateGate(String("ETW_SELF_") + bb, 30000))
                     sendToSerial1(getNodeId() + ": EVILTWIN:" + bb + ":" + rsn + ":" + String((int)e.rssi), true);
             }
         }
@@ -1289,7 +1289,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
         String bsStr(bs);
         bool isTsfReason = (tsfRestart || tsfNonMono) && !ssidCollision;
         bool meshFlag = isTsfReason ? g_meshTsf.load() : g_meshEviltwin.load();
-        if (meshEnabled && meshFlag && meshRateGate(String("EVILTWIN_") + bsStr, 10000)) {
+        if (meshEnabled && sentinel_isRunning() && meshFlag && meshRateGate(String("EVILTWIN_") + bsStr, 10000)) {
             char meshMsg[80];
             snprintf(meshMsg, sizeof(meshMsg), "%s: EVILTWIN:%s:%s:%d",
                      getNodeId().c_str(), bs, ev.reason, (int)ev.rssi);
@@ -1329,7 +1329,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                              obBuf, owbBuf, ssid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                     logEventToSD("/owe_abuse.jsonl", String(lineBuf));
                     ::detect_logIncident(String("OWE_ABUSE:") + obBuf + ":" + ssid, obBuf);
-                    if (meshEnabled && g_meshOwe.load() && meshRateGate(String("OWE_ABUSE_") + obBuf, 30000))
+                    if (meshEnabled && sentinel_isRunning() && g_meshOwe.load() && meshRateGate(String("OWE_ABUSE_") + obBuf, 30000))
                         sendToSerial1(getNodeId() + ": OWE_ABUSE:" + obBuf + ":" + ssid + ":" + String((int)e.rssi), true);
                     break;
                 }
@@ -1409,7 +1409,7 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
              (int)rssi, (unsigned)channel, (unsigned)ev.ts);
     logEventToSD("/eviltwin.jsonl", String(jsonLine));
     String bsStr(bs);
-    if (meshEnabled && g_meshEviltwin.load() && meshRateGate(String("BEACON_FORGE_REASON_") + reason, 30000)) {
+    if (meshEnabled && sentinel_isRunning() && g_meshEviltwin.load() && meshRateGate(String("BEACON_FORGE_REASON_") + reason, 30000)) {
         char meshMsg[80];
         snprintf(meshMsg, sizeof(meshMsg), "%s: BEACON_FORGE:%s:%s:%d",
                  getNodeId().c_str(), bs, reason, (int)rssi);
@@ -1545,7 +1545,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                          "{\"src\":\"%s\",\"tool\":\"%s\",\"class\":\"behavioral\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                          sb, behavTool, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                 logEventToSD("/deauth_flood.jsonl", String(lb));
-                if (meshEnabled && g_meshDeauth.load() && meshRateGate(String("DEAUTH_TOOL_") + sb, 30000)) {
+                if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load() && meshRateGate(String("DEAUTH_TOOL_") + sb, 30000)) {
                     char mb[80];
                     snprintf(mb, sizeof(mb), "%s: DEAUTH_FORGE:%s:%s:%d",
                              getNodeId().c_str(), sb, behavTool, (int)e.rssi);
@@ -1575,7 +1575,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                      (unsigned)reason, (unsigned)seqCtrl, isBroadcast ? "true" : "false",
                      (int)e.rssi, (unsigned)e.channel, (unsigned)now);
             logEventToSD("/deauth_flood.jsonl", String(lineBuf));
-            if (meshEnabled && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FLOOD_") + srcS, 30000)) {
+            if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FLOOD_") + srcS, 30000)) {
                 char meshBuf[80];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FLOOD:%s:%u:%d",
                          getNodeId().c_str(), srcBuf, (unsigned)r.count, (int)e.rssi);
@@ -1615,7 +1615,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             quorum_addReport("DEAUTH_FORGE", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FORGE");
             // Mesh forwarding is separate/additional.
-            if (meshEnabled && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
+            if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
                 char meshBuf[96];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FORGE:%s:%s:%d",
                          getNodeId().c_str(), srcBuf, toolTag, (int)e.rssi);
@@ -1666,7 +1666,7 @@ static void handleAssocReq(const DetectFrameEvent &e) {
              bsBuf, (unsigned)w.distinctSrc.size(), (unsigned)ASSOC_SLEEP_WIN_MS,
              (int)w.bestRssi, (unsigned)w.channel, (unsigned)now);
     logEventToSD("/assoc_sleep.jsonl", String(lineBuf));
-    if (meshEnabled && g_meshAssocSleep.load() && meshRateGate(String("ASSOC_SLEEP_") + bs, 30000)) {
+    if (meshEnabled && sentinel_isRunning() && g_meshAssocSleep.load() && meshRateGate(String("ASSOC_SLEEP_") + bs, 30000)) {
         char meshBuf[80];
         snprintf(meshBuf, sizeof(meshBuf), "%s: ASSOC_SLEEP:%s:%u:%d",
                  getNodeId().c_str(), bsBuf, (unsigned)w.distinctSrc.size(), (int)w.bestRssi);
@@ -1868,7 +1868,7 @@ static void handleProbeReq(const DetectFrameEvent &e) {
                  ",\"ts\":" + String(now) + "}";
     logEventToSD("/probe_flood.jsonl", msg);
     ::detect_logIncident(String("PROBE_FLOOD:") + w.ssid + ":" + String(w.hits), w.ssid);
-    if (meshEnabled && g_meshProbeFlood.load() && meshRateGate("PROBE_FLOOD_" + String((uint32_t)key, HEX), 30000)) {
+    if (meshEnabled && sentinel_isRunning() && g_meshProbeFlood.load() && meshRateGate("PROBE_FLOOD_" + String((uint32_t)key, HEX), 30000)) {
         sendToSerial1(getNodeId() + ": PROBE_FLOOD:" + w.ssid + ":" + String(w.hits) + ":" + String(w.bestRssi), true);
     }
     quorum_addReport("PROBE_FLOOD", String(w.ssid), getNodeId(), w.bestRssi);
@@ -1990,7 +1990,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
                      bsBuf, (unsigned)w.distinctSrc.size(), (unsigned)w.frames,
                      (unsigned)AUTH_FLOOD_WIN_MS, (int)w.bestRssi, (unsigned)w.channel, (unsigned)tnow);
             logEventToSD("/sae_dos.jsonl", String(lb));
-            if (meshEnabled && g_meshAuth.load() && meshRateGate(String("AUTH_FLOOD_") + bs, 30000)) {
+            if (meshEnabled && sentinel_isRunning() && g_meshAuth.load() && meshRateGate(String("AUTH_FLOOD_") + bs, 30000)) {
                 char mb[80];
                 snprintf(mb, sizeof(mb), "%s: AUTH_FLOOD:%s:%u:%d",
                          getNodeId().c_str(), bsBuf, (unsigned)w.distinctSrc.size(), (int)w.bestRssi);
@@ -2044,7 +2044,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
                  (unsigned)c.windowStart, (unsigned)now);
         logEventToSD("/sae_dos.jsonl", String(lineBuf));
         ::detect_logIncident(String("SAE_DOS:") + bs + ":" + String((unsigned)unmatched), bsBuf);
-        if (meshEnabled && g_meshSae.load() && meshRateGate(String("SAE_DOS_") + bs, 10000)) {
+        if (meshEnabled && sentinel_isRunning() && g_meshSae.load() && meshRateGate(String("SAE_DOS_") + bs, 10000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: SAE_DOS:%s:%u",
                      getNodeId().c_str(), bsBuf, (unsigned)unmatched);
@@ -2118,7 +2118,7 @@ static void handleQosData(const DetectFrameEvent &e) {
                  srcBuf, (unsigned)tid, reason, (unsigned)lastPN,
                  (unsigned)obsPN, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
         logEventToSD("/fragattack.jsonl", String(lineBuf));
-        if (meshEnabled && g_meshFrag.load() && meshRateGate(String("FRAG_") + srcBuf + reason, 30000)) {
+        if (meshEnabled && sentinel_isRunning() && g_meshFrag.load() && meshRateGate(String("FRAG_") + srcBuf + reason, 30000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: FRAG:%s:%s",
                      getNodeId().c_str(), srcBuf, reason);
@@ -2571,7 +2571,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
                       ",\"score\":" + String(s.persistenceScore) +
                       ",\"ts\":" + String(now) + "}";
         logEventToSD("/ble_follow.jsonl", line);
-        if (meshEnabled && g_meshTracker.load() && meshRateGate("BLETRACK_" + a_s, 60000)) {
+        if (meshEnabled && sentinel_isRunning() && g_meshTracker.load() && meshRateGate("BLETRACK_" + a_s, 60000)) {
             sendToSerial1(getNodeId() + ": BLETRACK:" + a_s + ":" + match.vendor + ":" + String(s.persistenceScore), true);
         }
         quorum_addReport("BLETRACK", a_s, getNodeId(), rssi);
@@ -2931,7 +2931,7 @@ void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi)
         karmaEmitBait(emitBssid);
         Serial.printf("[DETECT] KARMA_CAND bssid=%s distinct_ssids=%u\n", macStr(emitBssid).c_str(), (unsigned)emitDistinctSsids);
         ::detect_logIncident(String("KARMA_CAND:") + macStr(emitBssid) + ":" + String(emitDistinctSsids), macStr(emitBssid).c_str());
-        if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CAND_" + macStr(emitBssid), 60000)) {
+        if (meshEnabled && sentinel_isRunning() && g_meshKarma.load() && meshRateGate("KARMA_CAND_" + macStr(emitBssid), 60000)) {
             sendToSerial1(getNodeId() + ": KARMA_CAND:" + macStr(emitBssid) +
                           ":" + String(emitDistinctSsids), true);
         }
@@ -2956,7 +2956,7 @@ bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi) {
     if (!wasConfirmed) {   // emit once per BSSID — karma answers every bait, would storm otherwise
         Serial.printf("[DETECT] KARMA_CONFIRMED bssid=%s ssid=%s rssi=%d\n", macStr(bssid).c_str(), ssid, (int)rssi);
         ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), macStr(bssid).c_str());
-        if (meshEnabled && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
+        if (meshEnabled && sentinel_isRunning() && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
             sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) + ":" + String(rssi), true);
         }
         quorum_addReport("KARMA", macStr(bssid), getNodeId(), rssi);
@@ -3056,7 +3056,7 @@ static void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
     s.lastSeen = now;
     pwnagotchiExtractSnippet(ie, ieLen, s.snippet, sizeof(s.snippet));
 
-    if (meshEnabled && g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
+    if (meshEnabled && sentinel_isRunning() && g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
         sendToSerial1(getNodeId() + ": PWNAGOTCHI:" + macStr(bssid) + ":" + String(rssi), true);
     quorum_addReport("PWNAGOTCHI", macStr(bssid), getNodeId(), rssi);
     attacker_kick(bssid, "PWNAGOTCHI");
@@ -3132,7 +3132,7 @@ void attacker_kick(const uint8_t *mac, const char *attackType) {
         }
     }
     if (startTrilat) ::startTriangulation(macS, 60);
-    if (meshEnabled && g_meshAttackerHunt.load() && meshRateGate("HUNT_" + macStr(mac), 60000)) {
+    if (meshEnabled && sentinel_isRunning() && g_meshAttackerHunt.load() && meshRateGate("HUNT_" + macStr(mac), 60000)) {
         sendToSerial1(getNodeId() + ": ATTACKER_HUNT:" + macStr(mac) + ":" + String(attackType ? attackType : "?"), true);
     }
 }
@@ -3218,7 +3218,7 @@ static void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
         if (kfit != r.fragments.end()) {
             if (r.krackEvents < 255) r.krackEvents++;
             g_krackEvents.fetch_add(1);
-            if (meshEnabled && g_meshHshk.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
+            if (meshEnabled && sentinel_isRunning() && g_meshHshk.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
                 sendToSerial1(getNodeId() + ": KRACK:" + macStr(bssid) + ":" + macStr(sta) +
                               ":" + String((unsigned long)replayCtr), true);
             }
@@ -3593,7 +3593,7 @@ static uint32_t trackerTryLinkRotation(const uint8_t *addr, const char *vendor, 
             if (chain.linkCount < 255) chain.linkCount++;
             chain.avgRssi = (int8_t)(((int32_t)chain.avgRssi + rssi) / 2);
             chain.lastSeen = now;
-            if (meshEnabled && g_meshTracker.load() && meshRateGate("TRKLINK_" + String(cid), 30000)) {
+            if (meshEnabled && sentinel_isRunning() && g_meshTracker.load() && meshRateGate("TRKLINK_" + String(cid), 30000)) {
                 sendToSerial1(getNodeId() + ": TRK_LINK:" + String(cid) + ":" +
                               vendor + ":" + macStr(addr) + ":" + String(rssi), true);
             }
@@ -4553,7 +4553,7 @@ static void jammingEval(uint32_t now) {
             char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
             ::detect_logIncident(String("JAMMING:") + bch + ":" + String((unsigned)pdrPct) + ":" + String((unsigned)e), bch);
             quorum_addReport("JAMMING", String(bch), getNodeId(), avgErrRssi);
-            if (meshEnabled && g_meshJam.load() && meshRateGate(String("JAM_") + bch, 60000)) {
+            if (meshEnabled && sentinel_isRunning() && g_meshJam.load() && meshRateGate(String("JAM_") + bch, 60000)) {
                 char mb[80];
                 snprintf(mb, sizeof(mb), "%s: JAMMING:%u:%u:%u",
                          getNodeId().c_str(), (unsigned)ch, (unsigned)pdrPct, (unsigned)e);
@@ -4596,7 +4596,7 @@ void mesh_observeInbound(const String &sender, const String &body) {
         logEventToSD("/meshguard.jsonl", String("{\"ts\":") + now + ",\"evt\":\"" + line + "\"}");
         ::detect_logIncident(line, "local");
         Serial.printf("[DETECT] %s\n", line.c_str());
-        if (meshEnabled && g_meshGuard.load() && meshRateGate(String("MGD_") + line.substring(0, 20), 30000))
+        if (meshEnabled && sentinel_isRunning() && g_meshGuard.load() && meshRateGate(String("MGD_") + line.substring(0, 20), 30000))
             sendToSerial1(getNodeId() + ": " + line, true);
     };
 
@@ -4887,7 +4887,7 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
         Serial.printf("[DETECT] %s (AP under deauth - %u disconnects in %ums)\n",
                       body.c_str(), g_softApDeauth.count, (unsigned)(now - g_softApDeauth.winStartMs));
         ::detect_logIncident(body, mc);
-        if (meshEnabled && g_meshDeauth.load()) {
+        if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load()) {
             sendToSerial1(getNodeId() + ": " + body, true);
         }
         String line = String("{\"client\":\"") + mc +
@@ -4956,7 +4956,7 @@ void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi) {
         Serial.printf("[DETECT] PROBE_FLOOD_AP distinct=%u in %ums rssi=%d\n",
                       (unsigned)g_softApProbe.srcCounts.size(),
                       (unsigned)(now - g_softApProbe.winStartMs), (int)rssi);
-        if (meshEnabled && g_meshProbeFlood.load()) {
+        if (meshEnabled && sentinel_isRunning() && g_meshProbeFlood.load()) {
             sendToSerial1(getNodeId() + ": PROBE_FLOOD_AP:" + String((unsigned)g_softApProbe.srcCounts.size()) +
                           ":" + String((int)rssi), true);
         }
