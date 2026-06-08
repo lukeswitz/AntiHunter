@@ -885,6 +885,12 @@ String getDiagnostics() {
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
+    if (meshTxDraining.load()) {
+        s += "Mesh TX: draining " + String(meshDrainSent.load()) + "/" + String(meshDrainTotal.load()) + "\n";
+    } else {
+        s += "Mesh TX: idle\n";
+    }
+    s += "Mesh Dedup: " + String(meshDedupCount()) + " MACs\n";
     s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + " " + String(hbInterval / 60000) + "min\n";
     s += "Vibration Broadcasts: " + String(vibrationEnabled ? "Enabled" : "Disabled") + "\n";
     if (lastVibrationTime > 0) {

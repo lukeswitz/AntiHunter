@@ -761,15 +761,13 @@ void baselineDetectionTask(void *pv) {
             baselineResultsDirty = false;
         }
 
-        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL && isMyMeshSlot()) {
+        if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
             lastMeshUpdate = millis();
-            uint32_t sentThisCycle = 0;
 
             for (const auto& entry : baselineCache) {
-                if (!isMyMeshSlot()) break;
                 String macStr = macFmt6(entry.second.mac);
 
-                if (transmittedDevices.find(macStr) == transmittedDevices.end()) {
+                if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr)) {
                     String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
                     deviceMsg += entry.second.isBLE ? " B " : " W ";
                     deviceMsg += String(entry.second.avgRssi);
@@ -785,21 +783,15 @@ void baselineDetectionTask(void *pv) {
                     }
 
                     if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                        if (sendToSerial1(deviceMsg, true)) {
+                        if (meshEnqueue(deviceMsg)) {
                             transmittedDevices.insert(macStr);
-                            sentThisCycle++;
-
-                            if (sentThisCycle % 2 == 0) {
-                                delay(500);
-                                rateLimiter.refillTokens();
-                            }
+                            meshMarkMacSent(macStr);
                         }
                     }
                 }
             }
 
             for (const auto& anomaly : anomalyLog) {
-                if (!isMyMeshSlot()) break;
                 String macStr = macFmt6(anomaly.mac);
 
                 if (transmittedAnomalies.find(macStr) == transmittedAnomalies.end()) {
@@ -812,14 +804,8 @@ void baselineDetectionTask(void *pv) {
                     }
 
                     if (anomalyMsg.length() <= MAX_MESH_SIZE) {
-                        if (sendToSerial1(anomalyMsg, true)) {
+                        if (meshEnqueue(anomalyMsg)) {
                             transmittedAnomalies.insert(macStr);
-                            sentThisCycle++;
-
-                            if (sentThisCycle % 2 == 0) {
-                                delay(500);
-                                rateLimiter.refillTokens();
-                            }
                         }
                     }
                 }
@@ -869,8 +855,8 @@ void baselineDetectionTask(void *pv) {
                         " BLE=" + String(baselineStats.bleDevices) +
                         " TX=" + String(finalTransmitted) +
                         " PEND=" + String(finalRemaining);
-        sendToSerial1(summary, true);
-        Serial.println("[BASELINE] Detection complete summary transmitted");
+        meshEnqueue(summary);
+        Serial.println("[BASELINE] Detection complete summary enqueued");
     }
 
     if (macQueue) {
@@ -1493,7 +1479,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
                 meshAlert += " Name:" + String(name);
             }
-            sendToSerial1(meshAlert, false);
+            meshEnqueue(meshAlert);
         }
 
         return;

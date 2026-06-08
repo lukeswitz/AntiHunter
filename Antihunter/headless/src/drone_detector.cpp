@@ -312,12 +312,10 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             if (drone.operatorLat != 0 || drone.operatorLon != 0) {
                 meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
             }
-            // sendToSerial1(String(meshMsg), false);
-
-            if (sendToSerial1(meshMsg, false)) {
+            if (meshEnqueue(meshMsg)) {
                 transmittedDrones.insert(drone.uavId);
             }
-            
+
             Serial.println("[DRONE] " + jsonStr);
         }
         
@@ -539,24 +537,23 @@ void droneDetectorTask(void *pv)
                 if (drone.operatorLat != 0 || drone.operatorLon != 0) {
                     meshMsg += " OP:" + String(drone.operatorLat, 6) + "," + String(drone.operatorLon, 6);
                 }
-                if (sendToSerial1(meshMsg, false)) {
+                if (meshEnqueue(meshMsg)) {
                     transmittedDrones.insert(droneId);
                 }
             }
         }
-        
+
         if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DRONE_UPDATE_INTERVAL)) {
             lastMeshUpdate = millis();
-            
-            int sentThisCycle = 0;
+
             for (const auto& entry : detectedDrones) {
                 String droneId = String(entry.second.uavId);
-                
+
                 if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
                     String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId;
                     droneMsg += " R" + String(entry.second.rssi);
                     if (entry.second.latitude != 0) {
-                        droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
+                        droneMsg += " GPS:" + String(entry.second.latitude, 6) +
                                 "," + String(entry.second.longitude, 6);
                     }
                     if (entry.second.altitudeMsl != 0) {
@@ -566,18 +563,12 @@ void droneDetectorTask(void *pv)
                         droneMsg += " SPD:" + String(entry.second.speed, 1);
                     }
                     if (entry.second.operatorLat != 0 || entry.second.operatorLon != 0) {
-                        droneMsg += " OP:" + String(entry.second.operatorLat, 6) + 
+                        droneMsg += " OP:" + String(entry.second.operatorLat, 6) +
                                 "," + String(entry.second.operatorLon, 6);
                     }
-                    
-                    if (droneMsg.length() <= MAX_MESH_SIZE && sendToSerial1(droneMsg, true)) {
+
+                    if (droneMsg.length() <= MAX_MESH_SIZE && meshEnqueue(droneMsg)) {
                         transmittedDrones.insert(droneId);
-                        sentThisCycle++;
-                        
-                        if (sentThisCycle % 2 == 0) {
-                            delay(1000);
-                            rateLimiter.refillTokens();
-                        }
                     }
                 }
             }
@@ -606,18 +597,15 @@ void droneDetectorTask(void *pv)
     }
 
     if (meshEnabled && !stopRequested) {
-        Serial.printf("[DRONE] Scan complete - transmitting final batch\n");
-        rateLimiter.flush();
-        delay(100);
-        
+        uint32_t enqueuedDrones = 0;
         for (const auto& entry : detectedDrones) {
             String droneId = String(entry.second.uavId);
-            
+
             if (transmittedDrones.find(droneId) == transmittedDrones.end()) {
                 String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId;
                 droneMsg += " R" + String(entry.second.rssi);
                 if (entry.second.latitude != 0) {
-                    droneMsg += " GPS:" + String(entry.second.latitude, 6) + 
+                    droneMsg += " GPS:" + String(entry.second.latitude, 6) +
                             "," + String(entry.second.longitude, 6);
                 }
                 if (entry.second.altitudeMsl != 0) {
@@ -627,40 +615,24 @@ void droneDetectorTask(void *pv)
                     droneMsg += " SPD:" + String(entry.second.speed, 1);
                 }
                 if (entry.second.operatorLat != 0 || entry.second.operatorLon != 0) {
-                    droneMsg += " OP:" + String(entry.second.operatorLat, 6) + 
+                    droneMsg += " OP:" + String(entry.second.operatorLat, 6) +
                             "," + String(entry.second.operatorLon, 6);
                 }
-                
-                if (droneMsg.length() <= MAX_MESH_SIZE) {
-                    if (sendToSerial1(droneMsg, true)) {
-                        transmittedDrones.insert(droneId);
-                    }
+
+                if (droneMsg.length() <= MAX_MESH_SIZE && meshEnqueue(droneMsg)) {
+                    transmittedDrones.insert(droneId);
+                    enqueuedDrones++;
                 }
             }
         }
 
-        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-            Serial1.flush();
-            xSemaphoreGive(serial1Mutex);
-        }
-        delay(100);
-        
-        uint32_t totalDrones = detectedDrones.size();
-        uint32_t finalTransmitted = transmittedDrones.size();
-        uint32_t finalRemaining = totalDrones - finalTransmitted;
-        
+        const uint32_t totalDrones = detectedDrones.size();
         String summary = getNodeId() + ": DRONE_DONE: Detected=" + String(droneDetectionCount) +
                         " Unique=" + String(totalDrones) +
-                        " TX=" + String(finalTransmitted) +
-                        " PEND=" + String(finalRemaining);
-        
-        sendToSerial1(summary, true);
-        Serial.printf("[DRONE] Detection complete: %d/%d drones transmitted, %d pending\n",
-                     finalTransmitted, totalDrones, finalRemaining);
-        
-        if (finalRemaining > 0) {
-            Serial.printf("[DRONE] WARNING: %d drones not transmitted\n", finalRemaining);
-        }
+                        " TX=" + String(transmittedDrones.size());
+        meshEnqueue(summary);
+        Serial.printf("[DRONE] Detection complete: enqueued %u (total unique %u)\n",
+                     enqueuedDrones, totalDrones);
     }
 
     radioStopSTA();
