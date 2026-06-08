@@ -73,6 +73,10 @@ std::atomic<bool> meshTxDraining(false);
 std::atomic<uint32_t> meshDrainSent(0);
 std::atomic<uint32_t> meshDrainTotal(0);
 std::atomic<bool> stopMeshDrain(false);
+std::atomic<uint32_t> meshTxDroppedRateLimit(0);
+std::atomic<uint32_t> meshTxDroppedBufFull(0);
+std::atomic<uint32_t> meshTxDroppedTriGate(0);
+std::atomic<uint32_t> meshTxDroppedEvicted(0);
 std::atomic<int> totalHits(0);
 std::atomic<uint32_t> framesSeen(0);
 std::atomic<uint32_t> bleFramesSeen(0);
@@ -711,23 +715,11 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
 
         int8_t rssi = advertisedDevice->getRSSI();
         if (rssi > -10) return;
-        if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
-            return;
-        }
 
         uint8_t mac[6];
         NimBLEAddress addr = advertisedDevice->getAddress();
         String macStr = addr.toString().c_str();
         if (!parseMac6(macStr, mac)) return;
-
-        // Phase 1.7 / 3.1 / 3.2: feed BLE adv into detect module via queue.
-        // All heavy work (tracker scoring, ODID decode, malformed check)
-        // happens in detectTask context — not here in nimble_host callback.
-        {
-            std::vector<uint8_t> payload = advertisedDevice->getPayload();
-            detect_onBleAdv(mac, rssi, payload.data(),
-                            (uint16_t)payload.size(), nullptr);
-        }
 
         String deviceName = "Unknown";
         if (advertisedDevice->haveName()) {
@@ -746,13 +738,38 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             }
         }
 
+        if (randomizationDetectionEnabled && bleAdvQueue) {
+            BleAdvEvent evt = {};
+            memcpy(evt.mac, mac, 6);
+            evt.rssi = rssi;
+            strncpy(evt.name, deviceName.c_str(), sizeof(evt.name) - 1);
+            evt.name[sizeof(evt.name) - 1] = '\0';
+            std::string mfr = advertisedDevice->getManufacturerData();
+            evt.mfrDataLen = static_cast<uint8_t>(std::min<size_t>(mfr.size(), sizeof(evt.mfrData)));
+            if (evt.mfrDataLen > 0) memcpy(evt.mfrData, mfr.data(), evt.mfrDataLen);
+            std::vector<uint8_t> pl = advertisedDevice->getPayload();
+            evt.payloadLen = static_cast<uint8_t>(std::min<size_t>(pl.size(), sizeof(evt.payload)));
+            if (evt.payloadLen > 0) memcpy(evt.payload, pl.data(), evt.payloadLen);
+            xQueueSend(bleAdvQueue, &evt, 0);
+        }
+
+        if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
+            return;
+        }
+
+        {
+            std::vector<uint8_t> payload = advertisedDevice->getPayload();
+            detect_onBleAdv(mac, rssi, payload.data(),
+                            (uint16_t)payload.size(), nullptr);
+        }
+
         bool isMatch = false;
         if (triangulationActive) {
             isMatch = (memcmp(mac, triangulationTarget, 6) == 0);
         } else {
             isMatch = matchesMac(mac);
         }
-        
+
         if (isMatch) {
             Hit h;
             memcpy(h.mac, mac, 6);
@@ -3485,6 +3502,16 @@ void initializeScanner()
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         } else {
             Serial.println("[INIT] authFrameQueue alloc failed at boot");
+        }
+    }
+    if (!bleAdvQueue) {
+        bleAdvQueue = xQueueCreateWithCaps(128, sizeof(BleAdvEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (bleAdvQueue) {
+            Serial.printf("[INIT] bleAdvQueue PSRAM (128 entries, internal:%u psram:%u)\n",
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        } else {
+            Serial.println("[INIT] bleAdvQueue alloc failed at boot");
         }
     }
 }
