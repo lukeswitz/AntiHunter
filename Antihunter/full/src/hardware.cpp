@@ -326,6 +326,13 @@ void initializeHardware()
         meshSendInterval = 3000;
     }
     Serial.printf("[CONFIG] Mesh send interval: %lums\n", meshSendInterval);
+
+    {
+        uint32_t ttl = prefs.getUInt("meshDedupTtl", MESH_DEDUP_TTL_DEFAULT_S);
+        if (ttl > MESH_DEDUP_TTL_MAX_S) ttl = MESH_DEDUP_TTL_DEFAULT_S;
+        setMeshDedupTtlSec(ttl);
+        Serial.printf("[CONFIG] Mesh dedup TTL: %us (0=disabled)\n", (unsigned)ttl);
+    }
     
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
@@ -421,6 +428,7 @@ void saveConfiguration() {
     configFile.printf(" \"scanMode\":%d,\n", currentScanMode);
     configFile.printf(" \"channels\":\"%s\",\n", channelsBuf);
     configFile.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
+    configFile.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
     configFile.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
     configFile.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
     configFile.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
@@ -587,6 +595,15 @@ void loadConfiguration() {
             meshSendInterval = interval;
             prefs.putULong("meshInterval", interval);
             Serial.printf("Loaded meshInterval from SD: %lums\n", interval);
+        }
+    }
+
+    if (doc.containsKey("meshDedupTtl") && doc["meshDedupTtl"].is<unsigned int>()) {
+        unsigned int ttl = doc["meshDedupTtl"].as<unsigned int>();
+        if (ttl <= MESH_DEDUP_TTL_MAX_S) {
+            setMeshDedupTtlSec(ttl);
+            prefs.putUInt("meshDedupTtl", ttl);
+            Serial.printf("Loaded meshDedupTtl from SD: %us\n", ttl);
         }
     }
 

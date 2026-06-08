@@ -108,26 +108,42 @@ const uint32_t SCAN_MESH_SLOT_DURATION_MS = SCAN_MESH_SLOT_CYCLE_MS / SCAN_MESH_
 const uint32_t SLOT_GUARD_MS = 200;
 static uint32_t scanMeshCycleStartTime = 0;
 
-const uint32_t MESH_DEDUP_TTL_MS = 300000;
+const uint32_t MESH_DEDUP_TTL_MIN_S = 0;
+const uint32_t MESH_DEDUP_TTL_MAX_S = 3600;
+const uint32_t MESH_DEDUP_TTL_DEFAULT_S = 300;
 const size_t MESH_DEDUP_MAX_ENTRIES = 5000;
+std::atomic<uint32_t> g_meshDedupTtlMs(MESH_DEDUP_TTL_DEFAULT_S * 1000);
 static std::map<String, uint32_t, std::less<String>,
     PsramAllocator<std::pair<const String, uint32_t>>> g_meshSentMacs;
 static std::mutex g_meshSentMacsMutex;
 
+void setMeshDedupTtlSec(uint32_t sec) {
+    if (sec > MESH_DEDUP_TTL_MAX_S) sec = MESH_DEDUP_TTL_MAX_S;
+    g_meshDedupTtlMs.store(sec * 1000UL);
+}
+
+uint32_t getMeshDedupTtlSec() {
+    return g_meshDedupTtlMs.load() / 1000UL;
+}
+
 bool meshShouldSendMac(const String& mac) {
+    uint32_t ttl = g_meshDedupTtlMs.load();
+    if (ttl == 0) return true;
     std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
     auto it = g_meshSentMacs.find(mac);
     if (it == g_meshSentMacs.end()) return true;
-    return (millis() - it->second) >= MESH_DEDUP_TTL_MS;
+    return (millis() - it->second) >= ttl;
 }
 
 void meshMarkMacSent(const String& mac) {
+    uint32_t ttl = g_meshDedupTtlMs.load();
+    if (ttl == 0) return;
     std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
     g_meshSentMacs[mac] = millis();
     if (g_meshSentMacs.size() > MESH_DEDUP_MAX_ENTRIES) {
         uint32_t now = millis();
         for (auto it = g_meshSentMacs.begin(); it != g_meshSentMacs.end();) {
-            if (now - it->second >= MESH_DEDUP_TTL_MS) it = g_meshSentMacs.erase(it);
+            if (now - it->second >= ttl) it = g_meshSentMacs.erase(it);
             else ++it;
         }
     }

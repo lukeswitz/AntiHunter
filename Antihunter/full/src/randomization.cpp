@@ -496,9 +496,10 @@ bool matchFingerprints(const uint16_t fp1[6], const uint16_t fp2[6], uint8_t& ma
 
 void extractChannelSequence(const ProbeSession& session, uint8_t* channelSeq, uint8_t& seqLen) {
     seqLen = 0;
-    for(uint8_t i = 0; i < session.probeCount && seqLen < 32; i++) {
-        uint8_t ch = (session.channelMask >> i) & 0x1 ? i : 0;
-        if(ch > 0) {
+    uint8_t maxOut = min(static_cast<uint8_t>(32), session.channelsSeenCount);
+    for (uint8_t i = 0; i < maxOut; i++) {
+        uint8_t ch = session.channelsSeenSeq[i];
+        if (ch > 0) {
             channelSeq[seqLen++] = ch;
         }
     }
@@ -1208,6 +1209,45 @@ String getRandomizationResults() {
     results += "Active Sessions: " + String(activeSessions.size()) + "\n";
     results += "Device Identities: " + String(identityCount) + "\n\n";
 
+    if (!activeSessions.empty()) {
+        uint32_t wifiPending = 0, blePending = 0;
+        for (const auto& e : activeSessions) {
+            if (e.second.primaryChannel == 0 && e.second.channelMask == 0) blePending++;
+            else wifiPending++;
+        }
+        results += "Pending Sessions: WiFi " + String(wifiPending) + " BLE " + String(blePending) + "\n\n";
+
+        const int MAX_PREVIEW = 10;
+        int previewCount = 0;
+        for (const auto& e : activeSessions) {
+            if (previewCount++ >= MAX_PREVIEW) break;
+            const ProbeSession& s = e.second;
+            int8_t avgRssi = (s.probeCount > 0) ? (s.rssiSum / static_cast<int>(s.probeCount)) : s.rssiSum;
+            bool isBLE = (s.primaryChannel == 0 && s.channelMask == 0);
+            results += "Live session: " + macFmt6(s.mac);
+            results += isBLE ? " BLE" : " WiFi";
+            results += " probes=" + String(s.probeCount);
+            results += " rssi=" + String(avgRssi);
+            if (!isBLE) {
+                if (s.channelsSeenCount > 0) {
+                    results += " ch=";
+                    for (uint8_t i = 0; i < min(static_cast<uint8_t>(6), s.channelsSeenCount); i++) {
+                        if (i > 0) results += ",";
+                        results += String(s.channelsSeenSeq[i]);
+                    }
+                    if (s.channelsSeenCount > 6) results += "+";
+                } else if (s.primaryChannel > 0) {
+                    results += " ch=" + String(s.primaryChannel);
+                }
+            }
+            results += "\n";
+        }
+        if (activeSessions.size() > MAX_PREVIEW) {
+            results += "... (+" + String(activeSessions.size() - MAX_PREVIEW) + " more sessions)\n";
+        }
+        results += "\n";
+    }
+
     const int MAX_IDENTITIES = 100;
     int count = 0;
 
@@ -1257,7 +1297,19 @@ String getRandomizationResults() {
         results += "\n";
         results += "  Interval consistency: " + String(identity.signature.intervalConsistency, 2) + "\n";
         results += "  RSSI consistency: " + String(identity.signature.rssiConsistency, 2) + "\n";
-        results += "  Channels: " + String(countChannels(identity.signature.channelBitmap)) + "\n";
+        {
+            uint32_t uniqCount = 0;
+            if (identity.signature.channelSeqLength > 0) {
+                bool seen[256] = {false};
+                for (uint8_t i = 0; i < identity.signature.channelSeqLength; i++) {
+                    uint8_t c = identity.signature.channelSequence[i];
+                    if (c > 0 && !seen[c]) { seen[c] = true; uniqCount++; }
+                }
+            } else {
+                uniqCount = countChannels(identity.signature.channelBitmap);
+            }
+            results += "  Channels: " + String(uniqCount) + "\n";
+        }
 
         if (identity.signature.channelSeqLength > 0) {
             results += "  Channel sequence: ";
@@ -1440,7 +1492,13 @@ void randomizationDetectionTask(void *pv) {
                     session.rssiMax = event.rssi;
                     session.probeCount = 1;
                     session.primaryChannel = event.channel;
-                    session.channelMask = (1 << event.channel);
+                    session.channelMask = (event.channel < 32) ? (1u << event.channel) : 0;
+                    memset(session.channelsSeenSeq, 0, sizeof(session.channelsSeenSeq));
+                    session.channelsSeenCount = 0;
+                    if (event.channel > 0) {
+                        session.channelsSeenSeq[0] = event.channel;
+                        session.channelsSeenCount = 1;
+                    }
                     session.rssiReadings.push_back(event.rssi);
                     session.probeTimestamps[0] = now;
                     session.linkedToIdentity = false;
@@ -1480,12 +1538,20 @@ void randomizationDetectionTask(void *pv) {
                     
                 } else {
                     ProbeSession& session = activeSessions[macStr];
-                    
+
                     if (session.primaryChannel == 0 && event.channel > 0) {
                         session.primaryChannel = event.channel;
                     }
-                    session.channelMask |= (1 << event.channel);
-                    
+                    if (event.channel < 32) session.channelMask |= (1u << event.channel);
+                    if (event.channel > 0 && session.channelsSeenCount < sizeof(session.channelsSeenSeq)) {
+                        uint8_t lastCh = session.channelsSeenCount > 0
+                                       ? session.channelsSeenSeq[session.channelsSeenCount - 1]
+                                       : 0;
+                        if (event.channel != lastCh) {
+                            session.channelsSeenSeq[session.channelsSeenCount++] = event.channel;
+                        }
+                    }
+
                     if (session.probeCount < 50) {
                         session.probeTimestamps[session.probeCount] = now;
                     }
@@ -1582,6 +1648,8 @@ void randomizationDetectionTask(void *pv) {
                             session.probeCount = 1;
                             session.primaryChannel = 0;
                             session.channelMask = 0;
+                            memset(session.channelsSeenSeq, 0, sizeof(session.channelsSeenSeq));
+                            session.channelsSeenCount = 0;
                             session.rssiReadings.push_back(rssi);
                             session.probeTimestamps[0] = now;
                             session.linkedToIdentity = false;
@@ -1837,15 +1905,19 @@ void randomizationDetectionTask(void *pv) {
 // Storage
 void saveDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
-    
+
     std::lock_guard<std::mutex> lock(randMutex);
-    
+
     File file = SafeSD::open("/rand_identities.dat", FILE_WRITE);
     if (!file) {
         Serial.println("[RAND] Failed to open identities file for writing");
         return;
     }
-    
+
+    // Format version — bump when field set changes
+    const uint32_t kFormatMagic = 0x52414E32; // 'RAN2'
+    file.write(reinterpret_cast<const uint8_t*>(&kFormatMagic), sizeof(kFormatMagic));
+
     uint32_t count = deviceIdentities.size();
     file.write(reinterpret_cast<const uint8_t*>(&count), sizeof(count));
 
@@ -1871,10 +1943,21 @@ void saveDeviceIdentities() {
         file.write(reinterpret_cast<const uint8_t*>(&id.hasKnownGlobalMac), sizeof(id.hasKnownGlobalMac));
         file.write(reinterpret_cast<const uint8_t*>(&id.knownGlobalMac), sizeof(id.knownGlobalMac));
         file.write(reinterpret_cast<const uint8_t*>(&id.isBLE), sizeof(id.isBLE));
+
+        // Display/diagnostic fields (previously unsaved → loaded as stack garbage)
+        file.write(reinterpret_cast<const uint8_t*>(&id.deviceName), sizeof(id.deviceName));
+        file.write(reinterpret_cast<const uint8_t*>(&id.probedSSID), sizeof(id.probedSSID));
+        file.write(reinterpret_cast<const uint8_t*>(&id.rssiAvg), sizeof(id.rssiAvg));
+        file.write(reinterpret_cast<const uint8_t*>(&id.rssiMin), sizeof(id.rssiMin));
+        file.write(reinterpret_cast<const uint8_t*>(&id.rssiMax), sizeof(id.rssiMax));
+        file.write(reinterpret_cast<const uint8_t*>(&id.primaryChannel), sizeof(id.primaryChannel));
+        file.write(reinterpret_cast<const uint8_t*>(&id.probeCount), sizeof(id.probeCount));
+        file.write(reinterpret_cast<const uint8_t*>(&id.mfrData), sizeof(id.mfrData));
+        file.write(reinterpret_cast<const uint8_t*>(&id.mfrDataLen), sizeof(id.mfrDataLen));
     }
-    
+
     file.close();
-    Serial.printf("[RAND] Saved %d identities to SD\n", count);
+    Serial.printf("[RAND] Saved %d identities to SD (fmt RAN2)\n", count);
 }
 
 void loadDeviceIdentities() {
@@ -1890,30 +1973,39 @@ void loadDeviceIdentities() {
         Serial.println("[RAND] Failed to open identities file");
         return;
     }
-    
+
+    const uint32_t kFormatMagic = 0x52414E32; // 'RAN2'
+    uint32_t magic = 0;
+    if (file.read(reinterpret_cast<uint8_t*>(&magic), sizeof(magic)) != sizeof(magic) || magic != kFormatMagic) {
+        Serial.printf("[RAND] Old/unknown format (magic=0x%08X), wiping rand_identities.dat\n", magic);
+        file.close();
+        SafeSD::remove("/rand_identities.dat");
+        return;
+    }
+
     uint32_t count = 0;
     if (file.read(reinterpret_cast<uint8_t*>(&count), sizeof(count)) != sizeof(count)) {
         Serial.println("[RAND] Failed to read identity count");
         file.close();
         return;
     }
-    
+
     if (count > MAX_DEVICE_TRACKS) {
         Serial.printf("[RAND] Invalid count: %u\n", count);
         file.close();
         return;
     }
-    
+
     for (uint32_t i = 0; i < count; i++) {
-        DeviceIdentity id;
+        DeviceIdentity id{};
 
         if (file.read(reinterpret_cast<uint8_t*>(&id.identityId), sizeof(id.identityId)) != sizeof(id.identityId)) break;
 
         uint32_t macCount = 0;
         if (file.read(reinterpret_cast<uint8_t*>(&macCount), sizeof(macCount)) != sizeof(macCount)) break;
-        
+
         if (macCount > MAX_LINKED_MACS_PER_IDENTITY) break;
-        
+
         for (uint32_t j = 0; j < macCount; j++) {
             uint8_t macBytes[6];
             if (file.read(macBytes, 6) != 6) {
@@ -1922,7 +2014,7 @@ void loadDeviceIdentities() {
             }
             id.macs.push_back(MacAddress(macBytes));
         }
-        
+
         if (file.read(reinterpret_cast<uint8_t*>(&id.signature), sizeof(BehavioralSignature)) != sizeof(BehavioralSignature)) break;
         if (file.read(reinterpret_cast<uint8_t*>(&id.firstSeen), sizeof(id.firstSeen)) != sizeof(id.firstSeen)) break;
         if (file.read(reinterpret_cast<uint8_t*>(&id.lastSeen), sizeof(id.lastSeen)) != sizeof(id.lastSeen)) break;
@@ -1934,14 +2026,29 @@ void loadDeviceIdentities() {
         if (file.read(reinterpret_cast<uint8_t*>(&id.hasKnownGlobalMac), sizeof(id.hasKnownGlobalMac)) != sizeof(id.hasKnownGlobalMac)) break;
         if (file.read(reinterpret_cast<uint8_t*>(&id.knownGlobalMac), sizeof(id.knownGlobalMac)) != sizeof(id.knownGlobalMac)) break;
         if (file.read(reinterpret_cast<uint8_t*>(&id.isBLE), sizeof(id.isBLE)) != sizeof(id.isBLE)) break;
-        
+
+        if (file.read(reinterpret_cast<uint8_t*>(&id.deviceName), sizeof(id.deviceName)) != sizeof(id.deviceName)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.probedSSID), sizeof(id.probedSSID)) != sizeof(id.probedSSID)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.rssiAvg), sizeof(id.rssiAvg)) != sizeof(id.rssiAvg)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.rssiMin), sizeof(id.rssiMin)) != sizeof(id.rssiMin)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.rssiMax), sizeof(id.rssiMax)) != sizeof(id.rssiMax)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.primaryChannel), sizeof(id.primaryChannel)) != sizeof(id.primaryChannel)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.probeCount), sizeof(id.probeCount)) != sizeof(id.probeCount)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.mfrData), sizeof(id.mfrData)) != sizeof(id.mfrData)) break;
+        if (file.read(reinterpret_cast<uint8_t*>(&id.mfrDataLen), sizeof(id.mfrDataLen)) != sizeof(id.mfrDataLen)) break;
+
+        // Defensive — guarantee NUL termination on string fields
+        id.identityId[sizeof(id.identityId) - 1] = '\0';
+        id.deviceName[sizeof(id.deviceName) - 1] = '\0';
+        id.probedSSID[sizeof(id.probedSSID) - 1] = '\0';
+
         if (!id.macs.empty()) {
             String key = macFmt6(id.macs[0].bytes.data());
             deviceIdentities[key] = id;
             identityIdCounter = max(identityIdCounter, static_cast<uint32_t>(strtol(id.identityId + 2, nullptr, 16)));
         }
     }
-    
+
     file.close();
-    Serial.printf("[RAND] Loaded %d identities\n", deviceIdentities.size());
+    Serial.printf("[RAND] Loaded %d identities (fmt RAN2)\n", deviceIdentities.size());
 }
