@@ -34,6 +34,18 @@ struct ProbeRequestEvent {
 
 extern QueueHandle_t probeRequestQueue;
 
+struct BleAdvEvent {
+    uint8_t mac[6];
+    int8_t rssi;
+    char name[32];
+    uint8_t mfrData[8];
+    uint8_t mfrDataLen;
+    uint8_t payload[64];
+    uint8_t payloadLen;
+};
+
+extern QueueHandle_t bleAdvQueue;
+
 struct IEOrderSignature {
     uint8_t ieTypes[16];
     uint8_t ieCount;
@@ -186,6 +198,7 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
 void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fingerprint[6]);
 void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSignature& sig);
 void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t fingerprint[6]);
+void extractBLEFingerprintFromPayload(const uint8_t* payload, uint8_t payloadLen, uint16_t fingerprint[6]);
 bool matchFingerprints(const uint16_t fp1[6], const uint16_t fp2[6], uint8_t& matches);
 bool matchIEOrder(const IEOrderSignature& sig1, const IEOrderSignature& sig2);
 uint16_t computeCRC16(const uint8_t *data, uint16_t length);
