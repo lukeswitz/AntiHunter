@@ -1349,6 +1349,14 @@ void randomizationDetectionTask(void *pv) {
     }
 
     IdentityKeySet transmittedIdentities;
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        for (const auto& entry : deviceIdentities) {
+            transmittedIdentities.insert(String(entry.second.identityId));
+        }
+    }
+    Serial.printf("[RAND] Marked %u persistent identities as already-transmitted (skip on mesh)\n",
+                  (unsigned)transmittedIdentities.size());
 
     Serial.println("[RAND] Starting radios...");
     vTaskDelay(pdMS_TO_TICKS(100));
