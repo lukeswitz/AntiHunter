@@ -1007,7 +1007,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             }
         }
         
-        DeviceIdentity newIdentity;
+        DeviceIdentity newIdentity{};
+        memset(&newIdentity.signature, 0, sizeof(newIdentity.signature));
         String identityId = generateTrackId();
         strncpy(newIdentity.identityId, identityId.c_str(), sizeof(newIdentity.identityId) - 1);
         newIdentity.identityId[sizeof(newIdentity.identityId) - 1] = '\0';
@@ -1362,7 +1363,7 @@ void randomizationDetectionTask(void *pv) {
                     session.rssiMax = event.rssi;
                     session.probeCount = 1;
                     session.primaryChannel = event.channel;
-                    session.channelMask = (1 << event.channel);
+                    session.channelMask = (event.channel < 32) ? (1u << event.channel) : 0u;
                     session.rssiReadings.push_back(event.rssi);
                     session.probeTimestamps[0] = now;
                     session.linkedToIdentity = false;
@@ -1396,8 +1397,8 @@ void randomizationDetectionTask(void *pv) {
                     if (session.primaryChannel == 0 && event.channel > 0) {
                         session.primaryChannel = event.channel;
                     }
-                    
-                    session.channelMask |= (1 << event.channel);
+
+                    if (event.channel < 32) session.channelMask |= (1u << event.channel);
                     
                     if (session.probeCount < 50) {
                         session.probeTimestamps[session.probeCount] = now;
@@ -1786,7 +1787,7 @@ void loadDeviceIdentities() {
     }
     
     for (uint32_t i = 0; i < count; i++) {
-        DeviceIdentity id;
+        DeviceIdentity id{};
 
         if (file.read(reinterpret_cast<uint8_t*>(&id.identityId), sizeof(id.identityId)) != sizeof(id.identityId)) break;
 
@@ -1815,7 +1816,12 @@ void loadDeviceIdentities() {
         if (file.read(reinterpret_cast<uint8_t*>(&id.hasKnownGlobalMac), sizeof(id.hasKnownGlobalMac)) != sizeof(id.hasKnownGlobalMac)) break;
         if (file.read(reinterpret_cast<uint8_t*>(&id.knownGlobalMac), sizeof(id.knownGlobalMac)) != sizeof(id.knownGlobalMac)) break;
         if (file.read(reinterpret_cast<uint8_t*>(&id.isBLE), sizeof(id.isBLE)) != sizeof(id.isBLE)) break;
-        
+
+        id.identityId[sizeof(id.identityId) - 1] = '\0';
+        if (id.identityId[0] == '\0') {
+            Serial.println("[RAND] WARN: skipping loaded identity with empty identityId");
+            continue;
+        }
         if (!id.macs.empty()) {
             String key = macFmt6(id.macs[0].bytes.data());
             deviceIdentities[key] = id;
