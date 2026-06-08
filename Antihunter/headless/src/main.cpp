@@ -4,12 +4,14 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include "network.h"
-#include "scanner.h" 
+#include "scanner.h"
 #include "hardware.h"
+#include "detect.h"
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include "esp_wifi.h"
+#include "esp_log.h"
 #include "esp_heap_caps.h"
 
 
@@ -59,10 +61,43 @@ void uartForwardTask(void *parameter) {
             toProcess = meshBuffer.substring(colonPos + 2);
           }
 
+          mesh_observeInbound(senderId, toProcess);
+
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
           } else {
-            processMeshMessage(toProcess);
+            if (toProcess.startsWith("PMKID_HARVEST:") ||
+                toProcess.startsWith("EVILTWIN:") ||
+                toProcess.startsWith("SAE_DOS:") ||
+                toProcess.startsWith("DEAUTH_FLOOD:") ||
+                toProcess.startsWith("BEACON_FORGE:") ||
+                toProcess.startsWith("PMKID_FORGE:") ||
+                toProcess.startsWith("EAPOL_BAIT:") ||
+                toProcess.startsWith("PROBE_FLOOD:") ||
+                toProcess.startsWith("PROBE_FLOOD_BEHAVE:") ||
+                toProcess.startsWith("ASSOC_SLEEP:") ||
+                toProcess.startsWith("RECON:") ||
+                toProcess.startsWith("RID_CLAIM:") ||
+                toProcess.startsWith("RID_RX:") ||
+                toProcess.startsWith("BLOOM:") ||
+                toProcess.startsWith("CHAN_ASSIGN:") ||
+                toProcess.startsWith("FRAG:") ||
+                toProcess.startsWith("IDHASH:") ||
+                toProcess.startsWith("HSHK:") ||
+                toProcess.startsWith("KRACK:") ||
+                toProcess.startsWith("ATTACKER_HUNT:") ||
+                toProcess.startsWith("PWNAGOTCHI:") ||
+                toProcess.startsWith("KARMA_CAND:") ||
+                toProcess.startsWith("KARMA_CONFIRMED:") ||
+                toProcess.startsWith("BLE_ATTACK:") ||
+                toProcess.startsWith("BLETRACK:") ||
+                toProcess.startsWith("TRK_LINK:") ||
+                toProcess.startsWith("TOF_PING:") ||
+                toProcess.startsWith("TOF_PONG:")) {
+              detect_processMesh(senderId, toProcess);
+            } else {
+              processMeshMessage(toProcess);
+            }
           }
 
           meshBuffer = "";
@@ -173,6 +208,9 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
+    // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)/gpio
+    // esp_log_level_set("vfs_api", ESP_LOG_NONE);
+    // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== Antihunter [Headless] Boot ===");
 
     if (psramFound()) {
@@ -196,7 +234,7 @@ void setup() {
     loadConfiguration();
 
     Serial.println("Waiting for mesh device stability...");
-    delay(15000);
+    delay(10000);
 
     initializeNetwork();
     delay(500);
@@ -206,14 +244,32 @@ void setup() {
     delay(500);
     initializeVibrationSensor();
     initializeScanner();
-    
+
+    // Phase 1-3 detect module
+    initializeDetect();
+    initializeGpsPps(21);
+    xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
+    {
+        uint8_t selfMac[6];
+        esp_wifi_get_mac(WIFI_IF_AP, selfMac);
+        detect_setSelfApIdentity(selfMac, nullptr);
+        Serial.printf("[SENTINEL] self-filter mac=%02X:%02X:%02X:%02X:%02X:%02X\n",
+                      selfMac[0],selfMac[1],selfMac[2],selfMac[3],selfMac[4],selfMac[5]);
+    }
+    if (prefs.getBool("sentBoot", false)) {
+        sentinel_setUserEnabled(true);
+        Serial.println("[SENTINEL] Boot-enable ON (persisted) — starting sentinel");
+    } else {
+        Serial.println("[SENTINEL] OFF on boot (enable manually)");
+    }
+
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.6 BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BETA HEADLESS BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
-    Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
+    Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
     delay(2000);
 }
 

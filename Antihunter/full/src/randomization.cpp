@@ -3,6 +3,7 @@
 #include "hardware.h"
 #include "network.h"
 #include "main.h"
+#include "detect.h"
 #include <algorithm>
 #include <cmath>
 #include <mutex>
@@ -1098,10 +1099,39 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         newIdentity.observedSessions = 1;
         
         deviceIdentities[macStr] = newIdentity;
-        
+
         session.linkedToIdentity = true;
         strncpy(session.linkedIdentityId, newIdentity.identityId, sizeof(session.linkedIdentityId) - 1);
         session.linkedIdentityId[sizeof(session.linkedIdentityId) - 1] = '\0';
+
+        // Phase 3.4: CYT hostile-recon scoring — feed new identity into detect module.
+        // Score components:
+        //   - persistence: identity seen >=3 probe bursts (+30) — set on session-link later
+        //   - probe pattern: probed for SSID from PNL (+20) when probedSSID != "" and not allowlisted
+        //   - channel-sequence fingerprint match: +25 (handled inside detect from sig db)
+        //   - spatial correlation: +25 (handled by mesh quorum)
+        {
+            uint8_t add = 0;
+            char reasonBuf[64] = {0};
+            if (session.probedSSID[0] != 0) {
+                add += 20;
+                strncat(reasonBuf, "directed_probe", sizeof(reasonBuf) - strlen(reasonBuf) - 1);
+            }
+            if (session.probeCount >= 10) {
+                add += 10;
+                if (reasonBuf[0]) strncat(reasonBuf, ",", sizeof(reasonBuf) - strlen(reasonBuf) - 1);
+                strncat(reasonBuf, "high_probe_count", sizeof(reasonBuf) - strlen(reasonBuf) - 1);
+            }
+            if (add > 0) recon_updateFromProbeSession(newIdentity.identityId, add, reasonBuf);
+        }
+
+        {
+            uint32_t pgHash = pg_computeHashFromBytes(
+                reinterpret_cast<const uint8_t*>(session.fingerprint),
+                session.ieOrder.ieTypes, session.ieOrder.ieCount,
+                nullptr, 0);
+            pg_announceLocalIdentity(pgHash, newIdentity.identityId, sessionAvgRssi);
+        }
 
         Serial.printf("[RAND] New %s from %s (n:%d rssi:%d ic:%.2f type:%s sig:%s)\n",
                      newIdentity.identityId, macStr.c_str(), session.probeCount, 
@@ -1271,6 +1301,7 @@ String getRandomizationResults() {
 }
 
 void randomizationDetectionTask(void *pv) {
+    sentinel_kill();
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
     
@@ -1643,8 +1674,7 @@ void randomizationDetectionTask(void *pv) {
         
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_IDENTITY_UPDATE_INTERVAL) {
             lastMeshUpdate = millis();
-            uint32_t sentThisCycle = 0;
-            
+
             std::lock_guard<std::mutex> lock(randMutex);
             
             for (const auto& entry : deviceIdentities) {
@@ -1663,14 +1693,8 @@ void randomizationDetectionTask(void *pv) {
                     }
                     
                     if (identityMsg.length() <= MAX_MESH_SIZE) {
-                        if (sendToSerial1(identityMsg, true)) {
+                        if (meshEnqueue(identityMsg)) {
                             transmittedIdentities.insert(identityKey);
-                            sentThisCycle++;
-                            
-                            if (sentThisCycle % 2 == 0) {
-                                delay(1000);
-                                rateLimiter.refillTokens();
-                            }
                         }
                     }
                 }
@@ -1703,58 +1727,39 @@ void randomizationDetectionTask(void *pv) {
     }
 
     if (meshEnabled && !stopRequested) {
-        Serial.printf("[RAND] Scan complete - transmitting final batch\n");
-        
         std::lock_guard<std::mutex> lock(randMutex);
-        
-        rateLimiter.flush();
-        delay(100);
-        
+        uint32_t enqueued = 0;
+
         for (const auto& entry : deviceIdentities) {
             String identityKey = String(entry.second.identityId);
-            
+
             if (transmittedIdentities.find(identityKey) == transmittedIdentities.end()) {
                 const DeviceIdentity& identity = entry.second;
-                
+
                 String identityMsg = getNodeId() + ": IDENTITY:" + identityKey;
                 identityMsg += identity.isBLE ? " B " : " W ";
                 identityMsg += "MACs:" + String(identity.macs.size());
                 identityMsg += " Conf:" + String(identity.confidence, 2);
                 identityMsg += " Sess:" + String(identity.observedSessions);
-                
+
                 if (identity.macs.size() > 0) {
                     identityMsg += " Anchor:" + macFmt6(identity.macs[0].bytes.data());
                 }
-                
-                if (identityMsg.length() <= MAX_MESH_SIZE) {
-                    if (sendToSerial1(identityMsg, true)) {
-                        transmittedIdentities.insert(identityKey);
-                    }
+
+                if (identityMsg.length() <= MAX_MESH_SIZE && meshEnqueue(identityMsg)) {
+                    transmittedIdentities.insert(identityKey);
+                    enqueued++;
                 }
             }
         }
 
-        if (serial1Mutex != nullptr && xSemaphoreTake(serial1Mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-            Serial1.flush();
-            xSemaphoreGive(serial1Mutex);
-        }
-        delay(100);
-        
         uint32_t totalIdentities = deviceIdentities.size();
-        uint32_t finalTransmitted = transmittedIdentities.size();
-        uint32_t finalRemaining = totalIdentities - finalTransmitted;
-        
         String summary = getNodeId() + ": RANDOMIZATION_DONE: Identities=" + String(totalIdentities) +
                         " Sessions=" + String(activeSessions.size()) +
-                        " TX=" + String(finalTransmitted) +
-                        " PEND=" + String(finalRemaining);
-        sendToSerial1(summary, true);
-        Serial.printf("[RAND] Detection complete: %d/%d identities transmitted, %d pending\n",
-                     finalTransmitted, totalIdentities, finalRemaining);
-        
-        if (finalRemaining > 0) {
-            Serial.printf("[RAND] WARNING: %d identities not transmitted\n", finalRemaining);
-        }
+                        " TX=" + String(transmittedIdentities.size());
+        meshEnqueue(summary);
+        Serial.printf("[RAND] Detection complete: enqueued %u (total %u identities)\n",
+                     enqueued, totalIdentities);
     }
     
     randomizationDetectionEnabled = false;

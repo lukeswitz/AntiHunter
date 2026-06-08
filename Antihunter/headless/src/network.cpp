@@ -4,6 +4,7 @@
 #include "hardware.h"
 #include "scanner.h"
 #include "main.h"
+#include "detect.h"
 #include <RTClib.h>
 #include <algorithm>
 #include <esp_timer.h>
@@ -175,6 +176,11 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     xSemaphoreGive(serial1Mutex);
 
+    {
+        int sep = message.indexOf(": ");
+        String body = (sep > 0) ? message.substring(sep + 2) : message;
+        detect_logIncident(body, "local");
+    }
     delay(50);
 
     if (!isPriority) {
@@ -192,10 +198,9 @@ void initializeNetwork()
   Serial.println("Initializing mesh UART...");
   initializeMesh();
   delay(150);
-  
-  randomizeMacAddress();
-  delay(50);
-  
+
+  // STA MAC is randomized when WiFi actually starts (sentinel bring-up / radioStartWiFi);
+  // randomizing here is a no-op because the WiFi stack is not yet initialized.
   Serial.println("Headless mesh mode ready");
 }
 
@@ -211,6 +216,103 @@ void setMeshSendInterval(unsigned long interval) {
 
 unsigned long getMeshSendInterval() {
     return meshSendInterval;
+}
+
+struct MeshTxItem {
+    char msg[MAX_MESH_SIZE + 8];
+    bool priority;
+};
+
+QueueHandle_t meshTxQueue = nullptr;
+TaskHandle_t meshTxTaskHandle = nullptr;
+std::atomic<uint32_t> meshTxDepthHigh(0);
+std::atomic<uint32_t> meshTxSentLifetime(0);
+std::atomic<uint32_t> meshTxDroppedFull(0);
+
+static const uint16_t MESH_TX_QUEUE_DEPTH = 256;
+
+bool meshEnqueue(const String &msg, bool priority) {
+    if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
+    if (meshTxQueue == nullptr) {
+        return sendToSerial1(msg, priority);
+    }
+    MeshTxItem item;
+    strncpy(item.msg, msg.c_str(), sizeof(item.msg) - 1);
+    item.msg[sizeof(item.msg) - 1] = '\0';
+    item.priority = priority;
+    if (xQueueSend(meshTxQueue, &item, 0) != pdTRUE) {
+        meshTxDroppedFull.fetch_add(1);
+        Serial.printf("[MESH] Queue full, dropped: %s\n", msg.substring(0, 50).c_str());
+        return false;
+    }
+    meshDrainTotal.fetch_add(1);
+    uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
+    uint32_t prev = meshTxDepthHigh.load();
+    while (depth > prev && !meshTxDepthHigh.compare_exchange_weak(prev, depth)) {}
+    meshTxDraining.store(depth > 0);
+    return true;
+}
+
+uint32_t meshTxQueueDepth() {
+    if (meshTxQueue == nullptr) return 0;
+    return uxQueueMessagesWaiting(meshTxQueue);
+}
+
+uint32_t meshTxDroppedCount() {
+    return meshTxDroppedFull.load();
+}
+
+void meshTxFlushQueue() {
+    if (meshTxQueue == nullptr) return;
+    xQueueReset(meshTxQueue);
+    meshTxDepthHigh.store(0);
+    meshTxDraining.store(false);
+    meshDrainSent.store(0);
+    meshDrainTotal.store(0);
+    Serial.println("[MESH] TX queue flushed");
+}
+
+static void meshTxTask(void *pv) {
+    (void)pv;
+    Serial.println("[MESH] TX task started");
+    MeshTxItem item;
+    for (;;) {
+        if (stopMeshDrain.load()) {
+            meshTxFlushQueue();
+            stopMeshDrain.store(false);
+        }
+        if (xQueueReceive(meshTxQueue, &item, pdMS_TO_TICKS(1000)) == pdTRUE) {
+            String msg(item.msg);
+            if (sendToSerial1(msg, true)) {
+                meshTxSentLifetime.fetch_add(1);
+                meshDrainSent.fetch_add(1);
+            }
+            uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
+            if (depth == 0) {
+                meshTxDraining.store(false);
+                uint32_t sent = meshDrainSent.load();
+                uint32_t total = meshDrainTotal.load();
+                if (sent >= total) {
+                    meshTxDepthHigh.store(0);
+                    meshDrainSent.store(0);
+                    meshDrainTotal.store(0);
+                }
+            } else {
+                meshTxDraining.store(true);
+            }
+        } else {
+            if (uxQueueMessagesWaiting(meshTxQueue) == 0) {
+                meshTxDraining.store(false);
+                uint32_t sent = meshDrainSent.load();
+                uint32_t total = meshDrainTotal.load();
+                if (sent >= total && total > 0) {
+                    meshTxDepthHigh.store(0);
+                    meshDrainSent.store(0);
+                    meshDrainTotal.store(0);
+                }
+            }
+        }
+    }
 }
 
 void initializeMesh() {
@@ -233,8 +335,20 @@ void initializeMesh() {
 
     delay(500);
 
+    if (meshTxQueue == nullptr) {
+        meshTxQueue = xQueueCreateWithCaps(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (meshTxQueue == nullptr) {
+            Serial.println("[MESH] PSRAM queue alloc failed, falling back to internal heap");
+            meshTxQueue = xQueueCreate(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem));
+        }
+    }
+    if (meshTxTaskHandle == nullptr && meshTxQueue != nullptr) {
+        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 4096, nullptr, 1, &meshTxTaskHandle, 1);
+    }
+
     Serial.println("[MESH] UART initialized");
-    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
+    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d, queue=%u\n",
+                  MESH_RX_PIN, MESH_TX_PIN, MESH_TX_QUEUE_DEPTH);
 }
 
 // --- Command Handlers ---
@@ -317,7 +431,7 @@ static void handleScanStart(const String &command)
 
     if (mode >= 0 && mode <= 2)
     {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
         Serial.println("[MESH] Radio busy, rejecting SCAN_START");
         sendToSerial1(nodeId + ": SCAN_ACK:BUSY", true);
       } else {
@@ -351,7 +465,7 @@ static void handleBaselineStart(const String &command)
     secs = 60;
   }
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting BASELINE_START");
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
@@ -410,7 +524,7 @@ static void handleDeviceScanStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
@@ -454,7 +568,7 @@ static void handleDroneStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DRONE_START");
     sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
   } else {
@@ -487,7 +601,7 @@ static void handleDeauthStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DEAUTH_START");
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
@@ -523,7 +637,7 @@ static void handleRandomizationStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting RANDOMIZATION_START");
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:BUSY", true);
     } else {
@@ -575,7 +689,7 @@ static void handleProbeStart(const String &command)
 
   if (mode < 0 || mode > 2) return;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
     sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
   } else {
@@ -600,6 +714,9 @@ static void handleProbeStop(const String &command)
 static void handleStop(const String &command)
 {
   stopRequested = true;
+  if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
+    stopMeshDrain.store(true);
+  }
   Serial.println("[MESH] Stop command received via mesh");
   sendToSerial1(nodeId + ": STOP_ACK:OK", true);
 }
@@ -629,6 +746,124 @@ static void handleStatus(const String &command)
               gpsLat, gpsLon, hdop);
   }
   sendToSerial1(String(status_msg), true);
+}
+
+static void handleSentinelOn(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(true);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:ON run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelOff(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(false);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:OFF", true);
+}
+
+static void handleSentinelStatus(const String &command)
+{
+  (void)command;
+  sendToSerial1(nodeId + ": SENTINEL_STATUS: en=" + String(sentinel_isUserEnabled() ? 1 : 0) +
+                " run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelMode(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_MODE:"));
+  v.trim();
+  bool scan = v.equalsIgnoreCase("scan");
+  bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
+  sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
+}
+
+static void handleSentinelBoot(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_BOOT:"));
+  v.trim();
+  bool on = (v.toInt() != 0) || v.equalsIgnoreCase("on");
+  Preferences p;
+  if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
+  sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
+}
+
+// Threat-scenario detector groups — keys mirror the full webui DET_GROUPS.
+// deauth/beacon/auth detectors are unconditional (no toggle) and not grouped.
+static const char *groupMembers(const String &name)
+{
+  if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
+  if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
+  if (name == "recon")                       return "pmkid,probe_flood,hshk";
+  if (name == "physical" || name == "phys")  return "frag,tsf,jam";
+  if (name == "mesh")                        return "mesh_guard";
+  if (name == "ble")                         return "ble_attack,ble_malformed,tracker,airtag";
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard,ble_attack,ble_malformed,tracker,airtag";
+  return nullptr;
+}
+
+static void handleGroup(const String &command)
+{
+  int c1 = command.indexOf(':');
+  int c2 = command.indexOf(':', c1 + 1);
+  if (c1 < 0 || c2 < 0) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:syntax", true); return; }
+  String name = command.substring(c1 + 1, c2); name.trim(); name.toLowerCase();
+  String act = command.substring(c2 + 1); act.trim(); act.toLowerCase();
+  bool on = (act == "on" || act == "1" || act == "true");
+  bool off = (act == "off" || act == "0" || act == "false");
+  if (!on && !off) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:onoff", true); return; }
+  const char *members = groupMembers(name);
+  if (!members) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:unknown_group", true); return; }
+
+  String json = "{"; bool first = true;
+  String m = members; int start = 0;
+  while (start <= (int)m.length()) {
+    int comma = m.indexOf(',', start);
+    String key = (comma < 0) ? m.substring(start) : m.substring(start, comma);
+    key.trim();
+    if (key.length()) { if (!first) json += ","; json += "\"" + key + "\":" + (on ? "true" : "false"); first = false; }
+    if (comma < 0) break;
+    start = comma + 1;
+  }
+  json += "}";
+
+  bool ok = detect_setConfigFromJson(json);
+  if (ok) detect_persistTunables();
+  sendToSerial1(nodeId + ": GROUP_ACK:" + (ok ? "OK:" : "FAIL:") + name + ":" + (on ? "on" : "off"), true);
+}
+
+static void handleDetectCfg(const String &command)
+{
+  String json = command.substring(strlen("DETECT_CFG:"));
+  json.trim();
+  bool ok = detect_setConfigFromJson(json);
+  if (ok) detect_persistTunables();
+  sendToSerial1(nodeId + ": DETECT_CFG_ACK:" + (ok ? "OK" : "FAIL"), true);
+}
+
+static void handleDetectCfgGet(const String &command)
+{
+  (void)command;
+  String cfg = detect_getConfigJson();
+  Serial.println("[DETECT] config: " + cfg);
+  sendToSerial1(nodeId + ": DETECT_CFG_LEN:" + String(cfg.length()) + " (see serial)", true);
+}
+
+static void handleIncidents(const String &command)
+{
+  size_t n = 20;
+  int c = command.indexOf(':');
+  if (c >= 0) { long v = command.substring(c + 1).toInt(); if (v > 0 && v <= 200) n = (size_t)v; }
+  String inc = detect_getIncidentsJson(n);
+  Serial.println("[DETECT] incidents: " + inc);
+  sendToSerial1(nodeId + ": INCIDENTS_LEN:" + String(inc.length()) + " (see serial)", true);
+}
+
+static void handleIncidentsClear(const String &command)
+{
+  (void)command;
+  detect_clearIncidents();
+  sendToSerial1(nodeId + ": INCIDENTS_CLEAR_ACK:OK", true);
 }
 
 static void handleVibrationStatus(const String &command)
@@ -1291,6 +1526,16 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
   else if (command == "PROBE_STOP")                   handleProbeStop(command);
   else if (command.startsWith("STOP"))                handleStop(command);
+  else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
+  else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
+  else if (command.startsWith("SENTINEL_STATUS"))     handleSentinelStatus(command);
+  else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
+  else if (command.startsWith("SENTINEL_BOOT:"))      handleSentinelBoot(command);
+  else if (command.startsWith("GROUP:"))              handleGroup(command);
+  else if (command.startsWith("DETECT_CFG_GET"))      handleDetectCfgGet(command);
+  else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
+  else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
+  else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
   else if (command.startsWith("STATUS"))              handleStatus(command);
   else if (command.startsWith("VIBRATION_STATUS"))    handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);

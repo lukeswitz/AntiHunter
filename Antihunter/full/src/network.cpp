@@ -4,6 +4,7 @@
 #include "hardware.h"
 #include "scanner.h"
 #include "main.h"
+#include "detect.h"
 #include <AsyncTCP.h>
 #include <AsyncWebSocket.h>
 #include <RTClib.h>
@@ -175,6 +176,11 @@ void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 }
 
 bool sendToSerial1(const String &message, bool canDelay) {
+    {
+        int sep = message.indexOf(": ");
+        String body = (sep > 0) ? message.substring(sep + 2) : message;
+        detect_logIncident(body, "local");
+    }
     if (serial1Mutex == nullptr) {
         return false;
     }
@@ -302,6 +308,21 @@ void initializeNetwork()
   WiFi.setHostname("antihunter");
   delay(100);
 
+
+  WiFi.onEvent([](arduino_event_t *e) {
+      if (e->event_id == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
+          const uint8_t *mac = e->event_info.wifi_ap_stadisconnected.mac;
+          uint8_t aid = e->event_info.wifi_ap_stadisconnected.aid;
+          detect_onSoftApDisconnect(mac, aid);
+      } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
+          detect_onSoftApConnect(e->event_info.wifi_ap_staconnected.mac);
+      } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED) {
+          const uint8_t *mac = e->event_info.wifi_ap_probereqrecved.mac;
+          int8_t rssi = e->event_info.wifi_ap_probereqrecved.rssi;
+          detect_onSoftApProbeReq(mac, rssi);
+      }
+  });
+
   // Configure WiFi to preserve AP during scans
   wifi_config_t conf;
   esp_wifi_get_config(WIFI_IF_AP, &conf);
@@ -407,6 +428,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--glow)}
       .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em}
       .stat-value{color:var(--txt);font-size:24px;font-weight:800;letter-spacing:-0.02em}
+      .stat{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:14px 10px;border:1px solid var(--bord);border-radius:10px;background:var(--accbg);}
       .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
       .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:18px;padding:4px 0}
       .card-header:hover h3{color:var(--acc)}
@@ -509,17 +531,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           bt.disabled=false;bt.classList.add('ready');hn.style.opacity='0';
         }
       }
-      fetch('/api/onboarding').then(function(r){return r.json()}).then(function(d){
-        if(!d.accepted){ov.style.display='flex';setTimeout(chkScroll,100)}
-      }).catch(function(){ov.style.display='flex';setTimeout(chkScroll,100)});
-      sc.addEventListener('scroll',chkScroll);
-      window.obAccept=function(){
-        if(bt.disabled)return;
-        fetch('/api/onboarding',{method:'POST'}).then(function(){
-          ov.style.opacity='0';ov.style.transition='opacity 0.4s';
-          setTimeout(function(){ov.style.display='none'},400);
-        });
-      };
+//    fetch('/api/onboarding').then(function(r){return r.json()}).then(function(d){
+//      if(!d.accepted){ov.style.display='flex';setTimeout(chkScroll,100)}
+//    }).catch(function(){ov.style.display='flex';setTimeout(chkScroll,100)});
+//    sc.addEventListener('scroll',chkScroll);
+//    window.obAccept=function(){
+//      if(bt.disabled)return;
+//      fetch('/api/onboarding',{method:'POST'}).then(function(){
+//        ov.style.opacity='0';ov.style.transition='opacity 0.4s';
+//        setTimeout(function(){ov.style.display='none'},400);
+//      });
+//    };
     })();
     </script>
     <div id="toast"></div>
@@ -530,11 +552,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
         <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
+        <div class="page-tab-btn" onclick="switchPage('detect')">Sentinel</div>
       </div>
       <div class="header-right">
         <div class="status-bar">
           <div class="status-item" id="modeStatus">WiFi</div>
           <div class="status-item idle" id="scanStatus">Idle</div>
+          <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
+          <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;" title="Click to toggle Sentinel">SENTINEL OFF</div>
           <div class="status-item" id="gpsStatus">GPS</div>
           <div class="status-item" id="rtcStatus">RTC</div>
         </div>
@@ -846,9 +871,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="" id="detectionCardBody">
           <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
           <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px;align-items:center;">
-            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-90" 
+            <input type="range" id="globalRssiSlider" min="-100" max="-10" value="-95" 
                   oninput="document.getElementById('globalRssiValue').innerText = this.value + ' dBm'">
-            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-90 dBm</span>
+            <span id="globalRssiValue" style="font-size:12px;min-width:70px;">-95 dBm</span>
           </div>
           <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Filters weak signals (triangulation exempt)</p>
 
@@ -1119,6 +1144,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <option value="vibrations">Vibration Events</option>
             <option value="baseline">Baseline Stats</option>
             <option value="syslog">System Log</option>
+            <option value="incidents">Sentinel Incidents (all sessions)</option>
           </select>
           <input type="text" id="dataSearch" placeholder="Search..." oninput="onDataSearch()">
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
@@ -1136,9 +1162,417 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       </div>
 
-      </div>
+      <!-- ===== DETECT TAB ===== -->
+      <div class="page-tab" id="page-detect">
+        <style>
+          #page-detect .sev{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;margin-right:6px;vertical-align:middle}
+          #page-detect .sev.crit{background:#7f1d1d;color:#fff}
+          #page-detect .sev.high{background:#ea580c;color:#fff}
+          #page-detect .sev.med{background:#ca8a04;color:#fff}
+          #page-detect .sev.info{background:#334155;color:#cbd5e1}
+          #page-detect .card.hidden{display:none}
+          #page-detect details>summary{cursor:pointer;font-weight:bold;color:var(--acc);margin-bottom:8px;list-style:none}
+          #page-detect details>summary::-webkit-details-marker{display:none}
+          #page-detect details>summary>span:first-child{display:inline-block;width:10px;transition:transform .15s}
+          #page-detect details[open]>summary>span:first-child{transform:rotate(90deg)}
+          #page-detect .det-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px;border-bottom:1px solid var(--bord)}
+          #page-detect .det-row:last-child{border-bottom:0}
+          #page-detect .det-row .name{flex:1;color:var(--txt)}
+          #page-detect .det-row label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--mut);margin:0;cursor:pointer}
+          #page-detect .det-row input[type=checkbox]{margin:0;cursor:pointer}
+          #page-detect .num{font-family:monospace;color:var(--acc);font-weight:700}
+          #page-detect .log-pre{max-height:240px;overflow:auto;font-size:11px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
+          #page-detect input[type=number],#page-detect input[type=text]{padding:4px 8px;font-size:12px}
+          #det-filter{flex:1;min-width:180px;max-width:400px}
+          #det-banner{display:none;background:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));border:1px solid rgba(139,92,246,.45);border-radius:6px;padding:8px 10px;margin-bottom:10px}
+          #det-banner.show{display:block}
+          #det-banner .bn-row{display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0;cursor:pointer}
+          #det-banner .bn-row:hover{background:rgba(255,255,255,0.04)}
+          #det-banner .bn-when{color:var(--mut);font-size:10px;min-width:60px}
+          #det-banner .bn-msg{flex:1;color:var(--txt)}
+          .det-chips{display:flex;gap:6px;flex-wrap:wrap}
+          .det-chip{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid transparent;user-select:none;text-transform:uppercase;letter-spacing:.3px}
+          .det-chip.all{background:var(--accbg);color:var(--mut);border-color:var(--bord)}
+          .det-chip.crit{background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.45)}
+          .det-chip.high{background:rgba(249,115,22,.12);color:#f97316;border-color:rgba(249,115,22,.45)}
+          .det-chip.med{background:rgba(234,179,8,.14);color:#ca8a04;border-color:rgba(234,179,8,.45)}
+          .det-chip.info{background:rgba(14,165,233,.12);color:#0ea5e9;border-color:rgba(14,165,233,.45)}
+          .det-chip.firing{box-shadow:0 0 0 2px rgba(255,255,255,.15) inset}
+          .det-chip.off{opacity:.35}
+          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:11px;margin:4px 0}
+          #page-detect table.dt th{text-align:left;padding:4px 6px;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--bord);cursor:pointer;user-select:none;white-space:nowrap}
+          #page-detect table.dt th:hover{color:var(--acc)}
+          #page-detect table.dt td{padding:4px 6px;border-bottom:1px solid var(--bord);font-family:monospace;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          #page-detect table.dt tr:hover td{background:rgba(255,255,255,.03)}
+          #page-detect table.dt .empty{color:var(--mut);font-style:italic;text-align:center;padding:10px}
+          .det-quick{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
+          .det-quick button{padding:2px 7px;font-size:11px;min-height:0;line-height:1.4}
+          #det-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;align-items:start}
+          #det-grid>.card{margin:0}
+          #det-grid .log-pre{max-height:180px}
+          @media (max-width:720px){#det-grid{grid-template-columns:1fr}}
+        </style>
 
-      <div class="footer" align="center">>  v0.9.6 | Node: <span id="footerNodeId">--</span></div>
+        <div style="margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08));border:1px solid var(--bord);border-radius:10px;">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            <h2 style="margin:0;font-size:20px;letter-spacing:-0.01em;color:var(--txt);">Sentinel</h2>
+            <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
+          </div>
+          <div style="font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5;">
+            Passive WiFi monitoring that flags attacker-tool activity — deauth and beacon floods, auth and assoc-sleep DoS, SAE commit floods, karma and evil-twin APs, and PMKID/handshake capture attempts — and broadcasts detections to mesh peers.
+          </div>
+        </div>
+
+        <div id="det-banner"><div style="font-size:10px;color:#fca5a5;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">ACTIVE ALERTS</div><div id="det-banner-body"></div></div>
+
+        <div id="det-tabs" style="display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--bord);">
+          <button data-dtab="live" class="dtab active" onclick="detSetTab('live')">Live</button>
+          <button data-dtab="detectors" class="dtab" onclick="detSetTab('detectors')">Detectors</button>
+          <button data-dtab="analysis" class="dtab" onclick="detSetTab('analysis')">Analysis</button>
+        </div>
+        <style>
+          #det-tabs button.dtab{background:transparent;color:var(--mut);border:none;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;}
+          #det-tabs button.dtab:hover{color:var(--txt);background:rgba(255,255,255,.03);}
+          #det-tabs button.dtab.active{color:var(--txt);border-bottom-color:#ea580c;}
+          .dtab-hidden{display:none !important;}
+          .det-empty-hidden{display:none !important;}
+          .drow-head,.drow{display:grid;grid-template-columns:10px 1fr 48px 52px 44px;gap:12px;align-items:center;}
+          .drow-head{padding:2px 12px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);border-bottom:1px solid var(--bord);}
+          .drow-head .rh-r{text-align:right;}
+          .drow{padding:10px 12px;border-radius:8px;transition:background .15s;}
+          .drow+.drow{margin-top:2px;}
+          .drow:hover{background:var(--accbg);}
+          .drow-dot{width:8px;height:8px;border-radius:50%;background:var(--mut);opacity:.35;}
+          .drow.on .drow-dot{background:var(--succ);opacity:.9;}
+          .drow.fire .drow-dot{background:var(--dang);opacity:1;box-shadow:0 0 8px var(--dang);}
+          .drow-name{font-size:14px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+          .drow:not(.on) .drow-name{color:var(--mut);}
+          .drow-hits{font-size:13px;font-weight:700;color:var(--mut);text-align:right;}
+          .drow-hits.hot{color:var(--dang);}
+          .drow-last{font-size:12px;color:var(--mut);text-align:right;}
+          .drow-ctrl{justify-self:end;}
+          .don-pill{font-size:9px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:10px;background:var(--accbg);color:var(--succ);border:1px solid var(--bord);}
+          .dsw{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;}
+          .dsw input{opacity:0;width:0;height:0;position:absolute;margin:0;}
+          .dsw-s{position:absolute;inset:0;background:rgba(120,128,160,.45);border:1px solid var(--bord);border-radius:20px;transition:.2s;}
+          .dsw-s:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.4);}
+          .dsw input:checked+.dsw-s{background:var(--succ);}
+          .dsw input:checked+.dsw-s:before{transform:translateX(16px);}
+          .sa-chip{cursor:pointer;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid transparent;transition:all .15s;white-space:nowrap;}
+          .sa-chip:hover{filter:brightness(1.2);}
+          .sa-wrap{max-height:62vh;overflow:auto;border:1px solid var(--bord);border-radius:10px;}
+          .sa-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+          .sa-tbl th{position:sticky;top:0;z-index:1;text-align:left;padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);background:var(--surf);backdrop-filter:blur(8px);border-bottom:1px solid var(--bord);}
+          .sa-tbl td{padding:9px 12px;border-bottom:1px solid var(--bord);vertical-align:middle;}
+          .sa-tbl tr:last-child td{border-bottom:none;}
+          .sa-tbl tbody tr:hover{background:var(--accbg);}
+          .sa-pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:6px;}
+          .sa-crit{background:rgba(244,63,94,.16);color:#fb7185;}
+          .sa-high{background:rgba(249,115,22,.16);color:#fb923c;}
+          .sa-med{background:rgba(234,179,8,.15);color:#facc15;}
+          .sa-info{background:rgba(56,189,248,.14);color:#38bdf8;}
+          .sa-type{font-weight:600;color:var(--txt);}
+          .sa-mac{font-family:ui-monospace,monospace;font-size:12px;color:var(--mut);}
+          .sa-detail{font-family:ui-monospace,monospace;font-size:12px;color:var(--txt);opacity:.8;}
+          .sa-when{font-size:12px;color:var(--mut);white-space:nowrap;}
+          .sa-node{font-size:10px;color:var(--mut);border:1px solid var(--bord);border-radius:5px;padding:1px 5px;}
+          .dpill{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
+          .dpill.verify{background:rgba(34,197,94,.18);color:#86efac;border:1px solid #16a34a;}
+          .dpill.unver{background:rgba(234,179,8,.15);color:#fde047;border:1px solid #ca8a04;}
+          .dpill.off{background:rgba(156,163,175,.12);color:#9ca3af;border:1px solid #4b5563;}
+          .dpill.fire{background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid #dc2626;animation:dpulse 1.2s ease-in-out infinite;}
+          @keyframes dpulse{0%,100%{opacity:1}50%{opacity:.45}}
+        </style>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detOverviewCard')">
+            <h3><span class="sev info">overview</span>Detection Overview</h3>
+            <span class="collapse-icon open" id="detOverviewCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detOverviewCardBody">
+            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;">
+              <div class="stat" data-cfg="always"><div class="stat-label">Deauth Flood</div><div class="stat-value" id="d-dauth">0</div></div>
+              <div class="stat" data-cfg="pmkid"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
+              <div class="stat" data-cfg="eviltwin"><div class="stat-label">Evil-Twin</div><div class="stat-value" id="d-et">0</div></div>
+              <div class="stat" data-cfg="ssid_confusion"><div class="stat-label">SSID Conf</div><div class="stat-value" id="d-sc">0</div></div>
+              <div class="stat" data-cfg="sae"><div class="stat-label">SAE DoS</div><div class="stat-value" id="d-sae">0</div></div>
+              <div class="stat" data-cfg="owe"><div class="stat-label">OWE Abuse</div><div class="stat-value" id="d-owe">0</div></div>
+              <div class="stat" data-cfg="frag"><div class="stat-label">FragAttacks</div><div class="stat-value" id="d-frag">0</div></div>
+              <div class="stat" data-cfg="pmkid,probe_flood,hshk"><div class="stat-label">Recon</div><div class="stat-value" id="d-rec">0</div></div>
+              <div class="stat" data-cfg="attacker_trilat"><div class="stat-label">Hunts</div><div class="stat-value" id="d-ah-n">0</div></div>
+              <div class="stat" data-cfg="hshk"><div class="stat-label">KRACK</div><div class="stat-value" id="d-hs-krack">0</div></div>
+              <div class="stat" data-cfg="karma"><div class="stat-label">Karma</div><div class="stat-value" id="d-karma">0</div></div>
+              <div class="stat" data-cfg="always" title="mdk4 auth-DoS: open-system Auth flood from many spoofed MACs"><div class="stat-label">Auth-DoS</div><div class="stat-value" id="d-authflood">0</div></div>
+              <div class="stat" data-cfg="eviltwin"><div class="stat-label">Beacon Flood</div><div class="stat-value" id="d-beaconflood">0</div></div>
+              <div class="stat" data-cfg="assoc_sleep"><div class="stat-label">Assoc Sleep</div><div class="stat-value" id="d-asl">0</div></div>
+              <div class="stat" data-cfg="probe_flood"><div class="stat-label">Probe Flood</div><div class="stat-value" id="d-pfl">0</div></div>
+              <div class="stat" data-cfg="tsf"><div class="stat-label">TSF / Twin</div><div class="stat-value" id="d-tsf">0</div></div>
+              <div class="stat" data-cfg="jam"><div class="stat-label">WiFi Jam</div><div class="stat-value" id="d-jam">0</div></div>
+              <div class="stat" data-cfg="mesh_guard"><div class="stat-label">Mesh Guard</div><div class="stat-value" id="d-mgd">0</div></div>
+              <div class="stat" data-cfg="pwna"><div class="stat-label">Pwnagotchi</div><div class="stat-value" id="d-pwna">0</div></div>
+              <div class="stat" data-cfg="rid_spoof"><div class="stat-label">RID Spoof</div><div class="stat-value" id="d-rid-ov">0</div></div>
+            </div>
+            <div style="font-size:11px;color:var(--mut);margin-bottom:8px;">
+              <span class="lbl">Heap:</span><span id="d-heap" class="num">--</span>
+              <span class="lbl" style="margin-left:10px;">Drops:</span><span id="d-drops" class="num">--</span>
+              <span class="lbl" style="margin-left:10px;">Mesh-gated:</span><span id="d-mgated" class="num">--</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn alt" onclick="detectClearAll()">Clear All State</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" data-key="apclients">
+          <div class="card-header" onclick="toggleCollapse('apClientsCard')">
+            <h3><span class="sev" style="background:#14532d;color:#bbf7d0;">clients</span>AP Clients <span style="font-size:11px;color:var(--mut);">(associated with this AP)</span></h3>
+            <span class="collapse-icon open" id="apClientsCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="apClientsCardBody">
+            <div id="apClientsArea" style="overflow-x:auto;"><div style="color:var(--mut);font-size:12px;">No clients yet.</div></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="dctl">
+          <div class="card-header" onclick="toggleCollapse('detCtlCard')">
+            <h3><span class="sev info">control</span>Sentinel Control</h3>
+            <span class="collapse-icon open" id="detCtlCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detCtlCardBody">
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+              <span style="font-size:12px;">Sentinel:</span>
+              <span id="sentStatus2" style="font-weight:600;color:#888;font-size:13px;">--</span>
+              <button id="sentToggleBtn" class="btn primary" onclick="sentinelToggleHdr()">Start</button>
+              <span style="font-size:11px;color:var(--mut);margin-left:8px;">Radio:</span>
+              <div style="display:flex;gap:0;border:1px solid var(--bord);border-radius:6px;overflow:hidden;">
+                <button id="dos-mode-defend" class="btn" style="border-radius:0;margin:0;" onclick="detScanMode(false)">Defend this AP</button>
+                <button id="dos-mode-scan" class="btn alt" style="border-radius:0;margin:0;" onclick="detScanMode(true)">Scan all channels</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+              <label class="dsw"><input type="checkbox" id="sentBootChk" onchange="sentinelSetBoot(this.checked)"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Start Sentinel on boot (persists across reboot)</span>
+            </div>
+            <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin:-4px 0 10px;"></div>
+            <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
+            <p style="font-size:11px;color:var(--mut);margin:2px 0 4px;">Toggle a group:</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:8px;">
+              <button id="grpchip-dos" class="btn alt" onclick="detGroupToggle('dos')">DoS</button>
+              <button id="grpchip-rogue_ap" class="btn alt" onclick="detGroupToggle('rogue_ap')">Rogue AP</button>
+              <button id="grpchip-recon" class="btn alt" onclick="detGroupToggle('recon')">Recon</button>
+              <button id="grpchip-physical" class="btn alt" onclick="detGroupToggle('physical')">Physical</button>
+              <button id="grpchip-mesh" class="btn alt" onclick="detGroupToggle('mesh')">Mesh</button>
+              <!-- BLE attack group disabled per user 2026-05-23 (BLE scan path unreliable on this build) -->
+              <!-- <button id="grpchip-ble" class="btn alt" onclick="detGroupToggle('ble')">BLE</button> -->
+            </div>
+            <div class="det-quick">
+              <button class="btn alt" onclick="detPreset('all-on')">All On</button>
+              <button class="btn alt" onclick="detPreset('all-off')">All Off</button>
+              <button class="btn alt" onclick="detPreset('quiet')">Quiet</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin:4px 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
+          <input id="det-filter" placeholder="Filter (e.g. airtag, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
+          <div class="det-chips" id="det-chips">
+            <span class="det-chip all" data-sev="all">All</span>
+            <span class="det-chip crit" data-sev="crit">Crit</span>
+            <span class="det-chip high" data-sev="high">High</span>
+            <span class="det-chip med" data-sev="med">Med</span>
+            <span class="det-chip info" data-sev="info">Info</span>
+            <span class="det-chip" data-sev="firing" style="background:rgba(34,197,94,.14);color:#16a34a;border:1px solid rgba(34,197,94,.45);">Firing</span>
+          </div>
+        </div>
+
+        <div class="card" data-key="dos">
+          <div class="card-header" onclick="toggleCollapse('detDosCard')">
+            <h3><span class="sev high">dos</span>DoS Defense</h3>
+            <span class="collapse-icon open" id="detDosCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detDosCardBody">
+            <div id="dos-rows" style="font-size:12px;"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="rogue">
+          <div class="card-header" onclick="toggleCollapse('detRogueCard')">
+            <h3><span class="sev high">rogue</span>Rogue AP</h3>
+            <span class="collapse-icon open" id="detRogueCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detRogueCardBody">
+            <div id="rogue-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="recongrp">
+          <div class="card-header" onclick="toggleCollapse('detReconGrpCard')">
+            <h3><span class="sev high">recon</span>Recon / Harvest</h3>
+            <span class="collapse-icon open" id="detReconGrpCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detReconGrpCardBody">
+            <div id="recon-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="physical">
+          <div class="card-header" onclick="toggleCollapse('detPhysCard')">
+            <h3><span class="sev info">phys</span>Physical Layer</h3>
+            <span class="collapse-icon open" id="detPhysCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detPhysCardBody">
+            <div id="physical-rows"></div>
+          </div>
+        </div>
+
+        <div class="card" data-key="mesh">
+          <div class="card-header" onclick="toggleCollapse('detMeshGrpCard')">
+            <h3><span class="sev info">mesh</span>Mesh Disruption</h3>
+            <span class="collapse-icon open" id="detMeshGrpCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detMeshGrpCardBody">
+            <div id="mesh-rows"></div>
+          </div>
+        </div>
+
+        <!-- BLE attack group card disabled per user 2026-05-23 (BLE scan path unreliable on this build)
+        <div class="card" data-key="ble">
+          <div class="card-header" onclick="toggleCollapse('detBleGrpCard')">
+            <h3><span class="sev info">ble</span>BLE</h3>
+            <span class="collapse-icon open" id="detBleGrpCardIcon">&#9654;</span>
+          </div>
+          <div class="card-body" id="detBleGrpCardBody">
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button class="btn alt" onclick="detGroup('ble',true)">All On</button>
+              <button class="btn alt" onclick="detGroup('ble',false)">All Off</button>
+            </div>
+            <div id="ble-rows"></div>
+          </div>
+        </div>
+        -->
+        <div id="ble-rows" style="display:none;"></div>
+
+        <div class="card" data-key="meshcfg">
+          <div class="card-header" onclick="toggleCollapse('detConfigCard')">
+            <h3><span class="sev info">config</span>Mesh &amp; Thresholds</h3>
+            <span class="collapse-icon" id="detConfigCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detConfigCardBody">
+            <p style="font-size:11px;color:var(--mut);margin:0 0 6px;">Detector on/off lives in the group cards (Detectors tab). Here: mesh broadcast + thresholds.</p>
+            <div class="det-quick" style="margin-bottom:6px;">
+              <button class="btn alt" onclick="detPreset('mesh-all')">Mesh All On</button>
+              <button class="btn alt" onclick="detPreset('mesh-silent')">Mesh Silent</button>
+            </div>
+            <details open>
+              <summary><span>▶</span> Mesh Broadcast (forward detections to peers)</summary>
+              <div id="cfg-mesh"></div>
+            </details>
+            <details>
+              <summary><span>▶</span> Thresholds &amp; Timing</summary>
+              <div id="cfg-thresh" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;"></div>
+              <button class="btn primary" onclick="detSaveThresh()" style="margin-top:8px;">Save Thresholds</button>
+            </details>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCollapse('detMeshCard')">
+            <h3><span class="sev info">mesh</span>Mesh Defense</h3>
+            <span class="collapse-icon open" id="detMeshCardIcon">▶</span>
+          </div>
+          <div class="card-body" id="detMeshCardBody">
+            <div style="font-size:12px;line-height:1.7;">
+              <div><span class="lbl">PPS Lock:</span><span id="d-pps" class="num">--</span></div>
+              <div><span class="lbl">Bloom Local:</span><span id="d-bl" class="num">--</span></div>
+              <div><span class="lbl">Bloom Neighbor:</span><span id="d-bn" class="num">--</span></div>
+              <div><span class="lbl">Quorum Candidates:</span><span id="d-qc" class="num">0</span></div>
+            </div>
+            <details style="margin-top:10px;">
+              <summary><span>▶</span> Quorum Status</summary>
+              <pre id="d-quorum" class="log-pre">--</pre>
+            </details>
+            <details style="margin-top:6px;">
+              <summary><span>▶</span> Channel Partition</summary>
+              <button class="btn alt" onclick="detectAssignChannels()" style="margin-bottom:6px;">Reassign</button>
+              <pre id="d-chan" class="log-pre">--</pre>
+            </details>
+          </div>
+        </div>
+
+        <div id="det-grid">
+        <div class="card" data-key="analysis">
+          <h3>Sentinel Analysis <span style="font-size:11px;color:var(--mut);">(all sessions)</span></h3>
+          <div class="data-header">
+            <select id="saType" onchange="loadSentinelAnalysis()"><option value="ALL">All types</option></select>
+            <input type="text" id="saSearch" placeholder="Search..." oninput="loadSentinelAnalysis()">
+            <button class="btn alt" onclick="refreshSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Refresh</button>
+            <a class="btn alt" href="/api/incidents.jsonl" download style="padding:8px 14px;font-size:12px;">Export</a>
+            <button class="btn danger" onclick="clearSentinelAnalysis()" style="padding:8px 14px;font-size:12px;">Clear</button>
+          </div>
+          <div id="saArea" style="overflow-x:auto;"><div class="data-empty">Open to load sentinel incidents.</div></div>
+        </div>
+
+        <div class="card" data-key="events" data-sev="high">
+          <div class="card-header" onclick="toggleCollapse('detEventsCard')">
+            <h3><span class="sev high">high</span>Incidents (Session)</h3>
+            <span class="collapse-icon" id="detEventsCardIcon">▶</span>
+          </div>
+          <div class="card-body collapsed" id="detEventsCardBody">
+            <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+              <label style="font-size:12px;color:var(--mut);margin:0;">Filter:</label>
+              <select id="incFilter" style="width:auto;padding:6px 10px;font-size:12px;">
+                <option value="">ALL</option>
+                <option>DEAUTH_FORGE</option>
+                <option>DEAUTH_FLOOD</option>
+                <option>EVILTWIN</option>
+                <option>KARMA_CAND</option>
+                <option>KARMA_CONFIRMED</option>
+                <option>BEACON_FORGE</option>
+                <option>PMKID_HARVEST</option>
+                <option>PMKID_FORGE</option>
+                <option>EAPOL_BAIT</option>
+                <option>PROBE_FLOOD</option>
+                <option>ASSOC_SLEEP</option>
+                <option>SAE_DOS</option>
+                <option>OWE_ABUSE</option>
+                <option>FRAG</option>
+                <option>KRACK</option>
+                <option>PWNAGOTCHI</option>
+                <option>ATTACKER_HUNT</option>
+                <option>RECON</option>
+              </select>
+              <label style="font-size:12px;color:var(--mut);margin:0;">Source:</label>
+              <select id="incSrc" style="width:auto;padding:6px 10px;font-size:12px;">
+                <option value="">ALL</option>
+                <option value="local">Local only</option>
+                <option value="peer">Peers only</option>
+              </select>
+              <button class="btn alt" onclick="loadIncidents()" style="padding:6px 12px;font-size:12px;">Refresh</button>
+              <button class="btn alt" onclick="downloadIncidents()" style="padding:6px 12px;font-size:12px;">Download .jsonl</button>
+              <button class="btn danger" onclick="clearIncidents()" style="padding:6px 12px;font-size:12px;">Clear All</button>
+              <span id="incCount" style="font-size:12px;color:var(--mut);margin-left:auto;">--</span>
+            </div>
+            <div class="sa-wrap" style="max-height:380px;">
+              <table class="sa-tbl" id="incTable">
+                <thead>
+                  <tr>
+                    <th style="width:90px;">Time</th>
+                    <th style="width:54px;">Node</th>
+                    <th style="width:64px;">Src</th>
+                    <th style="width:170px;">Type</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody id="incBody"><tr><td colspan="5" style="padding:12px;color:var(--mut);">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        </div><!-- /det-grid -->
+      </div>
+      <!-- ===== /DETECT TAB ===== -->
+
+      <div align="center" class="footer">v0.9.5 Beta | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
@@ -1252,8 +1686,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           try {
             const r = await fetch('/rf-config');
             const cfg = await r.json();
-            document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -90;
-            document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -90) + ' dBm';
+            document.getElementById('globalRssiSlider').value = cfg.globalRssiThreshold || -95;
+            document.getElementById('globalRssiValue').innerText = (cfg.globalRssiThreshold || -95) + ' dBm';
             document.getElementById('rfPreset').value = cfg.preset;
             document.getElementById('wifiChannelTime').value = cfg.wifiChannelTime;
             document.getElementById('wifiScanInterval').value = cfg.wifiScanInterval;
@@ -2110,6 +2544,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         el.classList.remove('idle', 'active');
         if (state) el.classList.add(state);
       }
+      function updateMeshTxIndicator(diagText) {
+        const el = document.getElementById('meshTxStatus');
+        if (!el) return;
+        const m = diagText.match(/Mesh TX: draining (\d+)\/(\d+)/);
+        if (m) {
+          el.innerText = 'Mesh TX ' + m[1] + '/' + m[2] + ' (cancel)';
+          el.style.display = '';
+          el.classList.add('active');
+        } else {
+          el.style.display = 'none';
+          el.classList.remove('active');
+        }
+      }
+      async function cancelMeshDrain() {
+        try {
+          const r = await fetch('/stop');
+          if (r.ok) toast('Mesh TX drain cancelled', 'info');
+          else toast('Cancel failed (' + r.status + ')', 'error');
+        } catch (e) { toast('Cancel failed: ' + e, 'error'); }
+        setTimeout(tick, 200);
+      }
       function updateStatusIndicators(diagText) {
         const taskTypeMatch = diagText.match(/Task Type: ([^\n]+)/);
         const taskType = taskTypeMatch ? taskTypeMatch[1].trim() : 'none';
@@ -2212,9 +2667,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
         }
 
+        const activeMatch = diagText.match(/Active Radio: ([^\n]+)/);
         const modeMatch = diagText.match(/Scan Mode: ([^\n]+)/);
-        if (modeMatch) {
-            document.getElementById('modeStatus').innerText = modeMatch[1];
+        const ms = document.getElementById('modeStatus');
+        if (ms) {
+            const active = activeMatch ? activeMatch[1].trim() : (modeMatch ? modeMatch[1].trim() : 'Idle');
+            ms.innerText = active;
+            ms.classList.toggle('active', active !== 'Idle');
         }
         
         if (diagText.includes('GPS: Locked')) {
@@ -2235,36 +2694,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
         
       function updateModeStatus() {
-        const scanModeSelect = document.querySelector('#s select[name="mode"]');
-        const detectionModeSelect = document.getElementById('detectionMode');
-        const randomizationModeSelect = document.getElementById('randomizationMode');
-        const deviceScanModeSelect = document.getElementById('deviceScanMode');
-        const probeScanModeSelect = document.getElementById('probeScanMode');
-        const modeStatus = document.getElementById('modeStatus');
-
-        let currentMode = '0';
-
-        const detectionMethod = detectionModeSelect?.value;
-
-        if (detectionMethod === 'randomization-detection' && randomizationModeSelect?.offsetParent !== null) {
-          currentMode = randomizationModeSelect.value;
-        } else if (detectionMethod === 'device-scan' && deviceScanModeSelect?.offsetParent !== null) {
-          currentMode = deviceScanModeSelect.value;
-        } else if (detectionMethod === 'probe-scan' && probeScanModeSelect?.offsetParent !== null) {
-          currentMode = probeScanModeSelect.value;
-        } else if (scanModeSelect) {
-          currentMode = scanModeSelect.value;
-        }
-        
-        const modeText = {
-          '0': 'WiFi',
-          '1': 'BLE',
-          '2': 'WiFi+BLE'
-        };
-        
-        if (modeStatus) {
-          modeStatus.innerText = modeText[currentMode] || 'WiFi';
-        }
+        // Header mode badge reflects the ACTUAL active radio (Active Radio from /diag),
+        // not the planned scan-mode select. No-op kept for existing callers.
       }
       
       async function saveAutoEraseConfig() {
@@ -3905,6 +4336,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
           }
           updateStatusIndicators(diagText);
+          updateMeshTxIndicator(diagText);
 
           // --- Optional fetches: only when needed, skip what baseline already handles ---
           const droneActive = diagText.includes('Drone Detection: Active');
@@ -4019,7 +4451,115 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           tickRunning = false;
         }
       }
-      
+
+      // === Incidents panel ===
+      function fmtIncUptime(ms){
+        const s = Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+        if (h>0) return h+':'+String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+        return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+      }
+      function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+      function _atkColor(t){
+        t=(t||'').toUpperCase();
+        if(t.startsWith('DEAUTH'))return '#ef4444';
+        if(t.startsWith('EVILTWIN'))return '#f97316';
+        if(t.startsWith('KARMA'))return '#ec4899';
+        if(t.startsWith('PMKID'))return '#14b8a6';
+        if(t.startsWith('SAE'))return '#eab308';
+        if(t.startsWith('BEACON'))return '#f59e0b';
+        if(t.startsWith('AUTH_FLOOD'))return '#fb7185';
+        if(t.startsWith('ASSOC'))return '#a855f7';
+        if(t.startsWith('PROBE')||t==='RECON')return '#38bdf8';
+        if(t.startsWith('HSHK')||t.startsWith('KRACK'))return '#84cc16';
+        if(t.startsWith('OWE'))return '#22d3ee';
+        if(t.startsWith('FRAG'))return '#c084fc';
+        if(t.startsWith('TSF'))return '#2dd4bf';
+        if(t.startsWith('JAM'))return '#f43f5e';
+        if(t.startsWith('MESH'))return '#818cf8';
+        if(t.startsWith('PWNA'))return '#fbbf24';
+        if(t.startsWith('ATTACKER'))return '#fb923c';
+        if(t.startsWith('SSID'))return '#fcd34d';
+        if(t.startsWith('BLE')||t.startsWith('AIRTAG')||t.startsWith('TRACK'))return '#94a3b8';
+        return '#9ca3af';
+      }
+      function _incWhen(e){
+        if(e.epoch&&e.epoch>946684800){const d=new Date(e.epoch*1000);return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+        return fmtIncUptime(e.ts||0)+' up';
+      }
+      function _incDetail(e){
+        let d=e.raw||'';
+        if(e.type&&d.startsWith(e.type+':'))d=d.slice(e.type.length+1);
+        if(e.src&&e.src!=='local'&&d.startsWith(e.src))d=d.slice(e.src.length).replace(/^:/,'');
+        return d;
+      }
+      async function loadIncidents(){
+        try {
+          const r = await fetch('/api/incidents.json?limit=200');
+          if (!r.ok) return;
+          const arr = await r.json();
+          const ftype = document.getElementById('incFilter').value;
+          const fsrc  = document.getElementById('incSrc').value;
+          const body = document.getElementById('incBody');
+          const filtered = arr.slice().reverse().filter(e =>
+            (!ftype || e.type === ftype) &&
+            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local'))
+          );
+          document.getElementById('incCount').textContent = filtered.length + ' / ' + arr.length + ' total';
+          if (filtered.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" style="padding:12px;color:var(--mut);">No incidents</td></tr>';
+            return;
+          }
+          let html = '';
+          for (const e of filtered) {
+            html += '<tr>'
+                  + '<td class="sa-when">'+ esc(_incWhen(e)) +'</td>'
+                  + '<td><span class="sa-node">'+ esc(e.node) +'</span></td>'
+                  + '<td class="sa-mac">'+ esc(e.src) +'</td>'
+                  + '<td style="font-weight:600;color:'+_atkColor(e.type)+';">'+ esc(e.type) +'</td>'
+                  + '<td class="sa-detail">'+ esc(_incDetail(e)) +'</td>'
+                  + '</tr>';
+          }
+          body.innerHTML = html;
+        } catch(e){ console.error('loadIncidents', e); }
+      }
+      function downloadIncidents(){ window.open('/api/incidents.jsonl', '_blank'); }
+      async function clearIncidents(){
+        if (!confirm('Clear all incidents (RAM ring + SD file)?')) return;
+        await fetch('/api/incidents', {method:'DELETE'});
+        loadIncidents();
+      }
+      document.getElementById('incFilter').addEventListener('change', loadIncidents);
+      document.getElementById('incSrc').addEventListener('change', loadIncidents);
+      setInterval(loadIncidents, 2000);
+      loadIncidents();
+
+      async function sentinelRefresh(){
+        try {
+          const r = await fetch('/api/sentinel/status',{cache:'no-store'});
+          if (!r.ok) return;
+          const j = await r.json();
+          let txt='DISABLED', col='#888';
+          if (j.scanning){txt='KILLED (scan active)';col='#f99';}
+          else if (j.running){txt='RUNNING';col='#9f9';}
+          else if (j.enabled){txt='enabled, task not running';col='#fc6';}
+          const el2=document.getElementById('sentStatus2');
+          if(el2){el2.textContent=txt;el2.style.color=col;}
+          const tb=document.getElementById('sentToggleBtn');
+          if(tb){tb.textContent=j.enabled?'Stop':'Start';tb.className=j.enabled?'btn alt':'btn primary';}
+        } catch(e){ console.error('sentinelRefresh', e); }
+      }
+      async function sentinelStart(){
+        const r = await fetch('/api/sentinel/start', {method:'POST'});
+        if (!r.ok) alert('Start failed: ' + await r.text());
+        sentinelRefresh();
+      }
+      async function sentinelStop(){
+        await fetch('/api/sentinel/stop', {method:'POST'});
+        sentinelRefresh();
+      }
+      setInterval(sentinelRefresh, 4000);
+      sentinelRefresh();
+
       document.getElementById('triangulate').addEventListener('change', e => {
         document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
         const secsInput = document.querySelector('input[name="secs"]');
@@ -4462,8 +5002,71 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           keys:['t','uptime_ms','lat','lon']},
         baseline:{url:'/baseline/stats',clear:null,fmt:'baseline',cols:[],keys:[]},
         syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',
-          cols:['Time','Message'],keys:['_time','_msg']}
+          cols:['Time','Message'],keys:['_time','_msg']},
+        incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',
+          cols:['Uptime','Node','Src','Type','Raw'],
+          keys:['ts','node','src','type','raw']}
       };
+      let _saData=null;
+      function refreshSentinelAnalysis(){ _saData=null; loadSentinelAnalysis(); }
+      async function clearSentinelAnalysis(){
+        if(!confirm('Clear all sentinel incidents (RAM + SD)?'))return;
+        await fetch('/api/incidents',{method:'DELETE'}); _saData=null; loadSentinelAnalysis();
+      }
+      async function loadSentinelAnalysis(){
+        const area=document.getElementById('saArea'); if(!area)return;
+        if(!_saData){
+          const r=await fetch('/api/incidents.jsonl');
+          const t=r.ok?await r.text():'';
+          _saData=t.split('\n').filter(x=>x.trim()).map(x=>{try{return JSON.parse(x)}catch(_){return null}}).filter(x=>x);
+          const sel=document.getElementById('saType'); const cur=sel?sel.value:'ALL';
+          const types=[...new Set(_saData.map(x=>x.type).filter(Boolean))].sort();
+          if(sel){sel.innerHTML='<option value="ALL">All types</option>'+types.map(t=>`<option>${t}</option>`).join(''); sel.value=cur||'ALL';}
+        }
+        const ty=(document.getElementById('saType')||{}).value||'ALL';
+        const q=((document.getElementById('saSearch')||{}).value||'').toLowerCase();
+        let rows=_saData.filter(x=>(ty==='ALL'||x.type===ty)&&(!q||JSON.stringify(x).toLowerCase().includes(q)));
+        const total=rows.length; rows=rows.slice(-300).reverse();
+        // Per-type breakdown over the search-filtered set (ignores type filter so
+        // you can see the whole distribution while drilled into one type).
+        const base=_saData.filter(x=>!q||JSON.stringify(x).toLowerCase().includes(q));
+        const counts={}; base.forEach(x=>{const t=x.type||'?';counts[t]=(counts[t]||0)+1;});
+        const SEVC={crit:'#fb7185',high:'#fb923c',med:'#facc15',info:'#38bdf8'};
+        const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        const fmtWhen=r=>{
+          if(r.epoch&&r.epoch>946684800){
+            const d=new Date(r.epoch*1000);
+            return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+          }
+          const s=Math.floor((r.ts||0)/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=s%60;
+          return (h?h+'h':'')+(m?m+'m':'')+ss+'s up';
+        };
+        const detailOf=r=>{
+          let d=r.raw||'';
+          if(r.type&&d.startsWith(r.type+':'))d=d.slice(r.type.length+1);
+          if(r.src&&r.src!=='local'&&d.startsWith(r.src))d=d.slice(r.src.length).replace(/^:/,'');
+          return d;
+        };
+        const breakdown=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).map(t=>{
+          const sv=_saSev(t); const on=(ty===t);
+          return `<span class="sa-chip" style="border-color:${SEVC[sv]};color:${on?'#fff':SEVC[sv]};background:${on?SEVC[sv]+'33':'transparent'};" onclick="(()=>{const s=document.getElementById('saType');if(s){s.value='${on?'ALL':t}';loadSentinelAnalysis();}})()">${esc(t.replace(/_/g,' '))}<span style="opacity:.6;margin-left:6px;">${counts[t]}</span></span>`;
+        }).join('');
+        const chipBar=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${breakdown}</div>`;
+        if(!rows.length){area.innerHTML=chipBar+'<div class="data-empty">No incidents.</div>';return;}
+        area.innerHTML=chipBar
+          +`<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">${total} incident${total!=1?'s':''}${ty!=='ALL'?' · '+ty:''}</div>`
+          +'<div class="sa-wrap"><table class="sa-tbl"><thead><tr><th>Time</th><th>Sev</th><th>Type</th><th>Source</th><th>Detail</th><th>Node</th></tr></thead><tbody>'
+          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td><td class="sa-mac">${esc(r.src||'local')}</td><td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
+          +'</tbody></table></div>';
+      }
+      // Prefix-based severity for sentinel incident types (mirrors detector card sev).
+      function _saSev(t){
+        t=(t||'').toUpperCase();
+        if(/^(PMKID|SAE_DOS|KARMA|EAPOL_BAIT|KRACK|PMKID_FORGE|ATTACKER)/.test(t))return 'crit';
+        if(/^(DEAUTH|BEACON|EVILTWIN|SSID_CONFUSION|PROBE_FLOOD|OWE_ABUSE|RID)/.test(t))return 'high';
+        if(/^(FRAG|ASSOC_SLEEP)/.test(t))return 'med';
+        return 'info';
+      }
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
         var cfg=DATA_SETS[ds];
@@ -4602,6 +5205,841 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       updateAutoEraseStatus();
       setInterval(tick, 2000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
+
+      // ===== Detect tab logic =====
+      function _safeParse(s){
+        try{return JSON.parse(s);}
+        catch(e){console.warn('detect: bad json line', e); return null;}
+      }
+      async function _jt(u){
+        try{const r=await fetch(u);if(!r.ok)return '';return await r.text();}
+        catch(e){console.warn('detect: fetch text failed', u, e); return '';}
+      }
+      async function _jj(u){
+        try{const r=await fetch(u);return await r.json();}
+        catch(e){console.warn('detect: fetch json failed', u, e); return null;}
+      }
+      function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
+      const GROUPS={
+        dos:[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
+          ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
+          ['ASSOC_SLEEP','Assoc Sleep','assoc_sleep'],['SAE_DOS','SAE DoS','sae'],
+          ['DEAUTH_AP_TARGETED','AP Deauth (event)',null]],
+        rogue:[['EVILTWIN','Evil Twin','eviltwin'],['OWE_ABUSE','OWE Abuse','owe'],
+          [['KARMA_CAND','KARMA_CONFIRMED'],'Karma','karma']],
+        recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
+          ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
+        physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','WiFi Interf (L2)','jam']],
+        mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard'],['MESH_CMD_INJECT','Cmd Inject','mesh_guard']]
+        /* BLE attack group display disabled per user 2026-05-23 (BLE scan path unreliable on this build)
+        ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed'],['BLETRACK','Tracker','tracker'],['AIRTAG','AirTag','airtag']]
+        */
+      };
+      function _grpRows(dets,inc,cfg,nowMs){
+        const ago=t=>{if(!t)return '--';const s=Math.floor((nowMs-t)/1000);if(s<1)return 'now';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h';};
+        let h='<div class="drow-head"><span></span><span>Detector</span><span class="rh-r">Hits</span><span class="rh-r">Last</span><span class="rh-r">On</span></div>';
+        dets.forEach(d=>{
+          const types=Array.isArray(d[0])?d[0]:[d[0]];
+          const hits=inc.filter(x=>x&&types.includes(x.type));
+          const cnt=hits.length;
+          const last=cnt?Math.max(...hits.map(x=>x.ts||0)):0;
+          const key=d[2];
+          const on=key?(cfg[key]===true):true;
+          const fire=cnt>0;
+          const ctrl=key
+            ?`<label class="dsw"><input type="checkbox" ${on?'checked':''} onchange="detPostCfg({${key}:this.checked});"><span class="dsw-s"></span></label>`
+            :`<span class="don-pill" title="Always on">ON</span>`;
+          h+=`<div class="drow${on?' on':''}${fire?' fire':''}">`
+            +`<span class="drow-dot"></span>`
+            +`<span class="drow-name">${d[1]}</span>`
+            +`<span class="drow-hits${fire?' hot':''}">${cnt}</span>`
+            +`<span class="drow-last">${ago(last)}</span>`
+            +`<span class="drow-ctrl">${ctrl}</span></div>`;
+        });
+        return h;
+      }
+      function _dosSyncMode(scan){
+        const d=document.getElementById('dos-mode-defend'), s=document.getElementById('dos-mode-scan'),
+              t=document.getElementById('dos-mode-desc');
+        if(d)d.className=scan?'btn alt':'btn primary';
+        if(s)s.className=scan?'btn primary':'btn alt';
+        if(t)t.textContent=scan?'Hopping all channels — sees attacks on set WiFi channels (AP clients may drop).'
+                               :'Locked to this AP’s channel — catches attacks against us. (Stable)';
+      }
+      async function detScanMode(scan){
+        _dosSyncMode(scan);
+        await detPostCfg({sentinel_scan:scan});
+        if(_detCfg)_detCfg.sentinel_scan=scan;
+      }
+      function _grpChipState(cfg){
+        if(typeof DET_GROUPS==='undefined')return;
+        for(const g in DET_GROUPS){
+          const c=document.getElementById('grpchip-'+g);
+          if(c)c.className=DET_GROUPS[g].some(k=>(cfg||{})[k])?'btn primary':'btn alt';
+        }
+      }
+      async function renderDos(){
+        const inc=await _jj('/api/incidents.json?limit=200')||[];
+        const cfg=_detCfg||{};
+        _dosSyncMode(!!cfg.sentinel_scan);
+        const nowMs=inc.reduce((m,x)=>Math.max(m,(x&&x.ts)||0),0);
+        for(const gid in GROUPS){
+          const el=document.getElementById(gid+'-rows');
+          if(el)el.innerHTML=_grpRows(GROUPS[gid],inc,cfg,nowMs);
+        }
+        const GLBL={dos:'DoS',rogue:'Rogue AP',recon:'Recon',physical:'Physical',mesh:'Mesh',ble:'BLE'};
+        let qv='';
+        for(const gid in GROUPS){
+          const dets=GROUPS[gid]; let en=0,ht=0;
+          dets.forEach(d=>{
+            if(d[2]?(cfg[d[2]]===true):true)en++;
+            const types=Array.isArray(d[0])?d[0]:[d[0]];
+            ht+=inc.filter(x=>x&&types.includes(x.type)).length;
+          });
+          const hot=ht>0?'border-color:var(--bad,#e55);':'';
+          qv+=`<div style="border:1px solid var(--bord);border-radius:6px;padding:6px 8px;${hot}">`
+            +`<div style="font-size:11px;color:var(--mut);">${GLBL[gid]||gid}</div>`
+            +`<div style="font-size:13px;"><b>${en}/${dets.length}</b> on · <span style="${ht>0?'color:var(--bad,#e55);font-weight:700;':''}">${ht} hit${ht!=1?'s':''}</span></div></div>`;
+        }
+        const qe=document.getElementById('dctl-quick'); if(qe)qe.innerHTML=qv;
+        _grpChipState(cfg);
+        const setc=(id,types)=>{const e=document.getElementById(id);if(e)e.textContent=inc.filter(x=>x&&types.includes(x.type)).length;};
+        setc('d-karma',['KARMA_CAND','KARMA_CONFIRMED']);
+        setc('d-authflood',['AUTH_FLOOD']);
+        setc('d-beaconflood',['BEACON_FLOOD']);
+        setc('d-dauth',['DEAUTH_FLOOD','DEAUTH_FORGE','DEAUTH_AP_TARGETED']);
+        setc('d-pmkid',['PMKID_HARVEST','PMKID_FORGE']);
+        setc('d-et',['EVILTWIN']);
+        setc('d-sc',['SSID_CONFUSION']);
+        setc('d-sae',['SAE_DOS']);
+        setc('d-owe',['OWE_ABUSE']);
+        setc('d-frag',['FRAG']);
+        setc('d-asl',['ASSOC_SLEEP']);
+        setc('d-pfl',['PROBE_FLOOD','PROBE_FLOOD_BEHAVE','PROBE_FLOOD_AP']);
+        setc('d-tsf',['TSF']);
+        setc('d-jam',['JAM']);
+        setc('d-mgd',['MESH_SPOOF_SELF','MESH_FLOOD','MESH_CMD_INJECT']);
+        setc('d-pwna',['PWNAGOTCHI']);
+        setc('d-rid-ov',['RID']);
+        _overviewVisibility(cfg);
+      }
+      // Hide overview stats whose detector is disabled AND has zero hits.
+      // 'always' stats and any stat with a non-zero count stay visible.
+      function _overviewVisibility(cfg){
+        cfg=cfg||_detCfg||{};
+        document.querySelectorAll('#detOverviewCardBody .stat[data-cfg]').forEach(el=>{
+          const keys=el.dataset.cfg;
+          const ve=el.querySelector('.stat-value');
+          const cnt=ve?(parseInt(ve.textContent,10)||0):0;
+          const enabled=keys==='always'||keys.split(',').some(k=>cfg[k]===true);
+          el.style.display=(enabled||cnt>0)?'':'none';
+        });
+      }
+      async function detectTick(){
+        const tab=document.getElementById('page-detect');
+        if(!tab||!tab.classList.contains('active'))return;
+        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,tr,rc,ch]=await Promise.all([
+          _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
+          _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
+          _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
+          _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
+          _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
+          _jj('/api/rid_claims'),_jj('/api/ble_tracker'),_jj('/api/recon'),
+          _jj('/api/channel_partition')
+        ]);
+        const dEl = document.getElementById('d-dauth');
+        if (dEl) dEl.textContent = _countLines(df);
+        document.getElementById('d-pmkid').textContent=_countLines(pm);
+        document.getElementById('d-et').textContent=_countLines(et);
+        document.getElementById('d-sc').textContent=_countLines(sc);
+        document.getElementById('d-sae').textContent=_countLines(sa);
+        document.getElementById('d-owe').textContent=_countLines(ow);
+        document.getElementById('d-frag').textContent=_countLines(fr);
+        document.getElementById('d-rec').textContent=(rc||[]).length;
+        document.getElementById('d-pps').textContent=p?(p.locked?'YES':'no')+' edge='+p.last_edge:'--';
+        document.getElementById('d-bl').textContent=b?(b.local_bits_set+' / '+b.capacity_bits):'--';
+        document.getElementById('d-bn').textContent=b?(b.neighbor_bits_set+' / '+b.capacity_bits):'--';
+        document.getElementById('d-qc').textContent=q?((q.candidates||[]).length):0;
+        document.getElementById('d-quorum').textContent=q?JSON.stringify(q,null,2):'--';
+        document.getElementById('d-chan').textContent=ch?JSON.stringify(ch,null,2):'--';
+        {const _e=document.getElementById('d-rid');if(_e)_e.textContent=rid?JSON.stringify(rid,null,2):'[]';}
+        detRenderTable('d-recpre',rc||[],[
+          {key:'id',label:'TrackId'},{key:'score',label:'Score'},
+          {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
+        ]);
+        const evtRows=[];
+        function parseLines(s,kind,sevHint){
+          (s||'').split('\n').filter(l=>l.trim()).forEach(l=>{
+            const o=_safeParse(l);
+            if(o)evtRows.push({kind,sev:sevHint,ts:o.ts||0,raw:l,o});
+          });
+        }
+        parseLines(pm,'PMKID','crit');parseLines(et,'EvilTwin','high');parseLines(sc,'SSIDConf','high');
+        parseLines(sa,'SAE','high');parseLines(ow,'OWE','med');parseLines(fr,'Frag','med');
+        parseLines(bm,'BLEMalformed','med');
+        evtRows.sort((a,b)=>(b.ts||0)-(a.ts||0));
+        detRenderTable('d-stream',evtRows.slice(0,40),[
+          {key:'kind',label:'Type'},
+          {key:'sev',label:'Sev',get:r=>r.sev.toUpperCase()},
+          {key:'ts',label:'Age',get:r=>_ago(r.ts)},
+          {key:'raw',label:'Detail',get:r=>r.raw}
+        ]);
+        if((rc||[]).length>0)detMarkActive('recon');
+        if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
+        renderDos();
+      }
+      async function detectClearAll(){await fetch('/api/detect/clear_all',{method:'POST'});detectTick()}
+      async function pgTick(){
+        if(!detTabActive())return;
+        const pg=await _jj('/api/probegraph');
+        const n=(pg||[]).length;
+        {const _e=document.getElementById('pg-n');if(_e)_e.textContent=n;}
+        detRenderTable('pg-pre',pg||[],[
+          {key:'hash',label:'Hash'},{key:'local',label:'TrackId'},
+          {key:'best_rssi',label:'Best RSSI'},{key:'sightings',label:'Sight'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(n>0)detMarkActive('probegraph');
+      }
+      async function pgClear(){await fetch('/api/probegraph/clear',{method:'POST'});pgTick();}
+      async function hsTick(){
+        if(!detTabActive())return;
+        const [r,s]=await Promise.all([_jj('/api/handshakes'),_jj('/api/handshakes/stats')]);
+        if(s){
+          {const _e=document.getElementById('hs-n');if(_e)_e.textContent=s.count;}
+          const ko=document.getElementById('d-hs-krack'); if(ko)ko.textContent=s.krack_events||0;
+        }
+        const rows=(r||[]).map(x=>Object.assign({mask:['','M1','M2','M3','M4','M1M2','M1M3','M1-3','M4o','M1M4','M2M4','M1-3M4','M3M4','M1M3M4','M2-4','M1-4'][x.seen_mask&15]||x.seen_mask},x));
+        detRenderTable('hs-pre',rows,[
+          {key:'bssid',label:'BSSID'},{key:'sta',label:'STA'},
+          {key:'mask',label:'Msgs'},{key:'complete',label:'Done'},
+          {key:'krack_events',label:'KRACK'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(s&&s.krack_events>0)detMarkActive('handshake');
+      }
+      async function hsClear(){await fetch('/api/handshakes/clear',{method:'POST'});hsTick();}
+      async function ahTick(){
+        if(!detTabActive())return;
+        const h=await _jj('/api/attacker_hunts');
+        const n=(h||[]).length;
+        {const _e=document.getElementById('ah-n');if(_e)_e.textContent=n;}
+        const o=document.getElementById('d-ah-n'); if(o)o.textContent=n;
+        detRenderTable('ah-pre',h||[],[
+          {key:'mac',label:'MAC'},{key:'type',label:'Type'},
+          {key:'started',label:'Started',get:r=>_ago(r.started)},
+          {key:'last_kick',label:'Last Kick',get:r=>_ago(r.last_kick)}
+        ]);
+        if(n>0)detMarkActive('hunts');
+      }
+      async function ahClear(){await fetch('/api/attacker_hunts/clear',{method:'POST'});ahTick();}
+      async function kmTick(){
+        if(!detTabActive())return;
+        const [s,c]=await Promise.all([_jj('/api/karma/stats'),_jj('/api/karma')]);
+        if(s){document.getElementById('km-on').textContent=s.enabled?'YES':'no';
+              document.getElementById('km-c').textContent=s.candidates;
+              document.getElementById('km-x').textContent=s.confirmed;}
+        detRenderTable('km-pre',c||[],[
+          {key:'bssid',label:'BSSID'},{key:'distinct_ssids',label:'SSIDs'},
+          {key:'bait_emitted',label:'Bait'},{key:'confirmed',label:'Confirmed'},
+          {key:'last_ssid',label:'Last SSID'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(s&&s.confirmed>0)detMarkActive('karma');
+      }
+      async function kmToggle(on){const fd=new FormData();fd.append('on',on);await fetch('/api/karma/enable',{method:'POST',body:fd});kmTick();}
+      async function kmClear(){await fetch('/api/karma/clear',{method:'POST'});kmTick();}
+      async function tsfTick(){
+        if(!detTabActive())return;
+        const t=await _jj('/api/tsf_skew');
+        {const _e=document.getElementById('tsf-n');if(_e)_e.textContent=(t||[]).length;}
+        detRenderTable('tsf-pre',t||[],[
+          {key:'bssid',label:'BSSID'},{key:'ssid',label:'SSID'},
+          {key:'chan_a',label:'Ch A'},{key:'chan_b',label:'Ch B'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+      }
+      async function tsfClear(){await fetch('/api/tsf_skew/clear',{method:'POST'});tsfTick();}
+      async function jammingTick(){
+        if(!detTabActive())return;
+        const a=await _jsonl('/api/jamming.jsonl');
+        document.getElementById('jam-n').textContent=a.length;
+        _renderJsonl('jam-pre',a,['ts','ch','pdr','err','valid','err_rssi']);
+        if(a.length>0)detMarkActive('jamming');
+      }
+      async function jamClear(){await fetch('/api/jamming/clear',{method:'POST'});jammingTick();}
+      async function meshGuardTick(){
+        if(!detTabActive())return;
+        const a=await _jsonl('/api/meshguard.jsonl');
+        document.getElementById('mgd-n').textContent=a.length;
+        _renderJsonl('mgd-pre',a,['ts','evt']);
+        if(a.length>0)detMarkActive('meshguard');
+      }
+      async function mgdClear(){await fetch('/api/meshguard/clear',{method:'POST'});meshGuardTick();}
+      async function trkTick(){
+        if(!detTabActive())return;
+        const [chains,watch]=await Promise.all([_jj('/api/tracker_chains'),_jj('/api/ble_tracker')]);
+        const n=(chains||[]).length;
+        document.getElementById('trk-n').textContent=n;
+        detRenderTable('trk-pre',chains||[],[
+          {key:'chain',label:'Chain'},{key:'vendor',label:'Vendor'},
+          {key:'links',label:'Links'},{key:'avg_rssi',label:'Avg RSSI'},
+          {key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        detRenderTable('d-trkpre',watch||[],[
+          {key:'addr',label:'Addr'},{key:'vendor',label:'Vendor'},
+          {key:'sightings',label:'Sight'},{key:'avg_rssi',label:'RSSI'},
+          {key:'score',label:'Score'},{key:'last_seen',label:'Last',get:r=>_ago(r.last_seen)}
+        ]);
+        if(n>0||(watch||[]).length>0)detMarkActive('trackers');
+      }
+      async function trkClear(){await fetch('/api/tracker_chains/clear',{method:'POST'});trkTick();}
+      async function atTick(){
+        if(!detTabActive())return;
+        const a=await _jj('/api/airtag_presence');
+        const n=(a||[]).length;
+        document.getElementById('at-n').textContent=n;
+        detRenderTable('at-pre',a||[],[
+          {key:'addr',label:'Addr'},{key:'owner_nearby',label:'Owner'},
+          {key:'battery',label:'Battery'},{key:'observations',label:'Obs'},
+          {key:'last_rssi',label:'RSSI'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+        if(n>0)detMarkActive('airtag');
+      }
+      async function atClear(){await fetch('/api/airtag_presence/clear',{method:'POST'});atTick();}
+      async function baTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/ble_attack.jsonl');
+        document.getElementById('ba-n').textContent=a.length;
+        _renderJsonl('ba-pre',a,['ts','tool','addr','family','rssi','reason']);
+        if(a.length>0)detMarkActive('bleattack');
+      }
+      async function baClear(){await fetch('/api/ble_attack/clear',{method:'POST'});baTick();}
+      async function detectClearTrackers(){await fetch('/api/ble_tracker/clear',{method:'POST'});detectTick()}
+      async function tofTick(){
+        if(!detTabActive())return;
+        const t=await _jj('/api/tof');
+        {const _e=document.getElementById('tof-n');if(_e)_e.textContent=(t||[]).length;}
+        detRenderTable('tof-pre',t||[],[
+          {key:'node',label:'Node'},{key:'last_rtt_us',label:'Last RTT us'},
+          {key:'best_rtt_us',label:'Best us'},{key:'avg_rtt_us',label:'Avg us'},
+          {key:'samples',label:'N'},{key:'last',label:'Last',get:r=>_ago(r.last)}
+        ]);
+      }
+      async function tofPing(){
+        const tgt=document.getElementById('tof-target-in').value||'*';
+        const fd=new FormData();fd.append('target',tgt);
+        await fetch('/api/tof/ping',{method:'POST',body:fd});tofTick();
+      }
+      async function tofClear(){await fetch('/api/tof/clear',{method:'POST'});tofTick();}
+      const _detLastActivity={};
+      let _detSev='all';
+      function detApplyFilters(){
+        const q=(document.getElementById('det-filter').value||'').toLowerCase().trim();
+        document.querySelectorAll('#page-detect .card').forEach(c=>{
+          const h=c.querySelector('.card-header h3');
+          const t=h?h.textContent.toLowerCase():'';
+          const sev=c.dataset.sev||'';
+          const key=c.dataset.key||'';
+          let show=true;
+          if(q && !t.includes(q)) show=false;
+          if(_detSev==='crit'&&sev!=='crit') show=false;
+          else if(_detSev==='high'&&!(sev==='crit'||sev==='high')) show=false;
+          else if(_detSev==='med'&&!(sev==='crit'||sev==='high'||sev==='med')) show=false;
+          else if(_detSev==='info'&&sev!=='info') show=false;
+          else if(_detSev==='firing'&&!_detLastActivity[key]) show=false;
+          c.classList.toggle('hidden', !show);
+        });
+        detSortByActivity();
+      }
+      function detSortByActivity(){
+        const parent=document.getElementById('page-detect');
+        if(!parent)return;
+        const cards=[...parent.querySelectorAll('.card[data-key]')];
+        cards.sort((a,b)=>{
+          const aa=_detLastActivity[a.dataset.key]||0;
+          const bb=_detLastActivity[b.dataset.key]||0;
+          return bb-aa;
+        });
+        cards.forEach(c=>parent.appendChild(c));
+      }
+      const _detPageLoadMs = Date.now();
+
+      let _sentToggleBusy=false;
+      async function sentinelToggleHdr(){
+        if(_sentToggleBusy) return;
+        _sentToggleBusy=true;
+        try {
+          const sr = await fetch('/api/sentinel/status',{cache:'no-store'});
+          if (!sr.ok) return;
+          const s = await sr.json();
+          const url = s.enabled ? '/api/sentinel/stop' : '/api/sentinel/start';
+          const rr = await fetch(url, {method:'POST',cache:'no-store'});
+          if (!rr.ok) alert('Sentinel toggle failed: ' + await rr.text());
+          await new Promise(r=>setTimeout(r,500));
+          await sentinelHdrRefresh();
+          if (typeof sentinelRefresh==='function') await sentinelRefresh();
+        } catch (err) {
+          console.warn('sentinelToggleHdr failed', err);
+        } finally { _sentToggleBusy=false; }
+      }
+      async function sentinelHdrRefresh(){
+        try {
+          const r = await fetch('/api/sentinel/status',{cache:'no-store'});
+          if (!r.ok) return;
+          const s = await r.json();
+          const el = document.getElementById('sentStatusHdr');
+          if (!el) return;
+          if (!s.enabled) {
+            el.textContent = 'SENTINEL IDLE';
+            el.style.color = '';
+            el.style.borderColor = '';
+          } else if (s.scanning) {
+            el.textContent = 'SENTINEL PAUSED (SCAN)';
+            el.style.color = '#fca5a5';
+            el.style.borderColor = '#dc2626';
+          } else if (s.running) {
+            el.textContent = 'SENTINEL ON';
+            el.style.color = '#86efac';
+            el.style.borderColor = '#16a34a';
+          } else {
+            el.textContent = 'SENTINEL IDLE';
+            el.style.color = '';
+            el.style.borderColor = '';
+          }
+        } catch (err) {
+          console.warn('sentinelHdrRefresh failed', err);
+        }
+      }
+      async function sentinelSetBoot(on){
+        try{
+          await fetch('/api/sentinel/boot',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'on='+(on?1:0)});
+          toast(on?'Sentinel will auto-start on boot':'Boot auto-start disabled');
+        }catch(err){ console.warn('sentinelSetBoot failed', err); toast('Failed to set boot state','warning'); }
+      }
+      async function sentinelBootRefresh(){
+        try{
+          const r=await fetch('/api/sentinel/boot',{cache:'no-store'});
+          if(r.ok){const j=await r.json();const c=document.getElementById('sentBootChk');if(c)c.checked=!!j.boot;}
+        }catch(err){ console.warn('sentinelBootRefresh failed', err); }
+      }
+      setInterval(()=>{sentinelHdrRefresh(); if(typeof sentinelRefresh==='function')sentinelRefresh();}, 4000);
+      setTimeout(sentinelHdrRefresh, 700);
+      setTimeout(sentinelBootRefresh, 800);
+      function detMarkActive(key){
+        _detLastActivity[key]=Date.now();
+        if (Date.now() - _detPageLoadMs < 10000) return;
+        const card=document.querySelector('#page-detect .card[data-key="'+key+'"]');
+        if(card){const sev=card.dataset.sev||'';if(sev==='crit'||sev==='high')detPushAlert(key,card);}
+      }
+
+      const VERIFIED_DETECTORS = new Set(['events','sentinel','overview','mesh','pmkid','eviltwin']);
+      const DETECTOR_TOGGLE_KEYS = {
+        'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
+        'oweabuse':'oweOn','frag':'fragOn','karma':'karmaOn',
+        'pwna':'pwnaOn','tsf':'tsfOn','jamming':'jamOn','meshguard':'mgdOn',
+        'trackers':'trkOn','airtag':'atgOn','bleattack':'blatkOn','blemal':'blemOn',
+        'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn',
+        'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
+        'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn'
+      };
+      let _detToggleState = {};
+      async function detRefreshToggleState(){
+        try {
+          const r = await fetch('/api/detect/config');
+          if (!r.ok) return;
+          _detToggleState = await r.json();
+          detApplyStatusPills();
+        } catch (fetchErr) {
+          console.warn('detRefreshToggleState failed', fetchErr);
+        }
+      }
+      function detApplyStatusPills(){
+        document.querySelectorAll('#page-detect .card[data-key] .dpill').forEach(p=>p.remove());
+      }
+      setInterval(detRefreshToggleState, 10000);
+      setTimeout(detRefreshToggleState, 600);
+      const _detAlerts=[];
+      function detPushAlert(key,card){
+        const title=card.querySelector('.card-header h3');
+        let txt=key;
+        if(title){
+          const clone=title.cloneNode(true);
+          clone.querySelectorAll('.sev,.num,.dpill').forEach(n=>n.remove());
+          txt=clone.textContent.replace(/\\s+/g,' ').trim();
+          if(!txt)txt=key;
+        }
+        const toggleKey=DETECTOR_TOGGLE_KEYS[key];
+        if(toggleKey){
+          if(!_detToggleState || Object.keys(_detToggleState).length===0)return;
+          if(_detToggleState[toggleKey]!==true)return;
+        }
+        const sev=card.dataset.sev||'med';
+        const exists=_detAlerts.find(a=>a.key===key);
+        if(exists){exists.ts=Date.now();return;}
+        _detAlerts.unshift({key,txt,sev,ts:Date.now()});
+        while(_detAlerts.length>5)_detAlerts.pop();
+        detRenderBanner();
+      }
+      function detRenderBanner(){
+        const b=document.getElementById('det-banner');const bd=document.getElementById('det-banner-body');
+        if(!b||!bd)return;
+        if(_detAlerts.length===0){b.classList.remove('show');bd.innerHTML='';return;}
+        const now=Date.now();
+        const fresh=_detAlerts.filter(a=>now-a.ts<300000).slice(0,3);
+        if(fresh.length===0){b.classList.remove('show');return;}
+        b.classList.add('show');
+        bd.innerHTML = fresh.map(a => {
+          const secs = Math.floor((now - a.ts) / 1000);
+          const when = secs < 60 ? `${secs}s ago` : `${Math.floor(secs / 60)}m ago`;
+          const escapedKey = a.key.replace(/'/g, "\\'");
+          
+          return `<div class="bn-row" onclick="detJump('${escapedKey}')">` +
+          `<span class="sev ${a.sev}" style="margin-right:6px;">${a.sev}</span>` +
+          `<span class="bn-when" style="margin-right:8px;">${when}</span>` +
+          `<span class="bn-msg">${a.txt}</span></div>`;
+        }).join('');
+      }
+      setInterval(detRenderBanner,5000);
+
+      const DETECTOR_TAB_MAP = {
+        'events':'live','sentinel':'live','mesh':'config','config':'config',
+        'overview':'live','apclients':'live',
+        'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
+        'physical':'detectors','meshcfg':'detectors','mesh':'detectors',
+        'analysis':'analysis'
+      };
+
+      function _detCardTab(c){
+        const key=c.dataset.key||'';
+        let cardTab=DETECTOR_TAB_MAP[key];
+        if(!cardTab){
+          const txt=(c.querySelector('h3')?.textContent||'').toLowerCase();
+          if(txt.includes('detector controls')||txt.includes('threshold'))cardTab='config';
+          else if(txt.includes('overview'))cardTab='live';
+          else if(txt.includes('mesh defense'))cardTab='config';
+          else if(c.dataset.sev&&key!=='events')cardTab='details';
+          else cardTab='detectors';
+        }
+        return cardTab;
+      }
+      function detSetTab(tab){
+        document.querySelectorAll('#det-tabs button.dtab').forEach(b=>{
+          b.classList.toggle('active', b.dataset.dtab===tab);
+        });
+        document.querySelectorAll('#page-detect .card').forEach(c=>{
+          c.classList.toggle('dtab-hidden', _detCardTab(c)!==tab);
+        });
+        document.querySelectorAll('[data-dtab-target]').forEach(el=>{
+          const allowed=el.dataset.dtabTarget.split(',');
+          el.classList.toggle('dtab-hidden', !allowed.includes(tab));
+        });
+        if(tab==='analysis'&&typeof loadSentinelAnalysis==='function') setTimeout(loadSentinelAnalysis,40);
+        if (window.localStorage) {
+          try {
+            localStorage.setItem('detTab', tab);
+          } catch (storageErr) {
+            console.warn('detSetTab: localStorage write failed (private mode?)', storageErr);
+          }
+        }
+      }
+      function detTabRestore(){
+        let saved = 'live';
+        if (window.localStorage) {
+          try {
+            saved = localStorage.getItem('detTab') || 'live';
+          } catch (storageErr) {
+            console.warn('detSetTab: localStorage read failed (private mode?)', storageErr);
+          }
+        }
+        if (saved !== 'live' && saved !== 'detectors' && saved !== 'analysis') saved = 'live';
+        setTimeout(()=>detSetTab(saved), 50);
+      }
+      detTabRestore();
+
+      function detJump(key){
+        const card=document.querySelector('#page-detect .card[data-key="'+key+'"]');
+        if(!card)return;
+        const body=card.querySelector('.card-body');
+        if(body&&body.classList.contains('collapsed')){
+          const id=card.querySelector('.card-header').getAttribute('onclick');
+          if(id){const m=id.match(/toggleCollapse\\(['"]([^'"]+)['"]\\)/);if(m)toggleCollapse(m[1]);}
+        }
+        card.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+      document.querySelectorAll('#det-chips .det-chip').forEach(c=>{
+        c.addEventListener('click',()=>{
+          _detSev=c.dataset.sev;
+          document.querySelectorAll('#det-chips .det-chip').forEach(x=>x.classList.remove('firing'));
+          c.classList.add('firing');
+          detApplyFilters();
+        });
+      });
+        function detRenderTable(elId, rows, cols) {
+          const el = document.getElementById(elId);
+          if (!el) return;
+          
+          if (!rows || rows.length === 0) {
+            el.innerHTML = '<table class="dt"><tr><td class="empty">(none)</td></tr></table>';
+            return;
+          }
+          
+          const thead = cols
+          .map((c, i) => `<th onclick="detTableSort('${elId}', ${i})">${c.label}</th>`)
+          .join('');
+          
+          const tbody = rows
+          .map(r => {
+            const tds = cols
+            .map(c => {
+              const v = c.get ? c.get(r) : r[c.key];
+              const val = v === undefined || v === null ? '-' : v;
+              const escaped = String(val).replace(/"/g, '&quot;');
+              return `<td title="${escaped}">${val}</td>`;
+            })
+            .join('');
+            return `<tr>${tds}</tr>`;
+          })
+          .join('');
+          
+          el.innerHTML = `<table class="dt"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+          el._detRows = rows;
+          el._detCols = cols;
+        }
+        function detTableSort(id,colIdx){
+        const el=document.getElementById(id);if(!el||!el._detRows)return;
+        const c=el._detCols[colIdx];const k=c.key;
+        const prev=el._detSortK===k?el._detSortAsc:false;
+        el._detSortK=k;el._detSortAsc=!prev;
+        el._detRows.sort((a,b)=>{
+          const av=c.get?c.get(a):a[k],bv=c.get?c.get(b):b[k];
+          if(av<bv)return prev?1:-1;if(av>bv)return prev?-1:1;return 0;
+        });
+        detRenderTable(id,el._detRows,el._detCols);
+      }
+      function _ago(ms){
+        if(!ms)return '-';
+        const s=Math.floor((Date.now()-ms)/1000);
+        if(s<60)return s+'s';
+        if(s<3600)return Math.floor(s/60)+'m';
+        return Math.floor(s/3600)+'h';
+      }
+      const DET_FEATURES_LOCAL=[
+        ['pmkid','PMKID Harvest'],['eviltwin','Evil-Twin / Beacon Forgery'],['ssid_confusion','SSID Confusion'],
+        ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
+        ['hshk','Handshake Reconstruction'],
+        ['tsf','TSF / Evil-Twin'],['jam','WiFi Interference (L2)'],['mesh_guard','Mesh Disruption'],
+        ['ble_malformed','BLE Malformed'],['tracker','BLE Tracker'],['airtag','AirTag (+ Replay)'],['ble_attack','BLE Attack Tools'],
+        ['rid_spoof','RID Spoof Validator'],
+        ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
+        ['karma','KARMA Bait'],
+        ['probe_flood','Probe Flood'],['assoc_sleep','Assoc Sleep']
+      ];
+      const DET_FEATURES_MESH=[
+        ['mesh_deauth','Deauth'],['mesh_beacon','Beacon Flood'],
+        ['mesh_auth','Auth Flood'],['mesh_assoc_sleep','Assoc Sleep'],
+        ['mesh_sae','SAE DoS'],['mesh_eviltwin','Evil-Twin'],
+        ['mesh_owe','OWE Abuse'],['mesh_karma','Karma'],
+        ['mesh_pmkid','PMKID'],['mesh_probe_flood','Probe Flood'],
+        ['mesh_hshk','Handshake/KRACK'],['mesh_frag','FragAttacks'],
+        ['mesh_tsf','TSF Twin'],['mesh_jam','WiFi Jamming'],
+        ['mesh_guard','Mesh Disruption']
+      ];
+      const DET_THRESHOLDS=[
+        ['pmkid_window','PMKID Window (ms)',1000,60000],
+        ['pmkid_min_bssids','PMKID Min BSSIDs',2,10],
+        ['sae_window','SAE Window (ms)',1000,60000],
+        ['sae_unmatched_thresh','SAE Unmatched',3,50],
+        ['frag_reuse_thresh','FragAttacks Reuse Count',2,32],
+        ['probe_single_thresh','Probe Flood: 1-MAC probes /5s',10,500],
+        ['probe_rand_total','Probe Flood: randomized total /5s',10,1000],
+        ['probe_rand_distinct','Probe Flood: randomized distinct MACs /5s',5,500],
+        ['hunt_cooldown_ms','Hunt Cooldown (ms)',5000,600000]
+      ];
+      let _detCfg=null;
+      function detRenderConfig(){
+        if(!_detCfg)return;
+        // Tool-fingerprint detectors (tool/tool byte/behavior matches) split out
+        // for clarity. Re-classifying probe_flood + assoc_sleep here.
+        const toolKeys=['probe_flood','assoc_sleep'];
+        const wifiKeys=['pmkid','eviltwin','ssid_confusion','sae','owe','frag','hshk','attacker_trilat','rid_spoof','karma'];
+        const meshKeys=DET_FEATURES_MESH.map(x=>x[0]);
+        const tsfKey='tsf';const bloomKey='bloom_gossip';
+        function rowHtml(k,label){
+          const on=_detCfg[k]===true;
+          return `<div class="det-row"><div class="name">${label}</div>
+            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}> enabled</label></div>`;
+        }
+        function rowMesh(k,label){
+          const on=_detCfg[k]===true;
+          return `<div class="det-row"><div class="name">${label}</div>
+            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}> broadcast</label></div>`;
+        }
+        const meshEl=document.getElementById('cfg-mesh');
+        if(meshEl)meshEl.innerHTML=DET_FEATURES_MESH.map(p=>rowMesh(p[0],p[1])).join('');
+        const threshEl=document.getElementById('cfg-thresh');
+        if(threshEl){
+          let threshHtml='';
+          DET_THRESHOLDS.forEach(t=>{
+            const v=_detCfg[t[0]]||t[2];
+            threshHtml+=`<div><label style="font-size:11px;color:var(--mut);">${t[1]}</label>
+              <input type="number" data-thr="${t[0]}" value="${v}" min="${t[2]}" max="${t[3]}" style="width:100%"></div>`;
+          });
+          threshEl.innerHTML=threshHtml;
+        }
+        document.querySelectorAll('#cfg-mesh input').forEach(el=>{
+          el.addEventListener('change',()=>detPostCfg({[el.dataset.cfg]:el.checked}));
+        });
+      }
+      async function detPostCfg(patch){
+        Object.assign(_detCfg||(_detCfg={}),patch);
+        if(typeof renderDos==='function')renderDos();
+        await fetch('/api/detect/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
+      }
+      // Threat-scenario groups. Keys map to existing detector toggles.
+      // ssid_confusion intentionally excluded: CVE-2023-52424 is a client-side
+      // supplicant flaw, not observable from an AP-side sniffer (see docs/detector-verification.md).
+      // bloom_gossip + attacker_trilat are infra/response actions, not detectors -> excluded from groups.
+      // NOTE: deauth detection is unconditional (no toggle); WPS/WPA3/evil_portal detectors
+      // are staged and will get their own toggle keys during the detector build.
+      const DET_GROUPS={
+        dos:      ['sae','assoc_sleep'],
+        rogue_ap: ['eviltwin','owe','karma'],
+        recon:    ['pmkid','probe_flood','hshk'],
+        physical: ['frag','tsf','jam'],
+        mesh:     ['mesh_guard'],
+        ble:      ['ble_attack','ble_malformed','tracker','airtag']
+      };
+      const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];
+      const DET_ALL_MESH=['mesh_deauth','mesh_beacon','mesh_auth','mesh_assoc_sleep',
+        'mesh_sae','mesh_eviltwin','mesh_owe','mesh_karma','mesh_pmkid',
+        'mesh_probe_flood','mesh_hshk','mesh_frag','mesh_tsf','mesh_jam','mesh_guard'];
+      // Turn a single threat group on or off (members only; leaves other detectors untouched).
+      async function detGroupToggle(group){
+        const members=DET_GROUPS[group]; if(!members) return;
+        const cfg=_detCfg||{};
+        const anyOn=members.some(k=>cfg[k]);
+        await detGroup(group, !anyOn);
+      }
+      async function detGroup(group,on){
+        const members=DET_GROUPS[group]; if(!members) return;
+        const patch={}; members.forEach(k=>patch[k]=!!on);
+        await detPostCfg(patch); await detLoadCfg();
+        /* BLE attack group scan-trigger disabled per user 2026-05-23 (BLE scan path unreliable on this build)
+        if(group==='ble'){
+          if(on){
+            const fd=new FormData(); fd.append('mode','1'); fd.append('forever','1');
+            const r=await fetch('/scan',{method:'POST',body:fd});
+            toast(r.status===409?'Radio busy — stop current scan first':'BLE scan started');
+          } else {
+            await fetch('/stop'); toast('BLE scan stopped');
+          }
+        }
+        */
+      }
+      async function detPreset(name){
+        let patch={};
+        if(name==='all-on'){DET_ALL_LOCAL.forEach(k=>patch[k]=true);DET_ALL_MESH.forEach(k=>patch[k]=true);}
+        else if(name==='all-off'){DET_ALL_LOCAL.forEach(k=>patch[k]=false);DET_ALL_MESH.forEach(k=>patch[k]=false);}
+        else if(name==='quiet'){patch={frag:false,tsf:false,mesh_frag:false,mesh_hshk:false};}
+        else if(name==='mesh-silent'){DET_ALL_MESH.forEach(k=>patch[k]=false);}
+        else if(name==='mesh-all'){DET_ALL_MESH.forEach(k=>patch[k]=true);}
+        await detPostCfg(patch);
+        await detLoadCfg();
+      }
+      function detSaveThresh(){
+        const patch={};
+        document.querySelectorAll('input[data-thr]').forEach(el=>{
+          const v=parseInt(el.value,10);
+          if(!isNaN(v))patch[el.dataset.thr]=v;
+        });
+        detPostCfg(patch);
+      }
+      async function detLoadCfg(){
+        _detCfg=await _jj('/api/detect/config');
+        detRenderConfig();
+        if(typeof renderDos==='function')renderDos();
+      }
+      async function detHealthTick(){
+        const tab=document.getElementById('page-detect');
+        if(!tab||!tab.classList.contains('active'))return;
+        const h=await _jj('/api/detect/health');
+        if(!h)return;
+        document.getElementById('d-heap').textContent=Math.round(h.heap_free/1024)+'K (min '+Math.round(h.heap_min/1024)+'K)';
+        document.getElementById('d-drops').textContent='wifi:'+h.drops.wifi+' ble:'+h.drops.ble;
+        document.getElementById('d-mgated').textContent=h.drops.mesh_gated;
+      }
+      function detTabActive(){
+        const tab=document.getElementById('page-detect');
+        return tab&&tab.classList.contains('active');
+      }
+      async function apClientsTick(){
+        try{
+          const r=await fetch('/api/apclients.json'); if(!r.ok)return;
+          const a=await r.json(); const el=document.getElementById('apClientsArea'); if(!el)return;
+          if(!a.length){el.innerHTML='<div style="color:var(--mut);font-size:12px;">No clients yet.</div>';return;}
+          const ago=ms=>ms<60000?Math.round(ms/1000)+'s':Math.round(ms/60000)+'m';
+          el.innerHTML='<table class="dt"><thead><tr><th>Client MAC</th><th>Assoc #</th><th>First</th><th>Last</th></tr></thead><tbody>'
+            +a.map(c=>`<tr><td style="color:#bbf7d0;">${c.mac}</td><td>${c.assoc}</td><td>${ago(c.first_ms_ago)} ago</td><td>${ago(c.last_ms_ago)} ago</td></tr>`).join('')
+            +'</tbody></table>';
+        }catch(e){console.warn('apClientsTick',e);}
+      }
+      function detAllTicks(){
+        if(!detTabActive())return;
+        detectTick();pgTick();trkTick();atTick();hsTick();
+        ahTick();kmTick();tsfTick();tofTick();detHealthTick();
+        bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();baTick();apClientsTick();
+      }
+      async function _jsonl(path){
+        try{const r=await fetch(path);if(!r.ok)return [];const t=await r.text();
+          return t.split('\n').filter(x=>x.trim()).map(x=>{try{return JSON.parse(x)}catch(_){return null}}).filter(x=>x);}
+        catch(_){return []}
+      }
+      function _renderJsonl(elId,arr,cols){
+        const el=document.getElementById(elId);if(!el)return;
+        if(arr.length===0){el.textContent='--';return;}
+        const rows=arr.slice(-50).reverse().map(r=>cols.map(c=>{const v=r[c];return v===undefined?'':String(v)}).join(' | '));
+        el.textContent=cols.join(' | ')+'\n'+rows.join('\n');
+      }
+      async function bfTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/eviltwin.jsonl');
+        const forge=a.filter(r=>r.reason&&r.reason.indexOf('FORGE_')===0);
+        document.getElementById('bf-n').textContent=forge.length;
+        _renderJsonl('bf-pre',forge,['ts','bssid','ssid','reason','rssi','ch']);
+        if(forge.length>0)detMarkActive('bcnforge');
+      }
+      async function bfClear(){await fetch('/api/eviltwin/clear',{method:'POST'});bfTick();}
+      async function pfTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/pmkid_forge.jsonl');
+        document.getElementById('pf-n').textContent=a.length;
+        _renderJsonl('pf-pre',a,['ts','src','sta','keyinfo','rssi','ch']);
+        if(a.length>0)detMarkActive('pmkidforge');
+      }
+      async function pfClear(){await fetch('/api/pmkid_forge/clear',{method:'POST'});pfTick();}
+      async function ebTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/eapol_bait.jsonl');
+        document.getElementById('eb-n').textContent=a.length;
+        _renderJsonl('eb-pre',a,['ts','src','sta','deauth_count','latency_ms','confidence','rssi']);
+        if(a.length>0)detMarkActive('eapolbait');
+      }
+      async function ebClear(){await fetch('/api/eapol_bait/clear',{method:'POST'});ebTick();}
+      async function pflTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/probe_flood.jsonl');
+        document.getElementById('pfl-n').textContent=a.length;
+        _renderJsonl('pfl-pre',a,['ts','ssid','hits','distinct_src','rssi','reason']);
+        if(a.length>0)detMarkActive('probeflood');
+      }
+      async function pflClear(){await fetch('/api/probe_flood/clear',{method:'POST'});pflTick();}
+      async function asTick(){if(!detTabActive())return;
+        const a=await _jsonl('/api/assoc_sleep.jsonl');
+        document.getElementById('as-n').textContent=a.length;
+        _renderJsonl('as-pre',a,['ts','bssid','distinct_src','rssi','ch']);
+        if(a.length>0)detMarkActive('assocsleep');
+      }
+      async function asClear(){await fetch('/api/assoc_sleep/clear',{method:'POST'});asTick();}
+      async function detectAssignChannels(){await fetch('/api/channel_partition',{method:'POST'});detectTick()}
+      async function detectClearRecon(){await fetch('/api/recon/clear',{method:'POST'});detectTick()}
+      async function detectReloadOui(){await fetch('/api/oui/reload',{method:'POST'});detectTick()}
+      detLoadCfg();
+      setInterval(detAllTicks,5000);
+      detAllTicks();
     </script>
   </body>
 </html>
@@ -4693,8 +6131,7 @@ void startWebServer()
     r->send(200, "application/json", j); });
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req) {
-      // Radio-busy guard: reject if any scan task is already running
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
           req->send(409, "text/plain", "Radio busy - stop current scan first");
           return;
       }
@@ -4904,12 +6341,15 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
       stopRequested = true;
 
-      // Stop triangulation if active
       if (triangulationActive) {
           stopTriangulation();
       }
 
       scanning = false;
+
+      if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
+          stopMeshDrain.store(true);
+      }
 
       req->send(200, "text/plain", "Scan stopped");
   });
@@ -5075,7 +6515,7 @@ void registerRemainingRoutes() {
   server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req)
              {
         // Radio-busy guard: reject if any scan task is already running
-        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
             req->send(409, "text/plain", "Radio busy - stop current scan first");
             return;
         }
@@ -5202,6 +6642,14 @@ void registerRemainingRoutes() {
     req->send(200, "application/json", json);
   });
 
+  server->on("/mesh/drain/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String json = "{\"draining\":" + String(meshTxDraining.load() ? "true" : "false") +
+                  ",\"sent\":" + String(meshDrainSent.load()) +
+                  ",\"total\":" + String(meshDrainTotal.load()) +
+                  ",\"dedupCount\":" + String(meshDedupCount()) + "}";
+    req->send(200, "application/json", json);
+  });
+
   server->on("/diag", HTTP_GET, [](AsyncWebServerRequest *r)
              {
         String s = getDiagnostics();
@@ -5299,7 +6747,7 @@ void registerRemainingRoutes() {
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
         // Radio-busy guard: reject if any scan task is already running
-        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
             req->send(409, "text/plain", "Radio busy - stop current scan first");
             return;
         }
@@ -5653,8 +7101,7 @@ void registerRemainingRoutes() {
         req->send(200, "text/plain", "Allowlist saved"); });
 
   server->on("/triangulate/start", HTTP_POST, [](AsyncWebServerRequest *req) {
-      // Radio-busy guard: reject if any scan task is already running
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
           req->send(409, "text/plain", "Radio busy - stop current scan first");
           return;
       }
@@ -6036,6 +7483,446 @@ void registerRemainingRoutes() {
       r->send(200, "application/json", "{\"accepted\":true}");
   });
 
+  // ====== Phase 1-3: /detect endpoints ======
+
+  // Phase 1: attack-signature jsonl getters (RAM log, recent events)
+  server->on("/api/pmkid.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getPmkidJsonl());
+  });
+  server->on("/api/eviltwin.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getEvilTwinJsonl());
+  });
+  server->on("/api/ssid_confusion.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getSsidConfusionJsonl());
+  });
+  server->on("/api/sae_dos.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getSaeDosJsonl());
+  });
+  server->on("/api/owe_abuse.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getOweAbuseJsonl());
+  });
+  server->on("/api/fragattack.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getFragAttackJsonl());
+  });
+  server->on("/api/ble_malformed.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/x-ndjson", detect_getBleMalformedJsonl());
+  });
+  server->on("/api/jamming.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/jamming.jsonl")) r->send(SD, "/jamming.jsonl", "application/x-ndjson");
+      else r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/jamming/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/jamming.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/meshguard.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/meshguard.jsonl")) r->send(SD, "/meshguard.jsonl", "application/x-ndjson");
+      else r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/meshguard/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/meshguard.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+
+  // === tool / tool tool-fingerprint logs (NEW) ===
+  server->on("/api/ble_attack.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/ble_attack.jsonl"))    r->send(SD, "/ble_attack.jsonl",    "application/x-ndjson");
+      else                                   r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/probe_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/probe_flood.jsonl"))   r->send(SD, "/probe_flood.jsonl",   "application/x-ndjson");
+      else                                   r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/assoc_sleep.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/assoc_sleep.jsonl"))   r->send(SD, "/assoc_sleep.jsonl",   "application/x-ndjson");
+      else                                   r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/pmkid_forge.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/pmkid_forge.jsonl"))   r->send(SD, "/pmkid_forge.jsonl",   "application/x-ndjson");
+      else                                   r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/eapol_bait.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/eapol_bait.jsonl"))    r->send(SD, "/eapol_bait.jsonl",    "application/x-ndjson");
+      else                                   r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/deauth_flood.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/deauth_flood.jsonl")) r->send(SD, "/deauth_flood.jsonl", "application/x-ndjson");
+      else                                  r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/deauth_flood/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/deauth_flood.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/deauth_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/deauth_ap.jsonl")) r->send(SD, "/deauth_ap.jsonl", "application/x-ndjson");
+      else                               r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/probe_ap.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/probe_ap.jsonl")) r->send(SD, "/probe_ap.jsonl", "application/x-ndjson");
+      else                              r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/apclients.json", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getApClientsJson());
+  });
+  server->on("/api/ble_attack/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/ble_attack.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/probe_flood/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/probe_flood.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/assoc_sleep/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/assoc_sleep.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/pmkid_forge/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/pmkid_forge.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/eapol_bait/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/eapol_bait.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+
+  // === Unified incidents log (all detector events local+peer) ===
+  server->on("/api/incidents.json", HTTP_GET, [](AsyncWebServerRequest *r) {
+      size_t maxN = 200;
+      if (r->hasParam("limit")) {
+          int v = r->getParam("limit")->value().toInt();
+          if (v > 0 && v <= 200) maxN = (size_t)v;
+      }
+      r->send(200, "application/json", detect_getIncidentsJson(maxN));
+  });
+  server->on("/api/incidents.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/incidents.jsonl")) r->send(SD, "/incidents.jsonl", "application/x-ndjson");
+      else                               r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/incidents", HTTP_DELETE, [](AsyncWebServerRequest *r) {
+      detect_clearIncidents();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/incidents/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearIncidents();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/sentinel/status", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"enabled\":") + (sentinel_isUserEnabled() ? "true" : "false") +
+                 ",\"running\":" + (sentinel_isRunning() ? "true" : "false") +
+                 ",\"scanning\":" + (scanning.load() ? "true" : "false") + "}";
+      r->send(200, "application/json", j);
+  });
+  server->on("/api/sentinel/start", HTTP_POST, [](AsyncWebServerRequest *r) {
+      if (scanning.load()) {
+          r->send(409, "text/plain", "cannot start: scan active");
+          return;
+      }
+      sentinel_setUserEnabled(true);
+      r->send(200, "text/plain", "started (WiFi-only — BLE separate endpoint)");
+  });
+  server->on("/api/sentinel/ble/start", HTTP_POST, [](AsyncWebServerRequest *r) {
+      if (ESP.getFreeHeap() < 60000) {
+          r->send(409, "text/plain", "insufficient heap for BLE controller init");
+          return;
+      }
+      extern void radioStartBLE();
+      radioStartBLE();
+      r->send(200, "text/plain", "BLE scan started");
+  });
+  server->on("/api/sentinel/stop", HTTP_POST, [](AsyncWebServerRequest *r) {
+      sentinel_setUserEnabled(false);
+      r->send(200, "text/plain", "stopped");
+  });
+
+  server->on("/api/sentinel/boot", HTTP_GET, [](AsyncWebServerRequest *r) {
+      Preferences p; bool b = false;
+      if (p.begin("antihunter", true)) { b = p.getBool("sentBoot", false); p.end(); }
+      r->send(200, "application/json", String("{\"boot\":") + (b ? "true" : "false") + "}");
+  });
+  server->on("/api/sentinel/boot", HTTP_POST, [](AsyncWebServerRequest *r) {
+      bool on = false;
+      if (r->hasParam("on", true)) on = r->getParam("on", true)->value().toInt() != 0;
+      Preferences p;
+      if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
+      Serial.printf("[SENTINEL] Boot auto-start set %s\n", on ? "ON" : "OFF");
+      r->send(200, "application/json", String("{\"boot\":") + (on ? "true" : "false") + "}");
+  });
+
+  server->on("/api/detect/verbose", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"verbose\":") + (detect_isVerbose() ? "true" : "false") +
+                 ",\"mesh_peers\":" + String((unsigned)detect_meshPeerCount()) + "}";
+      r->send(200, "application/json", j);
+  });
+  server->on("/api/detect/verbose/on", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_setVerbose(true);
+      r->send(200, "text/plain", "verbose on");
+  });
+  server->on("/api/detect/verbose/off", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_setVerbose(false);
+      r->send(200, "text/plain", "verbose off");
+  });
+  server->on("/api/eviltwin/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      SafeSD::remove("/eviltwin.jsonl"); r->send(200, "text/plain", "cleared");
+  });
+
+  // Phase 2 mesh / quorum / bloom / channel
+  server->on("/api/quorum", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getQuorumStatusJson());
+  });
+  server->on("/api/quorum/config", HTTP_POST, [](AsyncWebServerRequest *r) {
+      String type = r->hasParam("type", true) ? r->getParam("type", true)->value() : "";
+      int n = r->hasParam("n", true) ? r->getParam("n", true)->value().toInt() : 0;
+      if (type.length() == 0 || n <= 0) { r->send(400, "text/plain", "type+n required"); return; }
+      quorum_setRequired(type, (uint8_t)n);
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
+  server->on("/api/bloom", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getBloomStatsJson());
+  });
+  server->on("/api/rid_claims", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getRidClaimsJson());
+  });
+  server->on("/api/channel_partition", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getChannelAssignmentJson());
+  });
+  server->on("/api/channel_partition", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_assignChannelPartition();
+      r->send(200, "application/json", detect_getChannelAssignmentJson());
+  });
+  server->on("/api/pps", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"locked\":") + (ppsLocked() ? "true" : "false") +
+                 ",\"last_edge\":" + String(ppsLastEdgeMicros()) +
+                 ",\"disciplined_us\":" + String((unsigned long long)getDisciplinedMicros()) + "}";
+      r->send(200, "application/json", j);
+  });
+
+  // Phase 3 BLE perimeter / recon / OUI
+  server->on("/api/ble_tracker", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getBleTrackerJson());
+  });
+  server->on("/api/ble_tracker/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearBleTracker();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/recon", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getReconJson());
+  });
+  server->on("/api/recon/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearRecon();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/oui/reload", HTTP_POST, [](AsyncWebServerRequest *r) {
+      bool ok = loadOuiTable();
+      r->send(200, "application/json", ok ? "{\"loaded\":true}" : "{\"loaded\":false}");
+  });
+  server->on("/api/detect/clear_all", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearAll();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/detect/health", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getHealthJson());
+  });
+  server->on("/api/detect/config", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getConfigJson());
+  });
+  server->on("/api/detect/config", HTTP_POST,
+    [](AsyncWebServerRequest *r) {
+        r->send(200, "application/json", "{\"ok\":true}");
+    },
+    NULL,
+    [](AsyncWebServerRequest *r, uint8_t *data, size_t len, size_t index, size_t total) {
+        static String acc;
+        if (index == 0) acc = "";
+        for (size_t i = 0; i < len; ++i) acc += (char)data[i];
+        if (index + len == total) {
+            detect_setConfigFromJson(acc);
+            detect_persistTunables();
+            acc = "";
+        }
+    });
+
+  server->on("/api/probegraph", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", pg_getGraphJson());
+  });
+  server->on("/api/probegraph/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      pg_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/tracker_chains", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", tracker_getChainsJson());
+  });
+  server->on("/api/tracker_chains/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      tracker_clearChains();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/airtag_presence", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", airtag_getPresenceJson());
+  });
+  server->on("/api/airtag_presence/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      airtag_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/handshakes", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", hshk_getReconJson());
+  });
+  server->on("/api/handshakes/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      hshk_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/handshakes/stats", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"count\":") + String(hshk_count()) +
+                 ",\"krack_events\":" + String(hshk_krackEvents()) + "}";
+      r->send(200, "application/json", j);
+  });
+
+  server->on("/api/attacker_hunts", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", attacker_getActiveHuntsJson());
+  });
+  server->on("/api/attacker_hunts/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      attacker_clearHunts();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/tof", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", tof_getPeersJson());
+  });
+  server->on("/api/tof/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      tof_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/tof/ping", HTTP_POST, [](AsyncWebServerRequest *r) {
+      String tgt = "*";
+      if (r->hasParam("target", true)) tgt = r->getParam("target", true)->value();
+      tof_ping(tgt.c_str());
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server->on("/api/tsf_skew", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", tsf_getSkewJson());
+  });
+  server->on("/api/tsf_skew/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      tsf_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/karma", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", karma_getJson());
+  });
+  server->on("/api/karma/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      karma_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/karma/enable", HTTP_POST, [](AsyncWebServerRequest *r) {
+      bool on = true;
+      if (r->hasParam("on", true)) on = r->getParam("on", true)->value().toInt() != 0;
+      karma_setEnabled(on);
+      r->send(200, "application/json", on ? "{\"enabled\":true}" : "{\"enabled\":false}");
+  });
+  server->on("/api/karma/stats", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String j = String("{\"enabled\":") + (karma_isEnabled() ? "true" : "false") +
+                 ",\"candidates\":" + String(karma_candidateCount()) +
+                 ",\"confirmed\":" + String(karma_confirmedCount()) + "}";
+      r->send(200, "application/json", j);
+  });
+
+  server->on("/api/pwnagotchi", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", pwnagotchi_getJson());
+  });
+  server->on("/api/pwnagotchi/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
+      pwnagotchi_clear();
+      r->send(200, "text/plain", "cleared");
+  });
+
+  server->on("/api/attacker_hunts/cooldown", HTTP_POST, [](AsyncWebServerRequest *r) {
+      uint32_t ms = 60000;
+      if (r->hasParam("ms", true)) ms = (uint32_t)r->getParam("ms", true)->value().toInt();
+      attacker_setCooldown(ms);
+      r->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  // Minimal /detect UI page — single-page dashboard for all detectors.
+  // Full UI integration into existing HTML tabs follows the same pattern as
+  // /baseline/stats / /api/probes.jsonl polling already in the main HTML.
+  server->on("/detect", HTTP_GET, [](AsyncWebServerRequest *r) {
+      static const char HTML[] PROGMEM = R"HTML(<!doctype html><html><head>
+<meta charset=utf-8><title>AntiHunter - Detect</title>
+<style>
+body{background:#0a0e14;color:#b3d1ff;font:14px/1.4 monospace;margin:0;padding:1em}
+h1,h2{color:#ffae00}
+section{border:1px solid #2a3f5f;padding:.5em;margin:.5em 0;background:#0d1622}
+pre{white-space:pre-wrap;max-height:260px;overflow:auto;background:#000a14;padding:.4em;font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:.5em}
+.row>section{flex:1 1 320px}
+.k{color:#7fc7ff}.v{color:#fff}
+button{background:#23314a;color:#b3d1ff;border:1px solid #3b557d;padding:.3em .7em;cursor:pointer}
+button:hover{background:#2f4163}
+nav a{color:#ffae00;text-decoration:none;margin-right:1em}
+</style></head><body>
+<nav><a href="/">Main</a><a href="/detect">Detect</a></nav>
+<h1>Detection Engine</h1>
+<div class=row>
+<section><h2>Attack signatures</h2>
+<div><span class=k>PMKID burst:</span> <span id=cnt-pmkid class=v>-</span></div>
+<div><span class=k>Evil-twin:</span> <span id=cnt-et class=v>-</span></div>
+<div><span class=k>SSID confusion:</span> <span id=cnt-sc class=v>-</span></div>
+<div><span class=k>SAE DoS:</span> <span id=cnt-sae class=v>-</span></div>
+<div><span class=k>OWE abuse:</span> <span id=cnt-owe class=v>-</span></div>
+<div><span class=k>FragAttacks:</span> <span id=cnt-frag class=v>-</span></div>
+<div><span class=k>BLE malformed:</span> <span id=cnt-blem class=v>-</span></div>
+<button onclick="clearAll()">Clear all</button>
+<pre id=stream></pre>
+</section>
+<section><h2>Mesh defense</h2>
+<div><span class=k>PPS lock:</span> <span id=pps class=v>-</span></div>
+<div><span class=k>Bloom local bits:</span> <span id=bl class=v>-</span></div>
+<div><span class=k>Bloom neighbor bits:</span> <span id=bn class=v>-</span></div>
+<div><span class=k>Quorum candidates:</span> <span id=qc class=v>-</span></div>
+<button onclick="assignChannels()">Assign channel partition</button>
+<pre id=quorum></pre>
+<h2>Remote ID claims</h2>
+<pre id=rid></pre>
+</section>
+<section><h2>BLE perimeter</h2>
+<div><span class=k>Trackers seen:</span> <span id=trk class=v>-</span></div>
+<div><span class=k>Recon flagged:</span> <span id=rec class=v>-</span></div>
+<button onclick="fetch('/api/ble_tracker/clear',{method:'POST'})">Clear trackers</button>
+<button onclick="fetch('/api/recon/clear',{method:'POST'})">Clear recon</button>
+<pre id=trkpre></pre>
+<pre id=recpre></pre>
+</section>
+</div>
+<script>
+async function jget(u){const r=await fetch(u);try{return await r.json()}catch(e){return await r.text()}}
+async function tick(){
+ const [pm,et,sc,sa,ow,fr,bm,q,b,p,rid,tr,rc]=await Promise.all([
+  fetch('/api/pmkid.jsonl').then(r=>r.text()),
+  fetch('/api/eviltwin.jsonl').then(r=>r.text()),
+  fetch('/api/ssid_confusion.jsonl').then(r=>r.text()),
+  fetch('/api/sae_dos.jsonl').then(r=>r.text()),
+  fetch('/api/owe_abuse.jsonl').then(r=>r.text()),
+  fetch('/api/fragattack.jsonl').then(r=>r.text()),
+  fetch('/api/ble_malformed.jsonl').then(r=>r.text()),
+  jget('/api/quorum'),jget('/api/bloom'),jget('/api/pps'),
+  jget('/api/rid_claims'),jget('/api/ble_tracker'),jget('/api/recon')
+ ]);
+ const c=t=>t.split('\n').filter(l=>l.trim()).length;
+ cnt_pmkid.textContent=c(pm);cnt_et.textContent=c(et);cnt_sc.textContent=c(sc);
+ cnt_sae.textContent=c(sa);cnt_owe.textContent=c(ow);cnt_frag.textContent=c(fr);cnt_blem.textContent=c(bm);
+ stream.textContent=[pm,et,sc,sa,ow,fr,bm].join('---\n').slice(-4000);
+ pps.textContent=(p.locked?'YES':'no')+' edge='+p.last_edge;
+ bl.textContent=b.local_bits_set+' / '+b.capacity_bits;
+ bn.textContent=b.neighbor_bits_set+' / '+b.capacity_bits;
+ qc.textContent=(q.candidates||[]).length;
+ quorum.textContent=JSON.stringify(q,null,2);
+ rid_.textContent=JSON.stringify(rid,null,2);
+ trk.textContent=(tr||[]).length;
+ rec.textContent=(rc||[]).length;
+ trkpre.textContent=JSON.stringify(tr,null,2);
+ recpre.textContent=JSON.stringify(rc,null,2);
+}
+const rid_=document.getElementById('rid');
+async function clearAll(){await fetch('/api/detect/clear_all',{method:'POST'});tick()}
+async function assignChannels(){await fetch('/api/channel_partition',{method:'POST'});tick()}
+tick();setInterval(tick,3000);
+</script></body></html>)HTML";
+      r->send(200, "text/html", reinterpret_cast<const uint8_t*>(HTML), strlen_P(HTML));
+  });
+
   server->begin();
   Serial.println("[WEB] Server started.");
 }
@@ -6138,6 +8025,103 @@ void sendMeshNotification(const Hit &hit) {
     }
 }
 
+struct MeshTxItem {
+    char msg[MAX_MESH_SIZE + 8];
+    bool priority;
+};
+
+QueueHandle_t meshTxQueue = nullptr;
+TaskHandle_t meshTxTaskHandle = nullptr;
+std::atomic<uint32_t> meshTxDepthHigh(0);
+std::atomic<uint32_t> meshTxSentLifetime(0);
+std::atomic<uint32_t> meshTxDroppedFull(0);
+
+static const uint16_t MESH_TX_QUEUE_DEPTH = 256;
+
+bool meshEnqueue(const String &msg, bool priority) {
+    if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
+    if (meshTxQueue == nullptr) {
+        return sendToSerial1(msg, priority);
+    }
+    MeshTxItem item;
+    strncpy(item.msg, msg.c_str(), sizeof(item.msg) - 1);
+    item.msg[sizeof(item.msg) - 1] = '\0';
+    item.priority = priority;
+    if (xQueueSend(meshTxQueue, &item, 0) != pdTRUE) {
+        meshTxDroppedFull.fetch_add(1);
+        Serial.printf("[MESH] Queue full, dropped: %s\n", msg.substring(0, 50).c_str());
+        return false;
+    }
+    meshDrainTotal.fetch_add(1);
+    uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
+    uint32_t prev = meshTxDepthHigh.load();
+    while (depth > prev && !meshTxDepthHigh.compare_exchange_weak(prev, depth)) {}
+    meshTxDraining.store(depth > 0);
+    return true;
+}
+
+uint32_t meshTxQueueDepth() {
+    if (meshTxQueue == nullptr) return 0;
+    return uxQueueMessagesWaiting(meshTxQueue);
+}
+
+uint32_t meshTxDroppedCount() {
+    return meshTxDroppedFull.load();
+}
+
+void meshTxFlushQueue() {
+    if (meshTxQueue == nullptr) return;
+    xQueueReset(meshTxQueue);
+    meshTxDepthHigh.store(0);
+    meshTxDraining.store(false);
+    meshDrainSent.store(0);
+    meshDrainTotal.store(0);
+    Serial.println("[MESH] TX queue flushed");
+}
+
+static void meshTxTask(void *pv) {
+    (void)pv;
+    Serial.println("[MESH] TX task started");
+    MeshTxItem item;
+    for (;;) {
+        if (stopMeshDrain.load()) {
+            meshTxFlushQueue();
+            stopMeshDrain.store(false);
+        }
+        if (xQueueReceive(meshTxQueue, &item, pdMS_TO_TICKS(1000)) == pdTRUE) {
+            String msg(item.msg);
+            if (sendToSerial1(msg, true)) {
+                meshTxSentLifetime.fetch_add(1);
+                meshDrainSent.fetch_add(1);
+            }
+            uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
+            if (depth == 0) {
+                meshTxDraining.store(false);
+                uint32_t sent = meshDrainSent.load();
+                uint32_t total = meshDrainTotal.load();
+                if (sent >= total) {
+                    meshTxDepthHigh.store(0);
+                    meshDrainSent.store(0);
+                    meshDrainTotal.store(0);
+                }
+            } else {
+                meshTxDraining.store(true);
+            }
+        } else {
+            if (uxQueueMessagesWaiting(meshTxQueue) == 0) {
+                meshTxDraining.store(false);
+                uint32_t sent = meshDrainSent.load();
+                uint32_t total = meshDrainTotal.load();
+                if (sent >= total && total > 0) {
+                    meshTxDepthHigh.store(0);
+                    meshDrainSent.store(0);
+                    meshDrainTotal.store(0);
+                }
+            }
+        }
+    }
+}
+
 void initializeMesh() {
     if (serial1Mutex == nullptr) {
         serial1Mutex = xSemaphoreCreateMutex();
@@ -6158,8 +8142,20 @@ void initializeMesh() {
 
     delay(500);
 
+    if (meshTxQueue == nullptr) {
+        meshTxQueue = xQueueCreateWithCaps(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (meshTxQueue == nullptr) {
+            Serial.println("[MESH] PSRAM queue alloc failed, falling back to internal heap");
+            meshTxQueue = xQueueCreate(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem));
+        }
+    }
+    if (meshTxTaskHandle == nullptr && meshTxQueue != nullptr) {
+        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 4096, nullptr, 1, &meshTxTaskHandle, 1);
+    }
+
     Serial.println("[MESH] UART initialized");
-    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d\n", MESH_RX_PIN, MESH_TX_PIN);
+    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d, queue=%u\n",
+                  MESH_RX_PIN, MESH_TX_PIN, MESH_TX_QUEUE_DEPTH);
 }
 
 // --- Command Handlers ---
@@ -6242,7 +8238,7 @@ static void handleScanStart(const String &command)
 
     if (mode >= 0 && mode <= 2)
     {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
         Serial.println("[MESH] Radio busy, rejecting SCAN_START");
         sendToSerial1(nodeId + ": SCAN_ACK:BUSY", true);
       } else {
@@ -6276,7 +8272,7 @@ static void handleBaselineStart(const String &command)
     secs = 60;
   }
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting BASELINE_START");
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
@@ -6336,7 +8332,7 @@ static void handleDeviceScanStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
@@ -6370,7 +8366,7 @@ static void handleDroneStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DRONE_START");
     sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
   } else {
@@ -6403,7 +8399,7 @@ static void handleDeauthStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DEAUTH_START");
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
@@ -6439,7 +8435,7 @@ static void handleRandomizationStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting RANDOMIZATION_START");
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:BUSY", true);
     } else {
@@ -6491,7 +8487,7 @@ static void handleProbeStart(const String &command)
 
   if (mode < 0 || mode > 2) return;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxDraining) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
     sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
   } else {
@@ -6527,6 +8523,9 @@ static void handleStop(const String &command)
 {
   (void)command;
   stopRequested = true;
+  if (meshTxDraining.load()) {
+    stopMeshDrain.store(true);
+  }
   Serial.println("[MESH] Stop command received via mesh");
   sendToSerial1(nodeId + ": STOP_ACK:OK", true);
 }

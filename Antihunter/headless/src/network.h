@@ -24,7 +24,16 @@ public:
 };
 
 bool sendToSerial1(const String &message, bool canDelay = true);
+bool meshEnqueue(const String &msg, bool priority = false);
+void meshTxFlushQueue();
+uint32_t meshTxQueueDepth();
+uint32_t meshTxDroppedCount();
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
+
+// Headless has no SoftAP; AP_CHANNEL is the sentinel's default pin channel.
+#ifndef AP_CHANNEL
+#define AP_CHANNEL 6
+#endif
 
 extern const int MAX_MESH_SIZE;
 extern SerialRateLimiter rateLimiter;

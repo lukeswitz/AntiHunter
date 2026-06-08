@@ -1,0 +1,165 @@
+ █████╗ ███╗   ██╗████████╗██╗██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗ 
+██╔══██╗████╗  ██║╚══██╔══╝██║██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
+███████║██╔██╗ ██║   ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
+██╔══██║██║╚██╗██║   ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
+██║  ██║██║ ╚██╗█║   ██║   ██║██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
+╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+                              D I G I   N O D E
+
+
+================================================================================
+  WELCOME, OPERATOR
+================================================================================
+
+You've got the PCB. Populate it with the core components and you've got a fully
+functional DIGI Node — WiFi/BLE scanner, drone Remote ID detector, LoRa mesh
+endpoint, GPS, RTC, tamper sensing.
+
+Want the full experience? Add the enclosure, antennas, and power kit for a
+deployable field unit.
+
+
+================================================================================
+  [01]  BUILD IT
+================================================================================
+
+Assembly manual (full walkthrough):
+  https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf
+
+Most components are drop-in and solder. Two need a small mod depending on
+what shipped to you:
+
+  >> RTC MODULE
+     Usually ships with female headers. Trim and reuse the existing pins,
+     or desolder and swap in male pin headers.
+
+  >> VIBRATION SENSOR
+     Sourced units have inverted 90° headers. Heat all three joints and
+     bend straight (trim excess), or desolder and replace with standard
+     header pins.
+
+
+================================================================================
+  [02]  FLASH THE MESH RADIO
+================================================================================
+
+Flash your Heltec V3.2 (preferred) or T114 with the latest stable Meshtastic
+firmware. Then open the Meshtastic app or web config and set:
+
+    SERIAL ........ Enabled
+    MODE .......... TEXTMSG
+    BAUD .......... 115200
+    PINS .......... 10 RX / 9 TX   (T114)
+                    19 RX / 20 TX  (Heltec V3)
+
+Disconnect when done.
+
+
+================================================================================
+  [03]  FLASH ANTIHUNTER
+================================================================================
+
+Flash the ESP32-S3 on the AntiHunter PCB. Two variants:
+
+  >> FULL ......... WiFi AP for the web UI, plus mesh command control
+  >> HEADLESS ..... No AP, quieter field ops, mesh commands only
+
+Pick one method:
+
+  [A] WEB FLASHER
+      https://lukeswitz.github.io/AntiHunter
+
+  [B] CLI INSTALLER
+      curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+      chmod +x flashAntihunter.sh
+      ./flashAntihunter.sh
+
+  [C] BUILD FROM SOURCE
+      Flash with PlatformIO — see the README.
+
+
+================================================================================
+  [04]  CONFIGURE
+================================================================================
+
+Tune device settings from the same web tool, send mesh commands later, or
+batch-apply settings during flashing.
+
+Your node is now operational. Deploy and tune to taste.
+
+
+================================================================================
+  /!\  POWER  /!\
+================================================================================
+
+ALWAYS power from a regulated 5V source — USB or the included UPS board.
+Unregulated input can damage the board components.
+
+
+================================================================================
+  [05]  TIPS AND REFERENCE 
+================================================================================
+
+  >> Turn off the public mesh channel; use your own encrypted channel as primary
+  >> Disable Bluetooth on the radio for quieter field ops
+  >> Pull the screen on the Heltec V3 to save power
+  >> Use a little petroleum jelly on the TPU seals if in extreme conditions
+
+  DOCS / MESH COMMANDS / API / FEATURES
+    https://github.com/lukeswitz/AntiHunter
+
+  BETA CHANNEL
+    Early features to test before they hit stable
+
+  COMMAND CENTER PRO
+    Multi-site federation with TAK, MQTT, ADSB integration
+    Perimeter deployment strategy tool
+    https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO
+
+Fully open source; Write your own mesh commands, Wire in your IDS.
+
+Make it yours.
+
+
+================================================================================
+  BILL OF MATERIALS
+================================================================================
+
+  ---- CORE (minimum for a functional node) -------------------------------------
+
+    1x  Seeed XIAO ESP32-S3
+    1x  Heltec WiFi LoRa 32 V3.2  (or T114 — V3.2 preferred)
+    1x  ATGM336H GPS module
+    1x  MicroSD SPI reader + 16GB FAT32 card
+    1x  SW-420 vibration sensor
+    1x  DS3231 RTC module
+
+  ---- FULL BUILD :: POWER & ENCLOSURE ------------------------------------------
+
+    1x  Type-C 15W 3A 5V UPS  (2S 18650, 88x41x22mm)
+    1x  30mm 5V JST fan
+    1x  3-pin mini on/off switch
+    1x  JST power male cable  (switch to board)
+    1x  Weatherproof enclosure
+        STLs: https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files
+
+  ---- FULL BUILD :: ANTENNAS & CABLES ------------------------------------------
+
+    3x  U.FL to SMA pigtail  (10cm, SMA bulkhead)
+    1x  6dBi 2.4GHz antenna  (WiFi/BLE)
+    1x  6dBi LoRa antenna    (868 EU / 915 US / 923 Asia)
+    1x  GNSS helix antenna   (L1/L2/L5)
+
+  ---- FULL BUILD :: FASTENERS --------------------------------------------------
+
+    6x   JST 2.54 2-pin terminals  (2.0mm JST also fits)
+    10x  M3 inserts
+    2x   M3x15mm brass standoffs
+    1x   1/4" tripod insert
+    8x   M3 flat-top screws  (enclosure)
+    6x   M3 screws           (PCB and power board)
+
+
+================================================================================
+                              -- END OF FILE --
+================================================================================

@@ -2,6 +2,7 @@
 #include "network.h"
 #include "baseline.h"
 #include "triangulation.h"
+#include "detect.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -310,7 +311,7 @@ void initializeHardware()
         prefs.putUInt("blDuration", 300000);
         prefs.putInt("blRssi", -70);
         prefs.putUInt("rfPreset", 1);
-        prefs.putInt("globalRSSI", -90);
+        prefs.putInt("globalRSSI", -95);
         prefs.putUInt("wifiChanTime", 120);
         prefs.putUInt("wifiInterval", 5000);
         prefs.putUInt("bleInterval", 2000);
@@ -504,7 +505,7 @@ void loadConfiguration() {
         config += "}";
     }
 
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, config);
 
     if (error) {
@@ -559,7 +560,7 @@ void loadConfiguration() {
             uint32_t bsd = doc["bleScanDuration"].as<uint32_t>();
             String channels = doc.containsKey("channels") && doc["channels"].is<String>() ?
                             doc["channels"].as<String>() : "1..14";
-            int8_t rssiThreshold = doc["globalRssiThreshold"] | -90;
+            int8_t rssiThreshold = doc["globalRssiThreshold"] | -95;
             setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
         }
     }
@@ -707,6 +708,20 @@ void loadConfiguration() {
         prefs.putBool("vibEnabled", vibrationEnabled);
     }
 
+    if (doc.containsKey("sentinelBoot")) {
+        bool sb = doc["sentinelBoot"].as<bool>();
+        prefs.putBool("sentBoot", sb);
+        Serial.printf("[CONFIG] sentinelBoot=%s\n", sb ? "on" : "off");
+    }
+
+    if (doc.containsKey("detectors") && doc["detectors"].is<JsonObject>()) {
+        String dj;
+        serializeJson(doc["detectors"], dj);
+        detect_setConfigFromJson(dj);
+        detect_persistTunables();
+        Serial.println("[CONFIG] Detector/sentinel config applied + persisted");
+    }
+
     Serial.println("Configuration loaded from SD card and synced to NVS");
 }
 
@@ -782,7 +797,7 @@ bool waitForInitialConfig() {
     
     Serial.println("[CONFIG] Received config, validating...");
     
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, configBuffer);
     
     if (error) {
@@ -852,6 +867,12 @@ String getDiagnostics() {
     snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02u:%02u:%02u", uptime_hours, uptime_minutes, uptime_seconds);
     s += "Up:" + String(uptimeBuffer) + "\n";
     s += "Scan Mode: " + modeStr + "\n";
+    String activeRadio;
+    if (scanning) activeRadio = modeStr;
+    else if (blueTeamTaskHandle) activeRadio = "WiFi";
+    else if (sentinel_isRunning()) activeRadio = "WiFi";
+    else activeRadio = "Idle";
+    s += "Active Radio: " + activeRadio + "\n";
     s += "WiFi Frames: " + String((unsigned)framesSeen) + "\n";
     s += "BLE Frames: " + String((unsigned)bleFramesSeen) + "\n";
     s += "Devices Found: " + String(totalHits) + "\n";
@@ -864,6 +885,12 @@ String getDiagnostics() {
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
+    if (meshTxDraining.load()) {
+        s += "Mesh TX: draining " + String(meshDrainSent.load()) + "/" + String(meshDrainTotal.load()) + "\n";
+    } else {
+        s += "Mesh TX: idle\n";
+    }
+    s += "Mesh Dedup: " + String(meshDedupCount()) + " MACs\n";
     s += "Heartbeat: " + String(hbEnabled ? "Enabled" : "Disabled") + " " + String(hbInterval / 60000) + "min\n";
     s += "Vibration Broadcasts: " + String(vibrationEnabled ? "Enabled" : "Disabled") + "\n";
     if (lastVibrationTime > 0) {
@@ -1046,7 +1073,6 @@ void sendGPSLockStatus(bool locked) {
     String gpsMsg = getNodeId() + ": GPS: ";
     gpsMsg += (locked ? "LOCKED" : "LOST");
     if (locked) {
-        gpsMsg += " Location=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
         gpsMsg += " Satellites:" + String(gps.satellites.isValid() ? gps.satellites.value() : 0);
         gpsMsg += " HDOP:" + String(gps.hdop.isValid() ? gps.hdop.hdop() : 99.9, 2);
     }
@@ -1181,6 +1207,21 @@ void logVibrationEvent(int sensorValue) {
 
 void logEventToSD(const char* path, const String& jsonLine) {
     if (!SafeSD::isAvailable()) return;
+
+    // Heap-floor guard: under an attack flood, per-event SD writes (File buffers +
+    // rotation reads) can drain heap to an abort. Below the floor, drop the write
+    // rather than crash — the detector still counted/alerted in RAM. Protects
+    // EVERY detector log path in one place.
+    if (ESP.getFreeHeap() < 20000) {
+        static uint32_t s_lastHeapWarnMs = 0;
+        uint32_t nowMs = millis();
+        if (nowMs - s_lastHeapWarnMs > 5000) {
+            s_lastHeapWarnMs = nowMs;
+            Serial.printf("[HEAP-GUARD] dropping SD log (%s) — free heap %u\n",
+                          path, (unsigned)ESP.getFreeHeap());
+        }
+        return;
+    }
 
     File f = SafeSD::open(path, FILE_APPEND);
     if (!f) {

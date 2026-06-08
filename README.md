@@ -16,27 +16,15 @@
 <div align="center">
   <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
 </div>
-<div align="center">
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
-  <a href="https://lectronz.com/stores/antihunter" alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
-</div>
 </p>
 
+> Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
 
+### News:
 
-### News & Links:
-
-[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/5apYc8u2)
-
-- `2026 January` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
-- `2026 April` - Undercode Testing: [AntiHunter Unleashed: Mesh IDS](https://undercodetesting.com/antihunter-unleashed-building-a-low-cost-distributed-wireless-defense-mesh-for-real-time-threat-detection-video/)  
-
-> - Optional integration with **[AntiHunter Command Center Pro](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)**  
-> - [Beta channel](https://github.com/lukeswitz/AntiHunter/tree/beta) has new features in development. Potential stability issues and unexpected behavior may occur.
-
----
-
-
+- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection.
+- `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 # Table of Contents
 
@@ -47,21 +35,15 @@
 5. [RF Configuration](#rf-configuration)
 6. [System Architecture](#system-architecture)
 7. [Hardware](#hardware)
-    - [Assembling the PCB](#assembling-the-pcb)
-9. [Getting Started](#getting-started)
-10. [Mesh Commands](#mesh-commands)
-11. [API Reference](#api-reference)
-12. [Acknowledgments](#acknowledgments)
-13. [Legal](#legal-disclaimer)
-
-<img width="1200" height="1152" alt="IMG_6831" src="https://github.com/user-attachments/assets/724ba170-72bb-432b-973e-e2be5efe8987" />
-
+8. [Getting Started](#getting-started)
+9. [Mesh Commands](#mesh-commands)
+10. [API Reference](#api-reference)
+11. [Acknowledgments](#acknowledgments)
+12. [Legal](#legal-disclaimer)
 
 ---
 
 ## Overview
-
-
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
 - ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
@@ -78,13 +60,13 @@
 | Feature | What it does | Scan modes |
 |---------|-------------|------------|
 | **Target Scan** | MAC/OUI/SSID watchlist with instant mesh alerts | WiFi, BLE, or both |
-| **Sentinel Counterintel** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot **(BETA)**| WiFi promiscuous |
 | **Device Scanner** | Captures all nearby WiFi and BLE devices with RSSI, channels, names | WiFi, BLE, or both |
 | **Probe Request Scanner** | Passive sniffer -- reveals SSIDs devices are searching for | WiFi, BLE, or both |
 | **Ghost SSID Detection** | Flags probed SSIDs with no responding AP nearby | Probe / Device scan |
 | **Baseline Anomaly Detection** | Learn-then-alert: spots new, missing, and changed devices | WiFi + BLE |
 | **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
+| **Sentinel Counterintel** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID) | WiFi beacon/NAN |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
 | **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
@@ -94,7 +76,7 @@
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
-<!-- <img width="959" height="1398" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" /> -->
+<img width="959" height="1398" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
 
 
 ### Use Cases
@@ -115,9 +97,10 @@
 
 ### 1. Target Scan
 
-Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
-
 <img width="1179" height="797" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
+
+
+Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
 
 - WiFi-only, BLE-only, or combined scanning
 - Global allowlist filters out known devices
@@ -219,7 +202,6 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
-
 ### G. Sentinel — Counterintel Engine
 
 Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
@@ -250,7 +232,6 @@ Detectors are organized into toggleable groups. Each detection logs to serial + 
 **Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
 
 **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
-
 ---
 
 ## Secure Data Destruction
@@ -297,8 +278,8 @@ Tamper detection and emergency data wiping.
 
 | Preset | WiFi Chan Time | WiFi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
 |--------|----------------|---------------|--------------|--------------|----------------|----------|
-| Relaxed | 300ms | 8000ms | 4000ms | 3000ms | -80 dBm | Low power, stealthy |
-| Balanced | 160ms | 6000ms | 3000ms | 3000ms | -90 dBm | General use (default) |
+| Relaxed | 300ms | 8000ms | 4000ms | 3000ms | -80 dBm | Low power |
+| Balanced | 160ms | 6000ms | 3000ms | 3000ms | -95 dBm | General use (default) |
 | Aggressive | 110ms | 4000ms | 2000ms | 2000ms | -70 dBm | Fast detection, high coverage |
 | Custom | User-defined | User-defined | User-defined | User-defined | User-defined | Fine-tuned |
 
@@ -339,12 +320,8 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
 
 ### Assembling the PCB
-
-<img width="1000" height="1030" alt="IMG_6829" src="https://github.com/user-attachments/assets/0153d5d9-45cf-4387-a2d4-28ec901930f5" />
-
-- [Welcome Letter - Intro to DIGINODE PCB](https://raw.githubusercontent.com/lukeswitz/AntiHunter/refs/heads/beta/hw/Prototype_STL_Files/ahwelcome.txt)
-- [Assembly Manual: DIGINODE PCB](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
-- [BOM - Links](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/BOM-Links.md)
+ 
+- Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ### Core Components
 
@@ -425,20 +402,22 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 Flash and configure directly from your browser -- no tools to install. Requires Chrome or Edge on desktop.
 
-1. **[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, plug in your ESP32-S3, and click Connect & Flash. 
+1. **[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, choose a **Release Channel** (Stable or Beta), plug in your ESP32-S3, and click Connect & Flash.
 
+- The channel selector pulls the matching firmware from the `stable` or `beta` release branch.
 - Choose "Erase Device" during process if upgrading from pre v0.9.2 firmware or to clear saved settings from flash memory.
 
    > Preferences are also saved and synced to/from SD storage. If corrupted, the settings will self-heal. 
 
 2. Optional: After flashing, set the configuration choices and press send to device. 
 
-   - Use it to change settings without using the device (especially useful for headless FW).  
+   - Use it to change settings without using the device (especially useful for headless FW).
+   - The **Sentinel & Detectors** section configures the full detection engine: persistent *Start Sentinel on Boot*, radio mode, every detector enable/disable, mesh-broadcast flags, and detector thresholds — full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting.
 
 ### CLI Flash
 
 ```bash
-curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/flashAntihunter.sh
 chmod +x flashAntihunter.sh
 ./flashAntihunter.sh
 ```
@@ -522,6 +501,15 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
+
+### Sentinel
+
+| Command | Parameters | Example |
+|---------|------------|---------|
+| `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
+| `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
+| `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
+| `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -675,6 +663,26 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 | `/allowlist-export` | GET | Export allowlist |
 | `/allowlist-save` | POST | Save allowlist |
 | `/api/time` | POST | Set RTC time from Unix timestamp |
+
+</details>
+
+<details>
+<summary>Sentinel / Detection Endpoints</summary>
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/detect/config` | GET | Current detector config (JSON: every detector enable, mesh-broadcast flag, threshold) |
+| `/api/detect/config` | POST | Set detector config. JSON body of `{key:bool/int}` — same keys returned by GET (e.g. `pmkid`, `eviltwin`, `sae`, `karma`, `probe_flood`, `assoc_sleep`, `mesh_*` flags, thresholds). The Web Flasher/Configurator sends these under a nested `detectors` object at flash time. |
+| `/api/detect/health` | GET | Detector runtime health (heap, queue depth, drops, per-detector counts) |
+| `/api/sentinel/status` | GET | Sentinel running state |
+| `/api/sentinel/start` / `/api/sentinel/stop` | POST | Start/stop the Sentinel engine |
+| `/api/incidents.json` | GET | Recent incident ring (JSON) |
+| `/api/incidents.jsonl` | GET | Full incident log from SD (JSONL) |
+| `/api/incidents` | DELETE | Clear all incidents (RAM + SD) |
+
+Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds — `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
+
+Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pref `sentBoot` — auto-starts the Sentinel at power-on when true.
 
 </details>
 

@@ -4,12 +4,14 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include "network.h"
-#include "scanner.h" 
+#include "scanner.h"
 #include "hardware.h"
+#include "detect.h"
 #include <SD.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include "esp_wifi.h"
+#include "esp_log.h"
 #include "esp_heap_caps.h"
 
 
@@ -59,10 +61,44 @@ void uartForwardTask(void *parameter) {
             toProcess = meshBuffer.substring(colonPos + 2);
           }
 
+          mesh_observeInbound(senderId, toProcess);
+
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
           } else {
-            processMeshMessage(toProcess);
+            // Phase 1-3: detect-module mesh prefixes (sender required for quorum)
+            if (toProcess.startsWith("PMKID_HARVEST:") ||
+                toProcess.startsWith("EVILTWIN:") ||
+                toProcess.startsWith("SAE_DOS:") ||
+                toProcess.startsWith("DEAUTH_FLOOD:") ||
+                toProcess.startsWith("BEACON_FORGE:") ||
+                toProcess.startsWith("PMKID_FORGE:") ||
+                toProcess.startsWith("EAPOL_BAIT:") ||
+                toProcess.startsWith("PROBE_FLOOD:") ||
+                toProcess.startsWith("PROBE_FLOOD_BEHAVE:") ||
+                toProcess.startsWith("ASSOC_SLEEP:") ||
+                toProcess.startsWith("RECON:") ||
+                toProcess.startsWith("RID_CLAIM:") ||
+                toProcess.startsWith("RID_RX:") ||
+                toProcess.startsWith("BLOOM:") ||
+                toProcess.startsWith("CHAN_ASSIGN:") ||
+                toProcess.startsWith("FRAG:") ||
+                toProcess.startsWith("IDHASH:") ||
+                toProcess.startsWith("HSHK:") ||
+                toProcess.startsWith("KRACK:") ||
+                toProcess.startsWith("ATTACKER_HUNT:") ||
+                toProcess.startsWith("PWNAGOTCHI:") ||
+                toProcess.startsWith("KARMA_CAND:") ||
+                toProcess.startsWith("KARMA_CONFIRMED:") ||
+                toProcess.startsWith("BLE_ATTACK:") ||
+                toProcess.startsWith("BLETRACK:") ||
+                toProcess.startsWith("TRK_LINK:") ||
+                toProcess.startsWith("TOF_PING:") ||
+                toProcess.startsWith("TOF_PONG:")) {
+              detect_processMesh(senderId, toProcess);
+            } else {
+              processMeshMessage(toProcess);
+            }
           }
 
           meshBuffer = "";
@@ -173,6 +209,7 @@ void setup() {
     delay(1000);
     Serial.begin(115200);
     delay(300);
+
     Serial.println("\n=== Antihunter [FULL] Boot ===");
 
     if (psramFound()) {
@@ -196,7 +233,7 @@ void setup() {
     loadConfiguration();
 
     Serial.println("Waiting for mesh device stability...");
-    delay(15000);
+    delay(10000);
 
     initializeNetwork();
     delay(500);
@@ -204,13 +241,35 @@ void setup() {
     delay(1000);
     initializeRTC();
     delay(500);
-    initializeVibrationSensor();
-    initializeScanner();
     
+    initializeVibrationSensor();
+    delay(50);
+    initializeScanner();
+    delay(50);
+    initializeDetect();
+    delay(50);
+    initializeGpsPps(21);
+    xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
+    {
+        uint8_t selfMac[6];
+        esp_wifi_get_mac(WIFI_IF_AP, selfMac);
+        String ssid = prefs.getString("apSsid", AP_SSID);
+        if (ssid.length() == 0) ssid = AP_SSID;
+        detect_setSelfApIdentity(selfMac, ssid.c_str());
+        Serial.printf("[SENTINEL] self-filter mac=%02X:%02X:%02X:%02X:%02X:%02X ssid=%s\n",
+                      selfMac[0],selfMac[1],selfMac[2],selfMac[3],selfMac[4],selfMac[5], ssid.c_str());
+    }
+    if (prefs.getBool("sentBoot", false)) {
+        sentinel_setUserEnabled(true);
+        Serial.println("[SENTINEL] Boot-enable ON (persisted) — starting sentinel");
+    } else {
+        Serial.println("[SENTINEL] OFF on boot (enable manually)");
+    }
+
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.6 BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BETA BOOT COMPLETE =====");
 
     String currentSsid = prefs.getString("apSsid", AP_SSID);
     String currentPass = prefs.getString("apPass", AP_PASS);
@@ -251,13 +310,11 @@ void loop() {
 
         sendBatterySaverHeartbeat();
 
-        // Reduced GPS polling - once per minute in battery saver mode
         if (millis() - lastGPSPollBatterySaver > 60000) {
             updateGPSLocation();
             lastGPSPollBatterySaver = millis();
         }
-
-        // Check vibration alerts (security feature, keep active)
+        
         checkAndSendVibrationAlert();
 
         // Tamper detection still active
