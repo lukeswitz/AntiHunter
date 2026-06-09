@@ -7311,18 +7311,28 @@ void registerRemainingRoutes() {
   });
 
   server->on("/triangulate/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+    size_t nodeCount;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        nodeCount = triangulationNodes.size();
+    }
     String json = "{";
     json += "\"active\":" + String(triangulationActive ? "true" : "false") + ",";
     json += "\"target\":\"" + macFmt6(triangulationTarget) + "\",";
     json += "\"duration\":" + String(triangulationDuration) + ",";
     json += "\"elapsed\":" + String((millis() - triangulationStart) / 1000) + ",";
-    json += "\"nodes\":" + String(triangulationNodes.size());
+    json += "\"nodes\":" + String(nodeCount);
     json += "}";
     req->send(200, "application/json", json);
   });
 
   server->on("/triangulate/results", HTTP_GET, [](AsyncWebServerRequest *req) {
-    if (triangulationNodes.size() == 0) {
+    bool noNodes;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        noNodes = (triangulationNodes.size() == 0);
+    }
+    if (noNodes) {
       req->send(200, "text/plain", "No triangulation data available");
       return;
     }
@@ -7370,9 +7380,14 @@ void registerRemainingRoutes() {
       }
 
       // Add nodes array
+      std::vector<TriangulationNode> nodesSnapshot;
+      {
+          std::lock_guard<std::mutex> lock(triangulationMutex);
+          nodesSnapshot = triangulationNodes;
+      }
       json += "\"nodes\":[";
-      for (size_t i = 0; i < triangulationNodes.size(); i++) {
-          const auto& node = triangulationNodes[i];
+      for (size_t i = 0; i < nodesSnapshot.size(); i++) {
+          const auto& node = nodesSnapshot[i];
           json += "{";
           json += "\"id\":\"" + node.nodeId + "\",";
           json += "\"hasGPS\":" + String(node.hasGPS ? "true" : "false") + ",";
@@ -7387,7 +7402,7 @@ void registerRemainingRoutes() {
           json += "\"type\":\"" + String(node.isBLE ? "BLE" : "WiFi") + "\",";
           json += "\"distance\":" + String(node.distanceEstimate, 1);
           json += "}";
-          if (i < triangulationNodes.size() - 1) {
+          if (i < nodesSnapshot.size() - 1) {
               json += ",";
           }
       }
@@ -9251,7 +9266,12 @@ static void handleTriCycleStart(const String &command)
 static void handleTriangulateResults(const String &command)
 {
   (void)command;
-  if (triangulationNodes.size() > 0) {
+  bool hasNodes;
+  {
+    std::lock_guard<std::mutex> lock(triangulationMutex);
+    hasNodes = (triangulationNodes.size() > 0);
+  }
+  if (hasNodes) {
     String results = calculateTriangulation();
     sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_START", true);
     sendToSerial1(results, true);
@@ -9781,6 +9801,8 @@ void processMeshMessage(const String &message) {
                         isBLE = (typeStr == "BLE");
                     }
 
+                    {
+                    std::lock_guard<std::mutex> lock(triangulationMutex);
                     auto nodeIt2 = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
                         [&](const TriangulationNode& n) { return n.nodeId == sendingNode; });
 
@@ -9815,6 +9837,7 @@ void processMeshMessage(const String &message) {
                       triangulationNodes.push_back(newNode);
                       Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
                                     sendingNode.c_str(), rssi, newNode.distanceEstimate);
+                  }
                   }
                 }
             }
