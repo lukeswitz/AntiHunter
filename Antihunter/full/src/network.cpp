@@ -6820,11 +6820,12 @@ void registerRemainingRoutes() {
     }
     
     String confirm = req->getParam("confirm", true)->value();
-    if (confirm != "WIPE_ALL_DATA") {
-        req->send(400, "text/plain", "Invalid confirmation");
+    bool authed = (erasePSK.length() > 0) ? (confirm == erasePSK) : (confirm == "WIPE_ALL_DATA");
+    if (!authed) {
+        req->send(403, "text/plain", "Invalid confirmation");
         return;
     }
-    
+
     if (g_eraseWipeBusy.exchange(true)) {
         req->send(409, "text/plain", "Erase/wipe already in progress");
         return;
@@ -6854,8 +6855,10 @@ void registerRemainingRoutes() {
         req->send(400, "text/plain", "Missing confirm");
         return;
     }
-    if (req->getParam("confirm", true)->value() != "FACTORY_WIPE") {
-        req->send(400, "text/plain", "Invalid confirm code");
+    String confirm = req->getParam("confirm", true)->value();
+    bool authed = (erasePSK.length() > 0) ? (confirm == erasePSK) : (confirm == "FACTORY_WIPE");
+    if (!authed) {
+        req->send(403, "text/plain", "Invalid confirm code");
         return;
     }
     if (g_eraseWipeBusy.exchange(true)) {
@@ -9370,14 +9373,9 @@ static void handleEraseCancel(const String &command)
 static void handleEraseRequest(const String &command)
 {
   (void)command;
-  // Generate token without starting countdown - countdown only starts on ERASE_FORCE
-  if (tamperAuthToken.length() == 0) {
-    tamperAuthToken = generateEraseToken();
-    Serial.printf("[ERASE] Token generated on request: %s\n", tamperAuthToken.c_str());
-  }
-
+  tamperAuthToken = generateEraseToken();
+  Serial.println("[ERASE] Challenge nonce issued (valid 300s)");
   sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Expires:300s", true);
-  Serial.printf("[ERASE] Token provided - valid for 5 minutes\n");
 }
 
 static void handleAutoeraseEnable(const String &command)
