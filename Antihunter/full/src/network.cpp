@@ -9337,12 +9337,27 @@ static void handleTriangulateResults(const String &command)
 
 static void handleEraseForce(const String &command)
 {
-  String token = command.substring(12);
-  if (validateEraseToken(token))
+  String credential = command.substring(12);
+  bool ok = (erasePSK.length() > 0) ? validateEraseResponse(credential)
+                                    : validateEraseToken(credential);
+  if (ok)
   {
     executeSecureErase("Force command");
     sendToSerial1(nodeId + ": ERASE_ACK:COMPLETE", true);
   }
+  else
+  {
+    sendToSerial1(nodeId + ": ERASE_ACK:DENIED", true);
+  }
+}
+
+static void handleConfigErasePsk(const String &command)
+{
+  String key = command.substring(17);
+  setErasePSK(key);
+  saveConfiguration();
+  Serial.printf("[ERASE] PSK %s\n", key.length() ? "set (HMAC auth enabled)" : "cleared (legacy token mode)");
+  sendToSerial1(nodeId + ": CONFIG_ACK:ERASE_PSK:" + String(key.length() ? "SET" : "CLEARED"), true);
 }
 
 static void handleEraseCancel(const String &command)
@@ -9527,6 +9542,7 @@ void processCommand(const String &command, const String &targetId = "")
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n",
                 command.length(), command.c_str());
   if (command.startsWith("CONFIG_CHANNELS:"))          handleConfigChannels(command);
+  else if (command.startsWith("CONFIG_ERASE_PSK:"))     handleConfigErasePsk(command);
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))     handleConfigDedupTtl(command);
   else if (command.startsWith("CONFIG_TARGETS:"))       handleConfigTargets(command);
   else if (command.startsWith("CONFIG_NODEID:"))        handleConfigNodeId(command);

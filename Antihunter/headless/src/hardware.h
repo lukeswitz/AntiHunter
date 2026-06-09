@@ -136,6 +136,10 @@ void deleteAllFiles(const String &dirname);
 bool executeSecureErase(const String &reason);
 String generateEraseToken();
 bool validateEraseToken(const String &token);
+String computeEraseHmac(const String &nonce);
+bool validateEraseResponse(const String &response);
+void setErasePSK(const String &key);
+extern String erasePSK;
 
 // Battery Saver Functions
 void enterBatterySaver(uint32_t heartbeatIntervalMs = 300000);
