@@ -1601,6 +1601,9 @@ void blueTeamTask(void *pv) {
     stopRequested = false;
     scanning = true;
 
+    std::map<uint64_t, std::pair<uint32_t, uint16_t>> floodWin;
+    std::set<uint64_t> floodAlerted;
+
     if (deauthQueue) {
         vQueueDeleteWithCaps(deauthQueue);
     }
@@ -1682,9 +1685,7 @@ void blueTeamTask(void *pv) {
             }
 
             // High-confidence flood detector — same as full firmware.
-            static std::map<uint64_t, std::pair<uint32_t, uint16_t>> floodWin;
             {
-                static std::set<uint64_t> floodAlerted;
                 uint64_t k = 0;
                 for (int i = 0; i < 6; ++i) k = (k << 8) | hit.srcMac[i];
                 auto it = floodWin.find(k);

@@ -940,6 +940,7 @@ void cleanupBaselineMemory() {
 
 // Baseline SD 
 uint8_t calculateDeviceChecksum(BaselineDevice& device) {
+    device.checksum = 0;
     uint8_t sum = 0;
     const uint8_t* ptr = reinterpret_cast<const uint8_t*>(&device);
     for (size_t i = 0; i < sizeof(BaselineDevice) - 1; i++) {
