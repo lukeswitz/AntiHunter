@@ -155,6 +155,10 @@ extern std::atomic<bool> meshTxDraining;
 extern std::atomic<uint32_t> meshDrainSent;
 extern std::atomic<uint32_t> meshDrainTotal;
 extern std::atomic<bool> stopMeshDrain;
+extern std::atomic<uint32_t> meshTxDroppedRateLimit;
+extern std::atomic<uint32_t> meshTxDroppedBufFull;
+extern std::atomic<uint32_t> meshTxDroppedTriGate;
+extern std::atomic<uint32_t> meshTxDroppedEvicted;
 bool isRadioBusyOrDraining();
 void initBLEOnce();
 

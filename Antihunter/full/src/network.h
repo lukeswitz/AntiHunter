@@ -6,15 +6,16 @@
 #include "scanner.h"
 
 // T114 v2 rate limiter for Serial Module
+// Rebalanced (Phase 4): ~167 B/s sustained, 1 KB burst. Consumer task owns inter-frame pacing via vTaskDelayUntil.
 class SerialRateLimiter {
 private:
-    static const uint32_t MAX_TOKENS = 200;
+    static const uint32_t MAX_TOKENS = 1000;
     static const uint32_t REFILL_INTERVAL = 3000;
-    static const uint32_t TOKENS_PER_REFILL = 200;
-    
+    static const uint32_t TOKENS_PER_REFILL = 500;
+
     uint32_t tokens;
     unsigned long lastRefill;
-    
+
 public:
     SerialRateLimiter();
     bool canSend(size_t messageLength);
@@ -24,8 +25,18 @@ public:
     void flush();
 };
 
+// Mesh TX priority classes (Phase 2).
+// CONTROL preempts EVENT preempts BULK at drain time, and CONTROL/EVENT may evict back-of-BULK on enqueue-full.
+enum MeshPriority : uint8_t {
+    PRIO_CONTROL = 0,  // triangulation T_F/T_C/T_D, *_ACK, TRI_*, TRIANGULATE_*
+    PRIO_EVENT   = 1,  // ATTACK, DEAUTH, DETECT, EAPOL, HSHK, KARMA, BLETRACK, VIBRATION, GPS, RTC_SYNC, STARTUP, Target
+    PRIO_BULK    = 2,  // DEVICE, SCAN_DONE, heartbeat, default
+    PRIO_DEFAULT = PRIO_BULK,
+};
+
 bool sendToSerial1(const String &message, bool canDelay = true);
 bool meshEnqueue(const String &msg, bool priority = false);
+bool meshEnqueuePrio(const String &msg, MeshPriority prio);
 void meshTxFlushQueue();
 uint32_t meshTxQueueDepth();
 uint32_t meshTxDroppedCount();
