@@ -22,6 +22,7 @@ extern bool triangulationOrchestratorAssigned;
 // Triang
 static TaskHandle_t calibrationTaskHandle = nullptr;
 static TaskHandle_t coordinatorSetupTaskHandle = nullptr;
+static std::atomic<bool> triSetupAbort{false};
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
 const size_t MAX_TRIANGULATION_NODES = 15;
 const size_t MAX_SYNC_STATUS = 15;
@@ -466,8 +467,10 @@ void coordinatorSetupTask(void *parameter) {
 
     // Wait for child nodes to ACK - give mesh time to relay responses
     // Children use 0-2s staggered delay + mesh propagation time
+    triSetupAbort.store(false);
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
     vTaskDelay(pdMS_TO_TICKS(15000));  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
+    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
     int totalNodes = 1 + triangulateAcks.size();  // 1 = coordinator
@@ -512,6 +515,7 @@ void coordinatorSetupTask(void *parameter) {
                   cycleStartMs, nodeList.size(), nodeListStr.c_str());
 
     vTaskDelay(pdMS_TO_TICKS(500));
+    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     if (!workerTaskHandle) {
         ahCreateTask(
@@ -706,6 +710,10 @@ void markTriangulationStopFromMesh() {
 }
 
 void stopTriangulation() {
+    if (coordinatorSetupTaskHandle != nullptr) {
+        triSetupAbort.store(true);
+        Serial.println("[TRIANGULATE] Stop during setup - signalling coordinator abort");
+    }
     if (!triangulationActive) {
         Serial.println("[TRIANGULATE] Not active, nothing to stop");
         return;

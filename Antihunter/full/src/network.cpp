@@ -35,6 +35,7 @@ bool vibrationEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char/3s in sequence
+static std::atomic<bool> g_eraseWipeBusy{false};
 static String nodeId = "";
 bool triangulationOrchestratorAssigned = false;
 
@@ -6360,7 +6361,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       }
       
       if (req->hasParam("baselineDuration", true)) {
-          baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
+          int v = req->getParam("baselineDuration", true)->value().toInt();
+          if (v < 0) v = 0;
+          if (v > 86400) v = 86400;
+          baselineDuration = (uint32_t)v * 1000;
           prefs.putUInt("blDuration", baselineDuration);
       }
       
@@ -6821,17 +6825,24 @@ void registerRemainingRoutes() {
         return;
     }
     
+    if (g_eraseWipeBusy.exchange(true)) {
+        req->send(409, "text/plain", "Erase/wipe already in progress");
+        return;
+    }
     String reason = req->hasParam("reason", true) ? req->getParam("reason", true)->value() : "Manual web request";
     req->send(200, "text/plain", "Secure erase initiated");
-    
-    xTaskCreate([](void* param) {
+
+    if (xTaskCreate([](void* param) {
         String* reasonPtr = static_cast<String*>(param);
         delay(1000); // Give web server time to send response
         bool success = executeSecureErase(*reasonPtr);
         Serial.println(success ? "Erase completed" : "Erase failed");
         delete reasonPtr;
+        g_eraseWipeBusy.store(false);
         vTaskDelete(NULL);
-    }, "secure_erase", 8192, new String(reason), 1, NULL); });
+    }, "secure_erase", 8192, new String(reason), 1, NULL) != pdPASS) {
+        g_eraseWipeBusy.store(false);
+    } });
 
   server->on("/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -6847,15 +6858,21 @@ void registerRemainingRoutes() {
         req->send(400, "text/plain", "Invalid confirm code");
         return;
     }
+    if (g_eraseWipeBusy.exchange(true)) {
+        req->send(409, "text/plain", "Erase/wipe already in progress");
+        return;
+    }
     req->send(200, "text/plain", "Factory wipe initiated — device will reboot");
-    xTaskCreate([](void*) {
+    if (xTaskCreate([](void*) {
         delay(800); // let response flush
         Serial.println("[FACTORY] Wipe requested");
         bool ok = performSecureWipe();
         Serial.printf("[FACTORY] Wipe %s — rebooting\n", ok ? "OK" : "FAILED");
         delay(300);
         ESP.restart();
-    }, "factory_wipe", 8192, nullptr, 1, NULL);
+    }, "factory_wipe", 8192, nullptr, 1, NULL) != pdPASS) {
+        g_eraseWipeBusy.store(false);
+    }
   });
 
   server->on("/secure/status", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -7246,6 +7263,10 @@ void registerRemainingRoutes() {
 
   server->on("/allowlist-save", HTTP_POST, [](AsyncWebServerRequest *req)
             {
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+            req->send(409, "text/plain", "Radio busy - stop scan before changing allowlist");
+            return;
+        }
         if (!req->hasParam("list", true)) {
             req->send(400, "text/plain", "Missing 'list'");
             return;
@@ -8428,7 +8449,10 @@ static void handleConfigChannels(const String &command)
 static void handleConfigTargets(const String &command)
 {
   String targets = command.substring(15);
-  saveTargetsList(targets);
+  prefs.putString("maclist", targets);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      saveTargetsList(targets);
+  }
   Serial.printf("[MESH] Updated targets list\n");
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
 }
