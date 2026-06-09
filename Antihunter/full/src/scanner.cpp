@@ -53,6 +53,7 @@ uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
 static StringStringMapPsram apCache;
 static StringStringMapPsram bleDeviceCache;
+static std::mutex snifferCacheMutex;
 
 static portMUX_TYPE rfConfigMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -862,8 +863,7 @@ void snifferScanTask(void *pv)
     }
     uniqueMacs.clear();
     hitsLog.clear();
-    apCache.clear();
-    bleDeviceCache.clear();
+    { std::lock_guard<std::mutex> lock(snifferCacheMutex); apCache.clear(); bleDeviceCache.clear(); }
     totalHits = 0;
     framesSeen = 0;
     bleFramesSeen = 0;
@@ -914,6 +914,7 @@ void snifferScanTask(void *pv)
 
                     if (apCache.find(bssid) == apCache.end())
                     {
+                        std::lock_guard<std::mutex> lock(snifferCacheMutex);
                         if (apCache.size() < MAX_AP_CACHE) {
                             apCache[bssid] = ssid;
                         }
@@ -1001,8 +1002,11 @@ void snifferScanTask(void *pv)
                         if (cleanName.length() == 0)
                             cleanName = "Unknown";
 
-                        if (bleDeviceCache.size() < MAX_BLE_CACHE) {
-                            bleDeviceCache[macStr] = cleanName;
+                        {
+                            std::lock_guard<std::mutex> lock(snifferCacheMutex);
+                            if (bleDeviceCache.size() < MAX_BLE_CACHE) {
+                                bleDeviceCache[macStr] = cleanName;
+                            }
                         }
                         uniqueMacs.insert(macStr);
                         
@@ -1501,6 +1505,7 @@ String getSnifferCache()
     lastCacheTime = millis();
 
     String result = "=== Sniffer Cache ===\n\n";
+    std::lock_guard<std::mutex> lock(snifferCacheMutex);
     result += "WiFi APs: " + String(apCache.size()) + "\n";
 
     int apCount = 0;
