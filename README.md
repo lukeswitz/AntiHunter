@@ -264,7 +264,24 @@ Tamper detection and emergency data wiping.
 2. Configure thresholds for your environment
 3. Deploy and walk away during setup period
 4. Monitor mesh alerts for tamper events
-5. Remote erase: `@NODE ERASE_REQUEST` to generate token, then `@NODE ERASE_FORCE:<token>`
+5. Remote erase (authenticated): provision a pre-shared key once with `@NODE CONFIG_ERASE_PSK:<secret>`, then use the HMAC challenge-response below.
+
+**Authenticated remote erase (HMAC challenge-response):**
+
+1. Provision the key once (persists in NVS): `@NODE CONFIG_ERASE_PSK:<secret>`
+2. Request a one-time challenge: `@NODE ERASE_REQUEST` → node replies `ERASE_TOKEN:<nonce> Expires:300s` (fresh nonce each request, valid 300s).
+3. Compute the response off-device:
+   ```python
+   import hmac, hashlib
+   nonce  = "AH_a1b2c3d4_e5f6a7b8_00012345"   # the token only, not the whole line
+   secret = "<secret>"
+   print(hmac.new(secret.encode(), nonce.encode(), hashlib.sha256).hexdigest())
+   ```
+4. Force within 300s: `@NODE ERASE_FORCE:<hmac-hex>` → match wipes; wrong/expired → `ERASE_ACK:DENIED`.
+
+The secret never traverses the mesh (only the public nonce and the HMAC do); a sniffed response is useless once the nonce changes. Without a provisioned PSK, the legacy `ERASE_FORCE:<token>` echo path applies (unauthenticated) — provision a PSK to harden.
+
+**Web wipe:** once a PSK is provisioned, `/erase/request` and `/factory-wipe` require the PSK in the confirm field instead of the legacy `WIPE_ALL_DATA`/`FACTORY_WIPE` strings. Web wipe stays AP-only (not reachable over mesh).
 
 </details>
 
@@ -515,6 +532,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
+| `CONFIG_ERASE_PSK` | Pre-shared key for authenticated remote erase (empty clears it) | `@AH01 CONFIG_ERASE_PSK:my-secret-key` |
 
 ### Scanning
 
