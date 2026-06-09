@@ -6644,7 +6644,9 @@ void registerRemainingRoutes() {
         String status = "{";
         status += "\"enabled\":" + String(droneDetectionEnabled ? "true" : "false") + ",";
         status += "\"count\":" + String(droneDetectionCount) + ",";
-        status += "\"unique\":" + String(detectedDrones.size());
+        size_t uniqueN;
+        { std::lock_guard<std::mutex> lock(detectedDronesMutex); uniqueN = detectedDrones.size(); }
+        status += "\"unique\":" + String(uniqueN);
         status += "}";
         r->send(200, "application/json", status); });
 
@@ -7544,7 +7546,7 @@ void registerRemainingRoutes() {
 
   server->on("/api/drones/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
       droneEventLog.clear();
-      detectedDrones.clear();
+      { std::lock_guard<std::mutex> lock(detectedDronesMutex); detectedDrones.clear(); }
       droneDetectionCount = 0;
       SafeSD::remove("/drones.jsonl");
       SafeSD::remove("/drones_old.jsonl");

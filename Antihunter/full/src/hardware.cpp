@@ -994,9 +994,8 @@ String getDiagnostics() {
     s += "Drone Detection: " + String(droneDetectionEnabled ? "Active" : "Inactive") + "\n";
     if (droneDetectionEnabled) {
         s += "Drones detected: " + String(droneDetectionCount) + "\n";
-        portENTER_CRITICAL(&droneMux);
-        int uniqueDronesCount = (int)detectedDrones.size();
-        portEXIT_CRITICAL(&droneMux);
+        int uniqueDronesCount;
+        { std::lock_guard<std::mutex> lock(detectedDronesMutex); uniqueDronesCount = (int)detectedDrones.size(); }
         s += "Unique drones: " + String(uniqueDronesCount) + "\n";
     }
 
