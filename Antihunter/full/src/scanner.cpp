@@ -43,7 +43,7 @@ static uint8_t identityMacSnapshot[IDENTITY_MAC_SNAPSHOT_CAP][6];
 static std::atomic<uint16_t> identityMacSnapshotCount{0};
 
 struct MacTargetSnap { uint8_t bytes[6]; uint8_t len; };
-static const size_t MAC_TARGET_SNAPSHOT_CAP = 128;
+static const size_t MAC_TARGET_SNAPSHOT_CAP = 256;
 static MacTargetSnap macTargetSnapshot[MAC_TARGET_SNAPSHOT_CAP];
 static std::atomic<uint16_t> macTargetSnapshotCount{0};
 static std::atomic<bool> identityTargetPresentSnap{false};
