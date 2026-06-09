@@ -412,7 +412,10 @@ static void handleConfigChannels(const String &command)
 static void handleConfigTargets(const String &command)
 {
   String targets = command.substring(15);
-  saveTargetsList(targets);
+  prefs.putString("maclist", targets);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      saveTargetsList(targets);
+  }
   Serial.printf("[MESH] Updated targets list\n");
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
 }
