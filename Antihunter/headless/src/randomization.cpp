@@ -496,40 +496,6 @@ bool matchFingerprints(const uint16_t fp1[6], const uint16_t fp2[6], uint8_t& ma
     return matches >= FINGERPRINT_MATCH_THRESHOLD;
 }
 
-void extractChannelSequence(const ProbeSession& session, uint8_t* channelSeq, uint8_t& seqLen) {
-    seqLen = 0;
-    for(uint8_t i = 0; i < session.probeCount && seqLen < 32; i++) {
-        uint8_t ch = (session.channelMask >> i) & 0x1 ? i : 0;
-        if(ch > 0) {
-            channelSeq[seqLen++] = ch;
-        }
-    }
-}
-
-float calculateChannelSequenceSimilarity(const uint8_t* seq1, uint8_t len1, 
-                                        const uint8_t* seq2, uint8_t len2) {
-    if(len1 == 0 || len2 == 0) return 0.0f;
-    
-    uint8_t maxLen = max(len1, len2);
-    
-    if(maxLen == 0) return 0.0f;
-    
-    float dotProduct = 0.0f;
-    float mag1 = 0.0f;
-    float mag2 = 0.0f;
-    
-    for(uint8_t i = 0; i < maxLen; i++) {
-        float v1 = (i < len1) ? static_cast<float>(seq1[i]) : 0.0f;
-        float v2 = (i < len2) ? static_cast<float>(seq2[i]) : 0.0f;
-        dotProduct += v1 * v2;
-        mag1 += v1 * v1;
-        mag2 += v2 * v2;
-    }
-    
-    float magnitude = sqrt(mag1) * sqrt(mag2);
-    return (magnitude > 0.0f) ? (dotProduct / magnitude) : 0.0f;
-}
-
 void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
                         const uint8_t *payload, uint16_t length) {
     if (!randomizationDetectionEnabled || !probeRequestQueue) return;
@@ -682,11 +648,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     uint32_t now = millis();
     
     bool sessionIsMinimal = isMinimalSignature(session.fingerprint);
-    
-    uint8_t sessionChannelSeq[32];
-    uint8_t sessionChannelSeqLen = 0;
-    extractChannelSequence(session, sessionChannelSeq, sessionChannelSeqLen);
-    
+
     int16_t sessionRssiSum = std::accumulate(session.rssiReadings.begin(), session.rssiReadings.end(), int16_t{0});
     int8_t sessionAvgRssi = session.rssiReadings.size() > 0 ?
                             sessionRssiSum / static_cast<int>(session.rssiReadings.size()) :
@@ -794,8 +756,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         if (fpMatch) {
             fingerprintScore = static_cast<float>(fpMatches) / 5.0f;
         }
-        fingerprintScore *= 0.12f;
-        
+        fingerprintScore *= 0.145f;
+
         float ieOrderScore = 0.0f;
         if(sessionIsMinimal && identity.signature.hasMinimalSignature) {
             if(matchIEOrder(session.ieOrder, identity.signature.ieOrderMinimal)) {
@@ -811,17 +773,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                 ieOrderScore = 1.0f;
             }
         }
-        ieOrderScore *= 0.10f;
-        
-        float channelSeqScore = 0.0f;
-        if(sessionChannelSeqLen > 0 && identity.signature.channelSeqLength > 0) {
-            channelSeqScore = calculateChannelSequenceSimilarity(
-                sessionChannelSeq, sessionChannelSeqLen,
-                identity.signature.channelSequence, identity.signature.channelSeqLength
-            );
-        }
-        channelSeqScore *= 0.10f;
-        
+        ieOrderScore *= 0.125f;
+
         float timingScore = 0.0f;
         if (sessionIntervalConsistency > 0.1f && identity.signature.intervalConsistency > 0.1f) {
             float timingDelta = abs(sessionIntervalConsistency - identity.signature.intervalConsistency);
@@ -835,13 +788,13 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             );
             timingScore = max(timingScore, interFrameScore);
         }
-        timingScore *= 0.08f;
-        
+        timingScore *= 0.105f;
+
         float rssiDistScore = calculateRSSIDistributionSimilarity(
             session.rssiReadings.data(), session.rssiReadings.size(),
             identity.signature.rssiHistory, identity.signature.rssiHistoryCount
         );
-        rssiDistScore *= 0.08f;
+        rssiDistScore *= 0.105f;
         
         float seqNumScore = 0.0f;
         if (!isBLE && session.seqNumValid && identity.sequenceValid) {
@@ -871,13 +824,13 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         }
         globalMacScore *= 0.04f;
         
-        score = rssiScore + macPrefixScore + fingerprintScore + ieOrderScore + channelSeqScore +
+        score = rssiScore + macPrefixScore + fingerprintScore + ieOrderScore +
                 timingScore + rssiDistScore + seqNumScore + rotationGapScore + globalMacScore;
-        
+
         if (score > 0.1f) {
-            Serial.printf("[RAND]   vs %s: %.3f (r:%.2f mp:%.2f fp:%.2f[%d] ie:%.2f ch:%.2f t:%.2f rd:%.2f s:%.2f g:%.2f rg:%.2f) sig:%s/%s\n",
+            Serial.printf("[RAND]   vs %s: %.3f (r:%.2f mp:%.2f fp:%.2f[%d] ie:%.2f t:%.2f rd:%.2f s:%.2f g:%.2f rg:%.2f) sig:%s/%s\n",
                          identity.identityId, score, rssiScore, macPrefixScore, fingerprintScore, fpMatches, ieOrderScore,
-                         channelSeqScore, timingScore, rssiDistScore, seqNumScore, globalMacScore, rotationGapScore,
+                         timingScore, rssiDistScore, seqNumScore, globalMacScore, rotationGapScore,
                          identity.signature.hasFullSignature ? "F" : "-",
                          identity.signature.hasMinimalSignature ? "M" : "-");
         }
@@ -910,10 +863,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             identity.signature.hasFullSignature = true;
         }
         
-        if(sessionChannelSeqLen > 0 && identity.signature.channelSeqLength == 0) {
-            memcpy(identity.signature.channelSequence, sessionChannelSeq, sessionChannelSeqLen);
-            identity.signature.channelSeqLength = sessionChannelSeqLen;
-        }
         
         identity.macs.push_back(MacAddress(session.mac));
         identity.confidence = min(1.0f, identity.confidence * 0.7f + bestScore * 0.3f);
@@ -1031,10 +980,6 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             newIdentity.signature.hasMinimalSignature = false;
         }
         
-        if(sessionChannelSeqLen > 0) {
-            memcpy(newIdentity.signature.channelSequence, sessionChannelSeq, sessionChannelSeqLen);
-            newIdentity.signature.channelSeqLength = sessionChannelSeqLen;
-        }
         
         newIdentity.signature.rssiHistoryCount = 0;
         for (size_t i = 0; i < session.rssiReadings.size() && newIdentity.signature.rssiHistoryCount < 20; i++) {
@@ -1191,18 +1136,6 @@ String getRandomizationResults() {
         results += "  Interval consistency: " + String(identity.signature.intervalConsistency, 2) + "\n";
         results += "  RSSI consistency: " + String(identity.signature.rssiConsistency, 2) + "\n";
         results += "  Channels: " + String(countChannels(identity.signature.channelBitmap)) + "\n";
-        
-        if (identity.signature.channelSeqLength > 0) {
-            results += "  Channel sequence: ";
-            for (uint8_t i = 0; i < min((uint8_t)8, identity.signature.channelSeqLength); i++) {
-                results += String(identity.signature.channelSequence[i]);
-                if (i < min((uint8_t)8, identity.signature.channelSeqLength) - 1) results += ",";
-            }
-            if (identity.signature.channelSeqLength > 8) {
-                results += "...";
-            }
-            results += "\n";
-        }
         
         if (identity.sequenceValid) {
             results += "  Sequence tracking: Active (last:" + String(identity.lastSequenceNum) + ")\n";
@@ -1734,12 +1667,15 @@ void saveDeviceIdentities() {
         return;
     }
     
+    const uint32_t kFormatMagic = 0x52414E34;
+    file.write(reinterpret_cast<const uint8_t*>(&kFormatMagic), sizeof(kFormatMagic));
+
     uint32_t count = deviceIdentities.size();
     file.write(reinterpret_cast<uint8_t*>(&count), sizeof(count));
-    
+
     for (const auto& entry : deviceIdentities) {
         const DeviceIdentity& id = entry.second;
-        
+
         file.write(reinterpret_cast<const uint8_t*>(&id.identityId), sizeof(id.identityId));
         
         uint32_t macCount = id.macs.size();
@@ -1779,6 +1715,15 @@ void loadDeviceIdentities() {
         return;
     }
     
+    const uint32_t kFormatMagic = 0x52414E34;
+    uint32_t magic = 0;
+    if (file.read(reinterpret_cast<uint8_t*>(&magic), sizeof(magic)) != sizeof(magic) || magic != kFormatMagic) {
+        Serial.printf("[RAND] Old/unknown format (magic=0x%08X), wiping rand_identities.dat\n", magic);
+        file.close();
+        SafeSD::remove("/rand_identities.dat");
+        return;
+    }
+
     uint32_t count = 0;
     if (file.read(reinterpret_cast<uint8_t*>(&count), sizeof(count)) != sizeof(count)) {
         Serial.println("[RAND] Failed to read identity count");

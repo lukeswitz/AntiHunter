@@ -3289,7 +3289,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const intervalConMatch = block.match(/Interval consistency:\s*([\d.]+)/);
           const rssiConMatch     = block.match(/RSSI consistency:\s*([\d.]+)/);
           const channelsMatch    = block.match(/Channels:\s*(\d+)/);
-          const channelSeqMatch  = block.match(/Channel sequence:\s*(.+)/);
           const seqTrackMatch    = block.match(/Sequence tracking:\s*(.+)/);
           const firstSeenMatch   = block.match(/First seen:\s*(\d+)s ago/);
           const lastSeenMatch    = block.match(/Last seen:\s*(\d+)s ago/);
@@ -3397,12 +3396,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           html += '</div>';
 
-          if (channelSeqMatch) {
-            html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">CHANNEL SEQUENCE</div>';
-            html += '<div style="font-size:10px;color:var(--txt);font-family:monospace;">' + channelSeqMatch[1].trim() + '</div>';
-            html += '</div>';
-          }
           if (seqTrackMatch) {
             html += '<div style="margin-top:6px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
             html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">SEQUENCE TRACKING</div>';
@@ -7213,7 +7206,6 @@ void registerRemainingRoutes() {
           json += "\"sequenceTracking\":" + String(track.sequenceValid ? "true" : "false") + ",";
           json += "\"hasFullSig\":" + String(track.signature.hasFullSignature ? "true" : "false") + ",";
           json += "\"hasMinimalSig\":" + String(track.signature.hasMinimalSignature ? "true" : "false") + ",";
-          json += "\"channelSeqLen\":" + String(track.signature.channelSeqLength) + ",";
           json += "\"intervalConsistency\":" + String(track.signature.intervalConsistency, 2) + ",";
           json += "\"rssiConsistency\":" + String(track.signature.rssiConsistency, 2) + ",";
           json += "\"observations\":" + String(track.signature.observationCount) + ",";
