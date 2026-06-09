@@ -71,6 +71,7 @@ void initializeRTC();
 void syncRTCFromGPS();
 void updateRTCTime();
 String getRTCTimeString();
+String getRTCTimeStringCached();
 String getFormattedTimestamp();
 time_t getRTCEpoch();
 uint32_t getEventTimestamp();
