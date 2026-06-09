@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <list>
+#include <mutex>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "psram_allocator.h"
@@ -91,6 +92,7 @@ extern DeviceHistoryMapPsram deviceHistory;
 extern uint32_t deviceAbsenceThreshold;
 extern uint32_t reappearanceAlertWindow;
 extern int8_t significantRssiChange;
+extern std::mutex baselineMutex;
 
 // SD-backed baseline storage
 extern uint32_t totalDevicesOnSD;
