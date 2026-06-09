@@ -790,8 +790,10 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/erase/status` | GET | Erasure status |
-| `/erase/request` | POST | Request secure erase (`confirm`=WIPE_ALL_DATA, optional `reason`) |
+| `/erase/request` | POST | Request secure erase (`confirm`=erase PSK if provisioned, else `WIPE_ALL_DATA`; optional `reason`) |
+| `/erase/psk-status` | GET | JSON `{pskSet:bool}` — UI uses this to swap placeholder/label between PSK and legacy code |
 | `/erase/cancel` | POST | Cancel erase sequence |
+| `/factory-wipe` | POST | Wipe all SD + reset NVS (`confirm`=erase PSK if provisioned, else `FACTORY_WIPE`); reboots |
 | `/secure/status` | GET | Tamper detection status |
 | `/secure/abort` | POST | Abort tamper sequence |
 | `/config/autoerase` | GET/POST | Auto-erase config |
