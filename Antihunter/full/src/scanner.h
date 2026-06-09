@@ -209,6 +209,7 @@ const uint32_t DEAUTH_CLEANUP_INTERVAL = 60000;
 const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;    
 
 extern std::vector<DeauthHit> deauthLog;
+extern std::mutex deauthLogMutex;
 extern std::atomic<uint32_t> deauthCount;
 extern std::atomic<uint32_t> disassocCount;
 extern bool deauthDetectionEnabled;

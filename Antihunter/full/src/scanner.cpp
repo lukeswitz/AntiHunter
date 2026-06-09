@@ -313,6 +313,7 @@ void loadRFConfigFromPrefs() {
 
 // Detection system variables
 std::vector<DeauthHit> deauthLog;
+std::mutex deauthLogMutex;
 std::atomic<uint32_t> deauthCount(0);
 std::atomic<uint32_t> disassocCount(0);
 bool deauthDetectionEnabled = false;
@@ -1656,7 +1657,7 @@ void blueTeamTask(void *pv) {
                               : String("[BLUE] Starting deauth detection for " + String(duration) + "s\n");
     Serial.print(startMsg);
     
-    deauthLog.clear();
+    { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthLog.clear(); }
     deauthCount = 0;
     disassocCount = 0;
     deauthDetectionEnabled = true;
@@ -1729,8 +1730,11 @@ void blueTeamTask(void *pv) {
                 deauthCount = deauthCount + 1;
             }
 
-            if (deauthLog.size() < 2000) {
-                deauthLog.push_back(hit);
+            {
+                std::lock_guard<std::mutex> lock(deauthLogMutex);
+                if (deauthLog.size() < 2000) {
+                    deauthLog.push_back(hit);
+                }
             }
 
             // Feed detect.cpp for EAPOL-capture-bait correlation (unicast only).
@@ -1799,6 +1803,7 @@ void blueTeamTask(void *pv) {
         if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DEAUTH_UPDATE_INTERVAL)) {
             lastMeshUpdate = millis();
 
+            std::lock_guard<std::mutex> lock(deauthLogMutex);
             for (const auto& entry : deauthLog) {
                 String srcMac = macFmt6(entry.srcMac);
                 String dstMac = macFmt6(entry.destMac);
@@ -1818,19 +1823,25 @@ void blueTeamTask(void *pv) {
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
+            size_t n;
+            { std::lock_guard<std::mutex> lock(deauthLogMutex); n = deauthLog.size(); }
             Serial.printf("[BLUE] Deauth:%u Disassoc:%u Total:%u\n",
-                         deauthCount.load(), disassocCount.load(), (unsigned)deauthLog.size());
+                         deauthCount.load(), disassocCount.load(), (unsigned)n);
             nextStatus += 5000;
         }
-        
+
         if ((int32_t)(millis() - lastResultsUpdate) >= 0) {
-            std::string results = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
-            
+            std::string results;
+            {
+                std::lock_guard<std::mutex> lock(deauthLogMutex);
+                results = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
+            }
+
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = results;
             }
-            
+
             lastResultsUpdate = millis() + 2000;
         }
         
@@ -1885,15 +1896,21 @@ void blueTeamTask(void *pv) {
 
     lastScanEnd = millis();
 
+    std::vector<DeauthHit> deauthSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(deauthLogMutex);
+        deauthSnapshot = deauthLog;
+    }
+
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthLog);
+        antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount, disassocCount, deauthSnapshot);
     }
 
     // Log deauth events to SD
-    if (SafeSD::isAvailable() && !deauthLog.empty()) {
+    if (SafeSD::isAvailable() && !deauthSnapshot.empty()) {
         uint32_t now = getEventTimestamp();
-        for (const auto& deauthHit : deauthLog) {
+        for (const auto& deauthHit : deauthSnapshot) {
             DynamicJsonDocument doc(384);
             doc["t"] = now;
             doc["src"] = macFmt6(deauthHit.srcMac);
@@ -1910,12 +1927,12 @@ void blueTeamTask(void *pv) {
             serializeJson(doc, line);
             logEventToSD("/deauth.jsonl", line);
         }
-        Serial.printf("[BLUE] Logged %d deauth events to SD\n", (int)deauthLog.size());
+        Serial.printf("[BLUE] Logged %d deauth events to SD\n", (int)deauthSnapshot.size());
     }
 
     if (meshEnabled && !stopRequested) {
         uint32_t enqueued = 0;
-        for (const auto& entry : deauthLog) {
+        for (const auto& entry : deauthSnapshot) {
             String srcMac = macFmt6(entry.srcMac);
             String dstMac = macFmt6(entry.destMac);
             String attackKey = srcMac + "->" + dstMac;
@@ -1933,7 +1950,7 @@ void blueTeamTask(void *pv) {
             }
         }
 
-        uint32_t totalAttacks = deauthLog.size();
+        uint32_t totalAttacks = deauthSnapshot.size();
         String summary = getNodeId() + ": DEAUTH_DONE: Total=" + String(deauthCount + disassocCount) +
                         " Deauth=" + String(deauthCount) +
                         " Disassoc=" + String(disassocCount) +
@@ -4403,8 +4420,11 @@ void cleanupMaps() {
     if (deauthQueue) xQueueReset(deauthQueue);
 
     // Clean deauth logs (vector - trim oldest)
-    if (deauthLog.size() > DEAUTH_LOG_MAX) {
-        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - DEAUTH_LOG_MAX));
+    {
+        std::lock_guard<std::mutex> lock(deauthLogMutex);
+        if (deauthLog.size() > DEAUTH_LOG_MAX) {
+            deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - DEAUTH_LOG_MAX));
+        }
     }
 }
 
