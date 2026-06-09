@@ -53,8 +53,8 @@ void initializeDroneDetector() {
     {
         std::lock_guard<std::mutex> lock(detectedDronesMutex);
         detectedDrones.clear();
+        droneEventLog.clear();
     }
-    droneEventLog.clear();
     droneDetectionCount = 0;
 }
 
@@ -302,11 +302,14 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             String jsonStr;
             serializeJson(doc, jsonStr);
             
-            if (droneEventLog.size() >= MAX_DRONE_LOG_ENTRIES) {
-                droneEventLog.erase(droneEventLog.begin());
+            {
+                std::lock_guard<std::mutex> lock(detectedDronesMutex);
+                if (droneEventLog.size() >= MAX_DRONE_LOG_ENTRIES) {
+                    droneEventLog.erase(droneEventLog.begin());
+                }
+                droneEventLog.push_back(jsonStr);
             }
-            droneEventLog.push_back(jsonStr);
-            
+
             logToSD("DRONE: " + jsonStr);
             logEventToSD("/drones.jsonl", jsonStr);
 
@@ -441,10 +444,13 @@ String getDroneDetectionResults() {
 
 String getDroneEventLog() {
     String log = "[\n";
-    for (size_t i = 0; i < droneEventLog.size(); i++) {
-        log += droneEventLog[i];
-        if (i < droneEventLog.size() - 1) log += ",";
-        log += "\n";
+    {
+        std::lock_guard<std::mutex> lock(detectedDronesMutex);
+        for (size_t i = 0; i < droneEventLog.size(); i++) {
+            log += droneEventLog[i];
+            if (i < droneEventLog.size() - 1) log += ",";
+            log += "\n";
+        }
     }
     log += "]";
     return log;

@@ -4393,6 +4393,13 @@ void sentinel_loadUserPref() {
     g_sentinelUserEnabled.store(on);
 }
 
+void sentinel_resumeAfterScan() {
+    sentinel_loadUserPref();
+    if (g_sentinelUserEnabled.load() && !scanning.load()) {
+        sentinel_startAlwaysOn();
+    }
+}
+
 void detect_persistTunables() {
     Preferences p;
     if (!p.begin("ahdetect", false)) return;

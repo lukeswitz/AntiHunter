@@ -489,6 +489,8 @@ static void handleScanStart(const String &command)
   {
     int mode = params.substring(0, modeDelim).toInt();
     int secs = params.substring(modeDelim + 1, secsDelim).toInt();
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
     String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,6,11";
     bool forever = (channelDelim > 0 && params.substring(channelDelim + 1) == "FOREVER");
 
@@ -1043,6 +1045,9 @@ static void handleTriangulateStart(const String &command, const String &targetId
           return;
       }
 
+      if (duration < 10) duration = 10;
+      if (duration > 3600) duration = 3600;
+
       setRFEnvironment((RFEnvironment)rfEnv);
 
       distanceTuning.wifi_multiplier = wifiPwr;
@@ -1138,6 +1143,9 @@ static void handleTriangulateStart(const String &command, const String &targetId
       duration = remainder.toInt();
   }
 
+  if (duration < 10) duration = 10;
+  if (duration > 3600) duration = 3600;
+
   setRFEnvironment((RFEnvironment)rfEnv);
 
   distanceTuning.wifi_multiplier = wifiPwr;
@@ -1157,8 +1165,14 @@ static void handleTriangulateStart(const String &command, const String &targetId
   if (workerTaskHandle) {
       stopRequested = true;
       // Wait for task to exit naturally - it sets workerTaskHandle = nullptr on exit
-      while (workerTaskHandle) {
+      uint32_t triStopWait = millis();
+      while (workerTaskHandle && (millis() - triStopWait) < 5000) {
           vTaskDelay(pdMS_TO_TICKS(100));
+      }
+      if (workerTaskHandle) {
+          Serial.println("[TRIANGULATE] Worker task did not stop in time, aborting start");
+          sendToSerial1(nodeId + ": TRI_ACK:BUSY", true);
+          return;
       }
   }
 
@@ -1415,6 +1429,12 @@ static void handleEraseForce(const String &command)
   }
 }
 
+static bool meshEraseAuthorized(const String &credential)
+{
+  if (erasePSK.length() == 0) return true;
+  return validateEraseResponse(credential);
+}
+
 static void handleConfigErasePsk(const String &command)
 {
   String key = command.substring(17);
@@ -1426,6 +1446,11 @@ static void handleConfigErasePsk(const String &command)
 
 static void handleEraseCancel(const String &command)
 {
+  String credential = (command.length() > 13 && command.charAt(12) == ':') ? command.substring(13) : "";
+  if (!meshEraseAuthorized(credential)) {
+    sendToSerial1(nodeId + ": ERASE_ACK:DENIED", true);
+    return;
+  }
   cancelTamperErase();
   sendToSerial1(nodeId + ": ERASE_ACK:CANCELLED", true);
 }
@@ -1441,9 +1466,19 @@ static void handleEraseRequest(const String &command)
 
 static void handleAutoeraseEnable(const String &command)
 {
-  if (command.length() > 16 && command.charAt(16) == ':') {
+  String body = command;
+  if (erasePSK.length() > 0) {
+    int lastColon = body.lastIndexOf(':');
+    String credential = (lastColon >= 16) ? body.substring(lastColon + 1) : "";
+    if (!validateEraseResponse(credential)) {
+      sendToSerial1(nodeId + ": AUTOERASE_ACK:DENIED", true);
+      return;
+    }
+    body = body.substring(0, lastColon);
+  }
+  if (body.length() > 16 && body.charAt(16) == ':') {
     // Parse parameters
-    String params = command.substring(17);
+    String params = body.substring(17);
     int idx1 = params.indexOf(':');
     int idx2 = params.indexOf(':', idx1 + 1);
     int idx3 = params.indexOf(':', idx2 + 1);
@@ -1487,6 +1522,11 @@ static void handleAutoeraseEnable(const String &command)
 
 static void handleAutoeraseDisable(const String &command)
 {
+  String credential = (command.length() > 18 && command.charAt(17) == ':') ? command.substring(18) : "";
+  if (!meshEraseAuthorized(credential)) {
+    sendToSerial1(nodeId + ": AUTOERASE_ACK:DENIED", true);
+    return;
+  }
   autoEraseEnabled = false;
   inSetupMode = false;
   saveConfiguration();
@@ -1622,10 +1662,10 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("TRI_CYCLE_START:"))    handleTriCycleStart(command);
   else if (command.startsWith("TRIANGULATE_RESULTS")) handleTriangulateResults(command);
   else if (command.startsWith("ERASE_FORCE:"))        handleEraseForce(command);
-  else if (command == "ERASE_CANCEL")                 handleEraseCancel(command);
+  else if (command.startsWith("ERASE_CANCEL"))        handleEraseCancel(command);
   else if (command == "ERASE_REQUEST")                handleEraseRequest(command);
   else if (command.startsWith("AUTOERASE_ENABLE"))    handleAutoeraseEnable(command);
-  else if (command == "AUTOERASE_DISABLE")            handleAutoeraseDisable(command);
+  else if (command.startsWith("AUTOERASE_DISABLE"))   handleAutoeraseDisable(command);
   else if (command == "AUTOERASE_STATUS")             handleAutoeraseStatus(command);
   else if (command.startsWith("BATTERY_SAVER_START")) handleBatterySaverStart(command);
   else if (command == "BATTERY_SAVER_STOP")           handleBatterySaverStop(command);

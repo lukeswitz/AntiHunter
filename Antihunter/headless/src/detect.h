@@ -252,6 +252,7 @@ bool sentinel_isUserEnabled();
 bool sentinel_isRunning();
 bool sentinel_yieldAndWait(uint32_t timeoutMs);
 void sentinel_loadUserPref();
+void sentinel_resumeAfterScan();
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid);
 
 // BLE hook — called from BLE scan onResult
