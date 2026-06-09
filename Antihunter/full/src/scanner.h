@@ -233,6 +233,7 @@ extern portMUX_TYPE uniqueMacsMux;
 // Functions
 void initializeScanner();
 bool matchesIdentityMac(const char* identityId, const uint8_t* mac);
+void rebuildIdentityMacSnapshot();
 void saveTargetsList(const String &txt);
 void snifferScanTask(void *pv);
 void listScanTask(void *pv);

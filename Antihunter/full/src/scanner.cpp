@@ -37,6 +37,10 @@ void radioStopBLE();
 extern Preferences prefs;
 static std::vector<Target> targets;
 std::vector<String> ssidTargets;
+
+static const size_t IDENTITY_MAC_SNAPSHOT_CAP = 64;
+static uint8_t identityMacSnapshot[IDENTITY_MAC_SNAPSHOT_CAP][6];
+static std::atomic<uint16_t> identityMacSnapshotCount{0};
 std::atomic<bool> probeDetectionEnabled(false);
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
@@ -530,11 +534,61 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
     }
     
     const DeviceIdentity& identity = it->second;
-    
+
     return std::any_of(identity.macs.begin(), identity.macs.end(),
         [mac](const MacAddress& macAddr) {
             return memcmp(macAddr.bytes.data(), mac, 6) == 0;
         });
+}
+
+void rebuildIdentityMacSnapshot()
+{
+    extern DeviceIdentitiesMap deviceIdentities;
+    extern std::mutex randMutex;
+
+    uint8_t staging[IDENTITY_MAC_SNAPSHOT_CAP][6];
+    uint16_t n = 0;
+
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        for (const auto &t : targets)
+        {
+            if (!(t.len == 0 && strlen(t.identityId) > 0)) continue;
+            auto it = deviceIdentities.find(String(t.identityId));
+            if (it == deviceIdentities.end()) continue;
+            for (const auto &macAddr : it->second.macs)
+            {
+                if (n >= IDENTITY_MAC_SNAPSHOT_CAP) break;
+                bool dup = false;
+                for (uint16_t j = 0; j < n; j++)
+                {
+                    if (memcmp(staging[j], macAddr.bytes.data(), 6) == 0) { dup = true; break; }
+                }
+                if (dup) continue;
+                memcpy(staging[n], macAddr.bytes.data(), 6);
+                n++;
+            }
+            if (n >= IDENTITY_MAC_SNAPSHOT_CAP) break;
+        }
+    }
+
+    identityMacSnapshotCount.store(0, std::memory_order_release);
+    for (uint16_t i = 0; i < n; i++)
+    {
+        memcpy(identityMacSnapshot[i], staging[i], 6);
+    }
+    identityMacSnapshotCount.store(n, std::memory_order_release);
+}
+
+static inline bool matchesIdentityMacSnapshot(const uint8_t *mac)
+{
+    uint16_t n = identityMacSnapshotCount.load(std::memory_order_acquire);
+    if (n > IDENTITY_MAC_SNAPSHOT_CAP) n = IDENTITY_MAC_SNAPSHOT_CAP;
+    for (uint16_t i = 0; i < n; i++)
+    {
+        if (memcmp(identityMacSnapshot[i], mac, 6) == 0) return true;
+    }
+    return false;
 }
 
 String getTargetsList()
@@ -594,6 +648,7 @@ void saveTargetsList(const String &txt)
         }
         start = nl + 1;
     }
+    rebuildIdentityMacSnapshot();
 }
 
 bool matchesSsid(const char *ssid)
@@ -642,6 +697,42 @@ static inline bool matchesMac(const uint8_t *mac)
                 return true;
             }
         }
+    }
+    return false;
+}
+
+static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
+{
+    bool identityTargetPresent = false;
+    for (const auto &t : targets)
+    {
+        if (t.len == 0 && strlen(t.identityId) > 0) {
+            identityTargetPresent = true;
+        }
+        else if (t.len == 6)
+        {
+            bool eq = true;
+            for (int i = 0; i < 6; i++)
+            {
+                if (mac[i] != t.bytes[i])
+                {
+                    eq = false;
+                    break;
+                }
+            }
+            if (eq)
+                return true;
+        }
+        else if (t.len == 3)
+        {
+            if (mac[0] == t.bytes[0] && mac[1] == t.bytes[1] && mac[2] == t.bytes[2])
+            {
+                return true;
+            }
+        }
+    }
+    if (identityTargetPresent && matchesIdentityMacSnapshot(mac)) {
+        return true;
     }
     return false;
 }
@@ -2253,7 +2344,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         if (triangulationActive) {
             c1Match = (memcmp(cand1, triangulationTarget, 6) == 0);
         } else {
-            c1Match = matchesMac(cand1);
+            c1Match = matchesMacISR(cand1);
         }
     }
     if (c1Match)
@@ -2280,7 +2371,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         if (triangulationActive) {
             c2Match = (memcmp(cand2, triangulationTarget, 6) == 0);
         } else {
-            c2Match = matchesMac(cand2);
+            c2Match = matchesMacISR(cand2);
         }
     }
     if (c2Match)
@@ -2719,6 +2810,8 @@ static const size_t PROBE_HIT_COOLDOWN_MAX = 500;
 static bool shouldSendProbeHit(const String &key)
 {
     uint32_t now = millis();
+
+    std::lock_guard<std::mutex> lock(probeMutex);
 
     if (probeHitCooldowns.size() >= PROBE_HIT_COOLDOWN_MAX) {
         for (auto it = probeHitCooldowns.begin(); it != probeHitCooldowns.end(); ) {

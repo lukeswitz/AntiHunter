@@ -1145,10 +1145,13 @@ void cleanupStaleTracks() {
 }
 
 void resetRandomizationDetection() {
-    std::lock_guard<std::mutex> lock(randMutex);
-    activeSessions.clear();
-    deviceIdentities.clear();
-    identityIdCounter = 0;
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        activeSessions.clear();
+        deviceIdentities.clear();
+        identityIdCounter = 0;
+    }
+    rebuildIdentityMacSnapshot();
 }
 
 String getRandomizationResults() {
@@ -1266,6 +1269,7 @@ void randomizationDetectionTask(void *pv) {
     }
     loadDeviceIdentities();
     cleanupStaleTracks();
+    rebuildIdentityMacSnapshot();
     {
         std::lock_guard<std::mutex> lock(randMutex);
         Serial.printf("[RAND] Loaded %u persistent identities after stale cleanup (internal:%u psram:%u)\n",
@@ -1564,13 +1568,15 @@ void randomizationDetectionTask(void *pv) {
             for (auto* session : toProcess) {
                 linkSessionToTrackBehavioral(*session);
             }
-            
+
+            rebuildIdentityMacSnapshot();
+
             {
                 std::lock_guard<std::mutex> lock(randMutex);
                 Serial.printf("[RAND] Sessions:%d Identities:%d Heap:%lu\n",
                             activeSessions.size(), deviceIdentities.size(), ESP.getFreeHeap());
             }
-            
+
             nextStatus += 5000;
         }
         
