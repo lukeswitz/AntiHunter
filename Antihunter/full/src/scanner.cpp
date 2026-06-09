@@ -4419,9 +4419,12 @@ void listScanTask(void *pv) {
 
         bool hasTriangulation = (antihunter::lastResults.find("=== Triangulation Results ===") != std::string::npos);
 
+        size_t triNodeCount;
+        { std::lock_guard<std::mutex> tl(triangulationMutex); triNodeCount = triangulationNodes.size(); }
+
         if (hasTriangulation) {
             antihunter::lastResults = results + "\n\n" + antihunter::lastResults;
-        } else if (triangulationNodes.size() > 0) {
+        } else if (triNodeCount > 0) {
             antihunter::lastResults = antihunter::lastResults + "\n\n=== List Scan Results ===\n" + results;
         } else {
             antihunter::lastResults = results;
@@ -4445,14 +4448,18 @@ void listScanTask(void *pv) {
             Serial.println("[SCAN CHILD] Scan complete, waiting for STOP command");
             uint32_t waitStart = millis();
             uint32_t STOP_WAIT_TIMEOUT = 30000;
-            auto maxIt = std::max_element(nodePropagationDelays.begin(), nodePropagationDelays.end(),
-                [](const std::pair<const String, uint32_t>& a, const std::pair<const String, uint32_t>& b) {
-                    uint32_t va = (a.second < 1000000) ? a.second : 0;
-                    uint32_t vb = (b.second < 1000000) ? b.second : 0;
-                    return va < vb;
-                });
-            uint32_t maxPropDelay = (maxIt != nodePropagationDelays.end() && maxIt->second < 1000000)
-                                    ? maxIt->second : 0;
+            uint32_t maxPropDelay = 0;
+            {
+                std::lock_guard<std::mutex> tl(triangulationMutex);
+                auto maxIt = std::max_element(nodePropagationDelays.begin(), nodePropagationDelays.end(),
+                    [](const std::pair<const String, uint32_t>& a, const std::pair<const String, uint32_t>& b) {
+                        uint32_t va = (a.second < 1000000) ? a.second : 0;
+                        uint32_t vb = (b.second < 1000000) ? b.second : 0;
+                        return va < vb;
+                    });
+                maxPropDelay = (maxIt != nodePropagationDelays.end() && maxIt->second < 1000000)
+                                        ? maxIt->second : 0;
+            }
             if (maxPropDelay > 0) {
                 uint32_t latencyMargin = (maxPropDelay / 1000) * 5;
                 STOP_WAIT_TIMEOUT += latencyMargin;
