@@ -221,7 +221,7 @@ extern std::atomic<bool> triangulationActive;
 // Triangulation
 extern TriangulationAccumulator triAccum;
 extern std::mutex triAccumMutex;
-extern bool droneDetectionEnabled;
+extern std::atomic<bool> droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 extern QueueHandle_t macQueue;
 

@@ -20,7 +20,7 @@ portMUX_TYPE droneMux = portMUX_INITIALIZER_UNLOCKED;
 std::set<String> transmittedDrones;
 std::vector<String> droneEventLog;
 std::atomic<uint32_t> droneDetectionCount(0);
-bool droneDetectionEnabled = false;
+std::atomic<bool> droneDetectionEnabled{false};
 QueueHandle_t droneQueue = nullptr;
 QueueHandle_t droneFrameQueue = nullptr;
 

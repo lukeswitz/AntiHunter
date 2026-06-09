@@ -7,6 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include <mutex>
+#include <atomic>
 #include "psram_allocator.h"
 
 class NimBLEAdvertisedDevice;
@@ -91,7 +92,7 @@ struct ProbeSession {
     uint32_t probeTimestamps[50];
     uint8_t probeCount;
     
-    int8_t rssiSum;
+    int16_t rssiSum;
     int8_t rssiMin;
     int8_t rssiMax;
     std::vector<int8_t, PsramAllocator<int8_t>> rssiReadings;
@@ -182,7 +183,7 @@ using DeviceIdentitiesMap = std::map<String, DeviceIdentity, std::less<String>,
     PsramAllocator<std::pair<const String, DeviceIdentity>>>;
 using IdentityKeySet = std::set<String, std::less<String>, PsramAllocator<String>>;
 
-extern bool randomizationDetectionEnabled;
+extern std::atomic<bool> randomizationDetectionEnabled;
 extern ActiveSessionsMap activeSessions;
 extern DeviceIdentitiesMap deviceIdentities;
 extern uint32_t identityIdCounter;

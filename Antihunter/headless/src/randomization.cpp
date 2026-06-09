@@ -23,7 +23,7 @@ extern "C" {
 
 extern NimBLEScan *pBLEScan;
 
-bool randomizationDetectionEnabled = false;
+std::atomic<bool> randomizationDetectionEnabled{false};
 ActiveSessionsMap activeSessions;
 DeviceIdentitiesMap deviceIdentities;
 uint32_t identityIdCounter = 0;
@@ -683,7 +683,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
     
     bool sessionIsMinimal = isMinimalSignature(session.fingerprint);
     
-    uint8_t sessionChannelSeq[20];
+    uint8_t sessionChannelSeq[32];
     uint8_t sessionChannelSeqLen = 0;
     extractChannelSequence(session, sessionChannelSeq, sessionChannelSeqLen);
     
