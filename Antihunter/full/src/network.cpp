@@ -7053,6 +7053,7 @@ void registerRemainingRoutes() {
     });
 
   server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {
+      std::lock_guard<std::mutex> lock(deauthLogMutex);
       String results = "Deauth Attack Detection Results\n\n";
       results += "Deauth frames: " + String(deauthCount) + "\n";
       results += "Disassoc frames: " + String(disassocCount) + "\n";
@@ -7528,7 +7529,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/deauth/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
-      deauthLog.clear();
+      { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthLog.clear(); }
       deauthCount = 0;
       disassocCount = 0;
       SafeSD::remove("/deauth.jsonl");
