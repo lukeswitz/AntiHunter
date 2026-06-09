@@ -116,7 +116,10 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 
 
 void broadcastToTerminal(const String &message) {
-    String timestamped = "[" + getRTCTimeString() + "] " + message;
+    // Use cached RTC string: getRTCTimeString() forces a full I2C read + GPS discipline on every call.
+    // broadcastToTerminal is on the hot mesh-TX path (per frame), and the main loop already refreshes
+    // the cache every 1s, which is ample granularity for a terminal log timestamp.
+    String timestamped = "[" + getRTCTimeStringCached() + "] " + message;
 
     if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
         terminalBuffer.push_back(timestamped);
@@ -8188,6 +8191,10 @@ std::atomic<uint32_t> meshTxDroppedFull(0);
 static uint32_t meshTxTickMs = 80;
 
 static MeshPriority classifyMeshMessage(const String &msg) {
+    // Fast path: DEVICE-discovery dumps dominate the queue. Up-front check skips the 29-keyword scan
+    // for the common case AND prevents an SSID/name containing a keyword (a network named "ATTACK")
+    // from misclassifying a bulk device row into the EVENT queue. No control/event frame contains "DEVICE:".
+    if (msg.indexOf("DEVICE:") >= 0) return PRIO_BULK;
     // CONTROL: triangulation control + data frames (parsed/honored by peer triangulation FSM)
     if (msg.indexOf("T_F:") >= 0 || msg.indexOf("T_C:") >= 0 || msg.indexOf("T_D:") >= 0 ||
         msg.indexOf("STOP_ACK") >= 0 || msg.indexOf("TRI_START_ACK") >= 0 ||

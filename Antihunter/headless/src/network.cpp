@@ -224,6 +224,8 @@ std::atomic<uint32_t> meshTxDroppedFull(0);
 static uint32_t meshTxTickMs = 80;
 
 static MeshPriority classifyMeshMessage(const String &msg) {
+    // Fast path: DEVICE dumps dominate; skip the keyword scan and avoid SSID-name false positives.
+    if (msg.indexOf("DEVICE:") >= 0) return PRIO_BULK;
     if (msg.indexOf("T_F:") >= 0 || msg.indexOf("T_C:") >= 0 || msg.indexOf("T_D:") >= 0 ||
         msg.indexOf("STOP_ACK") >= 0 || msg.indexOf("TRI_START_ACK") >= 0 ||
         msg.indexOf("TRIANGULATE_START") >= 0 || msg.indexOf("TRIANGULATE_STOP") >= 0 ||

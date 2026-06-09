@@ -1603,6 +1603,17 @@ String getRTCTimeString() {
     return rtcTimeString;
 }
 
+// Returns the cached RTC string WITHOUT an I2C read or GPS-discipline side effects.
+// The main loop refreshes rtcTimeString every 1s (main.cpp), so callers that only need ~1s
+// granularity (terminal/log timestamps) must use this to stay off the I2C bus on hot paths.
+String getRTCTimeStringCached() {
+    if (rtcMutex == nullptr) return rtcTimeString;
+    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(10)) != pdTRUE) return rtcTimeString;
+    String copy = rtcTimeString;
+    xSemaphoreGive(rtcMutex);
+    return copy;
+}
+
 String getFormattedTimestamp() {
     if (!rtcAvailable) {
         uint32_t ts = millis();
