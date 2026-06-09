@@ -41,6 +41,12 @@ std::vector<String> ssidTargets;
 static const size_t IDENTITY_MAC_SNAPSHOT_CAP = 64;
 static uint8_t identityMacSnapshot[IDENTITY_MAC_SNAPSHOT_CAP][6];
 static std::atomic<uint16_t> identityMacSnapshotCount{0};
+
+struct MacTargetSnap { uint8_t bytes[6]; uint8_t len; };
+static const size_t MAC_TARGET_SNAPSHOT_CAP = 128;
+static MacTargetSnap macTargetSnapshot[MAC_TARGET_SNAPSHOT_CAP];
+static std::atomic<uint16_t> macTargetSnapshotCount{0};
+static std::atomic<bool> identityTargetPresentSnap{false};
 std::atomic<bool> probeDetectionEnabled(false);
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
@@ -548,27 +554,38 @@ void rebuildIdentityMacSnapshot()
 
     uint8_t staging[IDENTITY_MAC_SNAPSHOT_CAP][6];
     uint16_t n = 0;
+    MacTargetSnap macStaging[MAC_TARGET_SNAPSHOT_CAP];
+    uint16_t mn = 0;
+    bool idPresent = false;
 
     {
         std::lock_guard<std::mutex> lock(randMutex);
         for (const auto &t : targets)
         {
-            if (!(t.len == 0 && strlen(t.identityId) > 0)) continue;
-            auto it = deviceIdentities.find(String(t.identityId));
-            if (it == deviceIdentities.end()) continue;
-            for (const auto &macAddr : it->second.macs)
-            {
-                if (n >= IDENTITY_MAC_SNAPSHOT_CAP) break;
-                bool dup = false;
-                for (uint16_t j = 0; j < n; j++)
+            if (t.len == 0 && strlen(t.identityId) > 0) {
+                idPresent = true;
+                auto it = deviceIdentities.find(String(t.identityId));
+                if (it == deviceIdentities.end()) continue;
+                for (const auto &macAddr : it->second.macs)
                 {
-                    if (memcmp(staging[j], macAddr.bytes.data(), 6) == 0) { dup = true; break; }
+                    if (n >= IDENTITY_MAC_SNAPSHOT_CAP) break;
+                    bool dup = false;
+                    for (uint16_t j = 0; j < n; j++)
+                    {
+                        if (memcmp(staging[j], macAddr.bytes.data(), 6) == 0) { dup = true; break; }
+                    }
+                    if (dup) continue;
+                    memcpy(staging[n], macAddr.bytes.data(), 6);
+                    n++;
                 }
-                if (dup) continue;
-                memcpy(staging[n], macAddr.bytes.data(), 6);
-                n++;
+                if (n >= IDENTITY_MAC_SNAPSHOT_CAP) break;
             }
-            if (n >= IDENTITY_MAC_SNAPSHOT_CAP) break;
+            else if ((t.len == 6 || t.len == 3) && mn < MAC_TARGET_SNAPSHOT_CAP)
+            {
+                memcpy(macStaging[mn].bytes, t.bytes, 6);
+                macStaging[mn].len = t.len;
+                mn++;
+            }
         }
     }
 
@@ -578,6 +595,14 @@ void rebuildIdentityMacSnapshot()
         memcpy(identityMacSnapshot[i], staging[i], 6);
     }
     identityMacSnapshotCount.store(n, std::memory_order_release);
+
+    macTargetSnapshotCount.store(0, std::memory_order_release);
+    for (uint16_t i = 0; i < mn; i++)
+    {
+        macTargetSnapshot[i] = macStaging[i];
+    }
+    macTargetSnapshotCount.store(mn, std::memory_order_release);
+    identityTargetPresentSnap.store(idPresent, std::memory_order_release);
 }
 
 static inline bool matchesIdentityMacSnapshot(const uint8_t *mac)
@@ -622,7 +647,10 @@ String getTargetsList()
 
 void saveTargetsList(const String &txt)
 {
+    extern std::mutex randMutex;
     prefs.putString("maclist", txt);
+    {
+    std::lock_guard<std::mutex> lock(randMutex);
     targets.clear();
     ssidTargets.clear();
     int start = 0;
@@ -647,6 +675,7 @@ void saveTargetsList(const String &txt)
             }
         }
         start = nl + 1;
+    }
     }
     rebuildIdentityMacSnapshot();
 }
@@ -703,35 +732,26 @@ static inline bool matchesMac(const uint8_t *mac)
 
 static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
 {
-    bool identityTargetPresent = false;
-    for (const auto &t : targets)
+    uint16_t mn = macTargetSnapshotCount.load(std::memory_order_acquire);
+    for (uint16_t i = 0; i < mn; i++)
     {
-        if (t.len == 0 && strlen(t.identityId) > 0) {
-            identityTargetPresent = true;
-        }
-        else if (t.len == 6)
+        const MacTargetSnap &t = macTargetSnapshot[i];
+        if (t.len == 6)
         {
             bool eq = true;
-            for (int i = 0; i < 6; i++)
+            for (int k = 0; k < 6; k++)
             {
-                if (mac[i] != t.bytes[i])
-                {
-                    eq = false;
-                    break;
-                }
+                if (mac[k] != t.bytes[k]) { eq = false; break; }
             }
-            if (eq)
-                return true;
+            if (eq) return true;
         }
         else if (t.len == 3)
         {
             if (mac[0] == t.bytes[0] && mac[1] == t.bytes[1] && mac[2] == t.bytes[2])
-            {
                 return true;
-            }
         }
     }
-    if (identityTargetPresent && matchesIdentityMacSnapshot(mac)) {
+    if (identityTargetPresentSnap.load(std::memory_order_acquire) && matchesIdentityMacSnapshot(mac)) {
         return true;
     }
     return false;
