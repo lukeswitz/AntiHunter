@@ -400,8 +400,10 @@ void initializeMesh() {
 static void handleConfigChannels(const String &command)
 {
   String channels = command.substring(16);
-  parseChannelsCSV(channels);
   prefs.putString("channels", channels);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      parseChannelsCSV(channels);
+  }
   saveConfiguration();
   Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
   sendToSerial1(nodeId + ": CONFIG_ACK:CHANNELS:" + channels, true);

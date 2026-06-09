@@ -6593,6 +6593,10 @@ void registerRemainingRoutes() {
 
   server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
              {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          req->send(409, "text/plain", "Radio busy - stop scan before changing config");
+          return;
+      }
       if (!req->hasParam("channels") || !req->hasParam("targets")) {
           req->send(400, "text/plain", "Missing parameters");
           return;
@@ -8412,8 +8416,10 @@ void initializeMesh() {
 static void handleConfigChannels(const String &command)
 {
   String channels = command.substring(16);
-  parseChannelsCSV(channels);
   prefs.putString("channels", channels);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      parseChannelsCSV(channels);
+  }
   saveConfiguration();
   Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
   sendToSerial1(nodeId + ": CONFIG_ACK:CHANNELS:" + channels, true);
