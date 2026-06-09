@@ -195,35 +195,12 @@ bool sendToSerial1(const String &message, bool canDelay) {
                                   message.indexOf(": T_D:") >= 0;
 
     if (triangulationActive && !isTriangulationMessage) {
-        static uint32_t lastBlockLog = 0;
-        if (millis() - lastBlockLog > 10000) {
-            Serial.printf("[MESH-BLOCK] Dropping non-triangulation message during active scan: %s\n",
-                         message.substring(0, 50).c_str());
-            lastBlockLog = millis();
-        }
+        meshTxDroppedTriGate.fetch_add(1);
         return false;
     }
 
     bool isPriority = isTriangulationMessage;
     size_t msgLen = message.length() + 2;
-
-    if (!isPriority && !rateLimiter.canSend(msgLen)) {
-        if (canDelay) {
-            uint32_t wait = rateLimiter.waitTime(msgLen);
-            if (wait > 0 && wait < meshSendInterval) {
-                Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
-                broadcastToTerminal("[MESH] Rate limit: waiting..");
-                delay(wait);
-                rateLimiter.refillTokens();
-            } else {
-                Serial.printf("[MESH] Rate limit: dropping message (wait=%ums too long)\n", wait);
-                return false;
-            }
-        } else {
-            Serial.printf("[MESH] Rate limit: cannot send without delay\n");
-            return false;
-        }
-    }
 
     TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(1000);
     if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
@@ -231,9 +208,17 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
+    // Phase 1 + review fix A: rate-limit check INSIDE mutex so canSend/consume are atomic.
+    // Two concurrent senders could otherwise both pass canSend then both consume, oversubscribing the bucket.
+    if (!isPriority && !rateLimiter.canSend(msgLen)) {
+        meshTxDroppedRateLimit.fetch_add(1);
+        xSemaphoreGive(serial1Mutex);
+        return false;
+    }
+
     if (isPriority) {
         uint32_t waitStart = millis();
-        while (Serial1.availableForWrite() < msgLen) {
+        while (Serial1.availableForWrite() < (int)msgLen) {
             if (millis() - waitStart > 5000) {
                 Serial.printf("[MESH] Priority message timeout waiting for buffer space\n");
                 xSemaphoreGive(serial1Mutex);
@@ -247,8 +232,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
             }
         }
     } else {
-        if (Serial1.availableForWrite() < msgLen) {
-            Serial.printf("[MESH] Serial1 buffer full (%d/%d bytes)\n", Serial1.availableForWrite(), msgLen);
+        if (Serial1.availableForWrite() < (int)msgLen) {
+            meshTxDroppedBufFull.fetch_add(1);
             xSemaphoreGive(serial1Mutex);
             return false;
         }
@@ -260,13 +245,12 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     Serial1.flush();
 
-    xSemaphoreGive(serial1Mutex);
-
-    delay(50);
-
+    // Review fix A (completion): consume INSIDE mutex so canSend/consume are fully atomic.
     if (!isPriority) {
         rateLimiter.consume(msgLen);
     }
+
+    xSemaphoreGive(serial1Mutex);
 
     return true;
 }
@@ -8176,51 +8160,106 @@ void sendMeshNotification(const Hit &hit) {
 
     int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());
 
-    if (msg_len > 0 && msg_len <= sizeof(mesh_msg) - 1) {
-        delay(10);
+    if (msg_len > 0 && msg_len <= (int)sizeof(mesh_msg) - 1) {
         Serial.printf("[MESH] %s\n", mesh_msg);
-        sendToSerial1(String(mesh_msg), false);
+        meshEnqueuePrio(String(mesh_msg), PRIO_EVENT);
     }
 }
 
 struct MeshTxItem {
     char msg[MAX_MESH_SIZE + 8];
-    bool priority;
+    MeshPriority prio;
 };
 
+// Phase 2: three priority queues replace the single FIFO. Drain order CTRL > EVENT > BULK.
+// Total depth 256 (16+32+208) matches the prior MESH_TX_QUEUE_DEPTH = 256 PSRAM footprint.
+static const uint16_t MESH_Q_DEPTH[3] = {16, 32, 208};
+static QueueHandle_t meshQ[3] = {nullptr, nullptr, nullptr};
+
+// Legacy symbol kept for compatibility — points at BULK queue for any external reader.
 QueueHandle_t meshTxQueue = nullptr;
 TaskHandle_t meshTxTaskHandle = nullptr;
 std::atomic<uint32_t> meshTxDepthHigh(0);
 std::atomic<uint32_t> meshTxSentLifetime(0);
 std::atomic<uint32_t> meshTxDroppedFull(0);
 
-static const uint16_t MESH_TX_QUEUE_DEPTH = 256;
+// Phase 1: consumer-task tick. ~80 ms inter-frame cadence, leaky-bucket pacing.
+// 80 ms * 50 B/msg ≈ 625 B/s ceiling, well under 115200 baud and within token-bucket sustained 167 B/s.
+static uint32_t meshTxTickMs = 80;
 
-bool meshEnqueue(const String &msg, bool priority) {
+static MeshPriority classifyMeshMessage(const String &msg) {
+    // CONTROL: triangulation control + data frames (parsed/honored by peer triangulation FSM)
+    if (msg.indexOf("T_F:") >= 0 || msg.indexOf("T_C:") >= 0 || msg.indexOf("T_D:") >= 0 ||
+        msg.indexOf("STOP_ACK") >= 0 || msg.indexOf("TRI_START_ACK") >= 0 ||
+        msg.indexOf("TRIANGULATE_START") >= 0 || msg.indexOf("TRIANGULATE_STOP") >= 0 ||
+        msg.indexOf("TRI_CYCLE_START") >= 0) {
+        return PRIO_CONTROL;
+    }
+    // EVENT: alerts, detections, status changes — caller may also pass priority=true to land here
+    if (msg.indexOf("ATTACK") >= 0 || msg.indexOf("DEAUTH") >= 0 || msg.indexOf("DETECT") >= 0 ||
+        msg.indexOf("EAPOL") >= 0 || msg.indexOf("HSHK") >= 0 || msg.indexOf("KARMA") >= 0 ||
+        msg.indexOf("BLETRACK") >= 0 || msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
+        msg.indexOf("RTC_SYNC") >= 0 || msg.indexOf("STARTUP") >= 0 || msg.indexOf("Target:") >= 0 ||
+        msg.indexOf("EVILTWIN") >= 0 || msg.indexOf("PMKID") >= 0 || msg.indexOf("OWE_ABUSE") >= 0 ||
+        msg.indexOf("KRACK") >= 0 || msg.indexOf("PWNAGOTCHI") >= 0 || msg.indexOf("PROBE_FLOOD") >= 0 ||
+        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 || msg.indexOf("TRK_LINK") >= 0 ||
+        msg.indexOf("IDHASH") >= 0 || msg.indexOf("BLOOM") >= 0 || msg.indexOf("RECON") >= 0 ||
+        msg.indexOf("FRAGATTACK") >= 0 || msg.indexOf("SSID_CONFUSION") >= 0 || msg.indexOf("SAE_DOS") >= 0 ||
+        msg.indexOf("BLE_MALFORMED") >= 0) {
+        return PRIO_EVENT;
+    }
+    // BULK: DEVICE, SCAN_DONE, heartbeat, any other periodic dump
+    return PRIO_BULK;
+}
+
+bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
     if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
-    if (meshTxQueue == nullptr) {
-        return sendToSerial1(msg, priority);
+    if (meshQ[prio] == nullptr) {
+        return sendToSerial1(msg, false);
     }
     MeshTxItem item;
     strncpy(item.msg, msg.c_str(), sizeof(item.msg) - 1);
     item.msg[sizeof(item.msg) - 1] = '\0';
-    item.priority = priority;
-    if (xQueueSend(meshTxQueue, &item, 0) != pdTRUE) {
+    item.prio = prio;
+
+    bool enqueued = (xQueueSend(meshQ[prio], &item, 0) == pdTRUE);
+
+    // Review fix C (corrected): cross-queue eviction was incorrect — evicting BULK does NOT
+    // free a slot in meshQ[CTRL]/meshQ[EVENT] since they're independent FreeRTOS queues.
+    // The right backpressure here is to let the consumer drain. CTRL=16/EVENT=32 depths are
+    // sized so this is rare; meshTxDroppedFull surfaces it when it does happen.
+
+    if (!enqueued) {
         meshTxDroppedFull.fetch_add(1);
-        Serial.printf("[MESH] Queue full, dropped: %s\n", msg.substring(0, 50).c_str());
+        Serial.printf("[MESH] Queue full (prio=%u), dropped: %s\n", (unsigned)prio, msg.substring(0, 50).c_str());
         return false;
     }
+
     meshDrainTotal.fetch_add(1);
-    uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
+    uint32_t depth = meshTxQueueDepth();
     uint32_t prev = meshTxDepthHigh.load();
     while (depth > prev && !meshTxDepthHigh.compare_exchange_weak(prev, depth)) {}
     meshTxDraining.store(depth > 0);
     return true;
 }
 
+bool meshEnqueue(const String &msg, bool priority) {
+    // Legacy 2-arg API: classify by content. `priority=true` forces CONTROL only if the message
+    // is recognized as a control frame; otherwise classifier picks (EVENT for alerts, BULK for periodic).
+    MeshPriority p = classifyMeshMessage(msg);
+    if (priority && p == PRIO_BULK) {
+        // Caller signaled priority but classifier sees no control/event keyword — treat as EVENT
+        p = PRIO_EVENT;
+    }
+    return meshEnqueuePrio(msg, p);
+}
+
 uint32_t meshTxQueueDepth() {
-    if (meshTxQueue == nullptr) return 0;
-    return uxQueueMessagesWaiting(meshTxQueue);
+    uint32_t d = 0;
+    for (int i = 0; i < 3; i++) {
+        if (meshQ[i]) d += uxQueueMessagesWaiting(meshQ[i]);
+    }
+    return d;
 }
 
 uint32_t meshTxDroppedCount() {
@@ -8228,8 +8267,9 @@ uint32_t meshTxDroppedCount() {
 }
 
 void meshTxFlushQueue() {
-    if (meshTxQueue == nullptr) return;
-    xQueueReset(meshTxQueue);
+    for (int i = 0; i < 3; i++) {
+        if (meshQ[i]) xQueueReset(meshQ[i]);
+    }
     meshTxDepthHigh.store(0);
     meshTxDraining.store(false);
     meshDrainSent.store(0);
@@ -8237,46 +8277,58 @@ void meshTxFlushQueue() {
     Serial.println("[MESH] TX queue flushed");
 }
 
+static bool drainOne(QueueHandle_t q) {
+    if (q == nullptr) return false;
+    MeshTxItem item;
+    if (xQueueReceive(q, &item, 0) != pdTRUE) return false;
+    String msg(item.msg);
+    // canDelay=false: sendToSerial1 no longer blocks on rate-limit; if tokens insufficient it drops + counts.
+    // Consumer task owns pacing via vTaskDelayUntil below.
+    if (sendToSerial1(msg, false)) {
+        meshTxSentLifetime.fetch_add(1);
+        meshDrainSent.fetch_add(1);
+    } else {
+        // Review fix B: send failed (rate-limit/buf-full/mutex timeout). The dequeue already
+        // happened so msg is lost. Keep meshDrainTotal in sync so the end-of-drain cleanup
+        // (sent >= total) fires correctly and depthHigh/Sent/Total reset.
+        uint32_t total = meshDrainTotal.load();
+        while (total > 0 && !meshDrainTotal.compare_exchange_weak(total, total - 1)) {}
+    }
+    return true;
+}
+
 static void meshTxTask(void *pv) {
     (void)pv;
     Serial.println("[MESH] TX task started");
-    MeshTxItem item;
+    TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
         if (stopMeshDrain.load()) {
             meshTxFlushQueue();
             stopMeshDrain.store(false);
         }
-        if (xQueueReceive(meshTxQueue, &item, pdMS_TO_TICKS(1000)) == pdTRUE) {
-            String msg(item.msg);
-            if (sendToSerial1(msg, true)) {
-                meshTxSentLifetime.fetch_add(1);
-                meshDrainSent.fetch_add(1);
-            }
-            uint32_t depth = uxQueueMessagesWaiting(meshTxQueue);
-            if (depth == 0) {
-                meshTxDraining.store(false);
-                uint32_t sent = meshDrainSent.load();
-                uint32_t total = meshDrainTotal.load();
-                if (sent >= total) {
-                    meshTxDepthHigh.store(0);
-                    meshDrainSent.store(0);
-                    meshDrainTotal.store(0);
-                }
-            } else {
-                meshTxDraining.store(true);
+        // Phase 2 drain priority order: CONTROL preempts EVENT preempts BULK.
+        bool any = drainOne(meshQ[PRIO_CONTROL]) ||
+                   drainOne(meshQ[PRIO_EVENT]) ||
+                   drainOne(meshQ[PRIO_BULK]);
+        (void)any;
+
+        uint32_t depth = meshTxQueueDepth();
+        if (depth == 0) {
+            meshTxDraining.store(false);
+            uint32_t sent = meshDrainSent.load();
+            uint32_t total = meshDrainTotal.load();
+            if (sent >= total && total > 0) {
+                meshTxDepthHigh.store(0);
+                meshDrainSent.store(0);
+                meshDrainTotal.store(0);
             }
         } else {
-            if (uxQueueMessagesWaiting(meshTxQueue) == 0) {
-                meshTxDraining.store(false);
-                uint32_t sent = meshDrainSent.load();
-                uint32_t total = meshDrainTotal.load();
-                if (sent >= total && total > 0) {
-                    meshTxDepthHigh.store(0);
-                    meshDrainSent.store(0);
-                    meshDrainTotal.store(0);
-                }
-            }
+            meshTxDraining.store(true);
         }
+
+        // Phase 1: absolute-cadence pacing. vTaskDelayUntil keeps inter-frame interval drift-free.
+        // If the consumer overruns one tick (e.g. Serial1.flush blocked), FreeRTOS resets timer to now.
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(meshTxTickMs));
     }
 }
 
@@ -8300,20 +8352,25 @@ void initializeMesh() {
 
     delay(500);
 
-    if (meshTxQueue == nullptr) {
-        meshTxQueue = xQueueCreateWithCaps(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (meshTxQueue == nullptr) {
-            Serial.println("[MESH] PSRAM queue alloc failed, falling back to internal heap");
-            meshTxQueue = xQueueCreate(MESH_TX_QUEUE_DEPTH, sizeof(MeshTxItem));
+    for (int i = 0; i < 3; i++) {
+        if (meshQ[i] == nullptr) {
+            meshQ[i] = xQueueCreateWithCaps(MESH_Q_DEPTH[i], sizeof(MeshTxItem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (meshQ[i] == nullptr) {
+                Serial.printf("[MESH] PSRAM queue alloc failed for prio=%d, falling back to internal heap\n", i);
+                meshQ[i] = xQueueCreate(MESH_Q_DEPTH[i], sizeof(MeshTxItem));
+            }
         }
     }
-    if (meshTxTaskHandle == nullptr && meshTxQueue != nullptr) {
+    // Legacy alias points at BULK queue (the prior single-queue behavior most closely matched BULK semantics).
+    meshTxQueue = meshQ[PRIO_BULK];
+
+    if (meshTxTaskHandle == nullptr && meshQ[PRIO_BULK] != nullptr) {
         xTaskCreatePinnedToCore(meshTxTask, "meshTx", 4096, nullptr, 1, &meshTxTaskHandle, 1);
     }
 
     Serial.println("[MESH] UART initialized");
-    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d, queue=%u\n",
-                  MESH_RX_PIN, MESH_TX_PIN, MESH_TX_QUEUE_DEPTH);
+    Serial.printf("[MESH] Config: 115200 baud on GPIO RX=%d TX=%d, queues=[ctrl:%u event:%u bulk:%u] tick=%ums\n",
+                  MESH_RX_PIN, MESH_TX_PIN, MESH_Q_DEPTH[0], MESH_Q_DEPTH[1], MESH_Q_DEPTH[2], meshTxTickMs);
 }
 
 // --- Command Handlers ---
