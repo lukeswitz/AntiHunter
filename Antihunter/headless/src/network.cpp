@@ -1432,12 +1432,9 @@ static void handleEraseCancel(const String &command)
 
 static void handleEraseRequest(const String &command)
 {
-  // Generate token without starting countdown - countdown only starts on ERASE_FORCE
-  if (tamperAuthToken.length() == 0) {
-    tamperAuthToken = generateEraseToken();
-    Serial.printf("[ERASE] Token generated on request: %s\n", tamperAuthToken.c_str());
-  }
-
+  (void)command;
+  tamperAuthToken = generateEraseToken();
+  Serial.println("[ERASE] Challenge nonce issued (valid 300s)");
   sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Expires:300s", true);
   Serial.printf("[ERASE] Token provided - valid for 5 minutes\n");
 }
