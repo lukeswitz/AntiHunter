@@ -24,6 +24,7 @@ unsigned long lastRTCUpdate = 0;
 
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
+extern std::atomic<bool> scanning;
 
 std::string antihunter::lastResults = "No scan data yet.";
 std::mutex antihunter::lastResultsMutex;
@@ -327,6 +328,13 @@ void loop() {
     }
 
     // Normal operation mode
+    static bool s_scanWasBusy = false;
+    bool scanBusyNow = scanning.load() || workerTaskHandle || blueTeamTaskHandle || triangulationActive.load();
+    if (s_scanWasBusy && !scanBusyNow) {
+        sentinel_resumeAfterScan();
+    }
+    s_scanWasBusy = scanBusyNow;
+
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {
         saveConfiguration();
         lastSaveSend = millis();
