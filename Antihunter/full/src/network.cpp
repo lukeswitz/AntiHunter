@@ -395,6 +395,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       pre{background:rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);border-radius:8px;padding:16px;font-size:12px;overflow-x:auto;font-family:monospace;line-height:1.6}
       hr{border:0;border-top:1px solid var(--bord);margin:20px 0}
       .banner{color:var(--dang);border:2px solid var(--dang);padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;background:var(--c-err-bg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+      .chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+      .chip-row .chip{padding:6px 12px;border:1px solid var(--bord);border-radius:999px;background:var(--surf);color:var(--mut);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;user-select:none}
+      .chip-row .chip:hover{border-color:var(--acc);color:var(--txt)}
+      .chip-row .chip.active{background:var(--acc);color:#fff;border-color:var(--acc);box-shadow:0 0 10px var(--accbg)}
+      .field-row{margin-bottom:14px}
+      .field-row .field-name{font-size:11px;font-weight:700;display:block;margin-bottom:2px;color:var(--txt);text-transform:uppercase;letter-spacing:.04em}
+      .field-row .field-hint{font-size:10px;color:var(--mut);display:block;margin-bottom:6px}
+      .psk-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--bord);font-size:11px;font-weight:700;letter-spacing:.03em}
+      .psk-badge.set{color:var(--c-ok);border-color:var(--c-ok);background:var(--accbg)}
+      .psk-badge.unset{color:var(--warn);border-color:var(--warn);background:var(--c-away-bg)}
+      .psk-badge.tamper{color:var(--dang);border-color:var(--dang);background:var(--c-err-bg);animation:scanPulse 1.2s ease-in-out infinite}
+      .subcard{padding:12px 14px;background:rgba(0,0,0,0.15);border:1px solid var(--bord);border-radius:10px;margin-bottom:12px;transition:border-color .15s}
+      .subcard:hover{border-color:var(--bord-focus)}
+      .subcard-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+      .subcard-num{width:24px;height:24px;border-radius:50%;background:var(--accbg);border:1px solid var(--acc);color:var(--acc);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+      .subcard-title{font-size:13px;font-weight:700;color:var(--txt);letter-spacing:.02em;line-height:1.2}
+      .subcard-sub{font-size:10px;color:var(--mut);margin-top:2px;line-height:1.4}
       #toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:12px;z-index:9999}
       .toast{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:2px solid var(--bord);padding:14px 18px;border-radius:8px;box-shadow:var(--shad-hover);opacity:0;transform:translateY(12px);transition:opacity 0.3s,transform 0.3s;font-size:14px;min-width:280px}
       .toast.show{opacity:1;transform:none}
@@ -985,98 +1002,117 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <span class="collapse-icon" id="secureDataCardIcon">▶</span>
         </div>
         <div class="card-body collapsed" id="secureDataCardBody">
-          <div class="banner">WARNING: Permanent data wipe</div>
-          
-          <form id="eraseForm" style="margin-top:12px;">
-            <label>Confirmation Code</label>
-            <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA">
-            
-            <div style="display:flex;gap:8px;margin-top:10px;">
-              <button class="btn danger" type="button" onclick="requestErase()">WIPE</button>
-              <button class="btn alt" type="button" onclick="cancelErase()">ABORT</button>
-            </div>
-          </form>
-          
-          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
-          
-          <div style="margin-top:16px;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-              <span style="font-weight:bold;color:var(--acc);">Auto-Erase Configuration</span>
-              <span style="cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
-            </div>
-            
-            <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-              <input type="checkbox" id="autoEraseEnabled">
-              <span>Enable auto-erase on tampering</span>
-            </label>
-            
-            <div style="margin-bottom:16px;">
-              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Setup Period</label>
-              <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Grace period after enabling before tamper detection becomes active</label>
-              <select id="setupDelay">
-                <option value="30000">30 seconds</option>
-                <option value="60000">1 minute</option>
-                <option value="120000" selected>2 minutes</option>
-                <option value="300000">5 minutes</option>
-                <option value="600000">10 minutes</option>
-              </select>
-            </div>
-            
-            <div style="margin-bottom:16px;">
-              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Erase Countdown</label>
-              <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Time you have to cancel after tamper detection</label>
-              <select id="autoEraseDelay">
-                <option value="10000">10 seconds</option>
-                <option value="30000" selected>30 seconds</option>
-                <option value="60000">1 minute</option>
-                <option value="120000">2 minutes</option>
-                <option value="300000">5 minutes</option>
-              </select>
-            </div>
-            
-            <div style="margin-bottom:16px;">
-              <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Trigger Cooldown</label>
-              <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Minimum time before another tamper event can trigger erase</label>
-              <select id="autoEraseCooldown">
-                <option value="60000">1 minute</option>
-                <option value="300000" selected>5 minutes</option>
-                <option value="600000">10 minutes</option>
-                <option value="1800000">30 minutes</option>
-                <option value="3600000">1 hour</option>
-              </select>
-            </div>
-            
-            <div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--bord);border-radius:6px;margin-bottom:16px;">
-              <div style="font-size:10px;font-weight:bold;color:var(--mut);margin-bottom:8px;">ADVANCED SETTINGS</div>
-              
-              <div style="margin-bottom:12px;">
-                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Vibrations Required</label>
-                <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Number of vibrations needed within detection window to trigger</label>
-                <select id="vibrationsRequired">
-                  <option value="2">2</option>
-                  <option value="3" selected>3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
-                </select>
-              </div>
-              
-              <div style="margin-bottom:0;">
-                <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Detection Window</label>
-                <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Time window for counting required vibrations</label>
-                <select id="detectionWindow">
-                  <option value="5000">5 seconds</option>
-                  <option value="10000">10 seconds</option>
-                  <option value="20000" selected>20 seconds</option>
-                  <option value="30000">30 seconds</option>
-                  <option value="60000">1 minute</option>
-                </select>
-              </div>
-            </div>
-            
-            <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;">Save Configuration</button>
-            <div id="autoEraseStatus" style="margin-top:8px;padding:6px;border-radius:4px;font-size:11px;text-align:center;">DISABLED</div>
+          <div class="banner">WARNING: Permanent data wipe — no recovery</div>
+
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <span class="psk-badge unset" id="erasePskBadge">CHECKING...</span>
+            <span class="psk-badge tamper" id="eraseStateBadge" style="display:none">IDLE</span>
           </div>
 
+          <div style="margin-top:8px">
+            <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
+            <label class="field-hint" id="eraseConfirmHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Type WIPE_ALL_DATA exactly</label>
+            <input type="text" id="eraseConfirm" placeholder="WIPE_ALL_DATA" autocomplete="off">
+          </div>
+
+          <button class="btn danger" type="button" onclick="requestErase()" style="width:100%;margin-top:10px">WIPE NOW</button>
+          <button class="btn alt" type="button" onclick="cancelErase()" id="eraseAbortBtn" style="width:100%;margin-top:8px;display:none">ABORT TAMPER COUNTDOWN</button>
+
+          <div id="eraseStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
+
+          <hr>
+
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <span style="font-weight:700;color:var(--acc);font-size:14px">Auto-Erase on Tampering</span>
+            <span style="cursor:help;padding:2px 6px;background:var(--accbg);border:1px solid var(--acc);border-radius:4px;font-size:10px;" onclick="showAutoEraseHelp()" title="Click for help">?</span>
+          </div>
+
+          <label style="display:flex;align-items:center;gap:10px;margin-bottom:18px;cursor:pointer">
+            <input type="checkbox" id="autoEraseEnabled" style="width:18px;height:18px;cursor:pointer">
+            <span style="font-weight:600">Enable auto-erase when tamper detected</span>
+          </label>
+
+          <div class="subcard field-row" data-field="setupDelay">
+            <div class="subcard-head">
+              <span class="subcard-num">1</span>
+              <div>
+                <div class="subcard-title">Setup Period</div>
+                <div class="subcard-sub">Grace period after enabling before tamper detection arms</div>
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip" data-value="30000">30s</span>
+              <span class="chip" data-value="60000">1m</span>
+              <span class="chip active" data-value="120000">2m</span>
+              <span class="chip" data-value="300000">5m</span>
+              <span class="chip" data-value="600000">10m</span>
+            </div>
+          </div>
+
+          <div class="subcard field-row" data-field="autoEraseDelay">
+            <div class="subcard-head">
+              <span class="subcard-num">2</span>
+              <div>
+                <div class="subcard-title">Erase Countdown</div>
+                <div class="subcard-sub">Time to cancel after tamper detected before wipe fires</div>
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip" data-value="10000">10s</span>
+              <span class="chip active" data-value="30000">30s</span>
+              <span class="chip" data-value="60000">1m</span>
+              <span class="chip" data-value="120000">2m</span>
+              <span class="chip" data-value="300000">5m</span>
+            </div>
+          </div>
+
+          <div class="subcard field-row" data-field="autoEraseCooldown">
+            <div class="subcard-head">
+              <span class="subcard-num">3</span>
+              <div>
+                <div class="subcard-title">Trigger Cooldown</div>
+                <div class="subcard-sub">Minimum gap before another tamper event can trigger erase</div>
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip" data-value="60000">1m</span>
+              <span class="chip active" data-value="300000">5m</span>
+              <span class="chip" data-value="600000">10m</span>
+              <span class="chip" data-value="1800000">30m</span>
+              <span class="chip" data-value="3600000">1h</span>
+            </div>
+          </div>
+
+          <details style="margin-bottom:14px">
+            <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:6px 0">Advanced Sensitivity</summary>
+            <div style="padding:10px 0 0 0">
+              <div class="field-row" data-field="vibrationsRequired">
+                <span class="field-name">Vibrations Required</span>
+                <span class="field-hint">Count within window to trigger</span>
+                <div class="chip-row">
+                  <span class="chip" data-value="2">2</span>
+                  <span class="chip active" data-value="3">3</span>
+                  <span class="chip" data-value="4">4</span>
+                  <span class="chip" data-value="5">5</span>
+                </div>
+              </div>
+
+              <div class="field-row" data-field="detectionWindow" style="margin-bottom:0">
+                <span class="field-name">Detection Window</span>
+                <span class="field-hint">Time span for counting vibrations</span>
+                <div class="chip-row">
+                  <span class="chip" data-value="5000">5s</span>
+                  <span class="chip" data-value="10000">10s</span>
+                  <span class="chip active" data-value="20000">20s</span>
+                  <span class="chip" data-value="30000">30s</span>
+                  <span class="chip" data-value="60000">1m</span>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <button class="btn primary" type="button" onclick="saveAutoEraseConfig()" style="width:100%;margin-top:6px">Save Auto-Erase Config</button>
+          <div id="autoEraseStatus" style="margin-top:10px;padding:8px;border-radius:6px;font-size:11px;text-align:center;border:1px solid var(--bord);background:var(--surf)">DISABLED</div>
         </div>
       </div>
 
@@ -1092,7 +1128,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             Removes: probedb, probes, deauth, drones, vibrations, baseline, syslog, incidents, sentinel state, randdet identities, all logs.<br>
             Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.
           </div>
-          <label style="margin-top:12px;font-size:11px;">Type FACTORY_WIPE to confirm</label>
+          <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
+          <label class="field-hint" id="factoryWipeHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Type FACTORY_WIPE exactly</label>
           <input type="text" id="factoryWipeConfirm" placeholder="FACTORY_WIPE" autocomplete="off">
           <button class="btn danger" type="button" onclick="requestFactoryWipe()" style="width:100%;margin-top:8px;">WIPE EVERYTHING</button>
           <div id="factoryWipeStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
@@ -1234,7 +1271,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>
           </div>
           <div style="font-size:11px;color:var(--mut);margin-top:6px;line-height:1.5;">
-            Passive WiFi monitoring that flags attacker-tool activity — deauth and beacon floods, auth and assoc-sleep DoS, SAE commit floods, karma and evil-twin APs, and PMKID/handshake capture attempts — and broadcasts detections to mesh peers.
+            Passive WiFi monitoring that flags attacker-tool activity.
           </div>
         </div>
 
@@ -2757,14 +2794,75 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         // not the planned scan-mode select. No-op kept for existing callers.
       }
       
+      function _chipVal(field) {
+        const el = document.querySelector('.field-row[data-field="' + field + '"] .chip.active');
+        return el ? el.dataset.value : '';
+      }
+      function _setChipVal(field, value) {
+        const row = document.querySelector('.field-row[data-field="' + field + '"]');
+        if (!row) return;
+        row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        const target = row.querySelector('.chip[data-value="' + value + '"]');
+        if (target) target.classList.add('active');
+      }
+      function _applyAePreset(preset, setupMs, delayMs, cooldownMs) {
+        const chips = document.querySelectorAll('#aePresetChips .chip');
+        chips.forEach(c => c.classList.toggle('active', c.dataset.preset === preset));
+        const custom = document.getElementById('aeCustomTiming');
+        const hint = document.getElementById('aePresetHint');
+        if (preset === 'custom') {
+          if (custom) custom.style.display = 'block';
+          if (hint) hint.textContent = 'Pick each timing below';
+          return;
+        }
+        if (custom) custom.style.display = 'none';
+        _setChipVal('setupDelay', String(setupMs));
+        _setChipVal('autoEraseDelay', String(delayMs));
+        _setChipVal('autoEraseCooldown', String(cooldownMs));
+        if (hint) {
+          const fmt = ms => { const s = Math.round(ms/1000); if (s < 60) return s + 's'; const m = Math.round(s/60); return m < 60 ? m + 'm' : Math.round(m/60) + 'h'; };
+          const labels = { paranoid: 'Paranoid', balanced: 'Balanced', relaxed: 'Relaxed' };
+          hint.textContent = labels[preset] + ' — ' + fmt(setupMs) + ' arm / ' + fmt(delayMs) + ' abort / ' + fmt(cooldownMs) + ' cooldown';
+        }
+      }
+      function _matchAePresetFromValues() {
+        const s = _chipVal('setupDelay'), d = _chipVal('autoEraseDelay'), c = _chipVal('autoEraseCooldown');
+        const presets = document.querySelectorAll('#aePresetChips .chip[data-preset]');
+        let matched = 'custom';
+        presets.forEach(p => {
+          if (p.dataset.preset === 'custom') return;
+          if (p.dataset.setup === s && p.dataset.delay === d && p.dataset.cooldown === c) matched = p.dataset.preset;
+        });
+        const p = Array.from(presets).find(x => x.dataset.preset === matched);
+        if (p) _applyAePreset(matched, p.dataset.setup, p.dataset.delay, p.dataset.cooldown);
+        else _applyAePreset('custom');
+      }
+      document.addEventListener('click', (e) => {
+        const presetChip = e.target.closest('#aePresetChips .chip[data-preset]');
+        if (presetChip) {
+          const p = presetChip.dataset.preset;
+          if (p === 'custom') _applyAePreset('custom');
+          else _applyAePreset(p, presetChip.dataset.setup, presetChip.dataset.delay, presetChip.dataset.cooldown);
+          return;
+        }
+        const chip = e.target.closest('.chip-row .chip');
+        if (!chip) return;
+        const row = chip.closest('.field-row');
+        if (!row) return;
+        row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        if (['setupDelay','autoEraseDelay','autoEraseCooldown'].includes(row.dataset.field)) {
+          _matchAePresetFromValues();
+        }
+      });
       async function saveAutoEraseConfig() {
       try {
         const enabled = document.getElementById('autoEraseEnabled').checked;
-        const delay = document.getElementById('autoEraseDelay').value;
-        const cooldown = document.getElementById('autoEraseCooldown').value;
-        const vibrationsRequired = document.getElementById('vibrationsRequired').value;
-        const detectionWindow = document.getElementById('detectionWindow').value;
-        const setupDelay = document.getElementById('setupDelay').value;
+        const delay = _chipVal('autoEraseDelay');
+        const cooldown = _chipVal('autoEraseCooldown');
+        const vibrationsRequired = _chipVal('vibrationsRequired');
+        const detectionWindow = _chipVal('detectionWindow');
+        const setupDelay = _chipVal('setupDelay');
 
         console.log('[AUTOERASE] Sending:', {enabled, delay, cooldown, vibrationsRequired, detectionWindow, setupDelay});
 
@@ -4191,11 +4289,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           let statusText = '';
           let statusClass = '';
 
-          // Sync checkbox with server state
           const checkbox = document.getElementById('autoEraseEnabled');
           if (checkbox) {
             checkbox.checked = data.enabled;
           }
+          if (typeof data.setupDelay !== 'undefined') _setChipVal('setupDelay', data.setupDelay);
+          if (typeof data.delay !== 'undefined') _setChipVal('autoEraseDelay', data.delay);
+          if (typeof data.cooldown !== 'undefined') _setChipVal('autoEraseCooldown', data.cooldown);
+          if (typeof data.vibrationsRequired !== 'undefined') _setChipVal('vibrationsRequired', data.vibrationsRequired);
+          if (typeof data.detectionWindow !== 'undefined') _setChipVal('detectionWindow', data.detectionWindow);
+          _matchAePresetFromValues();
 
           if (!data.enabled) {
             statusText = 'DISABLED - Manual erase only';
@@ -4248,10 +4351,53 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }, 1000); // Check every second for faster feedback
       }
       
+      let _erasePskSet = false;
+      function refreshPskStatus() {
+        fetch('/erase/psk-status').then(r => r.json()).then(d => {
+          _erasePskSet = !!d.pskSet;
+          const badge = document.getElementById('erasePskBadge');
+          const hint = document.getElementById('eraseConfirmHint');
+          const input = document.getElementById('eraseConfirm');
+          const fwHint = document.getElementById('factoryWipeHint');
+          const fwInput = document.getElementById('factoryWipeConfirm');
+          if (_erasePskSet) {
+            if (badge) { badge.textContent = 'PSK SET — auth required'; badge.className = 'psk-badge set'; }
+            if (hint) hint.textContent = 'Enter erase PSK';
+            if (input) input.placeholder = 'erase PSK';
+            if (fwHint) fwHint.textContent = 'Enter erase PSK';
+            if (fwInput) fwInput.placeholder = 'erase PSK';
+          } else {
+            if (badge) { badge.textContent = 'NO PSK — using default code'; badge.className = 'psk-badge unset'; }
+            if (hint) hint.textContent = 'Type WIPE_ALL_DATA exactly (set a PSK via mesh CONFIG_ERASE_PSK:<key>)';
+            if (input) input.placeholder = 'WIPE_ALL_DATA';
+            if (fwHint) fwHint.textContent = 'Type FACTORY_WIPE exactly';
+            if (fwInput) fwInput.placeholder = 'FACTORY_WIPE';
+          }
+        }).catch(()=>{});
+      }
+      function pollSecureState() {
+        fetch('/secure/status').then(r => r.text()).then(s => {
+          const badge = document.getElementById('eraseStateBadge');
+          const abort = document.getElementById('eraseAbortBtn');
+          if (!badge || !abort) return;
+          if (s && s.startsWith('TAMPER_ACTIVE')) {
+            const sec = (s.split(':')[1] || '').replace('s','');
+            badge.style.display = 'inline-flex';
+            badge.textContent = 'TAMPER ACTIVE — ' + sec + 's to wipe';
+            abort.style.display = 'block';
+          } else {
+            badge.style.display = 'none';
+            abort.style.display = 'none';
+          }
+        }).catch(()=>{});
+      }
+      setInterval(pollSecureState, 2000);
+
       function requestFactoryWipe() {
         const code = document.getElementById('factoryWipeConfirm').value;
-        if (code !== 'FACTORY_WIPE') {
-          toast('Type FACTORY_WIPE exactly to confirm', 'error');
+        const expected = _erasePskSet ? null : 'FACTORY_WIPE';
+        if (!code || (expected && code !== expected)) {
+          toast(_erasePskSet ? 'Enter erase PSK' : 'Type FACTORY_WIPE exactly to confirm', 'error');
           return;
         }
         if (!window.confirm('FINAL WARNING: Wipes ALL SD data + resets NVS. Device will reboot. Proceed?')) {
@@ -4274,8 +4420,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       function requestErase() {
         const confirm = document.getElementById('eraseConfirm').value;
-        if (confirm !== 'WIPE_ALL_DATA') {
-          toast('Please type "WIPE_ALL_DATA" exactly to confirm', 'error');
+        const expected = _erasePskSet ? null : 'WIPE_ALL_DATA';
+        if (!confirm || (expected && confirm !== expected)) {
+          toast(_erasePskSet ? 'Enter erase PSK' : 'Type WIPE_ALL_DATA exactly to confirm', 'error');
           return;
         }
         if (!window.confirm('FINAL WARNING: This will permanently destroy all data. Are you absolutely sure?')) {
@@ -5285,6 +5432,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       loadMeshInterval();
       loadDedupTtl();
       updateAutoEraseStatus();
+      refreshPskStatus();
+      pollSecureState();
       setInterval(tick, 2000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
 
@@ -6785,6 +6934,11 @@ void registerRemainingRoutes() {
              {
         String s = getDiagnostics();
         r->send(200, "text/plain", s); });
+
+  server->on("/erase/psk-status", HTTP_GET, [](AsyncWebServerRequest *req) {
+      String json = String("{\"pskSet\":") + (erasePSK.length() > 0 ? "true" : "false") + "}";
+      req->send(200, "application/json", json);
+  });
 
   server->on("/erase/status", HTTP_GET, [](AsyncWebServerRequest *req) {
       String status;
