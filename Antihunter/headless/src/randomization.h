@@ -56,10 +56,7 @@ struct BehavioralSignature {
     
     bool hasFullSignature;
     bool hasMinimalSignature;
-    
-    uint8_t channelSequence[32];
-    uint8_t channelSeqLength;
-    
+
     float intervalConsistency;
     float rssiConsistency;
     
@@ -176,8 +173,6 @@ bool matchIEOrder(const IEOrderSignature& sig1, const IEOrderSignature& sig2);
 uint16_t computeCRC16(const uint8_t *data, uint16_t length);
 uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length);
 bool isMinimalSignature(const uint16_t fingerprint[6]);
-void extractChannelSequence(const ProbeSession& session, uint8_t* channelSeq, uint8_t& seqLen);
-float calculateChannelSequenceSimilarity(const uint8_t* seq1, uint8_t len1, const uint8_t* seq2, uint8_t len2);
 float calculateSignatureSetSimilarity(const ProbeSession& session, const DeviceIdentity& identity);
 void updateDeviceSignatureSet(DeviceIdentity& identity, const ProbeSession& session);
 
