@@ -16,7 +16,10 @@ const size_t MAX_DETECTED_DRONES = 50;
 const uint32_t DRONE_STALE_TIME = 300000;
 
 std::map<String, DroneDetection> detectedDrones;
-portMUX_TYPE droneMux = portMUX_INITIALIZER_UNLOCKED;
+// Audit fix C1: detectedDrones is mutated by droneDetectorTask and read/cleared by web handlers.
+// A portMUX spinlock (old droneMux) was applied at only one site and is wrong for the long
+// map-iterate/string-build sites; a std::mutex guards every access consistently.
+std::mutex detectedDronesMutex;
 std::set<String> transmittedDrones;
 std::vector<String> droneEventLog;
 std::atomic<uint32_t> droneDetectionCount(0);
@@ -47,7 +50,10 @@ void initializeDroneDetector() {
         vQueueDeleteWithCaps(droneQueue);
     }
     droneQueue = xQueueCreateWithCaps(64, sizeof(DroneDetection), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    detectedDrones.clear();
+    {
+        std::lock_guard<std::mutex> lock(detectedDronesMutex);
+        detectedDrones.clear();
+    }
     droneEventLog.clear();
     droneDetectionCount = 0;
 }
@@ -246,6 +252,8 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
         const String uavIdStr = String(drone.uavId);
         
         // Deduplicate by UAV ID, not MAC
+        {
+        std::lock_guard<std::mutex> lock(detectedDronesMutex);
         auto existingIt = std::find_if(detectedDrones.begin(), detectedDrones.end(),
             [&uavIdStr](const std::pair<const String, DroneDetection>& entry) {
                 return String(entry.second.uavId) == uavIdStr && uavIdStr.length() > 0;
@@ -262,10 +270,11 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             if (drone.operatorLat != 0) existingIt->second.operatorLat = drone.operatorLat;
             if (drone.operatorLon != 0) existingIt->second.operatorLon = drone.operatorLon;
         }
-        
+
         if (existingIt == detectedDrones.end()) {
             detectedDrones[macStr] = drone;
             droneDetectionCount = droneDetectionCount + 1;
+        }
         }
         
         if (millis() - lastDroneLog >= DRONE_LOG_INTERVAL) {
@@ -397,6 +406,7 @@ String getDroneDetectionResults() {
 
     String results = "Drone Detection Results\n";
     results += "Total detections: " + String(droneDetectionCount) + "\n";
+    std::lock_guard<std::mutex> lock(detectedDronesMutex);
     results += "Unique drones: " + String(detectedDrones.size()) + "\n\n";
 
     for (const auto& entry : detectedDrones) {
@@ -442,7 +452,8 @@ String getDroneEventLog() {
 
 void cleanupDroneData() {
     const uint32_t now = millis();
-    
+    std::lock_guard<std::mutex> lock(detectedDronesMutex);
+
     for (auto it = detectedDrones.begin(); it != detectedDrones.end();) {
         if (now - it->second.lastSeen > DRONE_STALE_TIME) {
             it = detectedDrones.erase(it);
@@ -562,6 +573,7 @@ void droneDetectorTask(void *pv)
         if (meshEnabled && (millis() - lastMeshUpdate >= MESH_DRONE_UPDATE_INTERVAL)) {
             lastMeshUpdate = millis();
 
+            std::lock_guard<std::mutex> lock(detectedDronesMutex);
             for (const auto& entry : detectedDrones) {
                 const String meshDroneId = String(entry.second.uavId);
 
@@ -591,8 +603,10 @@ void droneDetectorTask(void *pv)
         }
         
         if ((int32_t)(millis() - nextStatus) >= 0) {
+            size_t uniqueN;
+            { std::lock_guard<std::mutex> lock(detectedDronesMutex); uniqueN = detectedDrones.size(); }
             Serial.printf("[DRONE] Detected:%u Unique:%u Frames:%u\n",
-                         droneDetectionCount.load(), (unsigned)detectedDrones.size(), localFramesSeen);
+                         droneDetectionCount.load(), (unsigned)uniqueN, localFramesSeen);
             nextStatus += 5000;
         }
         
@@ -614,6 +628,7 @@ void droneDetectorTask(void *pv)
 
     if (meshEnabled && !stopRequested) {
         uint32_t enqueuedDrones = 0;
+        std::lock_guard<std::mutex> lock(detectedDronesMutex);
         for (const auto& entry : detectedDrones) {
             const String finalDroneId = String(entry.second.uavId);
 
@@ -659,8 +674,10 @@ void droneDetectorTask(void *pv)
         antihunter::lastResults = getDroneDetectionResults().c_str();
     }
 
+    size_t finalUniqueN;
+    { std::lock_guard<std::mutex> lock(detectedDronesMutex); finalUniqueN = detectedDrones.size(); }
     Serial.printf("[DRONE] Complete: %u drones detected, %u unique\n",
-                  droneDetectionCount.load(), (unsigned)detectedDrones.size());
+                  droneDetectionCount.load(), (unsigned)finalUniqueN);
 
     vTaskDelay(pdMS_TO_TICKS(100));
     workerTaskHandle = nullptr;
