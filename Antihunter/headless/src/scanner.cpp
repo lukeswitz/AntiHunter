@@ -1790,6 +1790,10 @@ void blueTeamTask(void *pv) {
 
     vTaskDelay(pdMS_TO_TICKS(200));
 
+    radioStopSTA();
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+
     if (deauthQueue) {
         DeauthHit dummy;
         while (xQueueReceive(deauthQueue, &dummy, 0) == pdTRUE) {
@@ -1797,10 +1801,6 @@ void blueTeamTask(void *pv) {
         vQueueDeleteWithCaps(deauthQueue);
         deauthQueue = nullptr;
     }
-
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    radioStopSTA();
 
     vTaskDelay(pdMS_TO_TICKS(500));
 
