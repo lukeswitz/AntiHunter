@@ -5,6 +5,7 @@
 #include "main.h"
 #include "detect.h"
 #include <algorithm>
+#include <iterator>
 #include <ArduinoJson.h>
 #include <SD.h>
 #include <WiFi.h>
@@ -823,9 +824,9 @@ void baselineDetectionTask(void *pv) {
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
                 deviceSnapshot.reserve(baselineCache.size());
-                for (const auto& entry : baselineCache) {
-                    deviceSnapshot.push_back(entry.second);
-                }
+                std::transform(baselineCache.begin(), baselineCache.end(),
+                               std::back_inserter(deviceSnapshot),
+                               [](const auto& entry) { return entry.second; });
                 anomalySnapshot = anomalyLog;
             }
 

@@ -1493,8 +1493,8 @@ String computeEraseHmac(const String &nonce) {
     const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
     if (!info) return "";
     uint8_t out[32];
-    if (mbedtls_md_hmac(info, (const uint8_t *)erasePSK.c_str(), erasePSK.length(),
-                        (const uint8_t *)nonce.c_str(), nonce.length(), out) != 0) {
+    if (mbedtls_md_hmac(info, reinterpret_cast<const uint8_t *>(erasePSK.c_str()), erasePSK.length(),
+                        reinterpret_cast<const uint8_t *>(nonce.c_str()), nonce.length(), out) != 0) {
         return "";
     }
     char hex[65];
