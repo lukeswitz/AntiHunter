@@ -1201,10 +1201,8 @@ static String sanitizeAscii(const char *s, size_t maxLen) {
 String getRandomizationResults() {
     std::lock_guard<std::mutex> lock(randMutex);
 
-    size_t renderableCount = 0;
-    for (const auto& entry : deviceIdentities) {
-        if (entry.second.identityId[0] != '\0') renderableCount++;
-    }
+    const size_t renderableCount = std::count_if(deviceIdentities.begin(), deviceIdentities.end(),
+        [](const auto& entry) { return entry.second.identityId[0] != '\0'; });
     const size_t identityCount = renderableCount;
     const size_t estPerIdentity = 512;
     const size_t reserveBytes = 1024 + std::min<size_t>(identityCount, 100) * estPerIdentity;

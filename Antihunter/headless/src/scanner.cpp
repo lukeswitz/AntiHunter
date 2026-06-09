@@ -547,9 +547,6 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
 
 void rebuildIdentityMacSnapshot()
 {
-    extern DeviceIdentitiesMap deviceIdentities;
-    extern std::mutex randMutex;
-
     uint8_t staging[IDENTITY_MAC_SNAPSHOT_CAP][6];
     uint16_t n = 0;
     MacTargetSnap macStaging[MAC_TARGET_SNAPSHOT_CAP];
@@ -645,7 +642,6 @@ String getTargetsList()
 
 void saveTargetsList(const String &txt)
 {
-    extern std::mutex randMutex;
     prefs.putString("maclist", txt);
     {
     std::lock_guard<std::mutex> lock(randMutex);
@@ -1476,10 +1472,9 @@ void snifferScanTask(void *pv)
         antihunter::lastResults = results;
     }
 
-    uint32_t enqueuedDevices = 0;
-    uint32_t skippedDevices = 0;
-
     if (meshEnabled) {
+        uint32_t enqueuedDevices = 0;
+        uint32_t skippedDevices = 0;
         for (const auto& entry : apCache) {
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
             if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
