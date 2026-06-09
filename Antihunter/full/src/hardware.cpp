@@ -13,6 +13,7 @@
 #include <HardwareSerial.h>
 #include <Wire.h>
 #include "esp_wifi.h"
+#include "mbedtls/md.h"
 #include "nvs_flash.h"
 #include "esp_pm.h"
 #include "esp_sleep.h"
@@ -71,6 +72,7 @@ bool inSetupMode = false;
 bool tamperEraseActive = false;
 uint32_t tamperSequenceStart = 0;
 String tamperAuthToken = "";
+String erasePSK = "";
 bool autoEraseEnabled = false;
 uint32_t autoEraseDelay = 30000;
 uint32_t autoEraseCooldown = 300000;  // 5 minutes default
@@ -469,6 +471,7 @@ void loadConfiguration() {
         currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
         meshSendInterval = prefs.getULong("meshInterval", 5000);
         autoEraseEnabled = prefs.getBool("autoErase", false);
+        erasePSK = prefs.getString("erasePSK", "");
         autoEraseDelay = prefs.getUInt("eraseDelay", 30000);
         autoEraseCooldown = prefs.getUInt("eraseCooldown", 300000);
         vibrationsRequired = prefs.getUInt("vibRequired", 3);
@@ -1701,8 +1704,47 @@ bool validateEraseToken(const String &token) {
     String timestampStr = token.substring(lastUnderscorePos + 1);
     uint32_t tokenTime = strtoul(timestampStr.c_str(), nullptr, 16);
     uint32_t currentTime = millis() / 1000;
-    
+
     return (currentTime - tokenTime) < 300;
+}
+
+void setErasePSK(const String &key) {
+    erasePSK = key;
+    prefs.putString("erasePSK", key);
+}
+
+String computeEraseHmac(const String &nonce) {
+    if (erasePSK.length() == 0 || nonce.length() == 0) return "";
+    const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    if (!info) return "";
+    uint8_t out[32];
+    if (mbedtls_md_hmac(info, (const uint8_t *)erasePSK.c_str(), erasePSK.length(),
+                        (const uint8_t *)nonce.c_str(), nonce.length(), out) != 0) {
+        return "";
+    }
+    char hex[65];
+    for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", out[i]);
+    hex[64] = '\0';
+    return String(hex);
+}
+
+bool validateEraseResponse(const String &response) {
+    if (erasePSK.length() == 0) return false;
+    if (tamperAuthToken.length() == 0) return false;
+
+    int lastUnderscorePos = tamperAuthToken.lastIndexOf('_');
+    if (lastUnderscorePos < 0) return false;
+    uint32_t nonceTime = strtoul(tamperAuthToken.substring(lastUnderscorePos + 1).c_str(), nullptr, 16);
+    if ((millis() / 1000 - nonceTime) >= 300) return false;
+
+    String expected = computeEraseHmac(tamperAuthToken);
+    if (expected.length() == 0 || expected.length() != response.length()) return false;
+
+    uint8_t diff = 0;
+    for (size_t i = 0; i < expected.length(); i++) {
+        diff |= (uint8_t)(expected[i] ^ response[i]);
+    }
+    return diff == 0;
 }
 
 bool initiateTamperErase() {
