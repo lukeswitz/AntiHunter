@@ -6299,28 +6299,34 @@ void startWebServer()
   server->on("/baseline/status", HTTP_GET, [](AsyncWebServerRequest *req) {
       String json = "{";
       json += "\"scanning\":" + String(scanning ? "true" : "false") + ",";
-      json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
-      json += "\"devices\":" + String(baselineDeviceCount);
+      {
+          std::lock_guard<std::mutex> lock(baselineMutex);
+          json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+          json += "\"devices\":" + String(baselineDeviceCount);
+      }
       json += "}";
-      
+
       req->send(200, "application/json", json);
   });
 
   server->on("/baseline/stats", HTTP_GET, [](AsyncWebServerRequest *req) {
       String json = "{";
-      json += "\"scanning\":" + String(baselineStats.isScanning ? "true" : "false") + ",";
-      json += "\"phase1Complete\":" + String(baselineStats.phase1Complete ? "true" : "false") + ",";
-      json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
-      json += "\"wifiDevices\":" + String(baselineStats.wifiDevices) + ",";
-      json += "\"bleDevices\":" + String(baselineStats.bleDevices) + ",";
-      json += "\"totalDevices\":" + String(baselineStats.totalDevices) + ",";
-      json += "\"wifiHits\":" + String(baselineStats.wifiHits) + ",";
-      json += "\"bleHits\":" + String(baselineStats.bleHits) + ",";
-      json += "\"anomalies\":" + String(anomalyCount) + ",";
-      json += "\"elapsedTime\":" + String(baselineStats.elapsedTime) + ",";
-      json += "\"totalDuration\":" + String(baselineStats.totalDuration);
+      {
+          std::lock_guard<std::mutex> lock(baselineMutex);
+          json += "\"scanning\":" + String(baselineStats.isScanning ? "true" : "false") + ",";
+          json += "\"phase1Complete\":" + String(baselineStats.phase1Complete ? "true" : "false") + ",";
+          json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+          json += "\"wifiDevices\":" + String(baselineStats.wifiDevices) + ",";
+          json += "\"bleDevices\":" + String(baselineStats.bleDevices) + ",";
+          json += "\"totalDevices\":" + String(baselineStats.totalDevices) + ",";
+          json += "\"wifiHits\":" + String(baselineStats.wifiHits) + ",";
+          json += "\"bleHits\":" + String(baselineStats.bleHits) + ",";
+          json += "\"anomalies\":" + String(anomalyCount) + ",";
+          json += "\"elapsedTime\":" + String(baselineStats.elapsedTime) + ",";
+          json += "\"totalDuration\":" + String(baselineStats.totalDuration);
+      }
       json += "}";
-      
+
       req->send(200, "application/json", json);
   });
 
@@ -6335,11 +6341,14 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     json += "\"reappearanceWindow\":" + String(getReappearanceAlertWindow() / 1000) + ",";
     json += "\"rssiChangeDelta\":" + String(getSignificantRssiChange()) + ",";
     json += "\"enabled\":" + String(baselineDetectionEnabled ? "true" : "false") + ",";
-    json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
-    json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
-    json += "\"anomalyCount\":" + String(anomalyCount);
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        json += "\"established\":" + String(baselineEstablished ? "true" : "false") + ",";
+        json += "\"deviceCount\":" + String(baselineDeviceCount) + ",";
+        json += "\"anomalyCount\":" + String(anomalyCount);
+    }
     json += "}";
-    
+
     req->send(200, "application/json", json);
   });
 
@@ -8543,10 +8552,25 @@ static void handleBaselineStatus(const String &command)
 {
   (void)command;
   char status_msg[MAX_MESH_SIZE];
+
+  bool snapScanning;
+  bool snapPhase1Complete;
+  bool snapEstablished;
+  uint32_t snapDeviceCount;
+  uint32_t snapAnomalyCount;
+  {
+    std::lock_guard<std::mutex> lock(baselineMutex);
+    snapScanning = baselineStats.isScanning;
+    snapPhase1Complete = baselineStats.phase1Complete;
+    snapEstablished = baselineEstablished;
+    snapDeviceCount = baselineDeviceCount;
+    snapAnomalyCount = anomalyCount;
+  }
+
   const char* phase1Status;
-  if (!baselineStats.isScanning) {
+  if (!snapScanning) {
     phase1Status = "INACTIVE";
-  } else if (!baselineStats.phase1Complete) {
+  } else if (!snapPhase1Complete) {
     phase1Status = "ACTIVE";
   } else {
     phase1Status = "COMPLETE";
@@ -8555,10 +8579,10 @@ static void handleBaselineStatus(const String &command)
   snprintf(status_msg, sizeof(status_msg),
            "%s: BASELINE_STATUS: Scanning:%s Established:%s Devices:%u Anomalies:%u Phase1:%s",
            nodeId.c_str(),
-           baselineStats.isScanning ? "YES" : "NO",
-           baselineEstablished ? "YES" : "NO",
-           baselineDeviceCount,
-           anomalyCount,
+           snapScanning ? "YES" : "NO",
+           snapEstablished ? "YES" : "NO",
+           snapDeviceCount,
+           snapAnomalyCount,
            phase1Status);
   sendToSerial1(String(status_msg), true);
 }
