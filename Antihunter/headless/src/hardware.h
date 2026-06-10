@@ -132,6 +132,8 @@ bool initiateTamperErase();
 void cancelTamperErase();
 bool checkTamperTimeout();
 bool performSecureWipe();
+bool performConfigReset();
+bool performDataReset();
 void deleteAllFiles(const String &dirname);
 bool executeSecureErase(const String &reason);
 String generateEraseToken();

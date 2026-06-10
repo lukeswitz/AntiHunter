@@ -26,6 +26,7 @@ static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
 static String nodeId = "";
+static std::atomic<bool> g_eraseWipeBusy{false};
 
 // Per-MAC deduplication tracking for mesh notifications
 struct MeshTargetState {
@@ -1464,6 +1465,53 @@ static void handleEraseRequest(const String &command)
   Serial.printf("[ERASE] Token provided - valid for 5 minutes\n");
 }
 
+static void handleFactoryReset(const String &command)
+{
+  String rest = command.substring(14);
+  int colon = rest.indexOf(':');
+  if (colon <= 0) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:BAD_FORMAT", true);
+    return;
+  }
+  String tier = rest.substring(0, colon);
+  String credential = rest.substring(colon + 1);
+  if (erasePSK.length() == 0) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:DENIED_NO_PSK", true);
+    return;
+  }
+  if (!validateEraseResponse(credential)) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:DENIED", true);
+    return;
+  }
+  if (tier != "FULL" && tier != "CONFIG" && tier != "DATA") {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:BAD_TIER", true);
+    return;
+  }
+  if (g_eraseWipeBusy.exchange(true)) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:BUSY", true);
+    return;
+  }
+  sendToSerial1(nodeId + ": FACTORY_RESET_ACK:" + tier + " - rebooting", true);
+  String* tierPtr = new String(tier);
+  if (xTaskCreate([](void* param) {
+    String* tp = static_cast<String*>(param);
+    String t = *tp;
+    delete tp;
+    delay(800);
+    Serial.printf("[FACTORY] Mesh reset: %s\n", t.c_str());
+    bool ok;
+    if (t == "CONFIG")    ok = performConfigReset();
+    else if (t == "DATA") ok = performDataReset();
+    else                  ok = performSecureWipe();
+    Serial.printf("[FACTORY] Reset %s %s - rebooting\n", t.c_str(), ok ? "OK" : "FAILED");
+    delay(300);
+    ESP.restart();
+  }, "factory_reset", 8192, tierPtr, 1, NULL) != pdPASS) {
+    delete tierPtr;
+    g_eraseWipeBusy.store(false);
+  }
+}
+
 static void handleAutoeraseEnable(const String &command)
 {
   String body = command;
@@ -1664,6 +1712,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("ERASE_FORCE:"))        handleEraseForce(command);
   else if (command.startsWith("ERASE_CANCEL"))        handleEraseCancel(command);
   else if (command == "ERASE_REQUEST")                handleEraseRequest(command);
+  else if (command.startsWith("FACTORY_RESET:"))      handleFactoryReset(command);
   else if (command.startsWith("AUTOERASE_ENABLE"))    handleAutoeraseEnable(command);
   else if (command.startsWith("AUTOERASE_DISABLE"))   handleAutoeraseDisable(command);
   else if (command == "AUTOERASE_STATUS")             handleAutoeraseStatus(command);

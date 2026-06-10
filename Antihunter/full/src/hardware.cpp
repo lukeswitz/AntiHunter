@@ -1871,6 +1871,50 @@ bool performSecureWipe() {
     }
 }
 
+bool performConfigReset() {
+    Serial.println("[RESET] Config reset - NVS only");
+    prefs.end();
+    delay(100);
+
+    esp_err_t err = nvs_flash_erase();
+    if (err != ESP_OK) {
+        Serial.printf("[RESET] NVS erase failed: %d\n", err);
+        return false;
+    }
+
+    err = nvs_flash_init();
+    if (err != ESP_OK) {
+        Serial.printf("[RESET] NVS init failed: %d\n", err);
+        return false;
+    }
+
+    Serial.println("[RESET] NVS cleared - SD data preserved");
+    return true;
+}
+
+bool performDataReset() {
+    Serial.println("[RESET] Data reset - SD only");
+    if (!SafeSD::isAvailable()) {
+        Serial.println("[RESET] SD card not available");
+        return false;
+    }
+
+    deleteAllFiles("/");
+
+    File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
+    if (marker) {
+        marker.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
+        marker.close();
+    }
+
+    if (SafeSD::exists("/weather-air-feed.txt")) {
+        Serial.println("[RESET] SD data cleared - config preserved");
+        return true;
+    }
+    Serial.println("[RESET] SD clear verification failed");
+    return false;
+}
+
 void deleteAllFiles(const String &dirname) {
     File root = SafeSD::open(dirname.c_str());
     if (!root) {

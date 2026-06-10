@@ -1128,10 +1128,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             Removes: probedb, probes, deauth, drones, vibrations, baseline, syslog, incidents, sentinel state, randdet identities, all logs.<br>
             Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.
           </div>
+          <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Reset Scope</label>
+          <select id="factoryResetTier" onchange="updateFactoryResetTier()" style="width:100%;margin-top:4px;margin-bottom:4px">
+            <option value="full">Full Reset — wipe SD data + reset NVS config</option>
+            <option value="config">Config Only — reset settings, keep captured data</option>
+            <option value="data">Data Only — erase captured data, keep settings</option>
+          </select>
+          <div id="factoryResetScopeHint" style="font-size:10px;color:var(--mut);margin-bottom:6px;line-height:1.4">Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</div>
           <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Authorization</label>
           <label class="field-hint" id="factoryWipeHint" style="font-size:10px;color:var(--mut);display:block;margin-bottom:6px">Type FACTORY_WIPE exactly</label>
           <input type="text" id="factoryWipeConfirm" placeholder="FACTORY_WIPE" autocomplete="off">
-          <button class="btn danger" type="button" onclick="requestFactoryWipe()" style="width:100%;margin-top:8px;">WIPE EVERYTHING</button>
+          <button class="btn danger" type="button" id="factoryWipeBtn" onclick="requestFactoryWipe()" style="width:100%;margin-top:8px;">WIPE EVERYTHING</button>
           <div id="factoryWipeStatus" style="display:none;margin-top:10px;padding:8px;background:var(--surf);border:1px solid var(--bord);border-radius:6px;font-size:12px;"></div>
         </div>
       </div>
@@ -4393,28 +4400,43 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       setInterval(pollSecureState, 2000);
 
+      const _factoryResetTiers = {
+        full: {btn: 'WIPE EVERYTHING', hint: 'Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
+        config: {btn: 'RESET CONFIG', hint: 'Resets NVS config (AP creds, node ID, targets, allowlist, RF/mesh/auto-erase, erase PSK) to defaults. Captured SD data is KEPT. Device reboots.', warn: 'Resets all settings to factory defaults (captured data is kept). Device will reboot. Proceed?'},
+        data: {btn: 'ERASE DATA', hint: 'Erases ALL captured SD data (probedb, probes, deauth, drones, baseline, logs, incidents). Settings/identity are KEPT. Device reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
+      };
+      function updateFactoryResetTier() {
+        const tier = document.getElementById('factoryResetTier').value;
+        const t = _factoryResetTiers[tier] || _factoryResetTiers.full;
+        const btn = document.getElementById('factoryWipeBtn');
+        const hint = document.getElementById('factoryResetScopeHint');
+        if (btn) btn.textContent = t.btn;
+        if (hint) hint.textContent = t.hint;
+      }
       function requestFactoryWipe() {
+        const tier = document.getElementById('factoryResetTier').value;
+        const t = _factoryResetTiers[tier] || _factoryResetTiers.full;
         const code = document.getElementById('factoryWipeConfirm').value;
         const expected = _erasePskSet ? null : 'FACTORY_WIPE';
         if (!code || (expected && code !== expected)) {
           toast(_erasePskSet ? 'Enter erase PSK' : 'Type FACTORY_WIPE exactly to confirm', 'error');
           return;
         }
-        if (!window.confirm('FINAL WARNING: Wipes ALL SD data + resets NVS. Device will reboot. Proceed?')) {
+        if (!window.confirm(t.warn)) {
           return;
         }
-        toast('Factory wipe started...', 'warning');
+        toast(t.btn + ' started...', 'warning');
         fetch('/factory-wipe', {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: 'confirm=' + encodeURIComponent(code)
+          body: 'confirm=' + encodeURIComponent(code) + '&tier=' + encodeURIComponent(tier)
         }).then(response => response.text()).then(data => {
           const el = document.getElementById('factoryWipeStatus');
           el.style.display = 'block';
           el.innerHTML = '<pre>' + data + '</pre>';
-          toast('Wipe complete — rebooting', 'success');
+          toast('Reset complete — rebooting', 'success');
         }).catch(error => {
-          toast('Wipe error: ' + error, 'error');
+          toast('Reset error: ' + error, 'error');
         });
       }
 
@@ -7008,19 +7030,30 @@ void registerRemainingRoutes() {
         req->send(403, "text/plain", "Invalid confirm code");
         return;
     }
+    String tier = req->hasParam("tier", true) ? req->getParam("tier", true)->value() : "full";
+    if (tier != "full" && tier != "config" && tier != "data") {
+        req->send(400, "text/plain", "Invalid tier");
+        return;
+    }
     if (g_eraseWipeBusy.exchange(true)) {
         req->send(409, "text/plain", "Erase/wipe already in progress");
         return;
     }
-    req->send(200, "text/plain", "Factory wipe initiated — device will reboot");
-    if (xTaskCreate([](void*) {
+    req->send(200, "text/plain", "Factory reset (" + tier + ") initiated — device will reboot");
+    if (xTaskCreate([](void* param) {
+        String* tierPtr = static_cast<String*>(param);
+        String t = *tierPtr;
+        delete tierPtr;
         delay(800); // let response flush
-        Serial.println("[FACTORY] Wipe requested");
-        bool ok = performSecureWipe();
-        Serial.printf("[FACTORY] Wipe %s — rebooting\n", ok ? "OK" : "FAILED");
+        Serial.printf("[FACTORY] Reset requested: %s\n", t.c_str());
+        bool ok;
+        if (t == "config")      ok = performConfigReset();
+        else if (t == "data")   ok = performDataReset();
+        else                    ok = performSecureWipe();
+        Serial.printf("[FACTORY] Reset %s %s — rebooting\n", t.c_str(), ok ? "OK" : "FAILED");
         delay(300);
         ESP.restart();
-    }, "factory_wipe", 8192, nullptr, 1, NULL) != pdPASS) {
+    }, "factory_wipe", 8192, new String(tier), 1, NULL) != pdPASS) {
         g_eraseWipeBusy.store(false);
     }
   });
@@ -9550,6 +9583,53 @@ static void handleEraseRequest(const String &command)
   sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Expires:300s", true);
 }
 
+static void handleFactoryReset(const String &command)
+{
+  String rest = command.substring(14);
+  int colon = rest.indexOf(':');
+  if (colon <= 0) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:BAD_FORMAT", true);
+    return;
+  }
+  String tier = rest.substring(0, colon);
+  String credential = rest.substring(colon + 1);
+  if (erasePSK.length() == 0) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:DENIED_NO_PSK", true);
+    return;
+  }
+  if (!validateEraseResponse(credential)) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:DENIED", true);
+    return;
+  }
+  if (tier != "FULL" && tier != "CONFIG" && tier != "DATA") {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:BAD_TIER", true);
+    return;
+  }
+  if (g_eraseWipeBusy.exchange(true)) {
+    sendToSerial1(nodeId + ": FACTORY_RESET_ACK:BUSY", true);
+    return;
+  }
+  sendToSerial1(nodeId + ": FACTORY_RESET_ACK:" + tier + " - rebooting", true);
+  String* tierPtr = new String(tier);
+  if (xTaskCreate([](void* param) {
+    String* tp = static_cast<String*>(param);
+    String t = *tp;
+    delete tp;
+    delay(800);
+    Serial.printf("[FACTORY] Mesh reset: %s\n", t.c_str());
+    bool ok;
+    if (t == "CONFIG")    ok = performConfigReset();
+    else if (t == "DATA") ok = performDataReset();
+    else                  ok = performSecureWipe();
+    Serial.printf("[FACTORY] Reset %s %s - rebooting\n", t.c_str(), ok ? "OK" : "FAILED");
+    delay(300);
+    ESP.restart();
+  }, "factory_reset", 8192, tierPtr, 1, NULL) != pdPASS) {
+    delete tierPtr;
+    g_eraseWipeBusy.store(false);
+  }
+}
+
 static void handleAutoeraseEnable(const String &command)
 {
   String body = command;
@@ -9753,6 +9833,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("ERASE_FORCE:"))          handleEraseForce(command);
   else if (command.startsWith("ERASE_CANCEL"))          handleEraseCancel(command);
   else if (command == "ERASE_REQUEST")                  handleEraseRequest(command);
+  else if (command.startsWith("FACTORY_RESET:"))        handleFactoryReset(command);
   else if (command.startsWith("AUTOERASE_ENABLE"))      handleAutoeraseEnable(command);
   else if (command.startsWith("AUTOERASE_DISABLE"))     handleAutoeraseDisable(command);
   else if (command == "AUTOERASE_STATUS")               handleAutoeraseStatus(command);
