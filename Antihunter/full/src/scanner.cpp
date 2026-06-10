@@ -2664,6 +2664,10 @@ void radioStartSTA() {
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
 
+    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
+        radioStartBLE();
+    }
+
     // Start promiscuous on STA interface
     wifi_promiscuous_filter_t filter = {};
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
@@ -2689,11 +2693,6 @@ void radioStartSTA() {
     };
     esp_timer_create(&targs, &hopTimer);
     esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
-
-    // Start BLE if needed from a scan call
-    if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
-        radioStartBLE();
-    }
 }
 
 // Start list scan mode - NO promiscuous mode, uses WiFi.scanNetworks()
