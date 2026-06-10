@@ -365,6 +365,43 @@ uint32_t calculateOptimalCacheSize() {
     return 400;
 }
 
+// Non-blocking WiFi AP scan: start when due, harvest when ready. A synchronous
+// scanNetworks() blocked the baseline loop for the whole sweep, delaying STOP and
+// anomaly/results handling by seconds; async keeps the loop responsive.
+static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
+    int wifiScan = WiFi.scanComplete();
+    if (wifiScan == WIFI_SCAN_FAILED) {
+        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
+            lastWiFiScan = millis();
+            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime);
+        }
+        return;
+    }
+    if (wifiScan < 0) return;  // WIFI_SCAN_RUNNING
+    for (int i = 0; i < wifiScan && !stopRequested; i++) {
+        const uint8_t *bssidBytes = WiFi.BSSID(i);
+        String ssid = WiFi.SSID(i);
+        int32_t rssi = WiFi.RSSI(i);
+        uint8_t channel = WiFi.channel(i);
+
+        if (ssid.length() == 0) ssid = "[Hidden]";
+
+        Hit wh;
+        memcpy(wh.mac, bssidBytes, 6);
+        wh.rssi = rssi;
+        wh.ch = channel;
+        strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+        wh.name[sizeof(wh.name) - 1] = '\0';
+        wh.isBLE = false;
+
+        if (macQueue) {
+            xQueueSend(macQueue, &wh, 0);
+        }
+        framesSeen = framesSeen + 1;
+    }
+    WiFi.scanDelete();
+}
+
 void baselineDetectionTask(void *pv) {
     sentinel_kill();
     int duration = (int)(intptr_t)pv;
@@ -536,40 +573,7 @@ void baselineDetectionTask(void *pv) {
             break;
         }
         
-        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
-            lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime);
-            
-            if (stopRequested) {
-                WiFi.scanDelete();
-                break;
-            }
-
-            if (networksFound > 0) {
-                for (int i = 0; i < networksFound && !stopRequested; i++) {
-                    const uint8_t *bssidBytes = WiFi.BSSID(i);
-                    String ssid = WiFi.SSID(i);
-                    int32_t rssi = WiFi.RSSI(i);
-                    uint8_t channel = WiFi.channel(i);
-                    
-                    if (ssid.length() == 0) ssid = "[Hidden]";
-                    
-                    Hit wh;
-                    memcpy(wh.mac, bssidBytes, 6);
-                    wh.rssi = rssi;
-                    wh.ch = channel;
-                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
-                    wh.name[sizeof(wh.name) - 1] = '\0';
-                    wh.isBLE = false;
-                    
-                    if (macQueue) {
-                        xQueueSend(macQueue, &wh, 0);
-                    }
-                    framesSeen = framesSeen + 1;
-                }
-            }
-            WiFi.scanDelete();
-        }
+        baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;
@@ -718,40 +722,7 @@ void baselineDetectionTask(void *pv) {
             break;
         }
 
-        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
-            lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime);
-
-            if (stopRequested) {
-                WiFi.scanDelete();
-                break;
-            }
-
-            if (networksFound > 0) {
-                for (int i = 0; i < networksFound && !stopRequested; i++) {
-                    const uint8_t *bssidBytes = WiFi.BSSID(i);
-                    String ssid = WiFi.SSID(i);
-                    int32_t rssi = WiFi.RSSI(i);
-                    uint8_t channel = WiFi.channel(i);
-
-                    if (ssid.length() == 0) ssid = "[Hidden]";
-
-                    Hit wh;
-                    memcpy(wh.mac, bssidBytes, 6);
-                    wh.rssi = rssi;
-                    wh.ch = channel;
-                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
-                    wh.name[sizeof(wh.name) - 1] = '\0';
-                    wh.isBLE = false;
-
-                    if (macQueue) {
-                        xQueueSend(macQueue, &wh, 0);
-                    }
-                    framesSeen = framesSeen + 1;
-                }
-            }
-            WiFi.scanDelete();
-        }
+        baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;
