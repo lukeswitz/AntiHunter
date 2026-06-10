@@ -3794,12 +3794,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const uavMatch = block.match(/UAV ID: (.+)/);
           const typeMatch = block.match(/UA Type: (.+)/);
           const rssiMatch = block.match(/RSSI: ([-\d]+) dBm/);
-          const locMatch = block.match(/Location: ([-\d.]+), ([-\d.]+)/);
-          const altMatch = block.match(/Altitude MSL: ([-\d.]+) m/);
-          const hgtMatch = block.match(/Height AGL: ([-\d.]+) m/);
-          const speedMatch = block.match(/Speed: ([-\d.]+) m\/s  Vert: ([-\d.]+) m\/s/);
-          const hdgMatch = block.match(/Heading: ([-\d.]+) deg/);
-          const statusMatch = block.match(/Status: (\d+)/);
+          const locMatch = block.match(/Location: (.+)/);
+          const altMatch = block.match(/Altitude MSL: (.+)/);
+          const hgtMatch = block.match(/Height AGL: (.+)/);
+          const speedMatch = block.match(/Speed: (.+?)  Vert: (.+)/);
+          const hdgMatch = block.match(/Heading: (.+)/);
+          const statusMatch = block.match(/Status: (.+)/);
           const opLocMatch = block.match(/Operator: ([-\d.]+), ([-\d.]+)/);
           const opIdMatch = block.match(/Operator ID: (.+)/);
           const descMatch = block.match(/Description: (.+)/);
@@ -3821,11 +3821,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
 
           const fields = [];
-          if (locMatch) fields.push('Location: <strong style="color:var(--txt);">' + locMatch[1] + ', ' + locMatch[2] + '</strong>');
-          if (altMatch) fields.push('Altitude MSL: <strong style="color:var(--txt);">' + altMatch[1] + ' m</strong>');
-          if (hgtMatch) fields.push('Height AGL: <strong style="color:var(--txt);">' + hgtMatch[1] + ' m</strong>');
-          if (speedMatch) fields.push('Speed: <strong style="color:var(--txt);">' + speedMatch[1] + ' m/s</strong> (Vert ' + speedMatch[2] + ')');
-          if (hdgMatch) fields.push('Heading: <strong style="color:var(--txt);">' + hdgMatch[1] + '&deg;</strong>');
+          if (locMatch) fields.push('Location: <strong style="color:var(--txt);">' + locMatch[1] + '</strong>');
+          if (altMatch) fields.push('Altitude MSL: <strong style="color:var(--txt);">' + altMatch[1] + '</strong>');
+          if (hgtMatch) fields.push('Height AGL: <strong style="color:var(--txt);">' + hgtMatch[1] + '</strong>');
+          if (speedMatch) fields.push('Speed: <strong style="color:var(--txt);">' + speedMatch[1] + '</strong> (Vert ' + speedMatch[2] + ')');
+          if (hdgMatch) fields.push('Heading: <strong style="color:var(--txt);">' + hdgMatch[1] + '</strong>');
           if (statusMatch) fields.push('Status: <strong style="color:var(--txt);">' + statusMatch[1] + '</strong>');
           if (fields.length) {
             html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:var(--mut);margin-top:8px;">';
