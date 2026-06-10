@@ -1821,8 +1821,9 @@ void randomizationDetectionTask(void *pv) {
     saveDeviceIdentities();
 
     {
+        String randRes = getRandomizationResults();
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = getRandomizationResults().c_str();
+        antihunter::lastResults = randRes.c_str();
     }
 
     {

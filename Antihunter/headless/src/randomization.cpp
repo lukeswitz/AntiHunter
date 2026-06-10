@@ -1542,8 +1542,9 @@ void randomizationDetectionTask(void *pv) {
         
         if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0) {
             {
+                String randRes = getRandomizationResults();
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                antihunter::lastResults = getRandomizationResults().c_str();
+                antihunter::lastResults = randRes.c_str();
             }
             nextResultsUpdate += 2000;
         }
