@@ -7369,29 +7369,31 @@ void registerRemainingRoutes() {
   });
 
   server->on("/randomization/clear-old", HTTP_POST, [](AsyncWebServerRequest *req) {
-      std::lock_guard<std::mutex> lock(randMutex);
-      
       uint32_t now = millis();
       uint32_t ageThreshold = 3600000; // 1 hour
-      
+
       if (req->hasParam("age", true)) {
           ageThreshold = req->getParam("age", true)->value().toInt() * 1000;
       }
-      
-      std::vector<String> toRemove;
-      for (const auto& entry : deviceIdentities) {
-          if ((now - entry.second.lastSeen) > ageThreshold) {
-              toRemove.push_back(entry.first);
+
+      size_t removed = 0;
+      {
+          std::lock_guard<std::mutex> lock(randMutex);
+          std::vector<String> toRemove;
+          for (const auto& entry : deviceIdentities) {
+              if ((now - entry.second.lastSeen) > ageThreshold) {
+                  toRemove.push_back(entry.first);
+              }
           }
+          for (const auto& key : toRemove) {
+              deviceIdentities.erase(key);
+          }
+          removed = toRemove.size();
       }
-      
-      for (const auto& key : toRemove) {
-          deviceIdentities.erase(key);
-      }
-      
+
       saveDeviceIdentities();
-      
-      req->send(200, "text/plain", "Removed " + String(toRemove.size()) + " old identities");
+
+      req->send(200, "text/plain", "Removed " + String(removed) + " old identities");
   });
 
   server->on("/randomization/identities", HTTP_GET, [](AsyncWebServerRequest *r) {
@@ -10349,7 +10351,7 @@ void processMeshMessage(const String &message) {
 
 void processUSBToMesh() {
     static String usbBuffer = "";
-    
+
     while (Serial.available()) {
         char c = Serial.read();
         Serial.write(c);
