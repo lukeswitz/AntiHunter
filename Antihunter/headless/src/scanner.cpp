@@ -961,6 +961,34 @@ void snifferScanTask(void *pv)
     
     std::set<String> transmittedDevices;
 
+    String meshBatch;
+    std::vector<String> meshBatchMacs;
+    uint32_t meshDeviceTxCount = 0;
+    auto flushMeshBatch = [&]() {
+        if (meshBatch.length() == 0) return;
+        if (meshEnqueue(meshBatch)) {
+            for (const auto &m : meshBatchMacs) {
+                transmittedDevices.insert(m);
+                meshMarkMacSent(m);
+                meshDeviceTxCount++;
+            }
+        }
+        meshBatch = "";
+        meshBatchMacs.clear();
+    };
+    auto addMeshDeviceRow = [&](const String &row, const String &mac) {
+        String firstFrame = getNodeId() + ": " + row;
+        if (firstFrame.length() > (size_t)MAX_MESH_SIZE) return;
+        String candidate = (meshBatch.length() == 0) ? firstFrame : (meshBatch + "\n" + row);
+        if (candidate.length() > (size_t)MAX_MESH_SIZE) {
+            flushMeshBatch();
+            meshBatch = firstFrame;
+        } else {
+            meshBatch = candidate;
+        }
+        meshBatchMacs.push_back(mac);
+    };
+
     NimBLEScan *bleScan = pBLEScan;
 
     while ((forever && !stopRequested) ||
@@ -1140,7 +1168,7 @@ void snifferScanTask(void *pv)
 
                 if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr))
                 {
-                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " W ";
+                    String row = "DEVICE:" + macStr + " W ";
 
                     int8_t bestRssi = -128;
                     uint8_t bestCh = 0;
@@ -1152,18 +1180,13 @@ void snifferScanTask(void *pv)
                         }
                     }
 
-                    deviceMsg += String(bestRssi);
-                    if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+                    row += String(bestRssi);
+                    if (bestCh > 0) row += " C" + String(bestCh);
                     if (ssid.length() > 0 && ssid != "[Hidden]") {
-                        deviceMsg += " N:" + ssid.substring(0, 30);
+                        row += " N:" + ssid.substring(0, 30);
                     }
 
-                    if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                        if (meshEnqueue(deviceMsg)) {
-                            transmittedDevices.insert(macStr);
-                            meshMarkMacSent(macStr);
-                        }
-                    }
+                    addMeshDeviceRow(row, macStr);
                 }
             }
 
@@ -1174,7 +1197,7 @@ void snifferScanTask(void *pv)
 
                 if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr))
                 {
-                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr + " B ";
+                    String row = "DEVICE:" + macStr + " B ";
 
                     int8_t bestRssi = -128;
                     for (const auto& hit : hitsLog) {
@@ -1184,19 +1207,16 @@ void snifferScanTask(void *pv)
                         }
                     }
 
-                    deviceMsg += String(bestRssi);
+                    row += String(bestRssi);
                     if (name.length() > 0 && name != "Unknown") {
-                        deviceMsg += " N:" + name.substring(0, 30);
+                        row += " N:" + name.substring(0, 30);
                     }
 
-                    if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                        if (meshEnqueue(deviceMsg)) {
-                            transmittedDevices.insert(macStr);
-                            meshMarkMacSent(macStr);
-                        }
-                    }
+                    addMeshDeviceRow(row, macStr);
                 }
             }
+
+            flushMeshBatch();
         }
 
         // Drain probeRequestQueue when captureProbes is enabled during device scan
@@ -1473,12 +1493,12 @@ void snifferScanTask(void *pv)
     }
 
     if (meshEnabled) {
-        uint32_t enqueuedDevices = 0;
+        uint32_t txBefore = meshDeviceTxCount;
         uint32_t skippedDevices = 0;
         for (const auto& entry : apCache) {
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
             if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
-            String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " W ";
+            String row = "DEVICE:" + entry.first + " W ";
             int8_t bestRssi = -128;
             uint8_t bestCh = 0;
             for (const auto& hit : hitsLog) {
@@ -1488,22 +1508,18 @@ void snifferScanTask(void *pv)
                     bestCh = hit.ch;
                 }
             }
-            deviceMsg += String(bestRssi);
-            if (bestCh > 0) deviceMsg += " C" + String(bestCh);
+            row += String(bestRssi);
+            if (bestCh > 0) row += " C" + String(bestCh);
             if (entry.second.length() > 0 && entry.second != "[Hidden]") {
-                deviceMsg += " N:" + entry.second.substring(0, 30);
+                row += " N:" + entry.second.substring(0, 30);
             }
-            if (deviceMsg.length() <= MAX_MESH_SIZE && meshEnqueue(deviceMsg)) {
-                transmittedDevices.insert(entry.first);
-                meshMarkMacSent(entry.first);
-                enqueuedDevices++;
-            }
+            addMeshDeviceRow(row, entry.first);
         }
 
         for (const auto& entry : bleDeviceCache) {
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
             if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
-            String deviceMsg = getNodeId() + ": DEVICE:" + entry.first + " B ";
+            String row = "DEVICE:" + entry.first + " B ";
             int8_t bestRssi = -128;
             for (const auto& hit : hitsLog) {
                 String hitMac = macFmt6(hit.mac);
@@ -1511,16 +1527,15 @@ void snifferScanTask(void *pv)
                     bestRssi = hit.rssi;
                 }
             }
-            deviceMsg += String(bestRssi);
+            row += String(bestRssi);
             if (entry.second.length() > 0 && entry.second != "Unknown") {
-                deviceMsg += " N:" + entry.second.substring(0, 30);
+                row += " N:" + entry.second.substring(0, 30);
             }
-            if (deviceMsg.length() <= MAX_MESH_SIZE && meshEnqueue(deviceMsg)) {
-                transmittedDevices.insert(entry.first);
-                meshMarkMacSent(entry.first);
-                enqueuedDevices++;
-            }
+            addMeshDeviceRow(row, entry.first);
         }
+        flushMeshBatch();
+        // cppcheck-suppress duplicateExpression
+        uint32_t enqueuedDevices = meshDeviceTxCount - txBefore;
 
         if (!stopRequested) {
             uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
