@@ -3792,40 +3792,56 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         droneBlocks.forEach(block => {
           const macMatch = block.match(/MAC: ([A-F0-9:]+)/);
           const uavMatch = block.match(/UAV ID: (.+)/);
+          const typeMatch = block.match(/UA Type: (.+)/);
           const rssiMatch = block.match(/RSSI: ([-\d]+) dBm/);
           const locMatch = block.match(/Location: ([-\d.]+), ([-\d.]+)/);
-          const altMatch = block.match(/Altitude: ([\d.]+)m/);
-          const speedMatch = block.match(/Speed: ([\d.]+) m\/s/);
-          const opLocMatch = block.match(/Operator Location: ([-\d.]+), ([-\d.]+)/);
-          
+          const altMatch = block.match(/Altitude MSL: ([-\d.]+) m/);
+          const hgtMatch = block.match(/Height AGL: ([-\d.]+) m/);
+          const speedMatch = block.match(/Speed: ([-\d.]+) m\/s  Vert: ([-\d.]+) m\/s/);
+          const hdgMatch = block.match(/Heading: ([-\d.]+) deg/);
+          const statusMatch = block.match(/Status: (\d+)/);
+          const opLocMatch = block.match(/Operator: ([-\d.]+), ([-\d.]+)/);
+          const opIdMatch = block.match(/Operator ID: (.+)/);
+          const descMatch = block.match(/Description: (.+)/);
+          const authMatch = block.match(/Auth: type (\d+) ts (\d+)/);
+
           if (!macMatch) return;
-          
+
           html += '<div style="background:var(--surf);padding:18px;border-radius:8px;border:1px solid var(--acc);margin-bottom:12px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
           html += '<div style="font-family:monospace;font-size:15px;color:var(--acc);">' + macMatch[1] + randBadge(macMatch[1]) + '</div>';
           if (rssiMatch) html += '<span style="color:var(--mut);font-size:12px;">RSSI: <strong style="color:var(--txt);">' + rssiMatch[1] + ' dBm</strong></span>';
           html += '</div>';
-          
+
           if (uavMatch) {
             html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;margin-bottom:8px;font-size:12px;color:var(--acc);">';
             html += 'UAV ID: <strong>' + uavMatch[1] + '</strong>';
+            if (typeMatch) html += '<span style="color:var(--mut);margin-left:10px;">Type: <strong style="color:var(--txt);">' + typeMatch[1] + '</strong></span>';
             html += '</div>';
           }
-          
-          if (locMatch) {
+
+          const fields = [];
+          if (locMatch) fields.push('Location: <strong style="color:var(--txt);">' + locMatch[1] + ', ' + locMatch[2] + '</strong>');
+          if (altMatch) fields.push('Altitude MSL: <strong style="color:var(--txt);">' + altMatch[1] + ' m</strong>');
+          if (hgtMatch) fields.push('Height AGL: <strong style="color:var(--txt);">' + hgtMatch[1] + ' m</strong>');
+          if (speedMatch) fields.push('Speed: <strong style="color:var(--txt);">' + speedMatch[1] + ' m/s</strong> (Vert ' + speedMatch[2] + ')');
+          if (hdgMatch) fields.push('Heading: <strong style="color:var(--txt);">' + hdgMatch[1] + '&deg;</strong>');
+          if (statusMatch) fields.push('Status: <strong style="color:var(--txt);">' + statusMatch[1] + '</strong>');
+          if (fields.length) {
             html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:var(--mut);margin-top:8px;">';
-            html += '<div>Location: <strong style="color:var(--txt);">' + locMatch[1] + ', ' + locMatch[2] + '</strong></div>';
-            if (altMatch) html += '<div>Altitude: <strong style="color:var(--txt);">' + altMatch[1] + 'm</strong></div>';
-            if (speedMatch) html += '<div>Speed: <strong style="color:var(--txt);">' + speedMatch[1] + ' m/s</strong></div>';
+            fields.forEach(f => html += '<div>' + f + '</div>');
             html += '</div>';
           }
-          
-          if (opLocMatch) {
+
+          if (opLocMatch || opIdMatch || descMatch || authMatch) {
             html += '<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;color:var(--mut);">';
-            html += 'Operator: <strong style="color:var(--txt);">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>';
+            if (opLocMatch) html += 'Operator: <strong style="color:var(--txt);">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong><br>';
+            if (opIdMatch) html += 'Operator ID: <strong style="color:var(--txt);">' + opIdMatch[1] + '</strong><br>';
+            if (descMatch) html += 'Description: <strong style="color:var(--txt);">' + descMatch[1] + '</strong><br>';
+            if (authMatch) html += 'Auth: <strong style="color:var(--txt);">type ' + authMatch[1] + ', ts ' + authMatch[2] + '</strong>';
             html += '</div>';
           }
-          
+
           html += '</div>';
         });
         
