@@ -397,11 +397,67 @@ void syncSettingsToNVS() {
     Serial.println("[NVS] Settings synced to flash");
 }
 
+// FNV-1a hash over every value saveConfiguration persists. Lets saveConfiguration
+// skip the NVS+SD write (and its serial log) when nothing actually changed —
+// callers can invoke it freely without churning flash or spamming the console.
+static uint32_t configSignature() {
+    uint32_t h = 2166136261u;
+    auto mix = [&](const void *p, size_t n) {
+        const uint8_t *b = static_cast<const uint8_t *>(p);
+        for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 16777619u; }
+    };
+    auto mixStr = [&](const String &s) { mix(s.c_str(), s.length()); h ^= 0x5a; h *= 16777619u; };
+
+    mixStr(prefs.getString("nodeId", ""));
+    int sm = currentScanMode; mix(&sm, sizeof(sm));
+    for (size_t i = 0; i < CHANNELS.size(); i++) { int c = CHANNELS[i]; mix(&c, sizeof(c)); }
+    mix(&meshSendInterval, sizeof(meshSendInterval));
+    uint32_t u;
+    u = getMeshDedupTtlSec();          mix(&u, 4);
+    mix(&autoEraseEnabled, 1);
+    mix(&autoEraseDelay, 4); mix(&autoEraseCooldown, 4);
+    mix(&vibrationsRequired, sizeof(vibrationsRequired));
+    mix(&detectionWindow, sizeof(detectionWindow));
+    mix(&setupDelay, sizeof(setupDelay));
+    u = getBaselineRamCacheSize();     mix(&u, 4);
+    u = getBaselineSdMaxDevices();     mix(&u, 4);
+    int8_t i8;
+    i8 = getBaselineRssiThreshold();   mix(&i8, 1);
+    mix(&baselineDuration, sizeof(baselineDuration));
+    u = getDeviceAbsenceThreshold();   mix(&u, 4);
+    u = getReappearanceAlertWindow();  mix(&u, 4);
+    i8 = getSignificantRssiChange();   mix(&i8, 1);
+    mix(&rfConfig.preset, sizeof(rfConfig.preset));
+    mix(&rfConfig.wifiChannelTime, sizeof(rfConfig.wifiChannelTime));
+    mix(&rfConfig.wifiScanInterval, sizeof(rfConfig.wifiScanInterval));
+    mix(&rfConfig.bleScanInterval, sizeof(rfConfig.bleScanInterval));
+    mix(&rfConfig.bleScanDuration, sizeof(rfConfig.bleScanDuration));
+    mix(&rfConfig.globalRssiThreshold, sizeof(rfConfig.globalRssiThreshold));
+    mixStr(prefs.getString("maclist", ""));
+    mixStr(prefs.getString("apSsid", AP_SSID));
+    mix(&hbEnabled, 1);
+    mix(&hbInterval, sizeof(hbInterval));
+    mix(&vibrationEnabled, 1);
+    mixStr(prefs.getString("apPass", AP_PASS));
+    return h;
+}
+
 void saveConfiguration() {
     uint32_t now = millis();
     if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
         return;
     }
+
+    // Only persist when the config actually changed — avoids constant NVS/SD
+    // rewrites (flash wear + log spam) from periodic/no-op callers.
+    static uint32_t lastCfgSig = 0;
+    static bool haveCfgSig = false;
+    uint32_t sig = configSignature();
+    if (haveCfgSig && sig == lastCfgSig) {
+        return;
+    }
+    haveCfgSig = true;
+    lastCfgSig = sig;
     lastSaveTime = now;
 
     syncSettingsToNVS();
