@@ -397,6 +397,27 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     }
 }
 
+static const char *uaTypeStr(uint8_t t) {
+    switch (t) {
+        case 0: return "None";
+        case 1: return "Aeroplane";
+        case 2: return "Multirotor";
+        case 3: return "Gyroplane";
+        case 4: return "Hybrid Lift";
+        case 5: return "Ornithopter";
+        case 6: return "Glider";
+        case 7: return "Kite";
+        case 8: return "Free Balloon";
+        case 9: return "Captive Balloon";
+        case 10: return "Airship";
+        case 11: return "Parachute";
+        case 12: return "Rocket";
+        case 13: return "Tethered";
+        case 14: return "Ground Obstacle";
+        default: return "Other";
+    }
+}
+
 String getDroneDetectionResults() {
     static String cachedResults = "";
     static unsigned long lastCacheTime = 0;
@@ -416,22 +437,32 @@ String getDroneDetectionResults() {
         const DroneDetection& d = entry.second;
         results += "MAC: " + entry.first + "\n";
         results += "  UAV ID: " + String(d.uavId) + "\n";
+        results += "  UA Type: " + String(uaTypeStr(d.uaType)) + " (" + String(d.uaType) + ")\n";
         results += "  RSSI: " + String(d.rssi) + " dBm\n";
 
         if (d.latitude != 0 || d.longitude != 0) {
             results += "  Location: " + String(d.latitude, 6) + ", " +
                       String(d.longitude, 6) + "\n";
-            results += "  Altitude: " + String(d.altitudeMsl) + "m\n";
-            results += "  Speed: " + String(d.speed) + " m/s\n";
+            results += "  Altitude MSL: " + String(d.altitudeMsl, 1) + " m\n";
+            results += "  Height AGL: " + String(d.heightAgl, 1) + " m\n";
+            results += "  Speed: " + String(d.speed, 1) + " m/s  Vert: " +
+                      String(d.speedVertical, 1) + " m/s\n";
+            results += "  Heading: " + String(d.heading, 0) + " deg\n";
+            results += "  Status: " + String(d.status) + "\n";
         }
 
         if (d.operatorLat != 0 || d.operatorLon != 0) {
             results += "  Operator: " + String(d.operatorLat, 6) + ", " +
                       String(d.operatorLon, 6) + "\n";
         }
-
+        if (strlen(d.operatorId) > 0) {
+            results += "  Operator ID: " + String(d.operatorId) + "\n";
+        }
         if (strlen(d.description) > 0) {
             results += "  Description: " + String(d.description) + "\n";
+        }
+        if (d.authType != 0) {
+            results += "  Auth: type " + String(d.authType) + " ts " + String(d.authTimestamp) + "\n";
         }
 
         const uint32_t age = (millis() - d.lastSeen) / 1000;
@@ -522,6 +553,7 @@ void droneDetectorTask(void *pv)
     
     const uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
+    uint32_t nextResultsUpdate = millis() + 2000;
     uint32_t lastCleanup = millis();
     uint32_t lastMeshUpdate = millis();
     const unsigned long MESH_DRONE_UPDATE_INTERVAL = 5000;
@@ -615,7 +647,14 @@ void droneDetectorTask(void *pv)
                          droneDetectionCount.load(), (unsigned)uniqueN, localFramesSeen);
             nextStatus += 5000;
         }
-        
+
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
+            nextResultsUpdate += 2000;
+            String liveResults = getDroneDetectionResults();
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = liveResults.c_str();
+        }
+
         if (millis() - lastCleanup > 60000) {
             cleanupDroneData();
             lastCleanup = millis();
