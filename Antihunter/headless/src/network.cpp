@@ -223,6 +223,7 @@ std::atomic<uint32_t> meshTxDroppedFull(0);
 
 // Phase 1: consumer-task tick. ~80 ms inter-frame cadence, leaky-bucket pacing.
 static uint32_t meshTxTickMs = 80;
+static const uint32_t MESH_BULK_INTERVAL_MS = 1500;
 
 static MeshPriority classifyMeshMessage(const String &msg) {
     // Fast path: DEVICE dumps dominate; skip the keyword scan and avoid SSID-name false positives.
@@ -333,15 +334,16 @@ static void meshTxTask(void *pv) {
             stopMeshDrain.store(false);
         }
         // Drain priority order: CONTROL preempts EVENT preempts BULK.
-        // CONTROL (triangulation) is latency-critical and bypasses the configurable
-        // send interval; EVENT/BULK are paced at meshSendInterval so the "Mesh Send
-        // Interval" setting governs inter-frame TX spacing across producers.
+        // CONTROL (triangulation) is latency-critical and bypasses the send interval.
+        // EVENT (alerts) is paced at meshSendInterval. BULK (device dumps) drains fast at
+        // MESH_BULK_INTERVAL_MS so a big device-scan backlog clears quickly; the LoRa rate
+        // limiter still caps physical throughput so frames are not dropped.
         bool drainedControl = drainOne(meshQ[PRIO_CONTROL]);
-        bool drainedPaced = false;
+        bool drainedEvent = false, drainedBulk = false;
         if (!drainedControl) {
-            drainedPaced = drainOne(meshQ[PRIO_EVENT]) || drainOne(meshQ[PRIO_BULK]);
+            drainedEvent = drainOne(meshQ[PRIO_EVENT]);
+            if (!drainedEvent) drainedBulk = drainOne(meshQ[PRIO_BULK]);
         }
-        (void)drainedPaced;
 
         uint32_t depth = meshTxQueueDepth();
         if (depth == 0) {
@@ -357,8 +359,12 @@ static void meshTxTask(void *pv) {
             meshTxDraining.store(true);
         }
 
-        // CONTROL drains fast; EVENT/BULK honor the configured inter-frame interval.
-        uint32_t waitMs = drainedControl ? meshTxTickMs : (uint32_t)meshSendInterval;
+        // CONTROL fast; EVENT honors meshSendInterval; BULK drains at MESH_BULK_INTERVAL_MS.
+        uint32_t waitMs;
+        if (drainedControl) waitMs = meshTxTickMs;
+        else if (drainedEvent) waitMs = (uint32_t)meshSendInterval;
+        else if (drainedBulk) waitMs = MESH_BULK_INTERVAL_MS;
+        else waitMs = meshTxTickMs;
         if (waitMs < meshTxTickMs) waitMs = meshTxTickMs;
         vTaskDelay(pdMS_TO_TICKS(waitMs));
     }
