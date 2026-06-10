@@ -2628,7 +2628,8 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
     c.rxs.push_back(rx);
     if (c.rxs.size() > 16) c.rxs.erase(c.rxs.begin());
 
-    if (meshEnabled) {
+    if (meshEnabled && (c.lastMeshTx == 0 || now - c.lastMeshTx >= 60000)) {
+        c.lastMeshTx = now;
         char buf[160];
         snprintf(buf, sizeof(buf), "%s: RID_RX:%s:%d:%.6f:%.6f:%d",
                  getNodeId().c_str(), uavId, (int)rssi,
