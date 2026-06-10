@@ -178,7 +178,6 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
 
     BaselineDevice evictDevice;
     bool haveEvictDevice = false;
-    uint64_t evictKey = 0;
 
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
@@ -190,7 +189,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
                 if (sdAvailable && sdBaselineInitialized) {
                     if (!lruList.empty()) {
                         const auto& oldest = lruList.front();
-                        evictKey = oldest.key;
+                        uint64_t evictKey = oldest.key;
 
                         const auto& oldestDevice = baselineCache[evictKey];
                         if (oldestDevice.dirtyFlag) {
