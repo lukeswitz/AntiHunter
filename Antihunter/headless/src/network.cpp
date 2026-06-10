@@ -327,16 +327,21 @@ static bool drainOne(QueueHandle_t q) {
 static void meshTxTask(void *pv) {
     (void)pv;
     Serial.println("[MESH] TX task started");
-    TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
         if (stopMeshDrain.load()) {
             meshTxFlushQueue();
             stopMeshDrain.store(false);
         }
-        bool any = drainOne(meshQ[PRIO_CONTROL]) ||
-                   drainOne(meshQ[PRIO_EVENT]) ||
-                   drainOne(meshQ[PRIO_BULK]);
-        (void)any;
+        // Drain priority order: CONTROL preempts EVENT preempts BULK.
+        // CONTROL (triangulation) is latency-critical and bypasses the configurable
+        // send interval; EVENT/BULK are paced at meshSendInterval so the "Mesh Send
+        // Interval" setting governs inter-frame TX spacing across producers.
+        bool drainedControl = drainOne(meshQ[PRIO_CONTROL]);
+        bool drainedPaced = false;
+        if (!drainedControl) {
+            drainedPaced = drainOne(meshQ[PRIO_EVENT]) || drainOne(meshQ[PRIO_BULK]);
+        }
+        (void)drainedPaced;
 
         uint32_t depth = meshTxQueueDepth();
         if (depth == 0) {
@@ -352,7 +357,10 @@ static void meshTxTask(void *pv) {
             meshTxDraining.store(true);
         }
 
-        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(meshTxTickMs));
+        // CONTROL drains fast; EVENT/BULK honor the configured inter-frame interval.
+        uint32_t waitMs = drainedControl ? meshTxTickMs : (uint32_t)meshSendInterval;
+        if (waitMs < meshTxTickMs) waitMs = meshTxTickMs;
+        vTaskDelay(pdMS_TO_TICKS(waitMs));
     }
 }
 
