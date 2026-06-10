@@ -155,6 +155,7 @@ struct RidClaim {
     PsramVec<Rx> rxs;
     bool verified;
     bool insufficient;
+    uint32_t lastMeshTx = 0;
 };
 
 // Bloom filter — 2KB, k=3 hashes
