@@ -352,7 +352,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#a05848;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
       [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:rgba(14,20,34,0.85);--surf-hover:rgba(18,26,42,0.95);--bord:rgba(96,160,224,0.12);--bord-focus:rgba(96,160,224,0.35);--txt:#c8d4e0;--mut:#6878a0;--acc:#60a0e0;--acch:#4888cc;--accbg:rgba(96,160,224,0.08);--succ:#60a0e0;--warn:#c09040;--dang:#b86050;--shad:0 8px 32px rgba(0,0,0,0.6);--shad-hover:0 12px 48px rgba(0,0,0,0.8);--glow:0 0 24px rgba(96,160,224,0.15),0 0 48px rgba(96,160,224,0.05);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
       *{box-sizing:border-box;margin:0;padding:0}
-      body{background:var(--bg);background-attachment:fixed;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
+      body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:18px 28px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:18px;box-shadow:var(--shad);flex-wrap:wrap;position:sticky;top:0;z-index:100}
       .header-right{display:flex;align-items:center;gap:16px;margin-left:auto}
       h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -1667,6 +1667,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (pg) pg.classList.add('active');
         window.scrollTo(0, 0);
         if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
+        if (pageName === 'detect') {
+          if (typeof sentinelRefresh === 'function') sentinelRefresh();
+          if (typeof detAllTicks === 'function') detAllTicks();
+          if (typeof detRenderBanner === 'function') detRenderBanner();
+          if (typeof loadIncidents === 'function') loadIncidents();
+        }
+        if (pageName === 'system' && typeof updateBatterySaverStatus === 'function') updateBatterySaverStatus();
+      }
+      function pageActive(name) {
+        var p = document.getElementById('page-' + name);
+        return !!(p && p.classList.contains('active'));
       }
 
       function switchTab(tabName) {
@@ -4398,7 +4409,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
         }).catch(()=>{});
       }
-      setInterval(pollSecureState, 2000);
+      setInterval(pollSecureState, 5000);
 
       const _factoryResetTiers = {
         full: {btn: 'WIPE EVERYTHING', hint: 'Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
@@ -4730,6 +4741,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(e.src&&e.src!=='local'&&d.startsWith(e.src))d=d.slice(e.src.length).replace(/^:/,'');
         return d;
       }
+      let _incLastHtml = null;
       async function loadIncidents(){
         try {
           const r = await fetch('/api/incidents.json?limit=200');
@@ -4743,21 +4755,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local'))
           );
           document.getElementById('incCount').textContent = filtered.length + ' / ' + arr.length + ' total';
+          let html;
           if (filtered.length === 0) {
-            body.innerHTML = '<tr><td colspan="5" style="padding:12px;color:var(--mut);">No incidents</td></tr>';
-            return;
+            html = '<tr><td colspan="5" style="padding:12px;color:var(--mut);">No incidents</td></tr>';
+          } else {
+            html = '';
+            for (const e of filtered) {
+              html += '<tr>'
+                    + '<td class="sa-when">'+ esc(_incWhen(e)) +'</td>'
+                    + '<td><span class="sa-node">'+ esc(e.node) +'</span></td>'
+                    + '<td class="sa-mac">'+ esc(e.src) +'</td>'
+                    + '<td style="font-weight:600;color:'+_atkColor(e.type)+';">'+ esc(e.type) +'</td>'
+                    + '<td class="sa-detail">'+ esc(_incDetail(e)) +'</td>'
+                    + '</tr>';
+            }
           }
-          let html = '';
-          for (const e of filtered) {
-            html += '<tr>'
-                  + '<td class="sa-when">'+ esc(_incWhen(e)) +'</td>'
-                  + '<td><span class="sa-node">'+ esc(e.node) +'</span></td>'
-                  + '<td class="sa-mac">'+ esc(e.src) +'</td>'
-                  + '<td style="font-weight:600;color:'+_atkColor(e.type)+';">'+ esc(e.type) +'</td>'
-                  + '<td class="sa-detail">'+ esc(_incDetail(e)) +'</td>'
-                  + '</tr>';
+          if (html !== _incLastHtml) {
+            body.innerHTML = html;
+            _incLastHtml = html;
           }
-          body.innerHTML = html;
         } catch(e){ console.error('loadIncidents', e); }
       }
       function downloadIncidents(){ window.open('/api/incidents.jsonl', '_blank'); }
@@ -4768,7 +4784,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       document.getElementById('incFilter').addEventListener('change', loadIncidents);
       document.getElementById('incSrc').addEventListener('change', loadIncidents);
-      setInterval(loadIncidents, 2000);
+      setInterval(() => { if (pageActive('detect')) loadIncidents(); }, 5000);
       loadIncidents();
 
       async function sentinelRefresh(){
@@ -4795,7 +4811,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         await fetch('/api/sentinel/stop', {method:'POST'});
         sentinelRefresh();
       }
-      setInterval(sentinelRefresh, 4000);
+      setInterval(() => { if (pageActive('detect')) sentinelRefresh(); }, 4000);
       sentinelRefresh();
 
       document.getElementById('triangulate').addEventListener('change', e => {
@@ -5448,7 +5464,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       refreshIdentityMap(true);
       load();
       updatePrivacyBtn();
-      setInterval(updateBatterySaverStatus, 5000);
+      setInterval(() => { if (pageActive('system')) updateBatterySaverStatus(); }, 5000);
       initTerminal();
       loadBaselineAnomalyConfig();
       loadMeshInterval();
@@ -5456,7 +5472,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       updateAutoEraseStatus();
       refreshPskStatus();
       pollSecureState();
-      setInterval(tick, 2000);
+      setInterval(tick, 5000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
 
       // ===== Detect tab logic =====
@@ -5873,7 +5889,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if(r.ok){const j=await r.json();const c=document.getElementById('sentBootChk');if(c)c.checked=!!j.boot;}
         }catch(err){ console.warn('sentinelBootRefresh failed', err); }
       }
-      setInterval(()=>{sentinelHdrRefresh(); if(typeof sentinelRefresh==='function')sentinelRefresh();}, 4000);
+      setInterval(()=>{sentinelHdrRefresh(); if(pageActive('detect') && typeof sentinelRefresh==='function')sentinelRefresh();}, 4000);
       setTimeout(sentinelHdrRefresh, 700);
       setTimeout(sentinelBootRefresh, 800);
       function detMarkActive(key){
@@ -5907,7 +5923,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function detApplyStatusPills(){
         document.querySelectorAll('#page-detect .card[data-key] .dpill').forEach(p=>p.remove());
       }
-      setInterval(detRefreshToggleState, 10000);
+      setInterval(() => { if (pageActive('detect')) detRefreshToggleState(); }, 10000);
       setTimeout(detRefreshToggleState, 600);
       const _detAlerts=[];
       function detPushAlert(key,card){
@@ -5950,7 +5966,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           `<span class="bn-msg">${a.txt}</span></div>`;
         }).join('');
       }
-      setInterval(detRenderBanner,5000);
+      setInterval(()=>{ if(pageActive('detect')) detRenderBanner(); },5000);
 
       const DETECTOR_TAB_MAP = {
         'events':'live','sentinel':'live','mesh':'config','config':'config',
@@ -6291,7 +6307,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function detectClearRecon(){await fetch('/api/recon/clear',{method:'POST'});detectTick()}
       async function detectReloadOui(){await fetch('/api/oui/reload',{method:'POST'});detectTick()}
       detLoadCfg();
-      setInterval(detAllTicks,5000);
+      setInterval(()=>{ if(pageActive('detect')) detAllTicks(); },5000);
       detAllTicks();
     </script>
   </body>
