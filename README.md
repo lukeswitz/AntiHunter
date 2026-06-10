@@ -283,6 +283,21 @@ The secret never traverses the mesh (only the public nonce and the HMAC do); a s
 
 **Web wipe:** once a PSK is provisioned, `/erase/request` and `/factory-wipe` require the PSK in the confirm field instead of the legacy `WIPE_ALL_DATA`/`FACTORY_WIPE` strings. Web wipe stays AP-only (not reachable over mesh).
 
+**Tiered factory reset (separate from the vibration/tamper secure-erase):** a scoped reset with three tiers, distinct from the `ERASE_FORCE` tamper-wipe path.
+
+- **Full** — wipe SD data + reset NVS config (same scope as `/factory-wipe`).
+- **Config** — reset NVS config only (AP creds, node ID, targets, allowlist, RF/mesh/auto-erase settings, erase PSK); captured SD data is **kept**.
+- **Data** — erase captured SD data only (probedb, probes, deauth, drones, baseline, logs, incidents); settings/identity are **kept**.
+
+All tiers reboot the node afterward.
+
+- **Web (full firmware, AP-only):** System tab → Factory Wipe card → pick the scope in the dropdown. Auth = erase PSK if provisioned, else `FACTORY_WIPE`.
+- **Mesh/USB (full + headless):** authenticated with the same HMAC challenge-response as above, using a **separate command verb** so it never overlaps the tamper path. A provisioned PSK is **required** (no-PSK request → `FACTORY_RESET_ACK:DENIED_NO_PSK`).
+  1. `@NODE CONFIG_ERASE_PSK:<secret>` (once)
+  2. `@NODE ERASE_REQUEST` → `ERASE_TOKEN:<nonce> Expires:300s`
+  3. Compute `HMAC-SHA256(nonce, secret)` (Python snippet above).
+  4. `@NODE FACTORY_RESET:<FULL|CONFIG|DATA>:<hmac-hex>` within 300s → node replies `FACTORY_RESET_ACK:<TIER> - rebooting`; wrong/expired → `FACTORY_RESET_ACK:DENIED`.
+
 </details>
 
 ---
@@ -577,6 +592,7 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 |---------|------------|---------|
 | `ERASE_REQUEST` | None | `@AH01 ERASE_REQUEST` |
 | `ERASE_FORCE` | Auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
+| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<hmac-hex>` (PSK required) | `@AH02 FACTORY_RESET:DATA:<hmac-hex>` |
 | `ERASE_CANCEL` | None | `@AH01 ERASE_CANCEL` |
 | `AUTOERASE_ENABLE` | `setup:erase:vibs:window:cooldown` (seconds, except vibs count) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
 | `AUTOERASE_DISABLE` | None | `@AH01 AUTOERASE_DISABLE` |
@@ -793,7 +809,7 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/erase/request` | POST | Request secure erase (`confirm`=erase PSK if provisioned, else `WIPE_ALL_DATA`; optional `reason`) |
 | `/erase/psk-status` | GET | JSON `{pskSet:bool}` — UI uses this to swap placeholder/label between PSK and legacy code |
 | `/erase/cancel` | POST | Cancel erase sequence |
-| `/factory-wipe` | POST | Wipe all SD + reset NVS (`confirm`=erase PSK if provisioned, else `FACTORY_WIPE`); reboots |
+| `/factory-wipe` | POST | Tiered factory reset (`confirm`=erase PSK if provisioned, else `FACTORY_WIPE`; `tier`=`full`\|`config`\|`data`, default `full`); reboots |
 | `/secure/status` | GET | Tamper detection status |
 | `/secure/abort` | POST | Abort tamper sequence |
 | `/config/autoerase` | GET/POST | Auto-erase config |
