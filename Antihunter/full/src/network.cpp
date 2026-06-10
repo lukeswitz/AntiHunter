@@ -4044,6 +4044,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               h += '</div>';
             }
             list.innerHTML = h;
+            if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(list);
           }).catch(() => {
             list.innerHTML = '<div style="padding:12px;color:var(--c-err);font-size:11px;">Failed to load</div>';
           });
