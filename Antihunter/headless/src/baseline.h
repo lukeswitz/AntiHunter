@@ -62,14 +62,14 @@ struct CachedSDLookup {
     uint32_t timestamp;
 };
 
-extern std::map<String, uint32_t> sdDeviceIndex;
-extern std::map<String, bool> sdLookupCache;
-extern std::list<String> sdLookupLRU;
+extern std::map<uint64_t, uint32_t, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, uint32_t>>> sdDeviceIndex;
+extern std::map<uint64_t, bool, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, bool>>> sdLookupCache;
+extern std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
 extern const uint32_t SD_LOOKUP_CACHE_SIZE;
 extern const uint32_t SD_LOOKUP_CACHE_TTL;
 
-void addToSDCache(const String& mac, bool found);
-bool checkSDCache(const String& mac, bool& found);
+void addToSDCache(uint64_t mac, bool found);
+bool checkSDCache(uint64_t mac, bool& found);
 
 // Baseline detection configuration constants
 const uint32_t BASELINE_SCAN_DURATION = 300000;
@@ -84,7 +84,7 @@ extern bool baselineDetectionEnabled;
 extern bool baselineEstablished;
 extern uint32_t baselineStartTime;
 extern uint32_t baselineDuration;
-extern std::map<String, BaselineDevice> baselineCache;
+extern std::map<uint64_t, BaselineDevice, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, BaselineDevice>>> baselineCache;
 extern std::vector<AnomalyHit> anomalyLog;
 extern uint32_t anomalyCount;
 extern uint32_t baselineDeviceCount;
