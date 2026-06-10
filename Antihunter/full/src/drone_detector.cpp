@@ -756,8 +756,9 @@ void droneDetectorTask(void *pv)
     delay(100);
        
     {
+        String droneRes = getDroneDetectionResults();
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = getDroneDetectionResults().c_str();
+        antihunter::lastResults = droneRes.c_str();
     }
 
     size_t finalUniqueN;

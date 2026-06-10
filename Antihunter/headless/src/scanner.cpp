@@ -1929,8 +1929,9 @@ void blueTeamTask(void *pv) {
     lastScanEnd = millis();
 
     {
+        std::string deauthRes = buildDeauthResults(forever, duration, deauthCount.load(), disassocCount.load(), deauthLog);
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = buildDeauthResults(forever, duration, deauthCount.load(), disassocCount.load(), deauthLog);
+        antihunter::lastResults = deauthRes;
     }
 
     // Log deauth events to SD
@@ -3146,8 +3147,9 @@ void probeDetectionTask(void *pv)
     scanning = false;
 
     {
+        String probeRes = getProbeResults();
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = getProbeResults().c_str();
+        antihunter::lastResults = probeRes.c_str();
     }
 
     workerTaskHandle = nullptr;
