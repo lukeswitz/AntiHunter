@@ -6,7 +6,6 @@
 #include "main.h"
 #include "detect.h"
 #include <AsyncTCP.h>
-#include <AsyncWebSocket.h>
 #include <RTClib.h>
 #include <esp_timer.h>
 #include <algorithm>
@@ -69,13 +68,6 @@ extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 extern void randomizeMacAddress();
 
-// WebSocket for terminal
-AsyncWebSocket ws("/terminal");
-static std::deque<String> terminalBuffer;
-static const size_t TERMINAL_BUFFER_SIZE = 50;
-static bool terminalClientsConnected = false;
-static SemaphoreHandle_t terminalBufferMutex = nullptr;
-static std::atomic<uint32_t> terminalDroppedCount(0);
 
 // T114 handling
 SerialRateLimiter rateLimiter;
@@ -116,68 +108,6 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 }
 
 
-void broadcastToTerminal(const String &message) {
-    // Use cached RTC string: getRTCTimeString() forces a full I2C read + GPS discipline on every call.
-    // broadcastToTerminal is on the hot mesh-TX path (per frame), and the main loop already refreshes
-    // the cache every 1s, which is ample granularity for a terminal log timestamp.
-    String timestamped = "[" + getRTCTimeStringCached() + "] " + message;
-
-    if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
-        terminalBuffer.push_back(timestamped);
-        if (terminalBuffer.size() > TERMINAL_BUFFER_SIZE) {
-            terminalBuffer.pop_front();
-        }
-        xSemaphoreGive(terminalBufferMutex);
-    }
-
-    if (!terminalClientsConnected || ws.count() == 0) return;
-
-    if (!ws.availableForWriteAll()) {
-        terminalDroppedCount.fetch_add(1);
-        uint32_t dropped = terminalDroppedCount.load();
-        if ((dropped & 0x3F) == 1) {
-            Serial.printf("[TERM] ws backpressure: dropped %u messages\n", dropped);
-        }
-        return;
-    }
-
-    ws.textAll(timestamped);
-}
-
-void randTrimTerminalBuffer() {
-    if (!terminalBufferMutex) return;
-    if (xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
-    const size_t TRIM_TARGET = 100;
-    while (terminalBuffer.size() > TRIM_TARGET) {
-        terminalBuffer.pop_front();
-    }
-    terminalBuffer.shrink_to_fit();
-    xSemaphoreGive(terminalBufferMutex);
-}
-
-void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
-                     AwsEventType type, void *arg, uint8_t *data, size_t len) {
-    if (type == WS_EVT_CONNECT) {
-        Serial.printf("[TERMINAL] Client connected: %u\n", client->id());
-        terminalClientsConnected = true;
-
-        std::vector<String> snapshot;
-        if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            snapshot.reserve(terminalBuffer.size());
-            snapshot.insert(snapshot.end(), terminalBuffer.begin(), terminalBuffer.end());
-            xSemaphoreGive(terminalBufferMutex);
-        }
-        for (const auto &line : snapshot) {
-            if (!client->canSend()) break;
-            client->text(line);
-        }
-    } else if (type == WS_EVT_DISCONNECT) {
-        Serial.printf("[TERMINAL] Client disconnected: %u\n", client->id());
-        if (ws.count() == 0) {
-            terminalClientsConnected = false;
-        }
-    }
-}
 
 bool sendToSerial1(const String &message, bool canDelay) {
     {
@@ -245,7 +175,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     Serial1.println(message);
     Serial.printf("[MESH TX] %s\n", message.c_str());
-    broadcastToTerminal("[TX] " + message);
 
     Serial1.flush();
 
@@ -268,9 +197,6 @@ void restart_callback(void* arg) {
 void initializeNetwork()
 {
   esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-  if (!terminalBufferMutex) {
-    terminalBufferMutex = xSemaphoreCreateMutex();
-  }
   Serial.println("Initializing mesh UART...");
   initializeMesh();
 
@@ -1179,16 +1105,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </div>
       </div>
 
-      <!--
-      <div id="terminalToggle">TERMINAL</div>
-      <div id="terminalWindow">
-        <div id="terminalHeader">
-          <span id="terminalTitle">SERIAL MONITOR</span>
-          <span id="terminalClose">×</span>
-        </div>
-        <div id="terminalContent"></div>
-      </div>
-      -->
       </div>
 
       <div class="page-tab" id="page-data">
@@ -4198,116 +4114,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return html;
       }
 
-      let terminalWs = null;
-      let terminalVisible = false;
-      let terminalDragging = false;
-      let terminalDragOffset = {x: 0, y: 0};
-
-      function initTerminal() {
-        const toggle = document.getElementById('terminalToggle');
-        const window = document.getElementById('terminalWindow');
-        
-        if (!toggle || !window) {
-          console.log('[TERMINAL] Elements not found, feature disabled');
-          return;
-        }
-        
-        const close = document.getElementById('terminalClose');
-        const header = document.getElementById('terminalHeader');
-        const content = document.getElementById('terminalContent');
-        
-        toggle.addEventListener('click', () => {
-          terminalVisible = !terminalVisible;
-          if (terminalVisible) {
-            window.classList.add('visible');
-            toggle.classList.add('active');
-            connectTerminal();
-          } else {
-            window.classList.remove('visible');
-            toggle.classList.remove('active');
-            if (terminalWs) {
-              terminalWs.close();
-              terminalWs = null;
-            }
-          }
-        });
-        
-        close.addEventListener('click', () => {
-          terminalVisible = false;
-          window.classList.remove('visible');
-          toggle.classList.remove('active');
-          if (terminalWs) {
-            terminalWs.close();
-            terminalWs = null;
-          }
-        });
-        
-        header.addEventListener('mousedown', (e) => {
-          terminalDragging = true;
-          terminalDragOffset.x = e.clientX - window.offsetLeft;
-          terminalDragOffset.y = e.clientY - window.offsetTop;
-          window.style.position = 'fixed';
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-          if (!terminalDragging) return;
-          const x = e.clientX - terminalDragOffset.x;
-          const y = e.clientY - terminalDragOffset.y;
-          window.style.left = Math.max(0, Math.min(x, window.innerWidth - window.offsetWidth)) + 'px';
-          window.style.top = Math.max(0, Math.min(y, window.innerHeight - window.offsetHeight)) + 'px';
-          window.style.right = 'auto';
-          window.style.bottom = 'auto';
-        });
-        
-        document.addEventListener('mouseup', () => {
-          terminalDragging = false;
-        });
-      }
-
-      function connectTerminal() {
-        if (terminalWs) return;
-        
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        terminalWs = new WebSocket(protocol + '//' + location.host + '/terminal');
-        
-        terminalWs.onopen = () => {
-          console.log('[TERMINAL] Connected');
-        };
-        
-        terminalWs.onmessage = (event) => {
-          const content = document.getElementById('terminalContent');
-          const line = document.createElement('div');
-          line.className = 'terminal-line';
-          
-          if (event.data.includes('[TX]')) {
-            line.classList.add('tx');
-          } else if (event.data.includes('[RX]')) {
-            line.classList.add('rx');
-          }
-          
-          line.textContent = event.data;
-          content.appendChild(line);
-          
-          while (content.children.length > 500) {
-            content.removeChild(content.firstChild);
-          }
-          
-          content.scrollTop = content.scrollHeight;
-        };
-        
-        terminalWs.onerror = (error) => {
-          console.error('[TERMINAL] Error:', error);
-        };
-        
-        terminalWs.onclose = () => {
-          console.log('[TERMINAL] Disconnected');
-          terminalWs = null;
-          if (terminalVisible) {
-            setTimeout(connectTerminal, 2000);
-          }
-        };
-      }
-
       function resetRandomizationDetection() {
         if (!confirm('Reset all randomization detection data?')) return;
         
@@ -5503,7 +5309,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       load();
       updatePrivacyBtn();
       setInterval(() => { if (pageActive('system')) updateBatterySaverStatus(); }, 5000);
-      initTerminal();
       loadBaselineAnomalyConfig();
       loadMeshInterval();
       loadDedupTtl();
@@ -6358,9 +6163,6 @@ void startWebServer()
 {
   if (!server)
     server = new AsyncWebServer(80);
-
-    ws.onEvent(onTerminalEvent);
-    server->addHandler(&ws);
 
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -9077,7 +8879,6 @@ static void handleProbeHit(const String &command)
   // Full message format: "PROBE_HIT AA:BB:CC:DD:EE:FF Apple RSSI=-42 CH=6 SSID=\"HomeNet\""
   String payload = command.substring(10);
   Serial.printf("[MESH] PROBE_HIT received: %s\n", payload.c_str());
-  broadcastToTerminal("[PROBE_HIT] " + payload);
 }
 
 static void handleStop(const String &command)
@@ -9142,9 +8943,6 @@ static void setVibrationEnabled(bool enabled)
   const char *label = enabled ? "enabled" : "disabled";
   Serial.printf("[VIB] Vibration broadcasts %s\n", label);
   sendToSerial1(nodeId + (enabled ? ": VIBRATION_ON_ACK:OK" : ": VIBRATION_OFF_ACK:OK"), true);
-  char msg[48];
-  snprintf(msg, sizeof(msg), "[VIB] Vibration broadcasts %s", label);
-  broadcastToTerminal(msg);
 }
 
 static void handleVibrationOn(const String &command)
@@ -9815,7 +9613,6 @@ static void handleBatterySaverStart(const String &command)
   enterBatterySaver(intervalMs);
   sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STARTED Interval:" + String(intervalMinutes) + "min", true);
   Serial.printf("[MESH] Battery saver started with %u minute heartbeat\n", intervalMinutes);
-  broadcastToTerminal("[BATTERY_SAVER] Started with " + String(intervalMinutes) + " minute heartbeat");
 }
 
 static void handleBatterySaverStop(const String &command)
@@ -9824,7 +9621,6 @@ static void handleBatterySaverStop(const String &command)
   exitBatterySaver();
   sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STOPPED", true);
   Serial.println("[MESH] Battery saver stopped");
-  broadcastToTerminal("[BATTERY_SAVER] Stopped");
 }
 
 static void handleBatterySaverStatus(const String &command)
@@ -9832,7 +9628,6 @@ static void handleBatterySaverStatus(const String &command)
   (void)command;
   String status = getBatterySaverStatus();
   sendToSerial1(status, true);
-  broadcastToTerminal(status);
 }
 
 static void handleHbOn(const String &command)
@@ -9843,7 +9638,6 @@ static void handleHbOn(const String &command)
   lastSaveTime = 0;
   saveConfiguration();
   sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
-  broadcastToTerminal("[HB] Status heartbeat enabled");
 }
 
 static void handleHbOff(const String &command)
@@ -9854,7 +9648,6 @@ static void handleHbOff(const String &command)
   lastSaveTime = 0;
   saveConfiguration();
   sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
-  broadcastToTerminal("[HB] Status heartbeat disabled");
 }
 
 static void handleHbInterval(const String &command)
@@ -9865,7 +9658,6 @@ static void handleHbInterval(const String &command)
   hbInterval = minutes * 60000;
   prefs.putUInt("hbInterval", hbInterval);
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
-  broadcastToTerminal("[HB] Interval set to " + String(minutes) + " min");
 }
 
 void processCommand(const String &command, const String &targetId = "")
@@ -9952,7 +9744,6 @@ void processMeshMessage(const String &message) {
     }
     
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
-    broadcastToTerminal("[RX] " + cleanMessage);
 
     // Handle TRI_START_ACK from child nodes (coordinator only)
     if (colonPos > 0 && triangulationInitiator) {
@@ -10312,7 +10103,6 @@ void processMeshMessage(const String &message) {
                 }
 
                 Serial.println(logMsg);
-                broadcastToTerminal(logMsg);
             }
         }
 

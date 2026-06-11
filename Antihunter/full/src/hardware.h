@@ -146,8 +146,6 @@ String computeEraseHmac(const String &nonce);
 bool validateEraseResponse(const String &response);
 void setErasePSK(const String &key);
 extern String erasePSK;
-void broadcastToTerminal(const String &message);
-void randTrimTerminalBuffer();
 
 // Battery Saver Functions
 void enterBatterySaver(uint32_t heartbeatIntervalMs = 300000);

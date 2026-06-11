@@ -2032,12 +2032,10 @@ void deleteAllFiles(const String &dirname) {
 void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     if (batterySaverEnabled) {
         Serial.println("[BATTERY_SAVER] Already enabled");
-        broadcastToTerminal("[BATTERY_SAVER] Already enabled");
         return;
     }
 
     Serial.println("[BATTERY_SAVER] Entering battery saver mode...");
-    broadcastToTerminal("[BATTERY_SAVER] Entering battery saver mode...");
 
     // Validate and set heartbeat interval (minimum 60 seconds, maximum 30 minutes)
     if (heartbeatIntervalMs < 60000) heartbeatIntervalMs = 60000;
@@ -2085,19 +2083,16 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     sendToSerial1(msg, true);
 
     Serial.printf("[BATTERY_SAVER] Mode enabled, heartbeat every %lu minutes\n", heartbeatIntervalMs / 60000);
-    broadcastToTerminal("[BATTERY_SAVER] Mode enabled, heartbeat every " + String(heartbeatIntervalMs / 60000) + " minutes");
     logToSD("Battery saver mode enabled");
 }
 
 void exitBatterySaver() {
     if (!batterySaverEnabled) {
         Serial.println("[BATTERY_SAVER] Already disabled");
-        broadcastToTerminal("[BATTERY_SAVER] Already disabled");
         return;
     }
 
     Serial.println("[BATTERY_SAVER] Exiting battery saver mode...");
-    broadcastToTerminal("[BATTERY_SAVER] Exiting battery saver mode...");
 
     // Restore CPU frequency to 240MHz
     esp_pm_config_t pm_config = {
@@ -2123,7 +2118,6 @@ void exitBatterySaver() {
     sendToSerial1(msg, true);
 
     Serial.println("[BATTERY_SAVER] Mode disabled, normal operation resumed");
-    broadcastToTerminal("[BATTERY_SAVER] Mode disabled, normal operation resumed");
     logToSD("Battery saver mode disabled");
 }
 
