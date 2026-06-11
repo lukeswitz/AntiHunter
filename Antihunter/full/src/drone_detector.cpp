@@ -574,6 +574,7 @@ void droneDetectorTask(void *pv)
     sentinel_kill();
     const int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     const bool forever = (duration <= 0);
+    scanSetCountdown(duration, forever);
 
     Serial.printf("[DRONE] Starting drone detection %s\n",
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());

@@ -61,6 +61,12 @@ static esp_timer_handle_t hopTimer = nullptr;
 static uint32_t lastScanStart = 0, lastScanEnd = 0;
 uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
+uint32_t g_curScanEndMs = 0;
+bool g_curScanForever = false;
+void scanSetCountdown(int secs, bool forever) {
+    g_curScanForever = forever;
+    g_curScanEndMs = (forever || secs <= 0) ? 0 : (millis() + (uint32_t)secs * 1000);
+}
 static StringStringMapPsram apCache;
 static StringStringMapPsram bleDeviceCache;
 static std::mutex snifferCacheMutex;
@@ -978,6 +984,7 @@ void snifferScanTask(void *pv)
     lastScanStart = millis();
     lastScanSecs = duration;
     lastScanForever = forever;
+    scanSetCountdown(duration, forever);
 
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
@@ -2906,6 +2913,7 @@ void probeDetectionTask(void *pv)
     bool forever = (duration <= 0);
 
     Serial.printf("[PROBE] Starting probe detection, duration=%d forever=%d\n", duration, forever);
+    scanSetCountdown(duration, forever);
 
     // Load known device database from SD
     loadProbeDB();
@@ -3845,6 +3853,7 @@ void listScanTask(void *pv) {
     lastScanStart = millis();
     lastScanSecs = secs;
     lastScanForever = forever;
+    scanSetCountdown(secs, forever);
 
     // Register initiator at scan start
     if (triangulationInitiator) {

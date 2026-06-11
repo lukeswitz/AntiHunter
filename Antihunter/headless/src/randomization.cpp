@@ -1168,7 +1168,8 @@ void randomizationDetectionTask(void *pv) {
     sentinel_kill();
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
     bool forever = (duration <= 0);
-    
+    scanSetCountdown(duration, forever);
+
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
 
     if (!probeRequestQueue || !authFrameQueue) {

@@ -220,6 +220,9 @@ extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
+extern uint32_t g_curScanEndMs;
+extern bool g_curScanForever;
+void scanSetCountdown(int secs, bool forever);
 extern std::atomic<bool> triangulationActive;
 
 // Triangulation

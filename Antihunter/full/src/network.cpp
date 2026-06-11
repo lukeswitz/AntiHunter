@@ -2657,12 +2657,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         blueteam: 'Blue Team', baseline: 'Baseline', randdetect: 'Rand Detect',
         probedet: 'Probe Detect', triangulate: 'Triangulate'
       };
+      let _scanBaseLabel = '', _scanEndTs = 0, _scanForever = false;
+      function _fmtCountdown(sec) { sec = Math.max(0, Math.floor(sec)); const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+      function renderScanStatus() {
+        const el = document.getElementById('scanStatus');
+        if (!el || !el.classList.contains('active')) return;
+        if (_scanForever || !_scanEndTs) { el.innerText = _scanBaseLabel; return; }
+        el.innerText = _scanBaseLabel + ' · ' + _fmtCountdown((_scanEndTs - Date.now()) / 1000);
+      }
+      setInterval(renderScanStatus, 1000);
       function setScanStatus(label, state) {
         const el = document.getElementById('scanStatus');
         if (!el) return;
-        el.innerText = label;
+        _scanBaseLabel = label;
         el.classList.remove('idle', 'active');
         if (state) el.classList.add(state);
+        if (state !== 'active') { _scanEndTs = 0; _scanForever = false; }
+        el.innerText = label;
+        renderScanStatus();
       }
       function updateMeshTxIndicator(diagText) {
         const el = document.getElementById('meshTxStatus');
@@ -2698,6 +2710,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         if (isScanning || isTriangulating) {
             const label = scanTaskLabels[taskType] || (isTriangulating ? 'Triangulate' : 'Scanning');
+            const remMatch = diagText.match(/Scan remaining: (\d+|forever)/);
+            if (remMatch && remMatch[1] !== 'forever') { _scanForever = false; _scanEndTs = Date.now() + parseInt(remMatch[1]) * 1000; }
+            else { _scanForever = !!remMatch; _scanEndTs = 0; }
             setScanStatus(label, 'active');
             
             const startScanBtn = document.querySelector('#s button');
