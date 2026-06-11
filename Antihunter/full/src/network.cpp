@@ -6089,7 +6089,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if(!a.length){el.innerHTML='<div style="color:var(--mut);font-size:12px;">No clients yet.</div>';return;}
           const ago=ms=>ms<60000?Math.round(ms/1000)+'s':Math.round(ms/60000)+'m';
           el.innerHTML='<table class="dt"><thead><tr><th>Client MAC</th><th>Assoc #</th><th>First</th><th>Last</th></tr></thead><tbody>'
-            +a.map(c=>`<tr><td style="color:#bbf7d0;">${c.mac}</td><td>${c.assoc}</td><td>${ago(c.first_ms_ago)} ago</td><td>${ago(c.last_ms_ago)} ago</td></tr>`).join('')
+            +a.map(c=>`<tr><td style="color:var(--acc);">${c.mac}</td><td>${c.assoc}</td><td>${ago(c.first_ms_ago)} ago</td><td>${ago(c.last_ms_ago)} ago</td></tr>`).join('')
             +'</tbody></table>';
         }catch(e){console.warn('apClientsTick',e);}
       }
