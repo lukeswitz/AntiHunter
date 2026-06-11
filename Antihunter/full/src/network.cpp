@@ -490,9 +490,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div class="status-item" id="modeStatus">WiFi</div>
           <div class="status-item idle" id="scanStatus">Idle</div>
           <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
-          <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;" title="Click to toggle Sentinel">SENTINEL OFF</div>
+          <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;display:none;" title="Click to toggle Sentinel">SENTINEL</div>
           <div class="status-item" id="gpsStatus">GPS</div>
-          <div class="status-item" id="rtcStatus">RTC</div>
         </div>
         <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -2735,13 +2734,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             document.getElementById('gpsStatus').innerText = 'GPS';
         }
         
-        if (diagText.includes('RTC: Synced')) {
-            document.getElementById('rtcStatus').classList.add('active');
-            document.getElementById('rtcStatus').innerText = 'RTC OK';
-        } else if (diagText.includes('RTC: Not')) {
-            document.getElementById('rtcStatus').classList.remove('active');
-            document.getElementById('rtcStatus').innerText = 'RTC';
-        }
       }
         
       function updateModeStatus() {
@@ -5700,18 +5692,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const el = document.getElementById('sentStatusHdr');
           if (!el) return;
           if (!s.enabled) {
-            el.textContent = 'SENTINEL IDLE';
-            el.style.color = '';
-            el.style.borderColor = '';
+            el.style.display = 'none';
           } else if (s.scanning) {
+            el.style.display = '';
             el.textContent = 'SENTINEL PAUSED (SCAN)';
             el.style.color = '#fca5a5';
             el.style.borderColor = '#dc2626';
           } else if (s.running) {
+            el.style.display = '';
             el.textContent = 'SENTINEL ON';
             el.style.color = '#86efac';
             el.style.borderColor = '#16a34a';
           } else {
+            el.style.display = '';
             el.textContent = 'SENTINEL IDLE';
             el.style.color = '';
             el.style.borderColor = '';
