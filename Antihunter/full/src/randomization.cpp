@@ -719,7 +719,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         memcpy(globalMac, session.globalMacLeaked, 6);
     }
     
-    Serial.printf("[RAND] Link eval %s: n:%d rssi:%d ic:%.2f rc:%.2f type:%s sig:%s\n",
+    if (detect_isVerbose())
+        Serial.printf("[RAND] Link eval %s: n:%d rssi:%d ic:%.2f rc:%.2f type:%s sig:%s\n",
                  macStr.c_str(), session.probeCount, sessionAvgRssi,
                  sessionIntervalConsistency, sessionRssiConsistency, isBLE ? "BLE" : "WiFi",
                  sessionIsMinimal ? "MIN" : "FULL");
@@ -860,7 +861,7 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
         score = rssiScore + macPrefixScore + fingerprintScore + ieOrderScore +
                 timingScore + rssiDistScore + seqNumScore + rotationGapScore + globalMacScore;
 
-        if (score > 0.1f) {
+        if (detect_isVerbose() && score > 0.1f) {
             Serial.printf("[RAND]   vs %s: %.3f (r:%.2f mp:%.2f fp:%.2f[%d] ie:%.2f t:%.2f rd:%.2f s:%.2f g:%.2f rg:%.2f) sig:%s/%s\n",
                          identity.identityId, score, rssiScore, macPrefixScore, fingerprintScore, fpMatches, ieOrderScore,
                          timingScore, rssiDistScore, seqNumScore, globalMacScore, rotationGapScore,
@@ -1008,7 +1009,8 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
             for (const auto& existingMac : existingIdentity.macs) {
                 // cppcheck-suppress useStlAlgorithm
                 if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
-                    Serial.printf("[RAND] MAC %s already in %s, skipping new identity\n",
+                    if (detect_isVerbose())
+                        Serial.printf("[RAND] MAC %s already in %s, skipping new identity\n",
                                 macStr.c_str(), existingIdentity.identityId);
                     return;
                 }
