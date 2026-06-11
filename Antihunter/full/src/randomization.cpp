@@ -1833,7 +1833,6 @@ void randomizationDetectionTask(void *pv) {
         std::lock_guard<std::mutex> lock(randMutex);
         activeSessions.clear();
     }
-    randTrimTerminalBuffer();
 
     transmittedIdentities.clear();
 
