@@ -2380,6 +2380,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           elem.title = 'REDACTED';
         });
 
+        // Redact device names — all elements with data-name attribute
+        el.querySelectorAll('[data-name]').forEach(elem => {
+          elem.textContent = ssidHash(elem.getAttribute('data-name'));
+          elem.title = 'REDACTED';
+        });
+
         // Redact AP responded SSIDs
         el.querySelectorAll('[data-ap-ssid]').forEach(div => {
           const strong = div.querySelector('strong');
@@ -3437,8 +3443,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">';
           if (anchorMac) html += '<span style="font-family:monospace;font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>' + randBadge(anchorMac);
           html += '<span style="background:' + (isBLE ? 'var(--c-ble-bg)' : 'var(--c-wifi-bg)') + ';color:' + (isBLE ? 'var(--c-ble)' : 'var(--c-wifi)') + ';padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + deviceType + '</span>';
-          if (nameMatch) html += '<span style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
-          if (ssidMatch) html += '<span style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
+          if (nameMatch) html += '<span data-name="' + nameMatch[1].trim() + '" style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
+          if (ssidMatch) html += '<span data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
           if (vendorMatch) html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + vendorMatch[1].trim() + '</span>';
           html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
@@ -4054,7 +4060,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               h += '<span style="color:var(--mut);font-size:10px;">' + d.sessions + ' sess</span>';
               if (d.ssids && d.ssids.length > 0) {
                 for (const s of d.ssids) {
-                  h += '<span style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--txt);">' + s + '</span>';
+                  h += '<span data-ssid="' + s + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--txt);">' + s + '</span>';
                 }
               }
               h += '</div>';
