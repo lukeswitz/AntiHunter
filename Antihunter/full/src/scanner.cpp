@@ -3273,6 +3273,12 @@ static String formatAge(uint32_t epochNow, uint32_t epochThen)
 
 String getProbeResults()
 {
+    static String cachedProbeResults = "";
+    static uint32_t lastProbeResultsTime = 0;
+    if (millis() - lastProbeResultsTime < 2000 && cachedProbeResults.length() > 0) {
+        return cachedProbeResults;
+    }
+    lastProbeResultsTime = millis();
     std::lock_guard<std::mutex> lock(probeMutex);
 
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
@@ -3387,6 +3393,7 @@ String getProbeResults()
         }
     }
 
+    cachedProbeResults = results;
     return results;
 }
 
