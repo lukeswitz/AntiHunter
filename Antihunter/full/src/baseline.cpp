@@ -405,6 +405,7 @@ void baselineDetectionTask(void *pv) {
     sentinel_kill();
     int duration = (int)(intptr_t)pv;
     bool forever = (duration <= 0);
+    scanSetCountdown(duration, forever);
 
     if (!sdBaselineInitialized) {
         if (initializeBaselineSD()) {

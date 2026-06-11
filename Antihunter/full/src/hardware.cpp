@@ -57,6 +57,8 @@ extern std::atomic<uint32_t> bleFramesSeen;
 extern UniqueMacsSet uniqueMacs;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
+extern uint32_t g_curScanEndMs;
+extern bool g_curScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern TaskHandle_t blueTeamTaskHandle;
@@ -919,6 +921,15 @@ String getDiagnostics() {
     s.reserve(1024);
 
     s += "Scanning: " + String(scanning ? "yes" : "no") + "\n";
+    if (scanning) {
+        if (g_curScanForever) {
+            s += "Scan remaining: forever\n";
+        } else {
+            uint32_t nowMs = millis();
+            uint32_t remSec = (g_curScanEndMs > nowMs) ? (g_curScanEndMs - nowMs) / 1000 : 0;
+            s += "Scan remaining: " + String(remSec) + "\n";
+        }
+    }
     s += "Triangulating: " + String((triangulationActive || triangulationInitiator) ? "yes" : "no") + "\n";
 
     if (workerTaskHandle) {
