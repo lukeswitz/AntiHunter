@@ -275,12 +275,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <title>AntiHunter</title>
     <style>
       :root{--t:0.2s;--blur:12px}
-      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#a05848;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:rgba(14,20,34,0.85);--surf-hover:rgba(18,26,42,0.95);--bord:rgba(96,160,224,0.12);--bord-focus:rgba(96,160,224,0.35);--txt:#c8d4e0;--mut:#6878a0;--acc:#60a0e0;--acch:#4888cc;--accbg:rgba(96,160,224,0.08);--succ:#60a0e0;--warn:#c09040;--dang:#b86050;--shad:0 8px 32px rgba(0,0,0,0.6);--shad-hover:0 12px 48px rgba(0,0,0,0.8);--glow:0 0 24px rgba(96,160,224,0.15),0 0 48px rgba(96,160,224,0.05);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#d6532f;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:rgba(14,20,34,0.85);--surf-hover:rgba(18,26,42,0.95);--bord:rgba(96,160,224,0.12);--bord-focus:rgba(96,160,224,0.35);--txt:#c8d4e0;--mut:#6878a0;--acc:#60a0e0;--acch:#4888cc;--accbg:rgba(96,160,224,0.08);--succ:#60a0e0;--warn:#c09040;--dang:#f0775c;--shad:0 8px 32px rgba(0,0,0,0.6);--shad-hover:0 12px 48px rgba(0,0,0,0.8);--glow:0 0 24px rgba(96,160,224,0.15),0 0 48px rgba(96,160,224,0.05);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
-      .header{padding:18px 28px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:18px;box-shadow:var(--shad);flex-wrap:wrap;position:sticky;top:0;z-index:100}
-      .header-right{display:flex;align-items:center;gap:16px;margin-left:auto}
+      .header{padding:14px 28px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
+      .header-top{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;width:100%}
+      .header-right{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;width:100%}
+      .header-right .theme-toggle{margin-left:0}
       h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
       h3{margin:0 0 18px;font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--txt)}
       .container{max-width:1400px;margin:0 auto;padding:28px}
@@ -309,8 +311,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .btn.primary{background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);border-color:var(--acc);color:#fff;box-shadow:var(--glow)}
       .btn.primary:hover{box-shadow:var(--glow),var(--shad-hover);filter:brightness(1.1)}
       .btn.alt{color:var(--acc);border-color:var(--acc);background:transparent}
-      .btn.danger{background:var(--dang);border-color:var(--dang);color:#fff;box-shadow:0 0 24px rgba(184,96,80,0.3)}
-      .btn.danger:hover{filter:brightness(1.15)}
+      .btn.danger{background:transparent;border-color:var(--dang);color:var(--dang);box-shadow:none}
+      .btn.danger:hover{background:var(--dang);color:#fff;box-shadow:none}
       .theme-toggle{width:48px;height:28px;background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--acc);border-radius:14px;cursor:pointer;position:relative;transition:all 0.3s;margin-left:auto;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:var(--glow)}
       .theme-toggle:hover{transform:scale(1.05);box-shadow:var(--glow),var(--shad)}
       .theme-toggle svg{width:18px;height:18px;position:absolute;transition:opacity 0.3s,transform 0.3s;stroke:var(--acc);fill:var(--acc)}
@@ -348,6 +350,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--mut);transition:all 0.3s;text-transform:uppercase;letter-spacing:0.05em;position:relative}
       .status-item.idle{border-color:rgba(80,180,120,0.4);background:rgba(80,180,120,0.08);color:#50b478;box-shadow:0 0 12px rgba(80,180,120,0.15),0 0 4px rgba(80,180,120,0.1)}
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc);box-shadow:var(--glow);animation:scanPulse 2s ease-in-out infinite}
+      #modeStatus{min-width:78px;text-align:center}
+      #scanStatus{min-width:104px;text-align:center}
+      #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
       @keyframes scanPulse{0%,100%{box-shadow:var(--glow)}50%{box-shadow:0 0 20px rgba(96,160,224,0.3),0 0 40px rgba(96,160,224,0.1)}}
       .tab-buttons{display:flex;gap:6px;margin-bottom:18px;background:rgba(0,0,0,0.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:6px;border-radius:10px;border:1px solid var(--bord)}
       .tab-btn{padding:10px 18px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;flex:1;text-align:center}
@@ -373,7 +378,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details>summary::-webkit-details-marker{display:none}
       @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
-      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-right{width:100%;order:3;justify-content:space-between}.page-tabs{order:2;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:6px;flex-wrap:wrap}.status-item{font-size:10px;padding:5px 8px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
+      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-top{width:100%;gap:10px}.header-right{width:100%;justify-content:center}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:6px;flex-wrap:wrap;justify-content:center}.status-item{font-size:10px;padding:5px 8px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
       [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
@@ -477,13 +482,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     </script>
     <div id="toast"></div>
     <div class="header">
-      <h1>AntiHunter</h1>
-      <div class="page-tabs">
-        <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
-        <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
-        <div class="page-tab-btn" onclick="switchPage('system')">System</div>
-        <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
-        <div class="page-tab-btn" onclick="switchPage('detect')">Sentinel</div>
+      <div class="header-top">
+        <h1>AntiHunter</h1>
+        <div class="page-tabs">
+          <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
+          <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
+          <div class="page-tab-btn" onclick="switchPage('system')">System</div>
+          <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
+          <div class="page-tab-btn" onclick="switchPage('detect')">Sentinel</div>
+        </div>
       </div>
       <div class="header-right">
         <div class="status-bar">
@@ -516,8 +523,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <line x1="12" y1="12" x2="18" y2="12"/>
           </svg>
         </div>
+        <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
       </div>
-      <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
     </div>
     <div class="container">
       <div class="page-tab active" id="page-scan">
@@ -1264,7 +1271,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span class="collapse-icon open" id="detOverviewCardIcon">▶</span>
           </div>
           <div class="card-body" id="detOverviewCardBody">
-            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;">
+            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(96px,12vw,128px),1fr));gap:8px;margin-bottom:10px;">
               <div class="stat" data-cfg="always"><div class="stat-label">Deauth Flood</div><div class="stat-value" id="d-dauth">0</div></div>
               <div class="stat" data-cfg="pmkid"><div class="stat-label">PMKID</div><div class="stat-value" id="d-pmkid">0</div></div>
               <div class="stat" data-cfg="eviltwin"><div class="stat-label">Evil-Twin</div><div class="stat-value" id="d-et">0</div></div>
