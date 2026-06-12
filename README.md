@@ -153,7 +153,7 @@ Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
-- RAM cache: 200-500 devices, SD overflow: 1K-100K devices (default 1500 without SD)
+- RAM cache: ~400 devices (heap-adaptive, scales down under memory pressure); SD overflow up to 50,000 devices (1500 RAM-only when no SD present)
 - Automatic tiering between RAM and SD
 
 > [!TIP]
@@ -200,7 +200,7 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - OUI vendor identification (68-vendor table)
 - MAC randomization detection (locally-administered bit check)
 - Mesh alerting for watchlist hits (60s dedup cooldown)
-- RSSI min/max/current tracking, up to 4 probed SSIDs per device
+- RSSI min/max/current tracking, up to 8 probed SSIDs per device
 
 ### G. Sentinel — Counterintel Engine
 
@@ -413,8 +413,8 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 | Function | GPIO | Description |
 |----------|------|-------------|
 | Vibration Sensor | 2 | SW-420 tamper detection (interrupt) |
-| RTC SDA | 6 | DS3231 I2C data |
-| RTC SCL | 3 | DS3231 I2C clock |
+| RTC SDA | 3 | DS3231 I2C data |
+| RTC SCL | 6 | DS3231 I2C clock |
 | GPS RX | 44 | NMEA data receive |
 | GPS TX | 43 | GPS transmit (unused) |
 | SD CS | 1 | SD card chip select |
@@ -683,12 +683,12 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 |----------|--------|-------------|
 | `/results` | GET | Latest scan/triangulation results |
 | `/sniffer-cache` | GET | Cached device detections |
-| `/probe-results` | GET | Probe request results |
 | `/deauth-results` | GET | Deauth attack logs |
 | `/randomization-results` | GET | Randomization correlation results |
-| `/baseline-results` | GET | Baseline anomaly results |
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
+
+> Probe results live under [Probe Database](#probe-database) (`/api/probedb`, `/api/probes.jsonl`); baseline results under the Baseline endpoints (`/baseline/stats`, `/baseline/status`).
 
 ### Probe Database
 
@@ -743,6 +743,8 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 | `/api/incidents.json` | GET | Recent incident ring (JSON) |
 | `/api/incidents.jsonl` | GET | Full incident log from SD (JSONL) |
 | `/api/incidents` | DELETE | Clear all incidents (RAM + SD) |
+
+**Per-detector logs:** each detector also exposes its own JSON/JSONL endpoint, e.g. `/api/pmkid.jsonl`, `/api/eviltwin.jsonl`, `/api/sae_dos.jsonl`, `/api/owe_abuse.jsonl`, `/api/fragattack.jsonl`, `/api/jamming.jsonl`, `/api/probe_flood.jsonl`, `/api/assoc_sleep.jsonl`, `/api/deauth_flood.jsonl`, `/api/handshakes`, `/api/karma`, `/api/ble_attack.jsonl`, `/api/ble_tracker`, `/api/airtag_presence`, `/api/tof`, `/api/tsf_skew`, `/api/attacker_hunts`, `/api/quorum`, `/api/bloom`. `POST /api/detect/clear_all` clears them all; query `/api/detect/config` for the live detector list.
 
 Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds — `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
 
