@@ -9660,6 +9660,46 @@ static void handleHbInterval(const String &command)
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
 }
 
+static void handleSentinelOn(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(true);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:ON run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelOff(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(false);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:OFF", true);
+}
+
+static void handleSentinelStatus(const String &command)
+{
+  (void)command;
+  sendToSerial1(nodeId + ": SENTINEL_STATUS: en=" + String(sentinel_isUserEnabled() ? 1 : 0) +
+                " run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelMode(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_MODE:"));
+  v.trim();
+  bool scan = v.equalsIgnoreCase("scan");
+  bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
+  sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
+}
+
+static void handleSentinelBoot(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_BOOT:"));
+  v.trim();
+  bool on = (v.toInt() != 0) || v.equalsIgnoreCase("on");
+  Preferences p;
+  if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
+  sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
+}
+
 void processCommand(const String &command, const String &targetId = "")
 {
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n",
@@ -9681,6 +9721,11 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("PROBE_STOP"))            handleProbeStop(command);
   else if (command.startsWith("PROBE_HIT "))            handleProbeHit(command);
   else if (command.startsWith("STOP"))                  handleStop(command);
+  else if (command == "SENTINEL_ON")                    handleSentinelOn(command);
+  else if (command == "SENTINEL_OFF")                   handleSentinelOff(command);
+  else if (command.startsWith("SENTINEL_STATUS"))       handleSentinelStatus(command);
+  else if (command.startsWith("SENTINEL_MODE:"))        handleSentinelMode(command);
+  else if (command.startsWith("SENTINEL_BOOT:"))        handleSentinelBoot(command);
   else if (command.startsWith("STATUS"))                handleStatus(command);
   else if (command.startsWith("VIBRATION_STATUS"))      handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                   handleVibrationOn(command);
