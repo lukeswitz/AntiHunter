@@ -926,7 +926,7 @@ void snifferScanTask(void *pv)
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                  (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
-    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
 
     Serial.printf("[SNIFFER] Starting device scan %s\n",
@@ -1084,8 +1084,6 @@ void snifferScanTask(void *pv)
 
             Serial.println("[SNIFFER] Scanning BLE devices...");
 
-            if (bleScan)
-            {
                 NimBLEScanResults scanResults = bleScan->getResults(500, false);
                 if (stopRequested) break;
 
@@ -1161,7 +1159,6 @@ void snifferScanTask(void *pv)
                 bleScan->clearResults();
                 Serial.printf("[SNIFFER] BLE scan found %d devices\n", scanResults.getCount());
                 vTaskDelay(pdMS_TO_TICKS(10));
-            }
         }
 
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_SCAN_UPDATE_INTERVAL)
@@ -1500,6 +1497,7 @@ void snifferScanTask(void *pv)
     }
 
     if (meshEnabled) {
+        // cppcheck-suppress variableScope
         uint32_t txBefore = meshDeviceTxCount;
         uint32_t skippedDevices = 0;
         for (const auto& entry : apCache) {
@@ -1541,10 +1539,10 @@ void snifferScanTask(void *pv)
             addMeshDeviceRow(row, entry.first);
         }
         flushMeshBatch();
-        // cppcheck-suppress duplicateExpression
-        uint32_t enqueuedDevices = meshDeviceTxCount - txBefore;
 
         if (!stopRequested) {
+            // cppcheck-suppress duplicateExpression
+            uint32_t enqueuedDevices = meshDeviceTxCount - txBefore;
             uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
             uint32_t totalTx = transmittedDevices.size();
             String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
@@ -1603,11 +1601,11 @@ String getSnifferCache()
     return result;
 }
 
-static std::string buildDeauthResults(bool forever, int duration, uint32_t deauthCount,
-                                      uint32_t disassocCount, const std::vector<DeauthHit>& deauthLog) {
+static std::string buildDeauthResults(bool forever, int duration, uint32_t deauthFrames,
+                                      uint32_t disassocFrames, const std::vector<DeauthHit>& deauthHits) {
     std::map<String, DeauthStats> statsMap;
     
-    for (const auto& h : deauthLog) {
+    for (const auto& h : deauthHits) {
         String dstMac = macFmt6(h.destMac);
         if (dstMac == "FF:FF:FF:FF:FF:FF") dstMac = "[BROADCAST]";
         
@@ -1632,22 +1630,22 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     }
     
     uint32_t forgeHits = 0, bcastHits = 0;
-    for (const auto &h : deauthLog) {
+    for (const auto &h : deauthHits) {
         if (h.toolHint & 0x01) forgeHits++;
         if (h.toolHint & 0x04) bcastHits++;
     }
 
     std::string results = "Deauth Attack Detection Results\n";
     results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
-    results += "Deauth frames: " + std::to_string(deauthCount) + "\n";
-    results += "Disassoc frames: " + std::to_string(disassocCount) + "\n";
-    results += "Total attacks: " + std::to_string(deauthLog.size()) + "\n";
+    results += "Deauth frames: " + std::to_string(deauthFrames) + "\n";
+    results += "Disassoc frames: " + std::to_string(disassocFrames) + "\n";
+    results += "Total attacks: " + std::to_string(deauthHits.size()) + "\n";
     results += "Targets attacked: " + std::to_string(statsMap.size()) + "\n";
     if (forgeHits) results += "tool fingerprint (reason=2 seq=FFF0): " + std::to_string(forgeHits) + "\n";
     if (bcastHits)    results += "Broadcast-dst deauths: " + std::to_string(bcastHits) + " (informational)\n";
     {
         std::map<String, int> srcUnicastCount;
-        for (const auto &h : deauthLog) {
+        for (const auto &h : deauthHits) {
             if (!h.isBroadcast) srcUnicastCount[macFmt6(h.srcMac)]++;
         }
         uint32_t loneSrcs = static_cast<uint32_t>(std::count_if(srcUnicastCount.begin(), srcUnicastCount.end(),
@@ -1684,7 +1682,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
             
             int sourcesShown = 0;
             std::map<String, int> sourceCounts;
-            for (const auto& h : deauthLog) {
+            for (const auto& h : deauthHits) {
                 String dst = macFmt6(h.destMac);
                 if (dst == "FF:FF:FF:FF:FF:FF") dst = "[BROADCAST]";
                 if (dst == entry.first) {
@@ -1715,7 +1713,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
 
 void blueTeamTask(void *pv) {
     sentinel_kill();
-    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
 
     String startMsg = forever ?
@@ -2816,7 +2814,7 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
 void probeDetectionTask(void *pv)
 {
     sentinel_kill();
-    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
 
     Serial.printf("[PROBE] Starting probe detection, duration=%d forever=%d\n", duration, forever);
@@ -3209,7 +3207,7 @@ String getProbeResults()
 
     uint32_t nowEpoch = millis() / 1000;
 
-    for (auto &p : sorted) {
+    for (const auto &p : sorted) {
         ProbeDevice &dev = *p.second;
         results += "WiFi " + p.first + " RSSI=" + String(dev.rssi) + "dBm CH=" + String(dev.channel) + " ";
 
@@ -3714,7 +3712,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 // Scan tasks
 void listScanTask(void *pv) {
     sentinel_kill();
-    int secs = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (secs <= 0);
 
     // Clear old results

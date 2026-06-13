@@ -25,13 +25,13 @@ struct BaselineDevice {
 } __attribute__((packed));
 
 struct AnomalyHit {
-    uint8_t mac[6];
-    int8_t rssi;
-    uint8_t channel;
-    char name[32];
-    bool isBLE;
-    uint32_t timestamp;
-    String reason;
+    uint8_t mac[6]{};
+    int8_t rssi{};
+    uint8_t channel{};
+    char name[32]{};
+    bool isBLE{};
+    uint32_t timestamp{};
+    String reason{};
 };
 
 struct BaselineStats {
@@ -57,9 +57,9 @@ struct DeviceHistory {
 };
 
 struct CachedSDLookup {
-    String mac;
-    bool inBaseline;
-    uint32_t timestamp;
+    String mac{};
+    bool inBaseline{};
+    uint32_t timestamp{};
 };
 
 extern std::map<uint64_t, uint32_t, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, uint32_t>>> sdDeviceIndex;

@@ -82,70 +82,70 @@ struct BehavioralSignature {
 };
 
 struct ProbeSession {
-    uint8_t mac[6];
-    uint32_t startTime;
-    uint32_t lastSeen;
-    
-    uint32_t probeTimestamps[50];
-    uint8_t probeCount;
-    
-    int16_t rssiSum;
-    int8_t rssiMin;
-    int8_t rssiMax;
-    std::vector<int8_t, PsramAllocator<int8_t>> rssiReadings;
-    
-    uint8_t primaryChannel;
-    uint32_t channelMask;
-    uint16_t fingerprint[6];
-    IEOrderSignature ieOrder;
-    
-    uint16_t lastSeqNum;
-    bool seqNumValid;
-    uint16_t seqNumGaps;
-    uint16_t seqNumWraps;
-    
-    float avgProbeInterval;
-    float intervalStdDev;
-    float rssiVariance;
-    
-    bool linkedToIdentity;
-    char linkedIdentityId[10];
-    
-    bool hasGlobalMacLeak;
-    uint8_t globalMacLeaked[6];
+    uint8_t mac[6]{};
+    uint32_t startTime{};
+    uint32_t lastSeen{};
 
-    char deviceName[32];
-    char probedSSID[33];
-    uint8_t mfrData[8];
-    uint8_t mfrDataLen;
+    uint32_t probeTimestamps[50]{};
+    uint8_t probeCount{};
+
+    int16_t rssiSum{};
+    int8_t rssiMin{};
+    int8_t rssiMax{};
+    std::vector<int8_t, PsramAllocator<int8_t>> rssiReadings{};
+
+    uint8_t primaryChannel{};
+    uint32_t channelMask{};
+    uint16_t fingerprint[6]{};
+    IEOrderSignature ieOrder{};
+
+    uint16_t lastSeqNum{};
+    bool seqNumValid{};
+    uint16_t seqNumGaps{};
+    uint16_t seqNumWraps{};
+
+    float avgProbeInterval{};
+    float intervalStdDev{};
+    float rssiVariance{};
+
+    bool linkedToIdentity{};
+    char linkedIdentityId[10]{};
+
+    bool hasGlobalMacLeak{};
+    uint8_t globalMacLeaked[6]{};
+
+    char deviceName[32]{};
+    char probedSSID[33]{};
+    uint8_t mfrData[8]{};
+    uint8_t mfrDataLen{};
 };
 
 struct DeviceIdentity {
-    char identityId[10];
-    std::vector<MacAddress, PsramAllocator<MacAddress>> macs;
-    BehavioralSignature signature;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
-    float confidence;
-    uint8_t sessionCount;
-    uint8_t observedSessions;
-    
-    uint16_t lastSequenceNum;
-    bool sequenceValid;
-    
-    bool hasKnownGlobalMac;
-    uint8_t knownGlobalMac[6];
-    
-    bool isBLE;
-    char deviceName[32];
-    char probedSSID[33];
-    int8_t rssiAvg;
-    int8_t rssiMin;
-    int8_t rssiMax;
-    uint8_t primaryChannel;
-    uint32_t probeCount;
-    uint8_t mfrData[8];
-    uint8_t mfrDataLen;
+    char identityId[10]{};
+    std::vector<MacAddress, PsramAllocator<MacAddress>> macs{};
+    BehavioralSignature signature{};
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
+    float confidence{};
+    uint8_t sessionCount{};
+    uint8_t observedSessions{};
+
+    uint16_t lastSequenceNum{};
+    bool sequenceValid{};
+
+    bool hasKnownGlobalMac{};
+    uint8_t knownGlobalMac[6]{};
+
+    bool isBLE{};
+    char deviceName[32]{};
+    char probedSSID[33]{};
+    int8_t rssiAvg{};
+    int8_t rssiMin{};
+    int8_t rssiMax{};
+    uint8_t primaryChannel{};
+    uint32_t probeCount{};
+    uint8_t mfrData[8]{};
+    uint8_t mfrDataLen{};
 };
 
 const uint32_t SESSION_START_THRESHOLD = 3000;

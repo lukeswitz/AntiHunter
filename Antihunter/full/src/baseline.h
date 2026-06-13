@@ -26,13 +26,13 @@ struct BaselineDevice {
 } __attribute__((packed));
 
 struct AnomalyHit {
-    uint8_t mac[6];
-    int8_t rssi;
-    uint8_t channel;
-    char name[32];
-    bool isBLE;
-    uint32_t timestamp;
-    String reason;
+    uint8_t mac[6]{};
+    int8_t rssi{};
+    uint8_t channel{};
+    char name[32]{};
+    bool isBLE{};
+    uint32_t timestamp{};
+    String reason{};
 };
 
 struct BaselineStats {
