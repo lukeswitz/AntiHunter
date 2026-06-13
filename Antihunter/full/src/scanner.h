@@ -33,11 +33,11 @@ using StringStringMapPsram = std::map<String, String, std::less<String>,
 
 struct DeauthStats {
     String srcMac;
-    uint32_t count;
-    uint32_t broadcastCount;
-    uint32_t targetedCount;
-    int8_t lastRssi;
-    uint8_t channel;
+    uint32_t count{};
+    uint32_t broadcastCount{};
+    uint32_t targetedCount{};
+    int8_t lastRssi{};
+    uint8_t channel{};
 };
 
 struct Target {
@@ -132,13 +132,13 @@ struct DeauthHit {
 };
 
 struct RFScanConfig {
-    uint32_t wifiChannelTime;
-    uint32_t wifiScanInterval;
-    uint32_t bleScanInterval;
-    uint32_t bleScanDuration;
-    uint8_t preset;
+    uint32_t wifiChannelTime{};
+    uint32_t wifiScanInterval{};
+    uint32_t bleScanInterval{};
+    uint32_t bleScanDuration{};
+    uint8_t preset{};
     String wifiChannels;
-    int8_t globalRssiThreshold;
+    int8_t globalRssiThreshold{};
 };
 
 // Granular settings

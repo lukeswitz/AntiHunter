@@ -17,28 +17,28 @@ struct KalmanFilterState {
 
 struct TriangulationNode {
     String nodeId;
-    float lat;
-    float lon;
-    int8_t rssi;
-    uint32_t hitCount;
-    bool hasGPS;
-    uint32_t lastUpdate;
+    float lat{};
+    float lon{};
+    int8_t rssi{};
+    uint32_t hitCount{};
+    bool hasGPS{};
+    uint32_t lastUpdate{};
     std::vector<int8_t> rssiHistory;
     std::vector<int8_t> rssiRawWindow;
-    KalmanFilterState kalmanFilter;
-    float filteredRssi;
-    float distanceEstimate;
-    float signalQuality;
-    float hdop;
-    bool isBLE;
+    KalmanFilterState kalmanFilter{};
+    float filteredRssi{};
+    float distanceEstimate{};
+    float signalQuality{};
+    float hdop{};
+    bool isBLE{};
 };
 
 struct NodeSyncStatus {
     String nodeId;
-    time_t rtcTimestamp;
-    uint32_t millisOffset;
-    bool synced;
-    uint32_t lastSyncCheck;
+    time_t rtcTimestamp{};
+    uint32_t millisOffset{};
+    bool synced{};
+    uint32_t lastSyncCheck{};
 };
 
 struct PreciseTimestamp {
@@ -113,31 +113,31 @@ struct PathLossSample {
 
 struct AdaptivePathLoss {
     // Current estimates
-    float rssi0_wifi;
-    float rssi0_ble;
-    float n_wifi;
-    float n_ble;
+    float rssi0_wifi{};
+    float rssi0_ble{};
+    float n_wifi{};
+    float n_ble{};
     
     // Sample buffers for adaptation
     std::vector<PathLossSample> wifiSamples;
     std::vector<PathLossSample> bleSamples;
     
     // Estimation confidence
-    bool wifi_calibrated;
-    bool ble_calibrated;
-    uint32_t lastUpdate;
+    bool wifi_calibrated{};
+    bool ble_calibrated{};
+    uint32_t lastUpdate{};
     
     static constexpr size_t MIN_SAMPLES = 5;
     static constexpr size_t MAX_SAMPLES = 50;
 };
 
 struct APFinalResult {
-    bool hasResult;
-    float latitude;
-    float longitude;
-    float confidence;
-    float uncertainty;
-    uint32_t timestamp;
+    bool hasResult{};
+    float latitude{};
+    float longitude{};
+    float confidence{};
+    float uncertainty{};
+    uint32_t timestamp{};
     String coordinatorNodeId;
 };
 
@@ -178,10 +178,10 @@ void markTriangulationStopFromMesh();
 
 struct NodeReportingInfo {
     String nodeId;
-    uint8_t slotIndex;
-    uint32_t firstReportTime;
-    uint32_t lastReportTime;
-    bool hasReported;
+    uint8_t slotIndex{};
+    uint32_t firstReportTime{};
+    uint32_t lastReportTime{};
+    bool hasReported{};
 };
 
 struct DynamicReportingSchedule {
@@ -191,21 +191,21 @@ struct DynamicReportingSchedule {
     uint32_t guardIntervalMs = 200;
     std::mutex nodeMutex;
     
-    void addNode(const String& nodeId) {
+    void addNode(const String& nid) {
         std::lock_guard<std::mutex> lock(nodeMutex);
-        if (nodes.find(nodeId) == nodes.end()) {
+        if (nodes.find(nid) == nodes.end()) {
             NodeReportingInfo info;
-            info.nodeId = nodeId;
+            info.nodeId = nid;
             info.slotIndex = nodes.size();
             info.firstReportTime = millis();
             info.lastReportTime = millis();
             info.hasReported = false;
-            nodes[nodeId] = info;
-            
+            nodes[nid] = info;
+
             recalculateSlotDuration();
-            
+
             Serial.printf("[SLOTS] Registered: %s -> slot %d/%d (duration=%ums)\n",
-                         nodeId.c_str(), info.slotIndex, nodes.size(), slotDurationMs);
+                         nid.c_str(), info.slotIndex, nodes.size(), slotDurationMs);
         }
     }
     
@@ -234,9 +234,9 @@ struct DynamicReportingSchedule {
                      numNodes, slotDurationMs, guardIntervalMs);
     }
     
-    bool isMySlotActive(const String& nodeId, uint32_t& nextSlotMs, uint32_t now = 0) {
+    bool isMySlotActive(const String& nid, uint32_t& nextSlotMs, uint32_t now = 0) {
         std::lock_guard<std::mutex> lock(nodeMutex);
-        if (nodes.find(nodeId) == nodes.end()) return false;
+        if (nodes.find(nid) == nodes.end()) return false;
         if (cycleStartMs == 0) return false;
 
         uint8_t numNodes = nodes.size();
@@ -250,7 +250,7 @@ struct DynamicReportingSchedule {
                           (UINT32_MAX - cycleStartMs + now + 1);
         
         uint32_t cycleMs = slotDurationMs * numNodes;
-        uint8_t mySlot = nodes[nodeId].slotIndex;
+        uint8_t mySlot = nodes[nid].slotIndex;
         
         uint32_t positionInCycle = elapsed % cycleMs;
         uint32_t slotStartMs = mySlot * slotDurationMs;
@@ -275,11 +275,11 @@ struct DynamicReportingSchedule {
         return isActive;
     }
     
-    void markReportReceived(const String& nodeId) {
+    void markReportReceived(const String& nid) {
         std::lock_guard<std::mutex> lock(nodeMutex);
-        if (nodes.find(nodeId) != nodes.end()) {
-            nodes[nodeId].lastReportTime = millis();
-            nodes[nodeId].hasReported = true;
+        if (nodes.find(nid) != nodes.end()) {
+            nodes[nid].lastReportTime = millis();
+            nodes[nid].hasReported = true;
         }
     }
     
@@ -302,9 +302,9 @@ extern DynamicReportingSchedule reportingSchedule;
 
 struct TriangulateAckInfo {
     String nodeId;
-    uint32_t ackTimestamp;
-    bool reportReceived;  // Track if node has sent TRIANGULATE_REPORT
-    uint32_t reportTimestamp;
+    uint32_t ackTimestamp{};
+    bool reportReceived{};  // Track if node has sent TRIANGULATE_REPORT
+    uint32_t reportTimestamp{};
 };
 
 extern ClockDiscipline clockDiscipline;

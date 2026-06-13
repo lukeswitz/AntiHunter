@@ -130,31 +130,31 @@ struct AlertCandidate {
     String key;      // e.g. BSSID or src MAC
     struct Report {
         String nodeId;
-        int8_t rssi;
-        uint32_t ts;
+        int8_t rssi{};
+        uint32_t ts{};
     };
     PsramVec<Report> reports;
-    uint32_t firstSeen;
-    bool fired;
+    uint32_t firstSeen{};
+    bool fired{};
 };
 
 struct RidClaim {
-    char uavId[24];
-    double lat;
-    double lon;
-    float alt;
-    uint32_t ts;
+    char uavId[24]{};
+    double lat{};
+    double lon{};
+    float alt{};
+    uint32_t ts{};
     struct Rx {
         String nodeId;
-        int8_t rssi;
-        float nodeLat;
-        float nodeLon;
-        bool hasGps;
-        uint32_t ts;
+        int8_t rssi{};
+        float nodeLat{};
+        float nodeLon{};
+        bool hasGps{};
+        uint32_t ts{};
     };
     PsramVec<Rx> rxs;
-    bool verified;
-    bool insufficient;
+    bool verified{};
+    bool insufficient{};
     uint32_t lastMeshTx = 0;
 };
 
@@ -424,12 +424,12 @@ struct HandshakeFragment {
 };
 
 struct HandshakeReconstruction {
-    uint8_t bssid[6];
-    uint8_t sta[6];
-    uint8_t seenMask;      // bit 0..3 = M1..M4 seen
-    uint32_t firstSeen;
-    uint32_t lastSeen;
-    uint8_t krackEvents;
+    uint8_t bssid[6]{};
+    uint8_t sta[6]{};
+    uint8_t seenMask{};      // bit 0..3 = M1..M4 seen
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
+    uint8_t krackEvents{};
     PsramVec<HandshakeFragment> fragments;
 };
 
@@ -473,12 +473,12 @@ size_t airtag_count();
 // RSSI within a rotation window, stitch them into a persistent chain.
 
 struct TrackerChain {
-    uint32_t chainId;
-    char vendor[16];
-    int8_t avgRssi;
-    uint8_t linkCount;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
+    uint32_t chainId{};
+    char vendor[16]{};
+    int8_t avgRssi{};
+    uint8_t linkCount{};
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
     struct Link {
         uint8_t addr[6];
         int8_t rssi;
@@ -501,16 +501,16 @@ size_t tracker_chainCount();
 // link the two — same device seen by N nodes => meta-identity with motion path.
 
 struct ProbeGraphIdentity {
-    uint32_t hash;
-    char localTrackId[10];
-    int8_t bestRssi;
-    uint8_t sightingCount;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
+    uint32_t hash{};
+    char localTrackId[10]{};
+    int8_t bestRssi{};
+    uint8_t sightingCount{};
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
     struct NodeSeen {
         String nodeId;
-        int8_t rssi;
-        uint32_t ts;
+        int8_t rssi{};
+        uint32_t ts{};
     };
     PsramVec<NodeSeen> nodes;
 };

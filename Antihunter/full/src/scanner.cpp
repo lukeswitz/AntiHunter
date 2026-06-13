@@ -947,7 +947,7 @@ void snifferScanTask(void *pv)
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :
                  (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
 
-    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
 
     Serial.printf("[SNIFFER] Starting device scan %s\n",
@@ -1559,6 +1559,7 @@ void snifferScanTask(void *pv)
     }
 
     if (meshEnabled) {
+        // cppcheck-suppress variableScope
         uint32_t txBefore = meshDeviceTxCount;
         uint32_t skippedDevices = 0;
         for (const auto& entry : apCache) {
@@ -1600,10 +1601,10 @@ void snifferScanTask(void *pv)
             addMeshDeviceRow(row, entry.first);
         }
         flushMeshBatch();
-        // cppcheck-suppress duplicateExpression
-        uint32_t enqueuedDevices = meshDeviceTxCount - txBefore;
 
         if (!stopRequested) {
+            // cppcheck-suppress duplicateExpression
+            uint32_t enqueuedDevices = meshDeviceTxCount - txBefore;
             uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
             uint32_t totalTx = transmittedDevices.size();
             String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
@@ -1782,7 +1783,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
 
 void blueTeamTask(void *pv) {
     sentinel_kill();
-    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
 
     String startMsg = forever ?
@@ -2909,7 +2910,7 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
 void probeDetectionTask(void *pv)
 {
     sentinel_kill();
-    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
 
     Serial.printf("[PROBE] Starting probe detection, duration=%d forever=%d\n", duration, forever);
@@ -3306,7 +3307,7 @@ String getProbeResults()
 
     uint32_t nowEpoch = millis() / 1000;
 
-    for (auto &p : sorted) {
+    for (const auto &p : sorted) {
         ProbeDevice &dev = *p.second;
         results += "WiFi " + p.first + " RSSI=" + String(dev.rssi) + "dBm CH=" + String(dev.channel) + " ";
 
@@ -3821,7 +3822,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 // Scan tasks
 void listScanTask(void *pv) {
     sentinel_kill();
-    int secs = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (secs <= 0);
 
     String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" :

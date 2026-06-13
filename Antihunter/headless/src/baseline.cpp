@@ -366,7 +366,7 @@ static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
 
 void baselineDetectionTask(void *pv) {
     sentinel_kill();
-    int duration = (int)(intptr_t)pv;
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
     scanSetCountdown(duration, forever);
 

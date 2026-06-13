@@ -538,7 +538,7 @@ void cleanupDroneData() {
 void droneDetectorTask(void *pv)
 {
     sentinel_kill();
-    int duration = static_cast<int>(reinterpret_cast<intptr_t>(pv));
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
     scanSetCountdown(duration, forever);
 

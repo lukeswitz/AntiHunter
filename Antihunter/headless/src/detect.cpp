@@ -92,7 +92,7 @@ std::recursive_mutex g_mtx;
 // PMKID burst tracking — per src MAC, list of (bssid, ts)
 struct PmkidBurst {
     PsramMap<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
-    uint32_t lastSeen;
+    uint32_t lastSeen{};
 };
 PsramMap<uint64_t, PmkidBurst> g_pmkidBursts;
 PsramVec<PmkidHarvestEvent> g_pmkidLog;
@@ -139,12 +139,12 @@ PsramVec<SaeDosEvent> g_saeDosLog;
 // to one BSSID from many spoofed src MACs, none completing association.
 // docs/detector-verification.md section 1. Always-on (like deauth), no toggle.
 struct AuthFloodWindow {
-    uint32_t windowStartMs;
-    uint16_t frames;
+    uint32_t windowStartMs{};
+    uint16_t frames{};
     PsramSet<uint64_t> distinctSrc;
-    int8_t   bestRssi;
-    uint8_t  channel;
-    bool     alerted;
+    int8_t   bestRssi{};
+    uint8_t  channel{};
+    bool     alerted{};
 };
 PsramMap<uint64_t, AuthFloodWindow> g_authFlood;
 static constexpr size_t   MAX_AUTH_FLOOD_MAP = 32;
@@ -1191,11 +1191,11 @@ static void handleBeacon(const DetectFrameEvent &e) {
     bool tsfNonMono = twinMultich;
 
     struct SsidWatch {
-        uint32_t winStartMs;
-        uint8_t streak;
+        uint32_t winStartMs{};
+        uint8_t streak{};
         PsramSet<uint32_t> ouis;
         PsramSet<uint64_t> bssids;
-        uint32_t lastFiredMs;
+        uint32_t lastFiredMs{};
     };
     static PsramMap<uint64_t, SsidWatch> g_ssidWatch;
     static constexpr size_t MAX_SSID_TRACK = 48;
@@ -1431,12 +1431,12 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
 // in a 5s window. >=4 distinct = alert.
 // =============================================================================
 struct AssocSleepWindow {
-    uint32_t windowStartMs;
+    uint32_t windowStartMs{};
     PsramSet<uint64_t> distinctSrc;
-    uint16_t frames;
-    int8_t bestRssi;
-    uint8_t channel;
-    bool alerted;
+    uint16_t frames{};
+    int8_t bestRssi{};
+    uint8_t channel{};
+    bool alerted{};
 };
 static PsramMap<uint64_t, AssocSleepWindow> g_assocSleep;
 static constexpr size_t MAX_ASSOC_SLEEP_MAP = 32;
@@ -1721,12 +1721,12 @@ static bool probeReqHasHT(const uint8_t *ies, uint16_t ieLen) {
 // Behavioral fallback: distinct src MACs probing identical SSID in 5s window.
 // Catches probe-flood variants that don't use the fixed seq=0x0001 fingerprint.
 struct ProbeBehaveWindow {
-    uint32_t windowStartMs;
+    uint32_t windowStartMs{};
     PsramSet<uint64_t> distinctSrc;
-    int8_t bestRssi;
-    uint8_t channel;
-    bool alerted;
-    char ssid[33];
+    int8_t bestRssi{};
+    uint8_t channel{};
+    bool alerted{};
+    char ssid[33]{};
 };
 static PsramMap<uint64_t, ProbeBehaveWindow> g_probeBehave;
 static constexpr size_t MAX_PROBE_BEHAVE_MAP = 64;
@@ -1776,7 +1776,7 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
 }
 
 // Global probe-rate flood: RANDOMIZED (mdk4 unique-MAC) or SINGLE_MAC (Marauder)
-struct ProbeGlobalWin { uint32_t winMs; uint16_t total; bool alerted; PsramMap<uint64_t,uint16_t> srcCount; };
+struct ProbeGlobalWin { uint32_t winMs{}; uint16_t total{}; bool alerted{}; PsramMap<uint64_t,uint16_t> srcCount; };
 static ProbeGlobalWin g_probeGlobal{0,0,false,{}};
 static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, uint32_t now) {
     if (now - g_probeGlobal.winMs > 5000) {
@@ -2080,7 +2080,6 @@ static void handleQosData(const DetectFrameEvent &e) {
     const uint8_t *a2 = p + 10;
     uint16_t seqctrl = (uint16_t)p[22] | ((uint16_t)p[23] << 8);
     uint8_t  fragNum = seqctrl & 0x0F;
-    uint16_t seqNum  = seqctrl >> 4;
     uint8_t hdrLen = 24 + 2;
     bool fourAddr = (toDs == 1 && fromDs == 1);
     if (fourAddr) hdrLen += 6;
@@ -2134,6 +2133,7 @@ static void handleQosData(const DetectFrameEvent &e) {
     //     encrypted/plaintext fragments (CVE-2020-26147). Passive, header-only.
     bool isFragment = moreFrag || fragNum > 0;
     if (isFragment) {
+        uint16_t seqNum = seqctrl >> 4;
         auto fit = g_fragMsdu.find(key);
         if (fit == g_fragMsdu.end()) {
             if (g_fragMsdu.size() >= 64) {
@@ -2645,7 +2645,7 @@ void recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t
     if (gpsCount >= 2) {
         bool geomViolation = false;
         bool anyClose = false;
-        for (auto &rx2 : c.rxs) {
+        for (const auto &rx2 : c.rxs) {
             if (!rx2.hasGps) continue;
             float claimedDist = haversineMeters(rx2.nodeLat, rx2.nodeLon, lat, lon);
             float rssiDist = rssiToMeters(rx2.rssi);
@@ -3322,11 +3322,11 @@ static bool airtagDecode(const uint8_t *adv, uint16_t len, uint8_t &statusOut) {
 //     append-only, capped at 256 records ~5KB. Loaded on boot so reboot doesn't
 //     re-alert on the same replay. Real-world: rare enough event to never bloat.
 struct AirTagReplayEntry {
-    uint64_t firstAddr;
-    uint32_t firstSeenMs;
+    uint64_t firstAddr{};
+    uint32_t firstSeenMs{};
     PsramSet<uint64_t> seenAddrs;
-    bool alerted;
-    bool persisted;  // already on SD — skip re-write
+    bool alerted{};
+    bool persisted{};  // already on SD — skip re-write
 };
 static PsramMap<uint32_t, AirTagReplayEntry> g_airtagReplay;
 static constexpr size_t MAX_AIRTAG_REPLAY_MAP = 128;
@@ -4868,8 +4868,8 @@ namespace {
     static constexpr uint16_t SOFTAP_DEAUTH_THRESH = 3;
     struct SoftApProbeState {
         PsramMap<uint64_t, uint16_t> srcCounts;
-        uint32_t winStartMs;
-        bool alerted;
+        uint32_t winStartMs{};
+        bool alerted{};
     } g_softApProbe;
     static constexpr uint32_t SOFTAP_PROBE_WIN_MS = 10000;
     static constexpr uint16_t SOFTAP_PROBE_DISTINCT = 20;
