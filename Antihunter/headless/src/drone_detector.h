@@ -4,6 +4,7 @@
 #include <map>
 #include "opendroneid.h"
 #include <atomic>
+#include <mutex>
 
 struct DroneDetection {
     uint8_t mac[6];
@@ -41,6 +42,7 @@ struct DroneFrameEvent {
 };
 
 extern std::map<String, DroneDetection> detectedDrones;
+extern std::mutex detectedDronesMutex;
 extern portMUX_TYPE droneMux;
 extern std::vector<String> droneEventLog;
 extern std::atomic<uint32_t> droneDetectionCount;
