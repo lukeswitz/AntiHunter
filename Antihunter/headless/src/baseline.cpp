@@ -809,8 +809,16 @@ void cleanupBaselineMemory() {
         for (const auto& key : toRemove) {
             deviceHistory.erase(key);
         }
+        if (deviceHistory.size() > 1000) {
+            std::vector<std::pair<uint32_t, String>> ages;
+            ages.reserve(deviceHistory.size());
+            for (const auto& entry : deviceHistory) ages.push_back({entry.second.lastSeen, entry.first});
+            std::sort(ages.begin(), ages.end());
+            size_t toCut = deviceHistory.size() - 1000;
+            for (size_t i = 0; i < toCut; ++i) deviceHistory.erase(ages[i].second);
+        }
     }
-    
+
     if (baselineEstablished) {
         std::vector<uint64_t> toRemove;
         for (const auto& entry : baselineCache) {
@@ -1344,6 +1352,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.reason = "New device (not in baseline)";
 
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+        if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
         anomalyLog.push_back(hit);
         anomalyCount++;
 
@@ -1390,6 +1399,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+            if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
             anomalyLog.push_back(hit);
             anomalyCount++;
 
@@ -1432,6 +1442,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
+            if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
             anomalyLog.push_back(hit);
             anomalyCount++;
 

@@ -8,6 +8,7 @@
 #include <NimBLEScan.h>
 #include <NimBLEAdvertisedDevice.h>
 #include <TinyGPSPlus.h>
+#include <esp_timer.h>
 
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
@@ -1520,7 +1521,7 @@ void disciplineRTCFromGPS() {
             xSemaphoreGive(rtcMutex);
 
             // Recalibrate boot-to-epoch offset with centisecond precision
-            uint32_t bootMicros = micros();
+            int64_t bootMicros = esp_timer_get_time();
             clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - static_cast<int64_t>(bootMicros);
             clockDiscipline.offsetCalibrated = true;
             clockDiscipline.disciplineCount = 0;
@@ -1530,13 +1531,13 @@ void disciplineRTCFromGPS() {
         }
     } else if (!clockDiscipline.offsetCalibrated) {
         // Calibrate offset on first GPS sync with centisecond precision
-        uint32_t bootMicros = micros();
+        int64_t bootMicros = esp_timer_get_time();
         clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - static_cast<int64_t>(bootMicros);
         clockDiscipline.offsetCalibrated = true;
         Serial.printf("[DISCIPLINE] Boot-to-epoch offset calibrated (cs=%d)\n", centisecond);
     } else if (abs(offset) <= 1) {
         // Small drift - update offset without adjusting RTC
-        uint32_t bootMicros = micros();
+        int64_t bootMicros = esp_timer_get_time();
         clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - static_cast<int64_t>(bootMicros);
 
         if (clockDiscipline.lastDiscipline > 0) {
@@ -1561,7 +1562,7 @@ int64_t getCorrectedMicroseconds() {
     // Get Unix timestamp with microsecond precision for timing synchronization
     if (!rtcAvailable || rtcMutex == nullptr || !clockDiscipline.offsetCalibrated) {
         // Fallback to boot-relative microseconds if no RTC or not calibrated
-        uint32_t currentMicros = micros();
+        int64_t currentMicros = esp_timer_get_time();
         if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
             uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
             int64_t correction = static_cast<int64_t>(clockDiscipline.driftRate * elapsedMs * 1000.0);
@@ -1571,7 +1572,7 @@ int64_t getCorrectedMicroseconds() {
     }
 
     // Use calibrated boot-to-epoch offset to convert micros() to Unix timestamp
-    uint32_t bootMicros = micros();
+    int64_t bootMicros = esp_timer_get_time();
     int64_t unixTimestampMicros = static_cast<int64_t>(bootMicros) + clockDiscipline.bootToEpochOffsetMicros;
 
     // Apply drift correction if converged

@@ -1231,7 +1231,10 @@ void updateGPSLocation() {
 
 void logToSD(const String &data) {
     if (!SafeSD::isAvailable()) return;
-    
+
+    static std::mutex sdLogMutex;
+    std::lock_guard<std::mutex> sdLock(sdLogMutex);
+
     static uint32_t totalWrites = 0;
     static uint32_t failCount = 0;  // cppcheck-suppress variableScope
     static File logFile;
@@ -1275,14 +1278,9 @@ void logToSD(const String &data) {
     
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
-        // Flush before checking size to ensure accurate reporting
         if (logFile) {
             logFile.flush();
-        }
-        File checkFile = SafeSD::open("/antihunter.log", FILE_READ);
-        if (checkFile) {
-            Serial.printf("[SD] Log file size: %lu bytes\n", checkFile.size());
-            checkFile.close();
+            Serial.printf("[SD] Log file size: %lu bytes\n", (unsigned long)logFile.size());
         }
         lastSizeCheck = millis();
     }
@@ -1323,13 +1321,10 @@ void logEventToSD(const char* path, const String& jsonLine) {
         }
     }
     f.println(jsonLine);
+    size_t curSize = f.size();
     f.close();
 
-    // Rotate if over 1MB
-    File check = SafeSD::open(path, FILE_READ);
-    if (check && check.size() > 1048576) {
-        check.close();
-        // Build rotated name: /foo.jsonl -> /foo_old.jsonl
+    if (curSize > 1048576) {
         String rotated = String(path);
         int dotIdx = rotated.lastIndexOf('.');
         if (dotIdx > 0) {
@@ -1340,8 +1335,6 @@ void logEventToSD(const char* path, const String& jsonLine) {
         SafeSD::remove(rotated.c_str());
         SD.rename(path, rotated.c_str());
         Serial.printf("[SD] Rotated %s -> %s\n", path, rotated.c_str());
-    } else if (check) {
-        check.close();
     }
 }
 

@@ -409,6 +409,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     const String macStr = macFmt6(drone.mac);
     const String uavIdStr = String(drone.uavId);
 
+    std::lock_guard<std::mutex> lock(detectedDronesMutex);
     auto existingIt = std::find_if(detectedDrones.begin(), detectedDrones.end(),
         [&uavIdStr](const std::pair<const String, DroneDetection>& entry) {
             return String(entry.second.uavId) == uavIdStr && uavIdStr.length() > 0;
