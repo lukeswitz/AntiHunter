@@ -2015,6 +2015,12 @@ static void handleAuthSae(const DetectFrameEvent &e) {
     uint16_t win = g_saeWindow.load();
 
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    if (g_saeCounters.size() >= 512 && g_saeCounters.find(k) == g_saeCounters.end()) {
+        for (auto it = g_saeCounters.begin(); it != g_saeCounters.end(); ) {
+            if (now - it->second.windowStart > win) it = g_saeCounters.erase(it);
+            else ++it;
+        }
+    }
     SaeCounter &c = g_saeCounters[k];
     if (c.windowStart == 0 || now - c.windowStart > win) {
         c.windowStart = now;
@@ -2405,7 +2411,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
             if (fpWinStart == 0 || (nowM - fpWinStart) > 5000 || fpAddr != addrK) {
                 fpWinStart = nowM; fpAddr = addrK; fpModels.clear(); fpAlerted = false;
             }
-            fpModels.insert(model);
+            if (fpModels.size() < 64) fpModels.insert(model);
             if (!fpAlerted && fpModels.size() >= 3) {
                 fpAlerted = true;
                 String a = macStr(addr);
@@ -2444,7 +2450,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
                 iosWinStart = nowM; iosTypes.clear(); iosAddrs.clear(); iosAlerted = false;
             }
             iosTypes.insert(typeByte);
-            iosAddrs.insert(packMac(addr));
+            if (iosAddrs.size() < 256) iosAddrs.insert(packMac(addr));
             if (!iosAlerted && iosTypes.size() >= 3 && iosAddrs.size() >= 3) {
                 iosAlerted = true;
                 String a = macStr(addr);
@@ -4645,6 +4651,7 @@ void mesh_observeInbound(const String &sender, const String &body) {
         if (g_meshSeenCnt.size() >= 32 && !g_meshSeenCnt.count(sender)) g_meshSeenCnt.clear();
         uint8_t &c = g_meshSeenCnt[sender];
         if (c < 255) c++;
+        if (g_meshPeers.size() >= 256 && !g_meshPeers.count(sender)) g_meshPeers.clear();
         g_meshPeers.insert(sender);
     }
 }
@@ -4781,6 +4788,12 @@ void quorum_addReport(const String &type, const String &key,
     String k = type + ":" + key;
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    if (g_alerts.size() >= 512 && g_alerts.find(k) == g_alerts.end()) {
+        for (auto it = g_alerts.begin(); it != g_alerts.end(); ) {
+            if (it->second.fired || now - it->second.firstSeen > 120000) it = g_alerts.erase(it);
+            else ++it;
+        }
+    }
     auto &c = g_alerts[k];
     if (c.firstSeen == 0) {
         c.type = type; c.key = key; c.firstSeen = now; c.fired = false;

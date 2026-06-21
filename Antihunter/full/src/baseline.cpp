@@ -933,8 +933,16 @@ void cleanupBaselineMemory() {
         for (const auto& key : toRemove) {
             deviceHistory.erase(key);
         }
+        if (deviceHistory.size() > 1000) {
+            std::vector<std::pair<uint32_t, String>> ages;
+            ages.reserve(deviceHistory.size());
+            for (const auto& entry : deviceHistory) ages.push_back({entry.second.lastSeen, entry.first});
+            std::sort(ages.begin(), ages.end());
+            size_t toCut = deviceHistory.size() - 1000;
+            for (size_t i = 0; i < toCut; ++i) deviceHistory.erase(ages[i].second);
+        }
     }
-    
+
     size_t cacheSizeSnapshot;
     size_t anomalySizeSnapshot;
     {
@@ -1530,6 +1538,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
         {
             std::lock_guard<std::mutex> lock(baselineMutex);
+            if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
             anomalyLog.push_back(hit);
             anomalyCount++;
         }

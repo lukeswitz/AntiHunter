@@ -1902,6 +1902,7 @@ void blueTeamTask(void *pv) {
                     uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
                     for (const auto &kv : floodWin) if (kv.second.first < oldest) { oldest = kv.second.first; oldestK = kv.first; }
                     floodWin.erase(oldestK);
+                    floodAlerted.erase(oldestK);
                 }
             }
 
@@ -3946,6 +3947,14 @@ void listScanTask(void *pv) {
             (millis() - lastTimeSyncBroadcast) > 30000) {
             broadcastTimeSyncRequest();
             lastTimeSyncBroadcast = millis();
+        }
+
+        if (localDeviceLastSeen.size() > 512) {
+            uint32_t nowSweep = millis();
+            for (auto it = localDeviceLastSeen.begin(); it != localDeviceLastSeen.end(); ) {
+                if (nowSweep - it->second >= LOCAL_DEDUPE_WINDOW) it = localDeviceLastSeen.erase(it);
+                else ++it;
+            }
         }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&

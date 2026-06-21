@@ -1835,6 +1835,7 @@ void blueTeamTask(void *pv) {
                     uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
                     for (const auto &kv : floodWin) if (kv.second.first < oldest) { oldest = kv.second.first; oldestK = kv.first; }
                     floodWin.erase(oldestK);
+                    floodAlerted.erase(oldestK);
                 }
             }
 

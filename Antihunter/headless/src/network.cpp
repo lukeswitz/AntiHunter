@@ -2287,6 +2287,12 @@ void sendMeshNotification(const Hit &hit) {
     newState.lastLat = gpsValid ? gpsLat : 0.0;
     newState.lastLon = gpsValid ? gpsLon : 0.0;
     newState.hadGPS = gpsValid;
+    if (meshTargetStates.size() >= 1000 && meshTargetStates.find(macKey) == meshTargetStates.end()) {
+        for (auto sit = meshTargetStates.begin(); sit != meshTargetStates.end(); ) {
+            if (now - sit->second.lastSent > (PER_TARGET_MIN_INTERVAL * 10)) sit = meshTargetStates.erase(sit);
+            else ++sit;
+        }
+    }
     meshTargetStates[macKey] = newState;
 
     // Build and send the message
