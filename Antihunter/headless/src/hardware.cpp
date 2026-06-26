@@ -59,6 +59,8 @@ extern bool lastScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern TaskHandle_t blueTeamTaskHandle;
+extern TaskHandle_t workerTaskHandle;
+extern std::atomic<bool> triangulationActive;
 uint32_t SafeSD::lastCheckTime = 0;
 bool SafeSD::lastCheckResult = false;
 static unsigned long lastSaveTime = 0;
@@ -1025,10 +1027,10 @@ void logToSD(const String &data) {
     std::lock_guard<std::mutex> sdLock(sdLogMutex);
 
     static uint32_t totalWrites = 0;
-    static uint32_t failCount = 0;  // cppcheck-suppress variableScope
     static File logFile;
 
     if (!SD.exists("/")) {
+        static uint32_t failCount = 0;
         failCount++;
         if (failCount > 5) {
             Serial.println("[SD] Multiple failures, marking unavailable");
@@ -1800,9 +1802,6 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
 
     // Stop any active scanning tasks
     extern std::atomic<bool> stopRequested;
-    extern TaskHandle_t workerTaskHandle;  // cppcheck-suppress shadowVariable
-    extern TaskHandle_t blueTeamTaskHandle;  // cppcheck-suppress shadowVariable
-
     stopRequested = true;
 
     // Wait for tasks to stop
@@ -1888,7 +1887,6 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
-    extern std::atomic<bool> triangulationActive;  // cppcheck-suppress shadowVariable
     if (triangulationActive.load()) {
         return;
     }

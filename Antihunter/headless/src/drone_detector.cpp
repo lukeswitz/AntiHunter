@@ -214,10 +214,7 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload) {
 void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     if (!droneDetectionEnabled || length < 24) return;
     
-    DroneDetection drone;
-    // cppcheck-suppress memsetClassFloat
-    memset(&drone, 0, sizeof(drone));
-
+    DroneDetection drone{};
     memcpy(drone.mac, payload + 10, 6);
     drone.rssi = rssi;
     drone.timestamp = millis();
@@ -264,8 +261,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
                       ((val[0] == 0xfa && val[1] == 0x0b && val[2] == 0xbc)))) {
                 int j = offset + 7;
                 if (j < length) {
-                    // cppcheck-suppress memsetClassFloat
-                    memset(&uasData, 0, sizeof(uasData));
+                    uasData = ODID_UAS_Data{};
                     odid_message_process_pack(&uasData, const_cast<uint8_t*>(&payload[j]), length - j);
                     parseDroneData(&drone, &uasData);
                     validDrone = true;
@@ -370,9 +366,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
                          const uint8_t *odid, int odidLen) {
     if (!droneDetectionEnabled || !addr || !odid || odidLen < 1) return;
     if (rssi < rfConfig.globalRssiThreshold) return;
-    DroneDetection drone;
-    // cppcheck-suppress memsetClassFloat
-    memset(&drone, 0, sizeof(drone));
+    DroneDetection drone{};
     memcpy(drone.mac, addr, 6);
     drone.rssi = rssi;
     drone.timestamp = millis();

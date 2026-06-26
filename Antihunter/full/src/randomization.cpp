@@ -378,8 +378,7 @@ void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t finger
     uint8_t tempBuf[64] = {0};
     uint16_t bufPos = 0;
     
-    // cppcheck-suppress knownConditionTrueFalse
-    if (device->haveManufacturerData() && bufPos < 48) {
+    if (device->haveManufacturerData()) {
         std::string mfgData = device->getManufacturerData();
         uint16_t copyLen = min(static_cast<size_t>(16), mfgData.length());
         memcpy(tempBuf + bufPos, mfgData.data(), copyLen);
@@ -1006,14 +1005,13 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
 
         for (const auto& existingEntry : deviceIdentities) {
             const DeviceIdentity& existingIdentity = existingEntry.second;
-            for (const auto& existingMac : existingIdentity.macs) {
-                // cppcheck-suppress useStlAlgorithm
-                if (memcmp(existingMac.bytes.data(), session.mac, 6) == 0) {
-                    if (detect_isVerbose())
-                        Serial.printf("[RAND] MAC %s already in %s, skipping new identity\n",
-                                macStr.c_str(), existingIdentity.identityId);
-                    return;
-                }
+            const bool macMatches = std::any_of(existingIdentity.macs.begin(), existingIdentity.macs.end(),
+                [&](const auto& m) { return memcmp(m.bytes.data(), session.mac, 6) == 0; });
+            if (macMatches) {
+                if (detect_isVerbose())
+                    Serial.printf("[RAND] MAC %s already in %s, skipping new identity\n",
+                            macStr.c_str(), existingIdentity.identityId);
+                return;
             }
         }
         
