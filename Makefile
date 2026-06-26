@@ -1,21 +1,12 @@
 CPPCHECK := cppcheck
-CPPCHECK_FLAGS := --enable=all --std=c++17 \
-	--suppress=missingIncludeSystem \
-	--suppress=missingInclude \
-	--suppress=checkersReport \
-	--suppress=unusedFunction \
-	--suppress=normalCheckLevelMaxBranches \
-	--suppress=checkLevelNormal \
-	--suppress=unmatchedSuppression \
-	--inline-suppr \
+CPPCHECK_FLAGS := --enable=warning,style,performance,portability --std=c++17 \
 	-DPROGMEM= \
 	--error-exitcode=1
 
 FULL_SRC := Antihunter/full/src
 HEADLESS_SRC := Antihunter/headless/src
 EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
-	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c \
-	--suppress=*:*/opendroneid.h --suppress=*:*/odid_wifi.h
+	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c
 
 .PHONY: lint lint-full lint-headless build build-full build-headless clean
 

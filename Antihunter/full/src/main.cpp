@@ -1,6 +1,7 @@
 #include "main.h"
 #include "triangulation.h"
 #include <SPI.h>
+#include <algorithm>
 #include <Arduino.h>
 #include <Preferences.h>
 #include "network.h"
@@ -173,8 +174,8 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-    bool hasAp = false;
-    for (uint8_t ch : CHANNELS) if (ch == (uint8_t)AP_CHANNEL) { hasAp = true; break; }
+    const bool hasAp = std::any_of(CHANNELS.begin(), CHANNELS.end(),
+        [](uint8_t ch) { return ch == (uint8_t)AP_CHANNEL; });
     if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);
 }
 
