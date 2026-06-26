@@ -4243,7 +4243,7 @@ void initializeDetect() {
 }
 
 extern std::atomic<bool> scanning;
-extern void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
+extern void sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type);
 extern std::vector<uint8_t> CHANNELS;   // user-configured scan channel list
 
 static std::atomic<bool> g_sentinelAlwaysOnActive{false};
@@ -4296,7 +4296,7 @@ static void sentinelAlwaysOnTask(void *pv) {
             if (wantData) filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_DATA;
             if (g_jamEnabled.load()) filter.filter_mask |= WIFI_PROMIS_FILTER_MASK_FCSFAIL;
             esp_err_t r1 = esp_wifi_set_promiscuous_filter(&filter);
-            esp_err_t r2 = esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
+            esp_err_t r2 = esp_wifi_set_promiscuous_rx_cb(reinterpret_cast<wifi_promiscuous_cb_t>(&sniffer_cb));
             esp_err_t r3 = esp_wifi_set_promiscuous(true);
             weOwn = true;
             Serial.printf("[SENTINEL] Took radio: filter=%s r1=%d r2=%d r3=%d\n",

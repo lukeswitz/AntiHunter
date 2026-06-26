@@ -77,7 +77,7 @@ const size_t MAX_BLE_CACHE = 200;
 
 // BLE 
 NimBLEScan *pBLEScan;
-void sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type);
+void sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type);
 
 // Scan intervals
 uint32_t WIFI_SCAN_INTERVAL = 4000;
@@ -675,11 +675,8 @@ bool matchesSsid(const char *ssid)
     if (!ssid || ssid[0] == '\0') return false;
     String lower = String(ssid);
     lower.toLowerCase();
-    // cppcheck-suppress useStlAlgorithm
-    for (const auto &s : ssidTargets) {
-        if (lower == s) return true;
-    }
-    return false;
+    return std::any_of(ssidTargets.begin(), ssidTargets.end(),
+        [&](const auto& s) { return lower == s; });
 }
 
 static inline bool matchesMac(const uint8_t *mac)
@@ -949,7 +946,6 @@ void snifferScanTask(void *pv)
     lastScanForever = forever;
     scanSetCountdown(duration, forever);
 
-    int networksFound = 0; // cppcheck-suppress variableScope
     unsigned long lastBLEScan = 0;
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
@@ -960,14 +956,12 @@ void snifferScanTask(void *pv)
 
     String meshBatch;
     std::vector<String> meshBatchMacs;
-    uint32_t meshDeviceTxCount = 0;
     auto flushMeshBatch = [&]() {
         if (meshBatch.length() == 0) return;
         if (meshEnqueue(meshBatch)) {
             for (const auto &m : meshBatchMacs) {
                 transmittedDevices.insert(m);
                 meshMarkMacSent(m);
-                meshDeviceTxCount++;
             }
         }
         meshBatch = "";
@@ -997,7 +991,7 @@ void snifferScanTask(void *pv)
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
-            networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            const int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
             if (stopRequested) break;
 
             if (networksFound > 0)
@@ -1487,8 +1481,7 @@ void snifferScanTask(void *pv)
     }
 
     if (meshEnabled) {
-        // cppcheck-suppress variableScope
-        uint32_t txBefore = meshDeviceTxCount;
+        const size_t txBefore = transmittedDevices.size();
         uint32_t skippedDevices = 0;
         for (const auto& entry : apCache) {
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
@@ -1531,10 +1524,9 @@ void snifferScanTask(void *pv)
         flushMeshBatch();
 
         if (!stopRequested) {
-            // cppcheck-suppress duplicateExpression
-            uint32_t enqueuedDevices = meshDeviceTxCount - txBefore;
-            uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
-            uint32_t totalTx = transmittedDevices.size();
+            const uint32_t totalTx = transmittedDevices.size();
+            const uint32_t enqueuedDevices = totalTx - static_cast<uint32_t>(txBefore);
+            const uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
             String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
                             " B=" + String(bleDeviceCache.size()) +
                             " U=" + String(uniqueMacs.size()) +
@@ -2015,8 +2007,7 @@ static uint8_t extractChannelFromIE(const uint8_t *payload, uint16_t length, uin
     return 0;
 }
 
-// cppcheck-suppress constParameterCallback
-void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
+void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
 {
     if (!buf) return;
 
@@ -2096,14 +2087,10 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         else if (ftype == 0 && stype == 5 && probeDetectionEnabled && probeRequestQueue) {
             UBaseType_t qFree = uxQueueSpacesAvailable(probeRequestQueue);
             if (qFree > 128) {
-                // cppcheck-suppress variableScope
                 const uint8_t *da = payload + 4;
-                // cppcheck-suppress variableScope
-                const uint8_t *sa = payload + 10;
-                // cppcheck-suppress variableScope
-                const uint8_t *bssid = payload + 16;
-
                 if (da[0] != 0xFF && !(da[0] & 0x01)) {
+                    const uint8_t *sa = payload + 10;
+                    const uint8_t *bssid = payload + 16;
                     ProbeRequestEvent respEvt = {};
                     memcpy(respEvt.mac, sa, 6);
                     memcpy(respEvt.addr1, da, 6);
@@ -2185,8 +2172,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     uint8_t tods = (fc >> 8) & 0x1;
     uint8_t fromds = (fc >> 9) & 0x1;
 
-    // cppcheck-suppress variableScope
-    const uint8_t *a1 = p + 4, *a2 = p + 10, *a3 = p + 16;
+    const uint8_t *a2 = p + 10, *a3 = p + 16;
     uint8_t cand1[6], cand2[6];
     bool c1 = false, c2 = false;
 
@@ -2220,6 +2206,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         }
         else if (tods && !fromds)
         {
+            const uint8_t *a1 = p + 4;
             if (!isZeroOrBroadcast(a2))
             {
                 memcpy(cand1, a2, 6);
@@ -2516,7 +2503,7 @@ void radioStartSTA() {
     wifi_promiscuous_filter_t filter = {};
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
     esp_wifi_set_promiscuous_filter(&filter);
-    esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
+    esp_wifi_set_promiscuous_rx_cb(reinterpret_cast<wifi_promiscuous_cb_t>(&sniffer_cb));
     esp_wifi_set_promiscuous(true);
 
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
@@ -3265,17 +3252,12 @@ void loadProbeDB()
         ProbeDBEntry entry = {};
         strncpy(entry.mac, mac, 17);
         entry.mac[17] = '\0';
-        // cppcheck-suppress badBitmaskCheck
-        entry.totalSeen = doc["t"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        entry.firstEpoch = doc["f"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        entry.lastEpoch = doc["l"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        entry.sessionCount = doc["s"] | 0;
+        entry.totalSeen = doc["t"].as<uint32_t>();
+        entry.firstEpoch = doc["f"].as<uint32_t>();
+        entry.lastEpoch = doc["l"].as<uint32_t>();
+        entry.sessionCount = doc["s"].as<uint16_t>();
         entry.bestRssi = doc["r"] | -128;
-        // cppcheck-suppress badBitmaskCheck
-        entry.isRandomized = doc["rd"] | false;
+        entry.isRandomized = doc["rd"].as<bool>();
 
         const char *vendor = doc["v"] | "";
         strncpy(entry.vendor, vendor, sizeof(entry.vendor) - 1);
@@ -3681,14 +3663,10 @@ void listScanTask(void *pv) {
         // Check if initiator already exists (mutex protected)
         {
             std::lock_guard<std::mutex> lock(triangulationMutex);
-            bool selfNodeExists = false;
-            for (const auto& node : triangulationNodes) {
-                // cppcheck-suppress useStlAlgorithm
-                if (node.nodeId == myNodeId) {
-                    selfNodeExists = true;
-                    Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
-                    break;
-                }
+            const bool selfNodeExists = std::any_of(triangulationNodes.begin(), triangulationNodes.end(),
+                [&](const auto& n) { return n.nodeId == myNodeId; });
+            if (selfNodeExists) {
+                Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
             }
 
             if (!selfNodeExists) {
@@ -3731,9 +3709,8 @@ void listScanTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    uint32_t nextStatus = millis() + 1000; // cppcheck-suppress unreadVariable
-    std::map<String, uint32_t> deviceLastSeen; // cppcheck-suppress shadowVariable
-    const uint32_t DEDUPE_WINDOW = 3000; // cppcheck-suppress shadowVariable
+    std::map<String, uint32_t> localDeviceLastSeen;
+    const uint32_t LOCAL_DEDUPE_WINDOW = 3000;
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
     Hit h;
@@ -3772,8 +3749,8 @@ void listScanTask(void *pv) {
                     if (ssid.length() == 0) ssid = "[Hidden]";
 
                     uint32_t now = millis();
-                    bool shouldProcess = (deviceLastSeen.find(bssid) == deviceLastSeen.end() ||
-                                          (now - deviceLastSeen[bssid] >= DEDUPE_WINDOW));
+                    bool shouldProcess = (localDeviceLastSeen.find(bssid) == localDeviceLastSeen.end() ||
+                                          (now - localDeviceLastSeen[bssid] >= LOCAL_DEDUPE_WINDOW));
 
                     if (!shouldProcess) continue;
 
@@ -3813,7 +3790,7 @@ void listScanTask(void *pv) {
                         if (hitsLog.size() < MAX_LOG_SIZE) {
                             hitsLog.push_back(wh);
                         }
-                        deviceLastSeen[bssid] = now;
+                        localDeviceLastSeen[bssid] = now;
                     }
                 }
                 WiFi.scanDelete();
@@ -3843,8 +3820,8 @@ void listScanTask(void *pv) {
                 }
 
                 uint32_t now = millis();
-                bool shouldProcess = (deviceLastSeen.find(macStr) == deviceLastSeen.end() ||
-                                      (now - deviceLastSeen[macStr] >= DEDUPE_WINDOW));
+                bool shouldProcess = (localDeviceLastSeen.find(macStr) == localDeviceLastSeen.end() ||
+                                      (now - localDeviceLastSeen[macStr] >= LOCAL_DEDUPE_WINDOW));
 
                 if (!shouldProcess) continue;
 
@@ -3879,8 +3856,8 @@ void listScanTask(void *pv) {
                         Serial.printf("[SCAN] Queue full/unavailable for target %s\n", macStrOrig.c_str());
                     }
                 } else {
-                    Hit bh; // cppcheck-suppress variableScope
                     if (parseMac6(macStrOrig, mac)) {
+                        Hit bh;
                         memcpy(bh.mac, mac, 6);
                         bh.rssi = rssi;
                         bh.ch = 0;
@@ -3890,7 +3867,7 @@ void listScanTask(void *pv) {
                         if (hitsLog.size() < MAX_LOG_SIZE) {
                             hitsLog.push_back(bh);
                         }
-                        deviceLastSeen[macStr] = now;
+                        localDeviceLastSeen[macStr] = now;
                     }
                 }
             }
@@ -3908,11 +3885,11 @@ void listScanTask(void *pv) {
                 continue;
             }
 
-            if (deviceLastSeen.find(macStr) != deviceLastSeen.end()) {
-                if (now - deviceLastSeen[macStr] < DEDUPE_WINDOW) continue;
+            if (localDeviceLastSeen.find(macStr) != localDeviceLastSeen.end()) {
+                if (now - localDeviceLastSeen[macStr] < LOCAL_DEDUPE_WINDOW) continue;
             }
 
-            deviceLastSeen[macStr] = now;
+            localDeviceLastSeen[macStr] = now;
             uniqueMacs.insert(macStr);
             if (hitsLog.size() < MAX_LOG_SIZE) {
                 hitsLog.push_back(h);
@@ -4040,24 +4017,22 @@ void listScanTask(void *pv) {
 
                         {
                             std::lock_guard<std::mutex> lock(triangulationMutex);
-                            bool selfNodeFound = false;
-                            for (auto &node : triangulationNodes) {
-                                // cppcheck-suppress useStlAlgorithm
-                                if (node.nodeId == triNodeId) {
-                                    updateNodeRSSI(node, avgRssi);
-                                    node.hitCount = triTotalHits;
-                                    node.isBLE = isBLE;
-                                    if (hasGPS) {
-                                        node.lat = lat;
-                                        node.lon = lon;
-                                        node.hdop = hdop;
-                                        node.hasGPS = true;
-                                    }
-                                    node.distanceEstimate = rssiToDistance(node, !node.isBLE);
-                                    node.lastUpdate = millis();
-                                    selfNodeFound = true;
-                                    break;
+                            auto selfNodeIt = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
+                                [&](const auto& n) { return n.nodeId == triNodeId; });
+                            const bool selfNodeFound = (selfNodeIt != triangulationNodes.end());
+                            if (selfNodeFound) {
+                                auto &node = *selfNodeIt;
+                                updateNodeRSSI(node, avgRssi);
+                                node.hitCount = triTotalHits;
+                                node.isBLE = isBLE;
+                                if (hasGPS) {
+                                    node.lat = lat;
+                                    node.lon = lon;
+                                    node.hdop = hdop;
+                                    node.hasGPS = true;
                                 }
+                                node.distanceEstimate = rssiToDistance(node, !node.isBLE);
+                                node.lastUpdate = millis();
                             }
 
                             if (!selfNodeFound) {
@@ -4138,13 +4113,9 @@ void listScanTask(void *pv) {
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan) {
-            // cppcheck-suppress shadowVariable
-            // cppcheck-suppress unreadVariable
-            uint32_t lastBLEScan = 0;
             if (millis() - lastBLEScan >= 3000) {
                 NimBLEScanResults scanResults = pBLEScan->getResults(1000, false);
                 pBLEScan->clearResults();
-                // cppcheck-suppress unreadVariable
                 lastBLEScan = millis();
             }
         }
@@ -4312,12 +4283,12 @@ void listScanTask(void *pv) {
 }
 
 void cleanupMaps() {
-    const size_t MAX_LOG_SIZE = 500; // cppcheck-suppress shadowVariable
+    const size_t DEAUTH_LOG_CAP = 500;
 
     if (deauthQueue) xQueueReset(deauthQueue);
 
-    if (deauthLog.size() > MAX_LOG_SIZE) {
-        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - MAX_LOG_SIZE));
+    if (deauthLog.size() > DEAUTH_LOG_CAP) {
+        deauthLog.erase(deauthLog.begin(), deauthLog.begin() + (deauthLog.size() - DEAUTH_LOG_CAP));
     }
 }
 
@@ -4407,17 +4378,10 @@ void saveAllowlist(const String &txt)
 
 bool isAllowlisted(const uint8_t *mac)
 {
-    // cppcheck-suppress useStlAlgorithm
-    for (const auto &w : allowlist)
-    {
-        if (w.len == 6)
-        {
-            if (memcmp(w.bytes, mac, 6) == 0) return true;
-        }
-        else if (w.len == 3)
-        {
-            if (memcmp(w.bytes, mac, 3) == 0) return true;
-        }
-    }
-    return false;
+    return std::any_of(allowlist.begin(), allowlist.end(),
+        [&](const auto& w) {
+            if (w.len == 6) return memcmp(w.bytes, mac, 6) == 0;
+            if (w.len == 3) return memcmp(w.bytes, mac, 3) == 0;
+            return false;
+        });
 }

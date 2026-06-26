@@ -183,11 +183,7 @@ float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement) {
     
     if (node.rssiHistory.size() > 5) {
         float variance = 0.0;
-        float mean = 0.0;
-        for (int8_t rssi : node.rssiHistory) {
-            // cppcheck-suppress useStlAlgorithm
-            mean += rssi;
-        }
+        float mean = std::accumulate(node.rssiHistory.begin(), node.rssiHistory.end(), 0.0f);
         mean /= node.rssiHistory.size();
 
         for (int8_t rssi : node.rssiHistory) {
@@ -219,11 +215,7 @@ float calculateSignalQuality(const TriangulationNode &node) {
     }
 
     float variance = 0.0;
-    float mean = 0.0;
-    for (int8_t rssi : node.rssiHistory) {
-        // cppcheck-suppress useStlAlgorithm
-        mean += rssi;
-    }
+    float mean = std::accumulate(node.rssiHistory.begin(), node.rssiHistory.end(), 0.0f);
     mean /= node.rssiHistory.size();
 
     for (int8_t rssi : node.rssiHistory) {
@@ -325,11 +317,8 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
     estLat = refLat + dLat;
     estLon = refLon + dLon;
     
-    float avgQuality = 0.0;
-    for (size_t i = 0; i < numNodes; i++) {
-        // cppcheck-suppress useStlAlgorithm
-        avgQuality += sortedNodes[i].signalQuality;
-    }
+    float avgQuality = std::accumulate(sortedNodes.begin(), sortedNodes.begin() + numNodes, 0.0f,
+        [](float acc, const auto& n) { return acc + n.signalQuality; });
     avgQuality /= numNodes;
     
     confidence = avgQuality * (1.0 - 0.1 * (avgHDOP - 1.0)) * (1.0 - 0.05 * (numNodes - 3));
@@ -410,17 +399,14 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
 
         effectiveMicrosOffset = (int64_t)localMicros - (int64_t)milliseconds - (int64_t)reportedPropDelay;
 
-        bool found = false;
-        for (auto &sync : nodeSyncStatus) {
-            // cppcheck-suppress useStlAlgorithm
-            if (sync.nodeId == nodeId) {
-                sync.rtcTimestamp = timestamp;
-                sync.millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
-                sync.synced = (abs(timeOffset) == 0 && sync.millisOffset < 1);
-                sync.lastSyncCheck = millis();
-                found = true;
-                break;
-            }
+        auto syncIt = std::find_if(nodeSyncStatus.begin(), nodeSyncStatus.end(),
+            [&](const auto& s) { return s.nodeId == nodeId; });
+        const bool found = (syncIt != nodeSyncStatus.end());
+        if (found) {
+            syncIt->rtcTimestamp = timestamp;
+            syncIt->millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
+            syncIt->synced = (abs(timeOffset) == 0 && syncIt->millisOffset < 1);
+            syncIt->lastSyncCheck = millis();
         }
 
         if (!found && nodeSyncStatus.size() < MAX_SYNC_STATUS) {
@@ -476,8 +462,7 @@ String getNodeSyncStatus() {
 // Traingulation actions
 
 // Task that handles ACK collection and cycle start (runs async to avoid blocking web handler)
-// cppcheck-suppress constParameterCallback
-void coordinatorSetupTask(void *parameter) {
+void coordinatorSetupTask(const void *parameter) {
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(parameter));
 
     // Wait for child nodes to ACK - give mesh time to relay responses
@@ -684,7 +669,7 @@ void startTriangulation(const String &targetMac, int duration) {
     // Create async task to collect ACKs and start scanning (avoids blocking web handler)
     if (!coordinatorSetupTaskHandle) {
         ahCreateTask(
-            coordinatorSetupTask,
+            reinterpret_cast<TaskFunction_t>(coordinatorSetupTask),
             "triCoordSetup",
             4096,
             reinterpret_cast<void *>(static_cast<intptr_t>(duration)),
@@ -891,8 +876,6 @@ void stopTriangulation() {
     bool hasGPS;
 
     {
-        extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-        // cppcheck-suppress localMutex
         std::lock_guard<std::mutex> lock(triAccumMutex);
         hasData = triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0);
         if (hasData) {
@@ -920,14 +903,11 @@ void stopTriangulation() {
 
         {
             std::lock_guard<std::mutex> lock(triangulationMutex);
-            bool selfNodeExists = false;
-            for (const auto &node : triangulationNodes) {
-                // cppcheck-suppress useStlAlgorithm
-                if (node.nodeId == myNodeId) {
-                    selfNodeExists = true;
-                    Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", node.hitCount);
-                    break;
-                }
+            auto selfNodeIt = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
+                [&](const auto& n) { return n.nodeId == myNodeId; });
+            const bool selfNodeExists = (selfNodeIt != triangulationNodes.end());
+            if (selfNodeExists) {
+                Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", selfNodeIt->hitCount);
             }
 
             if (!selfNodeExists && triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
@@ -1109,16 +1089,12 @@ void stopTriangulation() {
     String myNodeId = getNodeId();
     int selfHits = 0;
     int8_t selfBestRSSI = -128;
-    bool selfDetected = false;
-
-    for (const auto& node : nodesSnapshot) {
-        // cppcheck-suppress useStlAlgorithm
-        if (node.nodeId == myNodeId) {
-            selfHits = node.hitCount;
-            selfBestRSSI = node.rssi;
-            selfDetected = true;
-            break;
-        }
+    auto selfIt = std::find_if(nodesSnapshot.begin(), nodesSnapshot.end(),
+        [&](const auto& n) { return n.nodeId == myNodeId; });
+    const bool selfDetected = (selfIt != nodesSnapshot.end());
+    if (selfDetected) {
+        selfHits = selfIt->hitCount;
+        selfBestRSSI = selfIt->rssi;
     }
 
     if (selfDetected && selfHits > 0) {
@@ -1153,8 +1129,6 @@ void stopTriangulation() {
     triangulationDuration = 0;
 
     {
-        extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-        // cppcheck-suppress localMutex
         std::lock_guard<std::mutex> lock(triAccumMutex);
         triAccum = {};
     }
@@ -1335,12 +1309,12 @@ String calculateTriangulation() {
         }
 
         results += "Non-GPS nodes:\n";
-        for (const auto& node : triangulationNodes) {
-            if (!node.hasGPS) {
-                // cppcheck-suppress useStlAlgorithm
-                results += "  • " + node.nodeId + " (enable GPS)\n";
-            }
-        }
+        std::for_each(triangulationNodes.begin(), triangulationNodes.end(),
+            [&](const auto& node) {
+                if (!node.hasGPS) {
+                    results += "  • " + node.nodeId + " (enable GPS)\n";
+                }
+            });
         results += "\n";
 
         // If we have < 2 GPS nodes, can't even do GPS-RSSI validation, so return here
@@ -1730,11 +1704,7 @@ void calibrationTask(void *parameter) {
     
     // WiFi calibration
     if (wifiSamples.size() >= 10) {
-        float meanRssi = 0;
-        for (int8_t rssi : wifiSamples) {
-            // cppcheck-suppress useStlAlgorithm
-            meanRssi += rssi;
-        }
+        float meanRssi = std::accumulate(wifiSamples.begin(), wifiSamples.end(), 0.0f);
         meanRssi /= wifiSamples.size();
         
         float variance = 0;
@@ -1759,11 +1729,7 @@ void calibrationTask(void *parameter) {
     
     // BLE calibration
     if (bleSamples.size() >= 10) {
-        float meanRssi = 0;
-        for (int8_t rssi : bleSamples) {
-            // cppcheck-suppress useStlAlgorithm
-            meanRssi += rssi;
-        }
+        float meanRssi = std::accumulate(bleSamples.begin(), bleSamples.end(), 0.0f);
         meanRssi /= bleSamples.size();
         
         float variance = 0;
