@@ -1273,8 +1273,6 @@ static void handleTriangulateStop(const String &command)
       bool hasGPS;
 
       {
-          extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-          // cppcheck-suppress localMutex
           std::lock_guard<std::mutex> lock(triAccumMutex);
 
           // Fix for dual-radio devices showing as two types
@@ -2227,9 +2225,6 @@ void processUSBToMesh() {
 void sendMeshNotification(const Hit &hit) {
     if (triangulationActive) return;
     if (!meshEnabled) return;
-
-    extern float gpsLat, gpsLon;  // cppcheck-suppress shadowVariable
-    extern bool gpsValid;  // cppcheck-suppress shadowVariable
 
     // Convert MAC to uint64_t for map lookup
     uint64_t macKey = 0;

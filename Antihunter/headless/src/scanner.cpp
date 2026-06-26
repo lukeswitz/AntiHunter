@@ -303,8 +303,7 @@ int8_t getGlobalRssiThreshold() {
 }
 
 void setGlobalRssiThreshold(int8_t threshold) {
-    // cppcheck-suppress compareValueOutOfTypeRangeError
-    if (threshold >= -128 && threshold <= -10) {
+    if (threshold <= -10) {
         rfConfig.globalRssiThreshold = threshold;
         prefs.putInt("globalRSSI", threshold);
         Serial.printf("[RF] Global RSSI threshold set to %d dBm\n", threshold);
@@ -528,10 +527,7 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
         return false;
     }
 
-    extern DeviceIdentitiesMap deviceIdentities; // cppcheck-suppress shadowVariable
-    extern std::mutex randMutex; // cppcheck-suppress shadowVariable
-
-    std::lock_guard<std::mutex> lock(randMutex); // cppcheck-suppress localMutex
+    std::lock_guard<std::mutex> lock(randMutex);
 
     String idStr(identityId);
     auto it = deviceIdentities.find(idStr);
@@ -541,14 +537,8 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
     
     const DeviceIdentity& identity = it->second;
 
-    // cppcheck-suppress useStlAlgorithm
-    for (const auto& macAddr : identity.macs) {
-        if (memcmp(macAddr.bytes.data(), mac, 6) == 0) {
-            return true;
-        }
-    }
-
-    return false;
+    return std::any_of(identity.macs.begin(), identity.macs.end(),
+        [&](const auto& m) { return memcmp(m.bytes.data(), mac, 6) == 0; });
 }
 
 void rebuildIdentityMacSnapshot()
@@ -2326,81 +2316,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 portYIELD_FROM_ISR();
         }
     }
-}
-
-// ---------- Radio common ----------
-static void radioStartWiFi()
-{
-    // Clean initialization
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_err_t err = esp_wifi_init(&cfg);
-    if (err != ESP_OK) {
-        Serial.printf("[RADIO] WiFi init error: %d\n", err);
-        return;
-    }
-    
-    WiFi.mode(WIFI_MODE_STA);
-    delay(500);
-
-    {
-        uint8_t rnd[6];
-        rnd[0] = (uint8_t)((esp_random() & 0xFE) | 0x02);   // locally-administered, unicast
-        for (int i = 1; i < 6; ++i) rnd[i] = (uint8_t)(esp_random() & 0xFF);
-        esp_wifi_set_mac(WIFI_IF_STA, rnd);                 // must precede esp_wifi_start
-        Serial.printf("[RADIO] Randomized STA MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
-                      rnd[0], rnd[1], rnd[2], rnd[3], rnd[4], rnd[5]);
-    }
-
-    wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
-    memcpy(ctry.cc, COUNTRY, 2);
-    ctry.cc[2] = 0;
-    esp_wifi_set_country(&ctry);
-
-    err = esp_wifi_start();
-    if (err != ESP_OK) {
-        Serial.printf("[RADIO] WiFi start error: %d\n", err);
-        return;
-    }
-    delay(300);
-
-    wifi_promiscuous_filter_t filter = {};
-    filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
-    esp_wifi_set_promiscuous_filter(&filter);
-    esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
-    esp_wifi_set_promiscuous(true);
-
-    if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-    esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
-    
-    // Setup channel hopping with cleanup check
-    if (hopTimer) {
-        esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-    }
-    
-    const esp_timer_create_args_t targs = {
-        .callback = &hopTimerCb, 
-        .arg = nullptr, 
-        .dispatch_method = ESP_TIMER_TASK, 
-        .name = "hop"
-    };
-    esp_timer_create(&targs, &hopTimer);
-    esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
-}
-
-static void radioStopWiFi()
-{
-    esp_wifi_set_promiscuous(false);
-    esp_wifi_set_promiscuous_rx_cb(NULL);
-    if (hopTimer)
-    {
-        esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-    }
-    esp_wifi_stop();
-    esp_wifi_deinit();
 }
 
 void radioStopBLE()

@@ -173,6 +173,9 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+    bool hasAp = false;
+    for (uint8_t ch : CHANNELS) if (ch == (uint8_t)AP_CHANNEL) { hasAp = true; break; }
+    if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);
 }
 
 void sendNodeIdUpdate() {
@@ -198,9 +201,7 @@ void randomizeMacAddress() {
     for (int i = 1; i < 6; i++) {
         newMACAddress[i] = random(0, 256);
     }
-    
     esp_err_t err = esp_wifi_set_mac(WIFI_IF_AP, newMACAddress);
-    
     Serial.printf("[MAC] Randomized MAC: %02x:%02x:%02x:%02x:%02x:%02x (status: %d)\n",
                   newMACAddress[0], newMACAddress[1], newMACAddress[2],
                   newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
@@ -290,7 +291,6 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;
-    static unsigned long lastGPSPollBatterySaver = 0;  // cppcheck-suppress variableScope
     static unsigned long lastHeapCheck = 0;
 
     // Handle serial time setting (always process, even in battery saver)
@@ -310,6 +310,7 @@ void loop() {
 
         sendBatterySaverHeartbeat();
 
+        static unsigned long lastGPSPollBatterySaver = 0;
         if (millis() - lastGPSPollBatterySaver > 60000) {
             updateGPSLocation();
             lastGPSPollBatterySaver = millis();

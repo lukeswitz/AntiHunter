@@ -62,6 +62,8 @@ extern bool g_curScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern TaskHandle_t blueTeamTaskHandle;
+extern TaskHandle_t workerTaskHandle;
+extern std::atomic<bool> triangulationActive;
 uint32_t SafeSD::lastCheckTime = 0;
 bool SafeSD::lastCheckResult = false;
 unsigned long lastSaveTime = 0;
@@ -904,7 +906,6 @@ bool waitForInitialConfig() {
 String getDiagnostics() {
     static std::mutex diagMutex;
     static unsigned long lastDiagTime = 0;
-    static unsigned long lastSDTime = 0;  // cppcheck-suppress variableScope
     static unsigned long lastTempTime = 0;
     static String cachedDiag = "";
     static String cachedSDInfo = "";
@@ -1006,6 +1007,7 @@ String getDiagnostics() {
     }
     
     if (sdAvailable) {
+        static unsigned long lastSDTime = 0;
         if (millis() - lastSDTime > 300000 || cachedSDInfo.length() == 0) {
             lastSDTime = millis();
             cachedSDInfo = "";
@@ -1236,10 +1238,10 @@ void logToSD(const String &data) {
     std::lock_guard<std::mutex> sdLock(sdLogMutex);
 
     static uint32_t totalWrites = 0;
-    static uint32_t failCount = 0;  // cppcheck-suppress variableScope
     static File logFile;
 
     if (!SD.exists("/")) {
+        static uint32_t failCount = 0;
         failCount++;
         if (failCount > 5) {
             Serial.println("[SD] Multiple failures, marking unavailable");
@@ -2037,9 +2039,6 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
 
     // Stop any active scanning tasks
     extern std::atomic<bool> stopRequested;
-    extern TaskHandle_t workerTaskHandle;  // cppcheck-suppress shadowVariable
-    extern TaskHandle_t blueTeamTaskHandle;  // cppcheck-suppress shadowVariable
-
     stopRequested = true;
 
     // Wait for tasks to stop
@@ -2117,7 +2116,6 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
-    extern std::atomic<bool> triangulationActive;  // cppcheck-suppress shadowVariable
     if (triangulationActive.load()) {
         return;  // Silently skip heartbeat to avoid mesh pollution
     }

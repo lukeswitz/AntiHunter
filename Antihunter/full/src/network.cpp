@@ -201,11 +201,11 @@ void initializeNetwork()
   initializeMesh();
 
   Serial.println("Starting AP...");
-  WiFi.mode(WIFI_AP_STA);
-  delay(100);
-  
   randomizeMacAddress();
   delay(50);
+
+  WiFi.mode(WIFI_AP_STA);
+  delay(100);
   
   customApSsid = prefs.getString("apSsid", AP_SSID);
   customApPass = prefs.getString("apPass", AP_PASS);
@@ -225,9 +225,11 @@ void initializeNetwork()
 
   WiFi.onEvent([](arduino_event_t *e) {
       if (e->event_id == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
-          const uint8_t *mac = e->event_info.wifi_ap_stadisconnected.mac;
-          uint8_t aid = e->event_info.wifi_ap_stadisconnected.aid;
-          detect_onSoftApDisconnect(mac, aid);
+          const auto &d = e->event_info.wifi_ap_stadisconnected;
+          Serial.printf("[AP] STA disconnect mac=%02X:%02X:%02X:%02X:%02X:%02X aid=%u reason=%u\n",
+                        d.mac[0],d.mac[1],d.mac[2],d.mac[3],d.mac[4],d.mac[5],
+                        (unsigned)d.aid, (unsigned)d.reason);
+          detect_onSoftApDisconnect(d.mac, (uint8_t)d.reason);
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
           detect_onSoftApConnect(e->event_info.wifi_ap_staconnected.mac);
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED) {
@@ -237,15 +239,8 @@ void initializeNetwork()
       }
   });
 
-  // Configure WiFi to preserve AP during scans
-  wifi_config_t conf;
-  esp_wifi_get_config(WIFI_IF_AP, &conf);
-  esp_wifi_set_config(WIFI_IF_AP, &conf);
+  esp_wifi_set_ps(WIFI_PS_NONE);
 
-  // Set WiFi power save to minimum to maintain AP stability during scans
-  esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-
-  Serial.println("[WIFI] AP configured with scan coexistence enabled");
   Serial.println("Starting web server...");
   startWebServer();
 }
@@ -9249,8 +9244,6 @@ static void handleTriangulateStop(const String &command)
     bool hasGPS;
 
     {
-      extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-      // cppcheck-suppress localMutex
       std::lock_guard<std::mutex> lock(triAccumMutex);
 
       // Fix for dual-radio devices showing as two types

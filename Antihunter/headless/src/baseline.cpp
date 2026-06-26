@@ -5,6 +5,7 @@
 #include "main.h"
 #include "detect.h"
 #include <algorithm>
+#include <iterator>
 #include <ArduinoJson.h>
 #include <SD.h>
 #include <WiFi.h>
@@ -812,7 +813,8 @@ void cleanupBaselineMemory() {
         if (deviceHistory.size() > 1000) {
             std::vector<std::pair<uint32_t, String>> ages;
             ages.reserve(deviceHistory.size());
-            for (const auto& entry : deviceHistory) ages.push_back({entry.second.lastSeen, entry.first});
+            std::transform(deviceHistory.begin(), deviceHistory.end(), std::back_inserter(ages),
+                [](const auto& entry) { return std::make_pair(entry.second.lastSeen, entry.first); });
             std::sort(ages.begin(), ages.end());
             size_t toCut = deviceHistory.size() - 1000;
             for (size_t i = 0; i < toCut; ++i) deviceHistory.erase(ages[i].second);
@@ -1187,14 +1189,10 @@ void loadBaselineStatsFromSD() {
     DeserializationError error = deserializeJson(doc, json);
     
     if (!error) {
-        // cppcheck-suppress badBitmaskCheck
-        baselineDeviceCount = doc["totalDevices"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        baselineStats.wifiDevices = doc["wifiDevices"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        baselineStats.bleDevices = doc["bleDevices"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        baselineEstablished = doc["established"] | false;
+        baselineDeviceCount = doc["totalDevices"].as<int>();
+        baselineStats.wifiDevices = doc["wifiDevices"].as<int>();
+        baselineStats.bleDevices = doc["bleDevices"].as<int>();
+        baselineEstablished = doc["established"].as<bool>();
         baselineRssiThreshold = doc["rssiThreshold"] | -60;
         
         Serial.printf("[BASELINE_SD] Stats loaded: total=%d\n", baselineDeviceCount);

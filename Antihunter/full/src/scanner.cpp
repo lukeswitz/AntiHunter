@@ -531,12 +531,6 @@ bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
         return false;
     }
 
-    // cppcheck-suppress shadowVariable
-    extern DeviceIdentitiesMap deviceIdentities;
-    // cppcheck-suppress shadowVariable
-    extern std::mutex randMutex;
-
-    // cppcheck-suppress localMutex
     std::lock_guard<std::mutex> lock(randMutex);
 
     String idStr(identityId);
@@ -998,14 +992,12 @@ void snifferScanTask(void *pv)
 
     String meshBatch;
     std::vector<String> meshBatchMacs;
-    uint32_t meshDeviceTxCount = 0;
     auto flushMeshBatch = [&]() {
         if (meshBatch.length() == 0) return;
         if (meshEnqueue(meshBatch)) {
             for (const auto &m : meshBatchMacs) {
                 transmittedDevices.insert(m);
                 meshMarkMacSent(m);
-                meshDeviceTxCount++;
             }
         }
         meshBatch = "";
@@ -1559,8 +1551,7 @@ void snifferScanTask(void *pv)
     }
 
     if (meshEnabled) {
-        // cppcheck-suppress variableScope
-        uint32_t txBefore = meshDeviceTxCount;
+        const size_t txBefore = transmittedDevices.size();
         uint32_t skippedDevices = 0;
         for (const auto& entry : apCache) {
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
@@ -1603,10 +1594,9 @@ void snifferScanTask(void *pv)
         flushMeshBatch();
 
         if (!stopRequested) {
-            // cppcheck-suppress duplicateExpression
-            uint32_t enqueuedDevices = meshDeviceTxCount - txBefore;
-            uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
-            uint32_t totalTx = transmittedDevices.size();
+            const uint32_t totalTx = transmittedDevices.size();
+            const uint32_t enqueuedDevices = totalTx - static_cast<uint32_t>(txBefore);
+            const uint32_t totalDevices = apCache.size() + bleDeviceCache.size();
             String summary = getNodeId() + ": SCAN_DONE: W=" + String(apCache.size()) +
                             " B=" + String(bleDeviceCache.size()) +
                             " U=" + String(uniqueMacs.size()) +
@@ -2319,8 +2309,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     }
     else if (ftype == 2)
     {
-        // cppcheck-suppress variableScope
-        const uint8_t *a1 = p + 4;
         if (!tods && !fromds)
         {
             if (!isZeroOrBroadcast(a2))
@@ -2336,6 +2324,7 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         }
         else if (tods && !fromds)
         {
+            const uint8_t *a1 = p + 4;
             if (!isZeroOrBroadcast(a2))
             {
                 memcpy(cand1, a2, 6);
@@ -2432,72 +2421,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
                 portYIELD_FROM_ISR();
         }
     }
-}
-
-// ---------- Radio common ----------
-static void radioStartWiFi()
-{
-    // Clean initialization
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_err_t err = esp_wifi_init(&cfg);
-    if (err != ESP_OK) {
-        Serial.printf("[RADIO] WiFi init error: %d\n", err);
-        return;
-    }
-
-    WiFi.mode(WIFI_AP_STA);  // Keep AP alive during scanning - TODO investigate other ways
-    delay(500);
-    
-    wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
-    memcpy(ctry.cc, COUNTRY, 2);
-    ctry.cc[2] = 0;
-    esp_wifi_set_country(&ctry);
-    
-    err = esp_wifi_start();
-    if (err != ESP_OK) {
-        Serial.printf("[RADIO] WiFi start error: %d\n", err);
-        return;
-    }
-    delay(300);
-
-    wifi_promiscuous_filter_t filter = {};
-    filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
-    esp_wifi_set_promiscuous_filter(&filter);
-    esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
-    esp_wifi_set_promiscuous(true);
-
-    if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-    esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
-    
-    // Setup channel hopping with cleanup check
-    if (hopTimer) {
-        esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-    }
-    
-    const esp_timer_create_args_t targs = {
-        .callback = &hopTimerCb, 
-        .arg = nullptr, 
-        .dispatch_method = ESP_TIMER_TASK, 
-        .name = "hop"
-    };
-    esp_timer_create(&targs, &hopTimer);
-    esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
-}
-
-static void radioStopWiFi()
-{
-    esp_wifi_set_promiscuous(false);
-    esp_wifi_set_promiscuous_rx_cb(NULL);
-    if (hopTimer)
-    {
-        esp_timer_stop(hopTimer);
-        esp_timer_delete(hopTimer);
-        hopTimer = nullptr;
-    }
-    esp_wifi_stop();
-    esp_wifi_deinit();
 }
 
 void radioStopBLE()
@@ -3873,14 +3796,10 @@ void listScanTask(void *pv) {
 
         {
             std::lock_guard<std::mutex> lock(triangulationMutex);
-            bool selfNodeExists = false;
-            for (const auto& node : triangulationNodes) {
-                // cppcheck-suppress useStlAlgorithm
-                if (node.nodeId == myNodeId) {
-                    selfNodeExists = true;
-                    Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
-                    break;
-                }
+            const bool selfNodeExists = std::any_of(triangulationNodes.begin(), triangulationNodes.end(),
+                [&](const auto& node) { return node.nodeId == myNodeId; });
+            if (selfNodeExists) {
+                Serial.printf("[TRIANGULATE] Initiator already registered: %s\n", myNodeId.c_str());
             }
 
             if (!selfNodeExists) {
@@ -4246,24 +4165,22 @@ void listScanTask(void *pv) {
 
                         {
                             std::lock_guard<std::mutex> lock(triangulationMutex);
-                            bool selfNodeFound = false;
-                            for (auto &node : triangulationNodes) {
-                                // cppcheck-suppress useStlAlgorithm
-                                if (node.nodeId == myNodeIdLocal) {
-                                    updateNodeRSSI(node, avgRssi);
-                                    node.hitCount = triHitCount;
-                                    node.isBLE = isBLE;
-                                    if (hasGPS) {
-                                        node.lat = triLat;
-                                        node.lon = triLon;
-                                        node.hdop = triHdop;
-                                        node.hasGPS = true;
-                                    }
-                                    node.distanceEstimate = rssiToDistance(node, !node.isBLE);
-                                    node.lastUpdate = millis();
-                                    selfNodeFound = true;
-                                    break;
+                            auto selfNodeIt = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
+                                [&](const auto& n) { return n.nodeId == myNodeIdLocal; });
+                            bool selfNodeFound = (selfNodeIt != triangulationNodes.end());
+                            if (selfNodeFound) {
+                                auto &node = *selfNodeIt;
+                                updateNodeRSSI(node, avgRssi);
+                                node.hitCount = triHitCount;
+                                node.isBLE = isBLE;
+                                if (hasGPS) {
+                                    node.lat = triLat;
+                                    node.lon = triLon;
+                                    node.hdop = triHdop;
+                                    node.hasGPS = true;
                                 }
+                                node.distanceEstimate = rssiToDistance(node, !node.isBLE);
+                                node.lastUpdate = millis();
                             }
 
                             if (!selfNodeFound) {
