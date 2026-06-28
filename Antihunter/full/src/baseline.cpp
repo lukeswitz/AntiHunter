@@ -372,7 +372,8 @@ static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
     if (wifiScan == WIFI_SCAN_FAILED) {
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime);
+            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime,
+                              WiFi.softAPgetStationNum() ? (uint8_t)AP_CHANNEL : (uint8_t)0);
         }
         return;
     }

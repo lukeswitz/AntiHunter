@@ -756,6 +756,14 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
+    // Single radio: AP + sniffer share one PHY/channel. Hopping off AP_CHANNEL
+    // strands connected UI clients (AP logs reason=8 ASSOC_LEAVE). Pin the radio
+    // to AP_CHANNEL while a client is associated so the web UI stays solid.
+    // ponytail: capture is AP-channel-only while connected; disconnect to hop all channels.
+    if (WiFi.softAPgetStationNum() > 0) {
+        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+        return;
+    }
     static size_t idx = 0;
     idx = (idx + 1) % CHANNELS.size();
     esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
@@ -1026,7 +1034,8 @@ void snifferScanTask(void *pv)
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime,
+                                                  WiFi.softAPgetStationNum() ? (uint8_t)AP_CHANNEL : (uint8_t)0);
             if (stopRequested) break;
 
             if (networksFound > 0)
@@ -2624,7 +2633,7 @@ void radioStartSTA() {
     esp_wifi_set_promiscuous(true);
 
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-    esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_channel(WiFi.softAPgetStationNum() > 0 ? AP_CHANNEL : CHANNELS[0], WIFI_SECOND_CHAN_NONE);
 
     // Setup channel hopping
     if (hopTimer) {
@@ -3879,7 +3888,8 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime,
+                                                  WiFi.softAPgetStationNum() ? (uint8_t)AP_CHANNEL : (uint8_t)0);
             if (stopRequested) break;
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
