@@ -26,7 +26,7 @@
 
 ### News & Links:
 
-[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/5apYc8u2)
+[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6Pq6pg3bj)
 
 - `2026 January` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 - `2026 April` - Undercode Testing: [AntiHunter Unleashed: Mesh IDS](https://undercodetesting.com/antihunter-unleashed-building-a-low-cost-distributed-wireless-defense-mesh-for-real-time-threat-detection-video/)  
