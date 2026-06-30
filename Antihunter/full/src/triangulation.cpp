@@ -89,10 +89,6 @@ void setRFEnvironment(RFEnvironment env) {
                   env, preset.n_wifi, preset.n_ble);
 }
 
-RFEnvironment getRFEnvironment() {
-    return currentRFEnvironment;
-}
-
 // Helpers
 
 float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
@@ -442,21 +438,6 @@ bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
     }
     
     return (totalCount == 0) || (syncedCount >= (totalCount * 2 / 3));
-}
-
-String getNodeSyncStatus() {
-    std::lock_guard<std::mutex> lock(triangulationMutex);
-    String status = "=== Node Synchronization Status ===\n";
-    status += "Nodes tracked: " + String(nodeSyncStatus.size()) + "\n\n";
-
-    for (const auto &sync : nodeSyncStatus) {
-        status += sync.nodeId + ": ";
-        status += sync.synced ? "SYNCED" : "OUT_OF_SYNC";
-        status += " offset=" + String(sync.millisOffset) + "ms";
-        status += " age=" + String((millis() - sync.lastSyncCheck) / 1000) + "s\n";
-    }
-
-    return status;
 }
 
 // Traingulation actions
@@ -869,11 +850,11 @@ void stopTriangulation() {
     Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, reportedNodeCount);
 
     bool hasData = false;
-    int8_t avgRssi;
-    int localTotalHits;
-    bool isBLE;
-    float lat, lon, localHdop;
-    bool hasGPS;
+    int8_t avgRssi = 0;
+    int localTotalHits = 0;
+    bool isBLE = false;
+    float lat = 0.0f, lon = 0.0f, localHdop = 0.0f;
+    bool hasGPS = false;
 
     {
         std::lock_guard<std::mutex> lock(triAccumMutex);
@@ -1842,6 +1823,9 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
     uint16_t mySubsec = (myMicros % 1000000) / 10000;
     
     uint32_t propagationDelay = rxMicros - senderTxMicros;
+    if (propagationDelay > 100000) {
+        propagationDelay = rxMicros + (0xFFFFFFFF - senderTxMicros);
+    }
 
     {
         std::lock_guard<std::mutex> lock(triangulationMutex);

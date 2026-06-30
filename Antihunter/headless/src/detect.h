@@ -169,7 +169,6 @@ public:
     void clear() { memset(bits, 0, BYTES); }
     const uint8_t* data() const { return bits; }
     uint8_t* mutableData() { return bits; }
-    void orFrom(const BloomFilter& other);
 private:
     uint8_t bits[BYTES];
     static inline uint32_t h1(uint32_t x);
@@ -229,11 +228,9 @@ void detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8
 // PHY-stat hook for 2.4GHz jamming detection — called per packet from sniffer_cb
 // (incl. CRC-fail frames when FCSFAIL filter is set). ISR-safe.
 void detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
-String jamming_getJson();
 
 // Mesh-channel disruption guard — called per inbound mesh line from uartForwardTask.
 void mesh_observeInbound(const String &sender, const String &body);
-String meshguard_getJson();
 
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel);
 
@@ -275,9 +272,7 @@ void detect_clearIncidents();
 // Quorum
 void quorum_addReport(const String &type, const String &key,
                       const String &fromNode, int8_t rssi);
-size_t quorum_currentConfirmingNodes(const String &type, const String &key);
 void quorum_setRequired(const String &type, uint8_t n);
-uint8_t quorum_getRequired(const String &type);
 
 // RID claim validator (called by drone_detector when ODID location received)
 void detect_recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t rssi);
@@ -285,12 +280,9 @@ String detect_getRidClaimsJson();
 
 // Bloom gossip
 void detect_addLocalBaseline(const uint8_t *mac, uint32_t ieHash);
-bool detect_neighborKnows(const uint8_t *mac, uint32_t ieHash);
 String detect_getBloomStatsJson();
 
 // OUI category
-OuiCategory ouiLookup(const uint8_t *mac);
-const char* ouiCategoryName(OuiCategory c);
 bool loadOuiTable();  // from LittleFS /oui_cat.bin if present
 
 // BLE tracker watchlist
@@ -527,9 +519,6 @@ String detect_getHealthJson();
 String detect_getConfigJson();
 bool   detect_setConfigFromJson(const String &body);
 void   detect_persistTunables();
-uint32_t detect_droppedWifi();
-uint32_t detect_droppedBle();
-uint32_t detect_meshRateGated();
 
 // PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);
@@ -540,8 +529,6 @@ uint32_t ppsLastEdgeMicros();
 // Channel partition (coordinator-side)
 void detect_assignChannelPartition();
 String detect_getChannelAssignmentJson();
-std::vector<uint8_t> detect_getMyAssignedChannels();
-void detect_setMyAssignedChannels(const String &csv);
 
 // API JSON getters for /api/* endpoints
 String detect_getPmkidJsonl();

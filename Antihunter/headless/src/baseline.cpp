@@ -228,7 +228,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         if (rssi < dev.minRssi) dev.minRssi = rssi;
         if (rssi > dev.maxRssi) dev.maxRssi = rssi;
         dev.lastSeen = now;
-        dev.hitCount++;
+        if (dev.hitCount < UINT32_MAX) dev.hitCount++;
         dev.dirtyFlag = true;
 
         auto lruIt = lruMap.find(macKey);
@@ -1133,7 +1133,13 @@ void loadBaselineFromSD() {
             }
             
             rec.dirtyFlag = false;
-            baselineCache[blKey(rec.mac)] = rec;
+            uint64_t recKey = blKey(rec.mac);
+            baselineCache[recKey] = rec;
+            LRUNode node;
+            node.key = recKey;
+            node.lastSeen = rec.lastSeen;
+            lruList.push_back(node);
+            lruMap[recKey] = --lruList.end();
             loaded++;
         }
         

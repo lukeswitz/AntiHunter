@@ -28,12 +28,24 @@ struct ProbeRequestEvent {
     uint16_t payloadLen;
     uint8_t payload[128];
     bool dstMatch;
-    bool isProbeResponse;
-    uint8_t addr1[6];
-    uint8_t addr3[6];
+    bool isProbeResponse;    // stype 5: addr1=DA (device), addr2=SA (AP), addr3=BSSID
+    uint8_t addr1[6];        // destination (the device that sent the probe request)
+    uint8_t addr3[6];        // BSSID of the responding AP
 };
 
 extern QueueHandle_t probeRequestQueue;
+
+struct BleAdvEvent {
+    uint8_t mac[6];
+    int8_t rssi;
+    char name[32];
+    uint8_t mfrData[8];
+    uint8_t mfrDataLen;
+    uint8_t payload[64];
+    uint8_t payloadLen;
+};
+
+extern QueueHandle_t bleAdvQueue;
 
 struct IEOrderSignature {
     uint8_t ieTypes[16];
@@ -101,6 +113,11 @@ struct ProbeSession {
 
     bool hasGlobalMacLeak{};
     uint8_t globalMacLeaked[6]{};
+
+    char deviceName[32]{};
+    char probedSSID[33]{};
+    uint8_t mfrData[8]{};
+    uint8_t mfrDataLen{};
 };
 
 struct DeviceIdentity {
@@ -120,6 +137,15 @@ struct DeviceIdentity {
     uint8_t knownGlobalMac[6]{};
 
     bool isBLE{};
+    char deviceName[32]{};
+    char probedSSID[33]{};
+    int8_t rssiAvg{};
+    int8_t rssiMin{};
+    int8_t rssiMax{};
+    uint8_t primaryChannel{};
+    uint32_t probeCount{};
+    uint8_t mfrData[8]{};
+    uint8_t mfrDataLen{};
 };
 
 const uint32_t SESSION_START_THRESHOLD = 3000;
@@ -167,28 +193,23 @@ void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi
                                            uint8_t channel, const uint8_t* frame, uint16_t frameLen);
 void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fingerprint[6]);
 void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSignature& sig);
-void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t fingerprint[6]);
+void extractBLEFingerprintFromPayload(const uint8_t* payload, uint8_t payloadLen, uint16_t fingerprint[6]);
 bool matchFingerprints(const uint16_t fp1[6], const uint16_t fp2[6], uint8_t& matches);
 bool matchIEOrder(const IEOrderSignature& sig1, const IEOrderSignature& sig2);
 uint16_t computeCRC16(const uint8_t *data, uint16_t length);
 uint16_t extractSequenceNumber(const uint8_t *payload, uint16_t length);
 bool isMinimalSignature(const uint16_t fingerprint[6]);
-float calculateSignatureSetSimilarity(const ProbeSession& session, const DeviceIdentity& identity);
-void updateDeviceSignatureSet(DeviceIdentity& identity, const ProbeSession& session);
-
 float calculateIntervalConsistency(const uint32_t intervals[], uint8_t count);
 float calculateRssiConsistency(const int8_t readings[], uint8_t count);
 uint32_t countChannels(uint32_t bitmap);
 void linkSessionToTrackBehavioral(ProbeSession& session);
 
-bool detectWiFiBLECorrelation(const uint8_t* wifiMac, const uint8_t* bleMac);
 bool detectGlobalMACLeak(const ProbeSession& session, uint8_t* globalMac);
 float calculateRSSIDistributionSimilarity(const int8_t* rssi1, uint8_t count1,
                                          const int8_t* rssi2, uint8_t count2);
 float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1,
                                          const uint32_t* times2, uint8_t count2);
 bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime);
-bool detectSequenceNumberAnomaly(const ProbeSession& session, const DeviceIdentity& identity);
 
 void cleanupStaleSessions();
 void cleanupStaleTracks();

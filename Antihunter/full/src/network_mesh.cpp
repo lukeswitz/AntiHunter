@@ -1,3 +1,4 @@
+// network_mesh.cpp - mesh subsystem extracted from network.cpp
 #include "network.h"
 #include "baseline.h"
 #include "triangulation.h"
@@ -5,29 +6,40 @@
 #include "scanner.h"
 #include "main.h"
 #include "detect.h"
+#include <AsyncTCP.h>
 #include <RTClib.h>
-#include <algorithm>
 #include <esp_timer.h>
+#include <algorithm>
+#include <deque>
 
 extern "C"
 {
+#include "esp_wifi.h"
 #include "esp_wifi_types.h"
 #include "esp_coexist.h"
+#include "lwip/err.h"
+#include "lwip/sockets.h"
 }
 
-// LoRa RF Config
-bool meshEnabled = true;
-bool hbEnabled = false;
-uint32_t hbInterval = 600000;
-// Runtime gate for vibration mesh broadcasts (NVS key: "vibEnabled").
-// Detection and USB logging always run; this only controls Serial1 TX.
-bool vibrationEnabled = true;
-static unsigned long lastMeshSend = 0;
-unsigned long meshSendInterval = 3000;
-const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
-static String nodeId = "";
-static std::atomic<bool> g_eraseWipeBusy{false};
 
+// --- shared globals defined elsewhere (mirrors network.cpp externs) ---
+extern std::atomic<bool> scanning;
+extern std::atomic<int> totalHits;
+extern UniqueMacsSet uniqueMacs;
+extern Preferences prefs;
+extern std::atomic<bool> stopRequested;
+extern ScanMode currentScanMode;
+extern std::vector<uint8_t> CHANNELS;
+extern TaskHandle_t workerTaskHandle;
+extern TaskHandle_t blueTeamTaskHandle;
+extern String macFmt6(const uint8_t *m);
+extern bool parseMac6(const String &in, uint8_t out[6]);
+extern void parseChannelsCSV(const String &csv);
+extern void randomizeMacAddress();
+
+// --- mesh-only state (moved from network.cpp) ---
+static unsigned long lastMeshSend = 0;
+static String nodeId = "";
 // Per-MAC deduplication tracking for mesh notifications
 struct MeshTargetState {
     unsigned long lastSent;
@@ -41,148 +53,108 @@ const int RSSI_CHANGE_THRESHOLD = 5;  // dBm
 const float GPS_CHANGE_THRESHOLD = 0.0001;  // ~10 meters
 const unsigned long PER_TARGET_MIN_INTERVAL = 30000;  // 30 seconds per target
 
-// Scanner vars
-extern std::atomic<bool> scanning;
-extern std::atomic<int> totalHits;
-extern UniqueMacsSet uniqueMacs;
-bool triangulationOrchestratorAssigned = false;
+// Mesh UART Message Sender
+void sendMeshNotification(const Hit &hit) {
+    if (triangulationActive) return;
+    if (!meshEnabled) return;
 
-// Module refs
-extern Preferences prefs;
-extern std::atomic<bool> stopRequested;
-extern ScanMode currentScanMode;
-extern std::vector<uint8_t> CHANNELS;
-extern TaskHandle_t workerTaskHandle;
-extern TaskHandle_t blueTeamTaskHandle;
-extern String macFmt6(const uint8_t *m);
-extern bool parseMac6(const String &in, uint8_t out[6]);
-extern void parseChannelsCSV(const String &csv);
-extern void randomizeMacAddress();
-
-// Mesh serial processing
-SerialRateLimiter rateLimiter;
-SemaphoreHandle_t serial1Mutex = nullptr;
-SerialRateLimiter::SerialRateLimiter() : tokens(MAX_TOKENS), lastRefill(millis()) {}
-
-bool SerialRateLimiter::canSend(size_t messageLength) {
-    refillTokens();
-    return tokens >= messageLength;
-}
-
-void SerialRateLimiter::consume(size_t messageLength) {
-    if (tokens >= messageLength) {
-        tokens -= messageLength;
+    // Convert MAC to uint64_t for map lookup
+    uint64_t macKey = 0;
+    for (int i = 0; i < 6; i++) {
+        macKey = (macKey << 8) | hit.mac[i];
     }
-}
 
-void SerialRateLimiter::refillTokens() {
     unsigned long now = millis();
-    if (now - lastRefill >= REFILL_INTERVAL) {
-        tokens = min(tokens + TOKENS_PER_REFILL, MAX_TOKENS);
-        lastRefill = now;
-    }
-}
+    bool shouldSend = false;
 
-void SerialRateLimiter::flush() {
-    tokens = MAX_TOKENS;
-    lastRefill = millis();
-    Serial.println("[MESH] Rate limiter flushed");
-}
-
-bool sendToSerial1(const String &message, bool canDelay) {
-    if (serial1Mutex == nullptr) {
-        return false;
-    }
-
-    bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
-                                  message.indexOf("TRI_START_ACK") >= 0 ||
-                                  message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
-                                  message.indexOf("@ALL TRI_CYCLE_START") >= 0 ||
-                                  message.indexOf("TRIANGULATE_STOP") >= 0 ||
-                                  message.indexOf(": T_F:") >= 0 ||
-                                  message.indexOf(": T_C:") >= 0 ||
-                                  message.indexOf(": T_D:") >= 0;
-
-    if (triangulationActive && !isTriangulationMessage) {
-        meshTxDroppedTriGate.fetch_add(1);
-        return false;
-    }
-
-    bool isPriority = isTriangulationMessage;
-    size_t msgLen = message.length() + 2;
-
-    TickType_t timeout = isPriority ? pdMS_TO_TICKS(5000) : pdMS_TO_TICKS(100);
-    if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
-        Serial.printf("[MESH] Mutex timeout\n");
-        return false;
-    }
-
-    // Phase 1 + review fix A: rate-limit check INSIDE mutex so canSend/consume are atomic.
-    if (!isPriority && !rateLimiter.canSend(msgLen)) {
-        meshTxDroppedRateLimit.fetch_add(1);
-        xSemaphoreGive(serial1Mutex);
-        return false;
-    }
-
-    if (isPriority) {
-        uint32_t waitStart = millis();
-        while (Serial1.availableForWrite() < (int)msgLen) {
-            if (millis() - waitStart > 5000) {
-                Serial.printf("[MESH] Priority message timeout waiting for buffer space\n");
-                xSemaphoreGive(serial1Mutex);
-                return false;
-            }
-            xSemaphoreGive(serial1Mutex);
-            delay(10);
-            if (xSemaphoreTake(serial1Mutex, timeout) != pdTRUE) {
-                Serial.printf("[MESH] Mutex timeout on retry\n");
-                return false;
-            }
-        }
+    // Check if we've seen this MAC before
+    auto it = meshTargetStates.find(macKey);
+    if (it == meshTargetStates.end()) {
+        shouldSend = true;
     } else {
-        if (Serial1.availableForWrite() < (int)msgLen) {
-            meshTxDroppedBufFull.fetch_add(1);
-            xSemaphoreGive(serial1Mutex);
-            return false;
+        const MeshTargetState &state = it->second;
+        if (now - state.lastSent < PER_TARGET_MIN_INTERVAL) {
+            int rssiDelta = abs(hit.rssi - state.lastRssi);
+
+            if (rssiDelta >= RSSI_CHANGE_THRESHOLD) {
+                shouldSend = true;
+            } else if (gpsValid && state.hadGPS) {
+                float latDelta = abs(gpsLat - state.lastLat);
+                float lonDelta = abs(gpsLon - state.lastLon);
+                if (latDelta >= GPS_CHANGE_THRESHOLD || lonDelta >= GPS_CHANGE_THRESHOLD) {
+                    shouldSend = true;
+                }
+            } else if (gpsValid && !state.hadGPS) {
+                shouldSend = true;  // GPS just became available
+            }
+        } else {
+            shouldSend = true;
         }
     }
 
-    Serial1.println(message);
-    Serial.printf("[MESH TX] %s\n", message.c_str());
-
-    Serial1.flush();
-
-    // Review fix A (completion): consume INSIDE mutex so canSend/consume are fully atomic.
-    if (!isPriority) {
-        rateLimiter.consume(msgLen);
+    // Wait our turn
+    if (!shouldSend) {
+      return;
     }
 
-    xSemaphoreGive(serial1Mutex);
-
-    {
-        int sep = message.indexOf(": ");
-        String body = (sep > 0) ? message.substring(sep + 2) : message;
-        detect_logIncident(body, "local");
+    // Respect global mesh send rate limit
+    if (now - lastMeshSend < meshSendInterval) {
+        return;
     }
-    // No unconditional post-delay: Serial1.flush() drains the FIFO; meshTxTask vTaskDelayUntil owns inter-frame pacing.
+    lastMeshSend = now;
 
-    return true;
+    // Update the state for this MAC
+    MeshTargetState newState;
+    newState.lastSent = now;
+    newState.lastRssi = hit.rssi;
+    newState.lastLat = gpsValid ? gpsLat : 0.0;
+    newState.lastLon = gpsValid ? gpsLon : 0.0;
+    newState.hadGPS = gpsValid;
+    if (meshTargetStates.size() >= 1000 && meshTargetStates.find(macKey) == meshTargetStates.end()) {
+        for (auto sit = meshTargetStates.begin(); sit != meshTargetStates.end(); ) {
+            if (now - sit->second.lastSent > (PER_TARGET_MIN_INTERVAL * 10)) sit = meshTargetStates.erase(sit);
+            else ++sit;
+        }
+    }
+    meshTargetStates[macKey] = newState;
+
+    // Build and send the message
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+             hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
+
+    String cleanName = "";
+    if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0) {
+        for (size_t i = 0; i < strlen(hit.name) && i < 32; i++) {
+            char c = hit.name[i];
+            if (c >= 32 && c <= 126) {
+                cleanName += c;
+            }
+        }
+    }
+
+    char mesh_msg[MAX_MESH_SIZE];
+    memset(mesh_msg, 0, sizeof(mesh_msg));
+
+    String baseMsg = String(nodeId) + ": Target: " + String(mac_str) +
+                     " RSSI:" + String(hit.rssi) +
+                     " Type:" + (hit.isBLE ? "BLE" : "WiFi");
+
+    if (cleanName.length() > 0) {
+        baseMsg += " Name:" + cleanName;
+    }
+
+    if (gpsValid) {
+        baseMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+    }
+
+    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());
+
+    if (msg_len > 0 && msg_len <= (int)sizeof(mesh_msg) - 1) {
+        Serial.printf("[MESH] %s\n", mesh_msg);
+        meshEnqueuePrio(String(mesh_msg), PRIO_EVENT);
+    }
 }
-
-// ------------- Network ------------- 
-
-void initializeNetwork()
-{ 
-  esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-  Serial.println("Initializing mesh UART...");
-  initializeMesh();
-  delay(150);
-
-  // STA MAC is randomized when WiFi actually starts (sentinel bring-up / radioStartWiFi);
-  // randomizing here is a no-op because the WiFi stack is not yet initialized.
-  Serial.println("Headless mesh mode ready");
-}
-
 
 struct MeshTxItem {
     char msg[MAX_MESH_SIZE + 8];
@@ -190,6 +162,7 @@ struct MeshTxItem {
 };
 
 // Phase 2: three priority queues replace the single FIFO. Drain order CTRL > EVENT > BULK.
+// Total depth 256 (16+32+208) matches the prior MESH_TX_QUEUE_DEPTH = 256 PSRAM footprint.
 static const uint16_t MESH_Q_DEPTH[3] = {16, 32, 208};
 static QueueHandle_t meshQ[3] = {nullptr, nullptr, nullptr};
 
@@ -201,18 +174,23 @@ std::atomic<uint32_t> meshTxSentLifetime(0);
 std::atomic<uint32_t> meshTxDroppedFull(0);
 
 // Phase 1: consumer-task tick. ~80 ms inter-frame cadence, leaky-bucket pacing.
+// 80 ms * 50 B/msg ≈ 625 B/s ceiling, well under 115200 baud and within token-bucket sustained 167 B/s.
 static uint32_t meshTxTickMs = 80;
 static const uint32_t MESH_BULK_INTERVAL_MS = 1500;
 
 static MeshPriority classifyMeshMessage(const String &msg) {
-    // Fast path: DEVICE dumps dominate; skip the keyword scan and avoid SSID-name false positives.
+    // Fast path: DEVICE-discovery dumps dominate the queue. Up-front check skips the 29-keyword scan
+    // for the common case AND prevents an SSID/name containing a keyword (a network named "ATTACK")
+    // from misclassifying a bulk device row into the EVENT queue. No control/event frame contains "DEVICE:".
     if (msg.indexOf("DEVICE:") >= 0) return PRIO_BULK;
+    // CONTROL: triangulation control + data frames (parsed/honored by peer triangulation FSM)
     if (msg.indexOf("T_F:") >= 0 || msg.indexOf("T_C:") >= 0 || msg.indexOf("T_D:") >= 0 ||
         msg.indexOf("STOP_ACK") >= 0 || msg.indexOf("TRI_START_ACK") >= 0 ||
         msg.indexOf("TRIANGULATE_START") >= 0 || msg.indexOf("TRIANGULATE_STOP") >= 0 ||
         msg.indexOf("TRI_CYCLE_START") >= 0) {
         return PRIO_CONTROL;
     }
+    // EVENT: alerts, detections, status changes — caller may also pass priority=true to land here
     if (msg.indexOf("ATTACK") >= 0 || msg.indexOf("DEAUTH") >= 0 || msg.indexOf("DETECT") >= 0 ||
         msg.indexOf("EAPOL") >= 0 || msg.indexOf("HSHK") >= 0 || msg.indexOf("KARMA") >= 0 ||
         msg.indexOf("BLETRACK") >= 0 || msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
@@ -225,6 +203,7 @@ static MeshPriority classifyMeshMessage(const String &msg) {
         msg.indexOf("BLE_MALFORMED") >= 0) {
         return PRIO_EVENT;
     }
+    // BULK: DEVICE, SCAN_DONE, heartbeat, any other periodic dump
     return PRIO_BULK;
 }
 
@@ -242,6 +221,8 @@ bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
 
     // Review fix C (corrected): cross-queue eviction was incorrect — evicting BULK does NOT
     // free a slot in meshQ[CTRL]/meshQ[EVENT] since they're independent FreeRTOS queues.
+    // The right backpressure here is to let the consumer drain. CTRL=16/EVENT=32 depths are
+    // sized so this is rare; meshTxDroppedFull surfaces it when it does happen.
 
     if (!enqueued) {
         meshTxDroppedFull.fetch_add(1);
@@ -258,8 +239,11 @@ bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
 }
 
 bool meshEnqueue(const String &msg, bool priority) {
+    // Legacy 2-arg API: classify by content. `priority=true` forces CONTROL only if the message
+    // is recognized as a control frame; otherwise classifier picks (EVENT for alerts, BULK for periodic).
     MeshPriority p = classifyMeshMessage(msg);
     if (priority && p == PRIO_BULK) {
+        // Caller signaled priority but classifier sees no control/event keyword — treat as EVENT
         p = PRIO_EVENT;
     }
     return meshEnqueuePrio(msg, p);
@@ -293,11 +277,15 @@ static bool drainOne(QueueHandle_t q) {
     MeshTxItem item;
     if (xQueueReceive(q, &item, 0) != pdTRUE) return false;
     String msg(item.msg);
+    // canDelay=false: sendToSerial1 no longer blocks on rate-limit; if tokens insufficient it drops + counts.
+    // Consumer task owns pacing via vTaskDelayUntil below.
     if (sendToSerial1(msg, false)) {
         meshTxSentLifetime.fetch_add(1);
         meshDrainSent.fetch_add(1);
     } else {
-        // Review fix B: send failed, msg lost. Keep meshDrainTotal in sync so cleanup fires.
+        // Review fix B: send failed (rate-limit/buf-full/mutex timeout). The dequeue already
+        // happened so msg is lost. Keep meshDrainTotal in sync so the end-of-drain cleanup
+        // (sent >= total) fires correctly and depthHigh/Sent/Total reset.
         uint32_t total = meshDrainTotal.load();
         while (total > 0 && !meshDrainTotal.compare_exchange_weak(total, total - 1)) {}
     }
@@ -378,6 +366,7 @@ void initializeMesh() {
             }
         }
     }
+    // Legacy alias points at BULK queue (the prior single-queue behavior most closely matched BULK semantics).
     meshTxQueue = meshQ[PRIO_BULK];
 
     if (meshTxTaskHandle == nullptr && meshQ[PRIO_BULK] != nullptr) {
@@ -416,7 +405,7 @@ static void handleConfigTargets(const String &command)
 
 static void handleConfigDedupTtl(const String &command)
 {
-  long ttl = command.substring(21).toInt();
+  long ttl = command.substring(17).toInt();
   if (ttl < 0 || ttl > (long)MESH_DEDUP_TTL_MAX_S) {
     sendToSerial1(nodeId + ": CONFIG_ACK:DEDUP_TTL:INVALID", true);
     return;
@@ -539,11 +528,27 @@ static void handleBaselineStart(const String &command)
 
 static void handleBaselineStatus(const String &command)
 {
+  (void)command;
   char status_msg[MAX_MESH_SIZE];
+
+  bool snapScanning;
+  bool snapPhase1Complete;
+  bool snapEstablished;
+  uint32_t snapDeviceCount;
+  uint32_t snapAnomalyCount;
+  {
+    std::lock_guard<std::mutex> lock(baselineMutex);
+    snapScanning = baselineStats.isScanning;
+    snapPhase1Complete = baselineStats.phase1Complete;
+    snapEstablished = baselineEstablished;
+    snapDeviceCount = baselineDeviceCount;
+    snapAnomalyCount = anomalyCount;
+  }
+
   const char* phase1Status;
-  if (!baselineStats.isScanning) {
+  if (!snapScanning) {
     phase1Status = "INACTIVE";
-  } else if (!baselineStats.phase1Complete) {
+  } else if (!snapPhase1Complete) {
     phase1Status = "ACTIVE";
   } else {
     phase1Status = "COMPLETE";
@@ -552,10 +557,10 @@ static void handleBaselineStatus(const String &command)
   snprintf(status_msg, sizeof(status_msg),
            "%s: BASELINE_STATUS: Scanning:%s Established:%s Devices:%u Anomalies:%u Phase1:%s",
            nodeId.c_str(),
-           baselineStats.isScanning ? "YES" : "NO",
-           baselineEstablished ? "YES" : "NO",
-           baselineDeviceCount,
-           anomalyCount,
+           snapScanning ? "YES" : "NO",
+           snapEstablished ? "YES" : "NO",
+           snapDeviceCount,
+           snapAnomalyCount,
            phase1Status);
   sendToSerial1(String(status_msg), true);
 }
@@ -589,16 +594,6 @@ static void handleDeviceScanStart(const String &command)
     } else {
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
-
-      if (params.indexOf("+PROBE") >= 0) {
-          probeDetectionEnabled = true;
-          if (probeRequestQueue == nullptr) {
-              probeRequestQueue = xQueueCreateWithCaps(128, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-          } else {
-              xQueueReset(probeRequestQueue);
-          }
-      }
-
       scanning = true;
       ahCreateTask(snifferScanTask, "sniffer", 12288,
                               reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
@@ -765,15 +760,25 @@ static void handleProbeStart(const String &command)
 
 static void handleProbeStop(const String &command)
 {
+  (void)command;
   stopRequested = true;
   Serial.println("[MESH] Probe stop command received via mesh");
   sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
 }
 
+static void handleProbeHit(const String &command)
+{
+  // Received a PROBE_HIT from another node — log it to terminal
+  // Full message format: "PROBE_HIT AA:BB:CC:DD:EE:FF Apple RSSI=-42 CH=6 SSID=\"HomeNet\""
+  String payload = command.substring(10);
+  Serial.printf("[MESH] PROBE_HIT received: %s\n", payload.c_str());
+}
+
 static void handleStop(const String &command)
 {
+  (void)command;
   stopRequested = true;
-  if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
+  if (meshTxDraining.load()) {
     stopMeshDrain.store(true);
   }
   Serial.println("[MESH] Stop command received via mesh");
@@ -782,6 +787,7 @@ static void handleStop(const String &command)
 
 static void handleStatus(const String &command)
 {
+  (void)command;
   float esp_temp = temperatureRead();
   String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE"
                                                                                             : "WiFi+BLE";
@@ -790,139 +796,21 @@ static void handleStatus(const String &command)
   uint32_t uptime_hours = uptime_mins / 60;
   char status_msg[MAX_MESH_SIZE];
   int written = snprintf(status_msg, sizeof(status_msg),
-                      "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
-                      nodeId.c_str(),
-                      modeStr.c_str(),
-                      scanning.load() ? "ACTIVE" : "IDLE",
-                      totalHits.load(),
-                      esp_temp,
-                      (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+                        "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
+                        nodeId.c_str(),
+                        modeStr.c_str(),
+                        scanning.load() ? "ACTIVE" : "IDLE",
+                        totalHits.load(),
+                        esp_temp,
+                        (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
   if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)
   {
-      float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-      snprintf(status_msg + written, sizeof(status_msg) - written,
-              " GPS:%.6f,%.6f HDOP=%.1f",
-              gpsLat, gpsLon, hdop);
+    float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
+    snprintf(status_msg + written, sizeof(status_msg) - written,
+            " GPS:%.6f,%.6f HDOP=%.1f",
+            gpsLat, gpsLon, hdop);
   }
   sendToSerial1(String(status_msg), true);
-}
-
-static void handleSentinelOn(const String &command)
-{
-  (void)command;
-  sentinel_setUserEnabled(true);
-  sendToSerial1(nodeId + ": SENTINEL_ACK:ON run=" + String(sentinel_isRunning() ? 1 : 0), true);
-}
-
-static void handleSentinelOff(const String &command)
-{
-  (void)command;
-  sentinel_setUserEnabled(false);
-  sendToSerial1(nodeId + ": SENTINEL_ACK:OFF", true);
-}
-
-static void handleSentinelStatus(const String &command)
-{
-  (void)command;
-  sendToSerial1(nodeId + ": SENTINEL_STATUS: en=" + String(sentinel_isUserEnabled() ? 1 : 0) +
-                " run=" + String(sentinel_isRunning() ? 1 : 0), true);
-}
-
-static void handleSentinelMode(const String &command)
-{
-  String v = command.substring(strlen("SENTINEL_MODE:"));
-  v.trim();
-  bool scan = v.equalsIgnoreCase("scan");
-  bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
-  sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
-}
-
-static void handleSentinelBoot(const String &command)
-{
-  String v = command.substring(strlen("SENTINEL_BOOT:"));
-  v.trim();
-  bool on = (v.toInt() != 0) || v.equalsIgnoreCase("on");
-  Preferences p;
-  if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
-  sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
-}
-
-// Threat-scenario detector groups — keys mirror the full webui DET_GROUPS.
-// deauth/beacon/auth detectors are unconditional (no toggle) and not grouped.
-static const char *groupMembers(const String &name)
-{
-  if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
-  if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
-  if (name == "recon")                       return "pmkid,probe_flood,hshk";
-  if (name == "physical" || name == "phys")  return "frag,tsf,jam";
-  if (name == "mesh")                        return "mesh_guard";
-  if (name == "ble")                         return "ble_attack,ble_malformed,tracker,airtag";
-  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard,ble_attack,ble_malformed,tracker,airtag";
-  return nullptr;
-}
-
-static void handleGroup(const String &command)
-{
-  int c1 = command.indexOf(':');
-  int c2 = command.indexOf(':', c1 + 1);
-  if (c1 < 0 || c2 < 0) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:syntax", true); return; }
-  String name = command.substring(c1 + 1, c2); name.trim(); name.toLowerCase();
-  String act = command.substring(c2 + 1); act.trim(); act.toLowerCase();
-  bool on = (act == "on" || act == "1" || act == "true");
-  bool off = (act == "off" || act == "0" || act == "false");
-  if (!on && !off) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:onoff", true); return; }
-  const char *members = groupMembers(name);
-  if (!members) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:unknown_group", true); return; }
-
-  String json = "{"; bool first = true;
-  String m = members; int start = 0;
-  while (start <= (int)m.length()) {
-    int comma = m.indexOf(',', start);
-    String key = (comma < 0) ? m.substring(start) : m.substring(start, comma);
-    key.trim();
-    if (key.length()) { if (!first) json += ","; json += "\"" + key + "\":" + (on ? "true" : "false"); first = false; }
-    if (comma < 0) break;
-    start = comma + 1;
-  }
-  json += "}";
-
-  bool ok = detect_setConfigFromJson(json);
-  if (ok) detect_persistTunables();
-  sendToSerial1(nodeId + ": GROUP_ACK:" + (ok ? "OK:" : "FAIL:") + name + ":" + (on ? "on" : "off"), true);
-}
-
-static void handleDetectCfg(const String &command)
-{
-  String json = command.substring(strlen("DETECT_CFG:"));
-  json.trim();
-  bool ok = detect_setConfigFromJson(json);
-  if (ok) detect_persistTunables();
-  sendToSerial1(nodeId + ": DETECT_CFG_ACK:" + (ok ? "OK" : "FAIL"), true);
-}
-
-static void handleDetectCfgGet(const String &command)
-{
-  (void)command;
-  String cfg = detect_getConfigJson();
-  Serial.println("[DETECT] config: " + cfg);
-  sendToSerial1(nodeId + ": DETECT_CFG_LEN:" + String(cfg.length()) + " (see serial)", true);
-}
-
-static void handleIncidents(const String &command)
-{
-  size_t n = 20;
-  int c = command.indexOf(':');
-  if (c >= 0) { long v = command.substring(c + 1).toInt(); if (v > 0 && v <= 200) n = (size_t)v; }
-  String inc = detect_getIncidentsJson(n);
-  Serial.println("[DETECT] incidents: " + inc);
-  sendToSerial1(nodeId + ": INCIDENTS_LEN:" + String(inc.length()) + " (see serial)", true);
-}
-
-static void handleIncidentsClear(const String &command)
-{
-  (void)command;
-  detect_clearIncidents();
-  sendToSerial1(nodeId + ": INCIDENTS_CLEAR_ACK:OK", true);
 }
 
 static void handleVibrationStatus(const String &command)
@@ -943,9 +831,10 @@ static void handleVibrationStatus(const String &command)
 static void setVibrationEnabled(bool enabled)
 {
   vibrationEnabled = enabled;
-  prefs.putBool("vibEnabled", enabled);
+  lastSaveTime = 0;
   saveConfiguration();
-  Serial.printf("[VIB] Vibration broadcasts %s\n", enabled ? "ENABLED" : "DISABLED");
+  const char *label = enabled ? "enabled" : "disabled";
+  Serial.printf("[VIB] Vibration broadcasts %s\n", label);
   sendToSerial1(nodeId + (enabled ? ": VIBRATION_ON_ACK:OK" : ": VIBRATION_OFF_ACK:OK"), true);
 }
 
@@ -965,95 +854,90 @@ static void handleTriangulateStart(const String &command, const String &targetId
 {
   String params = command.substring(18);
   String myNodeId = getNodeId();
-
-  // Check if this is a directed message to this specific node
-  // Directed format: @NodeA TRIANGULATE_START:target:duration
-  // Broadcast format: @ALL TRIANGULATE_START:target:duration:initiatorNodeId
   bool isDirectedToMe = !targetId.isEmpty() && targetId != "ALL" && targetId == myNodeId;
 
   if (isDirectedToMe) {
-      // This node was directly commanded to start triangulation as initiator
-      // Parse format: TRIANGULATE_START:target:duration[:rfEnv]
-      // Note: target can be MAC (XX:XX:XX:XX:XX:XX) or identity (T-XXXX)
+    // Parse format: TRIANGULATE_START:target:duration[:rfEnv]
+    // Note: target can be MAC (XX:XX:XX:XX:XX:XX) or identity (T-XXXX)
 
-      String target;
-      int duration;
-      uint8_t rfEnv = RF_ENV_INDOOR;
-      int targetEnd = 0;
+    String target;
+    int duration;
+    uint8_t rfEnv = RF_ENV_INDOOR;
+    int targetEnd = 0;
 
-      // Determine target length based on format
-      if (params.startsWith("T-")) {
-          // Identity format: T-XXXX:duration[:rfEnv]
-          targetEnd = params.indexOf(':', 2);
-          if (targetEnd < 0) {
-              Serial.println("[TRIANGULATE] Invalid directed command format - no duration");
-              return;
-          }
+    // Determine target length based on format
+    if (params.startsWith("T-")) {
+      // Identity format: T-XXXX:duration[:rfEnv]
+      targetEnd = params.indexOf(':', 2);
+      if (targetEnd < 0) {
+        Serial.println("[TRIANGULATE] Invalid directed command format - no duration");
+        return;
+      }
+    } else {
+      // MAC format: XX:XX:XX:XX:XX:XX:duration[:rfEnv] (MAC is 17 chars)
+      if (params.length() >= 17 && params.charAt(2) == ':' && params.charAt(5) == ':') {
+        targetEnd = 17;
       } else {
-          // MAC format: XX:XX:XX:XX:XX:XX:duration[:rfEnv] (MAC is 17 chars)
-          if (params.length() >= 17 && params.charAt(2) == ':' && params.charAt(5) == ':') {
-              targetEnd = 17;
-          } else {
-              Serial.println("[TRIANGULATE] Invalid directed command format - bad MAC");
-              return;
-          }
+        Serial.println("[TRIANGULATE] Invalid directed command format - bad MAC");
+        return;
       }
+    }
 
-      target = params.substring(0, targetEnd);
-      String remainder = params.substring(targetEnd + 1);  // After target:
+    target = params.substring(0, targetEnd);
+    String remainder = params.substring(targetEnd + 1);  // After target:
 
-      float wifiPwr = 1.0f;
-      float blePwr = 1.0f;
+    float wifiPwr = 1.0f;
+    float blePwr = 1.0f;
 
-      int envDelim = remainder.indexOf(':');
-      if (envDelim > 0) {
-          duration = remainder.substring(0, envDelim).toInt();
-          String afterDuration = remainder.substring(envDelim + 1);
+    int envDelim = remainder.indexOf(':');
+    if (envDelim > 0) {
+      duration = remainder.substring(0, envDelim).toInt();
+      String afterDuration = remainder.substring(envDelim + 1);
 
-          int pwrDelim = afterDuration.indexOf(':');
-          if (pwrDelim > 0) {
-              rfEnv = afterDuration.substring(0, pwrDelim).toInt();
-              String afterRfEnv = afterDuration.substring(pwrDelim + 1);
+      int pwrDelim = afterDuration.indexOf(':');
+      if (pwrDelim > 0) {
+        rfEnv = afterDuration.substring(0, pwrDelim).toInt();
+        String afterRfEnv = afterDuration.substring(pwrDelim + 1);
 
-              int blePwrDelim = afterRfEnv.indexOf(':');
-              if (blePwrDelim > 0) {
-                  wifiPwr = afterRfEnv.substring(0, blePwrDelim).toFloat();
-                  blePwr = afterRfEnv.substring(blePwrDelim + 1).toFloat();
-              } else {
-                  wifiPwr = afterRfEnv.toFloat();
-              }
-          } else {
-              rfEnv = afterDuration.toInt();
-          }
-
-          if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
-          if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
-          if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
+        int blePwrDelim = afterRfEnv.indexOf(':');
+        if (blePwrDelim > 0) {
+          wifiPwr = afterRfEnv.substring(0, blePwrDelim).toFloat();
+          blePwr = afterRfEnv.substring(blePwrDelim + 1).toFloat();
+        } else {
+          wifiPwr = afterRfEnv.toFloat();
+        }
       } else {
-          duration = remainder.toInt();
+        rfEnv = afterDuration.toInt();
       }
 
-      if (target.length() < 6 || duration <= 0) {
-          Serial.printf("[TRIANGULATE] Invalid parameters - target='%s' duration=%d\n",
-                       target.c_str(), duration);
-          return;
-      }
+      if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+      if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+      if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
+    } else {
+      duration = remainder.toInt();
+    }
 
-      if (duration < 10) duration = 10;
-      if (duration > 3600) duration = 3600;
-
-      setRFEnvironment((RFEnvironment)rfEnv);
-
-      distanceTuning.wifi_multiplier = wifiPwr;
-      distanceTuning.ble_multiplier = blePwr;
-      distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
-
-      Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds, rfEnv=%d)\n",
-                   target.c_str(), duration, rfEnv);
-
-      // Call startTriangulation which will set up as initiator and broadcast to mesh
-      startTriangulation(target, duration);
+    if (target.length() < 6 || duration <= 0) {
+      Serial.printf("[TRIANGULATE] Invalid parameters - target='%s' duration=%d\n",
+                   target.c_str(), duration);
       return;
+    }
+
+    if (duration < 10) duration = 10;
+    if (duration > 3600) duration = 3600;
+
+    setRFEnvironment((RFEnvironment)rfEnv);
+
+    distanceTuning.wifi_multiplier = wifiPwr;
+    distanceTuning.ble_multiplier = blePwr;
+    distanceTuning.enabled = (wifiPwr != 1.0f || blePwr != 1.0f);
+
+    Serial.printf("[TRIANGULATE] Directed command received - becoming initiator for %s (%ds, rfEnv=%d)\n",
+                 target.c_str(), duration, rfEnv);
+
+    // Call startTriangulation which will set up as initiator and broadcast to mesh
+    startTriangulation(target, duration);
+    return;
   }
 
   // This is a broadcast message - process as participant (or ignore if we're the initiator)
@@ -1067,31 +951,26 @@ static void handleTriangulateStart(const String &command, const String &targetId
 
   // Determine target length based on format
   if (params.startsWith("T-")) {
-      // Identity format: T-XXXX
-      targetEnd = params.indexOf(':', 2);  // Find first colon after "T-"
-      if (targetEnd < 0) targetEnd = params.length();
+    targetEnd = params.indexOf(':', 2);
+    if (targetEnd < 0) targetEnd = params.length();
   } else {
-      // Assume MAC format: XX:XX:XX:XX:XX:XX (17 characters)
-      // MAC has 5 colons, so we need to skip them and find the 6th colon
-      if (params.length() >= 17 && params.charAt(2) == ':' && params.charAt(5) == ':') {
-          targetEnd = 17;
-      } else {
-          // Fallback: try to find first non-MAC colon
-          int colonCount = 0;
-          for (int i = 0; i < params.length(); i++) {
-              if (params.charAt(i) == ':') {
-                  colonCount++;
-                  if (colonCount == 6) {  // 6th colon is the delimiter after MAC
-                      targetEnd = i;
-                      break;
-                  }
-              }
+    if (params.length() >= 17 && params.charAt(2) == ':' && params.charAt(5) == ':') {
+      targetEnd = 17;
+    } else {
+      int colonCount = 0;
+      for (int i = 0; i < params.length(); i++) {
+        if (params.charAt(i) == ':') {
+          colonCount++;
+          if (colonCount == 6) {
+            targetEnd = i;
+            break;
           }
-          if (targetEnd == 0) {
-              // Couldn't parse, try simple split on first colon
-              targetEnd = params.indexOf(':');
-          }
+        }
       }
+      if (targetEnd == 0) {
+        targetEnd = params.indexOf(':');
+      }
+    }
   }
 
   target = params.substring(0, targetEnd);
@@ -1103,38 +982,38 @@ static void handleTriangulateStart(const String &command, const String &targetId
   float blePwr = 1.0f;
 
   if (durationDelim > 0) {
-      duration = remainder.substring(0, durationDelim).toInt();
-      String afterDuration = remainder.substring(durationDelim + 1);
+    duration = remainder.substring(0, durationDelim).toInt();
+    String afterDuration = remainder.substring(durationDelim + 1);
 
-      int initiatorDelim = afterDuration.indexOf(':');
-      if (initiatorDelim > 0) {
-          initiatorNodeId = afterDuration.substring(0, initiatorDelim);
-          String afterInitiator = afterDuration.substring(initiatorDelim + 1);
+    int initiatorDelim = afterDuration.indexOf(':');
+    if (initiatorDelim > 0) {
+      initiatorNodeId = afterDuration.substring(0, initiatorDelim);
+      String afterInitiator = afterDuration.substring(initiatorDelim + 1);
 
-          int envDelim = afterInitiator.indexOf(':');
-          if (envDelim > 0) {
-              rfEnv = afterInitiator.substring(0, envDelim).toInt();
-              String afterEnv = afterInitiator.substring(envDelim + 1);
+      int envDelim = afterInitiator.indexOf(':');
+      if (envDelim > 0) {
+        rfEnv = afterInitiator.substring(0, envDelim).toInt();
+        String afterEnv = afterInitiator.substring(envDelim + 1);
 
-              int blePwrDelim = afterEnv.indexOf(':');
-              if (blePwrDelim > 0) {
-                  wifiPwr = afterEnv.substring(0, blePwrDelim).toFloat();
-                  blePwr = afterEnv.substring(blePwrDelim + 1).toFloat();
-              } else {
-                  wifiPwr = afterEnv.toFloat();
-              }
-          } else {
-              rfEnv = afterInitiator.toInt();
-          }
-
-          if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
-          if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
-          if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
+        int blePwrDelim = afterEnv.indexOf(':');
+        if (blePwrDelim > 0) {
+          wifiPwr = afterEnv.substring(0, blePwrDelim).toFloat();
+          blePwr = afterEnv.substring(blePwrDelim + 1).toFloat();
+        } else {
+          wifiPwr = afterEnv.toFloat();
+        }
       } else {
-          initiatorNodeId = afterDuration;
+        rfEnv = afterInitiator.toInt();
       }
+
+      if (rfEnv > RF_ENV_INDUSTRIAL) rfEnv = RF_ENV_INDOOR;
+      if (wifiPwr < 0.1f || wifiPwr > 5.0f) wifiPwr = 1.0f;
+      if (blePwr < 0.1f || blePwr > 5.0f) blePwr = 1.0f;
+    } else {
+      initiatorNodeId = afterDuration;
+    }
   } else {
-      duration = remainder.toInt();
+    duration = remainder.toInt();
   }
 
   if (duration < 10) duration = 10;
@@ -1150,54 +1029,49 @@ static void handleTriangulateStart(const String &command, const String &targetId
   uint8_t macBytes[6];
 
   if (!isIdentityId) {
-      if (!parseMac6(target, macBytes)) {
-          Serial.printf("[TRIANGULATE] Invalid MAC format: %s - ignoring command\n", target.c_str());
-          return;
-      }
+    if (!parseMac6(target, macBytes)) {
+      Serial.printf("[TRIANGULATE] Invalid MAC format: %s - ignoring command\n", target.c_str());
+      return;
+    }
   }
 
   if (workerTaskHandle) {
-      stopRequested = true;
-      // Wait for task to exit naturally - it sets workerTaskHandle = nullptr on exit
-      uint32_t triStopWait = millis();
-      while (workerTaskHandle && (millis() - triStopWait) < 5000) {
-          vTaskDelay(pdMS_TO_TICKS(100));
-      }
-      if (workerTaskHandle) {
-          Serial.println("[TRIANGULATE] Worker task did not stop in time, aborting start");
-          sendToSerial1(nodeId + ": TRI_ACK:BUSY", true);
-          return;
-      }
+    stopRequested = true;
+    uint32_t triStopWait = millis();
+    while (workerTaskHandle && (millis() - triStopWait) < 5000) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    if (workerTaskHandle) {
+      Serial.println("[TRIANGULATE] Worker task did not stop in time, aborting start");
+      sendToSerial1(nodeId + ": TRI_ACK:BUSY", true);
+      return;
+    }
   }
 
   if (isIdentityId) {
-      strncpy(triangulationTargetIdentity, target.c_str(), sizeof(triangulationTargetIdentity) - 1);
-      triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
-      memset(triangulationTarget, 0, 6);
+    strncpy(triangulationTargetIdentity, target.c_str(), sizeof(triangulationTargetIdentity) - 1);
+    triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
+    memset(triangulationTarget, 0, 6);
   } else {
-      memcpy(triangulationTarget, macBytes, 6);
-      memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
+    memcpy(triangulationTarget, macBytes, 6);
+    memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
   }
 
   // Determine if this node is the initiator (from broadcast)
   bool isInitiator = false;
   if (initiatorNodeId.length() > 0) {
-      // Initiator explicitly specified in command
-      isInitiator = (myNodeId == initiatorNodeId);
-      Serial.printf("[TRIANGULATE] Broadcast received - Initiator: %s (I am %s: %s)\n",
-                   initiatorNodeId.c_str(),
-                   isInitiator ? "INITIATOR" : "participant",
-                   myNodeId.c_str());
+    isInitiator = (myNodeId == initiatorNodeId);
+    Serial.printf("[TRIANGULATE] Broadcast received - Initiator: %s (I am %s: %s)\n",
+                 initiatorNodeId.c_str(),
+                 isInitiator ? "INITIATOR" : "participant",
+                 myNodeId.c_str());
   } else {
-      // Legacy behavior: no initiator in command means this is a participant
-      Serial.printf("[TRIANGULATE] No initiator specified, acting as participant\n");
+    Serial.printf("[TRIANGULATE] No initiator specified, acting as participant\n");
   }
 
-  // If this node is the initiator, it already started via startTriangulation()
-  // Don't re-process the broadcast command to avoid interference
   if (isInitiator) {
-      Serial.println("[TRIANGULATE] Ignoring broadcast - already running as initiator");
-      return;
+    Serial.println("[TRIANGULATE] Ignoring broadcast - already running as initiator");
+    return;
   }
 
   // Participant node setup
@@ -1214,7 +1088,7 @@ static void handleTriangulateStart(const String &command, const String &targetId
   // Use node ID hash to generate unique delay (0-2000ms)
   uint32_t nodeHash = 0;
   for (size_t i = 0; i < nodeId.length(); i++) {
-      nodeHash = nodeHash * 31 + nodeId.charAt(i);
+    nodeHash = nodeHash * 31 + nodeId.charAt(i);
   }
   uint32_t ackDelay = (nodeHash % 2000);  // 0-2000ms spread
   Serial.printf("[TRIANGULATE] Staggered ACK delay: %ums\n", ackDelay);
@@ -1231,108 +1105,110 @@ static void handleTriangulateStart(const String &command, const String &targetId
 
 static void handleTriangulateStop(const String &command)
 {
+  (void)command;
   Serial.println("[MESH] TRIANGULATE_STOP received");
   stopRequested = true;
 
   if (triangulationActive && !triangulationInitiator) {
-      rateLimiter.flush();
-      Serial.println("[MESH] Rate limiter flushed for final reports");
+    rateLimiter.flush();
+    Serial.println("[MESH] Rate limiter flushed for final reports");
 
-      String myNodeId = getNodeId();
-      if (myNodeId.length() == 0) {
-          myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+    String myNodeId = getNodeId();
+    if (myNodeId.length() == 0) {
+      myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+    }
+
+    String macStr = macFmt6(triangulationTarget);
+    bool sentReport = false;
+
+    int wifiHitCount, bleHitCount;
+    int8_t wifiAvgRssi = -128, bleAvgRssi = -128;
+    float lat, lon, hdop;
+    bool hasGPS;
+
+    {
+      std::lock_guard<std::mutex> lock(triAccumMutex);
+
+      // Fix for dual-radio devices showing as two types
+      if (triAccum.wifiHitCount > 0 && triAccum.bleHitCount > 0) {
+        Serial.printf("[TRI-FINAL-MIXED] WARNING: Device %s has BOTH WiFi (%d) and BLE (%d) hits!\n",
+                     macStr.c_str(), triAccum.wifiHitCount, triAccum.bleHitCount);
+
+        if (triAccum.wifiHitCount >= triAccum.bleHitCount) {
+          Serial.printf("[TRI-FINAL-MIXED] Keeping WiFi, clearing BLE\n");
+          triAccum.bleHitCount = 0;
+          triAccum.bleRssiSum = 0.0f;
+        } else {
+          Serial.printf("[TRI-FINAL-MIXED] Keeping BLE, clearing WiFi\n");
+          triAccum.wifiHitCount = 0;
+          triAccum.wifiRssiSum = 0.0f;
+        }
       }
 
-      String macStr = macFmt6(triangulationTarget);
-      bool sentReport = false;
-
-      int wifiHitCount, bleHitCount;
-      int8_t wifiAvgRssi = -128, bleAvgRssi = -128;
-      float lat, lon, hdop;
-      bool hasGPS;
-
-      {
-          std::lock_guard<std::mutex> lock(triAccumMutex);
-
-          // Fix for dual-radio devices showing as two types
-          if (triAccum.wifiHitCount > 0 && triAccum.bleHitCount > 0) {
-              Serial.printf("[TRI-FINAL-MIXED] WARNING: Device %s has BOTH WiFi (%d) and BLE (%d) hits!\n",
-                           macStr.c_str(), triAccum.wifiHitCount, triAccum.bleHitCount);
-
-              if (triAccum.wifiHitCount >= triAccum.bleHitCount) {
-                  Serial.printf("[TRI-FINAL-MIXED] Keeping WiFi, clearing BLE\n");
-                  triAccum.bleHitCount = 0;
-                  triAccum.bleRssiSum = 0.0f;
-              } else {
-                  Serial.printf("[TRI-FINAL-MIXED] Keeping BLE, clearing WiFi\n");
-                  triAccum.wifiHitCount = 0;
-                  triAccum.wifiRssiSum = 0.0f;
-              }
-          }
-
-          wifiHitCount = triAccum.wifiHitCount;
-          bleHitCount = triAccum.bleHitCount;
-          if (wifiHitCount > 0) {
-              wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
-          }
-          if (bleHitCount > 0) {
-              bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
-          }
-          lat = triAccum.lat;
-          lon = triAccum.lon;
-          hdop = triAccum.hdop;
-          hasGPS = triAccum.hasGPS;
-      }
-
+      wifiHitCount = triAccum.wifiHitCount;
+      bleHitCount = triAccum.bleHitCount;
       if (wifiHitCount > 0) {
-          String wifiMsg = myNodeId + ": T_D: " + macStr +
-                          " RSSI:" + String(wifiAvgRssi) +
-                          " Hits=" + String(wifiHitCount) +
-                          " Type:WiFi";
-          if (hasGPS) {
-              wifiMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
-                      " HDOP=" + String(hdop, 1);
-          }
-          sendToSerial1(wifiMsg, true);
-          Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
-                       wifiHitCount, wifiAvgRssi);
-          sentReport = true;
+        wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
       }
-
       if (bleHitCount > 0) {
-          String bleMsg = myNodeId + ": T_D: " + macStr +
-                          " RSSI:" + String(bleAvgRssi) +
-                          " Hits=" + String(bleHitCount) +
-                          " Type:BLE";
-          if (hasGPS) {
-              bleMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
-                      " HDOP=" + String(hdop, 1);
-          }
-          sendToSerial1(bleMsg, true);
-          Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
-                       bleHitCount, bleAvgRssi);
-          sentReport = true;
+        bleAvgRssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
       }
+      lat = triAccum.lat;
+      lon = triAccum.lon;
+      hdop = triAccum.hdop;
+      hasGPS = triAccum.hasGPS;
+    }
 
-      // If no hits at all, still send a 0-hit report so initiator knows we're done
-      if (!sentReport) {
-          String noHitMsg = myNodeId + ": T_D: " + macStr +
-                          " RSSI:-128" +
-                          " Hits=0" +
-                          " Type:WiFi";  // Default to WiFi type for 0-hit reports
-          if (gpsValid) {
-              noHitMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-              if (gps.hdop.isValid()) {
-                  noHitMsg += " HDOP=" + String(gps.hdop.hdop(), 1);
-              }
-          }
-          sendToSerial1(noHitMsg, true);
-          Serial.println("[TRIANGULATE] Final 0-hit report sent (no detections)");
+    if (wifiHitCount > 0) {
+      String wifiMsg = myNodeId + ": T_D: " + macStr +
+                      " RSSI:" + String(wifiAvgRssi) +
+                      " Hits=" + String(wifiHitCount) +
+                      " Type:WiFi";
+      if (hasGPS) {
+        wifiMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
+                " HDOP=" + String(hdop, 1);
       }
+      sendToSerial1(wifiMsg, true);
+      Serial.printf("[TRIANGULATE] Final WiFi report sent: %d hits, RSSI=%d\n",
+                   wifiHitCount, wifiAvgRssi);
+      sentReport = true;
+    }
 
-      markTriangulationStopFromMesh();
-      triangulationActive = false;
-      Serial.println("[TRIANGULATE] Child node marked inactive, scanner will exit");
+    if (bleHitCount > 0) {
+      String bleMsg = myNodeId + ": T_D: " + macStr +
+                      " RSSI:" + String(bleAvgRssi) +
+                      " Hits=" + String(bleHitCount) +
+                      " Type:BLE";
+      if (hasGPS) {
+        bleMsg += " GPS=" + String(lat, 6) + "," + String(lon, 6) +
+                " HDOP=" + String(hdop, 1);
+      }
+      sendToSerial1(bleMsg, true);
+      Serial.printf("[TRIANGULATE] Final BLE report sent: %d hits, RSSI=%d\n",
+                   bleHitCount, bleAvgRssi);
+      sentReport = true;
+    }
+
+    // If no hits at all, still send a 0-hit report so initiator knows we're done
+    if (!sentReport) {
+      String noHitMsg = myNodeId + ": T_D: " + macStr +
+                      " RSSI:-128" +
+                      " Hits=0" +
+                      " Type:WiFi";  // Default to WiFi type for 0-hit reports
+      if (gpsValid) {
+        noHitMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
+        if (gps.hdop.isValid()) {
+          noHitMsg += " HDOP=" + String(gps.hdop.hdop(), 1);
+        }
+      }
+      sendToSerial1(noHitMsg, true);
+      Serial.println("[TRIANGULATE] Final 0-hit report sent (no detections)");
+    }
+
+    // Mark as stopped and let scanner task exit naturally
+    markTriangulationStopFromMesh();
+    triangulationActive = false;
+    Serial.println("[TRIANGULATE] Child node marked inactive, scanner will exit");
   }
 
   sendToSerial1(nodeId + ": TRIANGULATE_STOP_ACK", true);
@@ -1345,9 +1221,11 @@ static void handleTriCycleStart(const String &command)
   int colonPos = params.indexOf(':');
 
   if (colonPos > 0) {
+    // New format with node list
     uint32_t cycleStartMs = params.substring(0, colonPos).toInt();
     String nodeListStr = params.substring(colonPos + 1);
 
+    // Clear and rebuild reporting schedule with all nodes in coordinator's order
     reportingSchedule.reset();
 
     // Parse comma-separated node list
@@ -1395,7 +1273,13 @@ static void handleTriCycleStart(const String &command)
 
 static void handleTriangulateResults(const String &command)
 {
-  if (triangulationNodes.size() > 0) {
+  (void)command;
+  bool hasNodes;
+  {
+    std::lock_guard<std::mutex> lock(triangulationMutex);
+    hasNodes = (triangulationNodes.size() > 0);
+  }
+  if (hasNodes) {
     String results = calculateTriangulation();
     sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_START", true);
     sendToSerial1(results, true);
@@ -1453,7 +1337,6 @@ static void handleEraseRequest(const String &command)
   tamperAuthToken = generateEraseToken();
   Serial.println("[ERASE] Challenge nonce issued (valid 300s)");
   sendToSerial1(nodeId + ": ERASE_TOKEN:" + tamperAuthToken + " Expires:300s", true);
-  Serial.printf("[ERASE] Token provided - valid for 5 minutes\n");
 }
 
 static void handleFactoryReset(const String &command)
@@ -1515,6 +1398,7 @@ static void handleAutoeraseEnable(const String &command)
     }
     body = body.substring(0, lastColon);
   }
+  // Format: AUTOERASE_ENABLE[:setupDelay:eraseDelay:vibrationsRequired:detectionWindow:cooldown]
   if (body.length() > 16 && body.charAt(16) == ':') {
     // Parse parameters
     String params = body.substring(17);
@@ -1555,6 +1439,7 @@ static void handleAutoeraseEnable(const String &command)
   sendToSerial1(response, true);
   Serial.printf("[AUTOERASE] Enabled - setup mode active for %us\n", setupDelay/1000);
 
+  // Send SETUP_MODE alert
   String setupModeAlert = nodeId + ": SETUP_MODE: Auto-erase activates in " + String(setupDelay/1000) + "s";
   sendToSerial1(setupModeAlert, false);
 }
@@ -1575,8 +1460,7 @@ static void handleAutoeraseDisable(const String &command)
 
 static void handleAutoeraseStatus(const String &command)
 {
-  updateSetupModeStatus();
-
+  (void)command;
   String status = nodeId + ": AUTOERASE_STATUS: ";
   status += "Enabled:" + String(autoEraseEnabled ? "YES" : "NO");
 
@@ -1624,6 +1508,7 @@ static void handleBatterySaverStart(const String &command)
 
 static void handleBatterySaverStop(const String &command)
 {
+  (void)command;
   exitBatterySaver();
   sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STOPPED", true);
   Serial.println("[MESH] Battery saver stopped");
@@ -1631,23 +1516,28 @@ static void handleBatterySaverStop(const String &command)
 
 static void handleBatterySaverStatus(const String &command)
 {
+  (void)command;
   String status = getBatterySaverStatus();
   sendToSerial1(status, true);
 }
 
 static void handleHbOn(const String &command)
 {
+  (void)command;
   hbEnabled = true;
   prefs.putBool("hbEnabled", true);
-  Serial.println("[HB] Status heartbeat ENABLED");
+  lastSaveTime = 0;
+  saveConfiguration();
   sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
 }
 
 static void handleHbOff(const String &command)
 {
+  (void)command;
   hbEnabled = false;
   prefs.putBool("hbEnabled", false);
-  Serial.println("[HB] Status heartbeat DISABLED");
+  lastSaveTime = 0;
+  saveConfiguration();
   sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
 }
 
@@ -1658,66 +1548,101 @@ static void handleHbInterval(const String &command)
   if (minutes > 60) minutes = 60;
   hbInterval = minutes * 60000;
   prefs.putUInt("hbInterval", hbInterval);
-  Serial.printf("[HB] Interval set to %u min\n", minutes);
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
+}
+
+static void handleSentinelOn(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(true);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:ON run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelOff(const String &command)
+{
+  (void)command;
+  sentinel_setUserEnabled(false);
+  sendToSerial1(nodeId + ": SENTINEL_ACK:OFF", true);
+}
+
+static void handleSentinelStatus(const String &command)
+{
+  (void)command;
+  sendToSerial1(nodeId + ": SENTINEL_STATUS: en=" + String(sentinel_isUserEnabled() ? 1 : 0) +
+                " run=" + String(sentinel_isRunning() ? 1 : 0), true);
+}
+
+static void handleSentinelMode(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_MODE:"));
+  v.trim();
+  bool scan = v.equalsIgnoreCase("scan");
+  bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
+  sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
+}
+
+static void handleSentinelBoot(const String &command)
+{
+  String v = command.substring(strlen("SENTINEL_BOOT:"));
+  v.trim();
+  bool on = (v.toInt() != 0) || v.equalsIgnoreCase("on");
+  Preferences p;
+  if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
+  sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
 }
 
 void processCommand(const String &command, const String &targetId = "")
 {
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n",
                 command.length(), command.c_str());
-  if (command.startsWith("CONFIG_CHANNELS:"))         handleConfigChannels(command);
-  else if (command.startsWith("CONFIG_ERASE_PSK:"))    handleConfigErasePsk(command);
-  else if (command.startsWith("CONFIG_TARGETS:"))     handleConfigTargets(command);
-  else if (command.startsWith("CONFIG_NODEID:"))      handleConfigNodeId(command);
-  else if (command.startsWith("CONFIG_RSSI:"))        handleConfigRssi(command);
-  else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
-  else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
-  else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
-  else if (command.startsWith("BASELINE_STATUS"))     handleBaselineStatus(command);
-  else if (command.startsWith("DEVICE_SCAN_START:"))  handleDeviceScanStart(command);
-  else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
-  else if (command.startsWith("DEAUTH_START:"))       handleDeauthStart(command);
-  else if (command.startsWith("RANDOMIZATION_START:")) handleRandomizationStart(command);
-  else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
-  else if (command == "PROBE_STOP")                   handleProbeStop(command);
-  else if (command.startsWith("STOP"))                handleStop(command);
-  else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
-  else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
-  else if (command.startsWith("SENTINEL_STATUS"))     handleSentinelStatus(command);
-  else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
-  else if (command.startsWith("SENTINEL_BOOT:"))      handleSentinelBoot(command);
-  else if (command.startsWith("GROUP:"))              handleGroup(command);
-  else if (command.startsWith("DETECT_CFG_GET"))      handleDetectCfgGet(command);
-  else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
-  else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
-  else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
-  else if (command.startsWith("STATUS"))              handleStatus(command);
-  else if (command.startsWith("VIBRATION_STATUS"))    handleVibrationStatus(command);
-  else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
-  else if (command == "VIBRATION_OFF")                handleVibrationOff(command);
-  else if (command.startsWith("TRIANGULATE_START:"))  handleTriangulateStart(command, targetId);
-  else if (command == "TRIANGULATE_STOP")             handleTriangulateStop(command);
-  else if (command.startsWith("TRI_CYCLE_START:"))    handleTriCycleStart(command);
-  else if (command.startsWith("TRIANGULATE_RESULTS")) handleTriangulateResults(command);
-  else if (command.startsWith("ERASE_FORCE:"))        handleEraseForce(command);
-  else if (command.startsWith("ERASE_CANCEL"))        handleEraseCancel(command);
-  else if (command == "ERASE_REQUEST")                handleEraseRequest(command);
-  else if (command.startsWith("FACTORY_RESET:"))      handleFactoryReset(command);
-  else if (command.startsWith("AUTOERASE_ENABLE"))    handleAutoeraseEnable(command);
-  else if (command.startsWith("AUTOERASE_DISABLE"))   handleAutoeraseDisable(command);
-  else if (command == "AUTOERASE_STATUS")             handleAutoeraseStatus(command);
-  else if (command.startsWith("BATTERY_SAVER_START")) handleBatterySaverStart(command);
-  else if (command == "BATTERY_SAVER_STOP")           handleBatterySaverStop(command);
-  else if (command == "BATTERY_SAVER_STATUS")         handleBatterySaverStatus(command);
-  else if (command == "HB_ON")                        handleHbOn(command);
-  else if (command == "HB_OFF")                       handleHbOff(command);
-  else if (command.startsWith("HB_INTERVAL:"))        handleHbInterval(command);
+  if (command.startsWith("CONFIG_CHANNELS:"))          handleConfigChannels(command);
+  else if (command.startsWith("CONFIG_ERASE_PSK:"))     handleConfigErasePsk(command);
+  else if (command.startsWith("CONFIG_DEDUP_TTL:"))     handleConfigDedupTtl(command);
+  else if (command.startsWith("CONFIG_TARGETS:"))       handleConfigTargets(command);
+  else if (command.startsWith("CONFIG_NODEID:"))        handleConfigNodeId(command);
+  else if (command.startsWith("CONFIG_RSSI:"))          handleConfigRssi(command);
+  else if (command.startsWith("SCAN_START:"))           handleScanStart(command);
+  else if (command.startsWith("BASELINE_START:"))       handleBaselineStart(command);
+  else if (command.startsWith("BASELINE_STATUS"))       handleBaselineStatus(command);
+  else if (command.startsWith("DEVICE_SCAN_START:"))    handleDeviceScanStart(command);
+  else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);
+  else if (command.startsWith("DEAUTH_START:"))         handleDeauthStart(command);
+  else if (command.startsWith("RANDOMIZATION_START:"))  handleRandomizationStart(command);
+  else if (command.startsWith("PROBE_START:"))          handleProbeStart(command);
+  else if (command.startsWith("PROBE_STOP"))            handleProbeStop(command);
+  else if (command.startsWith("PROBE_HIT "))            handleProbeHit(command);
+  else if (command.startsWith("STOP"))                  handleStop(command);
+  else if (command == "SENTINEL_ON")                    handleSentinelOn(command);
+  else if (command == "SENTINEL_OFF")                   handleSentinelOff(command);
+  else if (command.startsWith("SENTINEL_STATUS"))       handleSentinelStatus(command);
+  else if (command.startsWith("SENTINEL_MODE:"))        handleSentinelMode(command);
+  else if (command.startsWith("SENTINEL_BOOT:"))        handleSentinelBoot(command);
+  else if (command.startsWith("STATUS"))                handleStatus(command);
+  else if (command.startsWith("VIBRATION_STATUS"))      handleVibrationStatus(command);
+  else if (command == "VIBRATION_ON")                   handleVibrationOn(command);
+  else if (command == "VIBRATION_OFF")                  handleVibrationOff(command);
+  else if (command.startsWith("TRIANGULATE_START:"))    handleTriangulateStart(command, targetId);
+  else if (command == "TRIANGULATE_STOP")               handleTriangulateStop(command);
+  else if (command.startsWith("TRI_CYCLE_START:"))      handleTriCycleStart(command);
+  else if (command.startsWith("TRIANGULATE_RESULTS"))   handleTriangulateResults(command);
+  else if (command.startsWith("ERASE_FORCE:"))          handleEraseForce(command);
+  else if (command.startsWith("ERASE_CANCEL"))          handleEraseCancel(command);
+  else if (command == "ERASE_REQUEST")                  handleEraseRequest(command);
+  else if (command.startsWith("FACTORY_RESET:"))        handleFactoryReset(command);
+  else if (command.startsWith("AUTOERASE_ENABLE"))      handleAutoeraseEnable(command);
+  else if (command.startsWith("AUTOERASE_DISABLE"))     handleAutoeraseDisable(command);
+  else if (command == "AUTOERASE_STATUS")               handleAutoeraseStatus(command);
+  else if (command.startsWith("BATTERY_SAVER_START"))   handleBatterySaverStart(command);
+  else if (command == "BATTERY_SAVER_STOP")             handleBatterySaverStop(command);
+  else if (command == "BATTERY_SAVER_STATUS")           handleBatterySaverStatus(command);
+  else if (command == "HB_ON")                          handleHbOn(command);
+  else if (command == "HB_OFF")                         handleHbOff(command);
+  else if (command.startsWith("HB_INTERVAL:"))          handleHbInterval(command);
 }
 
 void sendMeshCommand(const String &command) {
     if (!meshEnabled) return;
-    
+
     bool sent = sendToSerial1(command, true);
     if (sent) {
         Serial.printf("[MESH] Command sent: %s\n", command.c_str());
@@ -1763,6 +1688,7 @@ void processMeshMessage(const String &message) {
 
         if (content == "TRI_START_ACK") {
             Serial.printf("[TRIANGULATE] ACK received from %s\n", sendingNode.c_str());
+            // Track which nodes have acknowledged - add to triangulateAcks if not already present
             {
                 std::lock_guard<std::mutex> lock(triangulationMutex);
                 auto ackIt = std::find_if(triangulateAcks.begin(), triangulateAcks.end(),
@@ -1788,14 +1714,14 @@ void processMeshMessage(const String &message) {
 
     }
 
-    // Process T_D messages during active triangulation OR while waiting for final reports
+    // Process T_D messages during active triangulation or while waiting for final reports
     if ((triangulationActive || waitingForFinalReports) && colonPos > 0) {
         String sendingNode = cleanMessage.substring(0, colonPos);
         String content = cleanMessage.substring(colonPos + 2);
 
         // T_D from child nodes
         if (content.startsWith("T_D:")) {
-            String payload = content.substring(5);  // Skip "T_D: " entirely
+            String payload = content.substring(5);
             Serial.printf("[T_D_DEBUG] Sender=%s Payload='%s'\n", sendingNode.c_str(), payload.c_str());
 
             int macEnd = payload.indexOf(' ');
@@ -1878,57 +1804,61 @@ void processMeshMessage(const String &message) {
                                             nodeIt->isBLE ? "BLE" : "WiFi",
                                             hasGPS ? "YES" : "NO");
                             } else {
-                                TriangulationNode newNode;
-                                newNode.nodeId = sendingNode;
-                                newNode.lat = lat;
-                                newNode.lon = lon;
-                                newNode.rssi = rssi;
-                                newNode.hitCount = (hits >= 0) ? hits : 1;
-                                newNode.hasGPS = hasGPS;
-                                newNode.hdop = hdop;
-                                newNode.isBLE = isBLE;
-                                newNode.lastUpdate = millis();
-                                initNodeKalmanFilter(newNode);
-                                updateNodeRSSI(newNode, rssi);
-                                newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
-                                triangulationNodes.push_back(newNode);
-                                Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
-                                            sendingNode.c_str(), hits, rssi,
-                                            newNode.isBLE ? "BLE" : "WiFi");
+                            TriangulationNode newNode;
+                            newNode.nodeId = sendingNode;
+                            newNode.lat = lat;
+                            newNode.lon = lon;
+                            newNode.rssi = rssi;
+                            newNode.hitCount = (hits >= 0) ? hits : 1;  // Default to 1 for new nodes if no Hits field
+                            newNode.hasGPS = hasGPS;
+                            newNode.hdop = hdop;
+                            newNode.isBLE = isBLE;
+                            newNode.lastUpdate = millis();
+                            initNodeKalmanFilter(newNode);
+                            updateNodeRSSI(newNode, rssi);
+                            newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
+                            triangulationNodes.push_back(newNode);
+                            Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
+                                        sendingNode.c_str(), hits, rssi,
+                                        newNode.isBLE ? "BLE" : "WiFi");
+                        }
+
+                        // Mark this node as having reported (coordinator only)
+                        // Also handle late T_D from nodes whose ACK was lost
+                        if (triangulationInitiator && (waitingForFinalReports || triangulationActive)) {
+                            auto ackIt2 = std::find_if(triangulateAcks.begin(), triangulateAcks.end(),
+                                [&](const TriangulateAckInfo& a) { return a.nodeId == sendingNode; });
+                            bool foundInAcks = (ackIt2 != triangulateAcks.end());
+                            if (foundInAcks && !ackIt2->reportReceived) {
+                                ackIt2->reportReceived = true;
+                                ackIt2->reportTimestamp = millis();
+                                Serial.printf("[TRIANGULATE] Node %s marked as reported (%s data)\n",
+                                             sendingNode.c_str(), isBLE ? "BLE" : "WiFi");
                             }
 
-                            if (triangulationInitiator && (waitingForFinalReports || triangulationActive)) {
-                                auto ackIt2 = std::find_if(triangulateAcks.begin(), triangulateAcks.end(),
-                                    [&](const TriangulateAckInfo& a) { return a.nodeId == sendingNode; });
-                                bool foundInAcks = (ackIt2 != triangulateAcks.end());
-                                if (foundInAcks && !ackIt2->reportReceived) {
-                                    ackIt2->reportReceived = true;
-                                    ackIt2->reportTimestamp = millis();
-                                    Serial.printf("[TRIANGULATE] Node %s marked as reported (%s data)\n",
-                                                 sendingNode.c_str(), isBLE ? "BLE" : "WiFi");
-                                }
+                            // Node sent T_D but wasn't in our ACK list - their ACK was lost
+                            // Add them to tracking so we wait for their data
+                            if (!foundInAcks) {
+                                TriangulateAckInfo lateAck;
+                                lateAck.nodeId = sendingNode;
+                                lateAck.ackTimestamp = millis();
+                                lateAck.reportReceived = true;  // Already have their report
+                                lateAck.reportTimestamp = millis();
+                                triangulateAcks.push_back(lateAck);
 
-                                if (!foundInAcks) {
-                                    TriangulateAckInfo lateAck;
-                                    lateAck.nodeId = sendingNode;
-                                    lateAck.ackTimestamp = millis();
-                                    lateAck.reportReceived = true;  // Already have their report
-                                    lateAck.reportTimestamp = millis();
-                                    triangulateAcks.push_back(lateAck);
+                                // Also add to reporting schedule
+                                reportingSchedule.addNode(sendingNode);
 
-                                    // Also add to reporting schedule
-                                    reportingSchedule.addNode(sendingNode);
-
-                                    Serial.printf("[TRIANGULATE] Late T_D from node %s (ACK was lost) - added to tracking (%d total nodes)\n",
-                                                 sendingNode.c_str(), triangulateAcks.size());
-                                }
+                                Serial.printf("[TRIANGULATE] Late T_D from node %s (ACK was lost) - added to tracking (%d total nodes)\n",
+                                             sendingNode.c_str(), triangulateAcks.size());
                             }
                         }
                     }
                 }
             }
-            return;  // Message processed
+            return;
         }
+      }
 
       if (content.startsWith("Target:")) {
             int macStart = content.indexOf(' ', 7) + 1;
@@ -2000,6 +1930,8 @@ void processMeshMessage(const String &message) {
                         isBLE = (typeStr == "BLE");
                     }
 
+                    {
+                    std::lock_guard<std::mutex> lock(triangulationMutex);
                     auto nodeIt2 = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
                         [&](const TriangulationNode& n) { return n.nodeId == sendingNode; });
 
@@ -2035,13 +1967,13 @@ void processMeshMessage(const String &message) {
                       Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
                                     sendingNode.c_str(), rssi, newNode.distanceEstimate);
                   }
+                  }
                 }
             }
         }
 
 
         if (content.startsWith("T_F:")) {
-            // Parse: MAC=XX:XX:XX:XX:XX:XX GPS=lat,lon CONF=85.5 UNC=12.3
             String payload = content.substring(4);
 
             int gpsIdx = payload.indexOf("GPS=");
@@ -2164,7 +2096,7 @@ void processMeshMessage(const String &message) {
           if (targetId != nodeId && targetId != "ALL") return;
           String command = cleanMessage.substring(spaceIndex + 1);
           processCommand(command, targetId);
-        }
+      }
     } else {
         processCommand(cleanMessage, "");
     }
@@ -2172,7 +2104,7 @@ void processMeshMessage(const String &message) {
 
 void processUSBToMesh() {
     static String usbBuffer = "";
-    
+
     while (Serial.available()) {
         char c = Serial.read();
         Serial.write(c);
@@ -2198,111 +2130,5 @@ void processUSBToMesh() {
             Serial.println("[MESH] at 200 chars, clearing");
             usbBuffer = "";
         }
-    }
-}
-
-void sendMeshNotification(const Hit &hit) {
-    if (triangulationActive) return;
-    if (!meshEnabled) return;
-
-    // Convert MAC to uint64_t for map lookup
-    uint64_t macKey = 0;
-    for (int i = 0; i < 6; i++) {
-        macKey = (macKey << 8) | hit.mac[i];
-    }
-
-    unsigned long now = millis();
-    bool shouldSend = false;
-
-    // Check if we've seen this MAC before
-    auto it = meshTargetStates.find(macKey);
-    if (it == meshTargetStates.end()) {
-        // New target - always send
-        shouldSend = true;
-    } else {
-        const MeshTargetState &state = it->second;
-
-        // Check if enough time has passed for this specific target
-        if (now - state.lastSent < PER_TARGET_MIN_INTERVAL) {
-            // Not enough time - check if there's a significant change
-            int rssiDelta = abs(hit.rssi - state.lastRssi);
-
-            if (rssiDelta >= RSSI_CHANGE_THRESHOLD) {
-                shouldSend = true;  // Significant RSSI change
-            } else if (gpsValid && state.hadGPS) {
-                float latDelta = abs(gpsLat - state.lastLat);
-                float lonDelta = abs(gpsLon - state.lastLon);
-                if (latDelta >= GPS_CHANGE_THRESHOLD || lonDelta >= GPS_CHANGE_THRESHOLD) {
-                    shouldSend = true;  // Significant GPS movement
-                }
-            } else if (gpsValid && !state.hadGPS) {
-                shouldSend = true;  // GPS just became available
-            }
-        } else {
-            // Enough time has passed - send update
-            shouldSend = true;
-        }
-    }
-
-    if (!shouldSend) {
-        return;
-    }
-
-    // Respect global mesh send rate limit
-    if (now - lastMeshSend < meshSendInterval) {
-        return;
-    }
-    lastMeshSend = now;
-
-    // Update the state for this MAC
-    MeshTargetState newState;
-    newState.lastSent = now;
-    newState.lastRssi = hit.rssi;
-    newState.lastLat = gpsValid ? gpsLat : 0.0;
-    newState.lastLon = gpsValid ? gpsLon : 0.0;
-    newState.hadGPS = gpsValid;
-    if (meshTargetStates.size() >= 1000 && meshTargetStates.find(macKey) == meshTargetStates.end()) {
-        for (auto sit = meshTargetStates.begin(); sit != meshTargetStates.end(); ) {
-            if (now - sit->second.lastSent > (PER_TARGET_MIN_INTERVAL * 10)) sit = meshTargetStates.erase(sit);
-            else ++sit;
-        }
-    }
-    meshTargetStates[macKey] = newState;
-
-    // Build and send the message
-    char mac_str[18];
-    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-             hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
-
-    String cleanName = "";
-    if (strlen(hit.name) > 0 && strcmp(hit.name, "WiFi") != 0) {
-        for (size_t i = 0; i < strlen(hit.name) && i < 32; i++) {
-            char c = hit.name[i];
-            if (c >= 32 && c <= 126) {
-                cleanName += c;
-            }
-        }
-    }
-
-    char mesh_msg[MAX_MESH_SIZE];
-    memset(mesh_msg, 0, sizeof(mesh_msg));
-
-    String baseMsg = String(nodeId) + ": Target: " + String(mac_str) +
-                     " RSSI:" + String(hit.rssi) +
-                     " Type:" + (hit.isBLE ? "BLE" : "WiFi");
-
-    if (cleanName.length() > 0) {
-        baseMsg += " Name:" + cleanName;
-    }
-
-    if (gpsValid) {
-        baseMsg += " GPS=" + String(gpsLat, 6) + "," + String(gpsLon, 6);
-    }
-
-    int msg_len = snprintf(mesh_msg, sizeof(mesh_msg), "%s", baseMsg.c_str());
-
-    if (msg_len > 0 && msg_len <= (int)sizeof(mesh_msg) - 1) {
-        Serial.printf("[MESH] %s\n", mesh_msg);
-        meshEnqueuePrio(String(mesh_msg), PRIO_EVENT);
     }
 }

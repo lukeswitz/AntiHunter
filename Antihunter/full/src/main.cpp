@@ -149,12 +149,6 @@ bool isZeroOrBroadcast(const uint8_t *mac) {
     return all0 || allF;
 }
 
-inline int clampi(int v, int lo, int hi) {
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-}
-
 void parseChannelsCSV(const String &csv) {
     CHANNELS.clear();
     if (csv.indexOf("..") >= 0) {

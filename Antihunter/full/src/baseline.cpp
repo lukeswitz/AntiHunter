@@ -372,6 +372,7 @@ static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
     if (wifiScan == WIFI_SCAN_FAILED) {
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
+            // pin scan to AP channel while client connected; full-channel scan wedges SoftAP
             WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime,
                               WiFi.softAPgetStationNum() ? (uint8_t)AP_CHANNEL : (uint8_t)0);
         }
@@ -484,8 +485,9 @@ void baselineDetectionTask(void *pv) {
     
     if (pBLEScan && !pBLEScan->isScanning()) {
         pBLEScan->setActiveScan(true);
-        pBLEScan->setInterval(100);
-        pBLEScan->setWindow(99);
+        // 30% BLE duty (was ~99%) leaves the shared radio airtime for the AP
+        pBLEScan->setInterval(160);
+        pBLEScan->setWindow(48);
         pBLEScan->setDuplicateFilter(false);
         pBLEScan->start(0, false);
     }

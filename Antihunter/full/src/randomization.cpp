@@ -41,7 +41,6 @@ extern void radioStopSTA();
 extern std::atomic<bool> scanning;
 extern void radioStartBLE();
 extern bool radioStartBLEChecked();
-extern void radioStopBLE();
 extern std::atomic<bool> meshTxDraining;
 
 std::mutex randMutex;
@@ -74,25 +73,6 @@ String generateTrackId() {
     char id[10];
     snprintf(id, sizeof(id), "T-%04X", (identityIdCounter & 0xFFFF));
     return String(id);
-}
-
-bool detectWiFiBLECorrelation(const uint8_t* wifiMac, const uint8_t* bleMac) {
-    if (memcmp(wifiMac, bleMac, 3) != 0) {
-        return false;
-    }
-    
-    if ((wifiMac[0] & 0x02) != (bleMac[0] & 0x02)) {
-        return false;
-    }
-    
-    bool midBytesClose = (abs(static_cast<int>(wifiMac[3]) - static_cast<int>(bleMac[3])) <= 1) &&
-                         (abs(static_cast<int>(wifiMac[4]) - static_cast<int>(bleMac[4])) <= 1);
-    
-    int wifiLast = wifiMac[5];
-    int bleLast = bleMac[5];
-    int lastDiff = abs(wifiLast - bleLast);
-    
-    return (lastDiff <= 1) && midBytesClose;
 }
 
 bool detectGlobalMACLeak(const ProbeSession& session, uint8_t* globalMac) {
@@ -222,19 +202,6 @@ float calculateInterFrameTimingSimilarity(const uint32_t* times1, uint8_t count1
     return (cvScore * 0.6f) + (meanScore * 0.4f);
 }
 
-float calculateSignatureSetSimilarity(const ProbeSession& session, const DeviceIdentity& identity) {
-    uint8_t fpMatches = 0;
-    float fpScore = 0.0f;
-    
-    if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
-        fpScore = static_cast<float>(fpMatches) / 6.0f;
-    }
-    
-    float ieOrderScore = matchIEOrder(session.ieOrder, identity.signature.ieOrder) ? 1.0f : 0.0f;
-    
-    return (fpScore * 0.6f) + (ieOrderScore * 0.4f);
-}
-
 void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSignature& sig) {
     memset(&sig, 0, sizeof(sig));
     
@@ -253,40 +220,6 @@ void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSi
     
     sig.ieCount = idx;
     sig.orderHash = computeCRC16(sig.ieTypes, sig.ieCount);
-}
-
-void updateDeviceSignatureSet(DeviceIdentity& identity, const ProbeSession& session) {
-    bool signatureExists = false;
-    
-    uint8_t fpMatches = 0;
-    if (matchFingerprints(session.fingerprint, identity.signature.ieFingerprint, fpMatches)) {
-        if (fpMatches >= 4) {
-            signatureExists = true;
-        }
-    }
-    
-    if (!signatureExists) {
-        if (session.rssiReadings.size() > 0) {
-            uint8_t addCount = min(static_cast<size_t>(20 - identity.signature.rssiHistoryCount),
-                                   session.rssiReadings.size());
-            for (size_t i = 0; i < addCount; i++) {
-                identity.signature.rssiHistory[identity.signature.rssiHistoryCount++] = 
-                    session.rssiReadings[i];
-            }
-        }
-        
-        for (uint8_t i = 1; i < min(static_cast<uint8_t>(50), session.probeCount) && 
-             identity.signature.intervalCount < 20; i++) {
-            if (session.probeTimestamps[i] > session.probeTimestamps[i-1]) {
-                identity.signature.probeIntervals[identity.signature.intervalCount++] = 
-                    session.probeTimestamps[i] - session.probeTimestamps[i-1];
-            }
-        }
-    }
-    
-    identity.signature.channelBitmap |= session.channelMask;
-    identity.signature.observationCount++;
-    identity.signature.lastObserved = millis();
 }
 
 bool matchIEOrder(const IEOrderSignature& sig1, const IEOrderSignature& sig2) {
@@ -370,52 +303,6 @@ void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fin
     fingerprint[5] = (fingerprint[0] ^ fingerprint[1]) + (fingerprint[2] ^ fingerprint[3]);
 }
 
-
-void extractBLEFingerprint(const NimBLEAdvertisedDevice* device, uint16_t fingerprint[6]) {
-    memset(fingerprint, 0, 6 * sizeof(uint16_t));
-    if (!device) return;
-    
-    uint8_t tempBuf[64] = {0};
-    uint16_t bufPos = 0;
-    
-    if (device->haveManufacturerData()) {
-        std::string mfgData = device->getManufacturerData();
-        uint16_t copyLen = min(static_cast<size_t>(16), mfgData.length());
-        memcpy(tempBuf + bufPos, mfgData.data(), copyLen);
-        bufPos += copyLen;
-    }
-    
-    if (device->haveServiceUUID() && bufPos < 48) {
-        NimBLEUUID uuid = device->getServiceUUID();
-        const uint8_t* uuidData = uuid.getValue();
-        uint8_t uuidLen = uuid.bitSize() / 8;
-        uint16_t copyLen = min(static_cast<uint8_t>(16), uuidLen);
-        memcpy(tempBuf + bufPos, uuidData, copyLen);
-        bufPos += copyLen;
-    }
-    
-    if (device->haveServiceData() && bufPos < 48) {
-        NimBLEUUID uuid = device->getServiceDataUUID();
-        const uint8_t* uuidData = uuid.getValue();
-        uint8_t uuidLen = uuid.bitSize() / 8;
-        uint16_t copyLen = min(static_cast<uint8_t>(8), uuidLen);
-        memcpy(tempBuf + bufPos, uuidData, copyLen);
-        bufPos += copyLen;
-    }
-    
-    if (bufPos > 0) {
-        uint16_t seg1Len = min(static_cast<uint16_t>(16), bufPos);
-        uint16_t seg2Len = bufPos > 16 ? min(static_cast<uint16_t>(16), static_cast<uint16_t>(bufPos - 16)) : 0;
-        uint16_t seg3Len = bufPos > 32 ? min(static_cast<uint16_t>(16), static_cast<uint16_t>(bufPos - 32)) : 0;
-
-        fingerprint[0] = seg1Len > 0 ? computeCRC16(tempBuf, seg1Len) : 0;
-        fingerprint[1] = seg2Len > 0 ? computeCRC16(tempBuf + 16, seg2Len) : 0;
-        fingerprint[2] = seg3Len > 0 ? computeCRC16(tempBuf + 32, seg3Len) : 0;
-        fingerprint[3] = bufPos;
-        fingerprint[4] = (fingerprint[0] ^ fingerprint[1]);
-        fingerprint[5] = (fingerprint[0] + fingerprint[1] + fingerprint[2]) & 0xFFFF;
-    }
-}
 
 void extractBLEFingerprintFromPayload(const uint8_t* payload, uint8_t payloadLen, uint16_t fingerprint[6]) {
     memset(fingerprint, 0, 6 * sizeof(uint16_t));
@@ -581,16 +468,6 @@ bool detectMACRotationGap(const DeviceIdentity& identity, uint32_t currentTime) 
         return (gap >= MAC_ROTATION_GAP_MIN_BLE && gap <= MAC_ROTATION_GAP_MAX_BLE);
     }
     return (gap >= MAC_ROTATION_GAP_MIN && gap <= MAC_ROTATION_GAP_MAX);
-}
-
-bool detectSequenceNumberAnomaly(const ProbeSession& session, const DeviceIdentity& identity) {
-    if (!session.seqNumValid || !identity.sequenceValid) return false;
-    
-    uint16_t expectedDelta = (session.lastSeqNum >= identity.lastSequenceNum) ?
-                             (session.lastSeqNum - identity.lastSequenceNum) :
-                             (4096 + session.lastSeqNum - identity.lastSequenceNum);
-    
-    return (expectedDelta > 300 || expectedDelta == 0);
 }
 
 uint8_t calculateMACPrefixSimilarity(const uint8_t* mac1, const uint8_t* mac2) {

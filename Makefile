@@ -1,5 +1,6 @@
 CPPCHECK := cppcheck
 CPPCHECK_FLAGS := --enable=warning,style,performance,portability --std=c++17 \
+	--check-level=exhaustive \
 	-DPROGMEM= \
 	--error-exitcode=1
 

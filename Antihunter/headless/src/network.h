@@ -20,7 +20,6 @@ public:
     bool canSend(size_t messageLength);
     void consume(size_t messageLength);
     void refillTokens();
-    uint32_t waitTime(size_t messageLength);
     void flush();
 };
 
@@ -63,5 +62,3 @@ void processUSBToMesh();
 void setNodeId(const String &id);
 String getNodeId();
 extern unsigned long meshSendInterval;
-void setMeshSendInterval(unsigned long interval);
-unsigned long getMeshSendInterval();
