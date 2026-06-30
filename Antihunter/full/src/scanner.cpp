@@ -723,17 +723,31 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
     return false;
 }
 
+// Client connected: interleave AP home channel between hops to keep beacons flowing while still visiting every channel.
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
-    // shared radio: pin to AP_CHANNEL while a client is connected or AP drops (reason=8)
-    if (WiFi.softAPgetStationNum() > 0) {
-        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
-        return;
-    }
     static size_t idx = 0;
+    static bool serveHome = false;
+    if (WiFi.softAPgetStationNum() > 0) {
+        serveHome = !serveHome;
+        if (serveHome) {
+            esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+            return;
+        }
+    }
     idx = (idx + 1) % CHANNELS.size();
     esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
+}
+
+// Client connected: scan one rotating channel per call (full scan strands client); 0 = all channels when idle.
+uint8_t rotatingScanChannel()
+{
+    if (WiFi.softAPgetStationNum() == 0) return 0;
+    if (CHANNELS.empty()) return (uint8_t)AP_CHANNEL;
+    static size_t scanIdx = 0;
+    scanIdx = (scanIdx + 1) % CHANNELS.size();
+    return CHANNELS[scanIdx];
 }
 
 // Deauth type
@@ -994,7 +1008,7 @@ void snifferScanTask(void *pv)
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime,
-                                                  WiFi.softAPgetStationNum() ? (uint8_t)AP_CHANNEL : (uint8_t)0);
+                                                  rotatingScanChannel());
             if (stopRequested) break;
 
             if (networksFound > 0)
@@ -2581,7 +2595,7 @@ void radioStartSTA() {
     esp_wifi_set_promiscuous(true);
 
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-    esp_wifi_set_channel(WiFi.softAPgetStationNum() > 0 ? AP_CHANNEL : CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
 
     // Setup channel hopping
     if (hopTimer) {
@@ -2967,7 +2981,7 @@ void listScanTask(void *pv) {
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime,
-                                                  WiFi.softAPgetStationNum() ? (uint8_t)AP_CHANNEL : (uint8_t)0);
+                                                  rotatingScanChannel());
             if (stopRequested) break;
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
