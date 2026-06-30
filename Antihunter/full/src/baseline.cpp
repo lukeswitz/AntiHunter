@@ -374,7 +374,7 @@ static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
             lastWiFiScan = millis();
             // pin scan to AP channel while client connected; full-channel scan wedges SoftAP
             WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime,
-                              WiFi.softAPgetStationNum() ? (uint8_t)AP_CHANNEL : (uint8_t)0);
+                              rotatingScanChannel());
         }
         return;
     }

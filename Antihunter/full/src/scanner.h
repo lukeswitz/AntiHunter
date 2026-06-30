@@ -147,6 +147,7 @@ void setRFPreset(uint8_t preset);
 void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels, int8_t rssiThreshold);
 void loadRFConfigFromPrefs();
 void setGlobalRssiThreshold(int8_t threshold);
+uint8_t rotatingScanChannel();
 
 extern TaskHandle_t workerTaskHandle;
 extern std::atomic<bool> meshTxDraining;
