@@ -21,7 +21,6 @@ public:
     bool canSend(size_t messageLength);
     void consume(size_t messageLength);
     void refillTokens();
-    uint32_t waitTime(size_t messageLength);
     void flush();
 };
 
@@ -42,9 +41,10 @@ uint32_t meshTxQueueDepth();
 uint32_t meshTxDroppedCount();
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
-extern const int MAX_MESH_SIZE;
+constexpr int MAX_MESH_SIZE = 200;  // T114 tests allow 200char/3s in sequence
 extern SerialRateLimiter rateLimiter;
 extern SemaphoreHandle_t serial1Mutex;
+extern std::atomic<bool> g_eraseWipeBusy;
 extern AsyncWebServer *server;
 extern bool meshEnabled;
 extern bool hbEnabled;
@@ -74,5 +74,3 @@ void processUSBToMesh();
 void setNodeId(const String &id);
 String getNodeId();
 extern unsigned long meshSendInterval;
-void setMeshSendInterval(unsigned long interval);
-unsigned long getMeshSendInterval();

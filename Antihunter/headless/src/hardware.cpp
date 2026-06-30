@@ -1088,6 +1088,21 @@ void logVibrationEvent(int sensorValue) {
 void logEventToSD(const char* path, const String& jsonLine) {
     if (!SafeSD::isAvailable()) return;
 
+    // Heap-floor guard: under an attack flood, per-event SD writes (File buffers +
+    // rotation reads) can drain heap to an abort. Below the floor, drop the write
+    // rather than crash — the detector still counted/alerted in RAM. Protects
+    // EVERY detector log path in one place.
+    if (ESP.getFreeHeap() < 20000) {
+        static uint32_t s_lastHeapWarnMs = 0;
+        uint32_t nowMs = millis();
+        if (nowMs - s_lastHeapWarnMs > 5000) {
+            s_lastHeapWarnMs = nowMs;
+            Serial.printf("[HEAP-GUARD] dropping SD log (%s) — free heap %u\n",
+                          path, (unsigned)ESP.getFreeHeap());
+        }
+        return;
+    }
+
     File f = SafeSD::open(path, FILE_APPEND);
     if (!f) {
         f = SafeSD::open(path, FILE_WRITE);
@@ -1488,23 +1503,6 @@ uint32_t getEventTimestamp() {
     return millis() / 1000;
 }
 
-bool setRTCTime(int year, int month, int day, int hour, int minute, int second) {
-    if (!rtcAvailable) return false;
-    if (rtcMutex == nullptr) return false;
-    
-    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
-    
-    DateTime newTime(year, month, day, hour, minute, second);
-    rtc.adjust(newTime);
-    rtcSynced = true;
-    
-    xSemaphoreGive(rtcMutex);
-    
-    Serial.printf("[RTC] Manually set to: %04d-%02d-%02d %02d:%02d:%02d\n",
-                  year, month, day, hour, minute, second);
-    
-    return true;
-}
 
 // SD Erase
 
@@ -1813,10 +1811,6 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     // Disable WiFi promiscuous mode
     esp_wifi_set_promiscuous(false);
 
-    // Stop WiFi (but keep mesh UART active)
-    esp_wifi_stop();
-    Serial.println("[BATTERY_SAVER] WiFi stopped");
-
     // Disable BLE controller
     esp_bt_controller_disable();
     Serial.println("[BATTERY_SAVER] BLE disabled");
@@ -1869,10 +1863,6 @@ void exitBatterySaver() {
     // Re-enable BLE controller
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     Serial.println("[BATTERY_SAVER] BLE re-enabled");
-
-    // Restart WiFi
-    WiFi.mode(WIFI_MODE_STA);
-    Serial.println("[BATTERY_SAVER] WiFi restarted");
 
     batterySaverEnabled = false;
 

@@ -142,9 +142,7 @@ struct RFScanConfig {
 extern RFScanConfig rfConfig;
 void setRFPreset(uint8_t preset);
 void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels, int8_t rssiThreshold);
-RFScanConfig getRFConfig();
 void loadRFConfigFromPrefs();
-int8_t getGlobalRssiThreshold();
 void setGlobalRssiThreshold(int8_t threshold);
 
 extern TaskHandle_t workerTaskHandle;
@@ -156,7 +154,6 @@ extern std::atomic<uint32_t> meshTxDroppedRateLimit;
 extern std::atomic<uint32_t> meshTxDroppedBufFull;
 extern std::atomic<uint32_t> meshTxDroppedTriGate;
 extern std::atomic<uint32_t> meshTxDroppedEvicted;
-bool isRadioBusyOrDraining();
 void initBLEOnce();
 
 bool meshShouldSendMac(const String& mac);
@@ -179,7 +176,6 @@ bool matchesSsid(const char *ssid);
 const char* lookupOuiVendor(const uint8_t *mac);
 void probeDetectionTask(void *pv);
 String getProbeResults();
-void resetProbeDetection();
 
 // SD probe database
 void loadProbeDB();
@@ -246,7 +242,6 @@ void radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
 void radioStopListScan();
 void radioStartBLE();
 bool radioStartBLEChecked();
-void radioStopBLE();
 
 // Safe queue functions (mutex protected)
 void initMacQueueMutex();
@@ -259,9 +254,6 @@ String getTargetsList();
 size_t getTargetCount();
 String getSnifferCache();
 
-size_t getAllowlistCount();
 String getAllowlistText();
 void saveAllowlist(const String &txt);
 bool isAllowlisted(const uint8_t *mac);
-
-void cleanupMaps();

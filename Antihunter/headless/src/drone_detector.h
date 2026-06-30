@@ -43,7 +43,6 @@ struct DroneFrameEvent {
 
 extern std::map<String, DroneDetection> detectedDrones;
 extern std::mutex detectedDronesMutex;
-extern portMUX_TYPE droneMux;
 extern std::vector<String> droneEventLog;
 extern std::atomic<uint32_t> droneDetectionCount;
 extern std::atomic<bool> droneDetectionEnabled;

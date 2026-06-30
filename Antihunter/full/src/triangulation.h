@@ -102,7 +102,6 @@ struct DistanceTuning {
 extern RFEnvironment currentRFEnvironment;
 extern DistanceTuning distanceTuning;
 void setRFEnvironment(RFEnvironment env);
-RFEnvironment getRFEnvironment();
 
 struct PathLossSample {
     float rssi;
@@ -164,7 +163,6 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, f
 void broadcastTimeSyncRequest();
 void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds);
 bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);
-String getNodeSyncStatus();
 String calculateTriangulation();
 void stopTriangulation();
 void startTriangulation(const String &targetMac, int duration);

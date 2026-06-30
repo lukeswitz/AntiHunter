@@ -1667,17 +1667,6 @@ String getRTCTimeString() {
     return rtcTimeString;
 }
 
-// Returns the cached RTC string WITHOUT an I2C read or GPS-discipline side effects.
-// The main loop refreshes rtcTimeString every 1s (main.cpp), so callers that only need ~1s
-// granularity (terminal/log timestamps) must use this to stay off the I2C bus on hot paths.
-String getRTCTimeStringCached() {
-    if (rtcMutex == nullptr) return rtcTimeString;
-    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(10)) != pdTRUE) return rtcTimeString;
-    String copy = rtcTimeString;
-    xSemaphoreGive(rtcMutex);
-    return copy;
-}
-
 String getFormattedTimestamp() {
     if (!rtcAvailable) {
         uint32_t ts = millis();
@@ -1723,24 +1712,6 @@ uint32_t getEventTimestamp() {
     time_t epoch = getRTCEpoch();
     if (epoch > 946684800) return (uint32_t)epoch;  // valid if after year 2000
     return millis() / 1000;
-}
-
-bool setRTCTime(int year, int month, int day, int hour, int minute, int second) {
-    if (!rtcAvailable) return false;
-    if (rtcMutex == nullptr) return false;
-    
-    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
-    
-    DateTime newTime(year, month, day, hour, minute, second);
-    rtc.adjust(newTime);
-    rtcSynced = true;
-    
-    xSemaphoreGive(rtcMutex);
-    
-    Serial.printf("[RTC] Manually set to: %04d-%02d-%02d %02d:%02d:%02d\n",
-                  year, month, day, hour, minute, second);
-    
-    return true;
 }
 
 // SD Erase

@@ -19,7 +19,7 @@ struct BaselineDevice {
     char name[32];
     bool isBLE;
     uint8_t channel;
-    uint16_t hitCount;
+    uint32_t hitCount;
     uint8_t checksum;
     bool dirtyFlag;
 } __attribute__((packed));

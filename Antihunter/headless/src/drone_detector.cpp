@@ -16,7 +16,6 @@ const uint32_t DRONE_STALE_TIME = 300000;
 
 std::map<String, DroneDetection> detectedDrones;
 std::mutex detectedDronesMutex;
-portMUX_TYPE droneMux = portMUX_INITIALIZER_UNLOCKED;
 std::set<String> transmittedDrones;
 std::vector<String> droneEventLog;
 std::atomic<uint32_t> droneDetectionCount(0);
@@ -132,7 +131,7 @@ static void parseDroneData(DroneDetection *drone, ODID_UAS_Data *uasData) {
     }
 }
 
-static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload) {
+static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int buf_len) {
     union {
         uint32_t u32;
         int32_t i32;
@@ -146,9 +145,10 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload) {
     int j = 9;
     int frame_length = payload[1];
 
-    while (j < frame_length) {
+    while (j < frame_length && j + 1 < buf_len) {
         uint8_t t = payload[j];
         uint8_t l = payload[j + 1];
+        if (j + 2 + l > buf_len) break;
         const uint8_t *v = &payload[j + 2];
 
         switch (t) {
@@ -252,7 +252,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
             const uint8_t *val = &payload[offset + 2];
             
             if ((typ == 0xdd) && (val[0] == 0x6a) && (val[1] == 0x5c) && (val[2] == 0x35)) {
-                parseFrenchDrone(&drone, &payload[offset]);
+                parseFrenchDrone(&drone, &payload[offset], length - offset);
                 validDrone = true;
                 foundDrone = true;
             }
