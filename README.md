@@ -153,7 +153,7 @@ Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
-- RAM cache: ~400 devices (heap-adaptive, scales down under memory pressure); SD overflow up to 50,000 devices (1500 RAM-only when no SD present)
+- RAM cache: ~400 devices (heap-adaptive, scales down under memory pressure); SD overflow up to 100,000 devices (1500 RAM-only when no SD present)
 - Automatic tiering between RAM and SD
 
 > [!TIP]
@@ -387,7 +387,7 @@ ANTENNA & CABLING
 - 3x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm)
 - 1x 6dBi Antenna 2.4GHz (WiFi/BLE)
 - 1x 6dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
-- 1x GNSS Helix Antenna (L1/L5)
+- 1x Active GPS Antenna (L1, SMA)
 
 POWER & THERMAL
 - 1x 30mm 5V Fan - JST (2.0mm JST also fits)
