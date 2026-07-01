@@ -355,7 +355,7 @@ ANTENNA & CABLING
 - 3x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm)
 - 1x 6dBi Antenna 2.4GHz (WiFi/BLE)
 - 1x 6dBi Antenna LoRa (region-dependent: 868MHz EU / 915MHz US / 923MHz Asia)
-- 1x GNSS Helix Antenna (L1/L5)
+- 1x Active GPS Antenna (L1, SMA)
 
 POWER & THERMAL
 - 1x 30mm 5V Fan - JST (2.0mm JST also fits)
