@@ -3070,8 +3070,8 @@ void listScanTask(void *pv) {
                     }
                 }
                 WiFi.scanDelete();
+                framesSeen += networksFound;
             }
-            if (networksFound > 0) framesSeen += networksFound;
         }
 
         extern void processUSBToMesh();

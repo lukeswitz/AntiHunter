@@ -13,6 +13,7 @@
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include <algorithm>
 
 
 Preferences prefs;
@@ -173,8 +174,8 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-    bool hasAp = false;
-    for (uint8_t ch : CHANNELS) if (ch == (uint8_t)AP_CHANNEL) { hasAp = true; break; }
+    bool hasAp = std::any_of(CHANNELS.begin(), CHANNELS.end(),
+                             [](uint8_t ch) { return ch == (uint8_t)AP_CHANNEL; });
     if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);
 }
 
