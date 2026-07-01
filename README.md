@@ -21,10 +21,12 @@
 
 > Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
 
-### News:
+### News & Links:
 
-- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection.
+[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6Pq6pg3bj)
+
 - `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+
 
 # Table of Contents
 
