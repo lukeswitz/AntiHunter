@@ -24,6 +24,7 @@ unsigned long lastRTCUpdate = 0;
 
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
+extern std::atomic<bool> scanning;
 
 std::string antihunter::lastResults = "No scan data yet.";
 std::mutex antihunter::lastResultsMutex;
@@ -97,7 +98,7 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("TOF_PONG:")) {
               detect_processMesh(senderId, toProcess);
             } else {
-              processMeshMessage(toProcess);
+              processMeshMessage(meshBuffer);
             }
           }
 
@@ -172,6 +173,9 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+    bool hasAp = false;
+    for (uint8_t ch : CHANNELS) if (ch == (uint8_t)AP_CHANNEL) { hasAp = true; break; }
+    if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);
 }
 
 void sendNodeIdUpdate() {
@@ -269,7 +273,7 @@ void setup() {
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BETA BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BOOT COMPLETE =====");
 
     String currentSsid = prefs.getString("apSsid", AP_SSID);
     String currentPass = prefs.getString("apPass", AP_PASS);
@@ -300,7 +304,6 @@ void loop() {
             time_t epoch = cmd.substring(8).toInt();
             if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
                 Serial.println("OK: RTC set");
-                broadcastToTerminal("[RTC] OK: RTC set");
             }
         }
     }
@@ -327,6 +330,13 @@ void loop() {
     }
 
     // Normal operation mode
+    static bool s_scanWasBusy = false;
+    bool scanBusyNow = scanning.load() || workerTaskHandle || blueTeamTaskHandle || triangulationActive.load();
+    if (s_scanWasBusy && !scanBusyNow) {
+        sentinel_resumeAfterScan();
+    }
+    s_scanWasBusy = scanBusyNow;
+
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {
         saveConfiguration();
         lastSaveSend = millis();

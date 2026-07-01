@@ -58,6 +58,8 @@ extern bool lastScanForever;
 extern String macFmt6(const uint8_t *m);
 extern size_t getTargetCount();
 extern TaskHandle_t blueTeamTaskHandle;
+extern TaskHandle_t workerTaskHandle;
+extern std::atomic<bool> triangulationActive;
 uint32_t SafeSD::lastCheckTime = 0;
 bool SafeSD::lastCheckResult = false;
 static unsigned long lastSaveTime = 0;
@@ -392,11 +394,65 @@ void syncSettingsToNVS() {
     Serial.println("[NVS] Settings synced to flash");
 }
 
+// FNV-1a hash over every value saveConfiguration persists. Lets saveConfiguration
+// skip the NVS+SD write (and its serial log) when nothing actually changed —
+// callers can invoke it freely without churning flash or spamming the console.
+static uint32_t configSignature() {
+    uint32_t h = 2166136261u;
+    auto mix = [&](const void *p, size_t n) {
+        const uint8_t *b = static_cast<const uint8_t *>(p);
+        for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 16777619u; }
+    };
+    auto mixStr = [&](const String &s) { mix(s.c_str(), s.length()); h ^= 0x5a; h *= 16777619u; };
+
+    mixStr(prefs.getString("nodeId", ""));
+    int sm = currentScanMode; mix(&sm, sizeof(sm));
+    for (size_t i = 0; i < CHANNELS.size(); i++) { int c = CHANNELS[i]; mix(&c, sizeof(c)); }
+    mix(&meshSendInterval, sizeof(meshSendInterval));
+    uint32_t u;
+    u = getMeshDedupTtlSec();          mix(&u, 4);
+    mix(&autoEraseEnabled, 1);
+    mix(&autoEraseDelay, 4); mix(&autoEraseCooldown, 4);
+    mix(&vibrationsRequired, sizeof(vibrationsRequired));
+    mix(&detectionWindow, sizeof(detectionWindow));
+    mix(&setupDelay, sizeof(setupDelay));
+    u = getBaselineRamCacheSize();     mix(&u, 4);
+    u = getBaselineSdMaxDevices();     mix(&u, 4);
+    int8_t i8;
+    i8 = getBaselineRssiThreshold();   mix(&i8, 1);
+    mix(&baselineDuration, sizeof(baselineDuration));
+    u = getDeviceAbsenceThreshold();   mix(&u, 4);
+    u = getReappearanceAlertWindow();  mix(&u, 4);
+    i8 = getSignificantRssiChange();   mix(&i8, 1);
+    mix(&rfConfig.preset, sizeof(rfConfig.preset));
+    mix(&rfConfig.wifiChannelTime, sizeof(rfConfig.wifiChannelTime));
+    mix(&rfConfig.wifiScanInterval, sizeof(rfConfig.wifiScanInterval));
+    mix(&rfConfig.bleScanInterval, sizeof(rfConfig.bleScanInterval));
+    mix(&rfConfig.bleScanDuration, sizeof(rfConfig.bleScanDuration));
+    mix(&rfConfig.globalRssiThreshold, sizeof(rfConfig.globalRssiThreshold));
+    mixStr(prefs.getString("maclist", ""));
+    mix(&hbEnabled, 1);
+    mix(&hbInterval, sizeof(hbInterval));
+    mix(&vibrationEnabled, 1);
+    return h;
+}
+
 void saveConfiguration() {
     uint32_t now = millis();
     if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
         return;
     }
+
+    // Only persist when the config actually changed — avoids constant NVS/SD
+    // rewrites (flash wear + log spam) from periodic/no-op callers.
+    static uint32_t lastCfgSig = 0;
+    static bool haveCfgSig = false;
+    uint32_t sig = configSignature();
+    if (haveCfgSig && sig == lastCfgSig) {
+        return;
+    }
+    haveCfgSig = true;
+    lastCfgSig = sig;
     lastSaveTime = now;
 
     syncSettingsToNVS();
@@ -963,12 +1019,15 @@ void updateGPSLocation() {
 
 void logToSD(const String &data) {
     if (!SafeSD::isAvailable()) return;
-    
+
+    static std::mutex sdLogMutex;
+    std::lock_guard<std::mutex> sdLock(sdLogMutex);
+
     static uint32_t totalWrites = 0;
-    static uint32_t failCount = 0;  // cppcheck-suppress variableScope
     static File logFile;
 
     if (!SD.exists("/")) {
+        static uint32_t failCount = 0;
         failCount++;
         if (failCount > 5) {
             Serial.println("[SD] Multiple failures, marking unavailable");
@@ -1007,14 +1066,9 @@ void logToSD(const String &data) {
     
     static unsigned long lastSizeCheck = 0;
     if (millis() - lastSizeCheck > 10000) {
-        // Flush before checking size to ensure accurate reporting
         if (logFile) {
             logFile.flush();
-        }
-        File checkFile = SafeSD::open("/antihunter.log", FILE_READ);
-        if (checkFile) {
-            Serial.printf("[SD] Log file size: %lu bytes\n", checkFile.size());
-            checkFile.close();
+            Serial.printf("[SD] Log file size: %lu bytes\n", (unsigned long)logFile.size());
         }
         lastSizeCheck = millis();
     }
@@ -1040,12 +1094,10 @@ void logEventToSD(const char* path, const String& jsonLine) {
         }
     }
     f.println(jsonLine);
+    size_t curSize = f.size();
     f.close();
 
-    // Rotate if over 1MB
-    File check = SafeSD::open(path, FILE_READ);
-    if (check && check.size() > 1048576) {
-        check.close();
+    if (curSize > 1048576) {
         String rotated = String(path);
         int dotIdx = rotated.lastIndexOf('.');
         if (dotIdx > 0) {
@@ -1056,8 +1108,6 @@ void logEventToSD(const char* path, const String& jsonLine) {
         SafeSD::remove(rotated.c_str());
         SD.rename(path, rotated.c_str());
         Serial.printf("[SD] Rotated %s -> %s\n", path, rotated.c_str());
-    } else if (check) {
-        check.close();
     }
 }
 
@@ -1666,9 +1716,6 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
 
     // Stop any active scanning tasks
     extern std::atomic<bool> stopRequested;
-    extern TaskHandle_t workerTaskHandle;  // cppcheck-suppress shadowVariable
-    extern TaskHandle_t blueTeamTaskHandle;  // cppcheck-suppress shadowVariable
-
     stopRequested = true;
 
     // Wait for tasks to stop
@@ -1754,7 +1801,6 @@ void exitBatterySaver() {
 void sendBatterySaverHeartbeat() {
     if (!batterySaverEnabled) return;
 
-    extern std::atomic<bool> triangulationActive;  // cppcheck-suppress shadowVariable
     if (triangulationActive.load()) {
         return;
     }

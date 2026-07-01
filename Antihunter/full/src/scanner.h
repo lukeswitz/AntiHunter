@@ -33,11 +33,11 @@ using StringStringMapPsram = std::map<String, String, std::less<String>,
 
 struct DeauthStats {
     String srcMac;
-    uint32_t count;
-    uint32_t broadcastCount;
-    uint32_t targetedCount;
-    int8_t lastRssi;
-    uint8_t channel;
+    uint32_t count{};
+    uint32_t broadcastCount{};
+    uint32_t targetedCount{};
+    int8_t lastRssi{};
+    uint8_t channel{};
 };
 
 struct Target {
@@ -132,30 +132,32 @@ struct DeauthHit {
 };
 
 struct RFScanConfig {
-    uint32_t wifiChannelTime;
-    uint32_t wifiScanInterval;
-    uint32_t bleScanInterval;
-    uint32_t bleScanDuration;
-    uint8_t preset;
+    uint32_t wifiChannelTime{};
+    uint32_t wifiScanInterval{};
+    uint32_t bleScanInterval{};
+    uint32_t bleScanDuration{};
+    uint8_t preset{};
     String wifiChannels;
-    int8_t globalRssiThreshold;
+    int8_t globalRssiThreshold{};
 };
 
 // Granular settings
 extern RFScanConfig rfConfig;
 void setRFPreset(uint8_t preset);
 void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels, int8_t rssiThreshold);
-RFScanConfig getRFConfig();
 void loadRFConfigFromPrefs();
-int8_t getGlobalRssiThreshold();
 void setGlobalRssiThreshold(int8_t threshold);
+uint8_t nextActiveScanChannel();
 
 extern TaskHandle_t workerTaskHandle;
 extern std::atomic<bool> meshTxDraining;
 extern std::atomic<uint32_t> meshDrainSent;
 extern std::atomic<uint32_t> meshDrainTotal;
 extern std::atomic<bool> stopMeshDrain;
-bool isRadioBusyOrDraining();
+extern std::atomic<uint32_t> meshTxDroppedRateLimit;
+extern std::atomic<uint32_t> meshTxDroppedBufFull;
+extern std::atomic<uint32_t> meshTxDroppedTriGate;
+extern std::atomic<uint32_t> meshTxDroppedEvicted;
 void initBLEOnce();
 
 bool meshShouldSendMac(const String& mac);
@@ -178,7 +180,6 @@ bool matchesSsid(const char *ssid);
 const char* lookupOuiVendor(const uint8_t *mac);
 void probeDetectionTask(void *pv);
 String getProbeResults();
-void resetProbeDetection();
 
 // SD probe database
 void loadProbeDB();
@@ -205,6 +206,7 @@ const uint32_t DEAUTH_CLEANUP_INTERVAL = 60000;
 const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;    
 
 extern std::vector<DeauthHit> deauthLog;
+extern std::mutex deauthLogMutex;
 extern std::atomic<uint32_t> deauthCount;
 extern std::atomic<uint32_t> disassocCount;
 extern bool deauthDetectionEnabled;
@@ -215,12 +217,15 @@ extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
 extern uint32_t lastScanSecs;
 extern bool lastScanForever;
+extern uint32_t g_curScanEndMs;
+extern bool g_curScanForever;
+void scanSetCountdown(int secs, bool forever);
 extern std::atomic<bool> triangulationActive;
 
 // Triangulation
 extern TriangulationAccumulator triAccum;
 extern std::mutex triAccumMutex;
-extern bool droneDetectionEnabled;
+extern std::atomic<bool> droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 extern QueueHandle_t macQueue;
 extern portMUX_TYPE uniqueMacsMux;
@@ -228,6 +233,7 @@ extern portMUX_TYPE uniqueMacsMux;
 // Functions
 void initializeScanner();
 bool matchesIdentityMac(const char* identityId, const uint8_t* mac);
+void rebuildIdentityMacSnapshot();
 void saveTargetsList(const String &txt);
 void snifferScanTask(void *pv);
 void listScanTask(void *pv);
@@ -242,7 +248,6 @@ void radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
 void radioStopListScan();
 void radioStartBLE();
 bool radioStartBLEChecked();
-void radioStopBLE();
 
 // Safe queue functions (mutex protected)
 void initMacQueueMutex();
@@ -256,9 +261,6 @@ String getDiagnostics();
 size_t getTargetCount();
 String getSnifferCache();
 
-size_t getAllowlistCount();
 String getAllowlistText();
 void saveAllowlist(const String &txt);
 bool isAllowlisted(const uint8_t *mac);
-
-void cleanupMaps();

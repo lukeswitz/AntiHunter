@@ -6,7 +6,6 @@
 #include "main.h"
 #include "detect.h"
 #include <AsyncTCP.h>
-#include <AsyncWebSocket.h>
 #include <RTClib.h>
 #include <esp_timer.h>
 #include <algorithm>
@@ -35,6 +34,7 @@ bool vibrationEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
 const int MAX_MESH_SIZE = 200; // T114 tests allow 200char/3s in sequence
+static std::atomic<bool> g_eraseWipeBusy{false};
 static String nodeId = "";
 bool triangulationOrchestratorAssigned = false;
 
@@ -68,13 +68,6 @@ extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
 extern void randomizeMacAddress();
 
-// WebSocket for terminal
-AsyncWebSocket ws("/terminal");
-static std::deque<String> terminalBuffer;
-static const size_t TERMINAL_BUFFER_SIZE = 50;
-static bool terminalClientsConnected = false;
-static SemaphoreHandle_t terminalBufferMutex = nullptr;
-static std::atomic<uint32_t> terminalDroppedCount(0);
 
 // T114 handling
 SerialRateLimiter rateLimiter;
@@ -115,65 +108,6 @@ uint32_t SerialRateLimiter::waitTime(size_t messageLength) {
 }
 
 
-void broadcastToTerminal(const String &message) {
-    String timestamped = "[" + getRTCTimeString() + "] " + message;
-
-    if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(20)) == pdTRUE) {
-        terminalBuffer.push_back(timestamped);
-        if (terminalBuffer.size() > TERMINAL_BUFFER_SIZE) {
-            terminalBuffer.pop_front();
-        }
-        xSemaphoreGive(terminalBufferMutex);
-    }
-
-    if (!terminalClientsConnected || ws.count() == 0) return;
-
-    if (!ws.availableForWriteAll()) {
-        terminalDroppedCount.fetch_add(1);
-        uint32_t dropped = terminalDroppedCount.load();
-        if ((dropped & 0x3F) == 1) {
-            Serial.printf("[TERM] ws backpressure: dropped %u messages\n", dropped);
-        }
-        return;
-    }
-
-    ws.textAll(timestamped);
-}
-
-void randTrimTerminalBuffer() {
-    if (!terminalBufferMutex) return;
-    if (xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
-    const size_t TRIM_TARGET = 100;
-    while (terminalBuffer.size() > TRIM_TARGET) {
-        terminalBuffer.pop_front();
-    }
-    terminalBuffer.shrink_to_fit();
-    xSemaphoreGive(terminalBufferMutex);
-}
-
-void onTerminalEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
-                     AwsEventType type, void *arg, uint8_t *data, size_t len) {
-    if (type == WS_EVT_CONNECT) {
-        Serial.printf("[TERMINAL] Client connected: %u\n", client->id());
-        terminalClientsConnected = true;
-
-        std::vector<String> snapshot;
-        if (terminalBufferMutex && xSemaphoreTake(terminalBufferMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-            snapshot.reserve(terminalBuffer.size());
-            snapshot.insert(snapshot.end(), terminalBuffer.begin(), terminalBuffer.end());
-            xSemaphoreGive(terminalBufferMutex);
-        }
-        for (const auto &line : snapshot) {
-            if (!client->canSend()) break;
-            client->text(line);
-        }
-    } else if (type == WS_EVT_DISCONNECT) {
-        Serial.printf("[TERMINAL] Client disconnected: %u\n", client->id());
-        if (ws.count() == 0) {
-            terminalClientsConnected = false;
-        }
-    }
-}
 
 bool sendToSerial1(const String &message, bool canDelay) {
     {
@@ -212,7 +146,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
             uint32_t wait = rateLimiter.waitTime(msgLen);
             if (wait > 0 && wait < meshSendInterval) {
                 Serial.printf("[MESH] Rate limit: waiting %ums\n", wait);
-                broadcastToTerminal("[MESH] Rate limit: waiting..");
                 delay(wait);
                 rateLimiter.refillTokens();
             } else {
@@ -256,7 +189,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     Serial1.println(message);
     Serial.printf("[MESH TX] %s\n", message.c_str());
-    broadcastToTerminal("[TX] " + message);
 
     Serial1.flush();
 
@@ -279,19 +211,16 @@ void restart_callback(void* arg) {
 
 void initializeNetwork()
 {
-  esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-  if (!terminalBufferMutex) {
-    terminalBufferMutex = xSemaphoreCreateMutex();
-  }
+  esp_coex_preference_set(ESP_COEX_PREFER_WIFI);
   Serial.println("Initializing mesh UART...");
   initializeMesh();
 
   Serial.println("Starting AP...");
-  WiFi.mode(WIFI_AP_STA);
-  delay(100);
-  
   randomizeMacAddress();
   delay(50);
+
+  WiFi.mode(WIFI_AP_STA);
+  delay(100);
   
   customApSsid = prefs.getString("apSsid", AP_SSID);
   customApPass = prefs.getString("apPass", AP_PASS);
@@ -311,9 +240,11 @@ void initializeNetwork()
 
   WiFi.onEvent([](arduino_event_t *e) {
       if (e->event_id == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) {
-          const uint8_t *mac = e->event_info.wifi_ap_stadisconnected.mac;
-          uint8_t aid = e->event_info.wifi_ap_stadisconnected.aid;
-          detect_onSoftApDisconnect(mac, aid);
+          const auto &d = e->event_info.wifi_ap_stadisconnected;
+          Serial.printf("[AP] STA disconnect mac=%02X:%02X:%02X:%02X:%02X:%02X aid=%u reason=%u\n",
+                        d.mac[0],d.mac[1],d.mac[2],d.mac[3],d.mac[4],d.mac[5],
+                        (unsigned)d.aid, (unsigned)d.reason);
+          detect_onSoftApDisconnect(d.mac, (uint8_t)d.reason);
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
           detect_onSoftApConnect(e->event_info.wifi_ap_staconnected.mac);
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED) {
@@ -323,15 +254,8 @@ void initializeNetwork()
       }
   });
 
-  // Configure WiFi to preserve AP during scans
-  wifi_config_t conf;
-  esp_wifi_get_config(WIFI_IF_AP, &conf);
-  esp_wifi_set_config(WIFI_IF_AP, &conf);
+  esp_wifi_set_ps(WIFI_PS_NONE);
 
-  // Set WiFi power save to minimum to maintain AP stability during scans
-  esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-
-  Serial.println("[WIFI] AP configured with scan coexistence enabled");
   Serial.println("Starting web server...");
   startWebServer();
 }
@@ -1147,16 +1071,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </div>
       </div>
 
-      <!--
-      <div id="terminalToggle">TERMINAL</div>
-      <div id="terminalWindow">
-        <div id="terminalHeader">
-          <span id="terminalTitle">SERIAL MONITOR</span>
-          <span id="terminalClose">×</span>
-        </div>
-        <div id="terminalContent"></div>
-      </div>
-      -->
       </div>
 
       <div class="page-tab" id="page-data">
@@ -1599,7 +1513,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       <!-- ===== /DETECT TAB ===== -->
 
-      <div align="center" class="footer">v0.9.5 Beta | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v0.9.5 | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
@@ -2337,6 +2251,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           elem.title = 'REDACTED';
         });
 
+        // Redact device names — all elements with data-name attribute
+        el.querySelectorAll('[data-name]').forEach(elem => {
+          elem.textContent = ssidHash(elem.getAttribute('data-name'));
+          elem.title = 'REDACTED';
+        });
+
         // Redact AP responded SSIDs
         el.querySelectorAll('[data-ap-ssid]').forEach(div => {
           const strong = div.querySelector('strong');
@@ -2366,7 +2286,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return;
         }
         
-        const isRandomization = resultsElement.textContent.includes('MAC RANDOMIZATION DETECTION');
+        const isRandomization = resultsElement.textContent.includes('RANDOMIZED DEVICE TRACER');
         const isBaseline = resultsElement.textContent.includes('Baseline') || resultsElement.querySelector('.baseline-marker');
         const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
         const isDrone = resultsElement.textContent.includes('Drone Detection');
@@ -3334,8 +3254,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">';
           if (anchorMac) html += '<span style="font-family:monospace;font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>' + randBadge(anchorMac);
           html += '<span style="background:' + (isBLE ? 'var(--c-ble-bg)' : 'var(--c-wifi-bg)') + ';color:' + (isBLE ? 'var(--c-ble)' : 'var(--c-wifi)') + ';padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + deviceType + '</span>';
-          if (nameMatch) html += '<span style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
-          if (ssidMatch) html += '<span style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
+          if (nameMatch) html += '<span data-name="' + nameMatch[1].trim() + '" style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
+          if (ssidMatch) html += '<span data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
           if (vendorMatch) html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + vendorMatch[1].trim() + '</span>';
           html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
@@ -3695,40 +3615,56 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         droneBlocks.forEach(block => {
           const macMatch = block.match(/MAC: ([A-F0-9:]+)/);
           const uavMatch = block.match(/UAV ID: (.+)/);
+          const typeMatch = block.match(/UA Type: (.+)/);
           const rssiMatch = block.match(/RSSI: ([-\d]+) dBm/);
           const locMatch = block.match(/Location: ([-\d.]+), ([-\d.]+)/);
-          const altMatch = block.match(/Altitude: ([\d.]+)m/);
-          const speedMatch = block.match(/Speed: ([\d.]+) m\/s/);
-          const opLocMatch = block.match(/Operator Location: ([-\d.]+), ([-\d.]+)/);
-          
+          const altMatch = block.match(/Altitude MSL: ([-\d.]+) m/);
+          const hgtMatch = block.match(/Height AGL: ([-\d.]+) m/);
+          const speedMatch = block.match(/Speed: ([-\d.]+) m\/s  Vert: ([-\d.]+) m\/s/);
+          const hdgMatch = block.match(/Heading: ([-\d.]+) deg/);
+          const statusMatch = block.match(/Status: (\d+)/);
+          const opLocMatch = block.match(/Operator: ([-\d.]+), ([-\d.]+)/);
+          const opIdMatch = block.match(/Operator ID: (.+)/);
+          const descMatch = block.match(/Description: (.+)/);
+          const authMatch = block.match(/Auth: type (\d+) ts (\d+)/);
+
           if (!macMatch) return;
-          
+
           html += '<div style="background:var(--surf);padding:18px;border-radius:8px;border:1px solid var(--acc);margin-bottom:12px;">';
           html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
           html += '<div style="font-family:monospace;font-size:15px;color:var(--acc);">' + macMatch[1] + randBadge(macMatch[1]) + '</div>';
           if (rssiMatch) html += '<span style="color:var(--mut);font-size:12px;">RSSI: <strong style="color:var(--txt);">' + rssiMatch[1] + ' dBm</strong></span>';
           html += '</div>';
-          
+
           if (uavMatch) {
             html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;margin-bottom:8px;font-size:12px;color:var(--acc);">';
             html += 'UAV ID: <strong>' + uavMatch[1] + '</strong>';
+            if (typeMatch) html += '<span style="color:var(--mut);margin-left:10px;">Type: <strong style="color:var(--txt);">' + typeMatch[1] + '</strong></span>';
             html += '</div>';
           }
-          
-          if (locMatch) {
+
+          const fields = [];
+          if (locMatch) fields.push('Location: <strong style="color:var(--txt);">' + locMatch[1] + ', ' + locMatch[2] + '</strong>');
+          if (altMatch) fields.push('Altitude MSL: <strong style="color:var(--txt);">' + altMatch[1] + ' m</strong>');
+          if (hgtMatch) fields.push('Height AGL: <strong style="color:var(--txt);">' + hgtMatch[1] + ' m</strong>');
+          if (speedMatch) fields.push('Speed: <strong style="color:var(--txt);">' + speedMatch[1] + ' m/s</strong> (Vert ' + speedMatch[2] + ')');
+          if (hdgMatch) fields.push('Heading: <strong style="color:var(--txt);">' + hdgMatch[1] + '&deg;</strong>');
+          if (statusMatch) fields.push('Status: <strong style="color:var(--txt);">' + statusMatch[1] + '</strong>');
+          if (fields.length) {
             html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:var(--mut);margin-top:8px;">';
-            html += '<div>Location: <strong style="color:var(--txt);">' + locMatch[1] + ', ' + locMatch[2] + '</strong></div>';
-            if (altMatch) html += '<div>Altitude: <strong style="color:var(--txt);">' + altMatch[1] + 'm</strong></div>';
-            if (speedMatch) html += '<div>Speed: <strong style="color:var(--txt);">' + speedMatch[1] + ' m/s</strong></div>';
+            fields.forEach(f => html += '<div>' + f + '</div>');
             html += '</div>';
           }
-          
-          if (opLocMatch) {
+
+          if (opLocMatch || opIdMatch || descMatch || authMatch) {
             html += '<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;color:var(--mut);">';
-            html += 'Operator: <strong style="color:var(--txt);">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>';
+            if (opLocMatch) html += 'Operator: <strong style="color:var(--txt);">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong><br>';
+            if (opIdMatch) html += 'Operator ID: <strong style="color:var(--txt);">' + opIdMatch[1] + '</strong><br>';
+            if (descMatch) html += 'Description: <strong style="color:var(--txt);">' + descMatch[1] + '</strong><br>';
+            if (authMatch) html += 'Auth: <strong style="color:var(--txt);">type ' + authMatch[1] + ', ts ' + authMatch[2] + '</strong>';
             html += '</div>';
           }
-          
+
           html += '</div>';
         });
         
@@ -3941,12 +3877,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               h += '<span style="color:var(--mut);font-size:10px;">' + d.sessions + ' sess</span>';
               if (d.ssids && d.ssids.length > 0) {
                 for (const s of d.ssids) {
-                  h += '<span style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--txt);">' + s + '</span>';
+                  h += '<span data-ssid="' + s + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--txt);">' + s + '</span>';
                 }
               }
               h += '</div>';
             }
             list.innerHTML = h;
+            if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(list);
           }).catch(() => {
             list.innerHTML = '<div style="padding:12px;color:var(--c-err);font-size:11px;">Failed to load</div>';
           });
@@ -4061,116 +3998,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
 
         return html;
-      }
-
-      let terminalWs = null;
-      let terminalVisible = false;
-      let terminalDragging = false;
-      let terminalDragOffset = {x: 0, y: 0};
-
-      function initTerminal() {
-        const toggle = document.getElementById('terminalToggle');
-        const window = document.getElementById('terminalWindow');
-        
-        if (!toggle || !window) {
-          console.log('[TERMINAL] Elements not found, feature disabled');
-          return;
-        }
-        
-        const close = document.getElementById('terminalClose');
-        const header = document.getElementById('terminalHeader');
-        const content = document.getElementById('terminalContent');
-        
-        toggle.addEventListener('click', () => {
-          terminalVisible = !terminalVisible;
-          if (terminalVisible) {
-            window.classList.add('visible');
-            toggle.classList.add('active');
-            connectTerminal();
-          } else {
-            window.classList.remove('visible');
-            toggle.classList.remove('active');
-            if (terminalWs) {
-              terminalWs.close();
-              terminalWs = null;
-            }
-          }
-        });
-        
-        close.addEventListener('click', () => {
-          terminalVisible = false;
-          window.classList.remove('visible');
-          toggle.classList.remove('active');
-          if (terminalWs) {
-            terminalWs.close();
-            terminalWs = null;
-          }
-        });
-        
-        header.addEventListener('mousedown', (e) => {
-          terminalDragging = true;
-          terminalDragOffset.x = e.clientX - window.offsetLeft;
-          terminalDragOffset.y = e.clientY - window.offsetTop;
-          window.style.position = 'fixed';
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-          if (!terminalDragging) return;
-          const x = e.clientX - terminalDragOffset.x;
-          const y = e.clientY - terminalDragOffset.y;
-          window.style.left = Math.max(0, Math.min(x, window.innerWidth - window.offsetWidth)) + 'px';
-          window.style.top = Math.max(0, Math.min(y, window.innerHeight - window.offsetHeight)) + 'px';
-          window.style.right = 'auto';
-          window.style.bottom = 'auto';
-        });
-        
-        document.addEventListener('mouseup', () => {
-          terminalDragging = false;
-        });
-      }
-
-      function connectTerminal() {
-        if (terminalWs) return;
-        
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        terminalWs = new WebSocket(protocol + '//' + location.host + '/terminal');
-        
-        terminalWs.onopen = () => {
-          console.log('[TERMINAL] Connected');
-        };
-        
-        terminalWs.onmessage = (event) => {
-          const content = document.getElementById('terminalContent');
-          const line = document.createElement('div');
-          line.className = 'terminal-line';
-          
-          if (event.data.includes('[TX]')) {
-            line.classList.add('tx');
-          } else if (event.data.includes('[RX]')) {
-            line.classList.add('rx');
-          }
-          
-          line.textContent = event.data;
-          content.appendChild(line);
-          
-          while (content.children.length > 500) {
-            content.removeChild(content.firstChild);
-          }
-          
-          content.scrollTop = content.scrollHeight;
-        };
-        
-        terminalWs.onerror = (error) => {
-          console.error('[TERMINAL] Error:', error);
-        };
-        
-        terminalWs.onclose = () => {
-          console.log('[TERMINAL] Disconnected');
-          terminalWs = null;
-          if (terminalVisible) {
-            setTimeout(connectTerminal, 2000);
-          }
-        };
       }
 
       function resetRandomizationDetection() {
@@ -5286,8 +5113,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       refreshIdentityMap(true);
       load();
       updatePrivacyBtn();
-      setInterval(updateBatterySaverStatus, 5000);
-      initTerminal();
+      setInterval(() => { if (pageActive('system')) updateBatterySaverStatus(); }, 5000);
       loadBaselineAnomalyConfig();
       loadMeshInterval();
       loadDedupTtl();
@@ -6141,9 +5967,6 @@ void startWebServer()
   if (!server)
     server = new AsyncWebServer(80);
 
-    ws.onEvent(onTerminalEvent);
-    server->addHandler(&ws);
-
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -6158,6 +5981,17 @@ void startWebServer()
              { r->send(200, "text/plain", getTargetsList()); });
 
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (randomizationDetectionEnabled) {
+          static String cachedRand = "";
+          static uint32_t lastRandCalc = 0;
+          if (millis() - lastRandCalc >= 2000) {
+              cachedRand = getRandomizationResults();
+              lastRandCalc = millis();
+          }
+          r->send(200, "text/plain", cachedRand);
+          return;
+      }
+
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
 
@@ -6352,7 +6186,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       }
       
       if (req->hasParam("baselineDuration", true)) {
-          baselineDuration = req->getParam("baselineDuration", true)->value().toInt() * 1000;
+          int v = req->getParam("baselineDuration", true)->value().toInt();
+          if (v < 0) v = 0;
+          if (v > 86400) v = 86400;
+          baselineDuration = (uint32_t)v * 1000;
           prefs.putUInt("blDuration", baselineDuration);
       }
       
@@ -6585,16 +6422,20 @@ void registerRemainingRoutes() {
 
   server->on("/config", HTTP_POST, [](AsyncWebServerRequest *req)
              {
-      if (!req->hasParam("channels") || !req->hasParam("targets")) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          req->send(409, "text/plain", "Radio busy - stop scan before changing config");
+          return;
+      }
+      if (!req->hasParam("channels", true) || !req->hasParam("targets", true)) {
           req->send(400, "text/plain", "Missing parameters");
           return;
       }
 
-      String channelsCSV = req->getParam("channels")->value();
+      String channelsCSV = req->getParam("channels", true)->value();
       parseChannelsCSV(channelsCSV);
       prefs.putString("channels", channelsCSV);
 
-      String targets = req->getParam("targets")->value();
+      String targets = req->getParam("targets", true)->value();
       saveTargetsList(targets);
       prefs.putString("maclist", targets);
 
@@ -6807,17 +6648,24 @@ void registerRemainingRoutes() {
         return;
     }
     
+    if (g_eraseWipeBusy.exchange(true)) {
+        req->send(409, "text/plain", "Erase/wipe already in progress");
+        return;
+    }
     String reason = req->hasParam("reason", true) ? req->getParam("reason", true)->value() : "Manual web request";
     req->send(200, "text/plain", "Secure erase initiated");
-    
-    xTaskCreate([](void* param) {
+
+    if (xTaskCreate([](void* param) {
         String* reasonPtr = static_cast<String*>(param);
         delay(1000); // Give web server time to send response
         bool success = executeSecureErase(*reasonPtr);
         Serial.println(success ? "Erase completed" : "Erase failed");
         delete reasonPtr;
+        g_eraseWipeBusy.store(false);
         vTaskDelete(NULL);
-    }, "secure_erase", 8192, new String(reason), 1, NULL); });
+    }, "secure_erase", 8192, new String(reason), 1, NULL) != pdPASS) {
+        g_eraseWipeBusy.store(false);
+    } });
 
   server->on("/erase/cancel", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -6833,15 +6681,21 @@ void registerRemainingRoutes() {
         req->send(400, "text/plain", "Invalid confirm code");
         return;
     }
+    if (g_eraseWipeBusy.exchange(true)) {
+        req->send(409, "text/plain", "Erase/wipe already in progress");
+        return;
+    }
     req->send(200, "text/plain", "Factory wipe initiated — device will reboot");
-    xTaskCreate([](void*) {
+    if (xTaskCreate([](void*) {
         delay(800); // let response flush
         Serial.println("[FACTORY] Wipe requested");
         bool ok = performSecureWipe();
         Serial.printf("[FACTORY] Wipe %s — rebooting\n", ok ? "OK" : "FAILED");
         delay(300);
         ESP.restart();
-    }, "factory_wipe", 8192, nullptr, 1, NULL);
+    }, "factory_wipe", 8192, nullptr, 1, NULL) != pdPASS) {
+        g_eraseWipeBusy.store(false);
+    }
   });
 
   server->on("/secure/status", HTTP_GET, [](AsyncWebServerRequest *req) {
@@ -7116,6 +6970,10 @@ void registerRemainingRoutes() {
   });
 
   server->on("/randomization/reset", HTTP_POST, [](AsyncWebServerRequest *r) {
+      if (scanning || workerTaskHandle) {
+          r->send(409, "text/plain", "Radio busy - stop detection before reset");
+          return;
+      }
       resetRandomizationDetection();
       r->send(200, "text/plain", "Randomization detection reset");
   });
@@ -7178,7 +7036,6 @@ void registerRemainingRoutes() {
           json += "\"sequenceTracking\":" + String(track.sequenceValid ? "true" : "false") + ",";
           json += "\"hasFullSig\":" + String(track.signature.hasFullSignature ? "true" : "false") + ",";
           json += "\"hasMinimalSig\":" + String(track.signature.hasMinimalSignature ? "true" : "false") + ",";
-          json += "\"channelSeqLen\":" + String(track.signature.channelSeqLength) + ",";
           json += "\"intervalConsistency\":" + String(track.signature.intervalConsistency, 2) + ",";
           json += "\"rssiConsistency\":" + String(track.signature.rssiConsistency, 2) + ",";
           json += "\"observations\":" + String(track.signature.observationCount) + ",";
@@ -7231,6 +7088,10 @@ void registerRemainingRoutes() {
 
   server->on("/allowlist-save", HTTP_POST, [](AsyncWebServerRequest *req)
             {
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+            req->send(409, "text/plain", "Radio busy - stop scan before changing allowlist");
+            return;
+        }
         if (!req->hasParam("list", true)) {
             req->send(400, "text/plain", "Missing 'list'");
             return;
@@ -7435,9 +7296,12 @@ void registerRemainingRoutes() {
         }
     } else if (req->hasParam("wifiChannelTime", true)) {
         uint32_t wct = req->getParam("wifiChannelTime", true)->value().toInt();
-        uint32_t wsi = req->getParam("wifiScanInterval", true)->value().toInt();
-        uint32_t bsi = req->getParam("bleScanInterval", true)->value().toInt();
-        uint32_t bsd = req->getParam("bleScanDuration", true)->value().toInt();
+        uint32_t wsi = req->hasParam("wifiScanInterval", true) ?
+                       (uint32_t)req->getParam("wifiScanInterval", true)->value().toInt() : rfConfig.wifiScanInterval;
+        uint32_t bsi = req->hasParam("bleScanInterval", true) ?
+                       (uint32_t)req->getParam("bleScanInterval", true)->value().toInt() : rfConfig.bleScanInterval;
+        uint32_t bsd = req->hasParam("bleScanDuration", true) ?
+                       (uint32_t)req->getParam("bleScanDuration", true)->value().toInt() : rfConfig.bleScanDuration;
         int8_t rssiThreshold = req->hasParam("globalRssiThreshold", true) ? 
                               req->getParam("globalRssiThreshold", true)->value().toInt() : rfConfig.globalRssiThreshold;
         String channels = req->hasParam("wifiChannels", true) ? 
@@ -7544,8 +7408,7 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/drones/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
-      droneEventLog.clear();
-      detectedDrones.clear();
+      { std::lock_guard<std::mutex> lock(detectedDronesMutex); droneEventLog.clear(); detectedDrones.clear(); }
       droneDetectionCount = 0;
       SafeSD::remove("/drones.jsonl");
       SafeSD::remove("/drones_old.jsonl");
@@ -7870,13 +7733,18 @@ void registerRemainingRoutes() {
     },
     NULL,
     [](AsyncWebServerRequest *r, uint8_t *data, size_t len, size_t index, size_t total) {
-        static String acc;
-        if (index == 0) acc = "";
-        for (size_t i = 0; i < len; ++i) acc += (char)data[i];
+        if (index == 0) {
+            if (r->_tempObject) delete static_cast<String*>(r->_tempObject);
+            r->_tempObject = new String();
+        }
+        String* acc = static_cast<String*>(r->_tempObject);
+        if (!acc) return;
+        for (size_t i = 0; i < len; ++i) *acc += (char)data[i];
         if (index + len == total) {
-            detect_setConfigFromJson(acc);
+            detect_setConfigFromJson(*acc);
             detect_persistTunables();
-            acc = "";
+            delete acc;
+            r->_tempObject = nullptr;
         }
     });
 
@@ -8130,6 +7998,12 @@ void sendMeshNotification(const Hit &hit) {
     newState.lastLat = gpsValid ? gpsLat : 0.0;
     newState.lastLon = gpsValid ? gpsLon : 0.0;
     newState.hadGPS = gpsValid;
+    if (meshTargetStates.size() >= 1000 && meshTargetStates.find(macKey) == meshTargetStates.end()) {
+        for (auto sit = meshTargetStates.begin(); sit != meshTargetStates.end(); ) {
+            if (now - sit->second.lastSent > (PER_TARGET_MIN_INTERVAL * 10)) sit = meshTargetStates.erase(sit);
+            else ++sit;
+        }
+    }
     meshTargetStates[macKey] = newState;
 
     // Build and send the message
@@ -8296,7 +8170,7 @@ void initializeMesh() {
         }
     }
     if (meshTxTaskHandle == nullptr && meshTxQueue != nullptr) {
-        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 4096, nullptr, 1, &meshTxTaskHandle, 1);
+        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 6144, nullptr, 1, &meshTxTaskHandle, 1);
     }
 
     Serial.println("[MESH] UART initialized");
@@ -8309,8 +8183,10 @@ void initializeMesh() {
 static void handleConfigChannels(const String &command)
 {
   String channels = command.substring(16);
-  parseChannelsCSV(channels);
   prefs.putString("channels", channels);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      parseChannelsCSV(channels);
+  }
   saveConfiguration();
   Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
   sendToSerial1(nodeId + ": CONFIG_ACK:CHANNELS:" + channels, true);
@@ -8319,7 +8195,10 @@ static void handleConfigChannels(const String &command)
 static void handleConfigTargets(const String &command)
 {
   String targets = command.substring(15);
-  saveTargetsList(targets);
+  prefs.putString("maclist", targets);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      saveTargetsList(targets);
+  }
   Serial.printf("[MESH] Updated targets list\n");
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
 }
@@ -8393,6 +8272,8 @@ static void handleScanStart(const String &command)
   {
     int mode = params.substring(0, modeDelim).toInt();
     int secs = params.substring(modeDelim + 1, secsDelim).toInt();
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
     String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,6,11";
     bool forever = (channelDelim > 0 && params.substring(channelDelim + 1) == "FOREVER");
 
@@ -8676,7 +8557,6 @@ static void handleProbeHit(const String &command)
   // Full message format: "PROBE_HIT AA:BB:CC:DD:EE:FF Apple RSSI=-42 CH=6 SSID=\"HomeNet\""
   String payload = command.substring(10);
   Serial.printf("[MESH] PROBE_HIT received: %s\n", payload.c_str());
-  broadcastToTerminal("[PROBE_HIT] " + payload);
 }
 
 static void handleStop(const String &command)
@@ -8741,9 +8621,6 @@ static void setVibrationEnabled(bool enabled)
   const char *label = enabled ? "enabled" : "disabled";
   Serial.printf("[VIB] Vibration broadcasts %s\n", label);
   sendToSerial1(nodeId + (enabled ? ": VIBRATION_ON_ACK:OK" : ": VIBRATION_OFF_ACK:OK"), true);
-  char msg[48];
-  snprintf(msg, sizeof(msg), "[VIB] Vibration broadcasts %s", label);
-  broadcastToTerminal(msg);
 }
 
 static void handleVibrationOn(const String &command)
@@ -8830,6 +8707,9 @@ static void handleTriangulateStart(const String &command, const String &targetId
                    target.c_str(), duration);
       return;
     }
+
+    if (duration < 10) duration = 10;
+    if (duration > 3600) duration = 3600;
 
     setRFEnvironment((RFEnvironment)rfEnv);
 
@@ -8921,6 +8801,9 @@ static void handleTriangulateStart(const String &command, const String &targetId
     duration = remainder.toInt();
   }
 
+  if (duration < 10) duration = 10;
+  if (duration > 3600) duration = 3600;
+
   setRFEnvironment((RFEnvironment)rfEnv);
 
   distanceTuning.wifi_multiplier = wifiPwr;
@@ -8939,8 +8822,14 @@ static void handleTriangulateStart(const String &command, const String &targetId
 
   if (workerTaskHandle) {
     stopRequested = true;
-    while (workerTaskHandle) {
+    uint32_t triStopWait = millis();
+    while (workerTaskHandle && (millis() - triStopWait) < 5000) {
       vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    if (workerTaskHandle) {
+      Serial.println("[TRIANGULATE] Worker task did not stop in time, aborting start");
+      sendToSerial1(nodeId + ": TRI_ACK:BUSY", true);
+      return;
     }
   }
 
@@ -9023,8 +8912,6 @@ static void handleTriangulateStop(const String &command)
     bool hasGPS;
 
     {
-      extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-      // cppcheck-suppress localMutex
       std::lock_guard<std::mutex> lock(triAccumMutex);
 
       // Fix for dual-radio devices showing as two types
@@ -9316,7 +9203,6 @@ static void handleBatterySaverStart(const String &command)
   enterBatterySaver(intervalMs);
   sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STARTED Interval:" + String(intervalMinutes) + "min", true);
   Serial.printf("[MESH] Battery saver started with %u minute heartbeat\n", intervalMinutes);
-  broadcastToTerminal("[BATTERY_SAVER] Started with " + String(intervalMinutes) + " minute heartbeat");
 }
 
 static void handleBatterySaverStop(const String &command)
@@ -9325,7 +9211,6 @@ static void handleBatterySaverStop(const String &command)
   exitBatterySaver();
   sendToSerial1(nodeId + ": BATTERY_SAVER_ACK:STOPPED", true);
   Serial.println("[MESH] Battery saver stopped");
-  broadcastToTerminal("[BATTERY_SAVER] Stopped");
 }
 
 static void handleBatterySaverStatus(const String &command)
@@ -9333,7 +9218,6 @@ static void handleBatterySaverStatus(const String &command)
   (void)command;
   String status = getBatterySaverStatus();
   sendToSerial1(status, true);
-  broadcastToTerminal(status);
 }
 
 static void handleHbOn(const String &command)
@@ -9344,7 +9228,6 @@ static void handleHbOn(const String &command)
   lastSaveTime = 0;
   saveConfiguration();
   sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
-  broadcastToTerminal("[HB] Status heartbeat enabled");
 }
 
 static void handleHbOff(const String &command)
@@ -9355,7 +9238,6 @@ static void handleHbOff(const String &command)
   lastSaveTime = 0;
   saveConfiguration();
   sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
-  broadcastToTerminal("[HB] Status heartbeat disabled");
 }
 
 static void handleHbInterval(const String &command)
@@ -9366,7 +9248,6 @@ static void handleHbInterval(const String &command)
   hbInterval = minutes * 60000;
   prefs.putUInt("hbInterval", hbInterval);
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
-  broadcastToTerminal("[HB] Interval set to " + String(minutes) + " min");
 }
 
 void processCommand(const String &command, const String &targetId = "")
@@ -9451,7 +9332,6 @@ void processMeshMessage(const String &message) {
     }
     
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
-    broadcastToTerminal("[RX] " + cleanMessage);
 
     // Handle TRI_START_ACK from child nodes (coordinator only)
     if (colonPos > 0 && triangulationInitiator) {
@@ -9808,7 +9688,6 @@ void processMeshMessage(const String &message) {
                 }
 
                 Serial.println(logMsg);
-                broadcastToTerminal(logMsg);
             }
         }
 

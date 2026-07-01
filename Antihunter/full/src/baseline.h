@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <list>
+#include <mutex>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "psram_allocator.h"
@@ -25,13 +26,13 @@ struct BaselineDevice {
 } __attribute__((packed));
 
 struct AnomalyHit {
-    uint8_t mac[6];
-    int8_t rssi;
-    uint8_t channel;
-    char name[32];
-    bool isBLE;
-    uint32_t timestamp;
-    String reason;
+    uint8_t mac[6]{};
+    int8_t rssi{};
+    uint8_t channel{};
+    char name[32]{};
+    bool isBLE{};
+    uint32_t timestamp{};
+    String reason{};
 };
 
 struct BaselineStats {
@@ -56,13 +57,13 @@ struct DeviceHistory {
     uint8_t sightings;
 };
 
-extern std::map<String, uint32_t> sdDeviceIndex;
-extern std::map<String, bool> sdLookupCache;
-extern std::list<String> sdLookupLRU;
+extern std::map<uint64_t, uint32_t, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, uint32_t>>> sdDeviceIndex;
+extern std::map<uint64_t, bool, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, bool>>> sdLookupCache;
+extern std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
 extern const uint32_t SD_LOOKUP_CACHE_SIZE;
 
-void addToSDCache(const String& mac, bool found);
-bool checkSDCache(const String& mac, bool& found);
+void addToSDCache(uint64_t mac, bool found);
+bool checkSDCache(uint64_t mac, bool& found);
 
 // Baseline detection configuration constants
 const uint32_t BASELINE_SCAN_DURATION = 300000;
@@ -77,7 +78,7 @@ extern bool baselineDetectionEnabled;
 extern bool baselineEstablished;
 extern uint32_t baselineStartTime;
 extern uint32_t baselineDuration;
-extern std::map<String, BaselineDevice> baselineCache;
+extern std::map<uint64_t, BaselineDevice, std::less<uint64_t>, PsramAllocator<std::pair<const uint64_t, BaselineDevice>>> baselineCache;
 extern std::vector<AnomalyHit> anomalyLog;
 extern uint32_t anomalyCount;
 extern uint32_t baselineDeviceCount;
@@ -91,6 +92,7 @@ extern DeviceHistoryMapPsram deviceHistory;
 extern uint32_t deviceAbsenceThreshold;
 extern uint32_t reappearanceAlertWindow;
 extern int8_t significantRssiChange;
+extern std::mutex baselineMutex;
 
 // SD-backed baseline storage
 extern uint32_t totalDevicesOnSD;
