@@ -10,7 +10,6 @@
 
 
 <p align="center">
-  
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
 <div align="center">
@@ -19,16 +18,20 @@
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
 </p>
 
-> Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
+   > Beta version with new features in development. Potential stability issues and unexpected behavior may occur.   
+
+---
 
 ### News & Links:
+  
+  [![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6Pq6pg3bj)
+  
+  <a href="https://lectronz.com/stores/antihunter"  alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
 
-[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6Pq6pg3bj)
 
-<a href="https://lectronz.com/stores/antihunter" width="80%" alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
-
-- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection.
+- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection (beta)
 - `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+
 
 # Table of Contents
 
@@ -53,13 +56,12 @@
 - ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
 
+<p align="center">
+<img height="600" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
+</p>
 
-
-
-<img width="2046" height="1395" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
 
 ## Features
-
 
 | Feature | What it does | Scan modes |
 |---------|-------------|------------|
@@ -80,8 +82,9 @@
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
-<img width="959" height="1398" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
-
+<p align="center">
+<img height="600" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
+</p>
 
 ### Use Cases
 
@@ -100,9 +103,9 @@
 <!-- <img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" /> -->
 
 ### 1. Target Scan
-
-<img width="1179" height="797" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
-
+<p align="center">
+<img height="400" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
+</p>
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
 
@@ -122,7 +125,6 @@ Multiple nodes scan for a target simultaneously. Each records RSSI and GPS coord
 - Google Maps link sent over mesh
 - Per-target distance tuning multipliers (0.1x - 5.0x)
 
-> Heltec v3 recommended. T114's small buffer causes latency.
 
 <details>
 <summary>RF Environment Calibration</summary>
@@ -139,7 +141,9 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 </details>
 
-## 3. Detection Sniffers
+---
+
+## Scans & Sniffers 
 
 ### A. Device Scanner
 
@@ -153,11 +157,13 @@ Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength
 
 ### B. Baseline Anomaly Detection
 
-<img width="1421" height="1208" alt="image" src="https://github.com/user-attachments/assets/1e7d31ff-6565-49d7-8cd4-d4b54c5fe5f8" />
+<p align="center">
+<img height="600" alt="image" src="https://github.com/user-attachments/assets/1e7d31ff-6565-49d7-8cd4-d4b54c5fe5f8" />
+</p>
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
-- RAM cache: ~400 devices (heap-adaptive, scales down under memory pressure); SD overflow up to 100,000 devices (1500 RAM-only when no SD present)
+- RAM cache: 200-500 devices, SD overflow: 1K-100K devices (default 1500 without SD)
 - Automatic tiering between RAM and SD
 
 > [!TIP]
@@ -177,8 +183,8 @@ Detects drones broadcasting Remote ID per FAA/EASA standards. Supports ODID/ASTM
 
 ### E. MAC Randomization Correlation (Experimental)
 
-> [!TIP]
-> Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots. SSIDs are hashed as `net#XXXX` for correlation without exposure.
+> [!NOTE]
+> Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
 
 <!-- <img width="861" height="721" alt="Randomization Analyzer" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" /> -->
 
@@ -190,8 +196,9 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 - Detects global MAC leaks and WiFi-BLE correlation
 
 ### F. Probe Request Scanner
-
-<img width="1200" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
+<p align="center">
+  <img height="600" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
+</p>
 
 Goes beyond probe request capture: correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in the device's history), identify which APs responded, and catch silent devices via destination address matching.
 
@@ -204,20 +211,20 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - OUI vendor identification (68-vendor table)
 - MAC randomization detection (locally-administered bit check)
 - Mesh alerting for watchlist hits (60s dedup cooldown)
-- RSSI min/max/current tracking, up to 8 probed SSIDs per device
+- RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
 ### G. Sentinel — Counterintel Engine
 
-Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
+<p align="center">
+  <img height="600" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
+</p>
+
+- Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
+- Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+- **Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
+- Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
 
 
-Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
-
-**Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
-
-Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
-
-<img width="1535" height="1711" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
 
 | Group | Detectors | How they're caught |
 |---|---|---|
@@ -227,15 +234,16 @@ Detectors are organized into toggleable groups. Each detection logs to serial + 
 | **Physical** | FragAttacks, TSF / multi-channel twin, WiFi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
 | **Mesh disruption** | Self-spoof, channel flood, command injection | Own node-id seen inbound; inbound rate DoS; privileged command from a sender with no benign history (the node's own Meshtastic channel) |
 
-**Field-verified on hardware** (confirmed firing against the live tools above): deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
+- **Field-verified on hardware** (confirmed firing against the live tools above): deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
 
-**Experimental** (implemented + signature-grounded, hardware field-test pending): OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, WiFi interference, mesh disruption.
+- **Experimental**: OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, WiFi interference, mesh disruption.
 
-**Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
+- **Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
 
-**Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
+- **Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
 
-**Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
+- **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
+
 ---
 
 ## Secure Data Destruction
@@ -268,39 +276,7 @@ Tamper detection and emergency data wiping.
 2. Configure thresholds for your environment
 3. Deploy and walk away during setup period
 4. Monitor mesh alerts for tamper events
-5. Remote erase (authenticated): provision a pre-shared key once with `@NODE CONFIG_ERASE_PSK:<secret>`, then use the HMAC challenge-response below.
-
-**Authenticated remote erase (HMAC challenge-response):**
-
-1. Provision the key once (persists in NVS): `@NODE CONFIG_ERASE_PSK:<secret>`
-2. Request a one-time challenge: `@NODE ERASE_REQUEST` → node replies `ERASE_TOKEN:<nonce> Expires:300s` (fresh nonce each request, valid 300s).
-3. Compute the response off-device:
-   ```python
-   import hmac, hashlib
-   nonce  = "AH_a1b2c3d4_e5f6a7b8_00012345"   # the token only, not the whole line
-   secret = "<secret>"
-   print(hmac.new(secret.encode(), nonce.encode(), hashlib.sha256).hexdigest())
-   ```
-4. Force within 300s: `@NODE ERASE_FORCE:<hmac-hex>` → match wipes; wrong/expired → `ERASE_ACK:DENIED`.
-
-The secret never traverses the mesh (only the public nonce and the HMAC do); a sniffed response is useless once the nonce changes. Without a provisioned PSK, the legacy `ERASE_FORCE:<token>` echo path applies (unauthenticated) — provision a PSK to harden.
-
-**Web wipe:** once a PSK is provisioned, `/erase/request` and `/factory-wipe` require the PSK in the confirm field instead of the legacy `WIPE_ALL_DATA`/`FACTORY_WIPE` strings. Web wipe stays AP-only (not reachable over mesh).
-
-**Tiered factory reset (separate from the vibration/tamper secure-erase):** a scoped reset with three tiers, distinct from the `ERASE_FORCE` tamper-wipe path.
-
-- **Full** — wipe SD data + reset NVS config (same scope as `/factory-wipe`).
-- **Config** — reset NVS config only (AP creds, node ID, targets, allowlist, RF/mesh/auto-erase settings, erase PSK); captured SD data is **kept**.
-- **Data** — erase captured SD data only (probedb, probes, deauth, drones, baseline, logs, incidents); settings/identity are **kept**.
-
-All tiers reboot the node afterward.
-
-- **Web (full firmware, AP-only):** System tab → Factory Wipe card → pick the scope in the dropdown. Auth = erase PSK if provisioned, else `FACTORY_WIPE`.
-- **Mesh/USB (full + headless):** authenticated with the same HMAC challenge-response as above, using a **separate command verb** so it never overlaps the tamper path. A provisioned PSK is **required** (no-PSK request → `FACTORY_RESET_ACK:DENIED_NO_PSK`).
-  1. `@NODE CONFIG_ERASE_PSK:<secret>` (once)
-  2. `@NODE ERASE_REQUEST` → `ERASE_TOKEN:<nonce> Expires:300s`
-  3. Compute `HMAC-SHA256(nonce, secret)` (Python snippet above).
-  4. `@NODE FACTORY_RESET:<FULL|CONFIG|DATA>:<hmac-hex>` within 300s → node replies `FACTORY_RESET_ACK:<TIER> - rebooting`; wrong/expired → `FACTORY_RESET_ACK:DENIED`.
+5. Remote erase: `@NODE ERASE_REQUEST` to generate token, then `@NODE ERASE_FORCE:<token>`
 
 </details>
 
@@ -339,8 +315,9 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 ---
 
 ## System Architecture
-
-<img width="1407" height="913" alt="System Architecture" src="https://github.com/user-attachments/assets/67348f3d-6613-462c-8e0f-dad419e43f9a" />
+<p align="center">
+  <img height="600" alt="System Architecture" src="https://github.com/user-attachments/assets/67348f3d-6613-462c-8e0f-dad419e43f9a" />
+</p>
 
 Nodes function independently and coordinate via Meshtastic mesh networking.
 
@@ -367,6 +344,8 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 
 <details>
 <summary>Bill of Materials</summary>
+
+- [Links & Images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
 
 CORE COMPONENTS
 - 1x Seeed Studio XIAO ESP32-S3
@@ -402,7 +381,6 @@ POWER & THERMAL
 ENCLOSURE
 - 1x Weatherproof Enclosure (3D printable)
   - STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
-- Assembly manual: [PDF](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 </details>
 
@@ -411,14 +389,13 @@ ENCLOSURE
 
 XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564bd0e0add96cd723a730cb65c81e48aa891f0f9c20471cd/68747470733a2f2f66696c65732e736565656473747564696f2e636f6d2f77696b692f536565656453747564696f2d5849414f2d455350333253332f696d672f322e6a7067)
 
-> [!IMPORTANT]
 > Pin assignments may evolve. Verify compatibility with your board revision.
 
 | Function | GPIO | Description |
 |----------|------|-------------|
 | Vibration Sensor | 2 | SW-420 tamper detection (interrupt) |
-| RTC SDA | 3 | DS3231 I2C data |
-| RTC SCL | 6 | DS3231 I2C clock |
+| RTC SDA | 6 | DS3231 I2C data |
+| RTC SCL | 3 | DS3231 I2C clock |
 | GPS RX | 44 | NMEA data receive |
 | GPS TX | 43 | GPS transmit (unused) |
 | SD CS | 1 | SD card chip select |
@@ -434,7 +411,12 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 
 ## Getting Started
 
-### Web Flasher & Configurator (Recommended)
+### Handy Links
+- PCB [welcome letter](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/ahwelcome.txt)
+- Node Assembly Manual [PDF](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
+- BOM Parts [Links & Images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
+
+### Web Flash & Configure (Recommended)
 
 Flash and configure directly from your browser -- no tools to install. Requires Chrome or Edge on desktop.
 
@@ -499,7 +481,7 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing.
 - **Rate limiting**: 3s intervals (configurable)
 - **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
 
-### Mesh TX Architecture (v0.9.5+)
+### Mesh TX Architecture
 
 Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, 200 bytes per 3 s ≈ 67 B/s).
 
@@ -551,7 +533,6 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
-| `CONFIG_ERASE_PSK` | Pre-shared key for authenticated remote erase (empty clears it) | `@AH01 CONFIG_ERASE_PSK:my-secret-key` |
 
 ### Scanning
 
@@ -596,7 +577,6 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 |---------|------------|---------|
 | `ERASE_REQUEST` | None | `@AH01 ERASE_REQUEST` |
 | `ERASE_FORCE` | Auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
-| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<hmac-hex>` (PSK required) | `@AH02 FACTORY_RESET:DATA:<hmac-hex>` |
 | `ERASE_CANCEL` | None | `@AH01 ERASE_CANCEL` |
 | `AUTOERASE_ENABLE` | `setup:erase:vibs:window:cooldown` (seconds, except vibs count) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
 | `AUTOERASE_DISABLE` | None | `@AH01 AUTOERASE_DISABLE` |
@@ -661,7 +641,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 ## API Reference
 
 > [!NOTE]
-> All timestamps UTC. Full firmware only.
+> All timestamps use UTC
 
 ### Core
 
@@ -687,12 +667,12 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 |----------|--------|-------------|
 | `/results` | GET | Latest scan/triangulation results |
 | `/sniffer-cache` | GET | Cached device detections |
+| `/probe-results` | GET | Probe request results |
 | `/deauth-results` | GET | Deauth attack logs |
 | `/randomization-results` | GET | Randomization correlation results |
+| `/baseline-results` | GET | Baseline anomaly results |
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
-
-> Probe results live under [Probe Database](#probe-database) (`/api/probedb`, `/api/probes.jsonl`); baseline results under the Baseline endpoints (`/baseline/stats`, `/baseline/status`).
 
 ### Probe Database
 
@@ -747,8 +727,6 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 | `/api/incidents.json` | GET | Recent incident ring (JSON) |
 | `/api/incidents.jsonl` | GET | Full incident log from SD (JSONL) |
 | `/api/incidents` | DELETE | Clear all incidents (RAM + SD) |
-
-**Per-detector logs:** each detector also exposes its own JSON/JSONL endpoint, e.g. `/api/pmkid.jsonl`, `/api/eviltwin.jsonl`, `/api/sae_dos.jsonl`, `/api/owe_abuse.jsonl`, `/api/fragattack.jsonl`, `/api/jamming.jsonl`, `/api/probe_flood.jsonl`, `/api/assoc_sleep.jsonl`, `/api/deauth_flood.jsonl`, `/api/handshakes`, `/api/karma`, `/api/ble_attack.jsonl`, `/api/ble_tracker`, `/api/airtag_presence`, `/api/tof`, `/api/tsf_skew`, `/api/attacker_hunts`, `/api/quorum`, `/api/bloom`. `POST /api/detect/clear_all` clears them all; query `/api/detect/config` for the live detector list.
 
 Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds — `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
 
@@ -812,10 +790,8 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/erase/status` | GET | Erasure status |
-| `/erase/request` | POST | Request secure erase (`confirm`=erase PSK if provisioned, else `WIPE_ALL_DATA`; optional `reason`) |
-| `/erase/psk-status` | GET | JSON `{pskSet:bool}` — UI uses this to swap placeholder/label between PSK and legacy code |
+| `/erase/request` | POST | Request secure erase (`confirm`=WIPE_ALL_DATA, optional `reason`) |
 | `/erase/cancel` | POST | Cancel erase sequence |
-| `/factory-wipe` | POST | Tiered factory reset (`confirm`=erase PSK if provisioned, else `FACTORY_WIPE`; `tier`=`full`\|`config`\|`data`, default `full`); reboots |
 | `/secure/status` | GET | Tamper detection status |
 | `/secure/abort` | POST | Abort tamper sequence |
 | `/config/autoerase` | GET/POST | Auto-erase config |
