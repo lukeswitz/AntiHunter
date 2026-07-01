@@ -389,7 +389,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="2" selected>WiFi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
-                <label style="font-size:11px;margin-top:6px;display:block;"><input type="checkbox" name="broadcastAll" value="1" style="margin-right:4px;">Broadcast All Probes (mesh)</label>
+                <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="broadcastAll" value="1">Broadcast All Probes (mesh)</label>
               </div>
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
@@ -406,7 +406,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="2" selected>WiFi + BLE</option>
                   <option value="1">BLE Only</option>
                 </select>
-                <label style="font-size:11px;margin-top:6px;display:block;"><input type="checkbox" name="captureProbes" value="1" style="margin-right:4px;">Capture Probes</label>
+                <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="captureProbes" value="1">Capture Probes</label>
               </div>
               <div id="standardDurationControls" style="margin-top:10px;">
                 <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
