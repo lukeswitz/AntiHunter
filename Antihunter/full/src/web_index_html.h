@@ -2077,7 +2077,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return;
         }
         
-        const isRandomization = resultsElement.textContent.includes('MAC RANDOMIZATION DETECTION');
+        const isRandomization = resultsElement.textContent.includes('RANDOMIZED DEVICE TRACER');
         const isBaseline = resultsElement.textContent.includes('Baseline') || resultsElement.querySelector('.baseline-marker');
         const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
         const isDrone = resultsElement.textContent.includes('Drone Detection');
