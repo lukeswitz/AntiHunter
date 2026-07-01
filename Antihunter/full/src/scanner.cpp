@@ -75,6 +75,7 @@ static portMUX_TYPE rfConfigMux = portMUX_INITIALIZER_UNLOCKED;
 
 const size_t MAX_AP_CACHE = 200;
 const size_t MAX_BLE_CACHE = 200;
+const size_t MAX_UNIQUE_MACS = 5000;
 
 // BLE 
 NimBLEScan *pBLEScan;
@@ -723,31 +724,20 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
     return false;
 }
 
-// Client connected: interleave AP home channel between hops to keep beacons flowing while still visiting every channel.
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
     static size_t idx = 0;
-    static bool serveHome = false;
-    if (WiFi.softAPgetStationNum() > 0) {
-        serveHome = !serveHome;
-        if (serveHome) {
-            esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
-            return;
-        }
-    }
     idx = (idx + 1) % CHANNELS.size();
     esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
 }
 
-// Client connected: scan one rotating channel per call (full scan strands client); 0 = all channels when idle.
-uint8_t rotatingScanChannel()
+uint8_t nextActiveScanChannel()
 {
-    if (WiFi.softAPgetStationNum() == 0) return 0;
     if (CHANNELS.empty()) return (uint8_t)AP_CHANNEL;
-    static size_t scanIdx = 0;
-    scanIdx = (scanIdx + 1) % CHANNELS.size();
-    return CHANNELS[scanIdx];
+    static size_t i = 0;
+    i = (i + 1) % CHANNELS.size();
+    return CHANNELS[i];
 }
 
 // Deauth type
@@ -1007,8 +997,12 @@ void snifferScanTask(void *pv)
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime,
-                                                  rotatingScanChannel());
+            if (hopTimer) esp_timer_stop(hopTimer);
+            esp_wifi_set_promiscuous(false);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
+            esp_wifi_set_promiscuous(true);
+            if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+            if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
             if (stopRequested) break;
 
             if (networksFound > 0)
@@ -1031,10 +1025,9 @@ void snifferScanTask(void *pv)
                     if (apCache.find(bssid) == apCache.end())
                     {
                         std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                        if (apCache.size() < MAX_AP_CACHE) {
-                            apCache[bssid] = ssid;
-                        }
-                        uniqueMacs.insert(bssid);
+                        if (apCache.size() >= MAX_AP_CACHE) continue;
+                        apCache[bssid] = ssid;
+                        if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
 
                         Hit h;
                         memcpy(h.mac, bssidBytes, 6);
@@ -1104,6 +1097,7 @@ void snifferScanTask(void *pv)
 
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
+                        if (bleDeviceCache.size() >= MAX_BLE_CACHE) continue;
                         String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
                         String cleanName = "";
                         for (size_t j = 0; j < name.length(); j++)
@@ -1119,11 +1113,9 @@ void snifferScanTask(void *pv)
 
                         {
                             std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                            if (bleDeviceCache.size() < MAX_BLE_CACHE) {
-                                bleDeviceCache[macStr] = cleanName;
-                            }
+                            bleDeviceCache[macStr] = cleanName;
                         }
-                        uniqueMacs.insert(macStr);
+                        if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(macStr);
                         
                         uint8_t mac[6];
                         if (parseMac6(macStr, mac))
@@ -1670,7 +1662,9 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
         if (h.toolHint & 0x04) bcastHits++;
     }
 
-    std::string results = "Deauth Attack Detection Results\n";
+    std::string results = scanning.load()
+        ? ("Deauth Attack Detection Results (IN PROGRESS)\nElapsed: " + std::to_string(millis() / 1000) + "s\n")
+        : "Deauth Attack Detection Results\n";
     results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
     results += "Deauth frames: " + std::to_string(deauthTotal) + "\n";
     results += "Disassoc frames: " + std::to_string(disassocTotal) + "\n";
@@ -2980,8 +2974,7 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime,
-                                                  rotatingScanChannel());
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
             if (stopRequested) break;
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
@@ -3023,7 +3016,7 @@ void listScanTask(void *pv) {
                         }
                     }
 
-                    uniqueMacs.insert(bssid);
+                    if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
 
                     Hit wh;
                     memcpy(wh.mac, bssidBytes, 6);
@@ -3046,7 +3039,7 @@ void listScanTask(void *pv) {
                 }
                 WiFi.scanDelete();
             }
-            framesSeen += networksFound;
+            if (networksFound > 0) framesSeen += networksFound;
         }
 
         extern void processUSBToMesh();
@@ -3092,7 +3085,7 @@ void listScanTask(void *pv) {
                     }
                 }
 
-                uniqueMacs.insert(macStr);
+                if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(macStr);
 
                 if (isMatch) {
                     Hit bh;

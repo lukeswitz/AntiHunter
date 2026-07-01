@@ -923,6 +923,12 @@ static void handleTriangulateStart(const String &command, const String &targetId
       return;
     }
 
+    uint8_t dMac[6];
+    if (!parseMac6(target, dMac)) {
+      Serial.printf("[TRIANGULATE] Invalid target MAC '%s' - ignoring directed command\n", target.c_str());
+      return;
+    }
+
     if (duration < 10) duration = 10;
     if (duration > 3600) duration = 3600;
 

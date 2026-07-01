@@ -99,7 +99,7 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("TOF_PONG:")) {
               detect_processMesh(senderId, toProcess);
             } else {
-              processMeshMessage(toProcess);
+              processMeshMessage(meshBuffer);
             }
           }
 

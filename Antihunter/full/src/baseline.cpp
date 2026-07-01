@@ -133,6 +133,9 @@ void resetBaselineDetection() {
         std::lock_guard<std::mutex> lock(baselineMutex);
         baselineCache.clear();
         anomalyLog.clear();
+        sdDeviceIndex.clear();
+        lruList.clear();
+        lruMap.clear();
         anomalyCount = 0;
         baselineDeviceCount = 0;
         baselineEstablished = false;
@@ -372,9 +375,7 @@ static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
     if (wifiScan == WIFI_SCAN_FAILED) {
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
-            // pin scan to AP channel while client connected; full-channel scan wedges SoftAP
-            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime,
-                              rotatingScanChannel());
+            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
         }
         return;
     }

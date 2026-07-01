@@ -170,6 +170,7 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int 
             }
             break;
         case 4:
+            if (l < 4) break;
             for (int i = 0; i < 4; ++i) {
                 uav_lat.u32 <<= 8;
                 uav_lat.u32 |= v[i];
@@ -177,6 +178,7 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int 
             drone->latitude = 1.0e-5 * (double)uav_lat.i32;
             break;
         case 5:
+            if (l < 4) break;
             for (int i = 0; i < 4; ++i) {
                 uav_long.u32 <<= 8;
                 uav_long.u32 |= v[i];
@@ -184,14 +186,17 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int 
             drone->longitude = 1.0e-5 * (double)uav_long.i32;
             break;
         case 6:
+            if (l < 2) break;
             alt.u16 = (((uint16_t)v[0]) << 8) | (uint16_t)v[1];
             drone->altitudeMsl = alt.i16;
             break;
         case 7:
+            if (l < 2) break;
             height.u16 = (((uint16_t)v[0]) << 8) | (uint16_t)v[1];
             drone->heightAgl = height.i16;
             break;
         case 8:
+            if (l < 4) break;
             for (int i = 0; i < 4; ++i) {
                 base_lat.u32 <<= 8;
                 base_lat.u32 |= v[i];
@@ -199,6 +204,7 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int 
             drone->operatorLat = 1.0e-5 * (double)base_lat.i32;
             break;
         case 9:
+            if (l < 4) break;
             for (int i = 0; i < 4; ++i) {
                 base_long.u32 <<= 8;
                 base_long.u32 |= v[i];
@@ -206,9 +212,11 @@ static void parseFrenchDrone(DroneDetection *drone, const uint8_t *payload, int 
             drone->operatorLon = 1.0e-5 * (double)base_long.i32;
             break;
         case 10:
+            if (l < 1) break;
             drone->speed = v[0];
             break;
         case 11:
+            if (l < 2) break;
             drone->heading = (((uint16_t)v[0]) << 8) | (uint16_t)v[1];
             break;
         default:
@@ -257,12 +265,12 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
 
             const uint8_t *val = &payload[offset + 2];
 
-            if ((typ == 0xdd) && (val[0] == 0x6a) && (val[1] == 0x5c) && (val[2] == 0x35)) {
+            if ((typ == 0xdd) && len >= 3 && (val[0] == 0x6a) && (val[1] == 0x5c) && (val[2] == 0x35)) {
                 parseFrenchDrone(&drone, &payload[offset], length - offset);
                 validDrone = true;
                 break;
             }
-            else if ((typ == 0xdd) &&
+            else if ((typ == 0xdd) && len >= 3 &&
                      (((val[0] == 0x90 && val[1] == 0x3a && val[2] == 0xe6)) ||
                       ((val[0] == 0xfa && val[1] == 0x0b && val[2] == 0xbc)))) {
                 const int j = offset + 7;
