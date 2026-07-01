@@ -148,7 +148,7 @@ Make it yours.
     3x  U.FL to SMA pigtail  (10cm, SMA bulkhead)
     1x  6dBi 2.4GHz antenna  (WiFi/BLE)
     1x  6dBi LoRa antenna    (868 EU / 915 US / 923 Asia)
-    1x  GNSS helix antenna   (L1/L2/L5)
+    1x  Active GPS antenna    (L1, SMA)
 
   ---- FULL BUILD :: FASTENERS --------------------------------------------------
 
