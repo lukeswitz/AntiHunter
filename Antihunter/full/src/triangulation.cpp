@@ -10,6 +10,7 @@
 #include <NimBLEScan.h>
 #include <NimBLEAdvertisedDevice.h>
 #include <TinyGPSPlus.h>
+#include <esp_timer.h>
 
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
@@ -24,6 +25,7 @@ extern bool triangulationOrchestratorAssigned;
 // Triang
 static TaskHandle_t calibrationTaskHandle = nullptr;
 static TaskHandle_t coordinatorSetupTaskHandle = nullptr;
+static std::atomic<bool> triSetupAbort{false};
 ClockDiscipline clockDiscipline = {0.0, 0, 0, false, 0, false};
 const size_t MAX_TRIANGULATION_NODES = 15;
 const size_t MAX_SYNC_STATUS = 15;
@@ -85,10 +87,6 @@ void setRFEnvironment(RFEnvironment env) {
     adaptivePathLoss.rssi0_ble = preset.rssi0_ble;
     Serial.printf("[TRIANGULATE] RF environment set to %d (n_wifi=%.1f, n_ble=%.1f)\n",
                   env, preset.n_wifi, preset.n_ble);
-}
-
-RFEnvironment getRFEnvironment() {
-    return currentRFEnvironment;
 }
 
 // Helpers
@@ -181,11 +179,7 @@ float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement) {
     
     if (node.rssiHistory.size() > 5) {
         float variance = 0.0;
-        float mean = 0.0;
-        for (int8_t rssi : node.rssiHistory) {
-            // cppcheck-suppress useStlAlgorithm
-            mean += rssi;
-        }
+        float mean = std::accumulate(node.rssiHistory.begin(), node.rssiHistory.end(), 0.0f);
         mean /= node.rssiHistory.size();
 
         for (int8_t rssi : node.rssiHistory) {
@@ -217,11 +211,7 @@ float calculateSignalQuality(const TriangulationNode &node) {
     }
 
     float variance = 0.0;
-    float mean = 0.0;
-    for (int8_t rssi : node.rssiHistory) {
-        // cppcheck-suppress useStlAlgorithm
-        mean += rssi;
-    }
+    float mean = std::accumulate(node.rssiHistory.begin(), node.rssiHistory.end(), 0.0f);
     mean /= node.rssiHistory.size();
 
     for (int8_t rssi : node.rssiHistory) {
@@ -323,11 +313,8 @@ bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
     estLat = refLat + dLat;
     estLon = refLon + dLon;
     
-    float avgQuality = 0.0;
-    for (size_t i = 0; i < numNodes; i++) {
-        // cppcheck-suppress useStlAlgorithm
-        avgQuality += sortedNodes[i].signalQuality;
-    }
+    float avgQuality = std::accumulate(sortedNodes.begin(), sortedNodes.begin() + numNodes, 0.0f,
+        [](float acc, const auto& n) { return acc + n.signalQuality; });
     avgQuality /= numNodes;
     
     confidence = avgQuality * (1.0 - 0.1 * (avgHDOP - 1.0)) * (1.0 - 0.05 * (numNodes - 3));
@@ -396,38 +383,40 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
     int64_t localMicros = getCorrectedMicroseconds();
     
     int32_t timeOffset = (int32_t)(localTime - timestamp);
-    
-    uint32_t reportedPropDelay = 0;
-    if (nodePropagationDelays.count(nodeId) > 0) {
-        reportedPropDelay = nodePropagationDelays[nodeId];
-    }
-    
-    int64_t effectiveMicrosOffset = (int64_t)localMicros - (int64_t)milliseconds - (int64_t)reportedPropDelay;
-    
-    bool found = false;
-    for (auto &sync : nodeSyncStatus) {
-        // cppcheck-suppress useStlAlgorithm
-        if (sync.nodeId == nodeId) {
-            sync.rtcTimestamp = timestamp;
-            sync.millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
-            sync.synced = (abs(timeOffset) == 0 && sync.millisOffset < 1);
-            sync.lastSyncCheck = millis();
-            found = true;
-            break;
+
+    int64_t effectiveMicrosOffset;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+
+        uint32_t reportedPropDelay = 0;
+        if (nodePropagationDelays.count(nodeId) > 0) {
+            reportedPropDelay = nodePropagationDelays[nodeId];
+        }
+
+        effectiveMicrosOffset = (int64_t)localMicros - (int64_t)milliseconds - (int64_t)reportedPropDelay;
+
+        auto syncIt = std::find_if(nodeSyncStatus.begin(), nodeSyncStatus.end(),
+            [&](const auto& s) { return s.nodeId == nodeId; });
+        const bool found = (syncIt != nodeSyncStatus.end());
+        if (found) {
+            syncIt->rtcTimestamp = timestamp;
+            syncIt->millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
+            syncIt->synced = (abs(timeOffset) == 0 && syncIt->millisOffset < 1);
+            syncIt->lastSyncCheck = millis();
+        }
+
+        if (!found && nodeSyncStatus.size() < MAX_SYNC_STATUS) {
+            NodeSyncStatus newSync;
+            newSync.nodeId = nodeId;
+            newSync.rtcTimestamp = timestamp;
+            newSync.millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
+            newSync.synced = (abs(timeOffset) == 0 && newSync.millisOffset < 1);
+            newSync.lastSyncCheck = millis();
+            nodeSyncStatus.push_back(newSync);
         }
     }
-    
-    if (!found && nodeSyncStatus.size() < MAX_SYNC_STATUS) {
-        NodeSyncStatus newSync;
-        newSync.nodeId = nodeId;
-        newSync.rtcTimestamp = timestamp;
-        newSync.millisOffset = (uint32_t)((effectiveMicrosOffset < 0 ? -effectiveMicrosOffset : effectiveMicrosOffset) / 1000);
-        newSync.synced = (abs(timeOffset) == 0 && newSync.millisOffset < 1);
-        newSync.lastSyncCheck = millis();
-        nodeSyncStatus.push_back(newSync);
-    }
-    
-    Serial.printf("[SYNC] Node %s: offset=%ldus synced=%d\n", 
+
+    Serial.printf("[SYNC] Node %s: offset=%ldus synced=%d\n",
                   nodeId.c_str(), (long)effectiveMicrosOffset, 
                   (abs(timeOffset) == 0 && abs(effectiveMicrosOffset) < 1000));
 }
@@ -451,39 +440,31 @@ bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
     return (totalCount == 0) || (syncedCount >= (totalCount * 2 / 3));
 }
 
-String getNodeSyncStatus() {
-    String status = "=== Node Synchronization Status ===\n";
-    status += "Nodes tracked: " + String(nodeSyncStatus.size()) + "\n\n";
-    
-    for (const auto &sync : nodeSyncStatus) {
-        status += sync.nodeId + ": ";
-        status += sync.synced ? "SYNCED" : "OUT_OF_SYNC";
-        status += " offset=" + String(sync.millisOffset) + "ms";
-        status += " age=" + String((millis() - sync.lastSyncCheck) / 1000) + "s\n";
-    }
-    
-    return status;
-}
-
 // Traingulation actions
 
 // Task that handles ACK collection and cycle start (runs async to avoid blocking web handler)
-// cppcheck-suppress constParameterCallback
-void coordinatorSetupTask(void *parameter) {
+void coordinatorSetupTask(const void *parameter) {
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(parameter));
 
     // Wait for child nodes to ACK - give mesh time to relay responses
+    triSetupAbort.store(false);
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = "TRIANGULATING: Waiting for mesh nodes to respond...";
     }
     vTaskDelay(pdMS_TO_TICKS(15000));
+    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
-    int totalNodes = 1 + triangulateAcks.size();  // 1 = coordinator
+    int ackedChildren;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        ackedChildren = (int)triangulateAcks.size();
+    }
+    int totalNodes = 1 + ackedChildren;  // 1 = coordinator
     Serial.printf("[TRIANGULATE] ACK collection complete: %d child nodes responded (%d total)\n",
-                  triangulateAcks.size(), totalNodes);
+                  ackedChildren, totalNodes);
 
     // Additional buffer before next broadcast
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -504,9 +485,12 @@ void coordinatorSetupTask(void *parameter) {
     if (coordinatorId.length() > 0) {
         nodeList.push_back(coordinatorId);
     }
-    std::transform(triangulateAcks.begin(), triangulateAcks.end(),
-                   std::back_inserter(nodeList),
-                   [](const TriangulateAckInfo& ack) { return ack.nodeId; });
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        std::transform(triangulateAcks.begin(), triangulateAcks.end(),
+                       std::back_inserter(nodeList),
+                       [](const TriangulateAckInfo& ack) { return ack.nodeId; });
+    }
     std::sort(nodeList.begin(), nodeList.end());
 
     // Rebuild coordinator's own reporting schedule with all nodes
@@ -528,6 +512,7 @@ void coordinatorSetupTask(void *parameter) {
                   cycleStartMs, nodeList.size(), nodeListStr.c_str());
 
     vTaskDelay(pdMS_TO_TICKS(500));
+    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     if (!workerTaskHandle) {
         ahCreateTask(
@@ -632,9 +617,9 @@ void startTriangulation(const String &targetMac, int duration) {
         triangulationNodes.clear();
         triangulateAcks.clear();  // Clear ACK list for new triangulation
         triangulationNodes.reserve(10);
+        nodeSyncStatus.clear();
+        nodeSyncStatus.reserve(10);
     }
-    nodeSyncStatus.clear();
-    nodeSyncStatus.reserve(10);
     triangulationStart = millis();
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
@@ -665,7 +650,7 @@ void startTriangulation(const String &targetMac, int duration) {
     // Create async task to collect ACKs and start scanning (avoids blocking web handler)
     if (!coordinatorSetupTaskHandle) {
         ahCreateTask(
-            coordinatorSetupTask,
+            reinterpret_cast<TaskFunction_t>(coordinatorSetupTask),
             "triCoordSetup",
             4096,
             reinterpret_cast<void *>(static_cast<intptr_t>(duration)),
@@ -683,26 +668,24 @@ uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
 
     // Factor in number of nodes (more nodes = more potential for delays)
     uint32_t nodeCount;
+    uint32_t maxPropDelay = 0;
+    uint32_t delayCount = 0;
     {
         std::lock_guard<std::mutex> lock(triangulationMutex);
         nodeCount = (uint32_t)triangulateAcks.size();
+
+        for (const auto& pair : nodePropagationDelays) {
+            uint32_t delay = pair.second;
+            if (delay < 1000000) {
+                if (delay > maxPropDelay) {
+                    maxPropDelay = delay;
+                }
+                delayCount++;
+            }
+        }
     }
     if (nodeCount > 0) {
         timeout += (uint32_t)(nodeCount * perNodeFactor);
-    }
-
-    // Factor in measured mesh propagation delays
-    uint32_t maxPropDelay = 0;
-    uint32_t delayCount = 0;
-
-    for (const auto& pair : nodePropagationDelays) {
-        uint32_t delay = pair.second;
-        if (delay < 1000000) {
-            if (delay > maxPropDelay) {
-                maxPropDelay = delay;
-            }
-            delayCount++;
-        }
     }
 
     if (delayCount > 0) {
@@ -725,6 +708,10 @@ void markTriangulationStopFromMesh() {
 }
 
 void stopTriangulation() {
+    if (coordinatorSetupTaskHandle != nullptr) {
+        triSetupAbort.store(true);
+        Serial.println("[TRIANGULATE] Stop during setup - signalling coordinator abort");
+    }
     if (!triangulationActive) {
         Serial.println("[TRIANGULATE] Not active, nothing to stop");
         return;
@@ -855,18 +842,21 @@ void stopTriangulation() {
     uint32_t elapsedMs = millis() - triangulationStart;
     uint32_t elapsedSec = elapsedMs / 1000;
 
-    Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, triangulationNodes.size());
+    size_t reportedNodeCount;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        reportedNodeCount = triangulationNodes.size();
+    }
+    Serial.printf("[TRIANGULATE] Stopping after %us (%u nodes reported)\n", elapsedSec, reportedNodeCount);
 
     bool hasData = false;
-    int8_t avgRssi;
-    int localTotalHits;
-    bool isBLE;
-    float lat, lon, localHdop;
-    bool hasGPS;
+    int8_t avgRssi = 0;
+    int localTotalHits = 0;
+    bool isBLE = false;
+    float lat = 0.0f, lon = 0.0f, localHdop = 0.0f;
+    bool hasGPS = false;
 
     {
-        extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-        // cppcheck-suppress localMutex
         std::lock_guard<std::mutex> lock(triAccumMutex);
         hasData = triangulationInitiator && (triAccum.wifiHitCount > 0 || triAccum.bleHitCount > 0);
         if (hasData) {
@@ -894,14 +884,11 @@ void stopTriangulation() {
 
         {
             std::lock_guard<std::mutex> lock(triangulationMutex);
-            bool selfNodeExists = false;
-            for (const auto &node : triangulationNodes) {
-                // cppcheck-suppress useStlAlgorithm
-                if (node.nodeId == myNodeId) {
-                    selfNodeExists = true;
-                    Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", node.hitCount);
-                    break;
-                }
+            auto selfNodeIt = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
+                [&](const auto& n) { return n.nodeId == myNodeId; });
+            const bool selfNodeExists = (selfNodeIt != triangulationNodes.end());
+            if (selfNodeExists) {
+                Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", selfNodeIt->hitCount);
             }
 
             if (!selfNodeExists && triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
@@ -974,8 +961,20 @@ void stopTriangulation() {
 
     String targetMacStr = macFmt6(triangulationTarget);
 
+    std::vector<TriangulationNode> nodesSnapshot;
+    float maxOffsetMs = 0;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        nodesSnapshot = triangulationNodes;
+        auto maxSyncIt = std::max_element(nodeSyncStatus.begin(), nodeSyncStatus.end(),
+            [](const NodeSyncStatus& a, const NodeSyncStatus& b) {
+                return a.millisOffset < b.millisOffset;
+            });
+        maxOffsetMs = (maxSyncIt != nodeSyncStatus.end()) ? maxSyncIt->millisOffset : 0;
+    }
+
     std::vector<TriangulationNode> gpsNodes;
-    for (const auto& node : triangulationNodes) {
+    for (const auto& node : nodesSnapshot) {
         Serial.printf("[TRIANGULATE] Node %s: hits=%d RSSI=%d GPS=%s\n",
                       node.nodeId.c_str(), node.hitCount, node.rssi,
                       node.hasGPS ? "YES" : "NO");
@@ -988,7 +987,7 @@ void stopTriangulation() {
                 " Nodes=" + String(gpsNodes.size());
 
     Serial.printf("[TRIANGULATE] Total nodes: %u, GPS nodes: %u, Coordinator: %s\n",
-                  triangulationNodes.size(), gpsNodes.size(),
+                  nodesSnapshot.size(), gpsNodes.size(),
                   triangulationInitiator ? "YES" : "NO");
 
     if (gpsNodes.size() >= 3) {
@@ -1026,11 +1025,6 @@ void stopTriangulation() {
                 float gpsPositionError = avgHDOP * 2.5;
                 float rssiDistanceError = avgDistance * 0.20;
                 float geometricError = gdop * 5.0;
-                auto maxSyncIt = std::max_element(nodeSyncStatus.begin(), nodeSyncStatus.end(),
-                    [](const NodeSyncStatus& a, const NodeSyncStatus& b) {
-                        return a.millisOffset < b.millisOffset;
-                    });
-                float maxOffsetMs = (maxSyncIt != nodeSyncStatus.end()) ? maxSyncIt->millisOffset : 0;
                 float syncError = (maxOffsetMs / 1000.0) * avgDistance * 0.3;
                 float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
 
@@ -1076,16 +1070,12 @@ void stopTriangulation() {
     String myNodeId = getNodeId();
     int selfHits = 0;
     int8_t selfBestRSSI = -128;
-    bool selfDetected = false;
-
-    for (const auto& node : triangulationNodes) {
-        // cppcheck-suppress useStlAlgorithm
-        if (node.nodeId == myNodeId) {
-            selfHits = node.hitCount;
-            selfBestRSSI = node.rssi;
-            selfDetected = true;
-            break;
-        }
+    auto selfIt = std::find_if(nodesSnapshot.begin(), nodesSnapshot.end(),
+        [&](const auto& n) { return n.nodeId == myNodeId; });
+    const bool selfDetected = (selfIt != nodesSnapshot.end());
+    if (selfDetected) {
+        selfHits = selfIt->hitCount;
+        selfBestRSSI = selfIt->rssi;
     }
 
     if (selfDetected && selfHits > 0) {
@@ -1120,8 +1110,6 @@ void stopTriangulation() {
     triangulationDuration = 0;
 
     {
-        extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-        // cppcheck-suppress localMutex
         std::lock_guard<std::mutex> lock(triAccumMutex);
         triAccum = {};
     }
@@ -1142,9 +1130,9 @@ void stopTriangulation() {
         triangulateAcks.clear();
         triangulateReportedNodes.clear();
         triangulationNodes.clear();
+        nodeSyncStatus.clear();
+        nodePropagationDelays.clear();
     }
-    nodeSyncStatus.clear();
-    nodePropagationDelays.clear();
 
     lastTriangulationStopTime = millis();
 
@@ -1170,10 +1158,11 @@ void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east
 }
 
 String calculateTriangulation() {
+    std::lock_guard<std::mutex> lock(triangulationMutex);
     if (!triangulationActive) {
         return "Triangulation not active\n";
     }
-    
+
     uint32_t elapsed = (millis() - triangulationStart) / 1000;
     
     String results = "\n=== Triangulation Results ===\n";
@@ -1301,12 +1290,12 @@ String calculateTriangulation() {
         }
 
         results += "Non-GPS nodes:\n";
-        for (const auto& node : triangulationNodes) {
-            if (!node.hasGPS) {
-                // cppcheck-suppress useStlAlgorithm
-                results += "  • " + node.nodeId + " (enable GPS)\n";
-            }
-        }
+        std::for_each(triangulationNodes.begin(), triangulationNodes.end(),
+            [&](const auto& node) {
+                if (!node.hasGPS) {
+                    results += "  • " + node.nodeId + " (enable GPS)\n";
+                }
+            });
         results += "\n";
 
         // If we have < 2 GPS nodes, can't even do GPS-RSSI validation, so return here
@@ -1548,7 +1537,7 @@ void disciplineRTCFromGPS() {
             xSemaphoreGive(rtcMutex);
 
             // Recalibrate boot-to-epoch offset with centisecond precision
-            uint32_t bootMicros = micros();
+            int64_t bootMicros = esp_timer_get_time();
             clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
             clockDiscipline.offsetCalibrated = true;
             clockDiscipline.disciplineCount = 0;
@@ -1558,13 +1547,13 @@ void disciplineRTCFromGPS() {
         }
     } else if (!clockDiscipline.offsetCalibrated) {
         // Calibrate offset on first GPS sync with centisecond precision
-        uint32_t bootMicros = micros();
+        int64_t bootMicros = esp_timer_get_time();
         clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
         clockDiscipline.offsetCalibrated = true;
         Serial.printf("[DISCIPLINE] Boot-to-epoch offset calibrated (cs=%d)\n", centisecond);
     } else if (abs(offset) <= 1) {
         // Small drift - update offset without adjusting RTC
-        uint32_t bootMicros = micros();
+        int64_t bootMicros = esp_timer_get_time();
         clockDiscipline.bootToEpochOffsetMicros = gpsEpochMicros - (int64_t)bootMicros;
 
         if (clockDiscipline.lastDiscipline > 0) {
@@ -1589,7 +1578,7 @@ int64_t getCorrectedMicroseconds() {
     // Get Unix timestamp with microsecond precision for timing synchronization
     if (!rtcAvailable || rtcMutex == nullptr || !clockDiscipline.offsetCalibrated) {
         // Fallback to boot-relative microseconds if no RTC or not calibrated
-        uint32_t currentMicros = micros();
+        int64_t currentMicros = esp_timer_get_time();
         if (clockDiscipline.converged && clockDiscipline.lastDiscipline > 0) {
             uint32_t elapsedMs = millis() - clockDiscipline.lastDiscipline;
             int64_t correction = (int64_t)(clockDiscipline.driftRate * elapsedMs * 1000.0);
@@ -1599,7 +1588,7 @@ int64_t getCorrectedMicroseconds() {
     }
 
     // Use calibrated boot-to-epoch offset to convert micros() to Unix timestamp
-    uint32_t bootMicros = micros();
+    int64_t bootMicros = esp_timer_get_time();
     int64_t unixTimestampMicros = (int64_t)bootMicros + clockDiscipline.bootToEpochOffsetMicros;
 
     // Apply drift correction if converged
@@ -1649,7 +1638,7 @@ void calibrationTask(void *parameter) {
         
         // WiFi scan every 3 seconds to avoid blocking
         if (millis() - lastWiFiScan >= 3000) {
-            int n = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime);
+            int n = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
             for (int i = 0; i < n; i++) {
                 const uint8_t *bssid = WiFi.BSSID(i);
                 if (memcmp(bssid, macBytes, 6) == 0) {
@@ -1696,11 +1685,7 @@ void calibrationTask(void *parameter) {
     
     // WiFi calibration
     if (wifiSamples.size() >= 10) {
-        float meanRssi = 0;
-        for (int8_t rssi : wifiSamples) {
-            // cppcheck-suppress useStlAlgorithm
-            meanRssi += rssi;
-        }
+        float meanRssi = std::accumulate(wifiSamples.begin(), wifiSamples.end(), 0.0f);
         meanRssi /= wifiSamples.size();
         
         float variance = 0;
@@ -1725,11 +1710,7 @@ void calibrationTask(void *parameter) {
     
     // BLE calibration
     if (bleSamples.size() >= 10) {
-        float meanRssi = 0;
-        for (int8_t rssi : bleSamples) {
-            // cppcheck-suppress useStlAlgorithm
-            meanRssi += rssi;
-        }
+        float meanRssi = std::accumulate(bleSamples.begin(), bleSamples.end(), 0.0f);
         meanRssi /= bleSamples.size();
         
         float variance = 0;
@@ -1841,15 +1822,21 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
     uint16_t mySubsec = (myMicros % 1000000) / 10000;
     
     uint32_t propagationDelay = rxMicros - senderTxMicros;
-
-    nodePropagationDelays[senderId] = propagationDelay;
-    const size_t MAX_PROP_DELAY_ENTRIES = 100;
-    if (nodePropagationDelays.size() > MAX_PROP_DELAY_ENTRIES) {
-        auto oldest = nodePropagationDelays.begin();
-        nodePropagationDelays.erase(oldest);
+    if (propagationDelay > 100000) {
+        propagationDelay = rxMicros + (0xFFFFFFFF - senderTxMicros);
     }
-    
-    Serial.printf("[SYNC] %s: prop_delay=%luus offset=%dms\n", 
+
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        nodePropagationDelays[senderId] = propagationDelay;
+        const size_t MAX_PROP_DELAY_ENTRIES = 100;
+        if (nodePropagationDelays.size() > MAX_PROP_DELAY_ENTRIES) {
+            auto oldest = nodePropagationDelays.begin();
+            nodePropagationDelays.erase(oldest);
+        }
+    }
+
+    Serial.printf("[SYNC] %s: prop_delay=%luus offset=%dms\n",
                   senderId.c_str(), propagationDelay, (int)(myTime - senderTime));
     
     String response = getNodeId() + ": TIME_SYNC_RESP:" +

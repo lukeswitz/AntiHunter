@@ -5,6 +5,7 @@
 #include "main.h"
 #include "detect.h"
 #include <algorithm>
+#include <iterator>
 #include <ArduinoJson.h>
 #include <SD.h>
 #include <WiFi.h>
@@ -38,31 +39,39 @@ extern void radioStartListScan();
 extern void radioStopListScan();
 extern bool isAllowlisted(const uint8_t *mac);
 
+// Pack a 6-byte MAC into a uint64 key (avoids per-device internal-heap String buffers)
+static inline uint64_t blKey(const uint8_t *m) {
+    uint64_t v = 0;
+    for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
+    return v;
+}
+
 // RAM SD Cache
-std::map<String, bool> sdLookupCache;
-std::list<String> sdLookupLRU;
+PsramMap<uint64_t, bool> sdLookupCache;
+std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
 const uint32_t SD_LOOKUP_CACHE_SIZE = 200;
-std::map<String, uint32_t> sdDeviceIndex;
+PsramMap<uint64_t, uint32_t> sdDeviceIndex;
 
 // Scan intervals from scanner
 extern uint32_t WIFI_SCAN_INTERVAL;
 extern uint32_t BLE_SCAN_INTERVAL;
 
 // Baseline detection state variables
+std::mutex baselineMutex;
 BaselineStats baselineStats;
 bool baselineDetectionEnabled = false;
 bool baselineEstablished = false;
 static bool baselineResultsDirty = false;
 uint32_t baselineStartTime = 0;
 uint32_t baselineDuration = 300000;
-std::map<String, BaselineDevice> baselineCache;
+PsramMap<uint64_t, BaselineDevice> baselineCache;
 
 struct LRUNode {
-    String key;
+    uint64_t key;
     uint32_t lastSeen;
 };
-std::list<LRUNode> lruList;
-std::map<String, std::list<LRUNode>::iterator> lruMap;
+std::list<LRUNode, PsramAllocator<LRUNode>> lruList;
+PsramMap<uint64_t, std::list<LRUNode, PsramAllocator<LRUNode>>::iterator> lruMap;
 
 uint32_t totalDevicesOnSD = 0;
 uint32_t lastSDFlush = 0;
@@ -120,19 +129,25 @@ void setBaselineRssiThreshold(int8_t threshold) {
 }
 
 void resetBaselineDetection() {
-    baselineCache.clear();
-    anomalyLog.clear();
-    anomalyCount = 0;
-    baselineDeviceCount = 0;
-    baselineEstablished = false;
-    totalDevicesOnSD = 0;
-    
-    baselineStats.wifiDevices = 0;
-    baselineStats.bleDevices = 0;
-    baselineStats.totalDevices = 0;
-    baselineStats.wifiHits = 0;
-    baselineStats.bleHits = 0;
-    
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        baselineCache.clear();
+        anomalyLog.clear();
+        sdDeviceIndex.clear();
+        lruList.clear();
+        lruMap.clear();
+        anomalyCount = 0;
+        baselineDeviceCount = 0;
+        baselineEstablished = false;
+        totalDevicesOnSD = 0;
+
+        baselineStats.wifiDevices = 0;
+        baselineStats.bleDevices = 0;
+        baselineStats.totalDevices = 0;
+        baselineStats.wifiHits = 0;
+        baselineStats.bleHits = 0;
+    }
+
     // Clear SD storage
       if (SafeSD::isAvailable()) {
         if (SafeSD::exists("/baseline_data.bin")) {
@@ -156,7 +171,7 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
     if (rssi > -10) {
         return;
     }
-    String macStr = macFmt6(mac);
+    uint64_t macKey = blKey(mac);
     uint32_t now = millis();
 
     // Phase 2.2: feed device into local Bloom filter for mesh baseline gossip.
@@ -164,85 +179,96 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
     // via its own detect_addLocalBaseline call when it has the IE set.
     detect_addLocalBaseline(mac, 0);
 
-    if (baselineCache.find(macStr) == baselineCache.end()) {
-        uint32_t effectiveLimit = (sdAvailable && sdBaselineInitialized) ? 
-                                    baselineRamCacheSize : 1500;
-        
-        if (baselineCache.size() >= effectiveLimit) {
-            if (sdAvailable && sdBaselineInitialized) {
-                if (!lruList.empty()) {
-                    const auto& oldest = lruList.front();
-                    String oldestKey = oldest.key;
+    BaselineDevice evictDevice;
+    bool haveEvictDevice = false;
 
-                    const auto& oldestDevice = baselineCache[oldestKey];
-                    if (oldestDevice.dirtyFlag) {
-                        writeBaselineDeviceToSD(oldestDevice);
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        if (baselineCache.find(macKey) == baselineCache.end()) {
+            uint32_t effectiveLimit = (sdAvailable && sdBaselineInitialized) ?
+                                        baselineRamCacheSize : 1500;
+
+            if (baselineCache.size() >= effectiveLimit) {
+                if (sdAvailable && sdBaselineInitialized) {
+                    if (!lruList.empty()) {
+                        const auto& oldest = lruList.front();
+                        uint64_t evictKey = oldest.key;
+
+                        const auto& oldestDevice = baselineCache[evictKey];
+                        if (oldestDevice.dirtyFlag) {
+                            evictDevice = oldestDevice;
+                            haveEvictDevice = true;
+                        }
+
+                        baselineCache.erase(evictKey);
+                        lruMap.erase(evictKey);
+                        lruList.pop_front();
                     }
-
-                    baselineCache.erase(oldestKey);
-                    lruMap.erase(oldestKey);
-                    lruList.pop_front();
+                } else {
+                    if (baselineCache.size() % 100 == 0) {
+                        Serial.printf("[BASELINE] No SD - RAM limit reached: %d devices (heap: %u)\n",
+                                    baselineCache.size(), ESP.getFreeHeap());
+                    }
+                    return;
                 }
-            } else {
-                if (baselineCache.size() % 100 == 0) {
-                    Serial.printf("[BASELINE] No SD - RAM limit reached: %d devices (heap: %u)\n", 
-                                baselineCache.size(), ESP.getFreeHeap());
-                }
-                return;
             }
-        }
-        
-        BaselineDevice dev;
-        memcpy(dev.mac, mac, 6);
-        dev.avgRssi = rssi;
-        dev.minRssi = rssi;
-        dev.maxRssi = rssi;
-        dev.firstSeen = now;
-        dev.lastSeen = now;
-        strncpy(dev.name, name, sizeof(dev.name) - 1);
-        dev.name[sizeof(dev.name) - 1] = '\0';
-        dev.isBLE = isBLE;
-        dev.channel = channel;
-        dev.hitCount = 1;
-        dev.checksum = 0;
-        dev.dirtyFlag = true;
 
-        baselineCache[macStr] = dev;
-
-        LRUNode node;
-        node.key = macStr;
-        node.lastSeen = now;
-        lruList.push_back(node);
-        lruMap[macStr] = --lruList.end();
-
-        baselineDeviceCount++;
-        baselineResultsDirty = true;
-    } else {
-        BaselineDevice &dev = baselineCache[macStr];
-        dev.avgRssi = (int32_t(dev.avgRssi) * int32_t(dev.hitCount) + rssi) / int32_t(dev.hitCount + 1);
-        if (rssi < dev.minRssi) dev.minRssi = rssi;
-        if (rssi > dev.maxRssi) dev.maxRssi = rssi;
-        dev.lastSeen = now;
-        if (dev.hitCount < UINT32_MAX) dev.hitCount++;
-        dev.dirtyFlag = true;
-        baselineResultsDirty = true;
-
-        auto lruIt = lruMap.find(macStr);
-        if (lruIt != lruMap.end()) {
-            lruList.erase(lruIt->second);
-            LRUNode node;
-            node.key = macStr;
-            node.lastSeen = now;
-            lruList.push_back(node);
-            lruMap[macStr] = --lruList.end();
-        }
-        
-        if (strlen(name) > 0 && strcmp(name, "Unknown") != 0 && strcmp(name, "WiFi") != 0) {
+            BaselineDevice dev;
+            memcpy(dev.mac, mac, 6);
+            dev.avgRssi = rssi;
+            dev.minRssi = rssi;
+            dev.maxRssi = rssi;
+            dev.firstSeen = now;
+            dev.lastSeen = now;
             strncpy(dev.name, name, sizeof(dev.name) - 1);
             dev.name[sizeof(dev.name) - 1] = '\0';
+            dev.isBLE = isBLE;
+            dev.channel = channel;
+            dev.hitCount = 1;
+            dev.checksum = 0;
+            dev.dirtyFlag = true;
+
+            baselineCache[macKey] = dev;
+
+            LRUNode node;
+            node.key = macKey;
+            node.lastSeen = now;
+            lruList.push_back(node);
+            lruMap[macKey] = --lruList.end();
+
+            baselineDeviceCount++;
+            baselineResultsDirty = true;
+        } else {
+            BaselineDevice &dev = baselineCache[macKey];
+            dev.avgRssi = (int32_t(dev.avgRssi) * int32_t(dev.hitCount) + rssi) / int32_t(dev.hitCount + 1);
+            if (rssi < dev.minRssi) dev.minRssi = rssi;
+            if (rssi > dev.maxRssi) dev.maxRssi = rssi;
+            dev.lastSeen = now;
+            if (dev.hitCount < UINT32_MAX) dev.hitCount++;
+            dev.dirtyFlag = true;
+            baselineResultsDirty = true;
+
+            auto lruIt = lruMap.find(macKey);
+            if (lruIt != lruMap.end()) {
+                lruList.erase(lruIt->second);
+                LRUNode node;
+                node.key = macKey;
+                node.lastSeen = now;
+                lruList.push_back(node);
+                lruMap[macKey] = --lruList.end();
+            }
+
+            if (strlen(name) > 0 && strcmp(name, "Unknown") != 0 && strcmp(name, "WiFi") != 0) {
+                strncpy(dev.name, name, sizeof(dev.name) - 1);
+                dev.name[sizeof(dev.name) - 1] = '\0';
+            }
         }
     }
-    
+
+    if (haveEvictDevice) {
+        writeBaselineDeviceToSD(evictDevice);
+    }
+
     if (sdAvailable && sdBaselineInitialized && millis() - lastSDFlush >= BASELINE_SD_FLUSH_INTERVAL) {
         flushBaselineCacheToSD();
         lastSDFlush = millis();
@@ -270,6 +296,7 @@ static void appendCacheDeviceLines(String& out) {
 
 String getBaselineResults() {
     String results;
+    std::lock_guard<std::mutex> lock(baselineMutex);
 
     if (baselineEstablished) {
         results.reserve(256 + baselineCache.size() * 90 + anomalyLog.size() * 80);
@@ -315,9 +342,10 @@ String getBaselineResults() {
 }
 
 void updateBaselineStats() {
+    std::lock_guard<std::mutex> lock(baselineMutex);
     baselineStats.wifiDevices = 0;
     baselineStats.bleDevices = 0;
-    
+
     for (const auto& device : baselineCache) {
         if (device.second.isBLE) {
             baselineStats.bleDevices++;
@@ -325,7 +353,7 @@ void updateBaselineStats() {
             baselineStats.wifiDevices++;
         }
     }
-    
+
     baselineStats.totalDevices = baselineDeviceCount;
     baselineStats.wifiHits = framesSeen;
     baselineStats.bleHits = bleFramesSeen;
@@ -339,10 +367,48 @@ uint32_t calculateOptimalCacheSize() {
     return 400;
 }
 
+// Non-blocking WiFi AP scan: start when due, harvest when ready. A synchronous
+// scanNetworks() blocked the baseline loop for the whole sweep, delaying STOP and
+// anomaly/results handling by seconds; async keeps the loop responsive.
+static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
+    int wifiScan = WiFi.scanComplete();
+    if (wifiScan == WIFI_SCAN_FAILED) {
+        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
+            lastWiFiScan = millis();
+            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
+        }
+        return;
+    }
+    if (wifiScan < 0) return;  // WIFI_SCAN_RUNNING
+    for (int i = 0; i < wifiScan && !stopRequested; i++) {
+        const uint8_t *bssidBytes = WiFi.BSSID(i);
+        String ssid = WiFi.SSID(i);
+        int32_t rssi = WiFi.RSSI(i);
+        uint8_t channel = WiFi.channel(i);
+
+        if (ssid.length() == 0) ssid = "[Hidden]";
+
+        Hit wh;
+        memcpy(wh.mac, bssidBytes, 6);
+        wh.rssi = rssi;
+        wh.ch = channel;
+        strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+        wh.name[sizeof(wh.name) - 1] = '\0';
+        wh.isBLE = false;
+
+        if (macQueue) {
+            xQueueSend(macQueue, &wh, 0);
+        }
+        framesSeen = framesSeen + 1;
+    }
+    WiFi.scanDelete();
+}
+
 void baselineDetectionTask(void *pv) {
     sentinel_kill();
-    int duration = (int)(intptr_t)pv;
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
+    scanSetCountdown(duration, forever);
 
     if (!sdBaselineInitialized) {
         if (initializeBaselineSD()) {
@@ -361,9 +427,12 @@ void baselineDetectionTask(void *pv) {
     stopRequested = false;
     baselineDetectionEnabled = true;
     // Always re-enter Phase 1 on a new run — keep the cache but clear transient state
-    baselineEstablished = false;
-    anomalyLog.clear();
-    anomalyCount = 0;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        baselineEstablished = false;
+        anomalyLog.clear();
+        anomalyCount = 0;
+    }
     deviceHistory.clear();
     baselineStartTime = millis();
     currentScanMode = SCAN_BOTH;
@@ -399,11 +468,14 @@ void baselineDetectionTask(void *pv) {
         antihunter::lastResults = "Baseline not yet established\nStarting...\n";
     }
 
-    baselineStats = BaselineStats();
-    baselineStats.isScanning = true;
-    baselineStats.phase1Complete = false;
-    baselineStats.totalDuration = baselineDuration;
-    
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        baselineStats = BaselineStats();
+        baselineStats.isScanning = true;
+        baselineStats.phase1Complete = false;
+        baselineStats.totalDuration = baselineDuration;
+    }
+
     radioStartListScan();
     vTaskDelay(pdMS_TO_TICKS(200));
 
@@ -414,8 +486,9 @@ void baselineDetectionTask(void *pv) {
     
     if (pBLEScan && !pBLEScan->isScanning()) {
         pBLEScan->setActiveScan(true);
-        pBLEScan->setInterval(100);
-        pBLEScan->setWindow(99);
+        // 30% BLE duty (was ~99%) leaves the shared radio airtime for the AP
+        pBLEScan->setInterval(160);
+        pBLEScan->setWindow(48);
         pBLEScan->setDuplicateFilter(false);
         pBLEScan->start(0, false);
     }
@@ -438,12 +511,16 @@ void baselineDetectionTask(void *pv) {
 
     // Write initial results immediately so web UI shows scan is active
     {
+        String initialResults = getBaselineResults();
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = getBaselineResults().c_str();
+        antihunter::lastResults = initialResults.c_str();
     }
 
     while (millis() - phaseStart < baselineDuration && !stopRequested) {
-        baselineStats.elapsedTime = millis() - phaseStart;
+        {
+            std::lock_guard<std::mutex> lock(baselineMutex);
+            baselineStats.elapsedTime = millis() - phaseStart;
+        }
 
         if ((int32_t)(millis() - nextStatsUpdate) >= 0) {
             updateBaselineStats();
@@ -453,8 +530,11 @@ void baselineDetectionTask(void *pv) {
         if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             nextResultsUpdate += 2000;
             // Always update during Phase 1 — UI needs to show establishment progress
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = getBaselineResults().c_str();
+            String phase1Results = getBaselineResults();
+            {
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = phase1Results.c_str();
+            }
             baselineResultsDirty = false;
         }
 
@@ -466,20 +546,30 @@ void baselineDetectionTask(void *pv) {
 
         if ((int32_t)(millis() - nextCacheSizeCheck) >= 0) {
             uint32_t newLimit = calculateOptimalCacheSize();
-            if (newLimit < baselineRamCacheSize && baselineCache.size() > newLimit) {
-                while (baselineCache.size() > newLimit && !lruList.empty()) {
-                    const auto& oldest = lruList.front();
-                    String oldestKey = oldest.key;
-                    const auto& oldestDevice = baselineCache[oldestKey];
-                    if (oldestDevice.dirtyFlag) {
-                        writeBaselineDeviceToSD(oldestDevice);
+            std::vector<BaselineDevice> evictedDirty;
+            {
+                std::lock_guard<std::mutex> lock(baselineMutex);
+                if (newLimit < baselineRamCacheSize && baselineCache.size() > newLimit) {
+                    while (baselineCache.size() > newLimit && !lruList.empty()) {
+                        const auto& oldest = lruList.front();
+                        uint64_t oldestKey = oldest.key;
+                        const auto& oldestDevice = baselineCache[oldestKey];
+                        if (oldestDevice.dirtyFlag) {
+                            evictedDirty.push_back(oldestDevice);
+                        }
+                        baselineCache.erase(oldestKey);
+                        lruMap.erase(oldestKey);
+                        lruList.pop_front();
                     }
-                    baselineCache.erase(oldestKey);
-                    lruMap.erase(oldestKey);
-                    lruList.pop_front();
+                }
+                baselineRamCacheSize = newLimit;
+            }
+            for (size_t ei = 0; ei < evictedDirty.size(); ei++) {
+                writeBaselineDeviceToSD(evictedDirty[ei]);
+                if ((ei & 15) == 15) {
+                    vTaskDelay(pdMS_TO_TICKS(0));
                 }
             }
-            baselineRamCacheSize = newLimit;
             nextCacheSizeCheck += 30000;
         }
 
@@ -487,40 +577,7 @@ void baselineDetectionTask(void *pv) {
             break;
         }
         
-        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
-            lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime);
-            
-            if (stopRequested) {
-                WiFi.scanDelete();
-                break;
-            }
-
-            if (networksFound > 0) {
-                for (int i = 0; i < networksFound && !stopRequested; i++) {
-                    const uint8_t *bssidBytes = WiFi.BSSID(i);
-                    String ssid = WiFi.SSID(i);
-                    int32_t rssi = WiFi.RSSI(i);
-                    uint8_t channel = WiFi.channel(i);
-                    
-                    if (ssid.length() == 0) ssid = "[Hidden]";
-                    
-                    Hit wh;
-                    memcpy(wh.mac, bssidBytes, 6);
-                    wh.rssi = rssi;
-                    wh.ch = channel;
-                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
-                    wh.name[sizeof(wh.name) - 1] = '\0';
-                    wh.isBLE = false;
-                    
-                    if (macQueue) {
-                        xQueueSend(macQueue, &wh, 0);
-                    }
-                    framesSeen = framesSeen + 1;
-                }
-            }
-            WiFi.scanDelete();
-        }
+        baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;
@@ -579,8 +636,12 @@ void baselineDetectionTask(void *pv) {
             cleanupBaselineMemory();
             lastCleanup = millis();
 
-            uint32_t dirtyCount = std::count_if(baselineCache.begin(), baselineCache.end(),
-                [](const std::pair<const String, BaselineDevice>& entry) { return entry.second.dirtyFlag; });
+            uint32_t dirtyCount;
+            {
+                std::lock_guard<std::mutex> lock(baselineMutex);
+                dirtyCount = std::count_if(baselineCache.begin(), baselineCache.end(),
+                    [](const std::pair<const uint64_t, BaselineDevice>& entry) { return entry.second.dirtyFlag; });
+            }
 
             if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
                 flushBaselineCacheToSD();
@@ -592,13 +653,16 @@ void baselineDetectionTask(void *pv) {
     }
 
     if (stopRequested) {
-        baselineStats.isScanning = false;
+        {
+            std::lock_guard<std::mutex> lock(baselineMutex);
+            baselineStats.isScanning = false;
+        }
         scanning = false;
         updateBaselineStats();
-        
+
         radioStopListScan();
         vTaskDelay(pdMS_TO_TICKS(200));
-        
+
         if (macQueue) {
             vQueueDeleteWithCaps(macQueue);
             macQueue = nullptr;
@@ -617,8 +681,11 @@ void baselineDetectionTask(void *pv) {
         return;
     }
 
-    baselineEstablished = true;
-    baselineStats.phase1Complete = true;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        baselineEstablished = true;
+        baselineStats.phase1Complete = true;
+    }
     updateBaselineStats();
     
     Serial.printf("[BASELINE] Baseline established with %d devices\n", baselineDeviceCount);
@@ -639,7 +706,10 @@ void baselineDetectionTask(void *pv) {
     while ((forever && !stopRequested) ||
         (!forever && (int)(millis() - phaseStart) < duration * 1000 && !stopRequested)) {
 
-        baselineStats.elapsedTime = (millis() - phaseStart);
+        {
+            std::lock_guard<std::mutex> lock(baselineMutex);
+            baselineStats.elapsedTime = (millis() - phaseStart);
+        }
 
         if ((int32_t)(millis() - nextStatsUpdate) >= 0) {
             updateBaselineStats();
@@ -656,40 +726,7 @@ void baselineDetectionTask(void *pv) {
             break;
         }
 
-        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
-            lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime);
-
-            if (stopRequested) {
-                WiFi.scanDelete();
-                break;
-            }
-
-            if (networksFound > 0) {
-                for (int i = 0; i < networksFound && !stopRequested; i++) {
-                    const uint8_t *bssidBytes = WiFi.BSSID(i);
-                    String ssid = WiFi.SSID(i);
-                    int32_t rssi = WiFi.RSSI(i);
-                    uint8_t channel = WiFi.channel(i);
-
-                    if (ssid.length() == 0) ssid = "[Hidden]";
-
-                    Hit wh;
-                    memcpy(wh.mac, bssidBytes, 6);
-                    wh.rssi = rssi;
-                    wh.ch = channel;
-                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
-                    wh.name[sizeof(wh.name) - 1] = '\0';
-                    wh.isBLE = false;
-
-                    if (macQueue) {
-                        xQueueSend(macQueue, &wh, 0);
-                    }
-                    framesSeen = framesSeen + 1;
-                }
-            }
-            WiFi.scanDelete();
-        }
+        baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;
@@ -764,34 +801,14 @@ void baselineDetectionTask(void *pv) {
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
             lastMeshUpdate = millis();
 
-            for (const auto& entry : baselineCache) {
-                String macStr = macFmt6(entry.second.mac);
-
-                if (transmittedDevices.find(macStr) == transmittedDevices.end() && meshShouldSendMac(macStr)) {
-                    String deviceMsg = getNodeId() + ": DEVICE:" + macStr;
-                    deviceMsg += entry.second.isBLE ? " B " : " W ";
-                    deviceMsg += String(entry.second.avgRssi);
-
-                    if (!entry.second.isBLE && entry.second.channel > 0) {
-                        deviceMsg += " C" + String(entry.second.channel);
-                    }
-
-                    if (strlen(entry.second.name) > 0 &&
-                        strcmp(entry.second.name, "Unknown") != 0 &&
-                        strcmp(entry.second.name, "[Hidden]") != 0) {
-                        deviceMsg += " N:" + String(entry.second.name).substring(0, 30);
-                    }
-
-                    if (deviceMsg.length() <= MAX_MESH_SIZE) {
-                        if (meshEnqueue(deviceMsg)) {
-                            transmittedDevices.insert(macStr);
-                            meshMarkMacSent(macStr);
-                        }
-                    }
-                }
+            // Mesh TX during monitoring carries anomalies only (not the full baseline)
+            std::vector<AnomalyHit> anomalySnapshot;
+            {
+                std::lock_guard<std::mutex> lock(baselineMutex);
+                anomalySnapshot = anomalyLog;
             }
 
-            for (const auto& anomaly : anomalyLog) {
+            for (const auto& anomaly : anomalySnapshot) {
                 String macStr = macFmt6(anomaly.mac);
 
                 if (transmittedAnomalies.find(macStr) == transmittedAnomalies.end()) {
@@ -824,7 +841,10 @@ void baselineDetectionTask(void *pv) {
                 forever ? "true" : "false", stopRequested.load() ? "true" : "false",
                 (millis() - phaseStart), duration);
 
-    baselineStats.isScanning = false;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        baselineStats.isScanning = false;
+    }
     updateBaselineStats();
 
     {
@@ -846,13 +866,25 @@ void baselineDetectionTask(void *pv) {
     }
 
     if (meshEnabled && !stopRequested) {
+        uint32_t snapDeviceCount;
+        uint32_t snapAnomalyCount;
+        uint32_t snapWifiDevices;
+        uint32_t snapBleDevices;
+        {
+            std::lock_guard<std::mutex> lock(baselineMutex);
+            snapDeviceCount = baselineDeviceCount;
+            snapAnomalyCount = anomalyCount;
+            snapWifiDevices = baselineStats.wifiDevices;
+            snapBleDevices = baselineStats.bleDevices;
+        }
+
         uint32_t finalTransmitted = transmittedDevices.size();
-        uint32_t finalRemaining = baselineDeviceCount - finalTransmitted;
-        
-        String summary = getNodeId() + ": BASELINE_DONE: Devices=" + String(baselineDeviceCount) +
-                        " Anomalies=" + String(anomalyCount) +
-                        " WiFi=" + String(baselineStats.wifiDevices) +
-                        " BLE=" + String(baselineStats.bleDevices) +
+        uint32_t finalRemaining = snapDeviceCount - finalTransmitted;
+
+        String summary = getNodeId() + ": BASELINE_DONE: Devices=" + String(snapDeviceCount) +
+                        " Anomalies=" + String(snapAnomalyCount) +
+                        " WiFi=" + String(snapWifiDevices) +
+                        " BLE=" + String(snapBleDevices) +
                         " TX=" + String(finalTransmitted) +
                         " PEND=" + String(finalRemaining);
         meshEnqueue(summary);
@@ -905,41 +937,59 @@ void cleanupBaselineMemory() {
         for (const auto& key : toRemove) {
             deviceHistory.erase(key);
         }
-    }
-    
-    if (baselineEstablished) {
-        std::vector<String> toRemove;
-        for (const auto& entry : baselineCache) {
-            if (now - entry.second.lastSeen > BASELINE_DEVICE_TIMEOUT) {
-                toRemove.push_back(entry.first);
-            }
+        if (deviceHistory.size() > 1000) {
+            std::vector<std::pair<uint32_t, String>> ages;
+            ages.reserve(deviceHistory.size());
+            std::transform(deviceHistory.begin(), deviceHistory.end(), std::back_inserter(ages),
+                [](const auto& entry) { return std::make_pair(entry.second.lastSeen, entry.first); });
+            std::sort(ages.begin(), ages.end());
+            size_t toCut = deviceHistory.size() - 1000;
+            for (size_t i = 0; i < toCut; ++i) deviceHistory.erase(ages[i].second);
         }
-        
-        for (const auto& key : toRemove) {
-            auto lruIt = lruMap.find(key);
-            if (lruIt != lruMap.end()) {
-                lruList.erase(lruIt->second);
-                lruMap.erase(lruIt);
+    }
+
+    size_t cacheSizeSnapshot;
+    size_t anomalySizeSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        if (baselineEstablished) {
+            std::vector<uint64_t> toRemove;
+            for (const auto& entry : baselineCache) {
+                if (now - entry.second.lastSeen > BASELINE_DEVICE_TIMEOUT) {
+                    toRemove.push_back(entry.first);
+                }
             }
-            baselineCache.erase(key);
+
+            for (const auto& key : toRemove) {
+                auto lruIt = lruMap.find(key);
+                if (lruIt != lruMap.end()) {
+                    lruList.erase(lruIt->second);
+                    lruMap.erase(lruIt);
+                }
+                baselineCache.erase(key);
+            }
+
+            if (!toRemove.empty()) {
+                Serial.printf("[BASELINE] Removed %d stale devices from cache\n", toRemove.size());
+            }
         }
 
-        if (!toRemove.empty()) {
-            Serial.printf("[BASELINE] Removed %d stale devices from cache\n", toRemove.size());
+        if (anomalyLog.size() > BASELINE_MAX_ANOMALIES) {
+            size_t toErase = anomalyLog.size() - BASELINE_MAX_ANOMALIES;
+            anomalyLog.erase(anomalyLog.begin(), anomalyLog.begin() + toErase);
         }
+
+        cacheSizeSnapshot = baselineCache.size();
+        anomalySizeSnapshot = anomalyLog.size();
     }
-    
-    if (anomalyLog.size() > BASELINE_MAX_ANOMALIES) {
-        size_t toErase = anomalyLog.size() - BASELINE_MAX_ANOMALIES;
-        anomalyLog.erase(anomalyLog.begin(), anomalyLog.begin() + toErase);
-    }
-    
+
     Serial.printf("[BASELINE] Cache: %d devices, History: %d tracked, Anomalies: %d, Heap: %u\n",
-                 baselineCache.size(), deviceHistory.size(), anomalyLog.size(), ESP.getFreeHeap());
+                 cacheSizeSnapshot, deviceHistory.size(), anomalySizeSnapshot, ESP.getFreeHeap());
 }
 
 // Baseline SD 
 uint8_t calculateDeviceChecksum(BaselineDevice& device) {
+    device.checksum = 0;
     uint8_t sum = 0;
     const uint8_t* ptr = reinterpret_cast<const uint8_t*>(&device);
     for (size_t i = 0; i < sizeof(BaselineDevice) - 1; i++) {
@@ -1006,11 +1056,11 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
     BaselineDevice writeDevice = device;
     calculateDeviceChecksum(writeDevice);
 
-    const String macStr = macFmt6(device.mac);
+    const uint64_t macKey = blKey(device.mac);
 
-    if (sdDeviceIndex.find(macStr) != sdDeviceIndex.end()) {
-        const uint32_t position = sdDeviceIndex[macStr];
-        
+    if (sdDeviceIndex.find(macKey) != sdDeviceIndex.end()) {
+        const uint32_t position = sdDeviceIndex[macKey];
+
         File dataFile = SafeSD::open("/baseline_data.bin", "r+");
         if (!dataFile) {
             Serial.println("[BASELINE_SD] Failed to open for update");
@@ -1034,7 +1084,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
         dataFile.close();
         
         if (written == sizeof(BaselineDevice)) {
-            sdDeviceIndex[macStr] = position;
+            sdDeviceIndex[macKey] = position;
             totalDevicesOnSD++;
             
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
@@ -1056,13 +1106,13 @@ bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
         return false;
     }
     
-    const String macStr = macFmt6(mac);
+    const uint64_t macKey = blKey(mac);
 
-    if (sdDeviceIndex.find(macStr) == sdDeviceIndex.end()) {
+    if (sdDeviceIndex.find(macKey) == sdDeviceIndex.end()) {
         return false;
     }
 
-    const uint32_t position = sdDeviceIndex[macStr];
+    const uint32_t position = sdDeviceIndex[macKey];
 
     File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
     if (!dataFile) {
@@ -1089,20 +1139,26 @@ bool readBaselineDeviceFromSD(const uint8_t* mac, BaselineDevice& device) {
 }
 
 bool flushBaselineCacheToSD() {
-    if (!SafeSD::isAvailable() || !sdBaselineInitialized || baselineCache.empty()) {
+    if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return false;
     }
 
     // Separate dirty entries into updates (existing on SD) and appends (new)
-    std::vector<std::pair<String, BaselineDevice*>> updates;
-    std::vector<std::pair<String, BaselineDevice*>> appends;
+    std::vector<std::pair<uint64_t, BaselineDevice>> updates;
+    std::vector<std::pair<uint64_t, BaselineDevice>> appends;
 
-    for (auto& entry : baselineCache) {
-        if (entry.second.dirtyFlag) {
-            if (sdDeviceIndex.find(entry.first) != sdDeviceIndex.end()) {
-                updates.push_back({entry.first, &entry.second});
-            } else {
-                appends.push_back({entry.first, &entry.second});
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        if (baselineCache.empty()) {
+            return false;
+        }
+        for (auto& entry : baselineCache) {
+            if (entry.second.dirtyFlag) {
+                if (sdDeviceIndex.find(entry.first) != sdDeviceIndex.end()) {
+                    updates.push_back({entry.first, entry.second});
+                } else {
+                    appends.push_back({entry.first, entry.second});
+                }
             }
         }
     }
@@ -1116,18 +1172,23 @@ bool flushBaselineCacheToSD() {
                   total, updates.size(), appends.size());
 
     uint32_t flushed = 0;
+    std::vector<uint64_t> cleanedKeys;
+    cleanedKeys.reserve(total);
 
     // Batch updates: single file open in r+ mode, seek to each position
     if (!updates.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", "r+");
         if (dataFile) {
             for (size_t i = 0; i < updates.size(); i++) {
-                BaselineDevice wd = *updates[i].second;
+                BaselineDevice wd = updates[i].second;
                 calculateDeviceChecksum(wd);
                 dataFile.seek(sdDeviceIndex[updates[i].first]);
                 if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    updates[i].second->dirtyFlag = false;
+                    cleanedKeys.push_back(updates[i].first);
                     flushed++;
+                }
+                if ((i & 15) == 15) {
+                    vTaskDelay(pdMS_TO_TICKS(0));
                 }
             }
             dataFile.close();
@@ -1140,14 +1201,17 @@ bool flushBaselineCacheToSD() {
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         if (dataFile) {
             for (size_t i = 0; i < appends.size(); i++) {
-                BaselineDevice wd = *appends[i].second;
+                BaselineDevice wd = appends[i].second;
                 calculateDeviceChecksum(wd);
                 uint32_t position = dataFile.position();
                 if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
                     sdDeviceIndex[appends[i].first] = position;
                     totalDevicesOnSD++;
-                    appends[i].second->dirtyFlag = false;
+                    cleanedKeys.push_back(appends[i].first);
                     flushed++;
+                }
+                if ((i & 15) == 15) {
+                    vTaskDelay(pdMS_TO_TICKS(0));
                 }
             }
             dataFile.close();
@@ -1160,6 +1224,16 @@ bool flushBaselineCacheToSD() {
                 headerFile.close();
             }
             vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+
+    if (!cleanedKeys.empty()) {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        for (const auto& key : cleanedKeys) {
+            auto it = baselineCache.find(key);
+            if (it != baselineCache.end()) {
+                it->second.dirtyFlag = false;
+            }
         }
     }
 
@@ -1224,13 +1298,13 @@ void loadBaselineFromSD() {
             }
 
             rec.dirtyFlag = false;
-            String recMac = macFmt6(rec.mac);
-            baselineCache[recMac] = rec;
+            uint64_t recKey = blKey(rec.mac);
+            baselineCache[recKey] = rec;
             LRUNode node;
-            node.key = recMac;
+            node.key = recKey;
             node.lastSeen = rec.lastSeen;
             lruList.push_back(node);
-            lruMap[recMac] = --lruList.end();
+            lruMap[recKey] = --lruList.end();
             loaded++;
         }
         
@@ -1246,26 +1320,38 @@ void saveBaselineStatsToSD() {
      if (!SafeSD::isAvailable()) {
         return;
     }
-    
+
+    uint32_t snapDeviceCount;
+    uint32_t snapWifiDevices;
+    uint32_t snapBleDevices;
+    bool snapEstablished;
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        snapDeviceCount = baselineDeviceCount;
+        snapWifiDevices = baselineStats.wifiDevices;
+        snapBleDevices = baselineStats.bleDevices;
+        snapEstablished = baselineEstablished;
+    }
+
     File statsFile = SafeSD::open("/baseline_stats.json", FILE_WRITE);
     if (!statsFile) {
         return;
     }
-    
+
     statsFile.print("{\"totalDevices\":");
-    statsFile.print(baselineDeviceCount);
+    statsFile.print(snapDeviceCount);
     statsFile.print(",\"wifiDevices\":");
-    statsFile.print(baselineStats.wifiDevices);
+    statsFile.print(snapWifiDevices);
     statsFile.print(",\"bleDevices\":");
-    statsFile.print(baselineStats.bleDevices);
+    statsFile.print(snapBleDevices);
     statsFile.print(",\"established\":");
-    statsFile.print(baselineEstablished ? "true" : "false");
+    statsFile.print(snapEstablished ? "true" : "false");
     statsFile.print(",\"rssiThreshold\":");
     statsFile.print(baselineRssiThreshold);
     statsFile.print(",\"lastUpdate\":");
     statsFile.print(millis());
     statsFile.println("}");
-    
+
     statsFile.close();
 }
 
@@ -1286,14 +1372,10 @@ void loadBaselineStatsFromSD() {
     const DeserializationError error = deserializeJson(doc, json);
     
     if (!error) {
-        // cppcheck-suppress badBitmaskCheck
-        baselineDeviceCount = doc["totalDevices"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        baselineStats.wifiDevices = doc["wifiDevices"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        baselineStats.bleDevices = doc["bleDevices"] | 0;
-        // cppcheck-suppress badBitmaskCheck
-        baselineEstablished = doc["established"] | false;
+        baselineDeviceCount = doc["totalDevices"].as<int>();
+        baselineStats.wifiDevices = doc["wifiDevices"].as<int>();
+        baselineStats.bleDevices = doc["bleDevices"].as<int>();
+        baselineEstablished = doc["established"].as<bool>();
         baselineRssiThreshold = doc["rssiThreshold"] | -60;
         
         Serial.printf("[BASELINE_SD] Stats loaded: total=%d\n", baselineDeviceCount);
@@ -1362,20 +1444,20 @@ void setSignificantRssiChange(int8_t dBm) {
 
 // RAM SD Caching 
 
-void addToSDCache(const String& mac, bool found) {
+void addToSDCache(uint64_t mac, bool found) {
     if (sdLookupCache.size() >= SD_LOOKUP_CACHE_SIZE) {
         if (!sdLookupLRU.empty()) {
-            String oldest = sdLookupLRU.front();
+            uint64_t oldest = sdLookupLRU.front();
             sdLookupLRU.pop_front();
             sdLookupCache.erase(oldest);
         }
     }
-    
+
     sdLookupCache[mac] = found;
     sdLookupLRU.push_back(mac);
 }
 
-bool checkSDCache(const String& mac, bool& found) {
+bool checkSDCache(uint64_t mac, bool& found) {
     auto it = sdLookupCache.find(mac);
     if (it != sdLookupCache.end()) {
         found = it->second;
@@ -1389,21 +1471,24 @@ bool checkSDCache(const String& mac, bool& found) {
 }
 
 bool isDeviceInBaseline(const uint8_t *mac) {
-    String macStr = macFmt6(mac);
-    
-    if (baselineCache.find(macStr) != baselineCache.end()) {
-        return true;
+    uint64_t macKey = blKey(mac);
+
+    {
+        std::lock_guard<std::mutex> lock(baselineMutex);
+        if (baselineCache.find(macKey) != baselineCache.end()) {
+            return true;
+        }
     }
-    
+
     bool found;
-    if (checkSDCache(macStr, found)) {
+    if (checkSDCache(macKey, found)) {
         return found;
     }
-    
+
     BaselineDevice dev;
     bool inSD = readBaselineDeviceFromSD(mac, dev);
-    addToSDCache(macStr, inSD);
-    
+    addToSDCache(macKey, inSD);
+
     return inSD;
 }
 
@@ -1452,8 +1537,12 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
         hit.reason = "New device (not in baseline)";
 
         if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
-        anomalyLog.push_back(hit);
-        anomalyCount++;
+        {
+            std::lock_guard<std::mutex> lock(baselineMutex);
+            if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
+            anomalyLog.push_back(hit);
+            anomalyCount++;
+        }
         baselineResultsDirty = true;
 
         String alert = "[ANOMALY] NEW: " + macStr;
@@ -1499,8 +1588,11 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Device returned after " + String(absentTime / 1000) + "s absence";
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
-            anomalyLog.push_back(hit);
-            anomalyCount++;
+            {
+                std::lock_guard<std::mutex> lock(baselineMutex);
+                anomalyLog.push_back(hit);
+                anomalyCount++;
+            }
             baselineResultsDirty = true;
 
             String alert = "[ANOMALY] RETURNED: " + macStr;
@@ -1542,8 +1634,11 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             hit.reason = "Significant RSSI change: " + String(history.lastRssi) + " -> " + String(rssi) + " dBm";
 
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
-            anomalyLog.push_back(hit);
-            anomalyCount++;
+            {
+                std::lock_guard<std::mutex> lock(baselineMutex);
+                anomalyLog.push_back(hit);
+                anomalyCount++;
+            }
             baselineResultsDirty = true;
 
             String alert = "[ANOMALY] RSSI-CHANGE: " + macStr;
@@ -1607,8 +1702,7 @@ void buildSDIndex() {
         const uint8_t calcChecksum = calculateDeviceChecksum(rec);
 
         if (calcChecksum == storedChecksum) {
-            String macStr = macFmt6(rec.mac);
-            sdDeviceIndex[macStr] = position;
+            sdDeviceIndex[blKey(rec.mac)] = position;
         }
         
         position += sizeof(BaselineDevice);

@@ -24,6 +24,7 @@ unsigned long lastRTCUpdate = 0;
 
 TaskHandle_t workerTaskHandle = nullptr;
 TaskHandle_t blueTeamTaskHandle = nullptr;
+extern std::atomic<bool> scanning;
 
 std::string antihunter::lastResults = "No scan data yet.";
 std::mutex antihunter::lastResultsMutex;
@@ -96,7 +97,7 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("TOF_PONG:")) {
               detect_processMesh(senderId, toProcess);
             } else {
-              processMeshMessage(toProcess);
+              processMeshMessage(meshBuffer);
             }
           }
 
@@ -266,7 +267,7 @@ void setup() {
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BETA HEADLESS BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 HEADLESS BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
@@ -276,7 +277,6 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;
-    static unsigned long lastGPSPollBatterySaver = 0;  // cppcheck-suppress variableScope
     static unsigned long lastHeapCheck = 0;
 
     // Handle serial time setting (always process, even in battery saver)
@@ -298,6 +298,7 @@ void loop() {
         sendBatterySaverHeartbeat();
 
         // Reduced GPS polling - once per minute in battery saver mode
+        static unsigned long lastGPSPollBatterySaver = 0;
         if (millis() - lastGPSPollBatterySaver > 60000) {
             updateGPSLocation();
             lastGPSPollBatterySaver = millis();
@@ -317,6 +318,13 @@ void loop() {
     }
 
     // Normal operation mode
+    static bool s_scanWasBusy = false;
+    bool scanBusyNow = scanning.load() || workerTaskHandle || blueTeamTaskHandle || triangulationActive.load();
+    if (s_scanWasBusy && !scanBusyNow) {
+        sentinel_resumeAfterScan();
+    }
+    s_scanWasBusy = scanBusyNow;
+
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {
         saveConfiguration();
         lastSaveSend = millis();

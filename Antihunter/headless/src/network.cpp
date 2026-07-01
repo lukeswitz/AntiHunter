@@ -343,7 +343,7 @@ void initializeMesh() {
         }
     }
     if (meshTxTaskHandle == nullptr && meshTxQueue != nullptr) {
-        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 4096, nullptr, 1, &meshTxTaskHandle, 1);
+        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 6144, nullptr, 1, &meshTxTaskHandle, 1);
     }
 
     Serial.println("[MESH] UART initialized");
@@ -356,8 +356,10 @@ void initializeMesh() {
 static void handleConfigChannels(const String &command)
 {
   String channels = command.substring(16);
-  parseChannelsCSV(channels);
   prefs.putString("channels", channels);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      parseChannelsCSV(channels);
+  }
   saveConfiguration();
   Serial.printf("[MESH] Updated channels: %s\n", channels.c_str());
   sendToSerial1(nodeId + ": CONFIG_ACK:CHANNELS:" + channels, true);
@@ -366,7 +368,10 @@ static void handleConfigChannels(const String &command)
 static void handleConfigTargets(const String &command)
 {
   String targets = command.substring(15);
-  saveTargetsList(targets);
+  prefs.putString("maclist", targets);
+  if (!(scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive)) {
+      saveTargetsList(targets);
+  }
   Serial.printf("[MESH] Updated targets list\n");
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
 }
@@ -440,6 +445,8 @@ static void handleScanStart(const String &command)
   {
     int mode = params.substring(0, modeDelim).toInt();
     int secs = params.substring(modeDelim + 1, secsDelim).toInt();
+    if (secs < 0) secs = 0;
+    if (secs > 86400) secs = 86400;
     String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,6,11";
     bool forever = (channelDelim > 0 && params.substring(channelDelim + 1) == "FOREVER");
 
@@ -994,6 +1001,9 @@ static void handleTriangulateStart(const String &command, const String &targetId
           return;
       }
 
+      if (duration < 10) duration = 10;
+      if (duration > 3600) duration = 3600;
+
       setRFEnvironment((RFEnvironment)rfEnv);
 
       distanceTuning.wifi_multiplier = wifiPwr;
@@ -1089,6 +1099,9 @@ static void handleTriangulateStart(const String &command, const String &targetId
       duration = remainder.toInt();
   }
 
+  if (duration < 10) duration = 10;
+  if (duration > 3600) duration = 3600;
+
   setRFEnvironment((RFEnvironment)rfEnv);
 
   distanceTuning.wifi_multiplier = wifiPwr;
@@ -1108,8 +1121,14 @@ static void handleTriangulateStart(const String &command, const String &targetId
   if (workerTaskHandle) {
       stopRequested = true;
       // Wait for task to exit naturally - it sets workerTaskHandle = nullptr on exit
-      while (workerTaskHandle) {
+      uint32_t triStopWait = millis();
+      while (workerTaskHandle && (millis() - triStopWait) < 5000) {
           vTaskDelay(pdMS_TO_TICKS(100));
+      }
+      if (workerTaskHandle) {
+          Serial.println("[TRIANGULATE] Worker task did not stop in time, aborting start");
+          sendToSerial1(nodeId + ": TRI_ACK:BUSY", true);
+          return;
       }
   }
 
@@ -1195,8 +1214,6 @@ static void handleTriangulateStop(const String &command)
       bool hasGPS;
 
       {
-          extern std::mutex triAccumMutex;  // cppcheck-suppress shadowVariable
-          // cppcheck-suppress localMutex
           std::lock_guard<std::mutex> lock(triAccumMutex);
 
           // Fix for dual-radio devices showing as two types
@@ -2063,9 +2080,6 @@ void sendMeshNotification(const Hit &hit) {
     if (triangulationActive) return;
     if (!meshEnabled) return;
 
-    extern float gpsLat, gpsLon;  // cppcheck-suppress shadowVariable
-    extern bool gpsValid;  // cppcheck-suppress shadowVariable
-
     // Convert MAC to uint64_t for map lookup
     uint64_t macKey = 0;
     for (int i = 0; i < 6; i++) {
@@ -2122,6 +2136,12 @@ void sendMeshNotification(const Hit &hit) {
     newState.lastLat = gpsValid ? gpsLat : 0.0;
     newState.lastLon = gpsValid ? gpsLon : 0.0;
     newState.hadGPS = gpsValid;
+    if (meshTargetStates.size() >= 1000 && meshTargetStates.find(macKey) == meshTargetStates.end()) {
+        for (auto sit = meshTargetStates.begin(); sit != meshTargetStates.end(); ) {
+            if (now - sit->second.lastSent > (PER_TARGET_MIN_INTERVAL * 10)) sit = meshTargetStates.erase(sit);
+            else ++sit;
+        }
+    }
     meshTargetStates[macKey] = newState;
 
     // Build and send the message

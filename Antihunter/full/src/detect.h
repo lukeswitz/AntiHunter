@@ -130,31 +130,32 @@ struct AlertCandidate {
     String key;      // e.g. BSSID or src MAC
     struct Report {
         String nodeId;
-        int8_t rssi;
-        uint32_t ts;
+        int8_t rssi{};
+        uint32_t ts{};
     };
     PsramVec<Report> reports;
-    uint32_t firstSeen;
-    bool fired;
+    uint32_t firstSeen{};
+    bool fired{};
 };
 
 struct RidClaim {
-    char uavId[24];
-    double lat;
-    double lon;
-    float alt;
-    uint32_t ts;
+    char uavId[24]{};
+    double lat{};
+    double lon{};
+    float alt{};
+    uint32_t ts{};
     struct Rx {
         String nodeId;
-        int8_t rssi;
-        float nodeLat;
-        float nodeLon;
-        bool hasGps;
-        uint32_t ts;
+        int8_t rssi{};
+        float nodeLat{};
+        float nodeLon{};
+        bool hasGps{};
+        uint32_t ts{};
     };
     PsramVec<Rx> rxs;
-    bool verified;
-    bool insufficient;
+    bool verified{};
+    bool insufficient{};
+    uint32_t lastMeshTx = 0;
 };
 
 // Bloom filter — 2KB, k=3 hashes
@@ -168,7 +169,6 @@ public:
     void clear() { memset(bits, 0, BYTES); }
     const uint8_t* data() const { return bits; }
     uint8_t* mutableData() { return bits; }
-    void orFrom(const BloomFilter& other);
 private:
     uint8_t bits[BYTES];
     static inline uint32_t h1(uint32_t x);
@@ -228,11 +228,9 @@ void detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8
 // PHY-stat hook for 2.4GHz jamming detection — called per packet from sniffer_cb
 // (incl. CRC-fail frames when FCSFAIL filter is set). ISR-safe.
 void detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
-String jamming_getJson();
 
 // Mesh-channel disruption guard — called per inbound mesh line from uartForwardTask.
 void mesh_observeInbound(const String &sender, const String &body);
-String meshguard_getJson();
 
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel);
 
@@ -252,6 +250,7 @@ bool sentinel_isUserEnabled();
 bool sentinel_isRunning();
 bool sentinel_yieldAndWait(uint32_t timeoutMs);
 void sentinel_loadUserPref();
+void sentinel_resumeAfterScan();
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid);
 
 // BLE hook — called from BLE scan onResult
@@ -273,9 +272,7 @@ void detect_clearIncidents();
 // Quorum
 void quorum_addReport(const String &type, const String &key,
                       const String &fromNode, int8_t rssi);
-size_t quorum_currentConfirmingNodes(const String &type, const String &key);
 void quorum_setRequired(const String &type, uint8_t n);
-uint8_t quorum_getRequired(const String &type);
 
 // RID claim validator (called by drone_detector when ODID location received)
 void detect_recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t rssi);
@@ -283,12 +280,9 @@ String detect_getRidClaimsJson();
 
 // Bloom gossip
 void detect_addLocalBaseline(const uint8_t *mac, uint32_t ieHash);
-bool detect_neighborKnows(const uint8_t *mac, uint32_t ieHash);
 String detect_getBloomStatsJson();
 
 // OUI category
-OuiCategory ouiLookup(const uint8_t *mac);
-const char* ouiCategoryName(OuiCategory c);
 bool loadOuiTable();  // from LittleFS /oui_cat.bin if present
 
 // BLE tracker watchlist
@@ -422,12 +416,12 @@ struct HandshakeFragment {
 };
 
 struct HandshakeReconstruction {
-    uint8_t bssid[6];
-    uint8_t sta[6];
-    uint8_t seenMask;      // bit 0..3 = M1..M4 seen
-    uint32_t firstSeen;
-    uint32_t lastSeen;
-    uint8_t krackEvents;
+    uint8_t bssid[6]{};
+    uint8_t sta[6]{};
+    uint8_t seenMask{};      // bit 0..3 = M1..M4 seen
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
+    uint8_t krackEvents{};
     PsramVec<HandshakeFragment> fragments;
 };
 
@@ -471,12 +465,12 @@ size_t airtag_count();
 // RSSI within a rotation window, stitch them into a persistent chain.
 
 struct TrackerChain {
-    uint32_t chainId;
-    char vendor[16];
-    int8_t avgRssi;
-    uint8_t linkCount;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
+    uint32_t chainId{};
+    char vendor[16]{};
+    int8_t avgRssi{};
+    uint8_t linkCount{};
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
     struct Link {
         uint8_t addr[6];
         int8_t rssi;
@@ -499,16 +493,16 @@ size_t tracker_chainCount();
 // link the two — same device seen by N nodes => meta-identity with motion path.
 
 struct ProbeGraphIdentity {
-    uint32_t hash;
-    char localTrackId[10];
-    int8_t bestRssi;
-    uint8_t sightingCount;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
+    uint32_t hash{};
+    char localTrackId[10]{};
+    int8_t bestRssi{};
+    uint8_t sightingCount{};
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
     struct NodeSeen {
         String nodeId;
-        int8_t rssi;
-        uint32_t ts;
+        int8_t rssi{};
+        uint32_t ts{};
     };
     PsramVec<NodeSeen> nodes;
 };
@@ -525,9 +519,6 @@ String detect_getHealthJson();
 String detect_getConfigJson();
 bool   detect_setConfigFromJson(const String &body);
 void   detect_persistTunables();
-uint32_t detect_droppedWifi();
-uint32_t detect_droppedBle();
-uint32_t detect_meshRateGated();
 
 // PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);
@@ -538,8 +529,6 @@ uint32_t ppsLastEdgeMicros();
 // Channel partition (coordinator-side)
 void detect_assignChannelPartition();
 String detect_getChannelAssignmentJson();
-std::vector<uint8_t> detect_getMyAssignedChannels();
-void detect_setMyAssignedChannels(const String &csv);
 
 // API JSON getters for /api/* endpoints
 String detect_getPmkidJsonl();
