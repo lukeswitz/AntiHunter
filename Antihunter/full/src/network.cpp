@@ -173,7 +173,7 @@ void restart_callback(void* arg) {
 
 void initializeNetwork()
 {
-  esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
+  esp_coex_preference_set(ESP_COEX_PREFER_WIFI);
   Serial.println("Initializing mesh UART...");
   initializeMesh();
 
@@ -251,6 +251,17 @@ void startWebServer()
              { r->send(200, "text/plain", getTargetsList()); });
 
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (randomizationDetectionEnabled) {
+          static String cachedRand = "";
+          static uint32_t lastRandCalc = 0;
+          if (millis() - lastRandCalc >= 2000) {
+              cachedRand = getRandomizationResults();
+              lastRandCalc = millis();
+          }
+          r->send(200, "text/plain", cachedRand);
+          return;
+      }
+
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
 
@@ -694,16 +705,16 @@ void registerRemainingRoutes() {
           req->send(409, "text/plain", "Radio busy - stop scan before changing config");
           return;
       }
-      if (!req->hasParam("channels") || !req->hasParam("targets")) {
+      if (!req->hasParam("channels", true) || !req->hasParam("targets", true)) {
           req->send(400, "text/plain", "Missing parameters");
           return;
       }
 
-      String channelsCSV = req->getParam("channels")->value();
+      String channelsCSV = req->getParam("channels", true)->value();
       parseChannelsCSV(channelsCSV);
       prefs.putString("channels", channelsCSV);
 
-      String targets = req->getParam("targets")->value();
+      String targets = req->getParam("targets", true)->value();
       saveTargetsList(targets);
       prefs.putString("maclist", targets);
 
@@ -1260,6 +1271,10 @@ void registerRemainingRoutes() {
   });
 
   server->on("/randomization/reset", HTTP_POST, [](AsyncWebServerRequest *r) {
+      if (scanning || workerTaskHandle) {
+          r->send(409, "text/plain", "Radio busy - stop detection before reset");
+          return;
+      }
       resetRandomizationDetection();
       r->send(200, "text/plain", "Randomization detection reset");
   });
@@ -2036,13 +2051,18 @@ void registerRemainingRoutes() {
     },
     NULL,
     [](AsyncWebServerRequest *r, uint8_t *data, size_t len, size_t index, size_t total) {
-        static String acc;
-        if (index == 0) acc = "";
-        for (size_t i = 0; i < len; ++i) acc += (char)data[i];
+        if (index == 0) {
+            if (r->_tempObject) delete static_cast<String*>(r->_tempObject);
+            r->_tempObject = new String();
+        }
+        String* acc = static_cast<String*>(r->_tempObject);
+        if (!acc) return;
+        for (size_t i = 0; i < len; ++i) *acc += (char)data[i];
         if (index + len == total) {
-            detect_setConfigFromJson(acc);
+            detect_setConfigFromJson(*acc);
             detect_persistTunables();
-            acc = "";
+            delete acc;
+            r->_tempObject = nullptr;
         }
     });
 

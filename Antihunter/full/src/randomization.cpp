@@ -1086,7 +1086,8 @@ String getRandomizationResults() {
 
     String results;
     results.reserve(reserveBytes);
-    results = "MAC Randomization Detection Results\n";
+    results = scanning.load() ? "MAC Randomization Detection Results (IN PROGRESS)\n"
+                              : "MAC Randomization Detection Results\n";
     results += "Active Sessions: " + String(activeSessions.size()) + "\n";
     results += "Device Identities: " + String(identityCount) + "\n\n";
 
@@ -1123,14 +1124,26 @@ String getRandomizationResults() {
     const int MAX_IDENTITIES = 100;
     int count = 0;
 
+    std::vector<const DeviceIdentity*> ranked;
+    ranked.reserve(deviceIdentities.size());
     for (const auto& entry : deviceIdentities) {
+        if (entry.second.identityId[0] != '\0') ranked.push_back(&entry.second);
+    }
+    std::sort(ranked.begin(), ranked.end(), [](const DeviceIdentity* a, const DeviceIdentity* b) {
+        if (a->hasKnownGlobalMac != b->hasKnownGlobalMac) return a->hasKnownGlobalMac;
+        if (a->confidence != b->confidence) return a->confidence > b->confidence;
+        if (a->macs.size() != b->macs.size()) return a->macs.size() > b->macs.size();
+        return a->probeCount > b->probeCount;
+    });
+
+    for (const DeviceIdentity* idp : ranked) {
         if (count++ >= MAX_IDENTITIES) {
-            results += "... (showing first " + String(MAX_IDENTITIES) + " of " +
-                      String(deviceIdentities.size()) + " identities)\n";
+            results += "... (showing top " + String(MAX_IDENTITIES) + " of " +
+                      String(ranked.size()) + " identities)\n";
             break;
         }
 
-        const DeviceIdentity& identity = entry.second;
+        const DeviceIdentity& identity = *idp;
 
         if (identity.identityId[0] == '\0') {
             Serial.printf("[RAND] WARN: skipping identity with empty identityId (anchor=%s)\n",
@@ -1309,6 +1322,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t lastBLEScan = 0;
     uint32_t lastMeshUpdate = 0;
     bool bleScanStarted = false;
+    uint32_t lastBleWindow = 0;
     const uint32_t MESH_IDENTITY_UPDATE_INTERVAL = 5000;
     const uint32_t BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
 
@@ -1437,12 +1451,11 @@ void randomizationDetectionTask(void *pv) {
         }
         
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan && bleAdvQueue) {
-            if (!bleScanStarted) {
-                if (!pBLEScan->isScanning()) {
-                    pBLEScan->start(0, false);
-                }
-                bleScanStarted = true;
-                vTaskDelay(pdMS_TO_TICKS(50));
+            if (millis() - lastBleWindow >= 2000) {
+                lastBleWindow = millis();
+                if (!bleScanStarted) { pBLEScan->setActiveScan(false); bleScanStarted = true; }
+                pBLEScan->getResults(600, false);
+                if (stopRequested) break;
             }
 
             int drainedCount = 0;

@@ -1638,8 +1638,7 @@ void calibrationTask(void *parameter) {
         
         // WiFi scan every 3 seconds to avoid blocking
         if (millis() - lastWiFiScan >= 3000) {
-            int n = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime,
-                                      rotatingScanChannel());
+            int n = WiFi.scanNetworks(false, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
             for (int i = 0; i < n; i++) {
                 const uint8_t *bssid = WiFi.BSSID(i);
                 if (memcmp(bssid, macBytes, 6) == 0) {
