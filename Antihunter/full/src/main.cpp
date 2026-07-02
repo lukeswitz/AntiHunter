@@ -1,6 +1,7 @@
 #include "main.h"
 #include "triangulation.h"
 #include <SPI.h>
+#include <algorithm>
 #include <Arduino.h>
 #include <Preferences.h>
 #include "network.h"
@@ -13,7 +14,6 @@
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
-#include <algorithm>
 
 
 Preferences prefs;
@@ -149,12 +149,6 @@ bool isZeroOrBroadcast(const uint8_t *mac) {
     return all0 || allF;
 }
 
-inline int clampi(int v, int lo, int hi) {
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-}
-
 void parseChannelsCSV(const String &csv) {
     CHANNELS.clear();
     if (csv.indexOf("..") >= 0) {
@@ -174,8 +168,8 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
-    bool hasAp = std::any_of(CHANNELS.begin(), CHANNELS.end(),
-                             [](uint8_t ch) { return ch == (uint8_t)AP_CHANNEL; });
+    const bool hasAp = std::any_of(CHANNELS.begin(), CHANNELS.end(),
+        [](uint8_t ch) { return ch == (uint8_t)AP_CHANNEL; });
     if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);
 }
 
@@ -202,9 +196,7 @@ void randomizeMacAddress() {
     for (int i = 1; i < 6; i++) {
         newMACAddress[i] = random(0, 256);
     }
-    
     esp_err_t err = esp_wifi_set_mac(WIFI_IF_AP, newMACAddress);
-    
     Serial.printf("[MAC] Randomized MAC: %02x:%02x:%02x:%02x:%02x:%02x (status: %d)\n",
                   newMACAddress[0], newMACAddress[1], newMACAddress[2],
                   newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
@@ -274,7 +266,7 @@ void setup() {
     xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v0.9.5 BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v0.9.6 STABLE BOOT COMPLETE =====");
 
     String currentSsid = prefs.getString("apSsid", AP_SSID);
     String currentPass = prefs.getString("apPass", AP_PASS);
@@ -294,7 +286,6 @@ void setup() {
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;
-    static unsigned long lastGPSPollBatterySaver = 0;  // cppcheck-suppress variableScope
     static unsigned long lastHeapCheck = 0;
 
     // Handle serial time setting (always process, even in battery saver)
@@ -314,6 +305,7 @@ void loop() {
 
         sendBatterySaverHeartbeat();
 
+        static unsigned long lastGPSPollBatterySaver = 0;
         if (millis() - lastGPSPollBatterySaver > 60000) {
             updateGPSLocation();
             lastGPSPollBatterySaver = millis();

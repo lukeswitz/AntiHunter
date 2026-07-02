@@ -442,7 +442,7 @@ void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel,
         return;
     }
     
-    ProbeRequestEvent event;
+    ProbeRequestEvent event{};
     memcpy(event.mac, mac, 6);
     event.rssi = rssi;
     event.channel = channel;
@@ -1043,11 +1043,11 @@ void cleanupStaleTracks() {
     std::vector<String> toRemove;
     
     for (const auto& entry : deviceIdentities) {
-        if (now - entry.second.lastSeen > TRACK_STALE_TIME) {
+        if (entry.second.lastSeen != 0 && now - entry.second.lastSeen > TRACK_STALE_TIME) {
             toRemove.push_back(entry.first);
         }
     }
-    
+
     for (const auto& key : toRemove) {
         deviceIdentities.erase(key);
     }
@@ -1060,7 +1060,9 @@ void resetRandomizationDetection() {
         deviceIdentities.clear();
         identityIdCounter = 0;
     }
+    SafeSD::remove("/rand_identities.dat");
     rebuildIdentityMacSnapshot();
+    Serial.println("[RAND] Reset: cleared identities + wiped /rand_identities.dat");
 }
 
 static String sanitizeAscii(const char *s, size_t maxLen) {
@@ -1376,7 +1378,8 @@ void randomizationDetectionTask(void *pv) {
                         extractIEFingerprint(ieStart, ieLength, session.fingerprint);
                         extractIEOrderSignature(ieStart, ieLength, session.ieOrder);
 
-                        if (ieLength >= 2 && ieStart[0] == 0 && ieStart[1] > 0 && ieStart[1] <= 32) {
+                        if (ieLength >= 2 && ieStart[0] == 0 && ieStart[1] > 0 && ieStart[1] <= 32 &&
+                            (uint16_t)(2 + ieStart[1]) <= ieLength) {
                             memcpy(session.probedSSID, ieStart + 2, ieStart[1]);
                             session.probedSSID[ieStart[1]] = '\0';
                         }
@@ -1726,57 +1729,64 @@ void randomizationDetectionTask(void *pv) {
 // Storage
 void saveDeviceIdentities() {
     if (!SafeSD::isAvailable()) return;
-    
-    std::lock_guard<std::mutex> lock(randMutex);
-    
+
+    std::vector<DeviceIdentity> snapshot;
+    {
+        std::lock_guard<std::mutex> lock(randMutex);
+        snapshot.reserve(deviceIdentities.size());
+        for (const auto& entry : deviceIdentities) snapshot.push_back(entry.second);
+    }
+
+    std::vector<uint8_t> buf;
+    buf.reserve(64 + snapshot.size() * 220);
+    auto append = [&buf](const void* p, size_t n) {
+        const uint8_t* b = reinterpret_cast<const uint8_t*>(p);
+        buf.insert(buf.end(), b, b + n);
+    };
+
+    const uint32_t kFormatMagic = 0x52414E34;
+    uint32_t count = snapshot.size();
+    append(&kFormatMagic, sizeof(kFormatMagic));
+    append(&count, sizeof(count));
+
+    for (const auto& id : snapshot) {
+        append(&id.identityId, sizeof(id.identityId));
+
+        uint32_t macCount = id.macs.size();
+        append(&macCount, sizeof(macCount));
+        for (const auto& mac : id.macs) append(mac.bytes.data(), 6);
+
+        append(&id.signature, sizeof(BehavioralSignature));
+        append(&id.firstSeen, sizeof(id.firstSeen));
+        append(&id.lastSeen, sizeof(id.lastSeen));
+        append(&id.confidence, sizeof(id.confidence));
+        append(&id.sessionCount, sizeof(id.sessionCount));
+        append(&id.observedSessions, sizeof(id.observedSessions));
+        append(&id.lastSequenceNum, sizeof(id.lastSequenceNum));
+        append(&id.sequenceValid, sizeof(id.sequenceValid));
+        append(&id.hasKnownGlobalMac, sizeof(id.hasKnownGlobalMac));
+        append(&id.knownGlobalMac, sizeof(id.knownGlobalMac));
+        append(&id.isBLE, sizeof(id.isBLE));
+
+        append(&id.deviceName, sizeof(id.deviceName));
+        append(&id.probedSSID, sizeof(id.probedSSID));
+        append(&id.rssiAvg, sizeof(id.rssiAvg));
+        append(&id.rssiMin, sizeof(id.rssiMin));
+        append(&id.rssiMax, sizeof(id.rssiMax));
+        append(&id.primaryChannel, sizeof(id.primaryChannel));
+        append(&id.probeCount, sizeof(id.probeCount));
+        append(&id.mfrData, sizeof(id.mfrData));
+        append(&id.mfrDataLen, sizeof(id.mfrDataLen));
+    }
+
     File file = SafeSD::open("/rand_identities.dat", FILE_WRITE);
     if (!file) {
         Serial.println("[RAND] Failed to open identities file for writing");
         return;
     }
-
-    const uint32_t kFormatMagic = 0x52414E34;
-    file.write(reinterpret_cast<const uint8_t*>(&kFormatMagic), sizeof(kFormatMagic));
-
-    uint32_t count = deviceIdentities.size();
-    file.write(reinterpret_cast<const uint8_t*>(&count), sizeof(count));
-
-    for (const auto& entry : deviceIdentities) {
-        const DeviceIdentity& id = entry.second;
-
-        file.write(reinterpret_cast<const uint8_t*>(&id.identityId), sizeof(id.identityId));
-
-        uint32_t macCount = id.macs.size();
-        file.write(reinterpret_cast<const uint8_t*>(&macCount), sizeof(macCount));
-        for (const auto& mac : id.macs) {
-            file.write(mac.bytes.data(), 6);
-        }
-
-        file.write(reinterpret_cast<const uint8_t*>(&id.signature), sizeof(BehavioralSignature));
-        file.write(reinterpret_cast<const uint8_t*>(&id.firstSeen), sizeof(id.firstSeen));
-        file.write(reinterpret_cast<const uint8_t*>(&id.lastSeen), sizeof(id.lastSeen));
-        file.write(reinterpret_cast<const uint8_t*>(&id.confidence), sizeof(id.confidence));
-        file.write(reinterpret_cast<const uint8_t*>(&id.sessionCount), sizeof(id.sessionCount));
-        file.write(reinterpret_cast<const uint8_t*>(&id.observedSessions), sizeof(id.observedSessions));
-        file.write(reinterpret_cast<const uint8_t*>(&id.lastSequenceNum), sizeof(id.lastSequenceNum));
-        file.write(reinterpret_cast<const uint8_t*>(&id.sequenceValid), sizeof(id.sequenceValid));
-        file.write(reinterpret_cast<const uint8_t*>(&id.hasKnownGlobalMac), sizeof(id.hasKnownGlobalMac));
-        file.write(reinterpret_cast<const uint8_t*>(&id.knownGlobalMac), sizeof(id.knownGlobalMac));
-        file.write(reinterpret_cast<const uint8_t*>(&id.isBLE), sizeof(id.isBLE));
-
-        file.write(reinterpret_cast<const uint8_t*>(&id.deviceName), sizeof(id.deviceName));
-        file.write(reinterpret_cast<const uint8_t*>(&id.probedSSID), sizeof(id.probedSSID));
-        file.write(reinterpret_cast<const uint8_t*>(&id.rssiAvg), sizeof(id.rssiAvg));
-        file.write(reinterpret_cast<const uint8_t*>(&id.rssiMin), sizeof(id.rssiMin));
-        file.write(reinterpret_cast<const uint8_t*>(&id.rssiMax), sizeof(id.rssiMax));
-        file.write(reinterpret_cast<const uint8_t*>(&id.primaryChannel), sizeof(id.primaryChannel));
-        file.write(reinterpret_cast<const uint8_t*>(&id.probeCount), sizeof(id.probeCount));
-        file.write(reinterpret_cast<const uint8_t*>(&id.mfrData), sizeof(id.mfrData));
-        file.write(reinterpret_cast<const uint8_t*>(&id.mfrDataLen), sizeof(id.mfrDataLen));
-    }
-
+    size_t written = file.write(buf.data(), buf.size());
     file.close();
-    Serial.printf("[RAND] Saved %d identities to SD (fmt RAN4)\n", count);
+    Serial.printf("[RAND] Saved %u identities to SD (fmt RAN4, %u bytes)\n", count, (unsigned)written);
 }
 
 void loadDeviceIdentities() {
@@ -1875,7 +1885,7 @@ void loadDeviceIdentities() {
         if (!id.macs.empty()) {
             uint32_t nowMs = millis();
             id.firstSeen = nowMs;
-            id.lastSeen = nowMs;
+            id.lastSeen = 0;
             String key = macFmt6(id.macs[0].bytes.data());
             deviceIdentities[key] = id;
             identityIdCounter = max(identityIdCounter, static_cast<uint32_t>(strtol(id.identityId + 2, nullptr, 16)));

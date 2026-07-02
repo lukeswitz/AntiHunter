@@ -74,7 +74,6 @@ String getRTCTimeString();
 String getFormattedTimestamp();
 time_t getRTCEpoch();
 uint32_t getEventTimestamp();
-bool setRTCTime(int year, int month, int day, int hour, int minute, int second);
 bool setRTCTimeFromEpoch(time_t epoch);
 
 // Sensors and GPS
@@ -132,10 +131,16 @@ bool initiateTamperErase();
 void cancelTamperErase();
 bool checkTamperTimeout();
 bool performSecureWipe();
+bool performConfigReset();
+bool performDataReset();
 void deleteAllFiles(const String &dirname);
 bool executeSecureErase(const String &reason);
 String generateEraseToken();
 bool validateEraseToken(const String &token);
+String computeEraseHmac(const String &nonce);
+bool validateEraseResponse(const String &response);
+void setErasePSK(const String &key);
+extern String erasePSK;
 
 // Battery Saver Functions
 void enterBatterySaver(uint32_t heartbeatIntervalMs = 300000);

@@ -12,6 +12,7 @@
 #include <HardwareSerial.h>
 #include <Wire.h>
 #include "esp_wifi.h"
+#include "mbedtls/md.h"
 #include "nvs_flash.h"
 #include "esp_pm.h"
 #include "esp_sleep.h"
@@ -72,6 +73,7 @@ bool inSetupMode = false;
 bool tamperEraseActive = false;
 uint32_t tamperSequenceStart = 0;
 String tamperAuthToken = "";
+String erasePSK = "";
 bool autoEraseEnabled = false;
 uint32_t autoEraseDelay = 30000;
 uint32_t autoEraseCooldown = 300000;  // 5 minutes default
@@ -520,6 +522,7 @@ void loadConfiguration() {
         currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
         meshSendInterval = prefs.getULong("meshInterval", 5000);
         autoEraseEnabled = prefs.getBool("autoErase", false);
+        erasePSK = prefs.getString("erasePSK", "");
         autoEraseDelay = prefs.getUInt("eraseDelay", 30000);
         autoEraseCooldown = prefs.getUInt("eraseCooldown", 300000);
         vibrationsRequired = prefs.getUInt("vibRequired", 3);
@@ -1085,6 +1088,21 @@ void logVibrationEvent(int sensorValue) {
 void logEventToSD(const char* path, const String& jsonLine) {
     if (!SafeSD::isAvailable()) return;
 
+    // Heap-floor guard: under an attack flood, per-event SD writes (File buffers +
+    // rotation reads) can drain heap to an abort. Below the floor, drop the write
+    // rather than crash — the detector still counted/alerted in RAM. Protects
+    // EVERY detector log path in one place.
+    if (ESP.getFreeHeap() < 20000) {
+        static uint32_t s_lastHeapWarnMs = 0;
+        uint32_t nowMs = millis();
+        if (nowMs - s_lastHeapWarnMs > 5000) {
+            s_lastHeapWarnMs = nowMs;
+            Serial.printf("[HEAP-GUARD] dropping SD log (%s) — free heap %u\n",
+                          path, (unsigned)ESP.getFreeHeap());
+        }
+        return;
+    }
+
     File f = SafeSD::open(path, FILE_APPEND);
     if (!f) {
         f = SafeSD::open(path, FILE_WRITE);
@@ -1485,23 +1503,6 @@ uint32_t getEventTimestamp() {
     return millis() / 1000;
 }
 
-bool setRTCTime(int year, int month, int day, int hour, int minute, int second) {
-    if (!rtcAvailable) return false;
-    if (rtcMutex == nullptr) return false;
-    
-    if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
-    
-    DateTime newTime(year, month, day, hour, minute, second);
-    rtc.adjust(newTime);
-    rtcSynced = true;
-    
-    xSemaphoreGive(rtcMutex);
-    
-    Serial.printf("[RTC] Manually set to: %04d-%02d-%02d %02d:%02d:%02d\n",
-                  year, month, day, hour, minute, second);
-    
-    return true;
-}
 
 // SD Erase
 
@@ -1526,8 +1527,47 @@ bool validateEraseToken(const String &token) {
     String timestampStr = token.substring(lastUnderscorePos + 1);
     uint32_t tokenTime = strtoul(timestampStr.c_str(), nullptr, 16);
     uint32_t currentTime = millis() / 1000;
-    
+
     return (currentTime - tokenTime) < 300;
+}
+
+void setErasePSK(const String &key) {
+    erasePSK = key;
+    prefs.putString("erasePSK", key);
+}
+
+String computeEraseHmac(const String &nonce) {
+    if (erasePSK.length() == 0 || nonce.length() == 0) return "";
+    const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    if (!info) return "";
+    uint8_t out[32];
+    if (mbedtls_md_hmac(info, reinterpret_cast<const uint8_t *>(erasePSK.c_str()), erasePSK.length(),
+                        reinterpret_cast<const uint8_t *>(nonce.c_str()), nonce.length(), out) != 0) {
+        return "";
+    }
+    char hex[65];
+    for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", out[i]);
+    hex[64] = '\0';
+    return String(hex);
+}
+
+bool validateEraseResponse(const String &response) {
+    if (erasePSK.length() == 0) return false;
+    if (tamperAuthToken.length() == 0) return false;
+
+    int lastUnderscorePos = tamperAuthToken.lastIndexOf('_');
+    if (lastUnderscorePos < 0) return false;
+    uint32_t nonceTime = strtoul(tamperAuthToken.substring(lastUnderscorePos + 1).c_str(), nullptr, 16);
+    if ((millis() / 1000 - nonceTime) >= 300) return false;
+
+    String expected = computeEraseHmac(tamperAuthToken);
+    if (expected.length() == 0 || expected.length() != response.length()) return false;
+
+    uint8_t diff = 0;
+    for (size_t i = 0; i < expected.length(); i++) {
+        diff |= (uint8_t)(expected[i] ^ response[i]);
+    }
+    return diff == 0;
 }
 
 bool initiateTamperErase() {
@@ -1654,6 +1694,50 @@ bool performSecureWipe() {
     }
 }
 
+bool performConfigReset() {
+    Serial.println("[RESET] Config reset - NVS only");
+    prefs.end();
+    delay(100);
+
+    esp_err_t err = nvs_flash_erase();
+    if (err != ESP_OK) {
+        Serial.printf("[RESET] NVS erase failed: %d\n", err);
+        return false;
+    }
+
+    err = nvs_flash_init();
+    if (err != ESP_OK) {
+        Serial.printf("[RESET] NVS init failed: %d\n", err);
+        return false;
+    }
+
+    Serial.println("[RESET] NVS cleared - SD data preserved");
+    return true;
+}
+
+bool performDataReset() {
+    Serial.println("[RESET] Data reset - SD only");
+    if (!SafeSD::isAvailable()) {
+        Serial.println("[RESET] SD card not available");
+        return false;
+    }
+
+    deleteAllFiles("/");
+
+    File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
+    if (marker) {
+        marker.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
+        marker.close();
+    }
+
+    if (SafeSD::exists("/weather-air-feed.txt")) {
+        Serial.println("[RESET] SD data cleared - config preserved");
+        return true;
+    }
+    Serial.println("[RESET] SD clear verification failed");
+    return false;
+}
+
 void deleteAllFiles(const String &dirname) {
     File root = SafeSD::open(dirname.c_str());
     if (!root) {
@@ -1727,10 +1811,6 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     // Disable WiFi promiscuous mode
     esp_wifi_set_promiscuous(false);
 
-    // Stop WiFi (but keep mesh UART active)
-    esp_wifi_stop();
-    Serial.println("[BATTERY_SAVER] WiFi stopped");
-
     // Disable BLE controller
     esp_bt_controller_disable();
     Serial.println("[BATTERY_SAVER] BLE disabled");
@@ -1783,10 +1863,6 @@ void exitBatterySaver() {
     // Re-enable BLE controller
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     Serial.println("[BATTERY_SAVER] BLE re-enabled");
-
-    // Restart WiFi
-    WiFi.mode(WIFI_MODE_STA);
-    Serial.println("[BATTERY_SAVER] WiFi restarted");
 
     batterySaverEnabled = false;
 
