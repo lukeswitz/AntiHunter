@@ -151,10 +151,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .rssi-good{color:var(--succ)}.rssi-mid{color:var(--warn)}.rssi-bad{color:var(--dang)}
       .rand-yes{color:var(--warn);font-weight:600}
       .data-empty{text-align:center;padding:40px 20px;color:var(--mut);font-size:14px}
+      html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
     </style>
     <script>
       let toggleHistory=[];
-      function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();toggleHistory.push(now);toggleHistory=toggleHistory.filter(time=>now-time<2000);if(t==='cyber'){const n=localStorage.getItem('prevTheme')||'light';e.setAttribute('data-theme',n);localStorage.setItem('theme',n);localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');toggleHistory=[];return}if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){localStorage.setItem('prevTheme',t);e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');localStorage.setItem('cyberMode','1');toggleHistory=[];return}const n='dark'===t?'light':'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
+      function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();e.classList.add('theme-switching');requestAnimationFrame(function(){requestAnimationFrame(function(){e.classList.remove('theme-switching');});});toggleHistory.push(now);toggleHistory=toggleHistory.filter(time=>now-time<2000);if(t==='cyber'){const n=localStorage.getItem('prevTheme')||'light';e.setAttribute('data-theme',n);localStorage.setItem('theme',n);localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');toggleHistory=[];return}if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){localStorage.setItem('prevTheme',t);e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');localStorage.setItem('cyberMode','1');toggleHistory=[];return}const n='dark'===t?'light':'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
       (function(){const e=localStorage.getItem('theme');e?document.documentElement.setAttribute('data-theme',e):document.documentElement.setAttribute('data-theme','light')})();
     </script>
   </head>
@@ -1295,7 +1296,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       <!-- ===== /DETECT TAB ===== -->
 
-      <div align="center" class="footer">v0.9.5 Beta | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v0.9.6 Beta | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
@@ -3541,9 +3542,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         // Collapsible saved devices dropdown
         if (savedMatch && parseInt(savedMatch[1]) > 0) {
           html += '<div id="savedDevicesPanel" style="margin-bottom:12px;">';
-          html += '<div id="savedDevicesToggle" onclick="toggleSavedDevices()" style="cursor:pointer;padding:8px 12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mut);user-select:none;">';
+          html += '<div style="display:flex;align-items:center;gap:6px;">';
+          html += '<div id="savedDevicesToggle" onclick="toggleSavedDevices()" style="flex:1;cursor:pointer;padding:8px 12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mut);user-select:none;">';
           html += '<span id="savedDevicesArrow" style="transition:transform 0.2s;display:inline-block;">&#9654;</span>';
           html += '<span>Saved Devices (' + savedMatch[1] + ')</span>';
+          html += '</div>';
+          html += '<button onclick="clearSavedDevices()" style="padding:8px 12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;font-size:11px;color:var(--c-err);cursor:pointer;">Clear</button>';
           html += '</div>';
           html += '<div id="savedDevicesList" style="display:none;margin-top:4px;max-height:300px;overflow-y:auto;border:1px solid var(--bord);border-radius:8px;background:var(--bg);"></div>';
           html += '</div>';
@@ -3701,7 +3705,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         arrow.style.transform = savedDevicesOpen ? 'rotate(90deg)' : '';
         if (savedDevicesOpen && !savedDevicesLoaded) {
           list.innerHTML = '<div style="padding:12px;color:var(--mut);font-size:11px;">Loading...</div>';
-          fetch('/api/probedb').then(r => r.json()).then(devices => {
+          fetch('/api/probedb').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(devices => {
             savedDevicesLoaded = true;
             if (!devices.length) {
               list.innerHTML = '<div style="padding:12px;color:var(--mut);font-size:11px;">No saved devices</div>';
@@ -3730,10 +3734,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
             list.innerHTML = h;
             if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(list);
-          }).catch(() => {
-            list.innerHTML = '<div style="padding:12px;color:var(--c-err);font-size:11px;">Failed to load</div>';
+          }).catch((e) => {
+            console.error('probedb load failed', e);
+            list.innerHTML = '<div style="padding:12px;color:var(--c-err);font-size:11px;">Failed to load (' + (e && e.message ? e.message : 'error') + ')</div>';
           });
         }
+      }
+
+      function clearSavedDevices() {
+        if (!confirm('Clear all saved probe devices?')) return;
+        fetch('/api/probedb/clear', { method: 'POST' }).then(r => {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          savedDevicesLoaded = false;
+          savedDevicesOpen = false;
+          const list = document.getElementById('savedDevicesList');
+          const arrow = document.getElementById('savedDevicesArrow');
+          if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+          if (arrow) arrow.style.transform = '';
+          if (typeof toast === 'function') toast('Saved devices cleared');
+        }).catch(e => { if (typeof toast === 'function') toast('Clear failed: ' + e.message, 'warning'); });
       }
 
       function parseDeviceScanResults(text) {

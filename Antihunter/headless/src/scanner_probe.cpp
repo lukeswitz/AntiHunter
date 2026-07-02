@@ -846,28 +846,34 @@ uint32_t getProbeDBSize()
 
 String getProbeDBJson()
 {
-    std::lock_guard<std::mutex> lock(probeDBMutex);
-    String out = "[";
+    std::vector<ProbeDBEntry> snap;
+    {
+        std::lock_guard<std::mutex> lock(probeDBMutex);
+        snap.reserve(probeDB.size());
+        for (const auto &p : probeDB) snap.push_back(p.second);
+    }
+
+    String out;
+    out.reserve(2 + snap.size() * 240);
+    out += "[";
     bool first = true;
-    for (auto &p : probeDB) {
+    for (const auto &e : snap) {
         if (!first) out += ",";
         first = false;
         DynamicJsonDocument doc(512);
-        doc["mac"] = p.second.mac;
-        doc["seen"] = p.second.totalSeen;
-        doc["sessions"] = p.second.sessionCount;
-        doc["first"] = p.second.firstEpoch;
-        doc["last"] = p.second.lastEpoch;
-        doc["rssi"] = p.second.bestRssi;
-        doc["vendor"] = p.second.vendor;
-        doc["rand"] = p.second.isRandomized;
+        doc["mac"] = e.mac;
+        doc["seen"] = e.totalSeen;
+        doc["sessions"] = e.sessionCount;
+        doc["first"] = e.firstEpoch;
+        doc["last"] = e.lastEpoch;
+        doc["rssi"] = e.bestRssi;
+        doc["vendor"] = e.vendor;
+        doc["rand"] = e.isRandomized;
         JsonArray ss = doc.createNestedArray("ssids");
-        for (uint8_t i = 0; i < p.second.ssidCount; i++) {
-            ss.add(p.second.ssids[i]);
+        for (uint8_t i = 0; i < e.ssidCount && i < 8; i++) {
+            ss.add(e.ssids[i]);
         }
-        String tmp;
-        serializeJson(doc, tmp);
-        out += tmp;
+        serializeJson(doc, out);
     }
     out += "]";
     return out;
@@ -877,6 +883,6 @@ void clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
     probeDB.clear();
-    SD.remove(PROBE_DB_PATH);
+    SafeSD::remove(PROBE_DB_PATH);
     Serial.println("[PROBEDB] Database cleared");
 }

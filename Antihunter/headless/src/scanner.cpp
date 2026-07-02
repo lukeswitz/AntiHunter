@@ -1692,6 +1692,7 @@ void blueTeamTask(void *pv) {
     deauthDetectionEnabled = true;
     stopRequested = false;
     scanning = true;
+    scanSetCountdown(duration, forever);
 
     std::map<uint64_t, std::pair<uint32_t, uint16_t>> floodWin;
     std::set<uint64_t> floodAlerted;
@@ -1891,6 +1892,20 @@ void blueTeamTask(void *pv) {
     }
 
     deauthDetectionEnabled = false;
+
+    std::vector<DeauthHit> deauthSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(deauthLogMutex);
+        deauthSnapshot = deauthLog;
+    }
+
+    {
+        std::string deauthRes = buildDeauthResults(forever, duration, deauthCount.load(), disassocCount.load(), deauthSnapshot);
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = deauthRes;
+    }
+
+    scanSetCountdown(0, false);
     scanning = false;
 
     vTaskDelay(pdMS_TO_TICKS(200));
@@ -1910,18 +1925,6 @@ void blueTeamTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(500));
 
     lastScanEnd = millis();
-
-    std::vector<DeauthHit> deauthSnapshot;
-    {
-        std::lock_guard<std::mutex> lock(deauthLogMutex);
-        deauthSnapshot = deauthLog;
-    }
-
-    {
-        std::string deauthRes = buildDeauthResults(forever, duration, deauthCount.load(), disassocCount.load(), deauthSnapshot);
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults = deauthRes;
-    }
 
     // Log deauth events to SD
     if (SafeSD::isAvailable() && !deauthSnapshot.empty()) {

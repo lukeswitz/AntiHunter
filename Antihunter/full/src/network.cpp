@@ -1292,7 +1292,7 @@ void registerRemainingRoutes() {
           std::lock_guard<std::mutex> lock(randMutex);
           std::vector<String> toRemove;
           for (const auto& entry : deviceIdentities) {
-              if ((now - entry.second.lastSeen) > ageThreshold) {
+              if (entry.second.lastSeen == 0 || (now - entry.second.lastSeen) > ageThreshold) {
                   toRemove.push_back(entry.first);
               }
           }
@@ -1304,6 +1304,7 @@ void registerRemainingRoutes() {
 
       saveDeviceIdentities();
 
+      Serial.printf("[RAND] Clear-old removed %u identities\n", (unsigned)removed);
       req->send(200, "text/plain", "Removed " + String(removed) + " old identities");
   });
 
