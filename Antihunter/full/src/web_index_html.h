@@ -11,7 +11,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <style>
       :root{--t:0.2s;--blur:12px}
       [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#d6532f;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:rgba(14,20,34,0.85);--surf-hover:rgba(18,26,42,0.95);--bord:rgba(96,160,224,0.12);--bord-focus:rgba(96,160,224,0.35);--txt:#c8d4e0;--mut:#6878a0;--acc:#60a0e0;--acch:#4888cc;--accbg:rgba(96,160,224,0.08);--succ:#60a0e0;--warn:#c09040;--dang:#f0775c;--shad:0 6px 24px rgba(0,0,0,0.7),0 0 0 1px rgba(96,160,224,0.1),inset 0 1px 0 rgba(160,200,240,0.06);--shad-hover:0 14px 48px rgba(0,0,0,0.85),0 0 0 1px rgba(96,160,224,0.22),inset 0 1px 0 rgba(160,200,240,0.1);--glow:0 0 24px rgba(96,160,224,0.15),0 0 48px rgba(96,160,224,0.05);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#f0775c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:10px 16px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:12px;flex-wrap:nowrap;box-shadow:var(--shad);position:sticky;top:0;z-index:100;min-height:54px}
@@ -101,10 +101,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .tab-btn:hover:not(.active){color:var(--acc)}
       .tab-content{display:none}
       .tab-content.active{display:block}
-      .stat-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:2px solid var(--bord);padding:18px;border-radius:10px;transition:all 0.2s}
-      .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--glow)}
+      .stat-item{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--surf-hover),var(--surf));backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);padding:18px;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 6px 18px -12px rgba(0,0,0,0.6);transition:all 0.2s}
+      .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),var(--glow)}
       .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em}
-      .stat-value{color:var(--txt);font-size:24px;font-weight:800;letter-spacing:-0.02em}
+      .stat-value{color:var(--txt);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:26px;font-weight:700;letter-spacing:-0.02em}
+      .stat-spark{position:absolute;right:12px;bottom:12px;width:60px;height:22px;opacity:0.9;pointer-events:none}
       .stat{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:14px 10px;border:1px solid var(--bord);border-radius:10px;background:var(--accbg);}
       .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
       .card-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:18px;padding:4px 0}
@@ -122,6 +123,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
       @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-top{width:100%;gap:10px}.header-right{width:100%;justify-content:center}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:5px;flex-wrap:wrap;justify-content:center}.status-item{font-size:9px;padding:3px 8px}.status-item::before{width:5px;height:5px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
+      @media(max-width:900px){.header{flex-wrap:wrap;row-gap:10px}.header h1{order:1}.header-right{order:2;margin-left:auto;width:auto;justify-content:flex-end}.page-tabs{order:3;flex-basis:100%;width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
       [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
@@ -267,6 +269,36 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
       </div>
     </div>
+    <script>
+      (function(){
+        var N=14,BUF={},PREV={},
+            COL={wifiFrames:'#4c8dff',bleFrames:'#6ba5ff',uniqueDevices:'#37d39b',temperature:'#f5b547'},
+            RATE={wifiFrames:1,bleFrames:1};
+        window.pushSpark=function(key,val){
+          if(!isFinite(val))return;
+          if(RATE[key]){var p=PREV[key];PREV[key]=val;if(p===undefined)return;val=Math.max(0,val-p);}
+          var b=BUF[key]||(BUF[key]=[]);b.push(val);if(b.length>N)b.shift();draw(key,b);
+        };
+        function draw(key,b){
+          var svg=document.querySelector('.stat-spark[data-spark="'+key+'"]');
+          if(!svg)return;
+          if(b.length<2){svg.innerHTML='';return;}
+          var W=60,H=22,pad=2,n=b.length,
+              mn=Math.min.apply(null,b),mx=Math.max.apply(null,b),rng=(mx-mn)||1,dx=W/(n-1),
+              col=COL[key]||'var(--acc)',d='',lx=0,ly=0;
+          for(var i=0;i<n;i++){
+            var x=i*dx,y=H-pad-((b[i]-mn)/rng)*(H-2*pad);
+            d+=(i?' L':'M')+x.toFixed(1)+' '+y.toFixed(1);
+            if(i===n-1){lx=x;ly=y;}
+          }
+          svg.setAttribute('viewBox','0 0 '+W+' '+H);
+          svg.setAttribute('preserveAspectRatio','none');
+          svg.innerHTML='<path d="'+d+' L'+W+' '+H+' L0 '+H+' Z" fill="'+col+'" opacity="0.12"/>'+
+            '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'+
+            '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="1.6" fill="'+col+'"/>';
+        }
+      })();
+    </script>
     <div class="container">
       <div class="page-tab active" id="page-scan">
 
@@ -532,11 +564,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div id="overview" class="tab-content active">
             <div class="stat-grid">
               <div class="stat-item"><div class="stat-label">Uptime</div><div class="stat-value" id="uptime">--:--:--</div></div>
-              <div class="stat-item"><div class="stat-label">WiFi Frames</div><div class="stat-value" id="wifiFrames">0</div></div>
-              <div class="stat-item"><div class="stat-label">BLE Frames</div><div class="stat-value" id="bleFrames">0</div></div>
+              <div class="stat-item"><div class="stat-label">WiFi Frames</div><div class="stat-value" id="wifiFrames">0</div><svg class="stat-spark" data-spark="wifiFrames"></svg></div>
+              <div class="stat-item"><div class="stat-label">BLE Frames</div><div class="stat-value" id="bleFrames">0</div><svg class="stat-spark" data-spark="bleFrames"></svg></div>
               <div class="stat-item"><div class="stat-label">Target Hits</div><div class="stat-value" id="totalHits">0</div></div>
-              <div class="stat-item"><div class="stat-label">Unique Devices</div><div class="stat-value" id="uniqueDevices">0</div></div>
-              <div class="stat-item"><div class="stat-label">CPU Temp</div><div class="stat-value" id="temperature">--C</div></div>
+              <div class="stat-item"><div class="stat-label">Unique Devices</div><div class="stat-value" id="uniqueDevices">0</div><svg class="stat-spark" data-spark="uniqueDevices"></svg></div>
+              <div class="stat-item"><div class="stat-label">CPU Temp</div><div class="stat-value" id="temperature">--C</div><svg class="stat-spark" data-spark="temperature"></svg></div>
             </div>
           </div>
           <div id="hardware" class="tab-content"><div id="hardwareDiag">Loading...</div></div>
@@ -4147,11 +4179,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           sections.forEach(line => {
             if (line.includes('WiFi Frames')) {
               const match = line.match(/(\d+)/);
-              if (match) document.getElementById('wifiFrames').innerText = match[1];
+              if (match) { document.getElementById('wifiFrames').innerText = match[1]; pushSpark('wifiFrames', parseInt(match[1], 10)); }
             }
             if (line.includes('BLE Frames')) {
               const match = line.match(/(\d+)/);
-              if (match) document.getElementById('bleFrames').innerText = match[1];
+              if (match) { document.getElementById('bleFrames').innerText = match[1]; pushSpark('bleFrames', parseInt(match[1], 10)); }
             }
             if (line.includes('Devices Found')) {
               const match = line.match(/(\d+)/);
@@ -4159,11 +4191,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
             if (line.includes('Unique devices') && radioBusyTask !== 'baseline') {
               const match = line.match(/(\d+)/);
-              if (match) document.getElementById('uniqueDevices').innerText = match[1];
+              if (match) { document.getElementById('uniqueDevices').innerText = match[1]; pushSpark('uniqueDevices', parseInt(match[1], 10)); }
             }
             if (line.includes('ESP32 Temp')) {
               const match = line.match(/([\d.]+)C/);
-              if (match) document.getElementById('temperature').innerText = match[1] + 'C';
+              if (match) { document.getElementById('temperature').innerText = match[1] + 'C'; pushSpark('temperature', parseFloat(match[1])); }
             }
             if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
               hardware += line + '\n';
