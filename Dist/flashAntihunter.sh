@@ -4,9 +4,9 @@ set -e
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 
 STABLE_BRANCH="main"
-STABLE_VERSION="v0.9.5"
+STABLE_VERSION="v0.9.6"
 BETA_BRANCH="beta"
-BETA_VERSION="v0.9.5-beta1"
+BETA_VERSION="v0.9.6-beta1"
 
 FIRMWARE_OPTIONS=()
 
