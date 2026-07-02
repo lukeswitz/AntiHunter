@@ -32,7 +32,7 @@
 Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunter.html)
 
 
-- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection (beta)
+- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection [(beta)](https://github.com/lukeswitz/AntiHunter/tree/beta)
 - `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 
@@ -65,6 +65,8 @@ Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunte
 <img height="600" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
 </p>
 
+> [!TIP]
+> Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable)
 
 ## Features
 
@@ -119,7 +121,7 @@ Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity I
 - Logs RSSI, channel, GPS, and device names to SD
 - Real-time alerts over mesh network
 
-### 2. Triangulation (Experimental)
+### 2. Triangulation (in development)
 
 Multiple nodes scan for a target simultaneously. Each records RSSI and GPS coordinates. Data is aggregated over mesh for weighted trilateration with Kalman filtering.
 
@@ -186,7 +188,7 @@ WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with ran
 
 Detects drones broadcasting Remote ID per FAA/EASA standards over **WiFi and Bluetooth**. Supports ODID/ASTM F3411 over WiFi (NAN action frames, beacon frames) and **BLE (BT4 legacy + BT5 long-range advertising, service UUID 0xFFFA)**, plus French drone ID (OUI 0x6a5c35). Decodes all ODID message types (Basic ID, Location, System, Operator ID, Auth, Self-ID), preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location, and flight telemetry. Mesh alerts and SD logging.
 
-### E. MAC Randomization Correlation (Experimental)
+### E. MAC Randomization Correlation 
 
 > [!NOTE]
 > Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
@@ -218,7 +220,7 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
-### G. Sentinel — Counterintel Engine
+### G. Sentinel — Counterintel Engine (Beta)
 
 <p align="center">
   <img height="600" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
@@ -435,7 +437,7 @@ Flash and configure directly from your browser -- no tools to install. Requires 
 2. Optional: After flashing, set the configuration choices and press send to device. 
 
    - Use it to change settings without using the device (especially useful for headless FW).
-   - The **Sentinel & Detectors** section configures the full detection engine: persistent *Start Sentinel on Boot*, radio mode, every detector enable/disable, mesh-broadcast flags, and detector thresholds — full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting.
+   - The **Sentinel & Detectors** section configures the full detection engine: persistent *Start Sentinel on Boot*, radio mode, every detector enable/disable, mesh-broadcast flags, and detector thresholds — full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting (beta fw).
 
 ### CLI Flash
 
@@ -555,7 +557,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
 
-### Sentinel
+### Sentinel (beta fw)
 
 | Command | Parameters | Example |
 |---------|------------|---------|
@@ -720,7 +722,7 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 </details>
 
 <details>
-<summary>Sentinel / Detection Endpoints</summary>
+<summary>Sentinel / Detection Endpoints (beta)</summary>
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
