@@ -2120,6 +2120,8 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
+    framesSeen = framesSeen + 1;
+
     int8_t rssiThreshold;
     portENTER_CRITICAL_ISR(&rfConfigMux);
     rssiThreshold = rfConfig.globalRssiThreshold;
@@ -2260,8 +2262,6 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     // ISR-safe (xQueueSendFromISR inside).
     detect_onWifiFrame(ppkt->payload, ppkt->rx_ctrl.sig_len,
                        ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
-
-    framesSeen = framesSeen + 1;
 
     const uint8_t *p = ppkt->payload;
     uint16_t fc = u16(p);
