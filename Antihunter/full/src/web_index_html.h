@@ -14,14 +14,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#f0775c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
-      .header{padding:10px 16px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:12px;flex-wrap:nowrap;box-shadow:var(--shad);position:sticky;top:0;z-index:100;min-height:54px}
-      .header h1{flex-shrink:0;margin:0;font-size:18px;white-space:nowrap}
+      .header{padding:10px 16px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:12px;flex-wrap:wrap;row-gap:11px;box-shadow:var(--shad);position:sticky;top:0;z-index:100;min-height:54px}
+      .header h1{flex-shrink:0;margin:0;font-size:18px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
       .header-top{display:contents}
-      .header-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0;flex-wrap:nowrap}
-      .page-tabs{flex:0 1 auto;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+      .header-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:1;min-width:0;flex-wrap:wrap;justify-content:flex-end;row-gap:8px}
+      .page-tabs{flex:0 0 auto;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
       .page-tabs::-webkit-scrollbar{display:none}
       .header-right .theme-toggle{margin-left:0}
-      h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--acc) 0%,var(--acch) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+      h1{font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.02em;color:var(--txt)}
+      .header h1 b{color:var(--acc);font-weight:700}
       h3{margin:0 0 18px;font-size:16px;font-weight:600;letter-spacing:-0.01em;color:var(--txt)}
       .container{max-width:1400px;margin:0 auto;padding:28px}
       .card{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:1px solid var(--bord);border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:var(--shad);transition:all 0.3s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden}
@@ -84,7 +85,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .toast.success{border-color:var(--succ);box-shadow:0 0 24px rgba(96,160,224,0.2)}
       .toast.error{border-color:var(--dang);box-shadow:0 0 24px rgba(184,96,80,0.2)}
       .toast.warning{border-color:var(--warn);box-shadow:0 0 24px rgba(192,144,64,0.2)}
-      .status-bar{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:nowrap}
+      .status-bar{display:flex;gap:6px;align-items:center;flex-shrink:1;flex-wrap:wrap;justify-content:flex-end}
       .status-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);padding:4px 10px;border-radius:999px;font-size:10px;font-weight:600;color:var(--mut);transition:border-color .2s,color .2s,background .2s;text-transform:uppercase;letter-spacing:0.04em;display:inline-flex;align-items:center;gap:6px;line-height:1.4;white-space:nowrap;font-variant-numeric:tabular-nums;flex-shrink:0}
       .status-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--mut);transition:background .2s,box-shadow .2s;flex-shrink:0}
       .status-item.idle{border-color:rgba(80,180,120,0.4);color:#50b478}
@@ -97,13 +98,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @keyframes scanPulse{0%,100%{box-shadow:var(--glow)}50%{box-shadow:0 0 20px rgba(96,160,224,0.3),0 0 40px rgba(96,160,224,0.1)}}
       .tab-buttons{display:flex;gap:6px;margin-bottom:18px;background:rgba(0,0,0,0.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:6px;border-radius:10px;border:1px solid var(--bord)}
       .tab-btn{padding:10px 18px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;flex:1;text-align:center}
-      .tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+      .tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 0 0 1px var(--bord),0 3px 8px -3px rgba(0,0,0,0.5)}
       .tab-btn:hover:not(.active){color:var(--acc)}
       .tab-content{display:none}
       .tab-content.active{display:block}
       .stat-item{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--surf-hover),var(--surf));backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);padding:18px;border-radius:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 6px 18px -12px rgba(0,0,0,0.6);transition:all 0.2s}
       .stat-item:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),var(--glow)}
-      .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em}
+      .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:8px;font-weight:700;letter-spacing:0.05em;display:flex;align-items:center;gap:7px}
+      .stat-label svg{width:14px;height:14px;stroke:currentColor;color:var(--mut);opacity:0.7;flex-shrink:0}
+      .stat-value small{font-size:16px;color:var(--mut);font-weight:500;margin-left:1px}
+      .stat-item::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(180deg,var(--bord-focus),transparent 55%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0.55;pointer-events:none}
+      .card-sub{color:var(--mut);font-size:13px;margin:-12px 0 18px;line-height:1.4}
+      .brand-shield{width:auto;height:18px;flex-shrink:0;filter:drop-shadow(0 0 3px var(--acc))}
+      .brand-shield path{fill:#fff;stroke:var(--acc);stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round}
+      [data-theme="dark"] .brand-shield{filter:drop-shadow(0 0 3px rgba(255,255,255,0.55))}
+      [data-theme="dark"] .brand-shield path{fill:var(--acc);stroke:#fff;stroke-width:1.2}
       .stat-value{color:var(--txt);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:26px;font-weight:700;letter-spacing:-0.02em}
       .stat-spark{position:absolute;right:12px;bottom:12px;width:60px;height:22px;opacity:0.9;pointer-events:none}
       .stat{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:14px 10px;border:1px solid var(--bord);border-radius:10px;background:var(--accbg);}
@@ -122,8 +131,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details>summary::-webkit-details-marker{display:none}
       @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
-      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-top{width:100%;gap:10px}.header-right{width:100%;justify-content:center}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:5px;flex-wrap:wrap;justify-content:center}.status-item{font-size:9px;padding:3px 8px}.status-item::before{width:5px;height:5px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
-      @media(max-width:900px){.header{flex-wrap:wrap;row-gap:10px}.header h1{order:1}.header-right{order:2;margin-left:auto;width:auto;justify-content:flex-end}.page-tabs{order:3;flex-basis:100%;width:100%;justify-content:flex-start}}
+      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-top{width:100%;gap:10px}.header-right{justify-content:flex-end}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:5px;flex-wrap:wrap;justify-content:flex-end}.status-item{font-size:9px;padding:3px 8px}.status-item::before{width:5px;height:5px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
+      @media(max-width:820px){.header{flex-wrap:wrap;row-gap:11px}.header h1{order:1}.header-right{order:2;margin-left:auto;width:auto;justify-content:flex-end}.page-tabs{order:3;flex-basis:100%;width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
       [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
@@ -131,10 +140,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
       [data-theme="cyber"] .theme-toggle .moon{opacity:0;transform:rotate(90deg) scale(0)}
       [data-theme="cyber"] .theme-toggle .terminal{opacity:1;transform:scale(1)}
-      .page-tabs{display:flex;gap:4px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px;border-radius:8px;border:1px solid var(--bord)}
-      .page-tab-btn{padding:8px 16px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap}
-      .page-tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+      .page-tabs{display:flex;gap:4px;background:var(--surf-hover);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:4px;border-radius:12px;border:1px solid var(--bord)}
+      .page-tab-btn{padding:8px 16px;background:transparent;border:1px solid transparent;border-radius:9px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap}
+      .page-tab-btn.active{background:var(--surf);color:var(--txt);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 3px 8px -3px rgba(0,0,0,0.5);border:1px solid var(--bord)}
       .page-tab-btn:hover:not(.active){color:var(--acc)}
+      @media(max-width:440px){.page-tabs{gap:2px;justify-content:space-between}.page-tab-btn{padding:6px 8px;font-size:11px}}
       .page-tab{display:none}
       .page-tab.active{display:block}
       #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
@@ -229,7 +239,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <div id="toast"></div>
     <div class="header">
       <div class="header-top">
-        <h1>AntiHunter</h1>
+        <h1><svg class="brand-shield" viewBox="3 1 18 22" fill="none" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span class="wm"><b>Anti</b>Hunter</span></h1>
         <div class="page-tabs">
           <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
           <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
@@ -556,6 +566,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       <div class="card" style="margin-bottom:16px;">
           <h3>System Diagnostics</h3>
+          <p class="card-sub">Live node telemetry · <span id="diagNodeId">--</span> · <span id="diagAge">live</span></p>
           <div class="tab-buttons">
             <div class="tab-btn active" onclick="switchTab('overview')">Overview</div>
             <div class="tab-btn" onclick="switchTab('hardware')">Hardware</div>
@@ -563,12 +574,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
           <div id="overview" class="tab-content active">
             <div class="stat-grid">
-              <div class="stat-item"><div class="stat-label">Uptime</div><div class="stat-value" id="uptime">--:--:--</div></div>
-              <div class="stat-item"><div class="stat-label">WiFi Frames</div><div class="stat-value" id="wifiFrames">0</div><svg class="stat-spark" data-spark="wifiFrames"></svg></div>
-              <div class="stat-item"><div class="stat-label">BLE Frames</div><div class="stat-value" id="bleFrames">0</div><svg class="stat-spark" data-spark="bleFrames"></svg></div>
-              <div class="stat-item"><div class="stat-label">Target Hits</div><div class="stat-value" id="totalHits">0</div></div>
-              <div class="stat-item"><div class="stat-label">Unique Devices</div><div class="stat-value" id="uniqueDevices">0</div><svg class="stat-spark" data-spark="uniqueDevices"></svg></div>
-              <div class="stat-item"><div class="stat-label">CPU Temp</div><div class="stat-value" id="temperature">--C</div><svg class="stat-spark" data-spark="temperature"></svg></div>
+              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Uptime</div><div class="stat-value" id="uptime">--:--:--</div></div>
+              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a15 15 0 0 1 20 0"/><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg>WiFi Frames</div><div class="stat-value" id="wifiFrames">0</div><svg class="stat-spark" data-spark="wifiFrames"></svg></div>
+              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>BLE Frames</div><div class="stat-value" id="bleFrames">0</div><svg class="stat-spark" data-spark="bleFrames"></svg></div>
+              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Target Hits</div><div class="stat-value" id="totalHits">0</div></div>
+              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v2M14 3v2M10 19v2M14 19v2M3 10h2M3 14h2M19 10h2M19 14h2"/></svg>Unique Devices</div><div class="stat-value" id="uniqueDevices">0</div><svg class="stat-spark" data-spark="uniqueDevices"></svg></div>
+              <div class="stat-item"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0Z"/></svg>CPU Temp</div><div class="stat-value" id="temperature">--<small>°C</small></div><svg class="stat-spark" data-spark="temperature"></svg></div>
             </div>
           </div>
           <div id="hardware" class="tab-content"><div id="hardwareDiag">Loading...</div></div>
@@ -578,6 +589,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <div class="grid-2" style="margin-bottom:16px;">
       <div class="card">
         <h3>RF Settings</h3>
+        <p class="card-sub">Signal filtering &amp; sensitivity profile</p>
         <div class="" id="detectionCardBody">
           <label style="font-size:11px;">Global RSSI Filter (dBm)</label>
           <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:12px;align-items:center;">
@@ -643,6 +655,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       <div class="card">
           <h3>Node Configuration</h3>
+          <p class="card-sub">Identity &amp; mesh networking</p>
           <form id="nodeForm" method="POST" action="/node-id" novalidate>
             <label>Node ID</label>
             <input type="text" id="nodeId" name="id" minlength="2" maxlength="5" placeholder="AH01" pattern="^[A-Z0-9]{2,5}$" style="text-transform:uppercase;">
@@ -1425,6 +1438,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const data = await r.json();
           document.getElementById('nodeId').value = data.nodeId;
           document.getElementById('footerNodeId').innerText = data.nodeId;
+          window.__nodeId = data.nodeId;
+          const dn = document.getElementById('diagNodeId'); if (dn) dn.innerText = data.nodeId;
         } catch (e) {}
       }
       
@@ -4195,7 +4210,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
             if (line.includes('ESP32 Temp')) {
               const match = line.match(/([\d.]+)C/);
-              if (match) { document.getElementById('temperature').innerText = match[1] + 'C'; pushSpark('temperature', parseFloat(match[1])); }
+              if (match) { document.getElementById('temperature').innerHTML = match[1] + '<small>°C</small>'; pushSpark('temperature', parseFloat(match[1])); }
             }
             if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
               hardware += line + '\n';
@@ -4205,6 +4220,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           });
           document.getElementById('hardwareDiag').innerHTML = formatDiagGrid(hardware, 'hardware');
           document.getElementById('networkDiag').innerHTML = formatDiagGrid(network, 'network');
+          window.__lastDiag = Date.now();
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
             document.getElementById('uptime').innerText = uptimeMatch[1] + ':' + uptimeMatch[2] + ':' + uptimeMatch[3];
@@ -5097,6 +5113,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       refreshPskStatus();
       pollSecureState();
       setInterval(tick, 5000);
+      setInterval(() => { const a = document.getElementById('diagAge'); if (!a || !window.__lastDiag) return; const s = Math.max(0, Math.round((Date.now() - window.__lastDiag) / 1000)); a.innerText = s < 1 ? 'refreshed just now' : 'refreshed ' + s + 's ago'; }, 1000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
 
       // ===== Detect tab logic =====
