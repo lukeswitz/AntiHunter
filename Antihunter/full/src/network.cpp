@@ -33,6 +33,7 @@ uint32_t hbInterval = 600000;
 bool vibrationEnabled = true;
 unsigned long meshSendInterval = 3000;
 std::atomic<bool> g_eraseWipeBusy{false};
+volatile uint32_t apScanSuppressUntilMs = 0;
 bool triangulationOrchestratorAssigned = false;
 
 
@@ -194,6 +195,7 @@ void initializeNetwork()
   bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
                           AP_CHANNEL, 0, 4, false,
                           WIFI_AUTH_WPA2_WPA3_PSK);
+  esp_wifi_set_inactive_time(WIFI_IF_AP, 10);
   Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start: %s\n", apOk ? "OK" : "FAIL");
   delay(500);
   WiFi.setHostname("antihunter");
@@ -207,8 +209,10 @@ void initializeNetwork()
                         d.mac[0],d.mac[1],d.mac[2],d.mac[3],d.mac[4],d.mac[5],
                         (unsigned)d.aid, (unsigned)d.reason);
           detect_onSoftApDisconnect(d.mac, (uint8_t)d.reason);
+          apScanSuppressUntilMs = millis() + 5000;
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
           detect_onSoftApConnect(e->event_info.wifi_ap_staconnected.mac);
+          apScanSuppressUntilMs = millis() + 5000;
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED) {
           const uint8_t *mac = e->event_info.wifi_ap_probereqrecved.mac;
           int8_t rssi = e->event_info.wifi_ap_probereqrecved.rssi;
