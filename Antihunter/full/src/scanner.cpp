@@ -993,7 +993,8 @@ void snifferScanTask(void *pv)
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
-            (millis() - lastWiFiScan >= wifiInterval || lastWiFiScan == 0)) {
+            (millis() - lastWiFiScan >= wifiInterval || lastWiFiScan == 0) &&
+            (apScanSuppressUntilMs == 0 || (int32_t)(millis() - apScanSuppressUntilMs) >= 0)) {
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
@@ -2975,7 +2976,8 @@ void listScanTask(void *pv) {
         }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
-            (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
+            (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0) &&
+            (apScanSuppressUntilMs == 0 || (int32_t)(millis() - apScanSuppressUntilMs) >= 0)) {
             lastWiFiScan = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
             if (stopRequested) break;
