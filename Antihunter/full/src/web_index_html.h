@@ -650,7 +650,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             
             <label style="font-size:11px;">Password</label>
             <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
-            
+
+            <label style="font-size:11px;">Security</label>
+            <select id="apAuth" style="margin-bottom:8px;">
+              <option value="0">WPA2/WPA3 (default)</option>
+              <option value="1">WPA2 only (more stable)</option>
+            </select>
+
             <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
           </div>
         </div>
@@ -1775,7 +1781,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const fd = new FormData();
         fd.append('ssid', ssid);
         fd.append('pass', pass);
-        
+        fd.append('auth', document.getElementById('apAuth').value);
+
         try {
           const r = await fetch('/wifi-config', {method: 'POST', body: fd});
           const msg = await r.text();
@@ -1791,6 +1798,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const cfg = await r.json();
           document.getElementById('apSsid').value = cfg.ssid;
           document.getElementById('apPass').value = cfg.pass;
+          if (cfg.auth !== undefined) document.getElementById('apAuth').value = cfg.auth;
         } catch(e) {}
       }
       

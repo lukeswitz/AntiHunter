@@ -191,12 +191,16 @@ void initializeNetwork()
   if (customApSsid.length() == 0) customApSsid = AP_SSID;
   if (customApPass.length() < 8) customApPass = AP_PASS;
   
+  wifi_auth_mode_t apAuth = prefs.getUChar("apAuth", 0) == 1 ? WIFI_AUTH_WPA2_PSK
+                                                             : WIFI_AUTH_WPA2_WPA3_PSK;
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
                           AP_CHANNEL, 0, 4, false,
-                          WIFI_AUTH_WPA2_WPA3_PSK);
+                          apAuth);
   esp_wifi_set_inactive_time(WIFI_IF_AP, 10);
-  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start: %s\n", apOk ? "OK" : "FAIL");
+  Serial.printf("[WIFI] AP %s start: %s\n",
+                apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
+                apOk ? "OK" : "FAIL");
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
@@ -1665,7 +1669,8 @@ void registerRemainingRoutes() {
     
     String json = "{";
     json += "\"ssid\":\"" + ssid + "\",";
-    json += "\"pass\":\"" + pass + "\"";
+    json += "\"pass\":\"" + pass + "\",";
+    json += "\"auth\":" + String(prefs.getUChar("apAuth", 0));
     json += "}";
     req->send(200, "application/json", json);
   });
@@ -1792,7 +1797,11 @@ void registerRemainingRoutes() {
       if (pass.length() > 0) {
           prefs.putString("apPass", pass);
       }
-      
+      if (req->hasParam("auth", true)) {
+          uint8_t auth = req->getParam("auth", true)->value().toInt() == 1 ? 1 : 0;
+          prefs.putUChar("apAuth", auth);
+      }
+
       saveConfiguration();
       
       req->send(200, "text/plain", "WiFi settings saved. Restarting in 3s...");
