@@ -416,7 +416,7 @@ static void handleConfigTargets(const String &command)
 
 static void handleConfigDedupTtl(const String &command)
 {
-  long ttl = command.substring(21).toInt();
+  long ttl = command.substring(17).toInt();
   if (ttl < 0 || ttl > (long)MESH_DEDUP_TTL_MAX_S) {
     sendToSerial1(nodeId + ": CONFIG_ACK:DEDUP_TTL:INVALID", true);
     return;
@@ -540,10 +540,25 @@ static void handleBaselineStart(const String &command)
 static void handleBaselineStatus(const String &command)
 {
   char status_msg[MAX_MESH_SIZE];
+
+  bool snapScanning;
+  bool snapPhase1Complete;
+  bool snapEstablished;
+  uint32_t snapDeviceCount;
+  uint32_t snapAnomalyCount;
+  {
+    std::lock_guard<std::mutex> lock(baselineMutex);
+    snapScanning = baselineStats.isScanning;
+    snapPhase1Complete = baselineStats.phase1Complete;
+    snapEstablished = baselineEstablished;
+    snapDeviceCount = baselineDeviceCount;
+    snapAnomalyCount = anomalyCount;
+  }
+
   const char* phase1Status;
-  if (!baselineStats.isScanning) {
+  if (!snapScanning) {
     phase1Status = "INACTIVE";
-  } else if (!baselineStats.phase1Complete) {
+  } else if (!snapPhase1Complete) {
     phase1Status = "ACTIVE";
   } else {
     phase1Status = "COMPLETE";
@@ -552,10 +567,10 @@ static void handleBaselineStatus(const String &command)
   snprintf(status_msg, sizeof(status_msg),
            "%s: BASELINE_STATUS: Scanning:%s Established:%s Devices:%u Anomalies:%u Phase1:%s",
            nodeId.c_str(),
-           baselineStats.isScanning ? "YES" : "NO",
-           baselineEstablished ? "YES" : "NO",
-           baselineDeviceCount,
-           anomalyCount,
+           snapScanning ? "YES" : "NO",
+           snapEstablished ? "YES" : "NO",
+           snapDeviceCount,
+           snapAnomalyCount,
            phase1Status);
   sendToSerial1(String(status_msg), true);
 }
@@ -768,6 +783,14 @@ static void handleProbeStop(const String &command)
   stopRequested = true;
   Serial.println("[MESH] Probe stop command received via mesh");
   sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
+}
+
+static void handleProbeHit(const String &command)
+{
+  // Received a PROBE_HIT from another node — log it to terminal
+  // Full message format: "PROBE_HIT AA:BB:CC:DD:EE:FF Apple RSSI=-42 CH=6 SSID=\"HomeNet\""
+  String payload = command.substring(10);
+  Serial.printf("[MESH] PROBE_HIT received: %s\n", payload.c_str());
 }
 
 static void handleStop(const String &command)
@@ -1395,7 +1418,12 @@ static void handleTriCycleStart(const String &command)
 
 static void handleTriangulateResults(const String &command)
 {
-  if (triangulationNodes.size() > 0) {
+  bool hasNodes;
+  {
+    std::lock_guard<std::mutex> lock(triangulationMutex);
+    hasNodes = (triangulationNodes.size() > 0);
+  }
+  if (hasNodes) {
     String results = calculateTriangulation();
     sendToSerial1(nodeId + ": TRIANGULATE_RESULTS_START", true);
     sendToSerial1(results, true);
@@ -1639,6 +1667,8 @@ static void handleHbOn(const String &command)
 {
   hbEnabled = true;
   prefs.putBool("hbEnabled", true);
+  lastSaveTime = 0;
+  saveConfiguration();
   Serial.println("[HB] Status heartbeat ENABLED");
   sendToSerial1(nodeId + ": HB_ACK:ENABLED", true);
 }
@@ -1647,6 +1677,8 @@ static void handleHbOff(const String &command)
 {
   hbEnabled = false;
   prefs.putBool("hbEnabled", false);
+  lastSaveTime = 0;
+  saveConfiguration();
   Serial.println("[HB] Status heartbeat DISABLED");
   sendToSerial1(nodeId + ": HB_ACK:DISABLED", true);
 }
@@ -1681,6 +1713,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("RANDOMIZATION_START:")) handleRandomizationStart(command);
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
   else if (command == "PROBE_STOP")                   handleProbeStop(command);
+  else if (command.startsWith("PROBE_HIT "))          handleProbeHit(command);
   else if (command.startsWith("STOP"))                handleStop(command);
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
@@ -2000,6 +2033,8 @@ void processMeshMessage(const String &message) {
                         isBLE = (typeStr == "BLE");
                     }
 
+                    {
+                    std::lock_guard<std::mutex> lock(triangulationMutex);
                     auto nodeIt2 = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
                         [&](const TriangulationNode& n) { return n.nodeId == sendingNode; });
 
@@ -2034,6 +2069,7 @@ void processMeshMessage(const String &message) {
                       triangulationNodes.push_back(newNode);
                       Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
                                     sendingNode.c_str(), rssi, newNode.distanceEstimate);
+                  }
                   }
                 }
             }

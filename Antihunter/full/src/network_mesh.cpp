@@ -778,7 +778,7 @@ static void handleStop(const String &command)
 {
   (void)command;
   stopRequested = true;
-  if (meshTxDraining.load()) {
+  if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
     stopMeshDrain.store(true);
   }
   Serial.println("[MESH] Stop command received via mesh");
@@ -1467,6 +1467,7 @@ static void handleAutoeraseDisable(const String &command)
 static void handleAutoeraseStatus(const String &command)
 {
   (void)command;
+  updateSetupModeStatus();
   String status = nodeId + ": AUTOERASE_STATUS: ";
   status += "Enabled:" + String(autoEraseEnabled ? "YES" : "NO");
 
