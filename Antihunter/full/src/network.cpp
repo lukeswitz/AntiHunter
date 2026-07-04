@@ -195,8 +195,15 @@ void initializeNetwork()
   bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
                           AP_CHANNEL, 0, 4, false,
                           WIFI_AUTH_WPA2_WPA3_PSK);
-  esp_wifi_set_inactive_time(WIFI_IF_AP, 10);
-  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start: %s\n", apOk ? "OK" : "FAIL");
+  {
+    wifi_config_t apCfg = {};
+    if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) == ESP_OK) {
+      apCfg.ap.pmf_cfg.capable = false;
+      apCfg.ap.pmf_cfg.required = false;
+      esp_wifi_set_config(WIFI_IF_AP, &apCfg);
+    }
+  }
+  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start (PMF off): %s\n", apOk ? "OK" : "FAIL");
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
@@ -209,7 +216,7 @@ void initializeNetwork()
                         d.mac[0],d.mac[1],d.mac[2],d.mac[3],d.mac[4],d.mac[5],
                         (unsigned)d.aid, (unsigned)d.reason);
           detect_onSoftApDisconnect(d.mac, (uint8_t)d.reason);
-          apScanSuppressUntilMs = millis() + 5000;
+          if (d.reason != 8) apScanSuppressUntilMs = millis() + 5000;
       } else if (e->event_id == ARDUINO_EVENT_WIFI_AP_STACONNECTED) {
           detect_onSoftApConnect(e->event_info.wifi_ap_staconnected.mac);
           apScanSuppressUntilMs = millis() + 5000;
