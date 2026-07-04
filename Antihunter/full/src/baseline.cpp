@@ -832,8 +832,20 @@ void baselineDetectionTask(void *pv) {
         if (millis() - lastCleanup >= BASELINE_CLEANUP_INTERVAL) {
             cleanupBaselineMemory();
             lastCleanup = millis();
+
+            uint32_t dirtyCount;
+            {
+                std::lock_guard<std::mutex> lock(baselineMutex);
+                dirtyCount = std::count_if(baselineCache.begin(), baselineCache.end(),
+                    [](const std::pair<const uint64_t, BaselineDevice>& entry) { return entry.second.dirtyFlag; });
+            }
+
+            if ((millis() - lastSDFlush > MIN_FLUSH_INTERVAL && dirtyCount > 0) || dirtyCount >= MIN_DIRTY_COUNT) {
+                flushBaselineCacheToSD();
+                lastSDFlush = millis();
+            }
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
@@ -1590,6 +1602,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
+                if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
                 anomalyLog.push_back(hit);
                 anomalyCount++;
             }
@@ -1612,7 +1625,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 if (strlen(name) > 0 && strcmp(name, "Unknown") != 0) {
                     meshAlert += " Name:" + String(name);
                 }
-                sendToSerial1(meshAlert, false);
+                meshEnqueue(meshAlert);
             }
         }
 
@@ -1636,6 +1649,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
             if (anomalyQueue) xQueueSend(anomalyQueue, &hit, 0);
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
+                if (anomalyLog.size() >= BASELINE_MAX_ANOMALIES) anomalyLog.erase(anomalyLog.begin());
                 anomalyLog.push_back(hit);
                 anomalyCount++;
             }
@@ -1654,7 +1668,7 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
                 meshAlert += " Old:" + String(history.lastRssi) + "dBm";
                 meshAlert += " New:" + String(rssi) + "dBm";
                 meshAlert += " Delta:" + String(delta) + "dBm";
-                sendToSerial1(meshAlert, false);
+                meshEnqueue(meshAlert);
             }
             
             history.significantChanges = 0;

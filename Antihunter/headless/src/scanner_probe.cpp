@@ -448,7 +448,7 @@ void probeDetectionTask(void *pv)
             lastDBSave = millis();
         }
 
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     probeDetectionEnabled = false;

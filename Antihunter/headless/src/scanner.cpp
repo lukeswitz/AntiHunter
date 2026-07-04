@@ -75,6 +75,7 @@ static portMUX_TYPE rfConfigMux = portMUX_INITIALIZER_UNLOCKED;
 
 const size_t MAX_AP_CACHE = 200;
 const size_t MAX_BLE_CACHE = 200;
+const size_t MAX_UNIQUE_MACS = 5000;
 
 // BLE 
 NimBLEScan *pBLEScan;
@@ -728,6 +729,14 @@ static void hopTimerCb(void *)
     esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
 }
 
+uint8_t nextActiveScanChannel()
+{
+    if (CHANNELS.empty()) return (uint8_t)AP_CHANNEL;
+    static size_t i = 0;
+    i = (i + 1) % CHANNELS.size();
+    return CHANNELS[i];
+}
+
 // Deauth type
 String getDeauthReasonText(uint16_t reasonCode) {
     switch (reasonCode) {
@@ -907,6 +916,12 @@ void snifferScanTask(void *pv)
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
+    uint32_t wifiInterval = WIFI_SCAN_INTERVAL;
+    uint32_t bleInterval = BLE_SCAN_INTERVAL;
+    if (currentScanMode == SCAN_BOTH) {
+        wifiInterval = min(WIFI_SCAN_INTERVAL, BLE_SCAN_INTERVAL);
+    }
+
     scanning = true;
     {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -964,12 +979,17 @@ void snifferScanTask(void *pv)
            (!forever && static_cast<int>(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
-            (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0))
+            (millis() - lastWiFiScan >= wifiInterval || lastWiFiScan == 0))
         {
             lastWiFiScan = millis();
 
             Serial.println("[SNIFFER] Scanning WiFi networks...");
-            const int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            if (hopTimer) esp_timer_stop(hopTimer);
+            esp_wifi_set_promiscuous(false);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
+            esp_wifi_set_promiscuous(true);
+            if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+            if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
             if (stopRequested) break;
 
             if (networksFound > 0)
@@ -995,7 +1015,7 @@ void snifferScanTask(void *pv)
                         if (apCache.size() < MAX_AP_CACHE) {
                             apCache[bssid] = ssid;
                         }
-                        uniqueMacs.insert(bssid);
+                        if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
 
                         Hit h;
                         memcpy(h.mac, bssidBytes, 6);
@@ -1041,7 +1061,7 @@ void snifferScanTask(void *pv)
         }
 
         if (bleScan && (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
-            (millis() - lastBLEScan >= BLE_SCAN_INTERVAL || lastBLEScan == 0))
+            (millis() - lastBLEScan >= bleInterval || lastBLEScan == 0))
         {
             lastBLEScan = millis();
 
@@ -1083,8 +1103,8 @@ void snifferScanTask(void *pv)
                                 bleDeviceCache[macStr] = cleanName;
                             }
                         }
-                        uniqueMacs.insert(macStr);
-                        
+                        if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(macStr);
+
                         uint8_t mac[6];
                         if (parseMac6(macStr, mac))
                         {
@@ -2034,6 +2054,8 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
+    framesSeen = framesSeen + 1;
+
     int8_t rssiThreshold;
     portENTER_CRITICAL_ISR(&rfConfigMux);
     rssiThreshold = rfConfig.globalRssiThreshold;
@@ -2123,30 +2145,20 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
             }
         }
 
-        else if (ftype == 0 && stype == 11) {
+        else if (ftype == 0 && (stype == 11 || stype == 0 || stype == 2)) {
             const uint8_t *srcMac = payload + 10;
-            if (isGlobalMAC(srcMac)) {
-                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
-                                                     ppkt->rx_ctrl.channel,
-                                                     payload, ppkt->rx_ctrl.sig_len);
-            }
-        }
-
-        else if (ftype == 0 && stype == 0) {
-            const uint8_t *srcMac = payload + 10;
-            if (isGlobalMAC(srcMac)) {
-                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
-                                                     ppkt->rx_ctrl.channel,
-                                                     payload, ppkt->rx_ctrl.sig_len);
-            }
-        }
-
-        else if (ftype == 0 && stype == 2) {
-            const uint8_t *srcMac = payload + 10;
-            if (isGlobalMAC(srcMac)) {
-                correlateAuthFrameToRandomizedSession(srcMac, ppkt->rx_ctrl.rssi,
-                                                     ppkt->rx_ctrl.channel,
-                                                     payload, ppkt->rx_ctrl.sig_len);
+            if (isGlobalMAC(srcMac) && authFrameQueue) {
+                AuthFrameEvent authEvt;
+                memcpy(authEvt.mac, srcMac, 6);
+                authEvt.rssi    = ppkt->rx_ctrl.rssi;
+                authEvt.channel = ppkt->rx_ctrl.channel;
+                authEvt.len = ppkt->rx_ctrl.sig_len < sizeof(authEvt.payload)
+                              ? ppkt->rx_ctrl.sig_len
+                              : static_cast<uint16_t>(sizeof(authEvt.payload));
+                memcpy(authEvt.payload, payload, authEvt.len);
+                BaseType_t woken = pdFALSE;
+                xQueueSendFromISR(authFrameQueue, &authEvt, &woken);
+                if (woken) portYIELD_FROM_ISR();
             }
         }
 
@@ -2176,8 +2188,6 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
     // SAE DoS, OWE abuse, FragAttacks PN reuse).
     detect_onWifiFrame(ppkt->payload, ppkt->rx_ctrl.sig_len,
                        ppkt->rx_ctrl.rssi, ppkt->rx_ctrl.channel);
-
-    framesSeen = framesSeen + 1;
 
     const uint8_t *p = ppkt->payload;
     uint16_t fc = u16(p);
@@ -2792,10 +2802,7 @@ void listScanTask(void *pv) {
     bleFramesSeen = 0;
     scanning = true;
     sentinel_yieldAndWait(1500);
-    {
-        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-        antihunter::lastResults.clear();
-    }
+    // Do NOT clear lastResults here — that creates a race where tick() sees "None yet."
     lastScanStart = millis();
     lastScanSecs = secs;
     lastScanForever = forever;
@@ -2864,12 +2871,11 @@ void listScanTask(void *pv) {
     Hit h;
 
     uint32_t nextTriResultsUpdate = millis() + 2000;
-
+    uint32_t lastTimeSyncBroadcast = 0;
 
     while ((forever && !stopRequested) ||
            (!forever && static_cast<int>(millis() - lastScanStart) < secs * 1000 && !stopRequested)) {
 
-        uint32_t lastTimeSyncBroadcast = 0;
         if (triangulationActive && triangulationInitiator &&
             (millis() - lastTimeSyncBroadcast) > 30000) {
             broadcastTimeSyncRequest();
@@ -2887,7 +2893,7 @@ void listScanTask(void *pv) {
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
             if (stopRequested) break;
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
@@ -2928,7 +2934,7 @@ void listScanTask(void *pv) {
                         }
                     }
 
-                    uniqueMacs.insert(bssid);
+                    if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
 
                     Hit wh;
                     memcpy(wh.mac, bssidBytes, 6);
@@ -2998,7 +3004,7 @@ void listScanTask(void *pv) {
                     }
                 }
 
-                uniqueMacs.insert(macStr);
+                if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(macStr);
 
                 if (isMatch) {
                     Hit bh;

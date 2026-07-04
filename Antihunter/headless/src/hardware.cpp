@@ -63,7 +63,7 @@ extern TaskHandle_t workerTaskHandle;
 extern std::atomic<bool> triangulationActive;
 uint32_t SafeSD::lastCheckTime = 0;
 bool SafeSD::lastCheckResult = false;
-static unsigned long lastSaveTime = 0;
+unsigned long lastSaveTime = 0;
 const unsigned long SAVE_DEBOUNCE_MS = 2000;
 
 // Tamper Detection Erase
@@ -1020,11 +1020,12 @@ void updateGPSLocation() {
 }
 
 
+static std::mutex g_sdLogMutex;
+
 void logToSD(const String &data) {
     if (!SafeSD::isAvailable()) return;
 
-    static std::mutex sdLogMutex;
-    std::lock_guard<std::mutex> sdLock(sdLogMutex);
+    std::lock_guard<std::mutex> sdLock(g_sdLogMutex);
 
     static uint32_t totalWrites = 0;
     static File logFile;
@@ -1103,6 +1104,7 @@ void logEventToSD(const char* path, const String& jsonLine) {
         return;
     }
 
+    std::lock_guard<std::mutex> sdLock(g_sdLogMutex);
     File f = SafeSD::open(path, FILE_APPEND);
     if (!f) {
         f = SafeSD::open(path, FILE_WRITE);

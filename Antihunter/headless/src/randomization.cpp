@@ -1311,6 +1311,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t lastBLEScan = 0;
     uint32_t lastMeshUpdate = 0;
     bool bleScanStarted = false;
+    uint32_t lastBleWindow = 0;
     const uint32_t MESH_IDENTITY_UPDATE_INTERVAL = 5000;
     const uint32_t BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
 
@@ -1440,12 +1441,11 @@ void randomizationDetectionTask(void *pv) {
         }
         
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan && bleAdvQueue) {
-            if (!bleScanStarted) {
-                if (!pBLEScan->isScanning()) {
-                    pBLEScan->start(0, false);
-                }
-                bleScanStarted = true;
-                vTaskDelay(pdMS_TO_TICKS(50));
+            if (millis() - lastBleWindow >= 2000) {
+                lastBleWindow = millis();
+                if (!bleScanStarted) { pBLEScan->setActiveScan(false); bleScanStarted = true; }
+                pBLEScan->getResults(600, false);
+                if (stopRequested) break;
             }
 
             int drainedCount = 0;
