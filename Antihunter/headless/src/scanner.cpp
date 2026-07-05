@@ -2401,6 +2401,39 @@ bool radioStartBLEChecked()
     return true;
 }
 
+// Counter-Surveillance scan (headless): cs_beginScan sets g_csEnabled+g_airtagEnabled
+// so detect_onBleAdv routes ads to airtag/follower/anomaly. Reuses radioStartBLEChecked
+// (initBLEOnce -> MyBLEScanCallbacks + setDuplicateFilter(false), so repeats flow for
+// follower persistence). No web endpoint on headless — triggered by CS_START mesh/serial cmd.
+void counterSurveilTask(void *pv)
+{
+    int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
+    bool forever = (duration <= 0);
+    scanSetCountdown(duration, forever);
+    cs_beginScan();
+    if (!radioStartBLEChecked()) {
+        Serial.println("[CS] BLE unavailable");
+        cs_endScan();
+        workerTaskHandle = nullptr;
+        scanning = false;
+        vTaskDelete(nullptr);
+        return;
+    }
+    Serial.printf("[CS] counter-surveillance scan started forever=%d dur=%d\n", forever, duration);
+    uint32_t start = millis();
+    while ((forever && !stopRequested) ||
+           (!forever && (int)(millis() - start) < duration * 1000 && !stopRequested)) {
+        if (pBLEScan && !pBLEScan->isScanning()) pBLEScan->start(0, false);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    if (pBLEScan) pBLEScan->stop();
+    cs_endScan();
+    Serial.println("[CS] counter-surveillance scan stopped");
+    workerTaskHandle = nullptr;
+    scanning = false;
+    vTaskDelete(nullptr);
+}
+
 
 // Mutex for macQueue access - prevents race conditions during cleanup
 static SemaphoreHandle_t macQueueMutex = nullptr;

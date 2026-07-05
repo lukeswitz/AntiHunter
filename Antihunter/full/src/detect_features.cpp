@@ -734,9 +734,159 @@ static uint32_t airtagPayloadHash(const uint8_t *payload, uint16_t len) {
     return h;
 }
 
+// Marauder WiFiScan.cpp:334/338 sliding-window fallback for shifted/malformed
+// frames the structured AD-walk (airtagDecode) can't parse.
+static bool airtagDecodeSliding(const uint8_t *adv, uint16_t len, uint8_t &statusOut) {
+    if (len < 4) return false;
+    for (uint16_t i = 0; i + 4 <= len; i++) {
+        if (adv[i] == 0x1E && adv[i+1] == 0xFF && adv[i+2] == 0x4C && adv[i+3] == 0x00) {
+            if (i + 6 < len && adv[i+4] == 0x12 && adv[i+5] == 0x19) { statusOut = adv[i+6]; return true; }
+            statusOut = 0; return true;
+        }
+        if (adv[i] == 0x4C && adv[i+1] == 0x00 && adv[i+2] == 0x12 && adv[i+3] == 0x19) {
+            if (i + 4 < len) { statusOut = adv[i+4]; return true; }
+            statusOut = 0; return true;
+        }
+    }
+    return false;
+}
+
+static uint32_t fnvStr(const String &s) {
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < s.length(); ++i) { h ^= (uint8_t)s[i]; h *= 16777619u; }
+    return h;
+}
+
+// Follower/stalk scoring: co-present + owner-absent + (mesh clusters OR single-node persist).
+// identityHash = on-air payload hash (cross-node stable within rotation window).
+void followerProcess(uint32_t identityHash, const String &nodeId, int8_t rssi, bool ownerNearby, uint32_t now) {
+    auto it = g_followers.find(identityHash);
+    if (it == g_followers.end()) {
+        if (g_followers.size() >= MAX_FOLLOWERS) {
+            uint32_t oldK = 0, oldT = UINT32_MAX;
+            for (const auto &kv : g_followers) if (kv.second.lastSeen < oldT) { oldT = kv.second.lastSeen; oldK = kv.first; }
+            g_followers.erase(oldK);
+        }
+        FollowerTrack nf{};
+        nf.identityHash = identityHash;
+        nf.firstSeen = now;
+        g_followers[identityHash] = nf;
+        it = g_followers.find(identityHash);
+    }
+    FollowerTrack &f = it->second;
+    f.lastSeen = now;
+    f.observations++;
+    if (!ownerNearby) f.ownerAbsentCount++;
+    f.clusters.insert(fnvStr(nodeId));
+    if (meshEnabled && meshRateGate("CSS_" + String(identityHash, HEX), 30000))
+        sendToSerial1(getNodeId() + ": CS_SIGHT:" + String(identityHash, HEX) + ":" + String(rssi), true);
+
+    uint32_t co = now - f.firstSeen;
+    int absentPct = f.observations ? (int)((100u * f.ownerAbsentCount) / f.observations) : 0;
+    bool clusterOk = f.clusters.size() >= cs_min_clusters.load();
+    bool persistOk = co >= cs_persist_ms.load();
+    if (!f.alerted && co >= cs_copresent_ms.load() && (clusterOk || persistOk) &&
+        absentPct >= (int)cs_owner_absent_pct_x100.load()) {
+        f.alerted = true;
+        String line = String("{\"identity\":\"") + String(identityHash, HEX) +
+                      "\",\"clusters\":" + String((unsigned)f.clusters.size()) +
+                      ",\"owner_absent_pct\":" + String(absentPct) +
+                      ",\"copresent_ms\":" + String(co) +
+                      ",\"rssi\":" + String(rssi) +
+                      ",\"reason\":\"FOLLOWER\",\"ts\":" + String(now) + "}";
+        logEventToSD("/ble_attack.jsonl", line);
+        if (meshEnabled && meshRateGate("FOLLOWER_" + String(identityHash, HEX), 60000))
+            sendToSerial1(getNodeId() + ": BLE_ATTACK:Follower:" + String(identityHash, HEX) +
+                          ":clusters=" + String((unsigned)f.clusters.size()) + ":absent=" + String(absentPct), true);
+        quorum_addReport("BLE_ATTACK", String("Follower"), getNodeId(), rssi);
+    }
+}
+
+void followerAddCluster(uint32_t identityHash, const String &nodeId, uint32_t now) {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    auto it = g_followers.find(identityHash);
+    if (it == g_followers.end()) return;   // only enrich locally-seen tracks
+    it->second.clusters.insert(fnvStr(nodeId));
+    it->second.lastSeen = now;
+    // ponytail: peer sighting enriches cluster set; alert re-scored on next local adv (trackers beacon ~1-2s)
+}
+
+// Apple continuity message type = byte after mfg 4C 00.
+static bool appleContinuitySubtype(const uint8_t *adv, uint16_t len, uint8_t &out) {
+    uint16_t off = 0;
+    while (off + 2 <= len) {
+        uint8_t l = adv[off];
+        if (l == 0) { off++; continue; }
+        if (off + 1 + l > len) return false;
+        if (adv[off+1] == 0xFF && l >= 4 && adv[off+2] == 0x4C && adv[off+3] == 0x00) { out = adv[off+4]; return true; }
+        off += 1 + l;
+    }
+    return false;
+}
+
+// Impossible-rotation: real Apple holds a continuity identity ~15 min; a spam tool
+// (Flipper/nRF) cycles the same subtype across many MACs/sec. Closes the 2026-05-22
+// rate-gate caveat on BLE_ATTACK_SIGS.
+struct CsRotWindow { uint32_t start{}; PsramSet<uint64_t> macs; bool alerted{}; };
+static PsramMap<uint8_t, CsRotWindow> g_csRot;
+
+void rotationAnomaly(const uint8_t *payload, uint16_t len, uint64_t mac, int8_t rssi, uint32_t now) {
+    uint8_t subtype;
+    if (!appleContinuitySubtype(payload, len, subtype)) return;
+    CsRotWindow &w = g_csRot[subtype];
+    if (now - w.start > 1000) { w.start = now; w.macs.clear(); w.alerted = false; }
+    w.macs.insert(mac);
+    if (!w.alerted && w.macs.size() > cs_rotation_rate.load()) {
+        w.alerted = true;
+        String line = String("{\"subtype\":") + String(subtype) +
+                      ",\"distinct_macs\":" + String((unsigned)w.macs.size()) +
+                      ",\"rssi\":" + String(rssi) +
+                      ",\"reason\":\"BLE_SPAM\",\"ts\":" + String(now) + "}";
+        logEventToSD("/ble_attack.jsonl", line);
+        if (meshEnabled && meshRateGate("BLESPAM_" + String(subtype), 30000))
+            sendToSerial1(getNodeId() + ": BLE_ATTACK:BLE_Spam:subtype=" + String(subtype) +
+                          ":macs=" + String((unsigned)w.macs.size()), true);
+        quorum_addReport("BLE_ATTACK", String("BLE_Spam"), getNodeId(), rssi);
+        g_csSpamAlerts.fetch_add(1);
+    }
+}
+
+// Find-My exfil (Send My / OpenHaystack modem): a real tag holds one key ~15 min,
+// so its payload hash recurs, not "new". A modem streams NEW keys to push payload
+// bits. Flag on new-key rate; static ambient tags don't recur as new -> low FP.
+// ponytail: threshold = 4x rotation_rate (~20 new keys/10s); one knob, defensible default.
+static PsramMap<uint32_t, uint32_t> g_csKeySeen;   // pHash -> firstSeen
+static uint32_t g_csExfilWinStart = 0, g_csExfilNewKeys = 0;
+static bool g_csExfilAlerted = false;
+
+void exfilCadence(uint32_t pHash, int8_t rssi, uint32_t now) {
+    if (now - g_csExfilWinStart > 10000) { g_csExfilWinStart = now; g_csExfilNewKeys = 0; g_csExfilAlerted = false; }
+    if (g_csKeySeen.find(pHash) == g_csKeySeen.end()) {
+        if (g_csKeySeen.size() >= 256) {
+            uint32_t oldK = 0, oldT = UINT32_MAX;
+            for (const auto &kv : g_csKeySeen) if (kv.second < oldT) { oldT = kv.second; oldK = kv.first; }
+            g_csKeySeen.erase(oldK);
+        }
+        g_csKeySeen[pHash] = now;
+        g_csExfilNewKeys++;
+    }
+    if (!g_csExfilAlerted && g_csExfilNewKeys > cs_rotation_rate.load() * 4) {
+        g_csExfilAlerted = true;
+        String line = String("{\"new_keys_10s\":") + String(g_csExfilNewKeys) +
+                      ",\"rssi\":" + String(rssi) +
+                      ",\"reason\":\"FINDMY_EXFIL\",\"ts\":" + String(now) + "}";
+        logEventToSD("/ble_attack.jsonl", line);
+        if (meshEnabled && meshRateGate("FMEXFIL", 30000))
+            sendToSerial1(getNodeId() + ": BLE_ATTACK:FindMy_Exfil:newkeys=" + String(g_csExfilNewKeys), true);
+        quorum_addReport("BLE_ATTACK", String("FindMy_Exfil"), getNodeId(), rssi);
+        g_csExfilAlerts.fetch_add(1);
+    }
+}
+
 void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len) {
     uint8_t status = 0;
-    if (!airtagDecode(payload, len, status)) return;
+    if (!airtagDecode(payload, len, status) &&
+        !airtagDecodeSliding(payload, len, status)) return;
 
     // Replay check: same payload bytes under multiple MACs.
     uint32_t pHash = airtagPayloadHash(payload, len);
@@ -815,6 +965,9 @@ void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uin
     }
     p.lastRssi = rssi;
     p.lastSeen = now;
+
+    followerProcess(pHash, getNodeId(), rssi, maintained, now);
+    if (g_csEnabled.load()) exfilCadence(pHash, rssi, now);
 }
 
 String airtag_getPresenceJson() {
@@ -858,12 +1011,42 @@ size_t airtag_count() {
     return g_airtag.size();
 }
 
+String cs_getResultsJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "{\"present\":" + airtag_getPresenceJson() + ",\"followers\":[";
+    bool first = true;
+    for (auto &kv : g_followers) {
+        FollowerTrack &f = kv.second;
+        if (!first) out += ",";
+        first = false;
+        int absentPct = f.observations ? (int)((100u * f.ownerAbsentCount) / f.observations) : 0;
+        out += "{\"identity\":\"" + String(f.identityHash, HEX) + "\"" +
+               ",\"clusters\":" + String((unsigned)f.clusters.size()) +
+               ",\"observations\":" + String(f.observations) +
+               ",\"owner_absent_pct\":" + String(absentPct) +
+               ",\"alerted\":" + String(f.alerted ? "true" : "false") +
+               ",\"first\":" + String(f.firstSeen) +
+               ",\"last\":" + String(f.lastSeen) + "}";
+    }
+    out += "]}";
+    return out;
+}
+
 // =============================================================================
 // Feature 3: BLE tracker rotation un-linking
 // =============================================================================
 // struct VanishedTracker now in detect_internal.h
 PsramVec<VanishedTracker> g_vanished;
 PsramMap<uint32_t, TrackerChain> g_chains;
+PsramMap<uint32_t, FollowerTrack> g_followers;
+std::atomic<uint32_t> cs_copresent_ms{600000};
+std::atomic<uint32_t> cs_persist_ms{900000};
+std::atomic<uint32_t> cs_min_clusters{2};
+std::atomic<uint32_t> cs_rotation_rate{5};
+std::atomic<uint32_t> cs_owner_absent_pct_x100{80};
+std::atomic<bool> g_csEnabled{false};
+std::atomic<uint32_t> g_csSpamAlerts{0};   // session count of BLE_SPAM alerts (telemetry + selftest)
+std::atomic<uint32_t> g_csExfilAlerts{0};  // session count of FINDMY_EXFIL alerts
 static uint32_t g_chainSeq = 1;
 static constexpr uint32_t TRACKER_VANISH_MS    = 60000;
 static constexpr uint32_t TRACKER_LINK_WINDOW  = 90000;

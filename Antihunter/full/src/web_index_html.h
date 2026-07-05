@@ -93,6 +93,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
       .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       #scanStatus{min-width:130px;justify-content:flex-start}
+      .statx-ticker{display:inline-flex;min-width:0}
+      .statx-track{display:inline-flex;align-items:center}
+      .statx-real{display:inline-flex;align-items:center;gap:6px;padding-right:6px}
+      .statx-dup{display:none;pointer-events:none}
+      @keyframes statxScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+      @media(prefers-reduced-motion:reduce){.statx-track{animation:none}}
       #gpsStatus{min-width:60px;justify-content:flex-start}
       #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
       @keyframes scanPulse{0%,100%{box-shadow:var(--glow)}50%{box-shadow:0 0 20px rgba(96,160,224,0.3),0 0 40px rgba(96,160,224,0.1)}}
@@ -131,7 +137,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details>summary::-webkit-details-marker{display:none}
       @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
-      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-top{width:100%;gap:10px}.header-right{flex-basis:100%;flex-wrap:nowrap;justify-content:flex-end}.header-right .btn{flex-shrink:0}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:5px;flex-wrap:wrap;justify-content:flex-start;flex:1 1 0;min-width:0}.status-item{font-size:9px;padding:3px 8px}.status-item::before{width:5px;height:5px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
+      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-top{width:100%;gap:10px}.header-right{flex-basis:100%;flex-wrap:nowrap;justify-content:flex-end}.header-right .btn{flex-shrink:0}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:5px;flex-wrap:wrap;justify-content:flex-start;flex:1 1 0;min-width:0}#scanStatus{min-width:0}.status-item{font-size:9px;padding:3px 8px}.statx-ticker{overflow:hidden;flex:1 1 auto;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12px,#000 calc(100% - 12px),transparent);mask-image:linear-gradient(90deg,transparent,#000 12px,#000 calc(100% - 12px),transparent)}.statx-track{animation:statxScroll 18s linear infinite;will-change:transform}.statx-track:hover,.statx-ticker:active .statx-track{animation-play-state:paused}.statx-dup{display:inline-flex}.status-item::before{width:5px;height:5px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
       @media(max-width:820px){.header{flex-wrap:wrap;row-gap:11px}.header h1{order:1}.header-right{order:2;margin-left:auto;width:auto;justify-content:flex-end}.page-tabs{order:3;flex-basis:100%;width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
       [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
@@ -251,9 +257,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <div class="header-right">
         <div class="status-bar">
           <div class="status-item idle" id="scanStatus">Idle</div>
-          <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
-          <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;display:none;" title="Click to toggle Sentinel">SENTINEL</div>
-          <div class="status-item" id="gpsStatus">GPS</div>
+          <div class="statx-ticker"><div class="statx-track">
+            <div class="statx-real" id="statxReal">
+              <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
+              <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;display:none;" title="Click to toggle Sentinel">SENTINEL</div>
+              <div class="status-item" id="gpsStatus">GPS</div>
+            </div>
+            <div class="statx-real statx-dup" id="statxDup" aria-hidden="true"></div>
+          </div></div>
         </div>
         <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -424,6 +435,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
+                <option value="counter-surveil">Counter-Surveillance / Find My (BLE)</option>
                 <option value="probe-scan">Probe Request Scanner</option>
               </select>
 
@@ -4736,7 +4748,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const detMethodLabels = {
           'device-scan': 'Device Scan', 'drone-detection': 'Drone Detect',
           'blue-team': 'Blue Team', 'baseline': 'Baseline',
-          'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect'
+          'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect',
+          'counter-surveil': 'Counter-Surveil'
         };
         setScanStatus(detMethodLabels[detectionMethod] || 'Scanning', 'active');
 
@@ -4766,6 +4779,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         if (detectionMethod === 'drone-detection') {
           endpoint = '/drone';
+          fd.delete('detection');
+        }
+        if (detectionMethod === 'counter-surveil') {
+          endpoint = '/countersurveil';
           fd.delete('detection');
         }
 
@@ -5764,6 +5781,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['mesh_guard','Mesh Disruption']
       ];
       const DET_THRESHOLDS=[
+        ['cs_copresent_ms','Follower: co-present (ms)',60000,3600000],
+        ['cs_min_clusters','Follower: min node clusters',1,10],
+        ['cs_persist_ms','Follower: single-node persist (ms)',60000,3600000],
+        ['cs_owner_absent_pct','Follower: owner-absent %',10,100],
+        ['cs_rotation_rate','BLE-spam: MACs/sec',2,50],
         ['pmkid_window','PMKID Window (ms)',1000,60000],
         ['pmkid_min_bssids','PMKID Min BSSIDs',2,10],
         ['sae_window','SAE Window (ms)',1000,60000],
@@ -5961,6 +5983,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       detLoadCfg();
       setInterval(()=>{ if(pageActive('detect')) detAllTicks(); },5000);
       detAllTicks();
+      (function(){
+        function statxSync(){
+          var real=document.getElementById('statxReal'), dup=document.getElementById('statxDup');
+          if(!real||!dup)return;
+          dup.replaceChildren();
+          for(var i=0;i<real.children.length;i++){var n=real.children[i].cloneNode(true);n.removeAttribute('id');dup.appendChild(n);}
+        }
+        var real=document.getElementById('statxReal');
+        if(real){statxSync();new MutationObserver(statxSync).observe(real,{childList:true,subtree:true,attributes:true,characterData:true});}
+      })();
     </script>
   </body>
 </html>

@@ -656,6 +656,40 @@ static void handleDroneStart(const String &command)
   }
 }
 
+static void handleCounterSurveilStart(const String &command)
+{
+  String params = command.substring(9);   // "CS_START:"
+  int secs = params.toInt();
+  bool forever = false;
+  int colonPos = params.indexOf(':');
+  if (colonPos > 0)
+  {
+    secs = params.substring(0, colonPos).toInt();
+    if (params.substring(colonPos + 1) == "FOREVER") forever = true;
+  }
+  if (secs < 0) secs = 0;
+  if (secs > 86400) secs = 86400;
+
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    Serial.println("[MESH] Radio busy, rejecting CS_START");
+    sendToSerial1(nodeId + ": CS_ACK:BUSY", true);
+  } else {
+    currentScanMode = SCAN_BLE;
+    stopRequested = false;
+    scanning = true;
+    ahCreateTask(counterSurveilTask, "cs", 8192,
+                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    Serial.printf("[MESH] Started counter-surveillance scan (%ds)\n", secs);
+    sendToSerial1(nodeId + ": CS_ACK:STARTED", true);
+  }
+}
+
+static void handleCounterSurveilResults(const String &command)
+{
+  (void)command;
+  Serial.println(cs_getResultsJson());
+}
+
 static void handleDeauthStart(const String &command)
 {
   String params = command.substring(13);
@@ -1709,6 +1743,8 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("BASELINE_STATUS"))     handleBaselineStatus(command);
   else if (command.startsWith("DEVICE_SCAN_START:"))  handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
+  else if (command.startsWith("CS_START:"))           handleCounterSurveilStart(command);
+  else if (command.startsWith("CS_RESULTS"))          handleCounterSurveilResults(command);
   else if (command.startsWith("DEAUTH_START:"))       handleDeauthStart(command);
   else if (command.startsWith("RANDOMIZATION_START:")) handleRandomizationStart(command);
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);

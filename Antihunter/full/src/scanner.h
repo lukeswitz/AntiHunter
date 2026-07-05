@@ -237,6 +237,7 @@ void rebuildIdentityMacSnapshot();
 void saveTargetsList(const String &txt);
 void snifferScanTask(void *pv);
 void listScanTask(void *pv);
+void counterSurveilTask(void *pv);
 void baselineDetectionTask(void *pv);
 void blueTeamTask(void *pv);
 String getDeauthReasonText(uint16_t reasonCode);

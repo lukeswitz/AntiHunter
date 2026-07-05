@@ -775,6 +775,37 @@ void registerRemainingRoutes() {
   server->on("/drone-log", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "application/json", getDroneEventLog()); });
 
+  server->on("/countersurveil", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          req->send(409, "text/plain", "Radio busy - stop current scan first");
+          return;
+      }
+      int secs = 0;
+      bool forever = false;
+      if (req->hasParam("forever", true)) forever = true;
+      if (req->hasParam("secs", true)) {
+          int v = req->getParam("secs", true)->value().toInt();
+          if (v < 0) v = 0;
+          if (v > 86400) v = 86400;
+          secs = v;
+      }
+      currentScanMode = SCAN_BLE;
+      stopRequested = false;
+      req->send(200, "text/plain", forever ?
+                "Counter-surveillance scan starting (forever)" :
+                ("Counter-surveillance scan starting for " + String(secs) + "s"));
+      if (!workerTaskHandle) {
+          scanning = true;
+          ahCreateTask(counterSurveilTask, "cs", 8192,
+                       reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
+                       1, &workerTaskHandle, 1);
+      }
+  });
+  server->on("/countersurveil/results", HTTP_GET, [](AsyncWebServerRequest *r)
+             { r->send(200, "application/json", cs_getResultsJson()); });
+  server->on("/countersurveil/status", HTTP_GET, [](AsyncWebServerRequest *r)
+             { r->send(200, "application/json", String("{\"running\":") + (cs_isRunning() ? "true" : "false") + "}"); });
+
   server->on("/drone/status", HTTP_GET, [](AsyncWebServerRequest *r)
              {
         String status = "{";

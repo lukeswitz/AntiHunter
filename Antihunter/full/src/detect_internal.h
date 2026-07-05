@@ -69,6 +69,17 @@ struct AirTagReplayEntry {
     bool persisted{};  // already on SD — skip re-write
 };
 
+struct FollowerTrack {
+    uint32_t identityHash{};
+    uint32_t firstSeen{};
+    uint32_t lastSeen{};
+    uint16_t observations{};
+    uint16_t ownerAbsentCount{};
+    PsramSet<uint32_t> clusters;   // FNV(nodeId) set — local + mesh peers
+    bool alerted{};
+};
+constexpr size_t MAX_FOLLOWERS = 64;
+
 struct VanishedTracker {
     uint8_t addr[6];
     char vendor[16];
@@ -93,6 +104,18 @@ extern std::atomic<uint32_t> g_huntCooldown;
 extern std::atomic<uint32_t> g_krackEvents;
 extern PsramMap<uint64_t, AirTagPresence> g_airtag;
 extern PsramMap<uint32_t, AirTagReplayEntry> g_airtagReplay;
+extern PsramMap<uint32_t, FollowerTrack> g_followers;
+extern std::atomic<uint32_t> cs_copresent_ms;
+extern std::atomic<uint32_t> cs_persist_ms;
+extern std::atomic<uint32_t> cs_min_clusters;
+extern std::atomic<uint32_t> cs_rotation_rate;
+extern std::atomic<uint32_t> cs_owner_absent_pct_x100;
+void followerAddCluster(uint32_t identityHash, const String &nodeId, uint32_t now);
+extern std::atomic<bool> g_csEnabled;
+extern std::atomic<uint32_t> g_csSpamAlerts;
+extern std::atomic<uint32_t> g_csExfilAlerts;
+void rotationAnomaly(const uint8_t *payload, uint16_t len, uint64_t mac, int8_t rssi, uint32_t now);
+String cs_getResultsJson();
 extern PsramVec<String> g_baitSsids;
 extern PsramMap<uint32_t, TrackerChain> g_chains;
 extern PsramMap<uint64_t, HandshakeReconstruction> g_hshk;

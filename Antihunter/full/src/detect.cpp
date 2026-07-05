@@ -2158,6 +2158,7 @@ static const WatchEntry kWatch[] = {
     {0xFD59, 0xFFFF, 0, {0,0,0,0}, "SmartTagUnreg"},
     {0xFD5A, 0xFFFF, 0, {0,0,0,0}, "SamsungSmartTag"},
     {0xFEAA, 0xFFFF, 1, {0x40,0,0,0}, "GoogleFMDN"},
+    {0xFCB2, 0xFFFF, 0, {0,0,0,0}, "DULT"},
     {0xFFFA, 0xFFFF, 1, {0x0D,0,0,0}, "OpenDroneID"},
     {0,       0x004C, 2, {0x12,0x19,0,0}, "AirTag_or_FindMy"},
     {0,       0x004C, 1, {0x07,0,0,0}, "AppleProxPair"},
@@ -2463,6 +2464,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
 
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     if (g_airtagEnabled.load()) airtagProcess(addr, rssi, payload, len);
+    if (g_csEnabled.load()) rotationAnomaly(payload, len, packMac(addr), rssi, now);
     if (!g_trackerEnabled.load()) return;
     uint64_t k = packMac(addr);
     auto it = g_bleTrackers.find(k);
@@ -2648,6 +2650,73 @@ uint32_t hshk_krackEvents()                  { return ah_detect::hshk_krackEvent
 String airtag_getPresenceJson()              { return ah_detect::airtag_getPresenceJson(); }
 void airtag_clear()                          { ah_detect::airtag_clear(); }
 size_t airtag_count()                        { return ah_detect::airtag_count(); }
+void cs_beginScan() {
+    std::lock_guard<std::recursive_mutex> lk(ah_detect::g_mtx);
+    ah_detect::g_followers.clear();
+    ah_detect::g_csEnabled.store(true);
+    ah_detect::g_airtagEnabled.store(true);
+}
+void cs_endScan() {
+    ah_detect::g_csEnabled.store(false);
+    ah_detect::g_airtagEnabled.store(false);
+}
+String cs_getResultsJson()                   { return ah_detect::cs_getResultsJson(); }
+bool cs_isRunning()                          { return ah_detect::g_csEnabled.load(); }
+
+#ifdef ANTIHUNTER_SELFTEST
+// Boot-time E2E self-test: drives the real CS pipeline in-process, prints PASS/FAIL
+// over serial TX. No AP, no WiFi, no command injection. (Parity with headless.)
+void cs_selfTest() {
+    Serial.println("[CS_SELFTEST] === begin ===");
+    ah_detect::cs_copresent_ms.store(0);
+    ah_detect::cs_persist_ms.store(0);
+    ah_detect::cs_min_clusters.store(1);
+    ah_detect::cs_owner_absent_pct_x100.store(0);
+    ah_detect::cs_rotation_rate.store(1);
+    ah_detect::g_csSpamAlerts.store(0);
+    ah_detect::g_csExfilAlerts.store(0);
+    cs_beginScan();
+
+    uint8_t adv[31];
+    memset(adv, 0, sizeof(adv));
+    adv[0]=0x1E; adv[1]=0xFF; adv[2]=0x4C; adv[3]=0x00; adv[4]=0x12; adv[5]=0x19; adv[6]=0x00;
+    for (int i = 7; i < 31; i++) adv[i] = (uint8_t)(0xA0 + i);
+    uint8_t mac1[6] = {0xDE,0xAD,0xBE,0xEF,0x00,0x01};
+    for (int k = 0; k < 3; k++) ah_detect::onBleAdv(mac1, -50, adv, 31, nullptr);
+    bool t1 = (airtag_count() >= 1) && (cs_getResultsJson().indexOf("\"alerted\":true") >= 0);
+
+    {
+        std::lock_guard<std::recursive_mutex> lk(ah_detect::g_mtx);
+        for (auto &kv : ah_detect::g_followers)
+            ah_detect::followerAddCluster(kv.first, "peer-B", millis());
+    }
+    String r2 = cs_getResultsJson();
+    bool t2 = (r2.indexOf("\"clusters\":2") >= 0);
+
+    uint8_t spam[6] = {0x05,0xFF,0x4C,0x00,0x07,0x19};
+    for (int k = 0; k < 4; k++) {
+        uint8_t m[6] = {0x11,0x22,0x33,0x44,0x55,(uint8_t)(0x60+k)};
+        ah_detect::onBleAdv(m, -50, spam, 6, nullptr);
+    }
+    bool t3 = (ah_detect::g_csSpamAlerts.load() >= 1);
+
+    for (int k = 0; k < 7; k++) {
+        uint8_t m[6] = {0x22,0x33,0x44,0x55,0x66,(uint8_t)(0x70+k)};
+        adv[10] = (uint8_t)(0xE0 + k);
+        ah_detect::onBleAdv(m, -50, adv, 31, nullptr);
+    }
+    bool t4 = (ah_detect::g_csExfilAlerts.load() >= 1);
+
+    cs_endScan();
+    Serial.printf("[CS_SELFTEST] T1 decode+follower = %s\n", t1 ? "PASS" : "FAIL");
+    Serial.printf("[CS_SELFTEST] T2 mesh-clusters   = %s\n", t2 ? "PASS" : "FAIL");
+    Serial.printf("[CS_SELFTEST] T3 BLE_SPAM        = %s (alerts=%u)\n", t3 ? "PASS" : "FAIL", (unsigned)ah_detect::g_csSpamAlerts.load());
+    Serial.printf("[CS_SELFTEST] T4 FINDMY_EXFIL    = %s (alerts=%u)\n", t4 ? "PASS" : "FAIL", (unsigned)ah_detect::g_csExfilAlerts.load());
+    Serial.println(String("[CS_SELFTEST] results=") + r2);
+    Serial.println((t1 && t2 && t3 && t4) ? "[CS_SELFTEST] RESULT: PASS" : "[CS_SELFTEST] RESULT: FAIL");
+    Serial.println("[CS_SELFTEST] === end ===");
+}
+#endif
 String tracker_getChainsJson()               { return ah_detect::tracker_getChainsJson(); }
 void tracker_clearChains()                   { ah_detect::tracker_clearChains(); }
 size_t tracker_chainCount()                  { return ah_detect::tracker_chainCount(); }
@@ -2771,6 +2840,11 @@ void initializeDetect() {
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", false));
             ah_detect::g_trackerEnabled.store(p.getBool("trkOn", false));
             ah_detect::g_airtagEnabled.store(p.getBool("atgOn", false));
+            ah_detect::cs_copresent_ms.store(p.getULong("cs_cop", 600000));
+            ah_detect::cs_persist_ms.store(p.getULong("cs_per", 900000));
+            ah_detect::cs_min_clusters.store(p.getULong("cs_cl", 2));
+            ah_detect::cs_rotation_rate.store(p.getULong("cs_rr", 5));
+            ah_detect::cs_owner_absent_pct_x100.store(p.getULong("cs_oa", 80));
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));
             ah_detect::g_bloomGossipEnabled.store(p.getBool("blmgOn", false));
@@ -3013,6 +3087,11 @@ void detect_persistTunables() {
     p.putBool("pwnaOn", ah_detect::g_pwnaEnabled.load());
     p.putBool("trkOn", ah_detect::g_trackerEnabled.load());
     p.putBool("atgOn", ah_detect::g_airtagEnabled.load());
+    p.putULong("cs_cop", ah_detect::cs_copresent_ms.load());
+    p.putULong("cs_per", ah_detect::cs_persist_ms.load());
+    p.putULong("cs_cl",  ah_detect::cs_min_clusters.load());
+    p.putULong("cs_rr",  ah_detect::cs_rotation_rate.load());
+    p.putULong("cs_oa",  ah_detect::cs_owner_absent_pct_x100.load());
     p.putBool("tsfOn", ah_detect::g_tsfEnabled.load());
     p.putBool("ridOn", ah_detect::g_ridSpoofEnabled.load());
     p.putBool("blmgOn", ah_detect::g_bloomGossipEnabled.load());
@@ -3602,6 +3681,14 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         String src = msg.substring(13, p1);
         int rssi = msg.substring(p2 + 1).toInt();
         quorum_addReport("DEAUTH_FLOOD", src, fromNode, (int8_t)rssi);
+        return;
+    }
+    if (msg.startsWith("CS_SIGHT:")) {
+        // CS_SIGHT:<identityHex>:<rssi> — peer saw this tracker; fromNode = its location cluster
+        int p1 = msg.indexOf(':', 9);
+        if (p1 < 0) return;
+        uint32_t h = (uint32_t)strtoul(msg.substring(9, p1).c_str(), nullptr, 16);
+        ah_detect::followerAddCluster(h, fromNode, millis());
         return;
     }
     // === Existing handlers ===
@@ -4288,6 +4375,11 @@ String detect_getConfigJson() {
     j += _ijson("probe_rand_distinct", g_probeRandDistinctThresh.load());
     j += _ijson("hunt_cooldown_ms", g_huntCooldown.load());
     j += _ijson("tracker_window_ms", g_trackerWindowMs.load());
+    j += _ijson("cs_copresent_ms", cs_copresent_ms.load());
+    j += _ijson("cs_persist_ms", cs_persist_ms.load());
+    j += _ijson("cs_min_clusters", cs_min_clusters.load());
+    j += _ijson("cs_rotation_rate", cs_rotation_rate.load());
+    j += _ijson("cs_owner_absent_pct", cs_owner_absent_pct_x100.load());
     j += "}";
     return j;
 }
@@ -4371,6 +4463,11 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "probe_rand_total", g_probeRandTotalThresh);
     _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
+    _setu32(b, "cs_copresent_ms", cs_copresent_ms);
+    _setu32(b, "cs_persist_ms", cs_persist_ms);
+    _setu32(b, "cs_min_clusters", cs_min_clusters);
+    _setu32(b, "cs_rotation_rate", cs_rotation_rate);
+    _setu32(b, "cs_owner_absent_pct", cs_owner_absent_pct_x100);
     return true;
 }
 String detect_getHealthJson() {
