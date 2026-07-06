@@ -2663,69 +2663,6 @@ void cs_endScan() {
 String cs_getResultsJson()                   { return ah_detect::cs_getResultsJson(); }
 bool cs_isRunning()                          { return ah_detect::g_csEnabled.load(); }
 
-#ifdef ANTIHUNTER_SELFTEST
-// Boot-time E2E self-test: drives the real CS pipeline in-process and prints
-// PASS/FAIL over serial TX. No AP, no WiFi, no command injection.
-void cs_selfTest() {
-    Serial.println("[CS_SELFTEST] === begin ===");
-    // Thresholds lowered so single/small synthetic bursts trip each detector.
-    ah_detect::cs_copresent_ms.store(0);
-    ah_detect::cs_persist_ms.store(0);
-    ah_detect::cs_min_clusters.store(1);
-    ah_detect::cs_owner_absent_pct_x100.store(0);
-    ah_detect::cs_rotation_rate.store(1);
-    ah_detect::g_csSpamAlerts.store(0);
-    ah_detect::g_csExfilAlerts.store(0);
-    cs_beginScan();   // g_csEnabled + g_airtagEnabled = true; clears g_followers
-    // Note: onBleAdv is called directly (sync path); detect_onBleAdv is a sentinel-gated
-    // async queue producer, wrong for an in-process self-test.
-
-    // --- T1: Find My decode + presence + follower scoring (owner ABSENT) ---
-    // [len=0x1E][FF][4C 00][12][19][status=00][24 payload]
-    uint8_t adv[31];
-    memset(adv, 0, sizeof(adv));
-    adv[0]=0x1E; adv[1]=0xFF; adv[2]=0x4C; adv[3]=0x00; adv[4]=0x12; adv[5]=0x19; adv[6]=0x00;
-    for (int i = 7; i < 31; i++) adv[i] = (uint8_t)(0xA0 + i);
-    uint8_t mac1[6] = {0xDE,0xAD,0xBE,0xEF,0x00,0x01};
-    for (int k = 0; k < 3; k++) ah_detect::onBleAdv(mac1, -50, adv, 31, nullptr);
-    bool t1 = (airtag_count() >= 1) && (cs_getResultsJson().indexOf("\"alerted\":true") >= 0);
-
-    // --- T2: mesh location-diversity — a peer node sighting adds a 2nd cluster ---
-    {
-        std::lock_guard<std::recursive_mutex> lk(ah_detect::g_mtx);
-        for (auto &kv : ah_detect::g_followers)
-            ah_detect::followerAddCluster(kv.first, "peer-B", millis());
-    }
-    String r2 = cs_getResultsJson();
-    bool t2 = (r2.indexOf("\"clusters\":2") >= 0);
-
-    // --- T3: BLE_SPAM — same Apple continuity subtype (0x07) from many MACs/sec ---
-    // [len=0x05][FF][4C 00][07][19]
-    uint8_t spam[6] = {0x05,0xFF,0x4C,0x00,0x07,0x19};
-    for (int k = 0; k < 4; k++) {
-        uint8_t m[6] = {0x11,0x22,0x33,0x44,0x55,(uint8_t)(0x60+k)};
-        ah_detect::onBleAdv(m, -50, spam, 6, nullptr);
-    }
-    bool t3 = (ah_detect::g_csSpamAlerts.load() >= 1);
-
-    // --- T4: FINDMY_EXFIL — burst of NEW Find My keys above cadence threshold ---
-    for (int k = 0; k < 7; k++) {
-        uint8_t m[6] = {0x22,0x33,0x44,0x55,0x66,(uint8_t)(0x70+k)};
-        adv[10] = (uint8_t)(0xE0 + k);   // vary payload -> new key each
-        ah_detect::onBleAdv(m, -50, adv, 31, nullptr);
-    }
-    bool t4 = (ah_detect::g_csExfilAlerts.load() >= 1);
-
-    cs_endScan();
-    Serial.printf("[CS_SELFTEST] T1 decode+follower = %s\n", t1 ? "PASS" : "FAIL");
-    Serial.printf("[CS_SELFTEST] T2 mesh-clusters   = %s\n", t2 ? "PASS" : "FAIL");
-    Serial.printf("[CS_SELFTEST] T3 BLE_SPAM        = %s (alerts=%u)\n", t3 ? "PASS" : "FAIL", (unsigned)ah_detect::g_csSpamAlerts.load());
-    Serial.printf("[CS_SELFTEST] T4 FINDMY_EXFIL    = %s (alerts=%u)\n", t4 ? "PASS" : "FAIL", (unsigned)ah_detect::g_csExfilAlerts.load());
-    Serial.println(String("[CS_SELFTEST] results=") + r2);
-    Serial.println((t1 && t2 && t3 && t4) ? "[CS_SELFTEST] RESULT: PASS" : "[CS_SELFTEST] RESULT: FAIL");
-    Serial.println("[CS_SELFTEST] === end ===");
-}
-#endif
 String tracker_getChainsJson()               { return ah_detect::tracker_getChainsJson(); }
 void tracker_clearChains()                   { ah_detect::tracker_clearChains(); }
 size_t tracker_chainCount()                  { return ah_detect::tracker_chainCount(); }

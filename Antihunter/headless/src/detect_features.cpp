@@ -1045,7 +1045,7 @@ std::atomic<uint32_t> cs_min_clusters{2};
 std::atomic<uint32_t> cs_rotation_rate{5};
 std::atomic<uint32_t> cs_owner_absent_pct_x100{80};
 std::atomic<bool> g_csEnabled{false};
-std::atomic<uint32_t> g_csSpamAlerts{0};   // session count of BLE_SPAM alerts (telemetry + selftest)
+std::atomic<uint32_t> g_csSpamAlerts{0};   // session count of BLE_SPAM alerts (telemetry)
 std::atomic<uint32_t> g_csExfilAlerts{0};  // session count of FINDMY_EXFIL alerts
 static uint32_t g_chainSeq = 1;
 static constexpr uint32_t TRACKER_VANISH_MS    = 60000;

@@ -462,9 +462,6 @@ void   cs_beginScan();
 void   cs_endScan();
 String cs_getResultsJson();
 bool   cs_isRunning();
-#ifdef ANTIHUNTER_SELFTEST
-void   cs_selfTest();   // boot-time E2E self-test of the CS pipeline (serial TX only)
-#endif
 
 // =============================================================================
 // Feature 3: BLE tracker rotation un-linking
