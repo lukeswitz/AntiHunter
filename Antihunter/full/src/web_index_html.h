@@ -14,9 +14,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#f0775c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
-      .header{padding:10px 16px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;align-items:center;gap:12px;flex-wrap:wrap;row-gap:11px;box-shadow:var(--shad);position:sticky;top:0;z-index:100;min-height:54px}
+      .header{padding:11px 16px;border-bottom:1px solid var(--bord);background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);display:flex;flex-direction:column;gap:11px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
       .header h1{flex-shrink:0;margin:0;font-size:18px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-      .header-top{display:contents}
+      .header-bar{display:flex;align-items:center;gap:12px}
       .header-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:1;min-width:0;flex-wrap:wrap;justify-content:flex-end;row-gap:8px}
       .page-tabs{flex:0 0 auto;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
       .page-tabs::-webkit-scrollbar{display:none}
@@ -93,6 +93,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
       .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       #scanStatus{min-width:130px;justify-content:flex-start}
+      .statx-ticker{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap}
+      .statx-track{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;will-change:transform}
+      @media(max-width:760px){.header-bar:has(#scanStatus.active) .statx-track{animation:statxScroll 14s linear infinite}.header-bar:has(#scanStatus.active) .statx-ticker:hover .statx-track{animation-play-state:paused}.header-bar:has(#scanStatus.active) .theme-toggle{display:none}}
+      @keyframes statxScroll{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
+      @media(prefers-reduced-motion:reduce){.statx-track{animation:none}}
       #gpsStatus{min-width:60px;justify-content:flex-start}
       #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
       @keyframes scanPulse{0%,100%{box-shadow:var(--glow)}50%{box-shadow:0 0 20px rgba(96,160,224,0.3),0 0 40px rgba(96,160,224,0.1)}}
@@ -131,8 +136,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       details>summary::-webkit-details-marker{display:none}
       @media(min-width:900px){.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.grid-node-diag{display:grid;grid-template-columns:minmax(300px,auto) 1fr;gap:24px}.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
       @media(max-width:899px){.grid-2,.grid-node-diag{display:flex;flex-direction:column;gap:20px}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.container{padding:20px}.card{padding:18px}h1{font-size:18px}}
-      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.header-top{width:100%;gap:10px}.header-right{justify-content:flex-end}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}.status-bar{gap:5px;flex-wrap:wrap;justify-content:flex-end}.status-item{font-size:9px;padding:3px 8px}.status-item::before{width:5px;height:5px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
-      @media(max-width:820px){.header{flex-wrap:wrap;row-gap:11px}.header h1{order:1}.header-right{order:2;margin-left:auto;width:auto;justify-content:flex-end}.page-tabs{order:3;flex-basis:100%;width:100%;justify-content:flex-start}}
+      @media(max-width:600px){.header{padding:12px 16px;gap:10px}.header h1{font-size:16px}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}#scanStatus{min-width:0}.status-item{font-size:9px;padding:3px 8px}.status-item::before{width:5px;height:5px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
+      @media(max-width:820px){.page-tabs{width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
       [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#ff4444;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
@@ -238,21 +243,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     </script>
     <div id="toast"></div>
     <div class="header">
-      <div class="header-top">
+      <div class="header-bar">
         <h1><svg class="brand-shield" viewBox="3 1 18 22" fill="none" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span class="wm"><b>Anti</b>Hunter</span></h1>
-        <div class="page-tabs">
-          <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
-          <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
-          <div class="page-tab-btn" onclick="switchPage('system')">System</div>
-          <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
-        </div>
-      </div>
-      <div class="header-right">
-        <div class="status-bar">
-          <div class="status-item idle" id="scanStatus">Idle</div>
-          <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
-          <div class="status-item" id="gpsStatus">GPS</div>
-        </div>
+        <div class="statx-ticker"><div class="statx-track" id="statxTrack">
+            <div class="status-item idle" id="scanStatus">Idle</div>
+              <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
+              <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;display:none;" title="Click to toggle Sentinel">SENTINEL</div>
+              <div class="status-item" id="gpsStatus">GPS</div>
+        </div></div>
         <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <circle cx="12" cy="12" r="5"/>
@@ -277,6 +275,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </svg>
         </div>
         <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
+        <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
+        <div class="page-tab-btn" onclick="switchPage('system')">System</div>
+        <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
+        <div class="page-tab-btn" onclick="switchPage('detect')">Sentinel</div>
       </div>
     </div>
     <script>
