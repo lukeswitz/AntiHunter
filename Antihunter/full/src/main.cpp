@@ -246,7 +246,8 @@ void setup() {
     initializeDetect();
     delay(50);
     initializeGpsPps(21);
-    xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1);
+    if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1) != pdPASS)
+        Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
     {
         uint8_t selfMac[6];
         esp_wifi_get_mac(WIFI_IF_AP, selfMac);
@@ -263,7 +264,8 @@ void setup() {
         Serial.println("[SENTINEL] OFF on boot (enable manually)");
     }
 
-    xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1);
+    if (xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1) != pdPASS)
+        Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
     Serial.println("===== ANTIHUNTER DIGINODE v0.9.6 BETA BOOT COMPLETE =====");

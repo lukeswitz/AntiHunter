@@ -535,6 +535,8 @@ int odid_wifi_build_message_pack_beacon_frame(ODID_UAS_Data *UAS_Data, char *mac
 int odid_message_process_pack(ODID_UAS_Data *UAS_Data, uint8_t *pack, size_t buflen)
 {
     ODID_MessagePack_encoded *msg_pack_enc = (ODID_MessagePack_encoded *) pack;
+    if (buflen < 2 || msg_pack_enc->MsgPackSize > ODID_PACK_MAX_MESSAGES)
+        return -ENOMEM;
     size_t size = sizeof(*msg_pack_enc) - ODID_MESSAGE_SIZE * (ODID_PACK_MAX_MESSAGES - msg_pack_enc->MsgPackSize);
     if (size > buflen)
         return -ENOMEM;
@@ -602,6 +604,8 @@ int odid_wifi_receive_message_pack_nan_action_frame(ODID_UAS_Data *UAS_Data,
         return -EINVAL;
     len += sizeof(*nsda);
 
+    if (len + sizeof(*nsdea) > buf_size)
+        return -EINVAL;
     si = (struct ODID_service_info *)(buf + len);
     ret = odid_message_process_pack(UAS_Data, buf + len + sizeof(*si), buf_size - len - sizeof(*nsdea));
     if (ret < 0)

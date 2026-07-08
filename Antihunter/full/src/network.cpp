@@ -988,15 +988,17 @@ void registerRemainingRoutes() {
     String reason = req->hasParam("reason", true) ? req->getParam("reason", true)->value() : "Manual web request";
     req->send(200, "text/plain", "Secure erase initiated");
 
+    String* reasonPtr = new String(reason);
     if (xTaskCreate([](void* param) {
-        String* reasonPtr = static_cast<String*>(param);
+        String* rp = static_cast<String*>(param);
         delay(1000); // Give web server time to send response
-        bool success = executeSecureErase(*reasonPtr);
+        bool success = executeSecureErase(*rp);
         Serial.println(success ? "Erase completed" : "Erase failed");
-        delete reasonPtr;
+        delete rp;
         g_eraseWipeBusy.store(false);
         vTaskDelete(NULL);
-    }, "secure_erase", 8192, new String(reason), 1, NULL) != pdPASS) {
+    }, "secure_erase", 8192, reasonPtr, 1, NULL) != pdPASS) {
+        delete reasonPtr;
         g_eraseWipeBusy.store(false);
     } });
 
@@ -1026,10 +1028,11 @@ void registerRemainingRoutes() {
         return;
     }
     req->send(200, "text/plain", "Factory reset (" + tier + ") initiated — device will reboot");
+    String* tierPtr = new String(tier);
     if (xTaskCreate([](void* param) {
-        String* tierPtr = static_cast<String*>(param);
-        String t = *tierPtr;
-        delete tierPtr;
+        String* tp = static_cast<String*>(param);
+        String t = *tp;
+        delete tp;
         delay(800); // let response flush
         Serial.printf("[FACTORY] Reset requested: %s\n", t.c_str());
         bool ok;
@@ -1039,7 +1042,8 @@ void registerRemainingRoutes() {
         Serial.printf("[FACTORY] Reset %s %s — rebooting\n", t.c_str(), ok ? "OK" : "FAILED");
         delay(300);
         ESP.restart();
-    }, "factory_wipe", 8192, new String(tier), 1, NULL) != pdPASS) {
+    }, "factory_wipe", 8192, tierPtr, 1, NULL) != pdPASS) {
+        delete tierPtr;
         g_eraseWipeBusy.store(false);
     }
   });
@@ -1578,14 +1582,17 @@ void registerRemainingRoutes() {
       json += "\"active\":" + String(triangulationActive ? "true" : "false") + ",";
 
       // Add final result if available
-      if (apFinalResult.hasResult) {
-          json += "\"finalResult\":{";
-          json += "\"lat\":" + String(apFinalResult.latitude, 6) + ",";
-          json += "\"lon\":" + String(apFinalResult.longitude, 6) + ",";
-          json += "\"confidence\":" + String(apFinalResult.confidence * 100.0, 1) + ",";
-          json += "\"uncertainty\":" + String(apFinalResult.uncertainty, 1) + ",";
-          json += "\"coordinator\":\"" + apFinalResult.coordinatorNodeId + "\"";
-          json += "},";
+      {
+          std::lock_guard<std::mutex> lock(triangulationMutex);
+          if (apFinalResult.hasResult) {
+              json += "\"finalResult\":{";
+              json += "\"lat\":" + String(apFinalResult.latitude, 6) + ",";
+              json += "\"lon\":" + String(apFinalResult.longitude, 6) + ",";
+              json += "\"confidence\":" + String(apFinalResult.confidence * 100.0, 1) + ",";
+              json += "\"uncertainty\":" + String(apFinalResult.uncertainty, 1) + ",";
+              json += "\"coordinator\":\"" + apFinalResult.coordinatorNodeId + "\"";
+              json += "},";
+          }
       }
 
       // Add nodes array
@@ -2103,18 +2110,22 @@ void registerRemainingRoutes() {
     },
     NULL,
     [](AsyncWebServerRequest *r, uint8_t *data, size_t len, size_t index, size_t total) {
+        // request dtor free()s _tempObject on aborted uploads — back it with a malloc'd buffer (not new String) to avoid leak/UB
         if (index == 0) {
-            if (r->_tempObject) delete static_cast<String*>(r->_tempObject);
-            r->_tempObject = new String();
+            if (r->_tempObject) { free(r->_tempObject); r->_tempObject = nullptr; }
+            if (total == 0 || total > 8192) return;
+            r->_tempObject = malloc(total + 1);
         }
-        String* acc = static_cast<String*>(r->_tempObject);
-        if (!acc) return;
-        for (size_t i = 0; i < len; ++i) *acc += (char)data[i];
+        char* acc = static_cast<char*>(r->_tempObject);
+        if (!acc || index + len > total) return;
+        memcpy(acc + index, data, len);
         if (index + len == total) {
-            detect_setConfigFromJson(*acc);
-            detect_persistTunables();
-            delete acc;
+            acc[total] = '\0';
+            String json(acc);
+            free(acc);
             r->_tempObject = nullptr;
+            detect_setConfigFromJson(json);
+            detect_persistTunables();
         }
     });
 

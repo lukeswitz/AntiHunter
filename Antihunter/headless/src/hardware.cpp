@@ -29,7 +29,7 @@ HardwareSerial GPS(2);
 bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
-bool gpsValid = false;
+std::atomic<bool> gpsValid{false};
 SemaphoreHandle_t gpsMutex = nullptr;
 extern bool hbEnabled;
 extern uint32_t hbInterval;
@@ -91,11 +91,13 @@ uint32_t lastBatterySaverHeartbeat = 0;
 // SD & HW Init
 
 bool SafeSD::checkAvailability() {
+    static std::mutex sdCheckMutex;
+    std::lock_guard<std::mutex> lock(sdCheckMutex);
     uint32_t now = millis();
     if (now - lastCheckTime < CHECK_INTERVAL_MS) {
         return lastCheckResult;
     }
-    
+
     lastCheckTime = now;
     lastCheckResult = SD.begin(SD_CS_PIN);
     sdAvailable = lastCheckResult;

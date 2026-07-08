@@ -2955,8 +2955,12 @@ void sentinel_startAlwaysOn() {
     if (!g_sentinelUserEnabled.load()) return;
     if (scanning.load()) return;
     if (g_sentinelAlwaysOnActive.exchange(true)) return;
-    ahCreateTask(sentinelAlwaysOnTask, "Sentinel", 4096, NULL, 2,
-                 &g_sentinelTaskHandle, 1);
+    if (ahCreateTask(sentinelAlwaysOnTask, "Sentinel", 4096, NULL, 2,
+                     &g_sentinelTaskHandle, 1) != pdPASS) {
+        Serial.println("[SENTINEL] Task create failed - clearing active flag");
+        g_sentinelTaskHandle = nullptr;
+        g_sentinelAlwaysOnActive.store(false);
+    }
 }
 
 void sentinel_kill() {
@@ -3245,6 +3249,7 @@ void mesh_observeInbound(const String &sender, const String &body) {
 
 void detectTask(void *pv) {
     Serial.println("[DETECT] Task started");
+    if (!detectFrameQueue) Serial.println("[DETECT] WARNING: frame queue alloc failed (PSRAM) - detection inert");
     loadSnapshot();
     DetectFrameEvent ev;
     uint32_t lastGossip = millis();
@@ -3252,6 +3257,7 @@ void detectTask(void *pv) {
     uint32_t lastAgeSweep = millis();
     uint32_t lastPersist = millis();
     while (true) {
+        if (!detectFrameQueue) { vTaskDelay(pdMS_TO_TICKS(1000)); continue; }
         jammingEval(millis());
         if (xQueueReceive(detectFrameQueue, &ev, pdMS_TO_TICKS(100)) == pdTRUE) {
             switch (ev.kind) {

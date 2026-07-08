@@ -107,6 +107,7 @@ uint32_t reappearanceAlertWindow = 300000;
 int8_t significantRssiChange = 20;
 
 std::vector<Allowlist> allowlist;
+static std::mutex allowlistMutex;
 
 // Scan config
 RFScanConfig rfConfig = {
@@ -495,24 +496,29 @@ size_t getTargetCount()
     return targets.size();
 }
 
-bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
+static bool matchesIdentityMacLocked(const char* identityId, const uint8_t* mac)
 {
+    // caller must hold randMutex
     if (!identityId || strlen(identityId) == 0 || !mac) {
         return false;
     }
-
-    std::lock_guard<std::mutex> lock(randMutex);
 
     String idStr(identityId);
     auto it = deviceIdentities.find(idStr);
     if (it == deviceIdentities.end()) {
         return false;
     }
-    
+
     const DeviceIdentity& identity = it->second;
 
     return std::any_of(identity.macs.begin(), identity.macs.end(),
         [&](const auto& m) { return memcmp(m.bytes.data(), mac, 6) == 0; });
+}
+
+bool matchesIdentityMac(const char* identityId, const uint8_t* mac)
+{
+    std::lock_guard<std::mutex> lock(randMutex);
+    return matchesIdentityMacLocked(identityId, mac);
 }
 
 void rebuildIdentityMacSnapshot()
@@ -649,6 +655,7 @@ bool matchesSsid(const char *ssid)
     if (!ssid || ssid[0] == '\0') return false;
     String lower = String(ssid);
     lower.toLowerCase();
+    std::lock_guard<std::mutex> lock(randMutex);
     return std::any_of(ssidTargets.begin(), ssidTargets.end(),
         [&](const auto& s) { return lower == s; });
 }
@@ -662,10 +669,11 @@ bool matchesMac(const uint8_t *mac)
     }
     if (allFF || allZero) return false;
 
+    std::lock_guard<std::mutex> lock(randMutex);
     for (const auto &t : targets)
     {
         if (t.len == 0 && strlen(t.identityId) > 0) {
-            if (matchesIdentityMac(t.identityId, mac)) {
+            if (matchesIdentityMacLocked(t.identityId, mac)) {
                 return true;
             }
         }
@@ -2071,6 +2079,8 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
                            ? ppkt->rx_ctrl.sig_len
                            : static_cast<uint16_t>(sizeof(droneEvt.payload));
         memcpy(droneEvt.payload, ppkt->payload, copyLen);
+        if (copyLen < sizeof(droneEvt.payload))
+            memset(droneEvt.payload + copyLen, 0, sizeof(droneEvt.payload) - copyLen);
         droneEvt.len  = copyLen;
         droneEvt.rssi = ppkt->rx_ctrl.rssi;
         BaseType_t woken = pdFALSE;
@@ -3521,6 +3531,7 @@ static bool parseAllowlistEntry(const String &ln, Allowlist &out)
 String getAllowlistText()
 {
     String out;
+    std::lock_guard<std::mutex> lock(allowlistMutex);
     for (const auto &w : allowlist)
     {
         if (w.len == 6)
@@ -3544,6 +3555,7 @@ String getAllowlistText()
 void saveAllowlist(const String &txt)
 {
     prefs.putString("allowlist", txt);
+    std::lock_guard<std::mutex> lock(allowlistMutex);
     allowlist.clear();
     int start = 0;
     while (start < txt.length())
@@ -3566,6 +3578,7 @@ void saveAllowlist(const String &txt)
 
 bool isAllowlisted(const uint8_t *mac)
 {
+    std::lock_guard<std::mutex> lock(allowlistMutex);
     return std::any_of(allowlist.begin(), allowlist.end(),
         [&](const auto& w) {
             if (w.len == 6) return memcmp(w.bytes, mac, 6) == 0;

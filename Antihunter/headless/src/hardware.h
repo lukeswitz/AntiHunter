@@ -78,7 +78,7 @@ bool setRTCTimeFromEpoch(time_t epoch);
 
 // Sensors and GPS
 extern bool sdAvailable;
-extern bool gpsValid;
+extern std::atomic<bool> gpsValid;
 extern float gpsLat, gpsLon;
 extern SemaphoreHandle_t gpsMutex;
 extern String lastGPSData;
