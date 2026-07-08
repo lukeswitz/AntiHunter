@@ -209,7 +209,7 @@ extern std::vector<DeauthHit> deauthLog;
 extern std::mutex deauthLogMutex;
 extern std::atomic<uint32_t> deauthCount;
 extern std::atomic<uint32_t> disassocCount;
-extern bool deauthDetectionEnabled;
+extern std::atomic<bool> deauthDetectionEnabled;
 extern QueueHandle_t deauthQueue;
 
 // Baseline scan
