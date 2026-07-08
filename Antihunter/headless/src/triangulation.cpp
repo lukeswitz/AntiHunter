@@ -18,7 +18,7 @@ extern std::atomic<bool> stopRequested;
 extern ScanMode currentScanMode;
 extern TinyGPSPlus gps;
 extern float gpsLat, gpsLon;
-extern bool gpsValid;
+extern std::atomic<bool> gpsValid;
 extern TriangulationAccumulator triAccum;
 extern bool triangulationOrchestratorAssigned;
 

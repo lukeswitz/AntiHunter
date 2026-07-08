@@ -196,6 +196,7 @@ void probeDetectionTask(void *pv)
 
     if (probeRequestQueue == nullptr) {
         probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!probeRequestQueue) Serial.println("[PROBE] WARNING: queue alloc failed (PSRAM) - probe capture inert");
     } else {
         xQueueReset(probeRequestQueue);
     }
@@ -227,7 +228,7 @@ void probeDetectionTask(void *pv)
 
         ProbeRequestEvent event;
         int processedCount = 0;
-        while (xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 200) {
+        while (probeRequestQueue && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 200) {
             processedCount++;
 
             // --- Probe Response (stype 5) ---

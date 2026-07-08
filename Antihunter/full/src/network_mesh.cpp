@@ -1702,7 +1702,7 @@ void processMeshMessage(const String &message) {
                     [&](const TriangulateAckInfo& a) { return a.nodeId == sendingNode; });
                 if (ackIt != triangulateAcks.end()) {
                     ackIt->ackTimestamp = millis();
-                } else {
+                } else if (triangulateAcks.size() < MAX_ACK_INFO) {
                     TriangulateAckInfo newAck;
                     newAck.nodeId = sendingNode;
                     newAck.ackTimestamp = millis();
@@ -1824,10 +1824,15 @@ void processMeshMessage(const String &message) {
                             initNodeKalmanFilter(newNode);
                             updateNodeRSSI(newNode, rssi);
                             newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
-                            triangulationNodes.push_back(newNode);
-                            Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
+                            if (triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
+                                triangulationNodes.push_back(newNode);
+                                Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
                                         sendingNode.c_str(), hits, rssi,
                                         newNode.isBLE ? "BLE" : "WiFi");
+                            } else {
+                                Serial.printf("[TRIANGULATE] Node cap (%u) reached - dropping %s\n",
+                                        (unsigned)MAX_TRIANGULATION_NODES, sendingNode.c_str());
+                            }
                         }
 
                         // Mark this node as having reported (coordinator only)
@@ -1845,7 +1850,7 @@ void processMeshMessage(const String &message) {
 
                             // Node sent T_D but wasn't in our ACK list - their ACK was lost
                             // Add them to tracking so we wait for their data
-                            if (!foundInAcks) {
+                            if (!foundInAcks && triangulateAcks.size() < MAX_ACK_INFO) {
                                 TriangulateAckInfo lateAck;
                                 lateAck.nodeId = sendingNode;
                                 lateAck.ackTimestamp = millis();
@@ -1970,9 +1975,11 @@ void processMeshMessage(const String &message) {
                       initNodeKalmanFilter(newNode);
                       updateNodeRSSI(newNode, rssi);
                       newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
-                      triangulationNodes.push_back(newNode);
-                      Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
+                      if (triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
+                          triangulationNodes.push_back(newNode);
+                          Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
                                     sendingNode.c_str(), rssi, newNode.distanceEstimate);
+                      }
                   }
                   }
                 }
@@ -1990,16 +1997,18 @@ void processMeshMessage(const String &message) {
             if (gpsIdx > 0 && confIdx > 0 && uncIdx > 0) {
                 String gpsStr = payload.substring(gpsIdx + 4, confIdx - 1);
                 int comma = gpsStr.indexOf(',');
-                if (comma > 0) {
-                    apFinalResult.latitude = gpsStr.substring(0, comma).toFloat();
-                    apFinalResult.longitude = gpsStr.substring(comma + 1).toFloat();
+                {
+                    std::lock_guard<std::mutex> lock(triangulationMutex);
+                    if (comma > 0) {
+                        apFinalResult.latitude = gpsStr.substring(0, comma).toFloat();
+                        apFinalResult.longitude = gpsStr.substring(comma + 1).toFloat();
+                    }
+                    apFinalResult.confidence = payload.substring(confIdx + 5, uncIdx - 1).toFloat() / 100.0;
+                    apFinalResult.uncertainty = payload.substring(uncIdx + 4).toFloat();
+                    apFinalResult.hasResult = true;
+                    apFinalResult.timestamp = millis();
+                    apFinalResult.coordinatorNodeId = sendingNode;  // Store which node sent the final result
                 }
-
-                apFinalResult.confidence = payload.substring(confIdx + 5, uncIdx - 1).toFloat() / 100.0;
-                apFinalResult.uncertainty = payload.substring(uncIdx + 4).toFloat();
-                apFinalResult.hasResult = true;
-                apFinalResult.timestamp = millis();
-                apFinalResult.coordinatorNodeId = sendingNode;  // Store which node sent the final result
 
                 Serial.printf("[TRIANGULATE] Received coordinator final result from %s: %.6f,%.6f conf=%.1f%% unc=%.1fm\n",
                             apFinalResult.coordinatorNodeId.c_str(),

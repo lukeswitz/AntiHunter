@@ -29,7 +29,7 @@ extern TaskHandle_t workerTaskHandle;
 extern bool sdAvailable;
 extern bool meshEnabled;
 extern float gpsLat, gpsLon;
-extern bool gpsValid;
+extern std::atomic<bool> gpsValid;
 extern NimBLEScan *pBLEScan;
 extern String getNodeId();
 extern void logToSD(const String &msg);
@@ -1157,6 +1157,7 @@ bool flushBaselineCacheToSD() {
 
     // Separate dirty entries into updates (existing on SD) and appends (new)
     std::vector<std::pair<uint64_t, BaselineDevice>> updates;
+    std::vector<uint32_t> updatePositions;   // parallel to updates: SD seek offset captured under lock
     std::vector<std::pair<uint64_t, BaselineDevice>> appends;
 
     {
@@ -1166,8 +1167,10 @@ bool flushBaselineCacheToSD() {
         }
         for (auto& entry : baselineCache) {
             if (entry.second.dirtyFlag) {
-                if (sdDeviceIndex.find(entry.first) != sdDeviceIndex.end()) {
+                auto idxIt = sdDeviceIndex.find(entry.first);
+                if (idxIt != sdDeviceIndex.end()) {
                     updates.push_back({entry.first, entry.second});
+                    updatePositions.push_back(idxIt->second);
                 } else {
                     appends.push_back({entry.first, entry.second});
                 }
@@ -1194,7 +1197,7 @@ bool flushBaselineCacheToSD() {
             for (size_t i = 0; i < updates.size(); i++) {
                 BaselineDevice wd = updates[i].second;
                 calculateDeviceChecksum(wd);
-                dataFile.seek(sdDeviceIndex[updates[i].first]);
+                dataFile.seek(updatePositions[i]);
                 if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
                     cleanedKeys.push_back(updates[i].first);
                     flushed++;
@@ -1212,13 +1215,14 @@ bool flushBaselineCacheToSD() {
     if (!appends.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         if (dataFile) {
+            std::vector<std::pair<uint64_t, uint32_t>> newIndexEntries;  // key -> SD position, applied under lock
+            newIndexEntries.reserve(appends.size());
             for (size_t i = 0; i < appends.size(); i++) {
                 BaselineDevice wd = appends[i].second;
                 calculateDeviceChecksum(wd);
                 uint32_t position = dataFile.position();
                 if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
-                    sdDeviceIndex[appends[i].first] = position;
-                    totalDevicesOnSD++;
+                    newIndexEntries.push_back({appends[i].first, position});
                     cleanedKeys.push_back(appends[i].first);
                     flushed++;
                 }
@@ -1228,11 +1232,22 @@ bool flushBaselineCacheToSD() {
             }
             dataFile.close();
 
+            // Apply index/count mutations under lock, snapshot count for the header write
+            uint32_t totalSnapshot;
+            {
+                std::lock_guard<std::mutex> lock(baselineMutex);
+                for (const auto& e : newIndexEntries) {
+                    sdDeviceIndex[e.first] = e.second;
+                }
+                totalDevicesOnSD += newIndexEntries.size();
+                totalSnapshot = totalDevicesOnSD;
+            }
+
             // Update header device count once
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
-                headerFile.write(reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD));
+                headerFile.write(reinterpret_cast<uint8_t*>(&totalSnapshot), sizeof(totalSnapshot));
                 headerFile.close();
             }
             vTaskDelay(pdMS_TO_TICKS(10));

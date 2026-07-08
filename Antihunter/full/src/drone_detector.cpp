@@ -61,6 +61,7 @@ void initializeDroneDetector() {
         vQueueDeleteWithCaps(droneQueue);
     }
     droneQueue = xQueueCreateWithCaps(64, sizeof(DroneDetection), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!droneFrameQueue || !droneQueue) Serial.println("[DRONE] WARNING: queue alloc failed (PSRAM) - detection inert");
     {
         std::lock_guard<std::mutex> lock(detectedDronesMutex);
         detectedDrones.clear();
@@ -453,6 +454,7 @@ static String droneFmtHeading(float v) { return (v >= INV_DIR) ? String("n/a") :
 String getDroneDetectionResults() {
     static String cachedResults = "";
     static unsigned long lastCacheTime = 0;
+    std::lock_guard<std::mutex> lock(detectedDronesMutex);
 
     // Cache for 3 seconds to reduce performance impact
     if (millis() - lastCacheTime < 3000 && cachedResults.length() > 0) {
@@ -462,7 +464,6 @@ String getDroneDetectionResults() {
 
     String results = "Drone Detection Results\n";
     results += "Total detections: " + String(droneDetectionCount) + "\n";
-    std::lock_guard<std::mutex> lock(detectedDronesMutex);
     results += "Unique drones: " + String(detectedDrones.size()) + "\n\n";
 
     for (const auto& entry : detectedDrones) {
@@ -607,12 +608,12 @@ void droneDetectorTask(void *pv)
            (!forever && (int)(millis() - scanStart) < duration * 1000 && !stopRequested)) {
 
         DroneFrameEvent rawFrame;
-        while (xQueueReceive(droneFrameQueue, &rawFrame, 0) == pdTRUE) {
+        while (droneFrameQueue && xQueueReceive(droneFrameQueue, &rawFrame, 0) == pdTRUE) {
             processDronePacket(rawFrame.payload, rawFrame.len, rawFrame.rssi);
         }
 
         DroneDetection drone;
-        while (xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
+        while (droneQueue && xQueueReceive(droneQueue, &drone, 0) == pdTRUE) {
             localFramesSeen++;
 
             const String macStr = macFmt6(drone.mac);

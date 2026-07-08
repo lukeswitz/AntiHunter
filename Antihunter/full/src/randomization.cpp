@@ -1888,6 +1888,15 @@ void loadDeviceIdentities() {
         if (file.read(reinterpret_cast<uint8_t*>(&id.mfrData), sizeof(id.mfrData)) != sizeof(id.mfrData)) break;
         if (file.read(reinterpret_cast<uint8_t*>(&id.mfrDataLen), sizeof(id.mfrDataLen)) != sizeof(id.mfrDataLen)) break;
 
+        // Clamp SD-loaded counts to array bounds — corrupt/foreign card can set these to 255 -> OOB read
+        if (id.mfrDataLen > sizeof(id.mfrData)) id.mfrDataLen = sizeof(id.mfrData);
+        {
+            const uint8_t maxRssi = sizeof(id.signature.rssiHistory) / sizeof(id.signature.rssiHistory[0]);
+            const uint8_t maxIvl  = sizeof(id.signature.probeIntervals) / sizeof(id.signature.probeIntervals[0]);
+            if (id.signature.rssiHistoryCount > maxRssi) id.signature.rssiHistoryCount = maxRssi;
+            if (id.signature.intervalCount > maxIvl) id.signature.intervalCount = maxIvl;
+        }
+
         id.identityId[sizeof(id.identityId) - 1] = '\0';
         id.deviceName[sizeof(id.deviceName) - 1] = '\0';
         id.probedSSID[sizeof(id.probedSSID) - 1] = '\0';
