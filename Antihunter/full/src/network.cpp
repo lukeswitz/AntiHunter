@@ -2110,7 +2110,6 @@ void registerRemainingRoutes() {
     },
     NULL,
     [](AsyncWebServerRequest *r, uint8_t *data, size_t len, size_t index, size_t total) {
-        // request dtor free()s _tempObject on aborted uploads — back it with a malloc'd buffer (not new String) to avoid leak/UB
         if (index == 0) {
             if (r->_tempObject) { free(r->_tempObject); r->_tempObject = nullptr; }
             if (total == 0 || total > 8192) return;

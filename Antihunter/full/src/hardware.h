@@ -56,6 +56,7 @@ public:
     static size_t read(fs::File& file, uint8_t* data, size_t len);
     static bool flush(fs::File& file);
     static void forceRecheck();
+    static void markUnavailable();
 };
 
 // RTC Status

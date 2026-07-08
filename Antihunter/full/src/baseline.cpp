@@ -58,7 +58,7 @@ extern uint32_t BLE_SCAN_INTERVAL;
 
 // Baseline detection state variables
 std::mutex baselineMutex;
-static std::recursive_mutex baselineSDMutex;  // serializes baseline SD-file transactions (reset vs flush/load)
+static std::recursive_mutex baselineSDMutex;
 BaselineStats baselineStats;
 bool baselineDetectionEnabled = false;
 bool baselineEstablished = false;
@@ -1161,7 +1161,7 @@ bool flushBaselineCacheToSD() {
 
     // Separate dirty entries into updates (existing on SD) and appends (new)
     std::vector<std::pair<uint64_t, BaselineDevice>> updates;
-    std::vector<uint32_t> updatePositions;   // parallel to updates: SD seek offset captured under lock
+    std::vector<uint32_t> updatePositions;
     std::vector<std::pair<uint64_t, BaselineDevice>> appends;
 
     {
@@ -1219,7 +1219,7 @@ bool flushBaselineCacheToSD() {
     if (!appends.empty()) {
         File dataFile = SafeSD::open("/baseline_data.bin", FILE_APPEND);
         if (dataFile) {
-            std::vector<std::pair<uint64_t, uint32_t>> newIndexEntries;  // key -> SD position, applied under lock
+            std::vector<std::pair<uint64_t, uint32_t>> newIndexEntries;
             newIndexEntries.reserve(appends.size());
             for (size_t i = 0; i < appends.size(); i++) {
                 BaselineDevice wd = appends[i].second;
@@ -1236,7 +1236,6 @@ bool flushBaselineCacheToSD() {
             }
             dataFile.close();
 
-            // Apply index/count mutations under lock, snapshot count for the header write
             uint32_t totalSnapshot;
             {
                 std::lock_guard<std::mutex> lock(baselineMutex);
