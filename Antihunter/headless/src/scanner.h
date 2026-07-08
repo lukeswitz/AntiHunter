@@ -205,7 +205,7 @@ const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;
 extern std::vector<DeauthHit> deauthLog;
 extern std::atomic<uint32_t> deauthCount;
 extern std::atomic<uint32_t> disassocCount;
-extern bool deauthDetectionEnabled;
+extern std::atomic<bool> deauthDetectionEnabled;
 extern QueueHandle_t deauthQueue;
 
 // Baseline scan

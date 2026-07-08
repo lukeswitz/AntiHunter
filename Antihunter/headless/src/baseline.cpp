@@ -59,6 +59,7 @@ extern uint32_t BLE_SCAN_INTERVAL;
 
 // Baseline detection state variables
 std::mutex baselineMutex;
+static std::recursive_mutex baselineSDMutex;  // serializes baseline SD-file transactions (reset vs flush/load)
 BaselineStats baselineStats;
 bool baselineDetectionEnabled = false;
 bool baselineEstablished = false;
@@ -129,6 +130,7 @@ void setBaselineRssiThreshold(int8_t threshold) {
 }
 
 void resetBaselineDetection() {
+    std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
     {
         std::lock_guard<std::mutex> lock(baselineMutex);
         baselineCache.clear();
@@ -1042,7 +1044,8 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
-                headerFile.write(reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD));
+                if (headerFile.write(reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD)) != sizeof(totalDevicesOnSD))
+                    Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
                 headerFile.close();
             }
 
@@ -1094,6 +1097,7 @@ bool flushBaselineCacheToSD() {
     if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return false;
     }
+    std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
 
     // Separate dirty entries into updates (existing on SD) and appends (new)
     std::vector<std::pair<uint64_t, BaselineDevice>> updates;
@@ -1187,7 +1191,8 @@ bool flushBaselineCacheToSD() {
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
-                headerFile.write(reinterpret_cast<uint8_t*>(&totalSnapshot), sizeof(totalSnapshot));
+                if (headerFile.write(reinterpret_cast<uint8_t*>(&totalSnapshot), sizeof(totalSnapshot)) != sizeof(totalSnapshot))
+                    Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
                 headerFile.close();
             }
             vTaskDelay(pdMS_TO_TICKS(10));
@@ -1214,7 +1219,8 @@ void loadBaselineFromSD() {
     if (!SafeSD::isAvailable() || !sdBaselineInitialized) {
         return;
     }
-    
+    std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
+
     File dataFile = SafeSD::open("/baseline_data.bin", FILE_READ);
     if (!dataFile) {
         Serial.println("[BASELINE_SD] No baseline file");

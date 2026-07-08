@@ -305,7 +305,7 @@ std::vector<DeauthHit> deauthLog;
 std::mutex deauthLogMutex;
 std::atomic<uint32_t> deauthCount(0);
 std::atomic<uint32_t> disassocCount(0);
-bool deauthDetectionEnabled = false;
+std::atomic<bool> deauthDetectionEnabled{false};
 QueueHandle_t deauthQueue = nullptr;
 
 // Deauth Detection
@@ -1768,7 +1768,7 @@ void blueTeamTask(void *pv) {
     { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthLog.clear(); }
     deauthCount = 0;
     disassocCount = 0;
-    deauthDetectionEnabled = true;
+    deauthDetectionEnabled = false;   // keep the deauth ISR off the queue until it is (re)created
     stopRequested = false;
     scanning = true;
     scanSetCountdown(duration, forever);
@@ -1777,7 +1777,9 @@ void blueTeamTask(void *pv) {
     std::set<uint64_t> floodAlerted;
 
     if (deauthQueue) {
-        vQueueDeleteWithCaps(deauthQueue);
+        QueueHandle_t oldQueue = deauthQueue;
+        deauthQueue = nullptr;
+        vQueueDeleteWithCaps(oldQueue);
     }
 
     deauthQueue = xQueueCreateWithCaps(256, sizeof(DeauthHit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -1787,6 +1789,7 @@ void blueTeamTask(void *pv) {
         vTaskDelete(NULL);
         return;
     }
+    deauthDetectionEnabled = true;   // queue is valid — safe to let the ISR enqueue
 
     std::set<String> transmittedAttacks;
     
@@ -2441,14 +2444,17 @@ static void bleInitTask(void *pv) {
 
 void initBLEOnce() {
     if (bleInitDone) return;
-    TaskHandle_t h = nullptr;
-    BaseType_t r = xTaskCreatePinnedToCore(
-        bleInitTask, "ble_init", 8192, nullptr, 5, &h, 0);
-    if (r != pdPASS) {
-        Serial.println("[BLE_INIT] task create failed");
-        bleInitFailed = true;
-        bleInitDone = true;
-        return;
+    static std::atomic<bool> bleInitStarted{false};
+    if (!bleInitStarted.exchange(true)) {
+        TaskHandle_t h = nullptr;
+        BaseType_t r = xTaskCreatePinnedToCore(
+            bleInitTask, "ble_init", 8192, nullptr, 5, &h, 0);
+        if (r != pdPASS) {
+            Serial.println("[BLE_INIT] task create failed");
+            bleInitFailed = true;
+            bleInitDone = true;
+            return;
+        }
     }
     uint32_t waitStart = millis();
     while (!bleInitDone && (millis() - waitStart) < 8000) {
