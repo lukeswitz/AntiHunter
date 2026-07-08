@@ -96,20 +96,26 @@ uint32_t lastBatterySaverHeartbeat = 0;
 bool SafeSD::checkAvailability() {
     static std::mutex sdCheckMutex;
     std::lock_guard<std::mutex> lock(sdCheckMutex);
+    if (lastCheckResult) {
+        return true;
+    }
     uint32_t now = millis();
     if (now - lastCheckTime < CHECK_INTERVAL_MS) {
-        return lastCheckResult;
+        return false;
     }
-
     lastCheckTime = now;
     lastCheckResult = SD.begin(SD_CS_PIN);
     sdAvailable = lastCheckResult;
-    
     if (!lastCheckResult) {
         Serial.println("[SAFE_SD] SD card not available");
     }
-    
     return lastCheckResult;
+}
+
+void SafeSD::markUnavailable() {
+    lastCheckResult = false;
+    lastCheckTime = 0;
+    sdAvailable = false;
 }
 
 bool SafeSD::isAvailable() {
@@ -1248,7 +1254,7 @@ void logToSD(const String &data) {
         failCount++;
         if (failCount > 5) {
             Serial.println("[SD] Multiple failures, marking unavailable");
-            sdAvailable = false;
+            SafeSD::markUnavailable();
         }
         return;
     }

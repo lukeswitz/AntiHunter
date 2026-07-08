@@ -499,7 +499,6 @@ size_t getTargetCount()
 
 static bool matchesIdentityMacLocked(const char* identityId, const uint8_t* mac)
 {
-    // caller must hold randMutex
     if (!identityId || strlen(identityId) == 0 || !mac) {
         return false;
     }
@@ -1768,7 +1767,7 @@ void blueTeamTask(void *pv) {
     { std::lock_guard<std::mutex> lock(deauthLogMutex); deauthLog.clear(); }
     deauthCount = 0;
     disassocCount = 0;
-    deauthDetectionEnabled = false;   // keep the deauth ISR off the queue until it is (re)created
+    deauthDetectionEnabled = false;
     stopRequested = false;
     scanning = true;
     scanSetCountdown(duration, forever);
@@ -1789,7 +1788,7 @@ void blueTeamTask(void *pv) {
         vTaskDelete(NULL);
         return;
     }
-    deauthDetectionEnabled = true;   // queue is valid — safe to let the ISR enqueue
+    deauthDetectionEnabled = true;
 
     std::set<String> transmittedAttacks;
     

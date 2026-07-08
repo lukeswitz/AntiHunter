@@ -142,7 +142,7 @@ struct APFinalResult {
 
 extern AdaptivePathLoss adaptivePathLoss;
 extern std::vector<TriangulationNode> triangulationNodes;
-extern std::mutex triangulationMutex;  // Protects triangulationNodes, triangulateAcks, apFinalResult
+extern std::mutex triangulationMutex;  // Protects triangulationNodes and triangulateAcks
 extern APFinalResult apFinalResult;
 extern const size_t MAX_TRIANGULATION_NODES;
 extern const size_t MAX_ACK_INFO;
