@@ -96,9 +96,16 @@ static void mergeDroneTelemetry(DroneDetection &dst, const DroneDetection &src) 
 }
 
 static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) {
-    if (uasData->BasicIDValid[0]) {
-        strncpy(drone->uavId, reinterpret_cast<const char *>(uasData->BasicID[0].UASID), ODID_ID_SIZE);
-        drone->uaType = uasData->BasicID[0].UAType;
+    // Drones broadcast up to 2 Basic IDs (Serial + CAA). Prefer the Serial Number.
+    int idSlot = -1;
+    for (int i = 0; i < ODID_BASIC_ID_MAX_MESSAGES; i++) {
+        if (!uasData->BasicIDValid[i]) continue;
+        if (uasData->BasicID[i].IDType == ODID_IDTYPE_SERIAL_NUMBER) { idSlot = i; break; }
+        if (idSlot < 0) idSlot = i;
+    }
+    if (idSlot >= 0) {
+        strncpy(drone->uavId, reinterpret_cast<const char *>(uasData->BasicID[idSlot].UASID), ODID_ID_SIZE);
+        drone->uaType = uasData->BasicID[idSlot].UAType;
     }
 
     if (uasData->LocationValid) {
@@ -393,15 +400,16 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     ODID_UAS_Data uasData;
     odid_initUasData(&uasData);
 
-    // ODID over BLE uses the same packed-message encoding as WiFi NAN payload.
-    // The first byte of the ODID adv is a sequence counter for ASTM F3411;
-    // skip it before passing to the standard pack parser.
-    int skip = 1;
+    // BLE svc-data after 0xFFFA UUID: [appcode 0x0D][msg counter][ODID msg|pack]. Skip 2 to reach msg.
+    const int skip = 2;
     if (odidLen - skip < 1) return;
-    if (odid_message_process_pack(&uasData,
-                                  const_cast<uint8_t*>(odid + skip),
-                                  (size_t)(odidLen - skip)) != 0) {
-        return;
+    uint8_t *msg = const_cast<uint8_t*>(odid + skip);
+    const int msgLen = odidLen - skip;
+    if ((msg[0] >> 4) == ODID_MESSAGETYPE_PACKED) {
+        if (odid_message_process_pack(&uasData, msg, (size_t)msgLen) < 0) return;
+    } else {
+        if (msgLen < ODID_MESSAGE_SIZE) return;
+        decodeOpenDroneID(&uasData, msg);
     }
     bool useful = uasData.BasicIDValid[0] || uasData.LocationValid ||
                   uasData.SystemValid || uasData.OperatorIDValid;
@@ -409,16 +417,25 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
 
     parseDroneData(&drone, &uasData);
 
+    bool idIsSerial = false;
+    for (int i = 0; i < ODID_BASIC_ID_MAX_MESSAGES; i++)
+        if (uasData.BasicIDValid[i] && uasData.BasicID[i].IDType == ODID_IDTYPE_SERIAL_NUMBER) { idIsSerial = true; break; }
+
     const String macStr = macFmt6(drone.mac);
     const String uavIdStr = String(drone.uavId);
 
     std::lock_guard<std::mutex> lock(detectedDronesMutex);
+    // BLE sends one message type per advert (ID, Location, System rotate), so fuse by
+    // uavId when known, else by MAC — otherwise ID and telemetry adverts overwrite each other.
     auto existingIt = std::find_if(detectedDrones.begin(), detectedDrones.end(),
-        [&uavIdStr](const std::pair<const String, DroneDetection>& entry) {
-            return String(entry.second.uavId) == uavIdStr && uavIdStr.length() > 0;
+        [&](const std::pair<const String, DroneDetection>& entry) {
+            if (uavIdStr.length() > 0 && String(entry.second.uavId) == uavIdStr) return true;
+            return memcmp(entry.second.mac, drone.mac, 6) == 0;
         });
     if (existingIt != detectedDrones.end()) {
         mergeDroneTelemetry(existingIt->second, drone);
+        if (uavIdStr.length() > 0 && (idIsSerial || existingIt->second.uavId[0] == '\0'))
+            strncpy(existingIt->second.uavId, drone.uavId, ODID_ID_SIZE);
     } else {
         detectedDrones[macStr] = drone;
         droneDetectionCount = droneDetectionCount + 1;
