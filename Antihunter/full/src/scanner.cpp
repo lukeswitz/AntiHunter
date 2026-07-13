@@ -2628,6 +2628,9 @@ void radioStartSTA() {
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
+#ifdef ARDUINO_XIAO_ESP32C5
+    esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+#endif
 
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
         radioStartBLE();
@@ -2640,7 +2643,7 @@ void radioStartSTA() {
     esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
     esp_wifi_set_promiscuous(true);
 
-    if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+    if (CHANNELS.empty()) CHANNELS = DEFAULT_CHANNELS;
     esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
 
     // Setup channel hopping
@@ -2686,6 +2689,9 @@ void radioStartListScan() {
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
+#ifdef ARDUINO_XIAO_ESP32C5
+    esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+#endif
 
     Serial.println("[RADIO] List scan mode ready (WiFi.scanNetworks will be used)");
 }

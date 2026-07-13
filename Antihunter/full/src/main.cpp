@@ -18,7 +18,7 @@
 
 Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
-std::vector<uint8_t> CHANNELS = {1, 6, 11};
+std::vector<uint8_t> CHANNELS = DEFAULT_CHANNELS;
 std::atomic<bool> stopRequested(false);
 
 unsigned long lastRTCUpdate = 0;
@@ -167,7 +167,7 @@ void parseChannelsCSV(const String &csv) {
             start = comma + 1;
         }
     }
-    if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+    if (CHANNELS.empty()) CHANNELS = DEFAULT_CHANNELS;
     const bool hasAp = std::any_of(CHANNELS.begin(), CHANNELS.end(),
         [](uint8_t ch) { return ch == (uint8_t)AP_CHANNEL; });
     if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);
@@ -245,8 +245,12 @@ void setup() {
     delay(50);
     initializeDetect();
     delay(50);
+#ifdef ARDUINO_XIAO_ESP32C5
+    initializeGpsPps(15);
+#else
     initializeGpsPps(21);
-    if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, 1) != pdPASS)
+#endif
+    if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
     {
         uint8_t selfMac[6];
@@ -264,7 +268,7 @@ void setup() {
         Serial.println("[SENTINEL] OFF on boot (enable manually)");
     }
 
-    if (xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, 1) != pdPASS)
+    if (xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 

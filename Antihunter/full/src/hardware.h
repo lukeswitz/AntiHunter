@@ -10,6 +10,25 @@
 #ifndef COUNTRY
 #define COUNTRY "US"
 #endif
+#ifdef ARDUINO_XIAO_ESP32C5
+#ifndef MESH_RX_PIN
+#define MESH_RX_PIN 7    // D3
+#endif
+#ifndef MESH_TX_PIN
+#define MESH_TX_PIN 23   // D4
+#endif
+#ifndef VIBRATION_PIN
+#define VIBRATION_PIN 0  // D1
+#endif
+#define SD_CS_PIN   1    // D0
+#define SD_CLK_PIN  8    // D8
+#define SD_MISO_PIN 9    // D9
+#define SD_MOSI_PIN 10   // D10
+#define GPS_RX_PIN 12    // D7
+#define GPS_TX_PIN 11    // D6
+#define RTC_SDA_PIN 25   // D2
+#define RTC_SCL_PIN 24   // D5
+#else
 #ifndef MESH_RX_PIN
 #define MESH_RX_PIN 4    // TO MESH PIN 9/19 T114/V3
 #endif
@@ -33,6 +52,7 @@
 // RTC (I2C)
 #define RTC_SDA_PIN 3    // RTC SDA
 #define RTC_SCL_PIN 6    // RTC SCL
+#endif
 
 // Configuration constants
 #define CONFIG_FILE "/config.json"

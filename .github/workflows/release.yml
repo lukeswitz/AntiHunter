@@ -57,14 +57,24 @@ jobs:
     - name: Build AntiHunter-headless
       run: pio run -e AntiHunter-headless
 
+    - name: Build AntiHunter-c5-full
+      run: pio run -e AntiHunter-c5-full
+
+    - name: Build AntiHunter-c5-headless
+      run: pio run -e AntiHunter-c5-headless
+
     - name: Prepare release artifacts
       run: |
         mkdir -p release
         cp .pio/build/AntiHunter-full/firmware.bin release/antihunter-full-${{ steps.get_version.outputs.version }}.bin
         cp .pio/build/AntiHunter-headless/firmware.bin release/antihunter-headless-${{ steps.get_version.outputs.version }}.bin
+        cp .pio/build/AntiHunter-c5-full/firmware.bin release/antihunter-c5-full-${{ steps.get_version.outputs.version }}.bin
+        cp .pio/build/AntiHunter-c5-headless/firmware.bin release/antihunter-c5-headless-${{ steps.get_version.outputs.version }}.bin
         # bootloader + partitions MUST come from the fresh build (IDF/core version must match the app)
         cp .pio/build/AntiHunter-full/bootloader.bin release/
         cp .pio/build/AntiHunter-full/partitions.bin release/
+        cp .pio/build/AntiHunter-c5-full/bootloader.bin release/bootloader-c5.bin
+        cp .pio/build/AntiHunter-c5-full/partitions.bin release/partitions-c5.bin
         cp Dist/flashAntihunter.sh release/
 
     - name: Generate checksums
@@ -83,16 +93,21 @@ jobs:
 
         cp .pio/build/AntiHunter-full/firmware.bin "Dist/antihunter-full-${VERSION}.bin"
         cp .pio/build/AntiHunter-headless/firmware.bin "Dist/antihunter-headless-${VERSION}.bin"
+        cp .pio/build/AntiHunter-c5-full/firmware.bin "Dist/antihunter-c5-full-${VERSION}.bin"
+        cp .pio/build/AntiHunter-c5-headless/firmware.bin "Dist/antihunter-c5-headless-${VERSION}.bin"
         # refresh bootloader + partitions from the build so they match the app's IDF/core
         cp .pio/build/AntiHunter-full/bootloader.bin Dist/bootloader.bin
         cp .pio/build/AntiHunter-full/partitions.bin Dist/partitions.bin
+        cp .pio/build/AntiHunter-c5-full/bootloader.bin Dist/bootloader-c5.bin
+        cp .pio/build/AntiHunter-c5-full/partitions.bin Dist/partitions-c5.bin
 
         mkdir -p docs/flasher
 
         for VARIANT in full headless; do
           VARIANT_TITLE="$(echo "${VARIANT}" | sed 's/^./\U&/')"
-          printf '{\n  "name": "AntiHunter %s (%s)",\n  "new_install_prompt_erase": true,\n  "builds": [\n    {\n      "chipFamily": "ESP32-S3",\n      "parts": [\n        { "path": "%s/bootloader.bin", "offset": 0 },\n        { "path": "%s/partitions.bin", "offset": 32768 },\n        { "path": "%s/antihunter-%s-%s.bin", "offset": 65536 }\n      ]\n    }\n  ]\n}\n' \
+          printf '{\n  "name": "AntiHunter %s (%s)",\n  "new_install_prompt_erase": true,\n  "builds": [\n    {\n      "chipFamily": "ESP32-S3",\n      "parts": [\n        { "path": "%s/bootloader.bin", "offset": 0 },\n        { "path": "%s/partitions.bin", "offset": 32768 },\n        { "path": "%s/antihunter-%s-%s.bin", "offset": 65536 }\n      ]\n    },\n    {\n      "chipFamily": "ESP32-C5",\n      "parts": [\n        { "path": "%s/bootloader-c5.bin", "offset": 8192 },\n        { "path": "%s/partitions-c5.bin", "offset": 32768 },\n        { "path": "%s/antihunter-c5-%s-%s.bin", "offset": 65536 }\n      ]\n    }\n  ]\n}\n' \
             "${VARIANT_TITLE}" "${VERSION}" \
+            "${RAW}" "${RAW}" "${RAW}" "${VARIANT}" "${VERSION}" \
             "${RAW}" "${RAW}" "${RAW}" "${VARIANT}" "${VERSION}" \
             > "docs/flasher/manifest-${VARIANT}.json"
         done
@@ -116,10 +131,11 @@ jobs:
         rm -f Dist/antihunter-*.bin
         cp /tmp/ah-dist/antihunter-*.bin Dist/
         cp /tmp/ah-dist/bootloader.bin /tmp/ah-dist/partitions.bin Dist/
+        cp /tmp/ah-dist/bootloader-c5.bin /tmp/ah-dist/partitions-c5.bin Dist/
         mkdir -p docs/flasher
         cp /tmp/ah-flasher/manifest-*.json docs/flasher/
 
-        git add Dist/antihunter-*.bin Dist/bootloader.bin Dist/partitions.bin docs/flasher/manifest-*.json
+        git add Dist/antihunter-*.bin Dist/bootloader.bin Dist/partitions.bin Dist/bootloader-c5.bin Dist/partitions-c5.bin docs/flasher/manifest-*.json
         git diff --cached --quiet && echo "No changes to commit" && exit 0
         git commit -m "dist: update bins and flasher manifests for ${VERSION} (${{ steps.get_version.outputs.channel }})"
         git push origin "${BRANCH}"

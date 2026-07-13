@@ -18,6 +18,7 @@
 #include "esp_pm.h"
 #include "esp_sleep.h"
 #include "esp_bt.h"
+#include "driver/gpio.h"
 
 extern Preferences prefs;
 extern ScanMode currentScanMode;
@@ -26,7 +27,11 @@ extern void disciplineRTCFromGPS();
 
 // GPS
 TinyGPSPlus gps;
+#ifdef ARDUINO_XIAO_ESP32C5
+HardwareSerial GPS(0);
+#else
 HardwareSerial GPS(2);
+#endif
 bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
@@ -1101,6 +1106,9 @@ void initializeSD()
     Serial.printf("[SD] GPIO Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
     SPI.end();
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
+#ifdef ARDUINO_XIAO_ESP32C5
+    gpio_set_pull_mode((gpio_num_t)SD_MISO_PIN, GPIO_PULLUP_ONLY);
+#endif
     delay(100);
     if (SD.begin(SD_CS_PIN, SPI, 400000)) {
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);

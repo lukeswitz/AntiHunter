@@ -10,9 +10,18 @@
 #include "freertos/idf_additions.h"
 #include "randomization.h"
 
+#ifdef CONFIG_FREERTOS_UNICORE
+#define SCAN_CORE 0
+#else
+#define SCAN_CORE 1
+#endif
+
 static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint32_t stack,
                                        void *arg, UBaseType_t prio, TaskHandle_t *handle,
                                        BaseType_t core) {
+#ifdef CONFIG_FREERTOS_UNICORE
+    core = 0;
+#endif
     return xTaskCreatePinnedToCore(fn, name, stack, arg, prio, handle, core);
 }
 
