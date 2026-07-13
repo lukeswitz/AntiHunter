@@ -393,8 +393,8 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 | Function | GPIO | Description |
 |----------|------|-------------|
 | Vibration Sensor | 2 | SW-420 tamper detection (interrupt) |
-| RTC SDA | 6 | DS3231 I2C data |
-| RTC SCL | 3 | DS3231 I2C clock |
+| RTC SDA | 3 | DS3231 I2C data |
+| RTC SCL | 6 | DS3231 I2C clock |
 | GPS RX | 44 | NMEA data receive |
 | GPS TX | 43 | GPS transmit (unused) |
 | SD CS | 1 | SD card chip select |
