@@ -362,7 +362,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
 
             const String meshKey = uavIdStr.length() ? uavIdStr : macStr;
             if (droneMeshCooldownReady(meshKey)) {
-                String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + uavIdStr + " IDT:" + droneIdTypeStr(drone.idType);
+                String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + uavIdStr;
                 meshMsg += " R" + String(drone.rssi);
                 if (drone.latitude != 0) {
                     meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
@@ -636,7 +636,6 @@ void droneDetectorTask(void *pv)
             
             String macStr = macFmt6(drone.mac);
             String logEntry = "DRONE: " + macStr + " ID:" + String(drone.uavId) +
-                            " IDT:" + droneIdTypeStr(drone.idType) +
                             " Lat=" + String(drone.latitude, 6) +
                             " Lon=" + String(drone.longitude, 6) +
                             " Alt=" + String(drone.altitudeMsl, 1) + "m" +
@@ -653,7 +652,7 @@ void droneDetectorTask(void *pv)
             
             String droneId = String(drone.uavId);
             if (meshEnabled && droneMeshCooldownReady(droneId)) {
-                String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + droneId + " IDT:" + droneIdTypeStr(drone.idType);
+                String meshMsg = getNodeId() + ": DRONE: " + macStr + " ID:" + droneId;
                 meshMsg += " R" + String(drone.rssi);
                 if (drone.latitude != 0) {
                     meshMsg += " GPS:" + String(drone.latitude, 6) + "," + String(drone.longitude, 6);
@@ -681,7 +680,7 @@ void droneDetectorTask(void *pv)
                 String droneId = String(entry.second.uavId);
 
                 if (droneMeshCooldownReady(droneId)) {
-                    String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId + " IDT:" + droneIdTypeStr(entry.second.idType);
+                    String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + droneId;
                     droneMsg += " R" + String(entry.second.rssi);
                     if (entry.second.latitude != 0) {
                         droneMsg += " GPS:" + String(entry.second.latitude, 6) +
