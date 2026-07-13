@@ -72,7 +72,7 @@
 | **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Sentinel Counterintel** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
-| **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID) | WiFi beacon/NAN |
+| **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
 | **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
 | **Secure Data Destruction** | Tamper-triggered or remote wipe with post-wipe obfuscation | Vibration / mesh |
@@ -178,7 +178,7 @@ WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with ran
 
 ### D. Drone RID Detection
 
-Detects drones broadcasting Remote ID per FAA/EASA standards. Supports ODID/ASTM F3411 (NAN action frames, beacon frames) and French drone ID (OUI 0x6a5c35). Extracts UAV ID, pilot location, and flight telemetry. Mesh alerts and SD logging.
+Detects drones broadcasting Remote ID per FAA/EASA standards over **WiFi and Bluetooth**. Supports ODID/ASTM F3411 over WiFi (NAN action frames, beacon frames) and **BLE (BT4 legacy + BT5 long-range advertising, service UUID 0xFFFA)**, plus French drone ID (OUI 0x6a5c35). Decodes all ODID message types (Basic ID, Location, System, Operator ID, Auth, Self-ID), preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location, and flight telemetry. Mesh alerts and SD logging.
 
 ### E. MAC Randomization Correlation (Experimental)
 
