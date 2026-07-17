@@ -14,23 +14,29 @@
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
 <div align="center">
-  <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
-</div>
+
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
-</p>
+  
+ <strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong>
+
+
+  
+[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/wxzwZCUDw)
+  
+<a href="https://lectronz.com/stores/antihunter"  alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
+
+</div>
 
 ---
 
-### News & Links:
-  
-  [![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/6Pq6pg3bj)
-  
-  <a href="https://lectronz.com/stores/antihunter"  alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
+Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunter.html)
 
 
 - `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection (beta)
 - `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
+
+---
 
 # Table of Contents
 
