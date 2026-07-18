@@ -2293,10 +2293,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               
               const deviceType = child.getAttribute('data-type') || '';
               const channel = parseInt(child.getAttribute('data-channel') || '0', 10);
+              const isTarget = child.getAttribute('data-target') === '1';
 
               items.push({
                 element: child,
-                mac, rssi, name, deviceType, channel,
+                mac, rssi, name, deviceType, channel, isTarget,
                 sortKey: currentSort,
                 type: 'device'
               });
@@ -2311,8 +2312,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         
         items.sort((a, b) => {
+          if ((a.isTarget ? 1 : 0) !== (b.isTarget ? 1 : 0)) return a.isTarget ? -1 : 1;
           let cmp = 0;
-          
+
           switch(currentSort) {
             case 'rssi-desc':
               cmp = b.rssi - a.rssi;
@@ -3805,6 +3807,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }).catch(e => { if (typeof toast === 'function') toast('Clear failed: ' + e.message, 'warning'); });
       }
 
+      function getTargetTokens() {
+        const el = document.getElementById('list');
+        if (!el || !el.value) return [];
+        return el.value.split('\n')
+          .map(l => l.trim().toUpperCase())
+          .filter(l => l && !l.startsWith('#') && /^[0-9A-F]{2}(:[0-9A-F]{2}){2,5}$/.test(l));
+      }
+
+      function macIsTarget(mac, tokens) {
+        if (!tokens || !tokens.length) return false;
+        const m = (mac || '').toUpperCase();
+        return tokens.some(t => t.length >= 17 ? m === t : m.startsWith(t + ':'));
+      }
+
       function parseDeviceScanResults(text) {
         let html = '';
         
@@ -3827,6 +3843,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const lines = text.split('\n');
         let inProbeSection = false;
         let probeLines = [];
+        const targetTokens = getTargetTokens();
+        let targetHtml = '';
+        let normalHtml = '';
 
         lines.forEach(line => {
           if (line.startsWith('--- Probe Intelligence')) {
@@ -3850,21 +3869,31 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
           const rssiColor = rssiColorFor(rssi);
+          const isTarget = macIsTarget(mac, targetTokens);
+          const cardStyle = isTarget
+            ? 'margin-bottom:10px;padding:10px;border-radius:8px;background:var(--accbg);border:2px solid var(--acc);box-shadow:var(--glow),var(--shad-hover);'
+            : 'margin-bottom:10px;padding:10px;border-radius:8px;background:var(--surf);border:1px solid var(--bord);';
 
-          html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
-          html += '<div>';
-          html += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + randBadge(mac) + '</div>';
-          html += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
-          html += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
-          html += '</div>';
-          html += '<div style="text-align:right;">';
-          html += '<div style="font-size:12px;color:' + rssiColor + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
-          if (channel) html += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
-          html += '</div>';
-          html += '</div>';
-          html += '</div>';
+          let card = '<div class="device-card' + (isTarget ? ' is-target' : '') + '" data-type="' + type + '" data-channel="' + (channel || '0') + '" data-target="' + (isTarget ? '1' : '0') + '" style="' + cardStyle + '">';
+          card += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
+          card += '<div>';
+          card += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">';
+          if (isTarget) card += '<span style="display:inline-block;background:var(--acc);color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle;">TARGET</span>';
+          card += mac + randBadge(mac) + '</div>';
+          card += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
+          card += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
+          card += '</div>';
+          card += '<div style="text-align:right;">';
+          card += '<div style="font-size:12px;color:' + rssiColor + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
+          if (channel) card += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
+          card += '</div>';
+          card += '</div>';
+          card += '</div>';
+
+          if (isTarget) targetHtml += card; else normalHtml += card;
         });
+
+        html += targetHtml + normalHtml;
 
         // Render probe intelligence section if present
         if (probeLines.length > 0) {

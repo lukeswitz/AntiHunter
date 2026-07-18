@@ -21,6 +21,8 @@ public:
     void consume(size_t messageLength);
     void refillTokens();
     void flush();
+    uint32_t available() const { return tokens; }
+    static constexpr uint32_t capacity() { return MAX_TOKENS; }
 };
 
 // Mesh TX priority classes (Phase 2). CTRL preempts EVENT preempts BULK; CTRL/EVENT may evict back-of-BULK on enqueue-full.
