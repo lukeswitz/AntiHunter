@@ -40,8 +40,11 @@ static bool droneMeshCooldownReady(const String &key) {
     const uint32_t now = millis();
     auto it = droneMeshLastTx.find(key);
     if (it != droneMeshLastTx.end() && (now - it->second) < DRONE_MESH_COOLDOWN_MS) return false;
-    droneMeshLastTx[key] = now;
     return true;
+}
+static void droneMeshMarkSent(const String &key) {
+    if (key.length() == 0) return;
+    droneMeshLastTx[key] = millis();
 }
 
 extern String macFmt6(const uint8_t *m);
@@ -378,6 +381,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
                 }
                 if (meshEnqueue(meshMsg)) {
                     transmittedDrones.insert(drone.uavId);
+                    droneMeshMarkSent(meshKey);
                 }
             }
 
@@ -668,6 +672,7 @@ void droneDetectorTask(void *pv)
                 }
                 if (meshEnqueue(meshMsg)) {
                     transmittedDrones.insert(droneId);
+                    droneMeshMarkSent(droneId);
                 }
             }
         }
@@ -699,6 +704,7 @@ void droneDetectorTask(void *pv)
 
                     if (droneMsg.length() <= MAX_MESH_SIZE && meshEnqueue(droneMsg)) {
                         transmittedDrones.insert(droneId);
+                        droneMeshMarkSent(droneId);
                     }
                 }
             }
