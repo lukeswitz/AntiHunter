@@ -9,6 +9,13 @@ extern "C" {
 #include "esp_heap_caps.h"
 }
 
+// Heavy allocs -> PSRAM (both boards); C5 needs custom_sdkconfig WiFi/LWIP-internal + reserve; ISR queues internal (scanner.h)
+#ifdef ARDUINO_XIAO_ESP32C5
+#define AH_ALLOC_CAPS (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#else
+#define AH_ALLOC_CAPS (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#endif
+
 template <typename T>
 struct PsramAllocator {
     using value_type = T;
@@ -26,7 +33,7 @@ struct PsramAllocator {
         if (n > std::numeric_limits<size_type>::max() / sizeof(T)) {
             throw std::bad_alloc();
         }
-        void* p = heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        void* p = heap_caps_malloc(n * sizeof(T), AH_ALLOC_CAPS);
         if (!p) {
             p = heap_caps_malloc(n * sizeof(T), MALLOC_CAP_DEFAULT);
         }

@@ -9,11 +9,19 @@
 #include "freertos/queue.h"
 #include "freertos/idf_additions.h"
 #include "randomization.h"
+#include "psram_allocator.h"
 
 #ifdef CONFIG_FREERTOS_UNICORE
 #define SCAN_CORE 0
 #else
 #define SCAN_CORE 1
+#endif
+
+// ISR-fed queues must stay internal on C5 (ISR runs cache-disabled -> PSRAM fault); S3 keeps proven PSRAM placement.
+#ifdef ARDUINO_XIAO_ESP32C5
+#define AH_ISR_QUEUE_CAPS (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
+#else
+#define AH_ISR_QUEUE_CAPS AH_ALLOC_CAPS
 #endif
 
 static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint32_t stack,
@@ -145,6 +153,7 @@ struct RFScanConfig {
     uint8_t preset{};
     String wifiChannels;
     int8_t globalRssiThreshold{};
+    uint8_t bandMode{};  // 0=2.4GHz, 1=5GHz, 2=both
 };
 
 // Granular settings
@@ -153,6 +162,8 @@ void setRFPreset(uint8_t preset);
 void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bleInterval, uint32_t bleDuration, const String &channels, int8_t rssiThreshold);
 void loadRFConfigFromPrefs();
 void setGlobalRssiThreshold(int8_t threshold);
+void setBandMode(uint8_t mode);
+void rebuildActiveChannels();
 uint8_t nextActiveScanChannel();
 
 extern TaskHandle_t workerTaskHandle;

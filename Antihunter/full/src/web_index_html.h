@@ -274,7 +274,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <line x1="12" y1="12" x2="18" y2="12"/>
           </svg>
         </div>
-        <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
+        <a class="btn danger" href="/stop" id="stopAllBtn" onclick="return stopScan(event)" style="display:none;">STOP</a>
       </div>
       <div class="page-tabs">
         <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
@@ -634,6 +634,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <label style="font-size:10px;color:var(--mut);">BLE Scan Interval (ms)</label>
                 <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
               </div>
+            </div>
+            <div id="bandModeRow" style="margin-bottom:8px;display:none;">
+              <label style="font-size:10px;color:var(--mut);">Band</label>
+              <select id="wifiBandMode" style="padding:4px;font-size:11px;">
+                <option value="0">2.4 GHz</option>
+                <option value="1">5 GHz</option>
+                <option value="2">2.4 + 5 GHz</option>
+              </select>
             </div>
             <div style="margin-bottom:8px;">
               <label style="font-size:10px;color:var(--mut);">WiFi Channels</label>
@@ -1377,6 +1385,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return false;
       }
 
+      function stopScan(e) {
+        if (e) e.preventDefault();
+        lastScanStartTime = 0;
+        radioBusy = false;
+        radioBusyTask = '';
+        if (typeof setScanStatus === 'function') setScanStatus('Idle', 'idle');
+        const b = document.getElementById('stopAllBtn');
+        if (b) b.style.display = 'none';
+        fetch('/stop').then(r => r.text()).then(t => toast(t || 'Scan stopped'))
+          .catch(err => toast('Stop failed: ' + err, 'error'));
+        setTimeout(() => { if (typeof tick === 'function') tick(); }, 600);
+        return false;
+      }
+
       function switchPage(pageName) {
         if (document.activeElement) document.activeElement.blur();
         document.querySelectorAll('.page-tab-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -1487,7 +1509,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
             document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
             document.getElementById('wifiChannels').value = cfg.wifiChannels || '1..14';
-            
+
+            const bandRow = document.getElementById('bandModeRow');
+            const bandSel = document.getElementById('wifiBandMode');
+            if (bandRow) bandRow.style.display = cfg.dualBand ? 'block' : 'none';
+            if (bandSel && typeof cfg.bandMode !== 'undefined') bandSel.value = cfg.bandMode;
+            document.getElementById('wifiChannels').placeholder = cfg.dualBand ? '1,6,11,36,149' : '1..14';
+
             // If custom not preset
             const customDiv = document.getElementById('customRFSettings');
             if (customDiv) {
@@ -1748,7 +1776,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const fd = new FormData();
         
         fd.append('globalRssiThreshold', threshold);
-        
+
+        const bandRow = document.getElementById('bandModeRow');
+        if (bandRow && bandRow.style.display !== 'none') {
+          fd.append('bandMode', document.getElementById('wifiBandMode').value);
+        }
+
         if (preset === 3) {
           fd.append('wifiChannelTime', document.getElementById('wifiChannelTime').value);
           fd.append('wifiScanInterval', document.getElementById('wifiScanInterval').value);

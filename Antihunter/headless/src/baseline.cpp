@@ -421,7 +421,7 @@ void baselineDetectionTask(void *pv) {
     currentScanMode = SCAN_BOTH;
 
     if (anomalyQueue) vQueueDeleteWithCaps(anomalyQueue);
-    anomalyQueue = xQueueCreateWithCaps(256, sizeof(AnomalyHit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    anomalyQueue = xQueueCreateWithCaps(256, sizeof(AnomalyHit), AH_ALLOC_CAPS);
     if (!anomalyQueue) {
         Serial.println("[BASELINE] FATAL: anomalyQueue creation failed");
         scanning = false;
@@ -430,7 +430,7 @@ void baselineDetectionTask(void *pv) {
     }
 
     if (macQueue) vQueueDeleteWithCaps(macQueue);
-    macQueue = xQueueCreateWithCaps(512, sizeof(Hit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    macQueue = xQueueCreateWithCaps(512, sizeof(Hit), AH_ISR_QUEUE_CAPS);
     if (!macQueue) {
         Serial.println("[BASELINE] FATAL: macQueue creation failed");
         vQueueDeleteWithCaps(anomalyQueue);

@@ -721,6 +721,10 @@ void registerRemainingRoutes() {
       configJson += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
       configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
       configJson += "\"channels\":\"" + rfConfig.wifiChannels + "\",\n";
+      configJson += "\"bandMode\":" + String(rfConfig.bandMode) + ",\n";
+      configJson += "\"dualBand\":";
+      configJson += (DEVICE_DUAL_BAND ? "true" : "false");
+      configJson += ",\n";
       configJson += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
       configJson += "}";
       
@@ -741,6 +745,10 @@ void registerRemainingRoutes() {
       String channelsCSV = req->getParam("channels", true)->value();
       parseChannelsCSV(channelsCSV);
       prefs.putString("channels", channelsCSV);
+
+      if (req->hasParam("bandMode", true)) {
+          setBandMode((uint8_t)req->getParam("bandMode", true)->value().toInt());
+      }
 
       String targets = req->getParam("targets", true)->value();
       saveTargetsList(targets);
@@ -1202,7 +1210,7 @@ void registerRemainingRoutes() {
                 if (req->hasParam("captureProbes", true)) {
                     probeDetectionEnabled = true;
                     if (probeRequestQueue == nullptr) {
-                        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
                     } else {
                         xQueueReset(probeRequestQueue);
                     }
@@ -1659,6 +1667,10 @@ void registerRemainingRoutes() {
     json += "\"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",";
     json += "\"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",";
     json += "\"wifiChannels\":\"" + rfConfig.wifiChannels + "\",";
+    json += "\"bandMode\":" + String(rfConfig.bandMode) + ",";
+    json += "\"dualBand\":";
+    json += (DEVICE_DUAL_BAND ? "true" : "false");
+    json += ",";
     json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold);
     json += "}";
     req->send(200, "application/json", json);
@@ -1666,7 +1678,12 @@ void registerRemainingRoutes() {
 
   server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
     bool updated = false;
-    
+
+    if (req->hasParam("bandMode", true)) {
+        setBandMode((uint8_t)req->getParam("bandMode", true)->value().toInt());
+        updated = true;
+    }
+
     if (req->hasParam("preset", true)) {
         uint8_t preset = req->getParam("preset", true)->value().toInt();
         if (preset <= 2) {
@@ -1710,6 +1727,7 @@ void registerRemainingRoutes() {
         json += "\"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",";
         json += "\"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",";
         json += "\"wifiChannels\":\"" + String(rfConfig.wifiChannels) + "\",";
+        json += "\"bandMode\":" + String(rfConfig.bandMode) + ",";
         json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold);
         json += "}";
         req->send(200, "application/json", json);

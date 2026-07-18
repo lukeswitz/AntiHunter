@@ -47,8 +47,12 @@ enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 #endif
 #ifdef ARDUINO_XIAO_ESP32C5
 #define DEFAULT_CHANNELS {1, 6, 11, 36, 40, 44, 48, 149, 153, 157, 161, 165}
+#define DEVICE_DUAL_BAND 1
+#define DEFAULT_BAND_MODE 2
 #else
 #define DEFAULT_CHANNELS {1, 6, 11}
+#define DEVICE_DUAL_BAND 0
+#define DEFAULT_BAND_MODE 0
 #endif
 
 extern const int MAX_MESH_SIZE;

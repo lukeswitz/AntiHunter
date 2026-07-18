@@ -384,7 +384,7 @@ void initializeMesh() {
 
     for (int i = 0; i < 3; i++) {
         if (meshQ[i] == nullptr) {
-            meshQ[i] = xQueueCreateWithCaps(MESH_Q_DEPTH[i], sizeof(MeshTxItem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            meshQ[i] = xQueueCreateWithCaps(MESH_Q_DEPTH[i], sizeof(MeshTxItem), AH_ALLOC_CAPS);
             if (meshQ[i] == nullptr) {
                 Serial.printf("[MESH] PSRAM queue alloc failed for prio=%d, falling back to internal heap\n", i);
                 meshQ[i] = xQueueCreate(MESH_Q_DEPTH[i], sizeof(MeshTxItem));
@@ -425,6 +425,19 @@ static void handleConfigTargets(const String &command)
   }
   Serial.printf("[MESH] Updated targets list\n");
   sendToSerial1(nodeId + ": CONFIG_ACK:TARGETS:OK", true);
+}
+
+static void handleConfigBand(const String &command)
+{
+  uint8_t mode = (uint8_t)command.substring(12).toInt();
+  if (mode > 2) {
+    sendToSerial1(nodeId + ": CONFIG_ACK:BAND:INVALID", true);
+    return;
+  }
+  setBandMode(mode);
+  saveConfiguration();
+  Serial.printf("[MESH] Band mode set to %u\n", rfConfig.bandMode);
+  sendToSerial1(nodeId + ": CONFIG_ACK:BAND:" + String(rfConfig.bandMode), true);
 }
 
 static void handleConfigDedupTtl(const String &command)
@@ -621,7 +634,7 @@ static void handleDeviceScanStart(const String &command)
       if (params.indexOf("+PROBE") >= 0) {
           probeDetectionEnabled = true;
           if (probeRequestQueue == nullptr) {
-              probeRequestQueue = xQueueCreateWithCaps(128, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+              probeRequestQueue = xQueueCreateWithCaps(128, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
           } else {
               xQueueReset(probeRequestQueue);
           }
@@ -1751,6 +1764,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("CONFIG_NODEID:"))      handleConfigNodeId(command);
   else if (command.startsWith("CONFIG_RSSI:"))        handleConfigRssi(command);
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
+  else if (command.startsWith("CONFIG_BAND:"))        handleConfigBand(command);
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
   else if (command.startsWith("BASELINE_STATUS"))     handleBaselineStatus(command);

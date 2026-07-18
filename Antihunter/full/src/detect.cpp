@@ -2721,7 +2721,7 @@ void initializeDetect() {
     // 256B payload), so 64 cost ~17KB internal SRAM on a board that idles ~33KB
     // free. 24 (~6.4KB) frees ~10KB headroom; the consumer task drains fast and
     // backpressure drops cleanly under flood (detect-once logic already gates).
-    detectFrameQueue = xQueueCreateWithCaps(24, sizeof(DetectFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    detectFrameQueue = xQueueCreateWithCaps(24, sizeof(DetectFrameEvent), AH_ISR_QUEUE_CAPS);
     g_detectFrameQueue = detectFrameQueue;
     g_quorumRequired["PMKID"] = 2;
     g_quorumRequired["EVILTWIN"] = 2;
@@ -2896,6 +2896,10 @@ static void sentinelAlwaysOnTask(void *pv) {
             esp_err_t r1 = esp_wifi_set_promiscuous_filter(&filter);
             esp_err_t r2 = esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
             esp_err_t r3 = esp_wifi_set_promiscuous(true);
+#ifdef ARDUINO_XIAO_ESP32C5
+            esp_wifi_set_country_code(COUNTRY, true);
+            esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+#endif
             weOwn = true;
             Serial.printf("[SENTINEL] Took radio: filter=%s r1=%d r2=%d r3=%d\n",
                           wantData ? "MGMT+DATA" : "MGMT", (int)r1, (int)r2, (int)r3);

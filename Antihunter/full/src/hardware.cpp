@@ -303,6 +303,7 @@ void initializeHardware()
         prefs.putString("allowlist", "");
         prefs.putString("nodeId", "");
         prefs.putString("channels", "1,6,11");
+        prefs.putUInt("bandMode", DEFAULT_BAND_MODE);
         prefs.putString("apSsid", AP_SSID);
         prefs.putString("apPass", AP_PASS);
         prefs.putInt("scanMode", SCAN_BOTH);
@@ -385,6 +386,7 @@ void syncSettingsToNVS() {
     prefs.putUInt("blDuration", baselineDuration);
     prefs.putInt("blRssi", getBaselineRssiThreshold());
     prefs.putUInt("rfPreset", rfConfig.preset);
+    prefs.putUInt("bandMode", rfConfig.bandMode);
     prefs.putInt("globalRSSI", rfConfig.globalRssiThreshold);
     prefs.putUInt("wifiChanTime", rfConfig.wifiChannelTime);
     prefs.putUInt("wifiInterval", rfConfig.wifiScanInterval);
@@ -436,6 +438,7 @@ static uint32_t configSignature() {
     u = getReappearanceAlertWindow();  mix(&u, 4);
     i8 = getSignificantRssiChange();   mix(&i8, 1);
     mix(&rfConfig.preset, sizeof(rfConfig.preset));
+    mix(&rfConfig.bandMode, sizeof(rfConfig.bandMode));
     mix(&rfConfig.wifiChannelTime, sizeof(rfConfig.wifiChannelTime));
     mix(&rfConfig.wifiScanInterval, sizeof(rfConfig.wifiScanInterval));
     mix(&rfConfig.bleScanInterval, sizeof(rfConfig.bleScanInterval));
@@ -493,6 +496,7 @@ void saveConfiguration() {
     configFile.printf(" \"nodeId\":\"%s\",\n", prefs.getString("nodeId", "").c_str());
     configFile.printf(" \"scanMode\":%d,\n", currentScanMode);
     configFile.printf(" \"channels\":\"%s\",\n", channelsBuf);
+    configFile.printf(" \"bandMode\":%u,\n", rfConfig.bandMode);
     configFile.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
     configFile.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
     configFile.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
@@ -655,6 +659,11 @@ void loadConfiguration() {
             prefs.putString("channels", channels);
             Serial.println("Loaded channels from SD: " + channels);
         }
+    }
+
+    if (doc.containsKey("bandMode")) {
+        setBandMode((uint8_t)doc["bandMode"].as<int>());
+        Serial.printf("Loaded bandMode from SD: %u\n", rfConfig.bandMode);
     }
 
     if (doc.containsKey("meshInterval") && doc["meshInterval"].is<unsigned long>()) {

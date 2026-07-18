@@ -55,12 +55,12 @@ void initializeDroneDetector() {
     if (droneFrameQueue) {
         vQueueDeleteWithCaps(droneFrameQueue);
     }
-    droneFrameQueue = xQueueCreateWithCaps(8, sizeof(DroneFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    droneFrameQueue = xQueueCreateWithCaps(8, sizeof(DroneFrameEvent), AH_ISR_QUEUE_CAPS);
 
     if (droneQueue) {
         vQueueDeleteWithCaps(droneQueue);
     }
-    droneQueue = xQueueCreateWithCaps(64, sizeof(DroneDetection), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    droneQueue = xQueueCreateWithCaps(64, sizeof(DroneDetection), AH_ALLOC_CAPS);
     if (!droneFrameQueue || !droneQueue) Serial.println("[DRONE] WARNING: queue alloc failed (PSRAM) - detection inert");
     {
         std::lock_guard<std::mutex> lock(detectedDronesMutex);

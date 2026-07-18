@@ -117,8 +117,49 @@ RFScanConfig rfConfig = {
     .bleScanDuration = 3000,
     .preset = 1,
     .wifiChannels = "1..14",
-    .globalRssiThreshold = -95
+    .globalRssiThreshold = -95,
+    .bandMode = DEFAULT_BAND_MODE
 };
+
+extern std::vector<uint8_t> CHANNELS;
+
+// Band-filtered hop list (subset of CHANNELS for the active band); rebuilt at radioStart/setBandMode.
+std::vector<uint8_t> g_activeChannels;
+
+static inline bool channelIs2G(uint8_t ch) { return ch >= 1 && ch <= 14; }
+
+void rebuildActiveChannels() {
+    g_activeChannels.clear();
+    for (uint8_t ch : CHANNELS) {
+        if (rfConfig.bandMode == 0 && !channelIs2G(ch)) continue;  // 2.4GHz only
+        if (rfConfig.bandMode == 1 &&  channelIs2G(ch)) continue;  // 5GHz only
+        g_activeChannels.push_back(ch);
+    }
+    if (g_activeChannels.empty()) g_activeChannels = CHANNELS;
+}
+
+// Apply the selected band to the radio. C5-only; compiled out on 2.4GHz-only parts.
+static void applyBandMode() {
+#ifdef ARDUINO_XIAO_ESP32C5
+    esp_wifi_set_country_code(COUNTRY, true);
+    wifi_band_mode_t bm = WIFI_BAND_MODE_AUTO;
+    if (rfConfig.bandMode == 0) bm = WIFI_BAND_MODE_2G_ONLY;
+    else if (rfConfig.bandMode == 1) bm = WIFI_BAND_MODE_5G_ONLY;
+    esp_wifi_set_band_mode(bm);
+    Serial.printf("[RF] Band mode=%u (0=2.4GHz 1=5GHz 2=both)\n", rfConfig.bandMode);
+#endif
+}
+
+void setBandMode(uint8_t mode) {
+    if (mode > 2) mode = 2;
+#ifndef ARDUINO_XIAO_ESP32C5
+    mode = 0;  // 2.4GHz-only hardware
+#endif
+    rfConfig.bandMode = mode;
+    prefs.putUInt("bandMode", mode);
+    rebuildActiveChannels();
+    Serial.printf("[RF] Band mode set to %u\n", mode);
+}
 
 const uint32_t SCAN_MESH_SLOT_CYCLE_MS = 15000;
 const uint32_t SCAN_MESH_NUM_SLOTS = 5;
@@ -296,8 +337,15 @@ void loadRFConfigFromPrefs() {
         int8_t rssiThreshold = prefs.getInt("globalRSSI", -95);
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
-    
-    Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm\n", rfConfig.preset, rfConfig.globalRssiThreshold);
+
+    uint8_t bm = prefs.getUInt("bandMode", DEFAULT_BAND_MODE);
+#ifndef ARDUINO_XIAO_ESP32C5
+    bm = 0;
+#endif
+    rfConfig.bandMode = (bm > 2) ? DEFAULT_BAND_MODE : bm;
+    rebuildActiveChannels();
+
+    Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm, band: %u\n", rfConfig.preset, rfConfig.globalRssiThreshold, rfConfig.bandMode);
 }
 
 // Detection system variables
@@ -733,18 +781,19 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
 
 static void hopTimerCb(void *)
 {
-    if (!hopTimer || CHANNELS.empty()) return;
+    if (!hopTimer || g_activeChannels.empty()) return;
     static size_t idx = 0;
-    idx = (idx + 1) % CHANNELS.size();
-    esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
+    idx = (idx + 1) % g_activeChannels.size();
+    esp_wifi_set_channel(g_activeChannels[idx], WIFI_SECOND_CHAN_NONE);
 }
 
 uint8_t nextActiveScanChannel()
 {
-    if (CHANNELS.empty()) return (uint8_t)AP_CHANNEL;
+    const std::vector<uint8_t> &pool = g_activeChannels.empty() ? CHANNELS : g_activeChannels;
+    if (pool.empty()) return (uint8_t)AP_CHANNEL;
     static size_t i = 0;
-    i = (i + 1) % CHANNELS.size();
-    return CHANNELS[i];
+    i = (i + 1) % pool.size();
+    return pool[i];
 }
 
 // Deauth type
@@ -1009,7 +1058,8 @@ void snifferScanTask(void *pv)
             esp_wifi_set_promiscuous(false);
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
             esp_wifi_set_promiscuous(true);
-            if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+            if (!g_activeChannels.empty()) esp_wifi_set_channel(g_activeChannels[0], WIFI_SECOND_CHAN_NONE);
+            else if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
             if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
             if (stopRequested) break;
 
@@ -1781,7 +1831,7 @@ void blueTeamTask(void *pv) {
         vQueueDeleteWithCaps(oldQueue);
     }
 
-    deauthQueue = xQueueCreateWithCaps(256, sizeof(DeauthHit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    deauthQueue = xQueueCreateWithCaps(256, sizeof(DeauthHit), AH_ISR_QUEUE_CAPS);
     if (!deauthQueue) {
         Serial.println("[BLUE] FATAL: Queue creation failed");
         scanning = false;
@@ -2579,7 +2629,7 @@ bool safeMacQueueCreate(size_t queueSize) {
             macQueue = nullptr;
         }
         vTaskDelay(pdMS_TO_TICKS(50));
-        macQueue = xQueueCreateWithCaps(queueSize, sizeof(Hit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        macQueue = xQueueCreateWithCaps(queueSize, sizeof(Hit), AH_ISR_QUEUE_CAPS);
         xSemaphoreGive(macQueueMutex);
         return (macQueue != nullptr);
     }
@@ -2628,9 +2678,7 @@ void radioStartSTA() {
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
-#ifdef ARDUINO_XIAO_ESP32C5
-    esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
-#endif
+    applyBandMode();
 
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
         radioStartBLE();
@@ -2644,7 +2692,8 @@ void radioStartSTA() {
     esp_wifi_set_promiscuous(true);
 
     if (CHANNELS.empty()) CHANNELS = DEFAULT_CHANNELS;
-    esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+    rebuildActiveChannels();
+    esp_wifi_set_channel(g_activeChannels[0], WIFI_SECOND_CHAN_NONE);
 
     // Setup channel hopping
     if (hopTimer) {
@@ -2689,9 +2738,7 @@ void radioStartListScan() {
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
-#ifdef ARDUINO_XIAO_ESP32C5
-    esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
-#endif
+    applyBandMode();
 
     Serial.println("[RADIO] List scan mode ready (WiFi.scanNetworks will be used)");
 }
@@ -2733,7 +2780,7 @@ void initializeScanner()
     Serial.printf("Loaded %u probe devices from DB\n", getProbeDBSize());
 
     if (!probeRequestQueue) {
-        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
         if (probeRequestQueue) {
             Serial.printf("[INIT] probeRequestQueue PSRAM (256 entries, internal:%u psram:%u)\n",
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -2743,7 +2790,7 @@ void initializeScanner()
         }
     }
     if (!authFrameQueue) {
-        authFrameQueue = xQueueCreateWithCaps(64, sizeof(AuthFrameEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        authFrameQueue = xQueueCreateWithCaps(64, sizeof(AuthFrameEvent), AH_ISR_QUEUE_CAPS);
         if (authFrameQueue) {
             Serial.printf("[INIT] authFrameQueue PSRAM (64 entries, internal:%u psram:%u)\n",
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -2753,7 +2800,7 @@ void initializeScanner()
         }
     }
     if (!bleAdvQueue) {
-        bleAdvQueue = xQueueCreateWithCaps(128, sizeof(BleAdvEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        bleAdvQueue = xQueueCreateWithCaps(128, sizeof(BleAdvEvent), AH_ALLOC_CAPS);
         if (bleAdvQueue) {
             Serial.printf("[INIT] bleAdvQueue PSRAM (128 entries, internal:%u psram:%u)\n",
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

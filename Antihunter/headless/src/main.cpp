@@ -147,13 +147,25 @@ bool isZeroOrBroadcast(const uint8_t *mac) {
     return all0 || allF;
 }
 
+static bool isValidChannel(int ch) {
+    if (ch >= 1 && ch <= 14) return true;
+#ifdef ARDUINO_XIAO_ESP32C5
+    switch (ch) {
+        case 36: case 40: case 44: case 48:
+        case 149: case 153: case 157: case 161: case 165:
+            return true;
+    }
+#endif
+    return false;
+}
+
 void parseChannelsCSV(const String &csv) {
     CHANNELS.clear();
     if (csv.indexOf("..") >= 0) {
         int a = csv.substring(0, csv.indexOf("..")).toInt();
         int b = csv.substring(csv.indexOf("..") + 2).toInt();
         for (int ch = a; ch <= b; ch++) {
-            if (ch >= 1 && ch <= 14) CHANNELS.push_back((uint8_t)ch);
+            if (isValidChannel(ch)) CHANNELS.push_back((uint8_t)ch);
         }
     } else {
         int start = 0;
@@ -161,7 +173,7 @@ void parseChannelsCSV(const String &csv) {
             int comma = csv.indexOf(',', start);
             if (comma < 0) comma = csv.length();
             int ch = csv.substring(start, comma).toInt();
-            if (ch >= 1 && ch <= 14) CHANNELS.push_back((uint8_t)ch);
+            if (isValidChannel(ch)) CHANNELS.push_back((uint8_t)ch);
             start = comma + 1;
         }
     }
@@ -208,11 +220,16 @@ void setup() {
     // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== Antihunter [Headless] Boot ===");
 
+#ifdef ARDUINO_XIAO_ESP32C5
+    Serial.printf("[MEM] C5: PSRAM enabled (containers/queues -> PSRAM; WiFi/LWIP + ISR queues internal). psram_free=%u internal_free=%u\n",
+                  (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+#else
     if (psramFound()) {
         heap_caps_malloc_extmem_enable(64);
         Serial.printf("[MEM] PSRAM heap routing on (>=64B -> PSRAM). psram_free=%u internal_free=%u\n",
                       (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
+#endif
 
     delay(400);
     initializeHardware();
