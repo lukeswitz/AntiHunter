@@ -662,6 +662,9 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                 logEventToSD("/pmkid_forge.jsonl", String("{\"src\":\"") + sb + "\",\"reason\":\"FAKE_M1_ZERONONCE\",\"rssi\":" + String((int)e.rssi) + ",\"ch\":" + String((unsigned)e.channel) + ",\"ts\":" + String((unsigned)nowm) + "}");
                 ::detect_logIncident(String("PMKID_FORGE:") + sb + ":FAKE_M1", sb);
                 quorum_addReport("PMKID_FORGE", String(sb), getNodeId(), e.rssi);
+                if (meshEnabled && meshRateGate(String("PMKID_FORGE_") + sb, 30000)) {
+                    sendToSerial1(getNodeId() + ": PMKID_FORGE:" + sb + ":FAKE_M1:" + String((int)e.rssi), true);
+                }
                 attacker_kick(src, "PMKID_FORGE");
             }
         }
@@ -734,6 +737,9 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                 logEventToSD("/pmkid.jsonl", String("{\"src\":\"")+ss+"\",\"bssid\":\""+bb+"\",\"reason\":\"PMKID_KDE\",\"rssi\":"+String((int)e.rssi)+",\"ch\":"+String((unsigned)e.channel)+",\"ts\":"+String((unsigned)nk)+"}");
                 ::detect_logIncident(String("PMKID_HARVEST:") + ss + ":" + bb, ss);
                 quorum_addReport("PMKID", String(ss), getNodeId(), e.rssi);
+                if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() && meshRateGate(String("PMKID_HARVEST_") + bb, 30000)) {
+                    sendToSerial1(getNodeId() + ": PMKID_HARVEST:" + ss + ":" + bb + ":" + String((int)e.rssi), true);
+                }
             }
             break;
         }
@@ -1740,6 +1746,9 @@ static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, u
                   kind, (unsigned)g_probeGlobal.total, (unsigned)g_probeGlobal.srcCount.size(), (unsigned)channel);
     ::detect_logIncident(String("PROBE_FLOOD:") + kind + ":" + String((unsigned)g_probeGlobal.total), nullptr);
     quorum_addReport("PROBE_FLOOD", String(kind), getNodeId(), rssi);
+    if (meshEnabled && meshRateGate(String("PROBE_FLOOD_") + kind, 30000)) {
+        sendToSerial1(getNodeId() + ": PROBE_FLOOD:" + kind + ":" + String((unsigned)g_probeGlobal.total) + ":" + String((int)rssi), true);
+    }
 }
 
 static void handleProbeReq(const DetectFrameEvent &e) {
