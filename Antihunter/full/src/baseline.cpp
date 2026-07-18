@@ -933,8 +933,12 @@ void cleanupBaselineMemory() {
         if (hist.wasPresent && (now - hist.lastSeen > deviceAbsenceThreshold)) {
             if (hist.disappearedAt == 0) {
                 hist.disappearedAt = now;
-                Serial.printf("[BASELINE] Device disappeared: %s (absent %us)\n", 
+                Serial.printf("[BASELINE] Device disappeared: %s (absent %us)\n",
                             entry.first.c_str(), (now - hist.lastSeen) / 1000);
+                if (meshEnabled) {
+                    sendToSerial1(getNodeId() + ": DEVICE_DISAPPEARED: " + entry.first +
+                                  " absent:" + String((now - hist.lastSeen) / 1000) + "s", true);
+                }
             }
         }
     }
