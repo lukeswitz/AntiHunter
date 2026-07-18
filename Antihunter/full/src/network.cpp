@@ -161,6 +161,19 @@ bool sendToSerial1(const String &message, bool canDelay) {
         rateLimiter.consume(msgLen);
     }
 
+    {
+        uint32_t total = meshDrainTotal.load();
+        if (total > 0) {
+            uint32_t idx = meshDrainSent.load() + 1;
+            if (idx > total) idx = total;
+            Serial.printf("[MESH] barrel=%u/%uB  drain %u/%u\n",
+                          rateLimiter.available(), SerialRateLimiter::capacity(), idx, total);
+        } else {
+            Serial.printf("[MESH] barrel=%u/%uB\n",
+                          rateLimiter.available(), SerialRateLimiter::capacity());
+        }
+    }
+
     xSemaphoreGive(serial1Mutex);
 
     return true;

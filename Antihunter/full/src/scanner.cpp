@@ -3090,9 +3090,6 @@ void listScanTask(void *pv) {
                             Serial.printf("[SCAN] Queue full/unavailable for target %s\n", origBssid.c_str());
                         }
                     } else {
-                        if (hitsLog.size() < MAX_LOG_SIZE) {
-                            hitsLog.push_back(wh);
-                        }
                         localDeviceLastSeen[bssid] = now;
                     }
                 }
@@ -3158,19 +3155,7 @@ void listScanTask(void *pv) {
                         Serial.printf("[SCAN] Queue full/unavailable for target %s\n", macStrOrig.c_str());
                     }
                 } else {
-                    if (parseMac6(macStrOrig, mac)) {
-                        Hit bh;
-                        memcpy(bh.mac, mac, 6);
-                        bh.rssi = rssi;
-                        bh.ch = 0;
-                        strncpy(bh.name, name.c_str(), sizeof(bh.name) - 1);
-                        bh.name[sizeof(bh.name) - 1] = '\0';
-                        bh.isBLE = true;
-                        if (hitsLog.size() < MAX_LOG_SIZE) {
-                            hitsLog.push_back(bh);
-                        }
-                        localDeviceLastSeen[macStr] = now;
-                    }
+                    localDeviceLastSeen[macStr] = now;
                 }
             }
             pBLEScan->clearResults();
@@ -3542,7 +3527,7 @@ void listScanTask(void *pv) {
     }
 
     // Write final results while still scanning so tick() picks them up
-    if (!stopRequested) {
+    if (!triangulationActive) {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
         bool hasTriangulation = (antihunter::lastResults.find("=== Triangulation Results ===") != std::string::npos);
@@ -3560,7 +3545,7 @@ void listScanTask(void *pv) {
 
         Serial.printf("[SCAN] List results stored: %d chars\n", results.length());
     } else {
-        Serial.println("[SCAN] Skipping list results - stopRequested (letting stopTriangulation() handle it)");
+        Serial.println("[SCAN] Skipping list results - triangulation active (stopTriangulation() owns final results)");
     }
 
     // NOW set scanning=false after results are written
