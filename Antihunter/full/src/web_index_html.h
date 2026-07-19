@@ -274,7 +274,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <line x1="12" y1="12" x2="18" y2="12"/>
           </svg>
         </div>
-        <a class="btn danger" href="/stop" id="stopAllBtn" style="display:none;">STOP</a>
+        <a class="btn danger" href="/stop" id="stopAllBtn" onclick="return stopScan(event)" style="display:none;">STOP</a>
       </div>
       <div class="page-tabs">
         <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
@@ -1374,6 +1374,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           toast('Radio busy — ' + (radioBusyTask || 'scan') + ' in progress. Stop it first.', 'warning');
           return true;
         }
+        return false;
+      }
+
+      function stopScan(e) {
+        if (e) e.preventDefault();
+        lastScanStartTime = 0;
+        radioBusy = false;
+        radioBusyTask = '';
+        if (typeof setScanStatus === 'function') setScanStatus('Idle', 'idle');
+        const b = document.getElementById('stopAllBtn');
+        if (b) b.style.display = 'none';
+        fetch('/stop').then(r => r.text()).then(t => toast(t || 'Scan stopped'))
+          .catch(err => toast('Stop failed: ' + err, 'error'));
+        setTimeout(() => { if (typeof tick === 'function') tick(); }, 600);
         return false;
       }
 
