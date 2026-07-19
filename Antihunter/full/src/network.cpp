@@ -1128,6 +1128,11 @@ void registerRemainingRoutes() {
             return;
         }
 
+        if (req->hasParam("ch", true)) {
+            String ch = req->getParam("ch", true)->value();
+            if (ch.length() > 0) parseChannelsCSV(ch);
+        }
+
         String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
         int secs = req->hasParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
         bool forever = req->hasParam("forever", true);
