@@ -2474,7 +2474,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     if (g_airtagEnabled.load()) airtagProcess(addr, rssi, payload, len);
     if (g_csEnabled.load()) rotationAnomaly(payload, len, packMac(addr), rssi, now);
-    if (!g_trackerEnabled.load()) return;
+    if (!g_trackerEnabled.load() && !g_csEnabled.load()) return;
     uint64_t k = packMac(addr);
     auto it = g_bleTrackers.find(k);
     if (it == g_bleTrackers.end()) {
@@ -3127,7 +3127,8 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
                      const char *name) {
-    if (!sentinel_isUserEnabled() || !detectEnabled.load() || !detectFrameQueue || !addr || !payload) return;
+    bool bleIngestWanted = sentinel_isUserEnabled() || g_csEnabled.load() || g_airtagEnabled.load() || g_trackerEnabled.load();
+    if (!bleIngestWanted || !detectEnabled.load() || !detectFrameQueue || !addr || !payload) return;
     if (uxQueueSpacesAvailable(detectFrameQueue) < 4) { g_droppedBle.fetch_add(1); return; }
     DetectFrameEvent ev;
     ev.kind = DetectFrameEvent::BLE_ADV;
