@@ -2168,6 +2168,7 @@ static const WatchEntry kWatch[] = {
     {0xFD5A, 0xFFFF, 0, {0,0,0,0}, "SamsungSmartTag"},
     {0xFEAA, 0xFFFF, 1, {0x40,0,0,0}, "GoogleFMDN"},
     {0xFCB2, 0xFFFF, 0, {0,0,0,0}, "DULT"},
+    {0xFD44, 0xFFFF, 0, {0,0,0,0}, "AppleFMNA"},
     {0xFFFA, 0xFFFF, 1, {0x0D,0,0,0}, "OpenDroneID"},
     {0,       0x004C, 2, {0x12,0x19,0,0}, "AirTag_or_FindMy"},
     {0,       0x004C, 1, {0x07,0,0,0}, "AppleProxPair"},
@@ -2203,6 +2204,16 @@ static bool parseAdvForWatch(const uint8_t *p, uint16_t len, WatchEntry &outMatc
                 if (l >= 3 + w.mfgPrefixLen &&
                     memcmp(&p[off + 4], w.mfgPrefix, w.mfgPrefixLen) == 0) {
                     outMatch = w; return true;
+                }
+            }
+        }
+        if ((adType == 0x02 || adType == 0x03) && l >= 3) {
+            for (uint8_t di = 0; di + 1 < (uint8_t)(l - 1); di += 2) {
+                uint16_t uuid = (uint16_t)p[off + 2 + di] | ((uint16_t)p[off + 3 + di] << 8);
+                for (const auto &w : kWatch) {
+                    if (w.serviceUuid != 0 && w.serviceUuid == uuid && w.mfgPrefixLen == 0) {
+                        outMatch = w; return true;
+                    }
                 }
             }
         }
@@ -3646,11 +3657,11 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         quorum_addReport("DEAUTH_FLOOD", src, fromNode, (int8_t)rssi);
         return;
     }
-    if (msg.startsWith("CS_SIGHT:")) {
-        // CS_SIGHT:<identityHex>:<rssi> — peer saw this tracker; fromNode = its location cluster
-        int p1 = msg.indexOf(':', 9);
-        if (p1 < 0) return;
-        uint32_t h = (uint32_t)strtoul(msg.substring(9, p1).c_str(), nullptr, 16);
+    if (msg.startsWith("FOLLOWER:")) {
+        // FOLLOWER:<identityHex> seen=Nx owner-absent=P% rssi=R — peer saw this tracker; fromNode = its location cluster
+        int sp = msg.indexOf(' ', 9);
+        String hx = (sp > 0) ? msg.substring(9, sp) : msg.substring(9);
+        uint32_t h = (uint32_t)strtoul(hx.c_str(), nullptr, 16);
         ah_detect::followerAddCluster(h, fromNode, millis());
         return;
     }

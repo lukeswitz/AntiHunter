@@ -779,7 +779,10 @@ void followerProcess(uint32_t identityHash, const String &nodeId, int8_t rssi, b
     if (!ownerNearby) f.ownerAbsentCount++;
     f.clusters.insert(fnvStr(nodeId));
     if (meshEnabled && meshRateGate("CSS_" + String(identityHash, HEX), 30000))
-        sendToSerial1(getNodeId() + ": CS_SIGHT:" + String(identityHash, HEX) + ":" + String(rssi), true);
+        sendToSerial1(getNodeId() + ": FOLLOWER:" + String(identityHash, HEX) +
+                      " seen=" + String(f.observations) + "x owner-absent=" +
+                      String(f.observations ? (int)((100u * f.ownerAbsentCount) / f.observations) : 0) +
+                      "% rssi=" + String(rssi) + (f.alerted ? " [ALERTED]" : ""), true);
 
     uint32_t co = now - f.firstSeen;
     int absentPct = f.observations ? (int)((100u * f.ownerAbsentCount) / f.observations) : 0;
