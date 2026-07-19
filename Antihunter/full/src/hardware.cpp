@@ -1054,7 +1054,11 @@ String getDiagnostics() {
     
     s += "GPS: ";
     if (gpsValid) {
-        s += "Locked\n";
+        s += "Locked";
+        if (gps.hdop.isValid() && gps.hdop.hdop() > 0) {
+            s += " ~" + String(gps.hdop.hdop() * 2.0f, 1) + "m";
+        }
+        s += "\n";
     } else {
         s += "Waiting for data\n";
     }
