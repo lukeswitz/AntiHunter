@@ -99,7 +99,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @keyframes statxScroll{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
       @media(prefers-reduced-motion:reduce){.statx-track{animation:none}}
       #gpsStatus{min-width:60px;justify-content:flex-start}
-      #gpsStatus .gps-acc{text-transform:none;letter-spacing:0;opacity:.7;font-size:9px;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+      #gpsStatus .gps-acc{text-transform:none;letter-spacing:0;font-size:11px;font-weight:700;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
       #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
       @keyframes scanPulse{0%,100%{box-shadow:var(--glow)}50%{box-shadow:0 0 20px rgba(96,160,224,0.3),0 0 40px rgba(96,160,224,0.1)}}
       .tab-buttons{display:flex;gap:6px;margin-bottom:18px;background:rgba(0,0,0,0.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:6px;border-radius:10px;border:1px solid var(--bord)}
