@@ -5,6 +5,7 @@
 #include "main.h"
 #include "detect.h"
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 #include <mutex>
 #include <numeric>
@@ -1734,7 +1735,8 @@ void saveDeviceIdentities() {
     {
         std::lock_guard<std::mutex> lock(randMutex);
         snapshot.reserve(deviceIdentities.size());
-        for (const auto& entry : deviceIdentities) snapshot.push_back(entry.second);
+        std::transform(deviceIdentities.begin(), deviceIdentities.end(), std::back_inserter(snapshot),
+                       [](const auto& entry) { return entry.second; });
     }
 
     std::vector<uint8_t> buf;
