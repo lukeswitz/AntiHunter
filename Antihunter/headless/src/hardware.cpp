@@ -339,6 +339,7 @@ void initializeHardware()
         setMeshDedupTtlSec(ttl);
         Serial.printf("[CONFIG] Mesh dedup TTL: %us (0=disabled)\n", (unsigned)ttl);
     }
+    setMeshSessionDedup(prefs.getBool("meshSessDedup", false));
     
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
@@ -419,6 +420,7 @@ static uint32_t configSignature() {
     mix(&meshSendInterval, sizeof(meshSendInterval));
     uint32_t u;
     u = getMeshDedupTtlSec();          mix(&u, 4);
+    { bool b = getMeshSessionDedup(); mix(&b, 1); }
     mix(&autoEraseEnabled, 1);
     mix(&autoEraseDelay, 4); mix(&autoEraseCooldown, 4);
     mix(&vibrationsRequired, sizeof(vibrationsRequired));
@@ -492,6 +494,7 @@ void saveConfiguration() {
     configFile.printf(" \"bandMode\":%u,\n", rfConfig.bandMode);
     configFile.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
     configFile.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
+    configFile.printf(" \"meshSessDedup\":%s,\n", getMeshSessionDedup() ? "true" : "false");
     configFile.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
     configFile.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
     configFile.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
@@ -672,6 +675,13 @@ void loadConfiguration() {
             prefs.putUInt("meshDedupTtl", ttl);
             Serial.printf("Loaded meshDedupTtl from SD: %us\n", ttl);
         }
+    }
+
+    if (doc.containsKey("meshSessDedup") && doc["meshSessDedup"].is<bool>()) {
+        bool sd = doc["meshSessDedup"].as<bool>();
+        setMeshSessionDedup(sd);
+        prefs.putBool("meshSessDedup", sd);
+        Serial.printf("Loaded meshSessDedup from SD: %s\n", sd ? "ON" : "OFF");
     }
 
     if (doc.containsKey("targets") && doc["targets"].is<String>()) {
