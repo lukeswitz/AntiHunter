@@ -45,7 +45,7 @@ uint32_t meshMsgUnits(const String &msg);
 uint32_t meshTxDroppedCount();
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
-constexpr int MAX_MESH_SIZE = 200;  // T114 tests allow 200char/3s in sequence
+constexpr int MAX_MESH_SIZE = 230;  // packs more DEVICE rows/frame; stays under Meshtastic 237B text-payload cap
 extern SerialRateLimiter rateLimiter;
 extern SemaphoreHandle_t serial1Mutex;
 extern std::atomic<bool> g_eraseWipeBusy;
