@@ -151,8 +151,9 @@ static void applyBandMode() {
 }
 
 void setBandMode(uint8_t mode) {
+#ifdef ARDUINO_XIAO_ESP32C5
     if (mode > 2) mode = 2;
-#ifndef ARDUINO_XIAO_ESP32C5
+#else
     mode = 0;  // 2.4GHz-only hardware
 #endif
     rfConfig.bandMode = mode;
@@ -344,11 +345,12 @@ void loadRFConfigFromPrefs() {
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
 
+#ifdef ARDUINO_XIAO_ESP32C5
     uint8_t bm = prefs.getUInt("bandMode", DEFAULT_BAND_MODE);
-#ifndef ARDUINO_XIAO_ESP32C5
-    bm = 0;
-#endif
     rfConfig.bandMode = (bm > 2) ? DEFAULT_BAND_MODE : bm;
+#else
+    rfConfig.bandMode = 0;  // 2.4GHz-only hardware
+#endif
     rebuildActiveChannels();
 
     Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm, band: %u\n", rfConfig.preset, rfConfig.globalRssiThreshold, rfConfig.bandMode);

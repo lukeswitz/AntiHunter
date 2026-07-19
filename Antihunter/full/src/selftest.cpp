@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <vector>
+#include <algorithm>
 #include <Preferences.h>
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
@@ -21,14 +22,11 @@ static void ck(const char *name, bool ok) {
 }
 
 static bool listHas(const std::vector<uint8_t> &v, uint8_t ch) {
-    for (uint8_t c : v) if (c == ch) return true;
-    return false;
+    return std::any_of(v.begin(), v.end(), [ch](uint8_t c) { return c == ch; });
 }
 
 static bool allInRange(const std::vector<uint8_t> &v, int lo, int hi) {
-    if (v.empty()) return false;
-    for (uint8_t c : v) if (c < lo || c > hi) return false;
-    return true;
+    return !v.empty() && std::all_of(v.begin(), v.end(), [lo, hi](uint8_t c) { return c >= lo && c <= hi; });
 }
 
 // Section 1: config layer (no radio) — the new band/channel logic.
@@ -71,10 +69,10 @@ static void testBandModeRadio() {
     ck("esp_wifi_set_country_code(US,true)==OK", rc == ESP_OK);
     Serial.printf("     ret=%s\n", errName(rc));
 
-    struct { uint8_t v; wifi_band_mode_t m; const char *n; } modes[] = {
-        {0, WIFI_BAND_MODE_2G_ONLY, "2G_ONLY"},
-        {1, WIFI_BAND_MODE_5G_ONLY, "5G_ONLY"},
-        {2, WIFI_BAND_MODE_AUTO,    "AUTO"},
+    struct { wifi_band_mode_t m = WIFI_BAND_MODE_2G_ONLY; const char *n = nullptr; } modes[] = {
+        {WIFI_BAND_MODE_2G_ONLY, "2G_ONLY"},
+        {WIFI_BAND_MODE_5G_ONLY, "5G_ONLY"},
+        {WIFI_BAND_MODE_AUTO,    "AUTO"},
     };
     for (auto &bm : modes) {
         esp_err_t r = esp_wifi_set_band_mode(bm.m);
