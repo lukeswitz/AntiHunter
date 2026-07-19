@@ -93,11 +93,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
       .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       #scanStatus{min-width:130px;justify-content:flex-start}
-      .statx-ticker{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap}
-      .statx-track{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;will-change:transform}
-      @media(max-width:760px){.header-bar:has(#scanStatus.active) .statx-track{animation:statxScroll 14s linear infinite}.header-bar:has(#scanStatus.active) .statx-ticker:hover .statx-track{animation-play-state:paused}.header-bar:has(#scanStatus.active) .theme-toggle{display:none}}
-      @keyframes statxScroll{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
-      @media(prefers-reduced-motion:reduce){.statx-track{animation:none}}
+      .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+      .statx-ticker::-webkit-scrollbar{display:none}
+      .statx-track{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
+      @media(max-width:760px){.header-bar:has(#scanStatus.active) .theme-toggle{display:none}}
       #gpsStatus{min-width:60px;justify-content:flex-start}
       #gpsStatus .gps-acc{text-transform:none;letter-spacing:0;font-size:11px;font-weight:700;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
       #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
@@ -370,9 +369,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <h1><svg class="brand-shield" viewBox="3 1 18 22" fill="none" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span class="wm"><b>Anti</b>Hunter</span></h1>
         <div class="statx-ticker"><div class="statx-track" id="statxTrack">
             <div class="status-item idle" id="scanStatus">Idle</div>
+              <div class="status-item" id="gpsStatus">GPS</div>
               <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
               <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;display:none;" title="Click to toggle Sentinel">SENTINEL</div>
-              <div class="status-item" id="gpsStatus">GPS</div>
         </div></div>
         <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
