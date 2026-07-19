@@ -427,7 +427,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
-                <option value="counter-surveil">Counter-Surveillance / Find My (BLE)</option>
+                <!-- <option value="counter-surveil">Counter-Surveillance / Find My (BLE)</option> hidden: co-presence/follower engine needs mobile validation before beta -->
                 <option value="probe-scan">Probe Request Scanner</option>
               </select>
 
@@ -2807,6 +2807,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html = parseDeauthResults(text);
         } else if (text.includes('Drone Detection Results')) {
           html = parseDroneResults(text);
+        } else if (text.includes('Counter-Surveillance / Find My')) {
+          html = parseCounterSurveilResults(text);
         } else if (text.includes('Probes:') && text.includes('SSIDs:')) {
           html = parseProbeResults(text);
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
@@ -3618,6 +3620,54 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div>';
         });
         
+        return html;
+      }
+
+      function parseCounterSurveilResults(text) {
+        const air = text.match(/AirTags \/ Find My present: (\d+)/);
+        const fol = text.match(/Potential followers: (\d+)/);
+        const trk = text.match(/BLE trackers: (\d+)/);
+        let html = '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
+        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">Counter-Surveillance / Find My</div>';
+        html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);flex-wrap:wrap;">';
+        html += '<span>AirTags/Find My: <strong style="color:var(--txt);">' + (air ? air[1] : '0') + '</strong></span>';
+        html += '<span>Trackers: <strong style="color:var(--txt);">' + (trk ? trk[1] : '0') + '</strong></span>';
+        html += '<span>Followers: <strong style="color:var(--txt);">' + (fol ? fol[1] : '0') + '</strong></span>';
+        html += '</div></div>';
+        let section = '', items = 0, m;
+        text.split('\n').forEach(function(line) {
+          if (/AirTags \/ Find My present:/.test(line)) { section = 'air'; return; }
+          if (/Potential followers:/.test(line)) { section = 'fol'; return; }
+          if (/BLE trackers:/.test(line)) { section = 'trk'; return; }
+          const t = line.trim();
+          if (!t) return;
+          if (section === 'air' && (m = t.match(/^([0-9A-Fa-f:]{17})\s+RSSI (-?\d+)dBm\s+(\S+)\s+seen (\d+)x/))) {
+            const near = m[3] === 'owner-nearby';
+            html += '<div style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid ' + (near ? 'var(--bord)' : 'var(--dang)') + ';margin-bottom:10px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
+            html += '<span style="font-family:monospace;font-size:14px;color:var(--acc);">' + m[1] + ' <span style="color:var(--mut);font-size:11px;">Find My</span></span>';
+            html += '<span style="color:var(--mut);font-size:12px;">RSSI <strong style="color:var(--txt);">' + m[2] + ' dBm</strong></span></div>';
+            html += '<div style="font-size:11px;color:var(--mut);margin-top:6px;">' + (near ? 'owner nearby' : '<span style="color:var(--dang);font-weight:bold;">SEPARATED (lost mode)</span>') + ' &middot; seen ' + m[4] + 'x</div></div>';
+            items++;
+          } else if (section === 'fol' && (m = t.match(/^id ([0-9a-f]+)\s+seen (\d+)x\s+owner-absent (\d+)%\s+clusters (\d+)(.*)$/))) {
+            const al = /ALERTED/.test(m[5]);
+            html += '<div style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid ' + (al ? 'var(--dang)' : 'var(--bord)') + ';margin-bottom:10px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
+            html += '<span style="font-family:monospace;font-size:14px;color:var(--acc);">follower ' + m[1] + (al ? ' <span style="color:var(--dang);font-weight:bold;">[FOLLOWER]</span>' : '') + '</span>';
+            html += '<span style="color:var(--mut);font-size:12px;">owner-absent <strong style="color:' + (parseInt(m[3]) >= 70 ? 'var(--dang)' : 'var(--txt)') + ';">' + m[3] + '%</strong></span></div>';
+            html += '<div style="font-size:11px;color:var(--mut);margin-top:6px;">seen ' + m[2] + 'x &middot; ' + m[4] + ' node cluster' + (m[4] === '1' ? '' : 's') + '</div></div>';
+            items++;
+          } else if (section === 'trk' && (m = t.match(/^([0-9A-Fa-f:]{17})\s+(\S+)\s+RSSI (-?\d+)dBm\s+seen (\d+)x\s+persist (\d+)(.*)$/))) {
+            const fw = /FOLLOWING/.test(m[6]);
+            html += '<div style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid ' + (fw ? 'var(--dang)' : 'var(--bord)') + ';margin-bottom:10px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">';
+            html += '<span style="font-family:monospace;font-size:14px;color:var(--acc);">' + m[1] + ' <span style="color:var(--mut);font-size:11px;">' + m[2] + '</span></span>';
+            html += '<span style="color:var(--mut);font-size:12px;">RSSI <strong style="color:var(--txt);">' + m[3] + ' dBm</strong></span></div>';
+            html += '<div style="font-size:11px;color:var(--mut);margin-top:6px;">seen ' + m[4] + 'x &middot; persistence ' + m[5] + (fw ? ' &middot; <span style="color:var(--dang);font-weight:bold;">FOLLOWING</span>' : '') + '</div></div>';
+            items++;
+          }
+        });
+        if (items === 0) html += '<div style="color:var(--mut);padding:16px;text-align:center;">No AirTags, trackers, or followers detected yet.</div>';
         return html;
       }
 
