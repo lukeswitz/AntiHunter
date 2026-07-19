@@ -2099,10 +2099,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 lastResultsText = rt;
                 const re = document.getElementById('r');
                 if (re) {
+                  const dkey = sm => sm.textContent.trim().replace(/\s*\([^)]*\)\s*$/, '');
                   const openDetails = new Set();
-                  re.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(sm.textContent.trim()); });
+                  re.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(dkey(sm)); });
                   re.innerHTML = parseAndStyleResults(rt);
-                  if (openDetails.size) re.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(sm.textContent.trim())) d.open = true; });
+                  if (openDetails.size) re.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(dkey(sm))) d.open = true; });
                   if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
                 }
               }
