@@ -169,6 +169,122 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .rand-yes{color:var(--warn);font-weight:600}
       .data-empty{text-align:center;padding:40px 20px;color:var(--mut);font-size:14px}
       html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
+      /* ===== Results design system — continuity with System tab ===== */
+      /* block components self-space so they read right as direct children of #r (sorted result types) */
+      .res-hero,.res-card,.res-section,.res-callout{margin-bottom:14px}
+      .res-list{display:flex;flex-direction:column;gap:12px}
+      .res-list>.res-card,.res-section-body>.res-card{margin-bottom:0}
+      .res-hero{background:linear-gradient(180deg,var(--surf-hover),var(--surf));border:1px solid var(--bord);border-radius:12px;padding:18px 20px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 6px 18px -12px rgba(0,0,0,0.6);position:relative;overflow:hidden}
+      .res-hero::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(180deg,var(--bord-focus),transparent 55%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0.5;pointer-events:none}
+      .res-hero-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+      .res-hero-title{font-size:15px;font-weight:700;letter-spacing:-0.01em;color:var(--txt);display:inline-flex;align-items:center;gap:8px;line-height:1.2}
+      .res-hero-title svg{width:17px;height:17px;stroke:var(--acc);fill:none;flex-shrink:0}
+      .res-scanning{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--acc);animation:pulse 1.5s ease-in-out infinite}
+      .res-scanning::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px var(--acc)}
+      .res-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+      .res-stat{background:var(--accbg);border:1px solid var(--bord);border-radius:9px;padding:11px 13px}
+      .res-stat-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--mut);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+      .res-stat-val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--txt);line-height:1}
+      .res-stat-val small{font-size:12px;color:var(--mut);font-weight:500;margin-left:2px}
+      .res-stat.danger .res-stat-val{color:var(--dang)}
+      .res-stat.warn .res-stat-val{color:var(--warn)}
+      .res-stat.ok .res-stat-val{color:var(--succ)}
+      /* item card */
+      .res-card{background:var(--surf);border:1px solid var(--bord);border-radius:11px;padding:16px 18px 16px 20px;transition:border-color .2s,transform .2s,box-shadow .2s;position:relative;overflow:hidden}
+      .res-card:hover{border-color:var(--bord-focus);transform:translateY(-1px);box-shadow:var(--glow)}
+      .res-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:transparent;transition:background .2s}
+      .res-card.acc::before{background:var(--acc)}
+      .res-card.alert::before{background:var(--warn)}
+      .res-card.danger::before{background:var(--dang)}
+      .res-card.ok::before{background:var(--succ)}
+      .res-card.ble::before{background:var(--c-ble)}
+      .res-card.target{border-color:var(--acc);background:var(--accbg);box-shadow:var(--glow)}
+      .res-card.target::before{background:var(--acc)}
+      /* 3-zone horizontal band: identity | meta (fills the middle) | metric */
+      .res-row-main{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap}
+      .res-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap}
+      .res-id{min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
+      .res-meta{flex:1 1 160px;min-width:0;display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;font-size:14px;color:var(--mut);line-height:1.4}
+      .res-meta>span{display:inline-flex;align-items:center;gap:6px}
+      .res-meta strong{color:var(--txt);font-weight:600}
+      .res-mac{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15.5px;font-weight:700;letter-spacing:0.02em;color:var(--txt);display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;word-break:break-all}
+      .res-mac.acc{color:var(--acc)}
+      .res-mac.warn{color:var(--warn)}
+      .res-line{font-size:14px;color:var(--mut);line-height:1.5}
+      .res-line strong{color:var(--txt);font-weight:600}
+      .res-metric{text-align:right;flex-shrink:0;display:flex;flex-direction:column;gap:2px;margin-left:auto}
+      .res-metric-val{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);line-height:1.05;letter-spacing:-0.01em}
+      .res-metric-val small{font-size:13px;color:var(--mut);font-weight:500;margin-left:1px}
+      .res-metric-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--mut)}
+      /* mini KV grid inside a card */
+      .res-kvs{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:10px;margin-top:14px}
+      .res-kv{background:var(--bg);border:1px solid var(--bord);border-radius:9px;padding:11px 13px}
+      .res-kv.danger{border-color:var(--dang)}
+      .res-kv-lab{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--mut);margin-bottom:6px;line-height:1.2}
+      .res-kv-val{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);line-height:1.15}
+      .res-kv-val.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px}
+      .res-kv-val.sm{font-size:14px;font-weight:600}
+      /* badges */
+      .res-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;border:1px solid var(--bord);background:var(--surf);color:var(--mut);white-space:nowrap;vertical-align:middle;line-height:1.5}
+      .res-badge.acc{color:var(--acc);border-color:var(--acc);background:var(--accbg)}
+      .res-badge.known{color:#fff;background:var(--c-known);border-color:var(--c-known)}
+      .res-badge.target{color:#fff;background:var(--acc);border-color:var(--acc)}
+      .res-badge.danger{color:var(--dang);border-color:var(--dang);background:var(--c-err-bg)}
+      .res-badge.warn{color:var(--warn);border-color:var(--warn);background:var(--c-away-bg)}
+      .res-badge.ok{color:var(--succ);border-color:var(--succ);background:var(--accbg)}
+      .res-badge.ble{color:var(--c-ble);border-color:var(--c-ble);background:var(--c-ble-bg)}
+      .res-badge.wifi{color:var(--c-wifi);border-color:var(--c-wifi);background:var(--c-wifi-bg)}
+      .res-badge.muted{color:#fff;background:var(--mut);border-color:var(--mut)}
+      /* tags (SSIDs / probes) */
+      .res-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;align-items:center}
+      .res-tags-lab{font-size:11px;font-weight:600;color:var(--mut);margin-right:2px}
+      .res-tag{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:500;border:1px solid var(--bord);background:var(--bg);color:var(--txt);white-space:nowrap}
+      .res-tag.away{border-style:dashed;border-color:var(--c-away);color:var(--c-away);background:var(--c-away-bg)}
+      .res-tag sup{font-size:8px;opacity:.7;margin-left:2px}
+      /* note / reason line */
+      .res-note{margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--bord);border-left:3px solid var(--acc);border-radius:8px;font-size:12.5px;color:var(--txt);line-height:1.5}
+      .res-note.warn{border-left-color:var(--warn);color:var(--warn)}
+      .res-note.danger{border-left-color:var(--dang)}
+      .res-note-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-right:6px}
+      /* sub meta line */
+      .res-sub{font-size:12px;color:var(--mut);margin-top:9px;line-height:1.5}
+      .res-sub strong{color:var(--txt);font-weight:600}
+      /* nested source rows (attack sources, mac list) */
+      .res-rows{margin-top:11px;padding:11px 12px;background:var(--bg);border:1px solid var(--bord);border-radius:8px}
+      .res-rows-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-bottom:8px}
+      .res-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt);padding:6px 0;border-bottom:1px solid var(--bord)}
+      .res-row:last-child{border-bottom:none;padding-bottom:0}
+      .res-row-meta{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:11px;color:var(--mut);white-space:nowrap}
+      .res-more{padding:8px;text-align:center;color:var(--mut);font-size:11px;font-style:italic}
+      /* collapsible section (Node Reports, Baseline devices, MAC lists) */
+      .res-section{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px;box-shadow:var(--shad)}
+      .res-section>summary{cursor:pointer;list-style:none;user-select:none;display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;color:var(--acc)}
+      .res-section>summary::-webkit-details-marker{display:none}
+      .res-section>summary .res-caret{transition:transform .2s;font-size:11px;display:inline-block}
+      .res-section[open]>summary .res-caret{transform:rotate(90deg)}
+      .res-section-body{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+      /* callout banner (no mesh, impossible, etc.) */
+      .res-callout{padding:16px 18px;border-radius:12px;border:1px solid var(--bord);background:var(--surf);display:flex;gap:13px;align-items:flex-start}
+      .res-callout.danger{border-color:var(--dang);background:var(--c-err-bg)}
+      .res-callout.warn{border-color:var(--warn);background:var(--c-alert-bg)}
+      .res-callout svg{width:22px;height:22px;flex-shrink:0;stroke-width:2;fill:none;margin-top:1px}
+      .res-callout.danger svg{stroke:var(--dang)}
+      .res-callout.warn svg{stroke:var(--warn)}
+      .res-callout-title{font-size:14px;font-weight:700;margin-bottom:4px}
+      .res-callout.danger .res-callout-title{color:var(--dang)}
+      .res-callout.warn .res-callout-title{color:var(--warn)}
+      .res-callout-body{font-size:12.5px;color:var(--txt);line-height:1.5}
+      /* empty state */
+      .res-empty{text-align:center;padding:40px 20px;color:var(--mut);font-size:14px;display:flex;flex-direction:column;align-items:center;gap:12px}
+      .res-empty svg{width:34px;height:34px;stroke:var(--mut);fill:none;opacity:.45}
+      /* CTA (open in maps) */
+      .res-cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;margin-top:4px;background:linear-gradient(135deg,var(--acc),var(--acch));border:1px solid var(--acc);border-radius:9px;color:#fff;text-decoration:none;font-weight:600;font-size:13px;box-shadow:var(--glow);transition:filter .2s}
+      .res-cta:hover{filter:brightness(1.08)}
+      .res-cta svg{width:15px;height:15px;stroke:currentColor;fill:none}
+      /* position hero (triangulation estimate) */
+      .res-coord{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+      .res-coord .res-kv-val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px}
+      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}}
     </style>
     <script>
       let toggleHistory=[];
@@ -2172,7 +2288,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return;
         }
         
-        const isRandomization = resultsElement.textContent.includes('RANDOMIZED DEVICE TRACER');
+        const isRandomization = resultsElement.textContent.includes('Randomized Device Tracer');
         const isBaseline = resultsElement.textContent.includes('Baseline') || resultsElement.querySelector('.baseline-marker');
         const isDeauth = resultsElement.textContent.includes('Deauth Attack Detection');
         const isDrone = resultsElement.textContent.includes('Drone Detection');
@@ -2190,7 +2306,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 return;
               }
               
-              const macElement = summary.querySelector('[style*="monospace"]');
+              const macElement = summary.querySelector('.res-mac');
               const mac = macElement ? macElement.textContent.trim() : '';
               
               const summaryText = summary.textContent;
@@ -2227,7 +2343,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           Array.from(resultsElement.children).forEach(child => {
             if (child.classList.contains('device-card')) {
               const macMatch = child.textContent.match(/([A-F0-9:]+)/);
-              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssiMatch = child.textContent.match(/(-?\d+)\s*dBm/);
               const nameMatch = child.textContent.match(/Name:\s*([^\n]+)/);
               items.push({
                 element: child,
@@ -2243,7 +2359,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 Array.from(baselineContainer.children).forEach(card => {
                   if (card.classList.contains('device-card')) {
                     const macMatch = card.textContent.match(/([A-F0-9:]+)/);
-                    const rssiMatch = card.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+                    const rssiMatch = card.textContent.match(/(-?\d+)\s*dBm/);
                     const nameMatch = card.textContent.match(/Name:\s*([^\n]+)/);
                     items.push({
                       element: card,
@@ -2280,7 +2396,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
         } else if (isDeauth) {
           Array.from(resultsElement.children).forEach(child => {
-            const hasDeauthBorder = child.getAttribute('style')?.includes('border:1px solid var(--warn)');
+            const hasDeauthBorder = child.classList.contains('res-card');
             if (hasDeauthBorder) {
               const macMatch = child.textContent.match(/([A-F0-9:]+|\[BROADCAST\])/);
               const mac = macMatch ? macMatch[1] : '';
@@ -2303,12 +2419,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           });
         } else if (isDrone) {
           Array.from(resultsElement.children).forEach(child => {
-            const hasDroneBorder = child.getAttribute('style')?.includes('border:1px solid var(--acc)');
+            const hasDroneBorder = child.classList.contains('res-card');
             if (hasDroneBorder) {
               const macMatch = child.textContent.match(/([A-F0-9:]+)/);
               const mac = macMatch ? macMatch[1] : '';
               
-              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssiMatch = child.textContent.match(/(-?\d+)\s*dBm/);
               const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
               
               items.push({
@@ -2327,7 +2443,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const macMatch = child.textContent.match(/([A-F0-9:]+)/);
               const mac = macMatch ? macMatch[1] : '';
               
-              const rssiMatch = child.textContent.match(/RSSI:\s*([-\d]+)\s*dBm/);
+              const rssiMatch = child.textContent.match(/(-?\d+)\s*dBm/);
               const rssi = rssiMatch ? parseInt(rssiMatch[1]) : 0;
               
               const nameMatch = child.textContent.match(/Name:\s*([^\n]+)/);
@@ -2781,9 +2897,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return '<span title="Locally-administered (randomized) MAC" style="background:var(--c-rand);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;margin-left:6px;vertical-align:middle;letter-spacing:0.5px;">RAND</span>';
       }
 
+      function _resEmpty(msg, icon) {
+        const svg = icon === 'ok'
+          ? '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+          : '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+        return '<div class="res-empty">' + svg + '<div>' + msg + '</div></div>';
+      }
+      function _resStat(label, value, cls) {
+        return '<div class="res-stat' + (cls ? ' ' + cls : '') + '"><div class="res-stat-lab">' + label +
+          '</div><div class="res-stat-val">' + value + '</div></div>';
+      }
+      function _resKv(label, value, cls) {
+        return '<div class="res-kv' + (cls ? ' ' + cls : '') + '"><div class="res-kv-lab">' + label +
+          '</div><div class="res-kv-val">' + value + '</div></div>';
+      }
+
       function parseAndStyleResults(text) {
         if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
-          return '<div style="color:var(--mut);padding:20px;text-align:center;">No scan data yet.</div>';
+          return _resEmpty('No scan data yet. Start a scan from the Scan tab.');
         }
 
         let html = '';
@@ -2803,15 +2934,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
           html = parseDeviceScanResults(text);
         } else {
-          html = '<div style="margin:0;background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:12px;color:var(--txt);font-size:11px;overflow-x:auto;">' + text + '</div>';
+          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;">' + text + '</pre></div>';
         }
-        
+
         return html;
       }
 
       function parseTriangulationResults(text) {
-        let html = '<div style="font-size:13px;">';
-        
+        let html = '';
         const headerSection = text.split('---')[0];
         if (headerSection.includes('=== Triangulation Results ===')) {
           const targetMatch = headerSection.match(/Target MAC: ([A-F0-9:]+)/);
@@ -2819,262 +2949,85 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const elapsedMatch = headerSection.match(/Elapsed: (\d+)s/);
           const nodesMatch = headerSection.match(/Reporting Nodes: (\d+)/);
           const syncMatch = headerSection.match(/Clock Sync: (.+)/);
-          
-          html += '<div style="padding:16px;background:var(--surf);border:2px solid var(--acc);border-radius:12px;margin-bottom:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
-          html += '<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:12px;letter-spacing:-0.01em;">Triangulation Results</div>';
-          
-          if (targetMatch) {
-            html += '<div style="margin:8px 0;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-family:monospace;color:var(--acc);font-size:13px;font-weight:600;">';
-            html += 'TARGET: ' + targetMatch[1] + randBadge(targetMatch[1]);
-            html += '</div>';
-          }
-          
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px;">';
-          if (durationMatch && elapsedMatch) {
-            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Duration</div>';
-            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + durationMatch[1] + 's</div>';
-            html += '</div>';
-            
-            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Elapsed</div>';
-            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + elapsedMatch[1] + 's</div>';
-            html += '</div>';
-          }
-          
-          if (nodesMatch) {
-            html += '<div style="background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--bord);">';
-            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">Nodes</div>';
-            html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">' + nodesMatch[1] + '</div>';
-            html += '</div>';
-          }
+
+          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
+          html += '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Triangulation Results</div></div>';
+          if (targetMatch) html += '<div class="res-mac acc" style="margin-bottom:12px;"><span class="res-note-lab">Target</span>' + targetMatch[1] + randBadge(targetMatch[1]) + '</div>';
+          html += '<div class="res-stats">';
+          if (durationMatch) html += _resStat('Duration', durationMatch[1] + 's');
+          if (elapsedMatch) html += _resStat('Elapsed', elapsedMatch[1] + 's');
+          if (nodesMatch) html += _resStat('Nodes', nodesMatch[1]);
           html += '</div>';
-          
           if (syncMatch) {
             const syncVerified = syncMatch[1].includes('VERIFIED');
-            const syncColor = syncVerified ? 'var(--succ)' : 'var(--warn)';
-            html += '<div style="margin-top:12px;padding:8px;background:var(--bg);border-left:3px solid ' + syncColor + ';border-radius:4px;font-size:11px;color:var(--mut);">';
-            html += '⏱ Clock Sync: ' + syncMatch[1];
-            html += '</div>';
+            html += '<div class="res-note ' + (syncVerified ? '' : 'warn') + '" style="margin-bottom:0;"><span class="res-note-lab">Clock Sync</span>' + syncMatch[1] + '</div>';
           }
           html += '</div>';
         }
 
-        // // Check for error/warning states and display them prominently
-        // if (text.includes('Insufficient GPS') || (text.includes('GPS nodes:') && text.includes('required'))) {
-        //   const gpsCountMatch = text.match(/GPS nodes:\s*(\d+)\/(\d+)\s*required/);
-        //   const totalNodesMatch = text.match(/Total nodes:\s*(\d+)/);
-        //   html += '<div style="padding:20px;background:var(--warn-bg,#fef3c7);border:2px solid var(--warn,#f59e0b);border-radius:12px;margin-bottom:16px;">';
-        //   html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-        //   html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn,#f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-        //   html += '<div style="font-weight:700;font-size:16px;color:#78350f;">Insufficient GPS Nodes</div>';
-        //   html += '</div>';
-        //   if (gpsCountMatch) {
-        //     html += '<div style="color:#78350f;font-size:14px;margin-bottom:8px;">Need ' + gpsCountMatch[2] + ' GPS nodes, but only ' + gpsCountMatch[1] + ' available.</div>';
-        //     const needed = parseInt(gpsCountMatch[2]) - parseInt(gpsCountMatch[1]);
-        //     html += '<div style="color:#78350f;font-size:13px;margin-bottom:16px;">Add ' + needed + ' more GPS-equipped node(s) to enable triangulation.</div>';
-        //   } else {
-        //     html += '<div style="color:#78350f;font-size:14px;margin-bottom:16px;">At least 3 GPS-equipped nodes are required for triangulation.</div>';
-        //   }
-
-        //   // Parse and display current GPS nodes
-        //   const gpsNodesSection = text.split('Current GPS nodes:')[1]?.split('Non-GPS nodes:')[0];
-        //   if (gpsNodesSection) {
-        //     html += '<div style="margin-top:12px;padding:14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;">';
-        //     html += '<div style="color:#15803d;font-size:12px;font-weight:700;margin-bottom:10px;">GPS-Equipped Nodes</div>';
-        //     const gpsNodeLines = gpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
-        //     gpsNodeLines.forEach(line => {
-        //       const nodeMatch = line.match(/•\s*([^\s@]+)\s*@\s*([-\d.]+),([-\d.]+)/);
-        //       if (nodeMatch) {
-        //         html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
-        //         html += '<div style="color:#15803d;font-weight:700;font-size:12px;margin-bottom:4px;">' + nodeMatch[1] + '</div>';
-        //         html += '<div style="color:#6b7280;font-family:monospace;font-size:11px;">' + nodeMatch[2] + ', ' + nodeMatch[3] + '</div>';
-        //         html += '</div>';
-        //       }
-        //     });
-        //     html += '</div>';
-        //   }
-
-        //   // Parse and display non-GPS nodes
-        //   const nonGpsNodesSection = text.split('Non-GPS nodes:')[1]?.split('===')[0];
-        //   if (nonGpsNodesSection) {
-        //     html += '<div style="margin-top:12px;padding:14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;">';
-        //     html += '<div style="color:#991b1b;font-size:12px;font-weight:700;margin-bottom:10px;">Nodes Without GPS</div>';
-        //     const nonGpsNodeLines = nonGpsNodesSection.split('\n').filter(l => l.trim().startsWith('•'));
-        //     nonGpsNodeLines.forEach(line => {
-        //       const nodeMatch = line.match(/•\s*([^\s(]+)/);
-        //       if (nodeMatch) {
-        //         html += '<div style="padding:10px;background:rgba(255,255,255,0.6);border-radius:6px;margin-bottom:6px;">';
-        //         html += '<div style="color:#991b1b;font-weight:700;font-size:12px;margin-bottom:2px;">' + nodeMatch[1] + '</div>';
-        //         html += '<div style="color:#6b7280;font-style:italic;font-size:10px;">GPS disabled or no fix</div>';
-        //         html += '</div>';
-        //       }
-        //     });
-        //     html += '</div>';
-        //   }
-
-        //   html += '</div>';
-        // }
-
-        // Show warning banners but continue parsing - don't block other sections
         if (text.includes('No Mesh Nodes Responding')) {
-          html += '<div style="padding:20px;background:var(--c-err-bg);border:2px solid var(--dang);border-radius:12px;margin-bottom:16px;">';
-          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dang)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
-          html += '<div style="font-weight:700;font-size:16px;color:var(--dang);">No Mesh Nodes Responding</div>';
-          html += '</div>';
-          html += '<div style="color:var(--txt);font-size:14px;">No mesh nodes responded to the triangulation request. Check mesh connectivity.</div>';
-          html += '</div>';
+          html += '<div class="res-callout danger"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><div><div class="res-callout-title">No Mesh Nodes Responding</div><div class="res-callout-body">No mesh nodes responded to the triangulation request. Check mesh connectivity.</div></div></div>';
         }
-
         if (text.includes('TRIANGULATION IMPOSSIBLE') || text.includes('none have GPS')) {
-          html += '<div style="padding:20px;background:var(--c-alert-bg);border:2px solid var(--warn);border-radius:12px;margin-bottom:16px;">';
-          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-          html += '<div style="font-weight:700;font-size:16px;color:var(--warn);">Triangulation Impossible</div>';
-          html += '</div>';
-          html += '<div style="color:var(--txt);font-size:14px;">Nodes responded but none have GPS coordinates. Enable GPS on at least 3 nodes.</div>';
-          html += '</div>';
+          html += '<div class="res-callout warn"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="res-callout-title">Triangulation Impossible</div><div class="res-callout-body">Nodes responded but none have GPS coordinates. Enable GPS on at least 3 nodes.</div></div></div>';
         }
-
         if (text.includes('Insufficient GPS Nodes')) {
-          html += '<div style="padding:20px;background:var(--c-alert-bg);border:2px solid var(--warn);border-radius:12px;margin-bottom:16px;">';
-          html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
-          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-          html += '<div style="font-weight:700;font-size:16px;color:var(--warn);">Waiting for More GPS Nodes</div>';
-          html += '</div>';
-          html += '<div style="color:var(--txt);font-size:14px;">Triangulation requires at least 3 GPS-equipped nodes. Collecting data...</div>';
-          html += '</div>';
+          html += '<div class="res-callout warn"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="res-callout-title">Waiting for More GPS Nodes</div><div class="res-callout-body">Triangulation requires at least 3 GPS-equipped nodes. Collecting data...</div></div></div>';
         }
 
         const nodeSection = text.split('--- Node Reports ---')[1]?.split('---')[0];
         if (nodeSection) {
-          html += '<details open style="margin-bottom:16px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
-          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:700;user-select:none;list-style:none;display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:14px;">';
-          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>Node Reports';
-          html += '</summary>';
-          html += '<div style="display:grid;gap:12px;">';
-
+          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>Node Reports</summary><div class="res-section-body">';
           const nodeLines = nodeSection.split('\n').filter(l => l.trim() && l.includes(':'));
           nodeLines.forEach(line => {
             const nodeMatch = line.match(/^([^:]+):/);
-            if (nodeMatch) {
-              // Support both "Filtered=" (final results) and "RSSI=" (in-progress)
-              let rssiMatch = line.match(/Filtered=([-\d.]+)dBm/);
-              if (!rssiMatch) {
-                rssiMatch = line.match(/RSSI=([-\d.]+)dBm/);
-              }
-              const hitsMatch = line.match(/Hits=(\d+)/);
-              const signalMatch = line.match(/Signal=([\d.]+)%/);
+            if (!nodeMatch) return;
+            let rssiMatch = line.match(/Filtered=([-\d.]+)dBm/) || line.match(/RSSI=([-\d.]+)dBm/);
+            const hitsMatch = line.match(/Hits=(\d+)/);
+            const signalMatch = line.match(/Signal=([\d.]+)%/);
+            if (!rssiMatch && !hitsMatch && !signalMatch) return;
+            const nodeId = nodeMatch[1].trim();
+            const gpsMatch = line.match(/GPS=([-\d.]+),([-\d.]+)/);
+            const hdopMatch = line.match(/HDOP=([\d.]+)/);
+            const isGPS = gpsMatch !== null;
+            const distMatch = line.match(/Dist=([\d.]+)m/);
 
-              // Skip lines that don't have node data fields (like header fields: "Target MAC:", "Duration:", etc.)
-              if (!rssiMatch && !hitsMatch && !signalMatch) {
-                return;
-              }
-
-              const nodeId = nodeMatch[1].trim();
-              const gpsMatch = line.match(/GPS=([-\d.]+),([-\d.]+)/);
-              const hdopMatch = line.match(/HDOP=([\d.]+)/);
-              const isGPS = gpsMatch !== null;
-              const distMatch = line.match(/Dist=([\d.]+)m/);
-              
-              html += '<div style="padding:14px;background:var(--bg);border:1px solid var(--bord);border-radius:8px;transition:all 0.2s;">';
-              
-              html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
-              html += '<div style="color:var(--txt);font-weight:700;font-size:13px;">' + nodeId + '</div>';
-              if (isGPS) {
-                html += '<div style="background:linear-gradient(135deg,var(--succ) 0%,var(--acc) 100%);color:#fff;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">GPS</div>';
-              } else {
-                html += '<div style="background:var(--surf);color:var(--mut);padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid var(--bord);">NO GPS</div>';
-              }
-              html += '</div>';
-              
-              html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-top:10px;">';
-              if (rssiMatch) {
-                const rssiVal = parseFloat(rssiMatch[1]);
-                const rssiColor = rssiVal > -60 ? 'var(--succ)' : rssiVal > -75 ? 'var(--warn)' : 'var(--dang)';
-                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
-                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">RSSI</div>';
-                html += '<div style="color:' + rssiColor + ';font-weight:700;font-size:14px;">' + rssiMatch[1] + ' dBm</div>';
-                html += '</div>';
-              }
-              if (hitsMatch) {
-                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
-                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Hits</div>';
-                html += '<div style="color:var(--txt);font-weight:700;font-size:14px;">' + hitsMatch[1] + '</div>';
-                html += '</div>';
-              }
-              if (signalMatch) {
-                const sigVal = parseFloat(signalMatch[1]);
-                const sigColor = sigVal >= 70 ? 'var(--succ)' : sigVal >= 50 ? 'var(--warn)' : 'var(--dang)';
-                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
-                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Quality</div>';
-                html += '<div style="color:' + sigColor + ';font-weight:700;font-size:14px;">' + signalMatch[1] + '%</div>';
-                html += '</div>';
-              }
-              if (distMatch) {
-                html += '<div style="background:var(--surf);padding:8px;border-radius:6px;border:1px solid var(--bord);">';
-                html += '<div style="color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;">Distance</div>';
-                html += '<div style="color:var(--txt);font-weight:700;font-size:14px;">' + distMatch[1] + 'm</div>';
-                html += '</div>';
-              }
-              html += '</div>';
-              
-              if (isGPS) {
-                html += '<div style="margin-top:10px;padding:10px;background:var(--surf);border:1px solid var(--acc);border-radius:6px;font-size:10px;font-family:monospace;">';
-                html += '<span style="color:var(--mut);">Location:</span> ';
-                html += '<span style="color:var(--acc);font-weight:600;">' + gpsMatch[1] + ', ' + gpsMatch[2] + '</span>';
-                if (hdopMatch) {
-                  html += '<span style="color:var(--mut);margin-left:12px;">HDOP: <span style="color:var(--txt);font-weight:600;">' + hdopMatch[1] + '</span></span>';
-                }
-                html += '</div>';
-              }
-              
-              html += '</div>';
-            }
+            html += '<div class="res-card' + (isGPS ? ' ok' : '') + '"><div class="res-card-head"><div class="res-mac" style="font-family:inherit;">' + nodeId + '</div>';
+            html += '<span class="res-badge ' + (isGPS ? 'ok' : '') + '">' + (isGPS ? 'GPS' : 'No GPS') + '</span></div>';
+            html += '<div class="res-kvs">';
+            if (rssiMatch) { const rv = parseFloat(rssiMatch[1]); const rc = rv > -60 ? 'var(--succ)' : rv > -75 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">RSSI</div><div class="res-kv-val" style="color:' + rc + '">' + rssiMatch[1] + '<small style="font-size:11px;color:var(--mut);"> dBm</small></div></div>'; }
+            if (hitsMatch) html += _resKv('Hits', hitsMatch[1]);
+            if (signalMatch) { const sv = parseFloat(signalMatch[1]); const sc = sv >= 70 ? 'var(--succ)' : sv >= 50 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">Quality</div><div class="res-kv-val" style="color:' + sc + '">' + signalMatch[1] + '%</div></div>'; }
+            if (distMatch) html += _resKv('Distance', distMatch[1] + 'm');
+            html += '</div>';
+            if (isGPS) { html += '<div class="res-note"><span class="res-note-lab">Location</span><span style="font-family:ui-monospace,monospace;color:var(--acc);">' + gpsMatch[1] + ', ' + gpsMatch[2] + '</span>' + (hdopMatch ? ' &middot; HDOP <strong>' + hdopMatch[1] + '</strong>' : '') + '</div>'; }
+            html += '</div>';
           });
-          
           html += '</div></details>';
         }
-        
+
         const validationSection = text.split('--- GPS-RSSI Distance Validation ---')[1]?.split('---')[0];
         if (validationSection) {
-          html += '<details open style="margin-bottom:16px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
-          html += '<summary style="cursor:pointer;color:var(--acc);font-weight:700;user-select:none;list-style:none;display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:14px;">';
-          html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>GPS-RSSI Validation';
-          html += '</summary>';
-          html += '<div style="display:grid;gap:8px;">';
-          
+          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>GPS-RSSI Validation</summary><div class="res-section-body">';
           const valLines = validationSection.split('\n').filter(l => l.trim() && (l.includes('<->') || l.includes('Avg error')));
           valLines.forEach(line => {
             if (line.includes('<->')) {
-              const checkMark = line.includes('✓') ? '✓' : '✗';
-              const color = line.includes('✓') ? 'var(--succ)' : 'var(--dang)';
+              const ok = line.includes('✓');
               const cleanLine = line.replace(/✓|✗/g, '').trim();
-              html += '<div style="padding:10px;background:var(--bg);border-left:3px solid ' + color + ';border-radius:6px;font-size:11px;color:var(--txt);">';
-              html += '<span style="color:' + color + ';font-weight:bold;margin-right:8px;">' + checkMark + '</span>' + cleanLine;
-              html += '</div>';
+              html += '<div class="res-note ' + (ok ? '' : 'danger') + '"><span style="color:' + (ok ? 'var(--succ)' : 'var(--dang)') + ';font-weight:700;margin-right:8px;">' + (ok ? '✓' : '✗') + '</span>' + cleanLine + '</div>';
             } else if (line.includes('Avg error')) {
               const errorMatch = line.match(/([\d.]+)%/);
               const qualityMatch = line.match(/\(([^)]+)\)/);
               if (errorMatch) {
-                const errVal = parseFloat(errorMatch[1]);
-                const errColor = errVal < 25 ? 'var(--succ)' : errVal < 50 ? 'var(--warn)' : 'var(--dang)';
-                html += '<div style="margin-top:8px;padding:14px;background:var(--bg);border:2px solid ' + errColor + ';border-radius:8px;">';
-                html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Average Error</div>';
-                html += '<div style="color:' + errColor + ';font-weight:700;font-size:20px;margin-bottom:4px;">' + errorMatch[1] + '%</div>';
-                if (qualityMatch) {
-                  html += '<div style="color:var(--txt);font-size:12px;font-weight:600;">' + qualityMatch[1] + '</div>';
-                }
-                html += '</div>';
+                const ev = parseFloat(errorMatch[1]);
+                const ec = ev < 25 ? 'var(--succ)' : ev < 50 ? 'var(--warn)' : 'var(--dang)';
+                html += '<div class="res-kv" style="border-color:' + ec + ';"><div class="res-kv-lab">Average Error</div><div class="res-kv-val" style="color:' + ec + ';font-size:20px;">' + errorMatch[1] + '%</div>' + (qualityMatch ? '<div class="res-line" style="margin-top:4px;"><strong>' + qualityMatch[1] + '</strong></div>' : '') + '</div>';
               }
             }
           });
-          
           html += '</div></details>';
         }
-        
-        // Match ESTIMATED POSITION with optional qualifiers like (TDOA), (RSSI), or (TDOA + RSSI)
+
         const positionMatch = text.match(/ESTIMATED POSITION[^:]*:([\s\S]*?)(?:===|$)/);
         const positionSection = positionMatch ? positionMatch[1] : null;
         if (positionSection) {
@@ -3083,63 +3036,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const confMatch = positionSection.match(/Confidence:\s*([\d.]+)%/);
           const uncertaintyMatch = positionSection.match(/Uncertainty.*?±([\d.]+)m/);
           const methodMatch = positionSection.match(/Method:\s*([^\n]+)/);
-          
-          html += '<div style="padding:20px;background:var(--surf);border:2px solid var(--acc);border-radius:12px;margin-bottom:16px;backdrop-filter:var(--backdrop);box-shadow:var(--shad);">';
-          html += '<div style="font-weight:700;font-size:16px;color:var(--txt);margin-bottom:16px;letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;">';
-          html += '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
-          html += 'Position Estimated</div>';
-          
+
+          html += '<div class="res-card acc"><div class="res-mac" style="font-family:inherit;color:var(--acc);"><svg viewBox="0 0 24 24" width="18" height="18" style="stroke:var(--acc);fill:none;vertical-align:-3px;margin-right:6px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Position Estimated</div>';
           if (latMatch && lonMatch) {
-            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">';
-            
-            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
-            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Latitude</div>';
-            html += '<div style="color:var(--txt);font-weight:700;font-size:16px;font-family:monospace;">' + latMatch[1] + '</div>';
+            html += '<div class="res-coord">';
+            html += _resKv('Latitude', '<span class="mono">' + latMatch[1] + '</span>');
+            html += _resKv('Longitude', '<span class="mono">' + lonMatch[1] + '</span>');
+            html += '</div><div class="res-kvs">';
+            if (confMatch) { const cv = parseFloat(confMatch[1]); const cc = cv >= 70 ? 'var(--succ)' : cv >= 50 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">Confidence</div><div class="res-kv-val" style="color:' + cc + '">' + confMatch[1] + '%</div></div>'; }
+            if (uncertaintyMatch) html += _resKv('Uncertainty (CEP68)', '±' + uncertaintyMatch[1] + 'm');
             html += '</div>';
-            
-            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
-            html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Longitude</div>';
-            html += '<div style="color:var(--txt);font-weight:700;font-size:16px;font-family:monospace;">' + lonMatch[1] + '</div>';
-            html += '</div>';
-            
-            html += '</div>';
-            
-            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
-            
-            if (confMatch) {
-              const confVal = parseFloat(confMatch[1]);
-              const confColor = confVal >= 70 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
-              html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
-              html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Confidence</div>';
-              html += '<div style="color:' + confColor + ';font-weight:700;font-size:18px;">' + confMatch[1] + '%</div>';
-              html += '</div>';
-            }
-            
-            if (uncertaintyMatch) {
-              html += '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--bord);">';
-              html += '<div style="color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Uncertainty (CEP68)</div>';
-              html += '<div style="color:var(--txt);font-weight:700;font-size:18px;">±' + uncertaintyMatch[1] + 'm</div>';
-              html += '</div>';
-            }
-            
-            html += '</div>';
-            
-            if (methodMatch) {
-              html += '<div style="padding:10px;background:var(--bg);border-left:3px solid var(--acc);border-radius:4px;font-size:11px;color:var(--mut);margin-bottom:12px;">';
-              html += '<span style="font-weight:600;color:var(--txt);">Method:</span> ' + methodMatch[1];
-              html += '</div>';
-            }
-            
+            if (methodMatch) html += '<div class="res-note"><span class="res-note-lab">Method</span>' + methodMatch[1] + '</div>';
             const mapsUrl = 'https://www.google.com/maps?q=' + latMatch[1] + ',' + lonMatch[1];
-            html += '<a href="' + mapsUrl + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;background:var(--acc);border:2px solid var(--acc);border-radius:8px;color:#fff;text-decoration:none;font-weight:600;font-size:13px;transition:all 0.2s;box-shadow:var(--glow);">';
-            html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
-            html += 'Open in Google Maps';
-            html += '</a>';
+            html += '<div style="margin-top:12px;"><a href="' + mapsUrl + '" target="_blank" rel="noopener" class="res-cta"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Open in Google Maps</a></div>';
           }
-          
           html += '</div>';
         }
-        html += '</div>';
         return html;
       }
 
@@ -3147,176 +3059,95 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const headerMatch = text.match(/Active Sessions: (\d+)/);
         const identitiesMatch = text.match(/Device Identities: (\d+)/);
 
-        let html = '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        html += '<div style="font-size:13px;color:var(--txt);margin-bottom:10px;font-weight:600;letter-spacing:0.5px;">RANDOMIZED DEVICE TRACER</div>';
-        html += '<div style="display:flex;gap:20px;font-size:11px;color:var(--mut);">';
-        if (headerMatch) html += '<span>Sessions: <strong style="color:var(--txt);">' + headerMatch[1] + '</strong></span>';
-        if (identitiesMatch) html += '<span>Linked: <strong style="color:var(--txt);">' + identitiesMatch[1] + '</strong></span>';
+        let html = '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
+        html += '<svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Randomized Device Tracer</div></div>';
+        html += '<div class="res-stats">';
+        if (headerMatch) html += _resStat('Active Sessions', headerMatch[1]);
+        if (identitiesMatch) html += _resStat('Linked Identities', identitiesMatch[1]);
         html += '</div></div>';
 
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
-
         trackBlocks.forEach((block) => {
-          const trackMatch       = block.match(/Track ID:\s*([^\n]+)/);
-          const typeMatch        = block.match(/Type:\s*([^\n]+)/);
-          const nameMatch        = block.match(/Name:\s*([^\n]+)/);
-          const ssidMatch        = block.match(/SSID:\s*([^\n]+)/);
-          const rssiMatch        = block.match(/RSSI: avg ([-\d]+) dBm\s+min ([-\d]+)\s+max ([-\d]+)/);
-          const probesMatch      = block.match(/Probes:\s*(\d+)/);
-          const macsMatch        = block.match(/MACs linked:\s*(\d+)/);
-          const confMatch        = block.match(/Confidence:\s*([\d.]+)/);
-          const sessionsMatch    = block.match(/Sessions:\s*(\d+)/);
+          const trackMatch = block.match(/Track ID:\s*([^\n]+)/);
+          const typeMatch = block.match(/Type:\s*([^\n]+)/);
+          const nameMatch = block.match(/Name:\s*([^\n]+)/);
+          const ssidMatch = block.match(/SSID:\s*([^\n]+)/);
+          const rssiMatch = block.match(/RSSI: avg ([-\d]+) dBm\s+min ([-\d]+)\s+max ([-\d]+)/);
+          const probesMatch = block.match(/Probes:\s*(\d+)/);
+          const macsMatch = block.match(/MACs linked:\s*(\d+)/);
+          const confMatch = block.match(/Confidence:\s*([\d.]+)/);
+          const sessionsMatch = block.match(/Sessions:\s*(\d+)/);
           const intervalConMatch = block.match(/Interval consistency:\s*([\d.]+)/);
-          const rssiConMatch     = block.match(/RSSI consistency:\s*([\d.]+)/);
-          const channelsMatch    = block.match(/Channels:\s*(\d+)/);
-          const seqTrackMatch    = block.match(/Sequence tracking:\s*(.+)/);
-          const firstSeenMatch   = block.match(/First seen:\s*(\d+)s ago/);
-          const lastSeenMatch    = block.match(/Last seen:\s*(\d+)s ago/);
-          const realMacMatch     = block.match(/Real MAC:\s*([A-F0-9:]+)/);
-          const vendorMatch      = block.match(/Vendor:\s*([^\n]+)/);
-          const mfrDataMatch     = block.match(/Mfr data:\s*([^\n]+)/);
-          const macsListMatch    = block.match(/MACs:\s*(.+)/);
-
+          const rssiConMatch = block.match(/RSSI consistency:\s*([\d.]+)/);
+          const channelsMatch = block.match(/Channels:\s*(\d+)/);
+          const seqTrackMatch = block.match(/Sequence tracking:\s*(.+)/);
+          const firstSeenMatch = block.match(/First seen:\s*(\d+)s ago/);
+          const lastSeenMatch = block.match(/Last seen:\s*(\d+)s ago/);
+          const realMacMatch = block.match(/Real MAC:\s*([A-F0-9:]+)/);
+          const vendorMatch = block.match(/Vendor:\s*([^\n]+)/);
+          const mfrDataMatch = block.match(/Mfr data:\s*([^\n]+)/);
+          const macsListMatch = block.match(/MACs:\s*(.+)/);
           if (!trackMatch) return;
 
-          const trackId  = trackMatch[1].trim();
-          const isBLE    = typeMatch && typeMatch[1].trim() === 'BLE';
+          const trackId = trackMatch[1].trim();
+          const isBLE = typeMatch && typeMatch[1].trim() === 'BLE';
           const deviceType = isBLE ? 'BLE' : 'WiFi';
           const macCount = macsMatch ? macsMatch[1] : '0';
           const confidence = confMatch ? (parseFloat(confMatch[1]) * 100).toFixed(0) : '0';
-
           const anchorMacMatch = block.match(/Anchor MAC:\s*([A-F0-9:]+)/);
           const anchorMac = anchorMacMatch ? anchorMacMatch[1] : (macsListMatch ? macsListMatch[1].split(',')[0].trim() : '');
-
           const avgRssi = rssiMatch ? parseInt(rssiMatch[1]) : null;
-          const rssiColor = avgRssi !== null
-            ? (avgRssi >= -50 ? 'var(--succ)' : avgRssi >= -70 ? 'var(--warn)' : 'var(--dang)')
-            : 'var(--mut)';
-
+          const rssiColor = avgRssi !== null ? (avgRssi >= -50 ? 'var(--succ)' : avgRssi >= -70 ? 'var(--warn)' : 'var(--dang)') : 'var(--mut)';
           const confVal = parseInt(confidence);
           const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
 
-          html += '<details data-type="' + deviceType + '" style="background:var(--surf);border:1px solid var(--bord);border-radius:6px;margin-bottom:10px;transition:border-color 0.2s;" onmouseover="this.style.borderColor=\'var(--acc)\'" onmouseout="this.style.borderColor=\'var(--bord)\'">';
-          html += '<summary style="padding:14px;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:nowrap;">';
+          html += '<details class="res-section" data-type="' + deviceType + '" style="padding:0;">';
+          html += '<summary style="padding:15px 16px;justify-content:space-between;font-weight:400;color:var(--txt);">';
           html += '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">';
-          if (anchorMac) html += '<span style="font-family:monospace;font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap;">' + anchorMac + '</span>' + randBadge(anchorMac);
-          html += '<span style="background:' + (isBLE ? 'var(--c-ble-bg)' : 'var(--c-wifi-bg)') + ';color:' + (isBLE ? 'var(--c-ble)' : 'var(--c-wifi)') + ';padding:2px 7px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">' + deviceType + '</span>';
-          if (nameMatch) html += '<span data-name="' + nameMatch[1].trim() + '" style="color:var(--txt);font-size:11px;font-weight:500;white-space:nowrap;">' + nameMatch[1].trim() + '</span>';
-          if (ssidMatch) html += '<span data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc);font-size:10px;white-space:nowrap;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
-          if (vendorMatch) html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + vendorMatch[1].trim() + '</span>';
-          html += '<span style="color:var(--mut);font-size:10px;white-space:nowrap;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
+          html += '<span class="res-caret" style="color:var(--acc);">&#9654;</span>';
+          if (anchorMac) html += '<span class="res-mac acc" style="font-size:13px;">' + anchorMac + '</span>' + randBadge(anchorMac);
+          html += '<span class="res-badge ' + (isBLE ? 'ble' : 'wifi') + '">' + deviceType + '</span>';
+          if (nameMatch) html += '<span data-name="' + nameMatch[1].trim() + '" class="res-line" style="color:var(--txt);">' + nameMatch[1].trim() + '</span>';
+          if (ssidMatch) html += '<span data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc);font-size:11px;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
+          if (vendorMatch) html += '<span class="res-line" style="font-size:11px;">' + vendorMatch[1].trim() + '</span>';
+          html += '<span class="res-line" style="font-size:11px;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
           html += '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">';
-          if (avgRssi !== null) {
-            html += '<div style="text-align:right;">';
-            html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;">RSSI</div>';
-            html += '<div style="font-size:13px;color:' + rssiColor + ';font-weight:700;">' + avgRssi + '<span style="font-size:9px;margin-left:1px;">dBm</span></div>';
-            html += '</div>';
-          }
-          html += '<div style="text-align:right;">';
-          html += '<div style="font-size:8px;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;">Conf</div>';
-          html += '<div style="font-size:13px;color:' + confColor + ';font-weight:700;">' + confidence + '<span style="font-size:9px;">%</span></div>';
-          html += '</div>';
-          html += '<span style="color:var(--mut);font-size:18px;">▶</span>';
+          if (avgRssi !== null) html += '<div class="res-metric"><span class="res-metric-val" style="font-size:14px;color:' + rssiColor + '">' + avgRssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+          html += '<div class="res-metric"><span class="res-metric-val" style="font-size:14px;color:' + confColor + '">' + confidence + '<small>%</small></span><span class="res-metric-lab">Conf</span></div>';
           html += '</div></summary>';
 
-          html += '<div style="padding:0 14px 14px 14px;border-top:1px solid var(--bord);">';
-          html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:12px;">';
-
-          if (sessionsMatch) {
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">SESSIONS</div>';
-            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + sessionsMatch[1] + '</div>';
-            html += '</div>';
-          }
-          if (probesMatch) {
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">PROBES</div>';
-            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + probesMatch[1] + '</div>';
-            html += '</div>';
-          }
-          if (rssiMatch) {
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">RSSI min/avg/max</div>';
-            html += '<div style="font-size:11px;color:' + rssiColor + ';font-weight:600;">' + rssiMatch[2] + ' / ' + rssiMatch[1] + ' / ' + rssiMatch[3] + ' dBm</div>';
-            html += '</div>';
-          }
-          if (lastSeenMatch) {
-            const seenTxt = firstSeenMatch ? firstSeenMatch[1] + 's ago &rarr; ' + lastSeenMatch[1] + 's ago' : lastSeenMatch[1] + 's ago';
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">SEEN</div>';
-            html += '<div style="font-size:10px;color:var(--txt);font-weight:600;">' + seenTxt + '</div>';
-            html += '</div>';
-          }
-          if (intervalConMatch) {
-            const pct = (parseFloat(intervalConMatch[1]) * 100).toFixed(0);
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">INTERVAL CONSISTENCY</div>';
-            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + pct + '%</div>';
-            html += '</div>';
-          }
-          if (rssiConMatch) {
-            const pct = (parseFloat(rssiConMatch[1]) * 100).toFixed(0);
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">RSSI STABILITY</div>';
-            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + pct + '%</div>';
-            html += '</div>';
-          }
-          if (channelsMatch) {
-            html += '<div title="Number of distinct channels device was observed probing on." style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--bord);">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:3px;">UNIQUE CHANNELS</div>';
-            html += '<div style="font-size:14px;color:var(--txt);font-weight:600;">' + channelsMatch[1] + '</div>';
-            html += '</div>';
-          }
-          if (realMacMatch) {
-            html += '<div style="background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--dang);">';
-            html += '<div style="font-size:8px;color:var(--dang);margin-bottom:3px;">REAL MAC LEAKED</div>';
-            html += '<div style="font-size:10px;color:var(--dang);font-family:monospace;font-weight:600;">' + realMacMatch[1] + '</div>';
-            html += '</div>';
-          }
+          html += '<div style="padding:0 16px 16px 16px;border-top:1px solid var(--bord);">';
+          html += '<div class="res-kvs">';
+          if (sessionsMatch) html += _resKv('Sessions', sessionsMatch[1]);
+          if (probesMatch) html += _resKv('Probes', probesMatch[1]);
+          if (rssiMatch) html += '<div class="res-kv"><div class="res-kv-lab">RSSI min/avg/max</div><div class="res-kv-val sm" style="color:' + rssiColor + '">' + rssiMatch[2] + ' / ' + rssiMatch[1] + ' / ' + rssiMatch[3] + ' dBm</div></div>';
+          if (lastSeenMatch) { const seenTxt = firstSeenMatch ? firstSeenMatch[1] + 's &rarr; ' + lastSeenMatch[1] + 's ago' : lastSeenMatch[1] + 's ago'; html += '<div class="res-kv"><div class="res-kv-lab">Seen</div><div class="res-kv-val sm">' + seenTxt + '</div></div>'; }
+          if (intervalConMatch) html += _resKv('Interval Consistency', (parseFloat(intervalConMatch[1]) * 100).toFixed(0) + '%');
+          if (rssiConMatch) html += _resKv('RSSI Stability', (parseFloat(rssiConMatch[1]) * 100).toFixed(0) + '%');
+          if (channelsMatch) html += _resKv('Unique Channels', channelsMatch[1]);
+          if (realMacMatch) html += '<div class="res-kv danger"><div class="res-kv-lab" style="color:var(--dang)">Real MAC Leaked</div><div class="res-kv-val mono" style="color:var(--dang)">' + realMacMatch[1] + '</div></div>';
           html += '</div>';
 
-          if (seqTrackMatch) {
-            html += '<div style="margin-top:6px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">SEQUENCE TRACKING</div>';
-            html += '<div style="font-size:10px;color:var(--txt);font-family:monospace;">' + seqTrackMatch[1].trim() + '</div>';
-            html += '</div>';
-          }
-          if (vendorMatch || mfrDataMatch) {
-            html += '<div style="margin-top:6px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:4px;">';
-            html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">MANUFACTURER</div>';
-            if (vendorMatch) html += '<div style="font-size:11px;color:var(--txt);font-weight:600;">' + vendorMatch[1].trim() + '</div>';
-            if (mfrDataMatch) html += '<div style="font-size:9px;color:var(--mut);font-family:monospace;margin-top:2px;">' + mfrDataMatch[1].trim() + '</div>';
-            html += '</div>';
-          }
-
-          html += '<div style="margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--succ);border-radius:4px;">';
-          html += '<div style="font-size:8px;color:var(--mut);margin-bottom:4px;">TRACK ID</div>';
-          html += '<div style="font-size:11px;color:var(--acc);font-family:monospace;font-weight:600;">' + trackId + '</div>';
-          html += '</div>';
+          if (seqTrackMatch) html += '<div class="res-note"><span class="res-note-lab">Sequence Tracking</span><span style="font-family:ui-monospace,monospace;">' + seqTrackMatch[1].trim() + '</span></div>';
+          if (vendorMatch || mfrDataMatch) { html += '<div class="res-note"><span class="res-note-lab">Manufacturer</span>'; if (vendorMatch) html += '<strong>' + vendorMatch[1].trim() + '</strong>'; if (mfrDataMatch) html += ' <span style="font-family:ui-monospace,monospace;color:var(--mut);">' + mfrDataMatch[1].trim() + '</span>'; html += '</div>'; }
+          html += '<div class="res-note ok" style="border-left-color:var(--succ);"><span class="res-note-lab">Track ID</span><span style="font-family:ui-monospace,monospace;color:var(--acc);font-weight:600;">' + trackId + '</span></div>';
 
           if (macsListMatch) {
             const macsList = macsListMatch[1];
             const moreMatch = macsList.match(/\(\+(\d+) more\)/);
             const cleanMacs = macsList.replace(/\s*\(\+\d+ more\)/, '');
             const macs = cleanMacs.split(',').map(m => m.trim()).filter(m => m.length > 0);
-            html += '<details style="margin-top:10px;" open>';
-            html += '<summary style="font-size:9px;color:var(--mut);cursor:pointer;padding:6px 0;list-style:none;user-select:none;">MAC ADDRESSES (' + (moreMatch ? macCount : macs.length) + ')</summary>';
-            html += '<div style="display:grid;gap:4px;margin-top:6px;">';
+            html += '<details class="res-rows" open style="margin-top:11px;"><summary style="list-style:none;cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);">MAC Addresses (' + (moreMatch ? macCount : macs.length) + ')</summary><div style="margin-top:8px;">';
             macs.forEach((mac) => {
               const isFirst = mac === anchorMac;
-              html += '<div style="background:var(--surf);border:1px solid var(--bord);border-radius:3px;padding:6px 8px;font-family:monospace;font-size:10px;color:' + (isFirst ? 'var(--acc)' : 'var(--mut)') + ';display:flex;justify-content:space-between;align-items:center;">';
-              html += '<span>' + mac + randBadge(mac) + '</span>';
-              if (isFirst) html += '<span style="font-size:7px;padding:2px 5px;background:var(--bg);border:1px solid var(--succ);border-radius:2px;color:var(--succ);font-weight:600;">ANCHOR</span>';
-              html += '</div>';
+              html += '<div class="res-row"><span style="color:' + (isFirst ? 'var(--acc)' : 'var(--mut)') + '">' + mac + randBadge(mac) + '</span>' + (isFirst ? '<span class="res-badge ok">Anchor</span>' : '') + '</div>';
             });
-            if (moreMatch) html += '<div style="padding:6px;text-align:center;color:var(--mut);font-size:10px;font-style:italic;">+ ' + moreMatch[1] + ' more</div>';
+            if (moreMatch) html += '<div class="res-more">+ ' + moreMatch[1] + ' more</div>';
             html += '</div></details>';
           }
-
           html += '</div></details>';
         });
-
         return html;
       }
 
@@ -3337,30 +3168,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       function parseBaselineResults(text) {
         function makeDeviceCard(type, mac, rssi, channel, name) {
-          const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
-          let c = '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="margin-bottom:10px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-          c += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
-          c += '<div>';
-          c += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">' + mac + randBadge(mac) + '</div>';
-          if (name && name !== 'Unknown') c += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
-          c += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
+          let c = '<div class="res-card device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
+          c += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
+          c += '<div class="res-meta">';
+          if (name && name !== 'Unknown') c += '<span>Name: <strong>' + name + '</strong></span>';
+          c += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
+          if (channel) c += '<span class="res-badge">CH ' + channel + '</span>';
           c += '</div>';
-          c += '<div style="text-align:right;">';
-          c += '<div style="font-size:12px;color:' + rssiColorFor(rssi) + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
-          if (channel) c += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
-          c += '</div></div></div>';
+          c += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+          c += '</div></div>';
           return c;
         }
 
         let html = '';
-
         var isEstablishing = text.includes('Baseline not yet established');
         if (isEstablishing) {
           const devSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1];
           const deviceLines = devSection ? devSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/)) : [];
-          if (deviceLines.length === 0) {
-            return '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">Cataloging devices...</div>';
-          }
+          if (deviceLines.length === 0) return _resEmpty('Cataloging devices…');
           html += '<div class="baseline-marker" style="display:none;"></div>';
           deviceLines.forEach(line => {
             const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
@@ -3373,10 +3198,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const anomalyCount = anomalyCountMatch ? parseInt(anomalyCountMatch[1]) : 0;
 
         if (anomalyCount > 0) {
-          html += '<div style="margin-bottom:14px;padding:12px 16px;background:var(--surf);border:1px solid var(--dang);border-radius:8px;display:flex;align-items:center;gap:12px;">';
-          html += '<div style="font-size:26px;font-weight:bold;color:var(--dang);">' + anomalyCount + '</div>';
-          html += '<div style="font-size:13px;color:var(--mut);">anomal' + (anomalyCount === 1 ? 'y' : 'ies') + ' detected</div>';
-          html += '</div>';
+          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
+          html += '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Baseline Anomalies</div></div>';
+          html += '<div class="res-stats">' + _resStat('Anomalies', anomalyCount, 'danger') + '</div></div>';
 
           const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];
           if (anomalySection) {
@@ -3384,35 +3208,26 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?\s+-\s+(.+)$/);
               if (!m) return;
               const [_, type, mac, rssi, channel, name, reason] = m;
-              const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
-              html += '<div class="device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '" style="background:var(--surf);padding:14px;border-radius:8px;border:1px solid var(--warn);margin-bottom:10px;">';
-              html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:8px;">';
-              html += '<div style="font-family:monospace;font-size:14px;color:var(--txt);">' + mac + randBadge(mac) + '</div>';
-              html += '<span style="background:' + typeColor + ';color:#000;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:bold;">' + type + '</span>';
+              html += '<div class="res-card alert device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
+              html += '<div class="res-row-main"><span class="res-mac warn">' + mac + randBadge(mac) + '</span>';
+              html += '<div class="res-meta"><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
+              if (channel) html += '<span class="res-badge">CH ' + channel + '</span>';
+              if (name) html += '<span>Name: <strong>' + name + '</strong></span>';
               html += '</div>';
-              html += '<div style="display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px;flex-wrap:wrap;">';
-              html += '<span>RSSI: <strong style="color:' + rssiColorFor(rssi) + ';">' + rssi + ' dBm</strong></span>';
-              if (channel) html += '<span>CH: <strong style="color:var(--txt);">' + channel + '</strong></span>';
-              if (name) html += '<span>Name: <strong style="color:var(--txt);">' + name + '</strong></span>';
+              html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
               html += '</div>';
-              html += '<div style="padding:8px 10px;background:var(--bg);border:1px solid var(--bord);border-left:3px solid var(--warn);border-radius:4px;font-size:12px;color:var(--warn);">' + reason + '</div>';
-              html += '</div>';
+              html += '<div class="res-note warn">' + reason + '</div></div>';
             });
           }
         } else {
-          html += '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">No anomalies detected</div>';
+          html += _resEmpty('No anomalies detected.', 'ok');
         }
 
         const baselineSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1]?.split('===')[0];
         if (baselineSection) {
           const deviceLines = baselineSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/));
           if (deviceLines.length > 0) {
-            html += '<details style="margin-top:14px;">';
-            html += '<summary style="cursor:pointer;color:var(--acc);user-select:none;padding:8px 0;font-size:13px;list-style:none;display:flex;align-items:center;gap:6px;">';
-            html += '<span style="display:inline-block;transition:transform 0.2s;">▶</span>';
-            html += 'Baseline Devices (' + deviceLines.length + ' cached)';
-            html += '</summary>';
-            html += '<div style="margin-top:10px;">';
+            html += '<details class="res-section"><summary><span class="res-caret">&#9654;</span>Baseline Devices (' + deviceLines.length + ' cached)</summary><div class="res-section-body">';
             deviceLines.forEach(line => {
               const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
               if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
@@ -3420,138 +3235,96 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '</div></details>';
           }
         }
-
         return html;
       }
 
       function parseDeauthResults(text) {
         let html = '';
-        
         const durationMatch = text.match(/Duration: (.+)/);
         const deauthMatch = text.match(/Deauth frames: (\d+)/);
         const disassocMatch = text.match(/Disassoc frames: (\d+)/);
         const totalMatch = text.match(/Total attacks: (\d+)/);
         const targetsMatch = text.match(/Targets attacked: (\d+)/);
-        
-        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">⚠ Deauth Attack Detection Results</div>';
-        html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);flex-wrap:wrap;">';
-        if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + '</strong></span>';
-        if (deauthMatch) html += '<span>Deauth: <strong style="color:var(--dang);">' + deauthMatch[1] + '</strong></span>';
-        if (disassocMatch) html += '<span>Disassoc: <strong style="color:var(--dang);">' + disassocMatch[1] + '</strong></span>';
-        if (totalMatch) html += '<span>Total: <strong style="color:var(--dang);">' + totalMatch[1] + '</strong></span>';
-        if (targetsMatch) html += '<span>Targets: <strong style="color:var(--txt);">' + targetsMatch[1] + '</strong></span>';
+
+        html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
+        html += '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Deauth Attack Detection</div></div>';
+        html += '<div class="res-stats">';
+        if (durationMatch) html += _resStat('Duration', durationMatch[1]);
+        if (deauthMatch) html += _resStat('Deauth Frames', deauthMatch[1], parseInt(deauthMatch[1]) > 0 ? 'danger' : '');
+        if (disassocMatch) html += _resStat('Disassoc Frames', disassocMatch[1], parseInt(disassocMatch[1]) > 0 ? 'danger' : '');
+        if (totalMatch) html += _resStat('Total Attacks', totalMatch[1], parseInt(totalMatch[1]) > 0 ? 'danger' : '');
+        if (targetsMatch) html += _resStat('Targets', targetsMatch[1]);
         html += '</div></div>';
-        
+
         if (text.includes('No attacks detected')) {
-          html += '<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px;">No attacks detected</div>';
+          html += _resEmpty('No deauth attacks detected.', 'ok');
           return html;
         }
-        
+
         const lines = text.split('\n');
         let currentTarget = null;
         let currentTargetHtml = '';
         let inSourcesList = false;
-        
+
+        function flush() {
+          if (currentTarget) { html += currentTargetHtml + '</div></div>'; }
+          currentTarget = null; currentTargetHtml = ''; inSourcesList = false;
+        }
+
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
-          
           const targetMatch = line.match(/^([A-F0-9:]+|\[BROADCAST\])\s+Total=(\d+)\s+Broadcast=(\d+)\s+Targeted=(\d+)\s+LastRSSI=([-\d]+)dBm\s+CH=(\d+)/);
           if (targetMatch) {
-            if (currentTarget) {
-              html += currentTargetHtml + '</div>';
-            }
-            
+            flush();
             const [_, target, total, broadcast, targeted, rssi, channel] = targetMatch;
             const isBroadcast = target === '[BROADCAST]';
-            
-            currentTargetHtml = '<div style="background:var(--surf);padding:16px;border-radius:8px;border:1px solid var(--warn);margin-bottom:12px;">';
-            currentTargetHtml += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-            currentTargetHtml += '<div style="font-family:monospace;font-size:15px;color:var(--warn);">' + target + (isBroadcast ? '' : randBadge(target)) + '</div>';
-            if (isBroadcast) {
-              currentTargetHtml += '<span style="background:var(--warn);color:#000;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;">BROADCAST ATTACK</span>';
-            }
+
+            currentTargetHtml = '<div class="res-card alert">';
+            currentTargetHtml += '<div class="res-card-head"><div class="res-mac warn">' + target + (isBroadcast ? '<span class="res-badge warn">Broadcast Attack</span>' : randBadge(target)) + '</div></div>';
+            currentTargetHtml += '<div class="res-kvs">';
+            currentTargetHtml += _resKv('Total Attacks', '<span style="color:var(--dang)">' + total + '</span>');
+            currentTargetHtml += _resKv('Broadcast', '<span style="color:var(--dang)">' + broadcast + '</span>');
+            currentTargetHtml += _resKv('Targeted', '<span style="color:var(--warn)">' + targeted + '</span>');
+            currentTargetHtml += '<div class="res-kv"><div class="res-kv-lab">Signal / Channel</div><div class="res-kv-val sm">' + rssi + ' dBm / CH' + channel + '</div></div>';
             currentTargetHtml += '</div>';
-            
-            currentTargetHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px;font-size:12px;">';
-            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
-            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Total Attacks</div>';
-            currentTargetHtml += '<div style="color:var(--dang);font-size:16px;font-weight:bold;">' + total + '</div>';
-            currentTargetHtml += '</div>';
-            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
-            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Broadcast</div>';
-            currentTargetHtml += '<div style="color:var(--dang);font-size:16px;font-weight:bold;">' + broadcast + '</div>';
-            currentTargetHtml += '</div>';
-            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
-            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Targeted</div>';
-            currentTargetHtml += '<div style="color:var(--warn);font-size:16px;font-weight:bold;">' + targeted + '</div>';
-            currentTargetHtml += '</div>';
-            currentTargetHtml += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
-            currentTargetHtml += '<div style="color:var(--mut);font-size:10px;margin-bottom:2px;">Signal / Channel</div>';
-            currentTargetHtml += '<div style="color:var(--txt);font-size:14px;font-weight:bold;">' + rssi + ' dBm / CH' + channel + '</div>';
-            currentTargetHtml += '</div>';
-            currentTargetHtml += '</div>';
-            
-            currentTargetHtml += '<div style="margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;">';
-            currentTargetHtml += '<div style="font-size:11px;color:var(--mut);margin-bottom:8px;font-weight:bold;">Attack Sources:</div>';
-            
+            currentTargetHtml += '<div class="res-rows"><div class="res-rows-lab">Attack Sources</div>';
             currentTarget = target;
             inSourcesList = true;
             continue;
           }
-          
+
           if (inSourcesList && line.trim().startsWith('←')) {
             const sourceMatch = line.match(/← ([A-F0-9:]+) \((\d+)x\)/);
             if (sourceMatch) {
-              const [_, source, count] = sourceMatch;
-              currentTargetHtml += '<div style="padding:6px;font-family:monospace;font-size:12px;color:var(--txt);border-bottom:1px solid var(--bord);">';
-              currentTargetHtml += '<span style="color:var(--warn);">←</span> ' + source + randBadge(source) + ' <span style="color:var(--mut);">(' + count + ' attacks)</span>';
-              currentTargetHtml += '</div>';
+              currentTargetHtml += '<div class="res-row"><span>&larr; ' + sourceMatch[1] + randBadge(sourceMatch[1]) + '</span><span class="res-row-meta">' + sourceMatch[2] + ' attacks</span></div>';
             }
           }
-          
           if (inSourcesList && line.trim().startsWith('...')) {
             const moreMatch = line.match(/\((\d+) more attackers\)/);
-            if (moreMatch) {
-              currentTargetHtml += '<div style="padding:8px;text-align:center;color:var(--mut);font-size:11px;">+ ' + moreMatch[1] + ' more attackers</div>';
-            }
+            if (moreMatch) currentTargetHtml += '<div class="res-more">+ ' + moreMatch[1] + ' more attackers</div>';
           }
-          
-          if (line.trim() === '' && currentTarget) {
-            currentTargetHtml += '</div>';
-            html += currentTargetHtml;
-            currentTarget = null;
-            currentTargetHtml = '';
-            inSourcesList = false;
-          }
+          if (line.trim() === '' && currentTarget) flush();
         }
-        
-        if (currentTarget) {
-          currentTargetHtml += '</div>';
-          html += currentTargetHtml;
-        }
-        
+        flush();
+
         const finalMoreMatch = text.match(/\.\.\. \((\d+) more targets\)/);
-        if (finalMoreMatch) {
-          html += '<div style="padding:12px;text-align:center;color:var(--mut);font-size:12px;border:1px dashed var(--bord);border-radius:6px;">+ ' + finalMoreMatch[1] + ' more targets</div>';
-        }
-        
+        if (finalMoreMatch) html += '<div class="res-more" style="border:1px dashed var(--bord);border-radius:8px;padding:12px;">+ ' + finalMoreMatch[1] + ' more targets</div>';
+
         return html;
       }
 
       function parseDroneResults(text) {
         let html = '';
-        
         const totalMatch = text.match(/Total detections: (\d+)/);
         const uniqueMatch = text.match(/Unique drones: (\d+)/);
-        
-        html += '<div style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-        html += '<div style="font-size:14px;color:var(--txt);margin-bottom:10px;font-weight:bold;">Drone Detection Results</div>';
-        html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);">';
-        if (totalMatch) html += '<span>Total: <strong style="color:var(--txt);">' + totalMatch[1] + '</strong></span>';
-        if (uniqueMatch) html += '<span>Unique: <strong style="color:var(--txt);">' + uniqueMatch[1] + '</strong></span>';
+
+        html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
+        html += '<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Drone Detection</div></div>';
+        html += '<div class="res-stats">';
+        if (totalMatch) html += _resStat('Total Detections', totalMatch[1]);
+        if (uniqueMatch) html += _resStat('Unique Drones', uniqueMatch[1]);
         html += '</div></div>';
-        
+
         const droneBlocks = text.split(/(?=MAC:)/g).filter(b => b.includes('MAC:'));
         droneBlocks.forEach(block => {
           const macMatch = block.match(/MAC: ([A-F0-9:]+)/);
@@ -3568,47 +3341,42 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const opIdMatch = block.match(/Operator ID: (.+)/);
           const descMatch = block.match(/Description: (.+)/);
           const authMatch = block.match(/Auth: type (\d+) ts (\d+)/);
-
           if (!macMatch) return;
 
-          html += '<div style="background:var(--surf);padding:18px;border-radius:8px;border:1px solid var(--acc);margin-bottom:12px;">';
-          html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:10px;">';
-          html += '<div style="font-family:monospace;font-size:15px;color:var(--acc);">' + macMatch[1] + randBadge(macMatch[1]) + '</div>';
-          if (rssiMatch) html += '<span style="color:var(--mut);font-size:12px;">RSSI: <strong style="color:var(--txt);">' + rssiMatch[1] + ' dBm</strong></span>';
+          html += '<div class="res-card acc">';
+          html += '<div class="res-row-main"><span class="res-mac acc">' + macMatch[1] + randBadge(macMatch[1]) + '</span>';
+          html += '<div class="res-meta">';
+          if (uavMatch) html += '<span>UAV ID: <strong>' + uavMatch[1] + '</strong></span>';
+          if (typeMatch) html += '<span class="res-badge">' + typeMatch[1] + '</span>';
+          html += '</div>';
+          if (rssiMatch) html += '<div class="res-metric"><span class="res-metric-val">' + rssiMatch[1] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
           html += '</div>';
 
-          if (uavMatch) {
-            html += '<div style="padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;margin-bottom:8px;font-size:12px;color:var(--acc);">';
-            html += 'UAV ID: <strong>' + uavMatch[1] + '</strong>';
-            if (typeMatch) html += '<span style="color:var(--mut);margin-left:10px;">Type: <strong style="color:var(--txt);">' + typeMatch[1] + '</strong></span>';
-            html += '</div>';
-          }
-
-          const fields = [];
-          if (locMatch) fields.push('Location: <strong style="color:var(--txt);">' + locMatch[1] + '</strong>');
-          if (altMatch) fields.push('Altitude MSL: <strong style="color:var(--txt);">' + altMatch[1] + '</strong>');
-          if (hgtMatch) fields.push('Height AGL: <strong style="color:var(--txt);">' + hgtMatch[1] + '</strong>');
-          if (speedMatch) fields.push('Speed: <strong style="color:var(--txt);">' + speedMatch[1] + '</strong> (Vert ' + speedMatch[2] + ')');
-          if (hdgMatch) fields.push('Heading: <strong style="color:var(--txt);">' + hdgMatch[1] + '</strong>');
-          if (statusMatch) fields.push('Status: <strong style="color:var(--txt);">' + statusMatch[1] + '</strong>');
-          if (fields.length) {
-            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:11px;color:var(--mut);margin-top:8px;">';
-            fields.forEach(f => html += '<div>' + f + '</div>');
+          const kvs = [];
+          if (locMatch) kvs.push(['Location', locMatch[1]]);
+          if (altMatch) kvs.push(['Altitude MSL', altMatch[1]]);
+          if (hgtMatch) kvs.push(['Height AGL', hgtMatch[1]]);
+          if (speedMatch) kvs.push(['Speed', speedMatch[1] + ' <small style="color:var(--mut);font-weight:500;">(Vert ' + speedMatch[2] + ')</small>']);
+          if (hdgMatch) kvs.push(['Heading', hdgMatch[1]]);
+          if (statusMatch) kvs.push(['Status', statusMatch[1]]);
+          if (kvs.length) {
+            html += '<div class="res-kvs">';
+            kvs.forEach(k => html += '<div class="res-kv"><div class="res-kv-lab">' + k[0] + '</div><div class="res-kv-val sm">' + k[1] + '</div></div>');
             html += '</div>';
           }
 
           if (opLocMatch || opIdMatch || descMatch || authMatch) {
-            html += '<div style="margin-top:8px;padding:8px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;color:var(--mut);">';
-            if (opLocMatch) html += 'Operator: <strong style="color:var(--txt);">' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong><br>';
-            if (opIdMatch) html += 'Operator ID: <strong style="color:var(--txt);">' + opIdMatch[1] + '</strong><br>';
-            if (descMatch) html += 'Description: <strong style="color:var(--txt);">' + descMatch[1] + '</strong><br>';
-            if (authMatch) html += 'Auth: <strong style="color:var(--txt);">type ' + authMatch[1] + ', ts ' + authMatch[2] + '</strong>';
-            html += '</div>';
+            html += '<div class="res-note"><span class="res-note-lab">Operator</span>';
+            const bits = [];
+            if (opLocMatch) bits.push('<strong>' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>');
+            if (opIdMatch) bits.push('ID <strong>' + opIdMatch[1] + '</strong>');
+            if (descMatch) bits.push('“' + descMatch[1] + '”');
+            if (authMatch) bits.push('Auth type ' + authMatch[1] + ', ts ' + authMatch[2]);
+            html += bits.join(' &middot; ') + '</div>';
           }
-
           html += '</div>';
         });
-        
+
         return html;
       }
 
@@ -3625,25 +3393,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const ssidMatch = statsLine.match(/SSIDs:\s*(\d+)/);
         const savedMatch = statsLine.match(/Saved:\s*(\d+)/);
 
-        // Stats bar
-        html += '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;align-items:center;">';
-        if (inProgress) html += '<span style="color:var(--acc);font-weight:bold;animation:pulse 1.5s ease-in-out infinite;">SCANNING</span>';
-        if (devMatch) html += '<span>Devices: <strong>' + devMatch[1] + '</strong></span>';
-        if (probeMatch) html += '<span>Probes: <strong>' + probeMatch[1] + '</strong></span>';
-        if (ssidMatch) html += '<span>SSIDs: <strong>' + ssidMatch[1] + '</strong></span>';
-        html += '</div>';
+        html += '<div class="res-hero">';
+        html += '<div class="res-hero-top"><div class="res-hero-title">';
+        html += '<svg viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>';
+        html += 'Probe Detection</div>';
+        if (inProgress) html += '<span class="res-scanning">Scanning</span>';
+        html += '</div><div class="res-stats">';
+        if (devMatch) html += _resStat('Devices', devMatch[1]);
+        if (probeMatch) html += _resStat('Probes', probeMatch[1]);
+        if (ssidMatch) html += _resStat('SSIDs', ssidMatch[1]);
+        if (savedMatch) html += _resStat('Saved', savedMatch[1]);
+        html += '</div></div>';
 
-        // Collapsible saved devices dropdown
         if (savedMatch && parseInt(savedMatch[1]) > 0) {
-          html += '<div id="savedDevicesPanel" style="margin-bottom:12px;">';
-          html += '<div style="display:flex;align-items:center;gap:6px;">';
-          html += '<div id="savedDevicesToggle" onclick="toggleSavedDevices()" style="flex:1;cursor:pointer;padding:8px 12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--mut);user-select:none;">';
-          html += '<span id="savedDevicesArrow" style="transition:transform 0.2s;display:inline-block;">&#9654;</span>';
-          html += '<span>Saved Devices (' + savedMatch[1] + ')</span>';
+          html += '<div id="savedDevicesPanel" style="margin-bottom:14px;">';
+          html += '<div style="display:flex;align-items:center;gap:8px;">';
+          html += '<div id="savedDevicesToggle" onclick="toggleSavedDevices()" class="res-section" style="flex:1;cursor:pointer;padding:11px 14px;margin:0;">';
+          html += '<div style="display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700;color:var(--acc);">';
+          html += '<span id="savedDevicesArrow" class="res-caret">&#9654;</span><span>Saved Devices (' + savedMatch[1] + ')</span></div></div>';
+          html += '<button onclick="clearSavedDevices()" class="btn danger" style="padding:9px 14px;">Clear</button>';
           html += '</div>';
-          html += '<button onclick="clearSavedDevices()" style="padding:8px 12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;font-size:11px;color:var(--c-err);cursor:pointer;">Clear</button>';
-          html += '</div>';
-          html += '<div id="savedDevicesList" style="display:none;margin-top:4px;max-height:300px;overflow-y:auto;border:1px solid var(--bord);border-radius:8px;background:var(--bg);"></div>';
+          html += '<div id="savedDevicesList" style="display:none;margin-top:8px;max-height:340px;overflow-y:auto;"></div>';
           html += '</div>';
         }
 
@@ -3654,23 +3424,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         for (let i = 2; i < lines.length; i++) {
           const line = lines[i].trim();
           if (!line) continue;
-          if (line.startsWith('SSIDs seen')) {
-            inSsidSection = true;
-            continue;
-          }
+          if (line.startsWith('SSIDs seen')) { inSsidSection = true; continue; }
           if (inSsidSection) {
             if (line.startsWith('WiFi') || line.startsWith('BLE')) { inSsidSection = false; }
             else { ssidSection += line + '\n'; continue; }
           }
-          if (line.startsWith('WiFi') || line.startsWith('BLE')) {
-            deviceLines.push(line);
-          }
+          if (line.startsWith('WiFi') || line.startsWith('BLE')) deviceLines.push(line);
         }
 
-        // Device cards
         if (deviceLines.length > 0) {
-          html += '<div style="display:flex;flex-direction:column;gap:6px;">';
-
+          html += '<div class="res-list">';
           for (const line of deviceLines) {
             const isKnown = line.includes('[KNOWN:');
             const macM = line.match(/([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
@@ -3679,12 +3442,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const wildcard = line.includes('(wildcard)');
             const countM = line.match(/\sx(\d+)/);
 
-            // Parse vendor: word after CH=N
             let vendor = '';
             const vendorM = line.match(/CH=\d+\s+(\w+)/);
             if (vendorM && vendorM[1] !== 'probes' && vendorM[1] !== 'AP') vendor = vendorM[1];
 
-            // Parse all SSIDs from probes:~"Ghost","Local" format (~prefix = ghost network)
             let ssids = [];
             const probesM = line.match(/probes:((?:~?"[^"]*",?)+)/);
             if (probesM) {
@@ -3692,78 +3453,50 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               for (const m of matches) ssids.push({name: m[2], ghost: m[1] === '~'});
             }
 
-            // Parse responding AP (SSID + optional BSSID)
             const apM = line.match(/AP="([^"]*)"/);
             const apBssidM = line.match(/APBSSID=([A-Fa-f0-9:]+)/);
-
-            // Parse KNOWN history
             const knownM = line.match(/\[KNOWN:seen=(\d+)\s+sessions=(\d+)\s+last=([^\]]+)\]/);
 
-            // Card styling
-            let borderColor = 'var(--bord)';
-            let bgColor = 'var(--surf)';
-            if (isKnown) { borderColor = 'var(--c-known)'; bgColor = 'var(--accbg)'; }
-
-            html += '<div style="padding:8px 12px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:8px;font-size:11px;">';
-
-            // Top row: MAC + vendor + status badges
-            html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
-            html += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);">' + (macM ? macM[1] : '') + '</span>';
+            html += '<div class="res-card' + (isKnown ? ' acc' : '') + '">';
+            html += '<div class="res-row-main"><span class="res-mac">';
+            html += (macM ? macM[1] : '');
             if (macM) html += randBadge(macM[1]);
-            if (vendor && vendor !== 'Randomized' && !(macM && isRandomMac(macM[1]))) {
-              html += '<span style="color:var(--mut);">' + vendor + '</span>';
-            }
-            html += '<span style="color:var(--mut);">' + (rssiM ? rssiM[1] + 'dBm' : '') + '</span>';
-            if (chM) html += '<span style="color:var(--mut);">CH' + chM[1] + '</span>';
-            if (countM && parseInt(countM[1]) > 1) html += '<span style="color:var(--acc);">x' + countM[1] + '</span>';
-            if (isKnown) html += '<span style="background:var(--c-known);color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">KNOWN</span>';
-            html += '</div>';
-
-            // Second row: SSIDs this device is probing for
+            if (vendor && vendor !== 'Randomized' && !(macM && isRandomMac(macM[1]))) html += '<span class="res-badge">' + vendor + '</span>';
+            if (chM) html += '<span class="res-badge">CH' + chM[1] + '</span>';
+            if (countM && parseInt(countM[1]) > 1) html += '<span class="res-badge acc">x' + countM[1] + '</span>';
+            if (isKnown) html += '<span class="res-badge known">Known</span>';
+            html += '</span>';
             if (ssids.length > 0) {
-              html += '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">';
-              html += '<span style="color:var(--mut);font-size:10px;">Probing:</span>';
+              html += '<div class="res-tags" style="flex:1 1 160px;margin-top:0;"><span class="res-tags-lab">Probing</span>';
               for (const s of ssids) {
-                if (s.ghost) {
-                  html += '<span data-ssid="' + s.name + '" title="Not nearby - saved/home network" style="background:var(--c-away-bg);border:1px dashed var(--c-away);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--c-away);">' + s.name + ' <sup style="font-size:8px;opacity:0.7;">away</sup></span>';
-                } else {
-                  html += '<span data-ssid="' + s.name + '" style="background:var(--bg);border:1px solid var(--bord);padding:1px 6px;border-radius:4px;font-size:10px;color:var(--txt);">' + s.name + '</span>';
-                }
+                html += '<span data-ssid="' + s.name + '" class="res-tag' + (s.ghost ? ' away' : '') + '"' + (s.ghost ? ' title="Not nearby - saved/home network"' : '') + '>' + s.name + (s.ghost ? ' <sup>away</sup>' : '') + '</span>';
               }
               html += '</div>';
             } else if (wildcard) {
-              html += '<div style="margin-top:4px;color:var(--mut);font-size:10px;font-style:italic;">Broadcast probe (no specific SSID)</div>';
+              html += '<div class="res-meta"><span style="font-style:italic;">Broadcast probe (no specific SSID)</span></div>';
             }
+            if (rssiM) html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssiM[1]) + '">' + rssiM[1] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+            html += '</div>';
 
-            // Third row: Responding AP (from probe response intelligence)
             if (apM) {
-              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:3px;font-size:10px;color:var(--c-ap);">AP responded: <strong>' + apM[1] + '</strong>';
-              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
+              html += '<div data-ap-ssid="' + apM[1] + '" class="res-sub"><span class="res-note-lab">AP responded</span><strong>' + apM[1] + '</strong>';
+              if (apBssidM) html += ' <span style="font-family:ui-monospace,monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
               html += '</div>';
             }
-
-            // Fourth row: Historical intelligence
             if (knownM) {
-              html += '<div style="margin-top:3px;font-size:10px;color:var(--c-known);">Seen ' + knownM[1] + ' times across ' + knownM[2] + ' sessions, last: ' + knownM[3] + '</div>';
+              html += '<div class="res-sub"><span style="color:var(--c-known);">Seen <strong>' + knownM[1] + '</strong> times across <strong>' + knownM[2] + '</strong> sessions</span> &middot; last: ' + knownM[3] + '</div>';
             }
-
             html += '</div>';
           }
           html += '</div>';
         }
 
-        // SSID intelligence panel
         if (ssidSection.trim()) {
           const ssidLines = ssidSection.trim().split('\n');
-          let nearbyCount = 0, ghostCount = 0;
-          for (const sl of ssidLines) {
-            if (sl.trim().startsWith('~')) ghostCount++; else nearbyCount++;
-          }
-          html += '<div style="margin-top:12px;padding:10px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-          html += '<div style="font-weight:bold;color:var(--acc);margin-bottom:8px;">Network Intelligence (' + ssidLines.length + ' SSIDs';
-          if (ghostCount > 0) html += ', ' + ghostCount + ' away';
-          html += ')</div>';
-          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+          let ghostCount = 0;
+          for (const sl of ssidLines) { if (sl.trim().startsWith('~')) ghostCount++; }
+          html += '<div class="res-card acc"><div class="res-mac" style="color:var(--acc);font-family:inherit;">Network Intelligence <span class="res-badge acc">' + ssidLines.length + ' SSID' + (ssidLines.length === 1 ? '' : 's') + (ghostCount > 0 ? ' &middot; ' + ghostCount + ' away' : '') + '</span></div>';
+          html += '<div class="res-tags" style="margin-top:12px;">';
           for (const sl of ssidLines) {
             const trimmed = sl.trim();
             const isGhost = trimmed.startsWith('~');
@@ -3774,12 +3507,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               let tooltip = sm[1] + ' (' + devCount + ' device' + (devCount > 1 ? 's' : '') + ')';
               if (isGhost) tooltip += ' - not nearby, saved/home network';
               if (macsM) tooltip += ': ' + macsM[1];
-              if (isGhost) {
-                html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:var(--c-away-bg);color:var(--c-away);border:1px dashed var(--c-away);padding:3px 10px;border-radius:12px;font-size:11px;cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup> <span style="font-size:8px;opacity:0.7;">away</span></span>';
-              } else {
-                const opacity = Math.min(1, 0.4 + devCount * 0.2);
-                html += '<span data-ssid="' + sm[1] + '" title="' + tooltip + '" style="background:rgba(46,204,113,' + opacity + ');color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:' + (devCount > 2 ? 'bold' : 'normal') + ';cursor:default;">' + sm[1] + ' <sup>' + sm[2] + '</sup></span>';
-              }
+              html += '<span data-ssid="' + sm[1] + '" class="res-tag' + (isGhost ? ' away' : '') + '" title="' + tooltip + '"' + (isGhost ? '' : ' style="border-color:var(--acc);color:var(--acc);"') + '>' + sm[1] + ' <sup>' + sm[2] + '</sup>' + (isGhost ? ' <span style="font-size:8px;opacity:.7;">away</span>' : '') + '</span>';
             }
           }
           html += '</div></div>';
@@ -3865,23 +3593,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       function parseDeviceScanResults(text) {
         let html = '';
-        
+
         const modeMatch = text.match(/Mode: ([^\s]+)/);
         const durationMatch = text.match(/Duration: ([^\n]+)/);
         const hitsMatch = text.match(/Target Hits: (\d+)/);
         const uniqueMatch = text.match(/Unique devices: (\d+)/);
-        
+
         if (modeMatch || durationMatch || hitsMatch || uniqueMatch) {
-          html += '<div id="deviceScanHeader" style="margin-bottom:16px;padding:12px;background:var(--surf);border:1px solid var(--bord);border-radius:8px;">';
-          html += '<div style="font-size:14px;color:var(--txt);margin-bottom:8px;font-weight:bold;">Device Discovery Scan Results</div>';
-          html += '<div style="display:flex;gap:20px;font-size:12px;color:var(--mut);flex-wrap:wrap;">';
-          if (modeMatch) html += '<span>Mode: <strong style="color:var(--txt);">' + modeMatch[1] + '</strong></span>';
-          if (durationMatch) html += '<span>Duration: <strong style="color:var(--txt);">' + durationMatch[1] + '</strong></span>';
-          if (hitsMatch) html += '<span>Target Hits: <strong style="color:var(--txt);">' + hitsMatch[1] + '</strong></span>';
-          if (uniqueMatch) html += '<span>Unique: <strong style="color:var(--txt);">' + uniqueMatch[1] + '</strong></span>';
+          html += '<div id="deviceScanHeader" class="res-hero">';
+          html += '<div class="res-hero-top"><div class="res-hero-title">';
+          html += '<svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
+          html += 'Device Discovery</div></div>';
+          html += '<div class="res-stats">';
+          if (modeMatch) html += _resStat('Mode', modeMatch[1]);
+          if (durationMatch) html += _resStat('Duration', durationMatch[1]);
+          if (hitsMatch) html += _resStat('Target Hits', hitsMatch[1], parseInt(hitsMatch[1]) > 0 ? 'ok' : '');
+          if (uniqueMatch) html += _resStat('Unique Devices', uniqueMatch[1]);
           html += '</div></div>';
         }
-        
+
         const lines = text.split('\n');
         let inProbeSection = false;
         let probeLines = [];
@@ -3890,15 +3620,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let normalHtml = '';
 
         lines.forEach(line => {
-          if (line.startsWith('--- Probe Intelligence')) {
-            inProbeSection = true;
-            return;
-          }
-
-          if (inProbeSection) {
-            if (line.trim().length > 0) probeLines.push(line.trim());
-            return;
-          }
+          if (line.startsWith('--- Probe Intelligence')) { inProbeSection = true; return; }
+          if (inProbeSection) { if (line.trim().length > 0) probeLines.push(line.trim()); return; }
 
           const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
           if (!match) return;
@@ -3908,26 +3631,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const rssi = match[3];
           const channel = match[4] || '';
           const name = match[5] || 'Unknown';
+          const isApple = / APPLE(?:\s|$)/.test(line);
 
-          const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
           const rssiColor = rssiColorFor(rssi);
           const isTarget = macIsTarget(mac, targetTokens);
-          const cardStyle = isTarget
-            ? 'margin-bottom:10px;padding:10px;border-radius:8px;background:var(--accbg);border:2px solid var(--acc);box-shadow:var(--glow),var(--shad-hover);'
-            : 'margin-bottom:10px;padding:10px;border-radius:8px;background:var(--surf);border:1px solid var(--bord);';
+          const cls = 'res-card device-card' + (isTarget ? ' target is-target' : '');
 
-          let card = '<div class="device-card' + (isTarget ? ' is-target' : '') + '" data-type="' + type + '" data-channel="' + (channel || '0') + '" data-target="' + (isTarget ? '1' : '0') + '" style="' + cardStyle + '">';
-          card += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">';
-          card += '<div>';
-          card += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">';
-          if (isTarget) card += '<span style="display:inline-block;background:var(--acc);color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle;">TARGET</span>';
-          card += mac + randBadge(mac) + '</div>';
-          card += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
-          card += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
+          let card = '<div class="' + cls + '" data-type="' + type + '" data-channel="' + (channel || '0') + '" data-target="' + (isTarget ? '1' : '0') + '">';
+          card += '<div class="res-row-main">';
+          card += '<span class="res-mac">';
+          if (isTarget) card += '<span class="res-badge target">TARGET</span>';
+          card += mac + randBadge(mac);
+          if (isApple) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
+          card += '</span>';
+          card += '<div class="res-meta">';
+          card += '<span>Name: <strong>' + name + '</strong></span>';
+          card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
+          if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
           card += '</div>';
-          card += '<div style="text-align:right;">';
-          card += '<div style="font-size:12px;color:' + rssiColor + ';font-weight:600;">RSSI: ' + rssi + ' dBm</div>';
-          if (channel) card += '<div style="font-size:11px;color:var(--mut);margin-top:2px;">CH: ' + channel + '</div>';
+          card += '<div class="res-metric">';
+          card += '<span class="res-metric-val" style="color:' + rssiColor + '">' + rssi + '<small> dBm</small></span>';
+          card += '<span class="res-metric-lab">RSSI</span>';
           card += '</div>';
           card += '</div>';
           card += '</div>';
@@ -3937,14 +3661,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         html += targetHtml + normalHtml;
 
-        // Render probe intelligence section if present
         if (probeLines.length > 0) {
-          html += '<div style="margin-top:16px;padding:10px;background:var(--surf);border:1px solid var(--c-rand);border-radius:8px;">';
-          html += '<div style="font-weight:bold;color:var(--c-rand);margin-bottom:8px;">Probe Intelligence (' + probeLines.length + ' probing devices)</div>';
-          html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>Probe Intelligence (' + probeLines.length + ' probing devices)</summary>';
+          html += '<div class="res-section-body">';
           for (const pl of probeLines) {
             const macM = pl.match(/^([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
-            const isRand = pl.includes(' Rand');
             const probesM = pl.match(/probes:((?:~?"[^"]*",?)+)/);
             const apM = pl.match(/AP="([^"]*)"/);
             const apBssidM = pl.match(/APBSSID=([A-Fa-f0-9:]+)/);
@@ -3952,35 +3673,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const vendorM = pl.match(/^[A-F0-9:]+\s+(\w+)/);
             const vendor = vendorM && vendorM[1] !== 'Rand' && vendorM[1] !== 'probes' && vendorM[1] !== 'AP' ? vendorM[1] : '';
 
-            html += '<div style="padding:6px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:6px;font-size:11px;">';
-            html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
-            if (macM) html += '<span style="font-family:monospace;font-weight:bold;">' + macM[1] + '</span>';
-            if (macM) html += randBadge(macM[1]);
-            if (vendor && !(macM && isRandomMac(macM[1]))) html += '<span style="color:var(--mut);">' + vendor + '</span>';
-            if (countM) html += '<span style="color:var(--acc);">x' + countM[1] + '</span>';
+            html += '<div class="res-card">';
+            html += '<div class="res-mac">';
+            if (macM) html += macM[1] + randBadge(macM[1]);
+            if (vendor && !(macM && isRandomMac(macM[1]))) html += '<span class="res-badge">' + vendor + '</span>';
+            if (countM) html += '<span class="res-badge acc">x' + countM[1] + '</span>';
             html += '</div>';
             if (probesM) {
-              html += '<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;">';
-              html += '<span style="color:var(--mut);font-size:9px;">Probing:</span>';
+              html += '<div class="res-tags"><span class="res-tags-lab">Probing</span>';
               const ssids = probesM[1].matchAll(/(~?)"([^"]*)"/g);
               for (const s of ssids) {
                 const ghost = s[1] === '~';
-                if (ghost) {
-                  html += '<span data-ssid="' + s[2] + '" title="Not nearby - saved/home network" style="background:var(--c-away-bg);border:1px dashed var(--c-away);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--c-away);">' + s[2] + ' <sup style="font-size:7px;opacity:0.7;">away</sup></span>';
-                } else {
-                  html += '<span data-ssid="' + s[2] + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;">' + s[2] + '</span>';
-                }
+                html += '<span data-ssid="' + s[2] + '" class="res-tag' + (ghost ? ' away' : '') + '"' + (ghost ? ' title="Not nearby - saved/home network"' : '') + '>' + s[2] + (ghost ? ' <sup>away</sup>' : '') + '</span>';
               }
               html += '</div>';
             }
             if (apM) {
-              html += '<div data-ap-ssid="' + apM[1] + '" style="margin-top:2px;font-size:9px;color:var(--c-ap);">AP responded: <strong>' + apM[1] + '</strong>';
-              if (apBssidM) html += ' <span style="color:var(--mut);font-family:monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
+              html += '<div data-ap-ssid="' + apM[1] + '" class="res-sub"><span class="res-note-lab">AP responded</span><strong>' + apM[1] + '</strong>';
+              if (apBssidM) html += ' <span style="font-family:ui-monospace,monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
               html += '</div>';
             }
             html += '</div>';
           }
-          html += '</div></div>';
+          html += '</div></details>';
         }
 
         return html;
