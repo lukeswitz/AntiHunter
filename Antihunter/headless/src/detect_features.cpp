@@ -1440,9 +1440,9 @@ static bool isDetectorPrefix(const String &type) {
     static const char *kPrefixes[] = {
         "DEAUTH_FORGE","DEAUTH_FLOOD","EVILTWIN","KARMA_CAND","KARMA_CONFIRMED",
         "BEACON_FORGE","PMKID_HARVEST","PMKID_FORGE","EAPOL_BAIT","PROBE_FLOOD",
-        "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","BLE_ATTACK","BLETRACK","SAE_DOS",
+        "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","SAE_DOS",
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
-        "ATTACKER_HUNT","RECON","TRK_LINK","HSHK","DEAUTH_AP_TARGETED",
+        "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
         "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD",
         nullptr
     };
@@ -1461,9 +1461,9 @@ void detect_logIncident(const String &raw, const char *src) {
     static const char *kPrefixesFast[] = {
         "DEAUTH_FORGE","DEAUTH_FLOOD","EVILTWIN","KARMA_CAND","KARMA_CONFIRMED",
         "BEACON_FORGE","PMKID_HARVEST","PMKID_FORGE","EAPOL_BAIT","PROBE_FLOOD",
-        "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","BLE_ATTACK","BLETRACK","SAE_DOS",
+        "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","SAE_DOS",
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
-        "ATTACKER_HUNT","RECON","TRK_LINK","HSHK","DEAUTH_AP_TARGETED",
+        "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
         "PROBE_FLOOD_AP","BEACON_FLOOD","AUTH_FLOOD", nullptr
     };
     bool matched = false;
