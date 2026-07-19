@@ -96,7 +96,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
       .statx-ticker::-webkit-scrollbar{display:none}
       .statx-track{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
-      @media(max-width:760px){.header-bar:has(#scanStatus.active) .theme-toggle{display:none}}
+      @keyframes statxScroll{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
+      @media(max-width:760px){.header-bar:has(#scanStatus.active) .theme-toggle{display:none}.header-bar:has(#scanStatus.active) .statx-ticker{overflow:hidden}.header-bar:has(#scanStatus.active) .statx-track{animation:statxScroll 14s linear infinite;will-change:transform}.header-bar:has(#scanStatus.active) .statx-ticker:active .statx-track{animation-play-state:paused}}
+      @media(prefers-reduced-motion:reduce){.header-bar:has(#scanStatus.active) .statx-track{animation:none}}
       #gpsStatus{min-width:60px;justify-content:flex-start}
       #gpsStatus .gps-acc{text-transform:none;letter-spacing:0;font-size:11px;font-weight:700;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
       #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
