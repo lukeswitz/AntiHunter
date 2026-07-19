@@ -1767,18 +1767,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function updatePrivacyBtn() {
         const btn = document.getElementById('privacyBtn');
         if (!btn) return;
+        btn.textContent = 'Privacy';
+        btn.classList.remove('danger');
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
         if (privacyMode) {
-          btn.textContent = 'Privacy: ON';
-          btn.classList.remove('danger');
-          btn.style.background = 'var(--succ)';
-          btn.style.borderColor = 'var(--succ)';
-          btn.style.color = '#fff';
+          btn.classList.add('primary');
+          btn.classList.remove('alt');
         } else {
-          btn.textContent = 'Privacy: OFF';
-          btn.classList.add('danger');
-          btn.style.background = '';
-          btn.style.borderColor = '';
-          btn.style.color = '';
+          btn.classList.add('alt');
+          btn.classList.remove('primary');
         }
       }
 
@@ -2099,7 +2098,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (rt && rt.trim() !== '' && !rt.includes('None yet') && !rt.includes('No scan data') && rt !== lastResultsText) {
                 lastResultsText = rt;
                 const re = document.getElementById('r');
-                if (re) re.innerHTML = parseAndStyleResults(rt);
+                if (re) {
+                  const openDetails = new Set();
+                  re.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(sm.textContent.trim()); });
+                  re.innerHTML = parseAndStyleResults(rt);
+                  if (openDetails.size) re.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(sm.textContent.trim())) d.open = true; });
+                  if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
+                }
               }
             } catch(e) {}
           }
@@ -3134,7 +3139,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (intervalConMatch) html += _resKv('Interval Consistency', (parseFloat(intervalConMatch[1]) * 100).toFixed(0) + '%');
           if (rssiConMatch) html += _resKv('RSSI Stability', (parseFloat(rssiConMatch[1]) * 100).toFixed(0) + '%');
           if (channelsMatch) html += _resKv('Unique Channels', channelsMatch[1]);
-          if (realMacMatch) html += '<div class="res-kv danger"><div class="res-kv-lab" style="color:var(--dang)">Real MAC Leaked</div><div class="res-kv-val mono" style="color:var(--dang)">' + realMacMatch[1] + '</div></div>';
+          if (realMacMatch) html += '<div class="res-kv danger" style="grid-column:1/-1"><div class="res-kv-lab" style="color:var(--dang)">Real MAC Leaked</div><div class="res-kv-val mono" style="color:var(--dang)">' + realMacMatch[1] + '</div></div>';
           html += '</div>';
 
           if (seqTrackMatch) html += '<div class="res-note"><span class="res-note-lab">Sequence Tracking</span><span style="font-family:ui-monospace,monospace;">' + seqTrackMatch[1].trim() + '</span></div>';
@@ -4111,18 +4116,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                         const summaryText = summary.textContent.trim();
                         if (expandedDetails.has(summaryText)) {
                           details.open = true;
-                          const spans = summary.querySelectorAll('span');
-                          const arrow = spans[spans.length - 1];
-                          if (arrow) arrow.style.transform = 'rotate(90deg)';
                         }
                       }
-                      details.addEventListener('toggle', () => {
-                        const spans = details.querySelectorAll('summary span');
-                        const arrow = spans[spans.length - 1];
-                        if (arrow) {
-                          arrow.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
-                        }
-                      });
                     }
                     if (currentSort !== 'default') sortResultsDisplay();
                   }, 0);
