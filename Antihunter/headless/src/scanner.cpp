@@ -131,9 +131,13 @@ const uint32_t MESH_DEDUP_TTL_MAX_S = 3600;
 const uint32_t MESH_DEDUP_TTL_DEFAULT_S = 300;
 const size_t MESH_DEDUP_MAX_ENTRIES = 5000;
 std::atomic<uint32_t> g_meshDedupTtlMs(MESH_DEDUP_TTL_DEFAULT_S * 1000);
+std::atomic<bool> g_meshSessionDedup(false);
 static std::map<String, uint32_t, std::less<String>,
     PsramAllocator<std::pair<const String, uint32_t>>> g_meshSentMacs;
 static std::mutex g_meshSentMacsMutex;
+
+void setMeshSessionDedup(bool on) { g_meshSessionDedup.store(on); }
+bool getMeshSessionDedup() { return g_meshSessionDedup.load(); }
 
 void setMeshDedupTtlSec(uint32_t sec) {
     if (sec > MESH_DEDUP_TTL_MAX_S) sec = MESH_DEDUP_TTL_MAX_S;
@@ -145,11 +149,13 @@ uint32_t getMeshDedupTtlSec() {
 }
 
 bool meshShouldSendMac(const String& mac) {
+    bool session = g_meshSessionDedup.load();
     uint32_t ttl = g_meshDedupTtlMs.load();
-    if (ttl == 0) return true;
+    if (!session && ttl == 0) return true;
     std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
     auto it = g_meshSentMacs.find(mac);
     if (it == g_meshSentMacs.end()) return true;
+    if (session) return false;
     return (millis() - it->second) >= ttl;
 }
 
@@ -953,7 +959,7 @@ void snifferScanTask(void *pv)
     unsigned long nextResultsUpdate = millis();
 
     std::set<String> transmittedDevices;
-    meshDedupClear();
+    if (!getMeshSessionDedup()) meshDedupClear();
 
     String meshBatch;
     std::vector<String> meshBatchMacs;

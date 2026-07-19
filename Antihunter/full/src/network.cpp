@@ -885,6 +885,7 @@ void registerRemainingRoutes() {
     String json = "{\"ttl\":" + String(getMeshDedupTtlSec()) +
                   ",\"min\":" + String(MESH_DEDUP_TTL_MIN_S) +
                   ",\"max\":" + String(MESH_DEDUP_TTL_MAX_S) +
+                  ",\"session\":" + String(getMeshSessionDedup() ? "true" : "false") +
                   ",\"count\":" + String(meshDedupCount()) + "}";
     req->send(200, "application/json", json);
   });
@@ -910,6 +911,20 @@ void registerRemainingRoutes() {
   server->on("/mesh-dedup-clear", HTTP_POST, [](AsyncWebServerRequest *req) {
     meshDedupClear();
     req->send(200, "text/plain", "Dedup cache cleared");
+  });
+
+  server->on("/mesh-session-dedup", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("on", true)) {
+      req->send(400, "text/plain", "Missing on parameter (0|1)");
+      return;
+    }
+    bool on = req->getParam("on", true)->value().toInt() != 0;
+    setMeshSessionDedup(on);
+    prefs.putBool("meshSessDedup", on);
+    saveConfiguration();
+    req->send(200, "text/plain", on
+      ? "Session dedup ON - re-scans send only new devices"
+      : "Session dedup OFF - every scan re-broadcasts all devices");
   });
 
   server->on("/mesh/drain/status", HTTP_GET, [](AsyncWebServerRequest *req) {

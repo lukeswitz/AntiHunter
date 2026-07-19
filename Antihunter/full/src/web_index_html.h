@@ -697,7 +697,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <button class="btn" onclick="saveDedupTtl()">Save</button>
                 <button class="btn alt" onclick="clearDedup()">Clear Cache</button>
               </div>
-              <div id="dedupCacheInfo" style="font-size:11px;color:var(--mut);margin-bottom:12px;">Cache: 0 MACs tracked</div>
+              <div id="dedupCacheInfo" style="font-size:11px;color:var(--mut);margin-bottom:6px;">Cache: 0 MACs tracked</div>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:12px;cursor:pointer;" title="ON: subsequent scans send only devices not already sent this session (until Clear Cache). OFF: every scan re-broadcasts all devices it sees.">
+                <input type="checkbox" id="meshSessionDedup" onchange="saveSessionDedup()" style="width:auto;">
+                Session dedup — send only NEW devices across scans
+              </label>
 
               <div style="display:flex;gap:8px;">
                 <a class="btn alt" href="/mesh-test" data-ajax="true" style="flex:1;">Test</a>
@@ -1559,6 +1563,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const r = await fetch('/mesh-dedup-ttl');
           const data = await r.json();
           document.getElementById('meshDedupTtl').value = data.ttl;
+          const sd = document.getElementById('meshSessionDedup');
+          if (sd) sd.checked = !!data.session;
           const info = document.getElementById('dedupCacheInfo');
           if (info) info.innerText = 'Cache: ' + data.count + ' MACs tracked' + (data.ttl == 0 ? ' (dedup DISABLED)' : '');
         } catch(e) {
@@ -1594,6 +1600,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           loadDedupTtl();
         } catch(e) {
           toast('Failed to clear dedup cache', 'error');
+        }
+      }
+
+      async function saveSessionDedup() {
+        const on = document.getElementById('meshSessionDedup').checked ? 1 : 0;
+        try {
+          const r = await fetch('/mesh-session-dedup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'on=' + on
+          });
+          toast(await r.text(), 'success');
+          loadDedupTtl();
+        } catch(e) {
+          toast('Failed to set session dedup', 'error');
         }
       }
 

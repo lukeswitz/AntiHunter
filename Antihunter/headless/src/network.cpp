@@ -452,6 +452,24 @@ static void handleConfigDedupTtl(const String &command)
   sendToSerial1(nodeId + ": CONFIG_ACK:DEDUP_TTL:" + String(ttl), true);
 }
 
+static void handleConfigSessionDedup(const String &command)
+{
+  int v = command.substring(command.indexOf(':') + 1).toInt();
+  bool on = (v != 0);
+  setMeshSessionDedup(on);
+  prefs.putBool("meshSessDedup", on);
+  saveConfiguration();
+  Serial.printf("[MESH] Session dedup %s\n", on ? "ON" : "OFF");
+  sendToSerial1(nodeId + ": CONFIG_ACK:SESSION_DEDUP:" + String(on ? 1 : 0), true);
+}
+
+static void handleMeshDedupClear()
+{
+  meshDedupClear();
+  Serial.println("[MESH] Dedup cache cleared");
+  sendToSerial1(nodeId + ": DEDUP_CLEAR_ACK:OK", true);
+}
+
 static void handleConfigNodeId(const String &command)
 {
   Serial.printf("[DEBUG] CONFIG_NODEID block ENTERED\n");
@@ -1728,6 +1746,8 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("CONFIG_NODEID:"))      handleConfigNodeId(command);
   else if (command.startsWith("CONFIG_RSSI:"))        handleConfigRssi(command);
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
+  else if (command.startsWith("CONFIG_SESSION_DEDUP:")) handleConfigSessionDedup(command);
+  else if (command.startsWith("MESH_DEDUP_CLEAR"))    handleMeshDedupClear();
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
   else if (command.startsWith("BASELINE_STATUS"))     handleBaselineStatus(command);
