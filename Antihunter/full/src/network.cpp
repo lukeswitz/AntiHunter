@@ -215,12 +215,12 @@ void initializeNetwork()
   {
     wifi_config_t apCfg = {};
     if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) == ESP_OK) {
-      apCfg.ap.pmf_cfg.capable = false;
+      apCfg.ap.pmf_cfg.capable = true;
       apCfg.ap.pmf_cfg.required = false;
       esp_wifi_set_config(WIFI_IF_AP, &apCfg);
     }
   }
-  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start (PMF off): %s\n", apOk ? "OK" : "FAIL");
+  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start (PMF capable): %s\n", apOk ? "OK" : "FAIL");
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
