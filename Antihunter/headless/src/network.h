@@ -38,6 +38,7 @@ bool meshEnqueue(const String &msg, bool priority = false);
 bool meshEnqueuePrio(const String &msg, MeshPriority prio);
 void meshTxFlushQueue();
 uint32_t meshTxQueueDepth();
+bool meshTxPending();
 uint32_t meshMsgUnits(const String &msg);
 uint32_t meshTxDroppedCount();
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
