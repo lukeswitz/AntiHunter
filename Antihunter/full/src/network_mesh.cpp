@@ -263,6 +263,8 @@ uint32_t meshTxQueueDepth() {
     return d;
 }
 
+bool meshTxPending() { return meshTxDraining.load() || meshTxQueueDepth() > 0; }
+
 uint32_t meshTxDroppedCount() {
     return meshTxDroppedFull.load();
 }
@@ -517,7 +519,7 @@ static void handleScanStart(const String &command)
 
     if (mode >= 0 && mode <= 2)
     {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
         Serial.println("[MESH] Radio busy, rejecting SCAN_START");
         sendToSerial1(nodeId + ": SCAN_ACK:BUSY", true);
       } else {
@@ -551,7 +553,7 @@ static void handleBaselineStart(const String &command)
     secs = 60;
   }
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
     Serial.println("[MESH] Radio busy, rejecting BASELINE_START");
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
@@ -626,7 +628,7 @@ static void handleDeviceScanStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
@@ -660,7 +662,7 @@ static void handleDroneStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
     Serial.println("[MESH] Radio busy, rejecting DRONE_START");
     sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
   } else {
@@ -693,7 +695,7 @@ static void handleDeauthStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
     Serial.println("[MESH] Radio busy, rejecting DEAUTH_START");
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
@@ -729,7 +731,7 @@ static void handleRandomizationStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
       Serial.println("[MESH] Radio busy, rejecting RANDOMIZATION_START");
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:BUSY", true);
     } else {
@@ -781,7 +783,7 @@ static void handleProbeStart(const String &command)
 
   if (mode < 0 || mode > 2) return;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
     sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
   } else {
