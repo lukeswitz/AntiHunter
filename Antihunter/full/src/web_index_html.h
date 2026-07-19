@@ -2108,10 +2108,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 lastResultsText = rt;
                 const re = document.getElementById('r');
                 if (re) {
+                  const dkey = sm => sm.textContent.trim().replace(/\s*\([^)]*\)\s*$/, '');
                   const openDetails = new Set();
-                  re.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(sm.textContent.trim()); });
+                  re.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(dkey(sm)); });
                   re.innerHTML = parseAndStyleResults(rt);
-                  if (openDetails.size) re.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(sm.textContent.trim())) d.open = true; });
+                  if (openDetails.size) re.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(dkey(sm))) d.open = true; });
                   if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
                 }
               }
@@ -2360,61 +2361,40 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
           });
         } else if (isBaseline) {
-          var baselineContainer = null;
-          Array.from(resultsElement.children).forEach(child => {
-            if (child.classList.contains('device-card')) {
-              const macMatch = child.textContent.match(/([A-F0-9:]+)/);
-              const rssiMatch = child.textContent.match(/(-?\d+)\s*dBm/);
-              const nameMatch = child.textContent.match(/Name:\s*([^\n]+)/);
-              items.push({
-                element: child,
-                mac: macMatch ? macMatch[1] : '',
-                rssi: rssiMatch ? parseInt(rssiMatch[1]) : 0,
-                name: nameMatch ? nameMatch[1].trim() : '',
-                sortKey: currentSort,
-                type: 'baseline'
-              });
-            } else if (child.tagName === 'DETAILS') {
-              baselineContainer = child.querySelector('div');
-              if (baselineContainer) {
-                Array.from(baselineContainer.children).forEach(card => {
-                  if (card.classList.contains('device-card')) {
-                    const macMatch = card.textContent.match(/([A-F0-9:]+)/);
-                    const rssiMatch = card.textContent.match(/(-?\d+)\s*dBm/);
-                    const nameMatch = card.textContent.match(/Name:\s*([^\n]+)/);
-                    items.push({
-                      element: card,
-                      mac: macMatch ? macMatch[1] : '',
-                      rssi: rssiMatch ? parseInt(rssiMatch[1]) : 0,
-                      name: nameMatch ? nameMatch[1].trim() : '',
-                      sortKey: currentSort,
-                      type: 'baseline'
-                    });
-                  }
-                });
-              }
-              preservedElements.push(child);
-            } else {
-              preservedElements.push(child);
-            }
+          // Sort each device-card group in place within its own parent (anomaly cards and baseline-devices stay separate); MAC tiebreaker keeps order stable across live polls.
+          const cards = Array.from(resultsElement.querySelectorAll('.device-card'));
+          if (cards.length === 0) return;
+          const groups = new Map();
+          cards.forEach(c => {
+            const p = c.parentElement;
+            if (!groups.has(p)) groups.set(p, []);
+            groups.get(p).push(c);
           });
-          if (baselineContainer && items.length > 0) {
-            items.sort((a, b) => {
-              let cmp = 0;
-              switch(currentSort) {
-                case 'rssi-desc': cmp = b.rssi - a.rssi; break;
-                case 'rssi-asc': cmp = a.rssi - b.rssi; break;
-                case 'name-asc': cmp = (a.name || a.mac).localeCompare(b.name || b.mac); break;
-                case 'type-asc': cmp = (a.element.getAttribute('data-type') || '').localeCompare(b.element.getAttribute('data-type') || ''); break;
-                case 'channel-asc': cmp = parseInt(a.element.getAttribute('data-channel') || '0') - parseInt(b.element.getAttribute('data-channel') || '0'); break;
-                default: cmp = 0;
-              }
-              return sortReverse ? -cmp : cmp;
-            });
-            baselineContainer.innerHTML = '';
-            items.forEach(item => baselineContainer.appendChild(item.element));
-            return;
-          }
+          const macOf = el => (el.textContent.match(/([0-9A-F]{2}(?::[0-9A-F]{2}){5})/i) || [])[1] || '';
+          const rssiOf = el => { const m = el.textContent.match(/(-?\d+)\s*dBm/); return m ? parseInt(m[1]) : 0; };
+          const nameOf = el => { const m = el.textContent.match(/Name:\s*([^\n]+)/); return m ? m[1].trim() : ''; };
+          const cmpBaseline = (a, b) => {
+            let cmp = 0;
+            switch (currentSort) {
+              case 'rssi-desc': cmp = rssiOf(b) - rssiOf(a); break;
+              case 'rssi-asc': cmp = rssiOf(a) - rssiOf(b); break;
+              case 'name-asc': cmp = (nameOf(a) || macOf(a)).localeCompare(nameOf(b) || macOf(b)); break;
+              case 'type-asc': cmp = (a.getAttribute('data-type') || '').localeCompare(b.getAttribute('data-type') || ''); break;
+              case 'channel-asc': cmp = parseInt(a.getAttribute('data-channel') || '0') - parseInt(b.getAttribute('data-channel') || '0'); break;
+              default: cmp = 0;
+            }
+            if (cmp === 0) cmp = macOf(a).localeCompare(macOf(b));
+            return sortReverse ? -cmp : cmp;
+          };
+          groups.forEach((list, parent) => {
+            const marker = document.createComment('s');
+            parent.insertBefore(marker, list[0]);
+            list.forEach(c => parent.removeChild(c));
+            list.sort(cmpBaseline);
+            list.forEach(c => parent.insertBefore(c, marker));
+            parent.removeChild(marker);
+          });
+          return;
         } else if (isDeauth) {
           Array.from(resultsElement.children).forEach(child => {
             const hasDeauthBorder = child.classList.contains('res-card');
@@ -4563,6 +4543,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
 
         const fd = new FormData(e.target);
+        const _wc = document.getElementById('wifiChannels');
+        if (_wc && _wc.value.trim()) fd.append('ch', _wc.value.trim());
         const detectionMethod = fd.get('detection');
         const submitBtn = document.getElementById('startDetectionBtn');
         let endpoint = '/sniffer';
