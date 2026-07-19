@@ -2670,6 +2670,7 @@ void cs_endScan() {
     ah_detect::g_airtagEnabled.store(false);
 }
 String cs_getResultsJson()                   { return ah_detect::cs_getResultsJson(); }
+String cs_getResultsText()                   { return ah_detect::cs_getResultsText(); }
 bool cs_isRunning()                          { return ah_detect::g_csEnabled.load(); }
 
 String tracker_getChainsJson()               { return ah_detect::tracker_getChainsJson(); }

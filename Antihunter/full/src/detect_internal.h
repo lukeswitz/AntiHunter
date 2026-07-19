@@ -116,6 +116,7 @@ extern std::atomic<uint32_t> g_csSpamAlerts;
 extern std::atomic<uint32_t> g_csExfilAlerts;
 void rotationAnomaly(const uint8_t *payload, uint16_t len, uint64_t mac, int8_t rssi, uint32_t now);
 String cs_getResultsJson();
+String cs_getResultsText();
 extern PsramVec<String> g_baitSsids;
 extern PsramMap<uint32_t, TrackerChain> g_chains;
 extern PsramMap<uint64_t, HandshakeReconstruction> g_hshk;

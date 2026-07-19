@@ -1032,6 +1032,30 @@ String cs_getResultsJson() {
     return out;
 }
 
+String cs_getResultsText() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = "Counter-Surveillance / Find My\n";
+    out += "AirTags / Find My present: " + String((unsigned)g_airtag.size()) + "\n";
+    for (auto &kv : g_airtag) {
+        AirTagPresence &p = kv.second;
+        bool ownerNearby = (p.lastStatusByte & 0x04) != 0;
+        out += "  " + macStr(p.addr) + "  RSSI " + String(p.lastRssi) + "dBm  " +
+               (ownerNearby ? "owner-nearby" : "separated") +
+               "  seen " + String(p.observations) + "x\n";
+    }
+    out += "Potential followers: " + String((unsigned)g_followers.size()) + "\n";
+    for (auto &kv : g_followers) {
+        FollowerTrack &f = kv.second;
+        int absentPct = f.observations ? (int)((100u * f.ownerAbsentCount) / f.observations) : 0;
+        out += "  id " + String(f.identityHash, HEX) + "  seen " + String(f.observations) +
+               "x  owner-absent " + String(absentPct) + "%  clusters " + String((unsigned)f.clusters.size()) +
+               (f.alerted ? "  [ALERTED - possible follower]" : "") + "\n";
+    }
+    if (g_airtag.empty() && g_followers.empty())
+        out += "\nNo AirTags / Find My devices or followers detected yet.\n";
+    return out;
+}
+
 // =============================================================================
 // Feature 3: BLE tracker rotation un-linking
 // =============================================================================
