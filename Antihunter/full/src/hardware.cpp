@@ -972,7 +972,7 @@ String getDiagnostics() {
     s += "Targets Loaded: " + String(getTargetCount()) + "\n";
     s += "Mesh Node ID: " + getNodeId() + "\n";
     s += "Mesh: " + String(meshEnabled ? "Enabled" : "Disabled") + "\n";
-    if (meshTxDraining.load()) {
+    if (meshDrainTotal.load() > 0) {
         s += "Mesh TX: draining " + String(meshDrainSent.load()) + "/" + String(meshDrainTotal.load()) + "\n";
     } else {
         s += "Mesh TX: idle\n";

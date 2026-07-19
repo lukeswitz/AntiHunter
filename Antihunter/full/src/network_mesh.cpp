@@ -176,7 +176,7 @@ std::atomic<uint32_t> meshTxDroppedFull(0);
 // Phase 1: consumer-task tick. ~80 ms inter-frame cadence, leaky-bucket pacing.
 // 80 ms * 50 B/msg ≈ 625 B/s ceiling, well under 115200 baud and within token-bucket sustained 167 B/s.
 static uint32_t meshTxTickMs = 80;
-static const uint32_t MESH_BULK_INTERVAL_MS = 1500;
+static const uint32_t MESH_BULK_INTERVAL_MS = 2200;
 
 static MeshPriority classifyMeshMessage(const String &msg) {
     // Fast path: DEVICE-discovery dumps dominate the queue. Up-front check skips the 29-keyword scan
@@ -207,6 +207,12 @@ static MeshPriority classifyMeshMessage(const String &msg) {
     return PRIO_BULK;
 }
 
+uint32_t meshMsgUnits(const String &msg) {
+    int count = 0, idx = 0;
+    while ((idx = msg.indexOf("DEVICE:", idx)) >= 0) { count++; idx += 7; }
+    return count > 0 ? (uint32_t)count : 1;
+}
+
 bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
     if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
     if (meshQ[prio] == nullptr) {
@@ -230,7 +236,7 @@ bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
         return false;
     }
 
-    meshDrainTotal.fetch_add(1);
+    meshDrainTotal.fetch_add(meshMsgUnits(msg));
     uint32_t depth = meshTxQueueDepth();
     uint32_t prev = meshTxDepthHigh.load();
     while (depth > prev && !meshTxDepthHigh.compare_exchange_weak(prev, depth)) {}
@@ -277,17 +283,18 @@ static bool drainOne(QueueHandle_t q) {
     MeshTxItem item;
     if (xQueueReceive(q, &item, 0) != pdTRUE) return false;
     String msg(item.msg);
+    uint32_t units = meshMsgUnits(msg);
     // canDelay=false: sendToSerial1 no longer blocks on rate-limit; if tokens insufficient it drops + counts.
     // Consumer task owns pacing via vTaskDelayUntil below.
     if (sendToSerial1(msg, false)) {
         meshTxSentLifetime.fetch_add(1);
-        meshDrainSent.fetch_add(1);
+        meshDrainSent.fetch_add(units);
     } else {
         // Review fix B: send failed (rate-limit/buf-full/mutex timeout). The dequeue already
         // happened so msg is lost. Keep meshDrainTotal in sync so the end-of-drain cleanup
         // (sent >= total) fires correctly and depthHigh/Sent/Total reset.
         uint32_t total = meshDrainTotal.load();
-        while (total > 0 && !meshDrainTotal.compare_exchange_weak(total, total - 1)) {}
+        while (total >= units && !meshDrainTotal.compare_exchange_weak(total, total - units)) {}
     }
     return true;
 }
@@ -317,7 +324,7 @@ static void meshTxTask(void *pv) {
             meshTxDraining.store(false);
             uint32_t sent = meshDrainSent.load();
             uint32_t total = meshDrainTotal.load();
-            if (sent >= total && total > 0) {
+            if (sent >= total && total > 0 && !scanning.load()) {
                 meshTxDepthHigh.store(0);
                 meshDrainSent.store(0);
                 meshDrainTotal.store(0);

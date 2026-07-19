@@ -124,6 +124,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
     // Two concurrent senders could otherwise both pass canSend then both consume, oversubscribing the bucket.
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         meshTxDroppedRateLimit.fetch_add(1);
+        Serial.printf("[MESH] DROP rate-limit: barrel=%u/%u need=%u msg=\"%.32s\"\n",
+                      rateLimiter.available(), SerialRateLimiter::capacity(), (unsigned)msgLen, message.c_str());
         xSemaphoreGive(serial1Mutex);
         return false;
     }
@@ -146,6 +148,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
     } else {
         if (Serial1.availableForWrite() < (int)msgLen) {
             meshTxDroppedBufFull.fetch_add(1);
+            Serial.printf("[MESH] DROP buf-full: avail=%d need=%u msg=\"%.32s\"\n",
+                          Serial1.availableForWrite(), (unsigned)msgLen, message.c_str());
             xSemaphoreGive(serial1Mutex);
             return false;
         }
@@ -164,7 +168,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     {
         uint32_t total = meshDrainTotal.load();
         if (total > 0) {
-            uint32_t idx = meshDrainSent.load() + 1;
+            uint32_t idx = meshDrainSent.load() + meshMsgUnits(message);
             if (idx > total) idx = total;
             Serial.printf("[MESH] barrel=%u/%uB  drain %u/%u\n",
                           rateLimiter.available(), SerialRateLimiter::capacity(), idx, total);

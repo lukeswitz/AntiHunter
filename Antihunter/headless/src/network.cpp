@@ -120,6 +120,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
     // Phase 1 + review fix A: rate-limit check INSIDE mutex so canSend/consume are atomic.
     if (!isPriority && !rateLimiter.canSend(msgLen)) {
         meshTxDroppedRateLimit.fetch_add(1);
+        Serial.printf("[MESH] DROP rate-limit: barrel=%u/%u need=%u msg=\"%.32s\"\n",
+                      rateLimiter.available(), SerialRateLimiter::capacity(), (unsigned)msgLen, message.c_str());
         xSemaphoreGive(serial1Mutex);
         return false;
     }
@@ -142,6 +144,8 @@ bool sendToSerial1(const String &message, bool canDelay) {
     } else {
         if (Serial1.availableForWrite() < (int)msgLen) {
             meshTxDroppedBufFull.fetch_add(1);
+            Serial.printf("[MESH] DROP buf-full: avail=%d need=%u msg=\"%.32s\"\n",
+                          Serial1.availableForWrite(), (unsigned)msgLen, message.c_str());
             xSemaphoreGive(serial1Mutex);
             return false;
         }
@@ -160,7 +164,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     {
         uint32_t total = meshDrainTotal.load();
         if (total > 0) {
-            uint32_t idx = meshDrainSent.load() + 1;
+            uint32_t idx = meshDrainSent.load() + meshMsgUnits(message);
             if (idx > total) idx = total;
             Serial.printf("[MESH] barrel=%u/%uB  drain %u/%u\n",
                           rateLimiter.available(), SerialRateLimiter::capacity(), idx, total);
@@ -215,7 +219,7 @@ std::atomic<uint32_t> meshTxDroppedFull(0);
 
 // Phase 1: consumer-task tick. ~80 ms inter-frame cadence, leaky-bucket pacing.
 static uint32_t meshTxTickMs = 80;
-static const uint32_t MESH_BULK_INTERVAL_MS = 1500;
+static const uint32_t MESH_BULK_INTERVAL_MS = 2200;
 
 static MeshPriority classifyMeshMessage(const String &msg) {
     // Fast path: DEVICE dumps dominate; skip the keyword scan and avoid SSID-name false positives.
@@ -241,6 +245,12 @@ static MeshPriority classifyMeshMessage(const String &msg) {
     return PRIO_BULK;
 }
 
+uint32_t meshMsgUnits(const String &msg) {
+    int count = 0, idx = 0;
+    while ((idx = msg.indexOf("DEVICE:", idx)) >= 0) { count++; idx += 7; }
+    return count > 0 ? (uint32_t)count : 1;
+}
+
 bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
     if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
     if (meshQ[prio] == nullptr) {
@@ -262,7 +272,7 @@ bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
         return false;
     }
 
-    meshDrainTotal.fetch_add(1);
+    meshDrainTotal.fetch_add(meshMsgUnits(msg));
     uint32_t depth = meshTxQueueDepth();
     uint32_t prev = meshTxDepthHigh.load();
     while (depth > prev && !meshTxDepthHigh.compare_exchange_weak(prev, depth)) {}
@@ -306,13 +316,14 @@ static bool drainOne(QueueHandle_t q) {
     MeshTxItem item;
     if (xQueueReceive(q, &item, 0) != pdTRUE) return false;
     String msg(item.msg);
+    uint32_t units = meshMsgUnits(msg);
     if (sendToSerial1(msg, false)) {
         meshTxSentLifetime.fetch_add(1);
-        meshDrainSent.fetch_add(1);
+        meshDrainSent.fetch_add(units);
     } else {
         // Review fix B: send failed, msg lost. Keep meshDrainTotal in sync so cleanup fires.
         uint32_t total = meshDrainTotal.load();
-        while (total > 0 && !meshDrainTotal.compare_exchange_weak(total, total - 1)) {}
+        while (total >= units && !meshDrainTotal.compare_exchange_weak(total, total - units)) {}
     }
     return true;
 }
@@ -342,7 +353,7 @@ static void meshTxTask(void *pv) {
             meshTxDraining.store(false);
             uint32_t sent = meshDrainSent.load();
             uint32_t total = meshDrainTotal.load();
-            if (sent >= total && total > 0) {
+            if (sent >= total && total > 0 && !scanning.load()) {
                 meshTxDepthHigh.store(0);
                 meshDrainSent.store(0);
                 meshDrainTotal.store(0);
