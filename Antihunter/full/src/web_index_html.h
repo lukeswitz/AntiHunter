@@ -154,15 +154,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .page-tab.active{display:block}
       #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
       @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-      #data-table{width:100%;border-collapse:collapse;font-size:12px}
-      #data-table th{position:sticky;top:0;background:var(--surf);border-bottom:2px solid var(--bord);padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--mut);cursor:pointer;user-select:none;white-space:nowrap}
+      #data-table{width:100%;border-collapse:collapse;font-size:13px}
+      #data-table th{position:sticky;top:0;background:var(--surf);border-bottom:2px solid var(--bord);padding:9px 12px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);cursor:pointer;user-select:none;white-space:nowrap}
       #data-table th:hover{color:var(--acc)}
       #data-table th .sort-arrow{margin-left:4px;font-size:9px}
-      #data-table td{padding:6px 10px;border-bottom:1px solid var(--bord);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+      #data-table td{padding:9px 12px;border-bottom:1px solid var(--bord);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
       #data-table tr:hover{background:var(--accbg)}
       .data-header{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-      .data-header select{width:auto;min-width:160px;padding:8px 32px 8px 12px;font-size:13px}
-      .data-header input[type="text"]{flex:1;min-width:120px;padding:8px 12px;font-size:13px}
+      .data-header select{width:auto;min-width:160px;padding:9px 34px 9px 13px;font-size:13px;border-radius:9px}
+      .data-header input[type="text"]{flex:1;min-width:120px;padding:9px 13px;font-size:13px;border-radius:9px}
       .data-pager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px;font-size:12px;color:var(--mut)}
       .data-pager button{padding:6px 12px}
       .rssi-good{color:var(--succ)}.rssi-mid{color:var(--warn)}.rssi-bad{color:var(--dang)}
@@ -1104,12 +1104,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .det-chip.info{background:rgba(14,165,233,.12);color:#0ea5e9;border-color:rgba(14,165,233,.45)}
           .det-chip.firing{box-shadow:0 0 0 2px rgba(255,255,255,.15) inset}
           .det-chip.off{opacity:.35}
-          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:11px;margin:4px 0}
-          #page-detect table.dt th{text-align:left;padding:4px 6px;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--bord);cursor:pointer;user-select:none;white-space:nowrap}
+          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}
+          #page-detect table.dt th{text-align:left;padding:8px 10px;color:var(--mut);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bord);cursor:pointer;user-select:none;white-space:nowrap}
           #page-detect table.dt th:hover{color:var(--acc)}
-          #page-detect table.dt td{padding:4px 6px;border-bottom:1px solid var(--bord);font-family:monospace;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          #page-detect table.dt tr:hover td{background:rgba(255,255,255,.03)}
-          #page-detect table.dt .empty{color:var(--mut);font-style:italic;text-align:center;padding:10px}
+          #page-detect table.dt td{padding:8px 10px;border-bottom:1px solid var(--bord);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+          #page-detect table.dt tr:hover td{background:var(--accbg)}
+          #page-detect table.dt .empty{color:var(--mut);font-style:italic;text-align:center;padding:18px}
           .det-quick{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
           .det-quick button{padding:2px 7px;font-size:11px;min-height:0;line-height:1.4}
           #det-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;align-items:start}
