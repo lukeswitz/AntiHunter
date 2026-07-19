@@ -1142,6 +1142,10 @@ void snifferScanTask(void *pv)
                             strncpy(h.name, cleanName.c_str(), sizeof(h.name) - 1);
                             h.name[sizeof(h.name) - 1] = '\0';
                             h.isBLE = true;
+                            {
+                                std::string mfr = device->getManufacturerData();
+                                h.isApple = (mfr.size() >= 2 && (uint8_t)mfr[0] == 0x4C && (uint8_t)mfr[1] == 0x00);
+                            }
                             if (hitsLog.size() < MAX_LOG_SIZE) {
                                 hitsLog.push_back(h);
                             }
@@ -1352,6 +1356,7 @@ void snifferScanTask(void *pv)
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
                     results += " \"" + std::string(hit.name) + "\"";
                 }
+                if (hit.isBLE && hit.isApple) results += " APPLE";
                 results += "\n";
             }
             if (hitsLog.size() > 50) {

@@ -3967,6 +3967,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const rssi = match[3];
           const channel = match[4] || '';
           const name = match[5] || 'Unknown';
+          const isApple = / APPLE(?:\s|$)/.test(line);
 
           const typeColor = type === 'BLE' ? 'var(--c-ble)' : 'var(--acc)';
           const rssiColor = rssiColorFor(rssi);
@@ -3980,7 +3981,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           card += '<div>';
           card += '<div style="font-family:monospace;font-size:13px;color:var(--txt);margin-bottom:4px;">';
           if (isTarget) card += '<span style="display:inline-block;background:var(--acc);color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle;">TARGET</span>';
-          card += mac + randBadge(mac) + '</div>';
+          card += mac + randBadge(mac) + (isApple ? '<span title="Apple device (advertises Apple 0x004C continuity)" style="background:var(--mut);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;margin-left:6px;vertical-align:middle;letter-spacing:.5px;">APPLE</span>' : '') + '</div>';
           card += '<div style="font-size:12px;color:' + typeColor + ';margin-bottom:2px;">Name: <strong>' + name + '</strong></div>';
           card += '<div style="font-size:11px;color:' + typeColor + ';">Type: <strong>' + type + '</strong></div>';
           card += '</div>';
