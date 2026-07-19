@@ -217,12 +217,12 @@ void initializeNetwork()
   {
     wifi_config_t apCfg = {};
     if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) == ESP_OK) {
-      apCfg.ap.pmf_cfg.capable = false;
+      apCfg.ap.pmf_cfg.capable = true;
       apCfg.ap.pmf_cfg.required = false;
       esp_wifi_set_config(WIFI_IF_AP, &apCfg);
     }
   }
-  Serial.printf("[WIFI] AP %s start (PMF off): %s\n",
+  Serial.printf("[WIFI] AP %s start (PMF capable): %s\n",
                 apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
                 apOk ? "OK" : "FAIL");
   delay(500);
