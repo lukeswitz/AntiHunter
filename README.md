@@ -482,7 +482,7 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing.
 
 ### Mesh TX Architecture
 
-Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, 200 bytes per 3 s ≈ 67 B/s).
+Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap) so a scan's devices ride out in the fewest LoRa packets.
 
 **Consequences**:
 - Starting a new scan never waits on prior scan's mesh TX. Drain happens in background.
