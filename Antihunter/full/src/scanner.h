@@ -175,6 +175,8 @@ void meshDedupClear();
 uint32_t meshDedupCount();
 void setMeshDedupTtlSec(uint32_t sec);
 uint32_t getMeshDedupTtlSec();
+void setMeshSessionDedup(bool on);
+bool getMeshSessionDedup();
 extern const uint32_t MESH_DEDUP_TTL_MIN_S;
 extern const uint32_t MESH_DEDUP_TTL_MAX_S;
 extern const uint32_t MESH_DEDUP_TTL_DEFAULT_S;
