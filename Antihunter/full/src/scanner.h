@@ -26,11 +26,11 @@ static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint3
 }
 
 struct Hit {
-   uint8_t mac[6];
-   int8_t rssi;
-   uint8_t ch;
-   char name[32];
-   bool isBLE;
+   uint8_t mac[6] = {0};
+   int8_t rssi = 0;
+   uint8_t ch = 0;
+   char name[32] = {0};
+   bool isBLE = false;
    bool isApple = false;
 };
 

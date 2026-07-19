@@ -855,7 +855,8 @@ String getProbeDBJson()
     {
         std::lock_guard<std::mutex> lock(probeDBMutex);
         snap.reserve(probeDB.size());
-        for (const auto &p : probeDB) snap.push_back(p.second);
+        std::transform(probeDB.begin(), probeDB.end(), std::back_inserter(snap),
+                       [](const auto &p) { return p.second; });
     }
 
     String out;
