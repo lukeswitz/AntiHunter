@@ -951,8 +951,9 @@ void snifferScanTask(void *pv)
     unsigned long lastMeshUpdate = 0;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long nextResultsUpdate = millis();
-    
+
     std::set<String> transmittedDevices;
+    meshDedupClear();
 
     String meshBatch;
     std::vector<String> meshBatchMacs;

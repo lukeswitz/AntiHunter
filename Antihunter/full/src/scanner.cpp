@@ -965,8 +965,9 @@ void snifferScanTask(void *pv)
     // Fire first in-progress results write on first loop iteration so the UI
     // moves off the "Scan starting..." placeholder within ~1 tick.
     unsigned long nextResultsUpdate = millis();
-    
+
     std::set<String> transmittedDevices;
+    meshDedupClear();
 
     String meshBatch;
     std::vector<String> meshBatchMacs;
