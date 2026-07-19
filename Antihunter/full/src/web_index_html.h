@@ -1433,6 +1433,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             body: fd
           });
           const t = await r.text();
+          if (!r.ok) { toast(t || ('Error ' + r.status), 'warning'); return; }
           toast(okMsg || t);
         } catch (e) {
           toast('Error: ' + e.message);
