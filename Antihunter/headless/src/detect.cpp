@@ -2210,11 +2210,10 @@ static bool parseAdvForWatch(const uint8_t *p, uint16_t len, WatchEntry &outMatc
         if ((adType == 0x02 || adType == 0x03) && l >= 3) {
             for (uint8_t di = 0; di + 1 < (uint8_t)(l - 1); di += 2) {
                 uint16_t uuid = (uint16_t)p[off + 2 + di] | ((uint16_t)p[off + 3 + di] << 8);
-                for (const auto &w : kWatch) {
-                    if (w.serviceUuid != 0 && w.serviceUuid == uuid && w.mfgPrefixLen == 0) {
-                        outMatch = w; return true;
-                    }
-                }
+                auto it = std::find_if(std::begin(kWatch), std::end(kWatch), [&](const WatchEntry &w) {
+                    return w.serviceUuid != 0 && w.serviceUuid == uuid && w.mfgPrefixLen == 0;
+                });
+                if (it != std::end(kWatch)) { outMatch = *it; return true; }
             }
         }
         off += 1 + l;
