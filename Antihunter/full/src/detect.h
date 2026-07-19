@@ -461,6 +461,7 @@ size_t airtag_count();
 void   cs_beginScan();
 void   cs_endScan();
 String cs_getResultsJson();
+String cs_getResultsText();
 bool   cs_isRunning();
 
 // =============================================================================

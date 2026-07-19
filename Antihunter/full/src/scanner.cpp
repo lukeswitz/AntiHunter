@@ -2517,12 +2517,24 @@ void counterSurveilTask(void *pv)
     }
     Serial.printf("[CS] counter-surveillance scan started forever=%d dur=%d\n", forever, duration);
     uint32_t start = millis();
+    uint32_t lastUi = 0;
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - start) < duration * 1000 && !stopRequested)) {
         if (pBLEScan && !pBLEScan->isScanning()) pBLEScan->start(0, false);
+        if ((uint32_t)(millis() - lastUi) >= 2000) {
+            lastUi = millis();
+            std::string rt = std::string(cs_getResultsText().c_str());
+            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+            antihunter::lastResults = rt;
+        }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
     if (pBLEScan) pBLEScan->stop();
+    {
+        std::string rt = std::string(cs_getResultsText().c_str());
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = rt;
+    }
     cs_endScan();
     Serial.println("[CS] counter-surveillance scan stopped");
     workerTaskHandle = nullptr;
