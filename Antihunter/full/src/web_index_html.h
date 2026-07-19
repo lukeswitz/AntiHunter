@@ -284,7 +284,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       /* position hero (triangulation estimate) */
       .res-coord{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
       .res-coord .res-kv-val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px}
-      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}}
+      /* results header toolbar (Sort / Clear / Privacy) — aligned to card system */
+      .res-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+      .res-toolbar-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--mut)}
+      .res-toolbar select#sortBy{width:auto;min-width:160px;padding:9px 36px 9px 13px;font-size:13px;font-weight:600;border-radius:9px;box-shadow:none;background-position:right 13px center}
+      .res-toolbar .btn{padding:9px 13px;font-size:13px;line-height:1;border-radius:9px}
+      .res-toolbar .btn svg{width:11px;height:15px}
+      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}}
     </style>
     <script>
       let toggleHistory=[];
@@ -658,9 +664,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
           <h3 style="margin:0;">Scan Results</h3>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <label style="font-size:11px;color:var(--mut);">Sort:</label>
-            <select id="sortBy" onchange="applySorting()" style="padding:6px 8px;border-radius:6px;font-size:11px;">
+          <div class="res-toolbar">
+            <span class="res-toolbar-lab">Sort</span>
+            <select id="sortBy" onchange="applySorting()">
               <option value="default">Default</option>
               <option value="rssi-desc">RSSI (Strongest)</option>
               <option value="rssi-asc">RSSI (Weakest)</option>
@@ -671,9 +677,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <option value="type-asc">Type (WiFi/BLE)</option>
               <option value="channel-asc">Channel (Low-High)</option>
             </select>
-            <button class="btn alt" type="button" onclick="toggleSortOrder()" style="padding:6px 10px;font-size:11px;line-height:1;" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
-            <button class="btn alt" type="button" onclick="clearResults()" style="padding:6px 10px;font-size:11px;">Clear</button>
-            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="padding:6px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;"></button>
+            <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
+            <button class="btn alt" type="button" onclick="clearResults()">Clear</button>
+            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="white-space:nowrap;flex-shrink:0;"></button>
           </div>
         </div>
         <div id="baselineStatus" style="display:none;padding:12px;background:var(--surf);border:2px solid var(--acc);border-radius:8px;font-size:12px;margin-bottom:12px;">
