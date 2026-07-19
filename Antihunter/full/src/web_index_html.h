@@ -1471,7 +1471,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       <!-- ===== /DETECT TAB ===== -->
 
-      <div align="center" class="footer">v0.9.6 Stable | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v1.0.0 Stable | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
