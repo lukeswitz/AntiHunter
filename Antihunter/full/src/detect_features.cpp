@@ -779,7 +779,10 @@ void followerProcess(uint32_t identityHash, const String &nodeId, int8_t rssi, b
     if (!ownerNearby) f.ownerAbsentCount++;
     f.clusters.insert(fnvStr(nodeId));
     if (meshEnabled && meshRateGate("CSS_" + String(identityHash, HEX), 30000))
-        sendToSerial1(getNodeId() + ": CS_SIGHT:" + String(identityHash, HEX) + ":" + String(rssi), true);
+        sendToSerial1(getNodeId() + ": FOLLOWER:" + String(identityHash, HEX) +
+                      " seen=" + String(f.observations) + "x owner-absent=" +
+                      String(f.observations ? (int)((100u * f.ownerAbsentCount) / f.observations) : 0) +
+                      "% rssi=" + String(rssi) + (f.alerted ? " [ALERTED]" : ""), true);
 
     uint32_t co = now - f.firstSeen;
     int absentPct = f.observations ? (int)((100u * f.ownerAbsentCount) / f.observations) : 0;
@@ -1051,8 +1054,15 @@ String cs_getResultsText() {
                "x  owner-absent " + String(absentPct) + "%  clusters " + String((unsigned)f.clusters.size()) +
                (f.alerted ? "  [ALERTED - possible follower]" : "") + "\n";
     }
-    if (g_airtag.empty() && g_followers.empty())
-        out += "\nNo AirTags / Find My devices or followers detected yet.\n";
+    out += "BLE trackers: " + String((unsigned)g_bleTrackers.size()) + "\n";
+    for (auto &kv : g_bleTrackers) {
+        BleTrackerSighting &s = kv.second;
+        out += "  " + macStr(s.addr) + "  " + String(s.vendor) + "  RSSI " + String(s.avgRssi) +
+               "dBm  seen " + String(s.sightingCount) + "x  persist " + String(s.persistenceScore) +
+               (s.followAlerted ? "  [FOLLOWING]" : "") + "\n";
+    }
+    if (g_airtag.empty() && g_followers.empty() && g_bleTrackers.empty())
+        out += "\nNo AirTags / Find My devices, trackers, or followers detected yet.\n";
     return out;
 }
 
