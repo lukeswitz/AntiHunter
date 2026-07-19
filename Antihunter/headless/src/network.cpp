@@ -24,7 +24,7 @@ uint32_t hbInterval = 600000;
 bool vibrationEnabled = true;
 static unsigned long lastMeshSend = 0;
 unsigned long meshSendInterval = 3000;
-const int MAX_MESH_SIZE = 200; // T114 tests allow 200char per 3s
+const int MAX_MESH_SIZE = 230; // packs more DEVICE rows/frame; stays under Meshtastic 237B text-payload cap
 static String nodeId = "";
 static std::atomic<bool> g_eraseWipeBusy{false};
 
