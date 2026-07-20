@@ -305,7 +305,7 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
 - **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves discovery but reduces WiFi scan frequency.
 - **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Triangulation is exempt.
-- **WiFi Channels**: Comma-separated (1,6,11) or range (1..14). Default: 1,6,11.
+- **WiFi Channels**: Comma-separated (e.g. 1,6,11) or range (1..14). Default: 1,2,3,4,5,6,7,8,9,10,11 (US 2.4 GHz channels).
 
 > [!TIP]
 > Lower intervals = faster detection, higher power. Higher intervals = reduced power, may miss brief transmissions.
@@ -531,7 +531,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_TARGETS` | Pipe-delimited MACs, OUI prefixes, or SSIDs | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33\|MyNetwork` |
 | `CONFIG_NODEID` | 2-5 alphanumeric ID | `@AH01 CONFIG_NODEID:AH02` |
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
-| `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
+| `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1..11` |
 | `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
 | `CONFIG_SESSION_DEDUP` | `0`/`1` — toggle per-session dedup. ACK: `CONFIG_ACK:SESSION_DEDUP:<0\|1>` | `@ALL CONFIG_SESSION_DEDUP:1` |
 | `MESH_DEDUP_CLEAR` | None — clear mesh dedup cache. ACK: `DEDUP_CLEAR_ACK:OK` | `@ALL MESH_DEDUP_CLEAR` |
@@ -540,7 +540,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 | Command | Parameters | Example |
 |---------|------------|---------|
-| `SCAN_START` | `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1,6,11` |
+| `SCAN_START` | `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..11` |
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
 | `BASELINE_START` | `duration[:FOREVER]` (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |

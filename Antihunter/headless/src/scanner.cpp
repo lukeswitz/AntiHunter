@@ -240,6 +240,10 @@ void setRFPreset(uint8_t preset) {
             return;
     }
     rfConfig.preset = preset;
+    const char *presetChannels = (preset == 2) ? "1,6,11" : "1,2,3,4,5,6,7,8,9,10,11";
+    rfConfig.wifiChannels = presetChannels;
+    parseChannelsCSV(presetChannels);
+    prefs.putString("channels", presetChannels);
     WIFI_SCAN_INTERVAL = rfConfig.wifiScanInterval;
     BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
     

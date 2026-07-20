@@ -122,8 +122,8 @@ collect_configuration() {
     SCAN_MODE=${SCAN_MODE:-2}
     
     echo ""
-    read -p "WiFi channels (comma-separated or range like 1..11) [default: 1,6,11]: " CHANNELS
-    CHANNELS=${CHANNELS:-"1,6,11"}
+    read -p "WiFi channels (comma-separated or range like 1..11) [default: 1..11]: " CHANNELS
+    CHANNELS=${CHANNELS:-"1..11"}
     
     echo ""
     read -p "Mesh send interval in milliseconds [default: 3000]: " MESH_INTERVAL

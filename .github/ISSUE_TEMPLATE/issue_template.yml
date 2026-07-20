@@ -119,7 +119,7 @@ body:
       description: Relevant configuration settings (if applicable)
       placeholder: |
         - Scan mode: WiFi + BLE
-        - Channels: 1,6,11
+        - Channels: 1..11
         - Baseline enabled: Yes
         - Mesh networking: No
       render: markdown
