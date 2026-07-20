@@ -3428,6 +3428,106 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return html;
       }
 
+      function parseProbeLine(raw) {
+        const line = raw.replace(/^(WiFi|BLE)\s+/, '').trim();
+        const macM = line.match(/([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})/);
+        if (!macM) return null;
+        const mac = macM[1].toUpperCase();
+        const rssiM = line.match(/RSSI=(-?\d+)dBm/);
+        const chM = line.match(/CH=(\d+)/);
+        const countM = line.match(/(?:^|\s)x(\d+)(?:\s|$)/);
+        const apM = line.match(/AP="([^"]*)"/);
+        const apBssidM = line.match(/APBSSID=([0-9A-Fa-f:]+)/);
+        const knownM = line.match(/\[KNOWN:seen=(\d+)\s+sessions=(\d+)\s+last=([^\]]+)\]/);
+        const randomized = isRandomMac(mac) || /\bRand(?:omized)?\b/.test(line);
+        let vendor = '';
+        let vm = line.match(/CH=\d+\s+([A-Za-z][\w-]*)/);
+        if (!vm) vm = line.match(/^[0-9A-Fa-f:]{17}\s+([A-Za-z][\w-]*)/);
+        if (vm && ['probes','AP','Rand','Randomized','RSSI','Unknown'].indexOf(vm[1]) < 0) vendor = vm[1];
+        const ssids = [];
+        const probesM = line.match(/probes:((?:~?"[^"]*",?)+)/);
+        if (probesM) { for (const m of probesM[1].matchAll(/(~?)"([^"]*)"/g)) ssids.push({ name: m[2], ghost: m[1] === '~' }); }
+        return {
+          mac, rssi: rssiM ? rssiM[1] : null, ch: chM ? chM[1] : '', count: countM ? parseInt(countM[1]) : 1,
+          vendor, randomized, ssids, ap: apM ? apM[1] : '', apBssid: apBssidM ? apBssidM[1] : '',
+          known: knownM ? { seen: knownM[1], sessions: knownM[2], last: knownM[3] } : null
+        };
+      }
+
+      function groupProbeDevices(devs) {
+        const groups = new Map();
+        const broadcast = [];
+        const grp = (name) => {
+          if (!groups.has(name)) groups.set(name, { name, devices: [], anyPresent: false, apResponded: false, apBssid: '' });
+          return groups.get(name);
+        };
+        for (const d of devs) {
+          let placed = false;
+          for (const s of d.ssids) {
+            const g = grp(s.name);
+            if (g.devices.indexOf(d) < 0) g.devices.push(d);
+            if (!s.ghost) g.anyPresent = true;
+            placed = true;
+          }
+          if (d.ap) {
+            const g = grp(d.ap);
+            if (g.devices.indexOf(d) < 0) g.devices.push(d);
+            g.apResponded = true; g.anyPresent = true;
+            if (d.apBssid && !g.apBssid) g.apBssid = d.apBssid;
+            placed = true;
+          }
+          if (!placed) broadcast.push(d);
+        }
+        return { groups, broadcast };
+      }
+
+      function renderProbeClientCard(d) {
+        let h = '<div class="res-card' + (d.known ? ' acc' : '') + '">';
+        h += '<div class="res-row-main"><span class="res-mac">' + d.mac + randBadge(d.mac);
+        if (d.vendor && !d.randomized && !isRandomMac(d.mac)) h += '<span class="res-badge">' + d.vendor + '</span>';
+        if (d.ch) h += '<span class="res-badge">CH' + d.ch + '</span>';
+        if (d.count > 1) h += '<span class="res-badge acc">x' + d.count + '</span>';
+        if (d.ap) h += '<span class="res-badge ok">Client</span>';
+        if (d.known) h += '<span class="res-badge known">Known</span>';
+        h += '</span>';
+        if (d.ssids.length > 1) {
+          h += '<div class="res-meta"><span>also probing ';
+          h += d.ssids.map(s => s.name).join(', ');
+          h += '</span></div>';
+        }
+        if (d.rssi !== null) h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+        h += '</div>';
+        if (d.known) h += '<div class="res-sub"><span style="color:var(--c-known);">Seen <strong>' + d.known.seen + '</strong> times across <strong>' + d.known.sessions + '</strong> sessions</span> &middot; last: ' + d.known.last + '</div>';
+        h += '</div>';
+        return h;
+      }
+
+      function renderProbeGroups(devs) {
+        const { groups, broadcast } = groupProbeDevices(devs);
+        const arr = Array.from(groups.values()).sort((a, b) => b.devices.length - a.devices.length || a.name.localeCompare(b.name));
+        let html = '';
+        for (const g of arr) {
+          const away = !g.apResponded && !g.anyPresent;
+          const n = g.devices.length;
+          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>';
+          html += '<span data-ssid="' + g.name + '">' + g.name + '</span>';
+          html += '<span class="res-badge ' + (away ? 'warn' : 'acc') + '">' + n + ' client' + (n === 1 ? '' : 's') + '</span>';
+          if (g.apResponded) html += '<span class="res-badge ok">AP present</span>';
+          else if (away) html += '<span class="res-badge warn">Away</span>';
+          if (g.apBssid) html += '<span class="res-badge">' + g.apBssid + '</span>';
+          html += '</summary><div class="res-section-body">';
+          for (const d of g.devices) html += renderProbeClientCard(d);
+          html += '</div></details>';
+        }
+        if (broadcast.length) {
+          html += '<details class="res-section"><summary><span class="res-caret">&#9654;</span><span>Broadcast probes (no specific network)</span>';
+          html += '<span class="res-badge">' + broadcast.length + ' device' + (broadcast.length === 1 ? '' : 's') + '</span></summary><div class="res-section-body">';
+          for (const d of broadcast) html += renderProbeClientCard(d);
+          html += '</div></details>';
+        }
+        return html;
+      }
+
       function parseProbeResults(text) {
         let html = '';
         savedDevicesLoaded = false;
@@ -3466,100 +3566,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
 
         let deviceLines = [];
-        let ssidSection = '';
-        let inSsidSection = false;
-
         for (let i = 2; i < lines.length; i++) {
           const line = lines[i].trim();
           if (!line) continue;
-          if (line.startsWith('SSIDs seen')) { inSsidSection = true; continue; }
-          if (inSsidSection) {
-            if (line.startsWith('WiFi') || line.startsWith('BLE')) { inSsidSection = false; }
-            else { ssidSection += line + '\n'; continue; }
-          }
+          if (line.startsWith('SSIDs seen')) break;
           if (line.startsWith('WiFi') || line.startsWith('BLE')) deviceLines.push(line);
         }
 
-        if (deviceLines.length > 0) {
-          html += '<div class="res-list">';
-          for (const line of deviceLines) {
-            const isKnown = line.includes('[KNOWN:');
-            const macM = line.match(/([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
-            const rssiM = line.match(/RSSI=(-?\d+)dBm/);
-            const chM = line.match(/CH=(\d+)/);
-            const wildcard = line.includes('(wildcard)');
-            const countM = line.match(/\sx(\d+)/);
-
-            let vendor = '';
-            const vendorM = line.match(/CH=\d+\s+(\w+)/);
-            if (vendorM && vendorM[1] !== 'probes' && vendorM[1] !== 'AP') vendor = vendorM[1];
-
-            let ssids = [];
-            const probesM = line.match(/probes:((?:~?"[^"]*",?)+)/);
-            if (probesM) {
-              const matches = probesM[1].matchAll(/(~?)"([^"]*)"/g);
-              for (const m of matches) ssids.push({name: m[2], ghost: m[1] === '~'});
-            }
-
-            const apM = line.match(/AP="([^"]*)"/);
-            const apBssidM = line.match(/APBSSID=([A-Fa-f0-9:]+)/);
-            const knownM = line.match(/\[KNOWN:seen=(\d+)\s+sessions=(\d+)\s+last=([^\]]+)\]/);
-
-            html += '<div class="res-card' + (isKnown ? ' acc' : '') + '">';
-            html += '<div class="res-row-main"><span class="res-mac">';
-            html += (macM ? macM[1] : '');
-            if (macM) html += randBadge(macM[1]);
-            if (vendor && vendor !== 'Randomized' && !(macM && isRandomMac(macM[1]))) html += '<span class="res-badge">' + vendor + '</span>';
-            if (chM) html += '<span class="res-badge">CH' + chM[1] + '</span>';
-            if (countM && parseInt(countM[1]) > 1) html += '<span class="res-badge acc">x' + countM[1] + '</span>';
-            if (isKnown) html += '<span class="res-badge known">Known</span>';
-            html += '</span>';
-            if (ssids.length > 0) {
-              html += '<div class="res-tags" style="flex:1 1 160px;margin-top:0;"><span class="res-tags-lab">Probing</span>';
-              for (const s of ssids) {
-                html += '<span data-ssid="' + s.name + '" class="res-tag' + (s.ghost ? ' away' : '') + '"' + (s.ghost ? ' title="Not nearby - saved/home network"' : '') + '>' + s.name + (s.ghost ? ' <sup>away</sup>' : '') + '</span>';
-              }
-              html += '</div>';
-            } else if (wildcard) {
-              html += '<div class="res-meta"><span style="font-style:italic;">Broadcast probe (no specific SSID)</span></div>';
-            }
-            if (rssiM) html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssiM[1]) + '">' + rssiM[1] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
-            html += '</div>';
-
-            if (apM) {
-              html += '<div data-ap-ssid="' + apM[1] + '" class="res-sub"><span class="res-note-lab">AP responded</span><strong>' + apM[1] + '</strong>';
-              if (apBssidM) html += ' <span style="font-family:ui-monospace,monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
-              html += '</div>';
-            }
-            if (knownM) {
-              html += '<div class="res-sub"><span style="color:var(--c-known);">Seen <strong>' + knownM[1] + '</strong> times across <strong>' + knownM[2] + '</strong> sessions</span> &middot; last: ' + knownM[3] + '</div>';
-            }
-            html += '</div>';
-          }
-          html += '</div>';
-        }
-
-        if (ssidSection.trim()) {
-          const ssidLines = ssidSection.trim().split('\n');
-          let ghostCount = 0;
-          for (const sl of ssidLines) { if (sl.trim().startsWith('~')) ghostCount++; }
-          html += '<div class="res-card acc"><div class="res-mac" style="color:var(--acc);font-family:inherit;">Network Intelligence <span class="res-badge acc">' + ssidLines.length + ' SSID' + (ssidLines.length === 1 ? '' : 's') + (ghostCount > 0 ? ' &middot; ' + ghostCount + ' away' : '') + '</span></div>';
-          html += '<div class="res-tags" style="margin-top:12px;">';
-          for (const sl of ssidLines) {
-            const trimmed = sl.trim();
-            const isGhost = trimmed.startsWith('~');
-            const sm = trimmed.match(/~?"([^"]+)"\s*\((\d+)\s+device/);
-            if (sm) {
-              const devCount = parseInt(sm[2]);
-              const macsM = sl.match(/\[([^\]]+)\]/);
-              let tooltip = sm[1] + ' (' + devCount + ' device' + (devCount > 1 ? 's' : '') + ')';
-              if (isGhost) tooltip += ' - not nearby, saved/home network';
-              if (macsM) tooltip += ': ' + macsM[1];
-              html += '<span data-ssid="' + sm[1] + '" class="res-tag' + (isGhost ? ' away' : '') + '" title="' + tooltip + '"' + (isGhost ? '' : ' style="border-color:var(--acc);color:var(--acc);"') + '>' + sm[1] + ' <sup>' + sm[2] + '</sup>' + (isGhost ? ' <span style="font-size:8px;opacity:.7;">away</span>' : '') + '</span>';
-            }
-          }
-          html += '</div></div>';
-        }
+        const devs = [];
+        for (const line of deviceLines) { const d = parseProbeLine(line); if (d) devs.push(d); }
+        if (devs.length > 0) html += renderProbeGroups(devs);
+        else html += _resEmpty('No probing devices detected yet.', 'ok');
 
         return html;
       }
@@ -3711,40 +3728,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         html += targetHtml + normalHtml;
 
         if (probeLines.length > 0) {
-          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>Probe Intelligence (' + probeLines.length + ' probing devices)</summary>';
-          html += '<div class="res-section-body">';
-          for (const pl of probeLines) {
-            const macM = pl.match(/^([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})/);
-            const probesM = pl.match(/probes:((?:~?"[^"]*",?)+)/);
-            const apM = pl.match(/AP="([^"]*)"/);
-            const apBssidM = pl.match(/APBSSID=([A-Fa-f0-9:]+)/);
-            const countM = pl.match(/x(\d+)$/);
-            const vendorM = pl.match(/^[A-F0-9:]+\s+(\w+)/);
-            const vendor = vendorM && vendorM[1] !== 'Rand' && vendorM[1] !== 'probes' && vendorM[1] !== 'AP' ? vendorM[1] : '';
-
-            html += '<div class="res-card">';
-            html += '<div class="res-mac">';
-            if (macM) html += macM[1] + randBadge(macM[1]);
-            if (vendor && !(macM && isRandomMac(macM[1]))) html += '<span class="res-badge">' + vendor + '</span>';
-            if (countM) html += '<span class="res-badge acc">x' + countM[1] + '</span>';
-            html += '</div>';
-            if (probesM) {
-              html += '<div class="res-tags"><span class="res-tags-lab">Probing</span>';
-              const ssids = probesM[1].matchAll(/(~?)"([^"]*)"/g);
-              for (const s of ssids) {
-                const ghost = s[1] === '~';
-                html += '<span data-ssid="' + s[2] + '" class="res-tag' + (ghost ? ' away' : '') + '"' + (ghost ? ' title="Not nearby - saved/home network"' : '') + '>' + s[2] + (ghost ? ' <sup>away</sup>' : '') + '</span>';
-              }
-              html += '</div>';
-            }
-            if (apM) {
-              html += '<div data-ap-ssid="' + apM[1] + '" class="res-sub"><span class="res-note-lab">AP responded</span><strong>' + apM[1] + '</strong>';
-              if (apBssidM) html += ' <span style="font-family:ui-monospace,monospace;">(' + apBssidM[1] + ')</span>' + randBadge(apBssidM[1]);
-              html += '</div>';
-            }
-            html += '</div>';
+          const pdevs = [];
+          for (const pl of probeLines) { const d = parseProbeLine(pl); if (d) pdevs.push(d); }
+          if (pdevs.length > 0) {
+            html += '<div class="res-hero-title" style="margin:18px 0 12px;">Probe Intelligence &mdash; grouped by network (' + pdevs.length + ' probing device' + (pdevs.length === 1 ? '' : 's') + ')</div>';
+            html += renderProbeGroups(pdevs);
           }
-          html += '</div></details>';
         }
 
         return html;

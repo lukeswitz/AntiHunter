@@ -2301,16 +2301,20 @@ void processMeshMessage(const String &message) {
       }
     }    
 
-    if (cleanMessage.startsWith("@")) {
-      int spaceIndex = cleanMessage.indexOf(' ');
+    String payload = cleanMessage;
+    int senderSep = cleanMessage.indexOf(": ");
+    if (senderSep > 0) payload = cleanMessage.substring(senderSep + 2);
+
+    if (payload.startsWith("@")) {
+      int spaceIndex = payload.indexOf(' ');
       if (spaceIndex > 0) {
-          String targetId = cleanMessage.substring(1, spaceIndex);
+          String targetId = payload.substring(1, spaceIndex);
           if (targetId != nodeId && targetId != "ALL") return;
-          String command = cleanMessage.substring(spaceIndex + 1);
+          String command = payload.substring(spaceIndex + 1);
           processCommand(command, targetId);
         }
     } else {
-        processCommand(cleanMessage, "");
+        processCommand(payload, "");
     }
 }
 

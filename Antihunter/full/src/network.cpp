@@ -10,6 +10,7 @@
 #include <esp_timer.h>
 #include <algorithm>
 #include <deque>
+#include <memory>
 
 extern "C"
 {
@@ -1780,8 +1781,17 @@ void registerRemainingRoutes() {
 
   // Probe database endpoints
   server->on("/api/probedb", HTTP_GET, [](AsyncWebServerRequest *req) {
-      String json = getProbeDBJson();
-      req->send(200, "application/json", json);
+      auto body = std::make_shared<PsramJsonString>(getProbeDBJson());
+      AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
+          [body](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+              size_t total = body->size();
+              if (index >= total) return 0;
+              size_t n = total - index;
+              if (n > maxLen) n = maxLen;
+              memcpy(buffer, body->data() + index, n);
+              return n;
+          });
+      req->send(res);
   });
 
   server->on("/api/probedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
