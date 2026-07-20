@@ -97,6 +97,13 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
+#if !AH_CS_BLE
+    if (message.indexOf(": BLE_ATTACK") >= 0 || message.indexOf(": FOLLOWER:") >= 0 ||
+        message.indexOf(": BLETRACK:") >= 0 || message.indexOf(": TRK_LINK:") >= 0) {
+        return false;
+    }
+#endif
+
     bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
                                   message.indexOf("TRI_START_ACK") >= 0 ||
                                   message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
