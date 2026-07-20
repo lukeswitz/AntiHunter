@@ -292,7 +292,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-toolbar select#sortBy{width:auto;min-width:160px;padding:9px 36px 9px 13px;font-size:13px;font-weight:600;border-radius:9px;box-shadow:none;background-position:right 13px center}
       .res-toolbar .btn{padding:9px 13px;font-size:13px;line-height:1;border-radius:9px}
       .res-toolbar .btn svg{width:11px;height:15px}
-      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}#deviceScanHeader .res-stats{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stat{padding:9px 8px}#deviceScanHeader .res-stat-val{font-size:16px}}
+      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}}
     </style>
     <script>
       let toggleHistory=[];
