@@ -130,13 +130,15 @@ static constexpr uint32_t AUTH_FLOOD_WIN_MS  = 5000;
 static constexpr uint16_t AUTH_FLOOD_DISTINCT_SRC = 16;  // spoofed-MAC fan-out
 static constexpr uint16_t AUTH_FLOOD_FRAMES  = 60;        // raw rate floor in window
 
-// CCMP PN tracking for whole-frame replay — key = (srcMac<<4 | tid)
 struct PnState {
-    uint32_t lastPN;
+    uint64_t highPN;
+    uint64_t dupPN;
     uint32_t lastSeen;
-    uint8_t  reuseCount;
+    uint8_t  dupCount;
 };
 PsramMap<uint64_t, PnState> g_pnState;
+static constexpr uint64_t PN_REKEY_DROP = 4096;
+static constexpr uint64_t PN_REKEY_LOW  = 16;
 // In-progress fragmented-MSDU tracking for real FragAttacks signatures
 // (CVE-2020-26146 non-consecutive PN, CVE-2020-26147 mixed enc/plaintext) —
 // key = (srcMac<<4 | tid). Passive: reads FC MoreFrag + seq-ctrl frag# + CCMP PN.
@@ -151,7 +153,7 @@ struct FragMsdu {
 PsramMap<uint64_t, FragMsdu> g_fragMsdu;
 PsramVec<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
-std::atomic<uint8_t> g_fragReuseThresh{2};
+std::atomic<uint8_t> g_fragReuseThresh{3};
 
 // WiFi-LAYER interference detection (Xu MobiHoc'05 PDR-vs-RSSI consistency).
 // Per-channel 1s window: interference => collapsed PDR (CRC-fail frames) WHILE
@@ -2046,14 +2048,19 @@ static void handleQosData(const DetectFrameEvent &e) {
     uint8_t tid = qos0 & 0x0F;
     uint8_t aMsdu = (qos0 >> 7) & 1;
 
-    // CCMP PN only present on Protected frames with ext-IV set.
     bool havePN = false;
     uint32_t pn32 = 0;
+    uint64_t pn48 = 0;
+    uint8_t  keyId = 0;
     if (protectedBit && (int)e.len >= hdrLen + 8) {
         const uint8_t *cc = p + hdrLen;
         if (cc[3] & 0x20) {
             pn32 = ((uint32_t)cc[5] << 24) | ((uint32_t)cc[4] << 16) |
                    ((uint32_t)cc[1] << 8)  |  cc[0];
+            pn48 = ((uint64_t)cc[7] << 40) | ((uint64_t)cc[6] << 32) |
+                   ((uint64_t)cc[5] << 24) | ((uint64_t)cc[4] << 16) |
+                   ((uint64_t)cc[1] << 8)  |  (uint64_t)cc[0];
+            keyId = cc[3] & 0x03;
             havePN = true;
         }
     }
@@ -2124,30 +2131,41 @@ static void handleQosData(const DetectFrameEvent &e) {
         }
     }
 
-    // --- Whole-frame CCMP replay (PN non-increasing on a non-fragmented frame).
     if (havePN && !isFragment) {
-        auto it = g_pnState.find(key);
+        uint64_t pnKey = (packMac(a2) << 6) | ((uint64_t)tid << 2) | keyId;
+        auto it = g_pnState.find(pnKey);
         if (it == g_pnState.end()) {
             if (g_pnState.size() >= 64) {
                 uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
                 for (const auto &kv : g_pnState) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
                 g_pnState.erase(oldestK);
             }
-            g_pnState[key] = {pn32, now, 0};
+            g_pnState[pnKey] = PnState{pn48, 0, now, 0};
             return;
         }
-        uint32_t lastPN = it->second.lastPN;
-        if (pn32 <= lastPN) {
-            if (it->second.reuseCount < 255) it->second.reuseCount++;
+        PnState &st = it->second;
+        st.lastSeen = now;
+        if (pn48 > st.highPN) {
+            st.highPN = pn48;
+            st.dupCount = 0;
+            return;
+        }
+        if (st.highPN - pn48 >= PN_REKEY_DROP && pn48 <= PN_REKEY_LOW) {
+            st.highPN = pn48;
+            st.dupPN = 0;
+            st.dupCount = 0;
+            return;
+        }
+        if (pn48 == st.dupPN) {
+            if (st.dupCount < 255) st.dupCount++;
         } else {
-            it->second.reuseCount = 0;
+            st.dupPN = pn48;
+            st.dupCount = 1;
         }
-        if (it->second.reuseCount >= g_fragReuseThresh.load()) {
-            fireFrag(aMsdu ? "AMSDU_BAD" : "PN_REPLAY", lastPN, pn32);
-            it->second.reuseCount = 0;
+        if (st.dupCount >= g_fragReuseThresh.load()) {
+            fireFrag(aMsdu ? "AMSDU_BAD" : "PN_REPLAY", (uint32_t)st.highPN, (uint32_t)pn48);
+            st.dupCount = 0;
         }
-        it->second.lastPN = pn32;
-        it->second.lastSeen = now;
     }
 }
 
