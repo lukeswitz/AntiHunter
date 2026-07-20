@@ -4727,10 +4727,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }).join('');
         const chipBar=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${breakdown}</div>`;
         if(!rows.length){area.innerHTML=chipBar+'<div class="data-empty">No incidents.</div>';return;}
+        const hasPeer=_saData.some(x=>x.src&&x.src!=='local');
         area.innerHTML=chipBar
           +`<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">${total} incident${total!=1?'s':''}${ty!=='ALL'?' · '+ty:''}</div>`
-          +'<div class="sa-wrap"><table class="sa-tbl"><thead><tr><th>Time</th><th>Sev</th><th>Type</th><th>Source</th><th>Detail</th><th>Node</th></tr></thead><tbody>'
-          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td><td class="sa-mac">${esc(r.src||'local')}</td><td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
+          +'<div class="sa-wrap"><table class="sa-tbl"><thead><tr><th>Time</th><th>Sev</th><th>Type</th>'+(hasPeer?'<th>Source</th>':'')+'<th>Detail</th><th>Node</th></tr></thead><tbody>'
+          +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td>`+(hasPeer?`<td class="sa-mac">${esc(r.src)}</td>`:'')+`<td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
           +'</tbody></table></div>';
       }
       // Prefix-based severity for sentinel incident types (mirrors detector card sev).
