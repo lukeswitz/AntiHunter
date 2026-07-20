@@ -541,7 +541,7 @@ String getProbeResults()
 {
     static String cachedProbeResults = "";
     static uint32_t lastProbeResultsTime = 0;
-    if (millis() - lastProbeResultsTime < 2000 && cachedProbeResults.length() > 0) {
+    if (scanning && millis() - lastProbeResultsTime < 2000 && cachedProbeResults.length() > 0) {
         return cachedProbeResults;
     }
     lastProbeResultsTime = millis();
@@ -849,7 +849,7 @@ uint32_t getProbeDBSize()
     return probeDB.size();
 }
 
-String getProbeDBJson()
+PsramJsonString getProbeDBJson()
 {
     std::vector<ProbeDBEntry> snap;
     {
@@ -859,29 +859,42 @@ String getProbeDBJson()
                        [](const auto &p) { return p.second; });
     }
 
-    String out;
-    out.reserve(2 + snap.size() * 240);
-    out += "[";
+    PsramJsonString out;
+    out.reserve(2 + snap.size() * 256);
+    out.push_back('[');
+    char num[16];
     bool first = true;
     for (const auto &e : snap) {
-        if (!first) out += ",";
+        if (!first) out.push_back(',');
         first = false;
-        DynamicJsonDocument doc(512);
-        doc["mac"] = e.mac;
-        doc["seen"] = e.totalSeen;
-        doc["sessions"] = e.sessionCount;
-        doc["first"] = e.firstEpoch;
-        doc["last"] = e.lastEpoch;
-        doc["rssi"] = e.bestRssi;
-        doc["vendor"] = e.vendor;
-        doc["rand"] = e.isRandomized;
-        JsonArray ss = doc.createNestedArray("ssids");
+        out += "{\"mac\":\"";
+        out += e.mac;
+        out += "\",\"seen\":";
+        snprintf(num, sizeof(num), "%u", (unsigned)e.totalSeen); out += num;
+        out += ",\"sessions\":";
+        snprintf(num, sizeof(num), "%u", (unsigned)e.sessionCount); out += num;
+        out += ",\"first\":";
+        snprintf(num, sizeof(num), "%u", (unsigned)e.firstEpoch); out += num;
+        out += ",\"last\":";
+        snprintf(num, sizeof(num), "%u", (unsigned)e.lastEpoch); out += num;
+        out += ",\"rssi\":";
+        snprintf(num, sizeof(num), "%d", (int)e.bestRssi); out += num;
+        out += ",\"vendor\":\"";
+        { String v = sanitizeAscii(e.vendor, sizeof(e.vendor)); out.append(v.c_str(), v.length()); }
+        out += "\",\"rand\":";
+        out += (e.isRandomized ? "true" : "false");
+        out += ",\"ssids\":[";
+        bool sfirst = true;
         for (uint8_t i = 0; i < e.ssidCount && i < 8; i++) {
-            ss.add(e.ssids[i]);
+            String s = sanitizeAscii(e.ssids[i], 33);
+            if (s.length() == 0) continue;
+            if (!sfirst) out.push_back(',');
+            sfirst = false;
+            out.push_back('"'); out.append(s.c_str(), s.length()); out.push_back('"');
         }
-        serializeJson(doc, out);
+        out += "]}";
     }
-    out += "]";
+    out.push_back(']');
     return out;
 }
 

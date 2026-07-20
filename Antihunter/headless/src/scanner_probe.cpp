@@ -538,7 +538,7 @@ String getProbeResults()
 {
     static String cachedProbeResults = "";
     static uint32_t lastProbeResultsTime = 0;
-    if (millis() - lastProbeResultsTime < 2000 && cachedProbeResults.length() > 0) {
+    if (scanning && millis() - lastProbeResultsTime < 2000 && cachedProbeResults.length() > 0) {
         return cachedProbeResults;
     }
     lastProbeResultsTime = millis();
