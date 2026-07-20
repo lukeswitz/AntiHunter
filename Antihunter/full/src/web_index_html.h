@@ -292,7 +292,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-toolbar select#sortBy{width:auto;min-width:160px;padding:9px 36px 9px 13px;font-size:13px;font-weight:600;border-radius:9px;box-shadow:none;background-position:right 13px center}
       .res-toolbar .btn{padding:9px 13px;font-size:13px;line-height:1;border-radius:9px}
       .res-toolbar .btn svg{width:11px;height:15px}
-      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}}
+      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
     </style>
     <script>
       let toggleHistory=[];
@@ -3652,7 +3652,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div class="res-hero-top"><div class="res-hero-title">';
           html += '<svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
           html += 'Device Discovery</div></div>';
-          html += '<div class="res-stats">';
+          const _dsN = [modeMatch, durationMatch, hitsMatch, uniqueMatch].filter(Boolean).length;
+          html += '<div class="res-stats" data-n="' + _dsN + '">';
           if (modeMatch) html += _resStat('Mode', modeMatch[1]);
           if (durationMatch) html += _resStat('Duration', durationMatch[1]);
           if (hitsMatch) html += _resStat('Target Hits', hitsMatch[1], parseInt(hitsMatch[1]) > 0 ? 'ok' : '');
