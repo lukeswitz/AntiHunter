@@ -4,6 +4,7 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <string>
 #include <atomic>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -30,6 +31,7 @@ using DeviceLastSeenMap = std::map<String, uint32_t, std::less<String>,
 using HitsVecPsram = std::vector<Hit, PsramAllocator<Hit>>;
 using StringStringMapPsram = std::map<String, String, std::less<String>,
     PsramAllocator<std::pair<const String, String>>>;
+using PsramJsonString = std::basic_string<char, std::char_traits<char>, PsramAllocator<char>>;
 
 struct DeauthStats {
     String srcMac;
@@ -189,7 +191,7 @@ void saveProbeDB();
 void mergeProbeDeviceToDB(const ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
-String getProbeDBJson();
+PsramJsonString getProbeDBJson();
 void clearProbeDB();
 
 // Eviction and cleanup

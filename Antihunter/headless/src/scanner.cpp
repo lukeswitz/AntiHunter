@@ -960,6 +960,9 @@ void snifferScanTask(void *pv)
     unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
+    unsigned long lastTotalPrint = 0;
+    size_t lastTotalAp = SIZE_MAX, lastTotalBle = SIZE_MAX, lastTotalUniq = SIZE_MAX;
+    int lastTotalHits = -1;
     unsigned long nextResultsUpdate = millis();
 
     std::set<String> transmittedDevices;
@@ -1388,8 +1391,18 @@ void snifferScanTask(void *pv)
             nextResultsUpdate = millis() + 1500;
         }
 
-        Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
-                      apCache.size(), bleDeviceCache.size(), uniqueMacs.size(), totalHits.load());
+        {
+            size_t nAp = apCache.size(), nBle = bleDeviceCache.size(), nUniq = uniqueMacs.size();
+            int nHits = totalHits.load();
+            bool changed = (nAp != lastTotalAp || nBle != lastTotalBle ||
+                            nUniq != lastTotalUniq || nHits != lastTotalHits);
+            if (changed || (millis() - lastTotalPrint) >= 5000) {
+                Serial.printf("[SNIFFER] Total: WiFi APs=%d, BLE=%d, Unique=%d, Hits=%d\n",
+                              nAp, nBle, nUniq, nHits);
+                lastTotalPrint = millis();
+                lastTotalAp = nAp; lastTotalBle = nBle; lastTotalUniq = nUniq; lastTotalHits = nHits;
+            }
+        }
 
         vTaskDelay(pdMS_TO_TICKS(200));
     }
