@@ -18,7 +18,7 @@
 
 Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
-std::vector<uint8_t> CHANNELS = {1, 6, 11};
+std::vector<uint8_t> CHANNELS = {1,2,3,4,5,6,7,8,9,10,11};
 std::atomic<bool> stopRequested(false);
 
 unsigned long lastRTCUpdate = 0;
@@ -167,7 +167,7 @@ void parseChannelsCSV(const String &csv) {
             start = comma + 1;
         }
     }
-    if (CHANNELS.empty()) CHANNELS = {1, 6, 11};
+    if (CHANNELS.empty()) CHANNELS = {1,2,3,4,5,6,7,8,9,10,11};
     const bool hasAp = std::any_of(CHANNELS.begin(), CHANNELS.end(),
         [](uint8_t ch) { return ch == (uint8_t)AP_CHANNEL; });
     if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);

@@ -294,7 +294,7 @@ void initializeHardware()
         prefs.putString("maclist", "");
         prefs.putString("allowlist", "");
         prefs.putString("nodeId", "");
-        prefs.putString("channels", "1,6,11");
+        prefs.putString("channels", "1,2,3,4,5,6,7,8,9,10,11");
         prefs.putInt("scanMode", SCAN_BOTH);
         prefs.putULong("meshInterval", 5000);
         prefs.putUInt("blRamSize", 400);

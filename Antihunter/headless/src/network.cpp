@@ -536,7 +536,7 @@ static void handleScanStart(const String &command)
     int secs = params.substring(modeDelim + 1, secsDelim).toInt();
     if (secs < 0) secs = 0;
     if (secs > 86400) secs = 86400;
-    String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,6,11";
+    String channels = (channelDelim > 0) ? params.substring(secsDelim + 1, channelDelim) : "1,2,3,4,5,6,7,8,9,10,11";
     bool forever = (channelDelim > 0 && params.substring(channelDelim + 1) == "FOREVER");
 
     if (mode >= 0 && mode <= 2)
