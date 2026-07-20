@@ -94,6 +94,13 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
+#if !AH_CS_BLE
+    if (message.indexOf(": BLE_ATTACK") >= 0 || message.indexOf(": FOLLOWER:") >= 0 ||
+        message.indexOf(": BLETRACK:") >= 0 || message.indexOf(": TRK_LINK:") >= 0) {
+        return false;
+    }
+#endif
+
     bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
                                   message.indexOf("TRI_START_ACK") >= 0 ||
                                   message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
@@ -714,6 +721,7 @@ static void handleCounterSurveilStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
+#if AH_CS_BLE
   if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
     Serial.println("[MESH] Radio busy, rejecting CS_START");
     sendToSerial1(nodeId + ": CS_ACK:BUSY", true);
@@ -726,6 +734,11 @@ static void handleCounterSurveilStart(const String &command)
     Serial.printf("[MESH] Started counter-surveillance scan (%ds)\n", secs);
     sendToSerial1(nodeId + ": CS_ACK:STARTED", true);
   }
+#else
+  (void)secs;
+  (void)forever;
+  sendToSerial1(nodeId + ": CS_ACK:DISABLED", true);
+#endif
 }
 
 static void handleCounterSurveilResults(const String &command)
@@ -957,8 +970,12 @@ static const char *groupMembers(const String &name)
   if (name == "recon")                       return "pmkid,probe_flood,hshk";
   if (name == "physical" || name == "phys")  return "frag,tsf,jam";
   if (name == "mesh")                        return "mesh_guard";
+#if AH_CS_BLE
   if (name == "ble")                         return "ble_attack,ble_malformed,tracker,airtag";
   if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard,ble_attack,ble_malformed,tracker,airtag";
+#else
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard";
+#endif
   return nullptr;
 }
 

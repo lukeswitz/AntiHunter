@@ -97,6 +97,13 @@ bool sendToSerial1(const String &message, bool canDelay) {
         return false;
     }
 
+#if !AH_CS_BLE
+    if (message.indexOf(": BLE_ATTACK") >= 0 || message.indexOf(": FOLLOWER:") >= 0 ||
+        message.indexOf(": BLETRACK:") >= 0 || message.indexOf(": TRK_LINK:") >= 0) {
+        return false;
+    }
+#endif
+
     bool isTriangulationMessage = message.indexOf("STOP_ACK") >= 0 ||
                                   message.indexOf("TRI_START_ACK") >= 0 ||
                                   message.indexOf("@ALL TRIANGULATE_START") >= 0 ||
@@ -808,6 +815,7 @@ void registerRemainingRoutes() {
       }
       currentScanMode = SCAN_BLE;
       stopRequested = false;
+#if AH_CS_BLE
       req->send(200, "text/plain", forever ?
                 "Counter-surveillance scan starting (forever)" :
                 ("Counter-surveillance scan starting for " + String(secs) + "s"));
@@ -817,6 +825,11 @@ void registerRemainingRoutes() {
                        reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
                        1, &workerTaskHandle, 1);
       }
+#else
+      (void)forever;
+      (void)secs;
+      req->send(200, "text/plain", "Counter-surveillance disabled in this build");
+#endif
   });
   server->on("/countersurveil/results", HTTP_GET, [](AsyncWebServerRequest *r)
              { r->send(200, "application/json", cs_getResultsJson()); });
