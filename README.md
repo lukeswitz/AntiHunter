@@ -533,6 +533,8 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
+| `CONFIG_SESSION_DEDUP` | `0`/`1` — toggle per-session dedup. ACK: `CONFIG_ACK:SESSION_DEDUP:<0\|1>` | `@ALL CONFIG_SESSION_DEDUP:1` |
+| `MESH_DEDUP_CLEAR` | None — clear mesh dedup cache. ACK: `DEDUP_CLEAR_ACK:OK` | `@ALL MESH_DEDUP_CLEAR` |
 
 ### Scanning
 
@@ -558,6 +560,11 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 | `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
 | `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
 | `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
+| `GROUP` | `<name>:<on\|off>` — toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
+| `DETECT_CFG` | `<json>` — apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
+| `DETECT_CFG_GET` | None — dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
+| `INCIDENTS` | `[:<1-200>]` — dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
+| `INCIDENTS_CLEAR` | None — clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -584,6 +591,8 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 | `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
 | `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
 | `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
+| `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) — set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
+| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` — factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 
 </details>
 
