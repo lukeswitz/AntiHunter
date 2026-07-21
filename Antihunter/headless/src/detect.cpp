@@ -144,7 +144,6 @@ struct FragMsdu {
 PsramMap<uint64_t, FragMsdu> g_fragMsdu;
 PsramVec<FragAttackEvent> g_fragLog;
 std::atomic<bool>    g_fragEnabled{false};
-std::atomic<uint8_t> g_fragReuseThresh{3};
 
 // WiFi-LAYER interference detection (Xu MobiHoc'05 PDR-vs-RSSI consistency).
 // Per-channel 1s window: interference => collapsed PDR (CRC-fail frames) WHILE
@@ -2756,7 +2755,6 @@ void initializeDetect() {
             uint32_t w;
             if ((w = p.getULong("trkWin", 0))) ah_detect::g_trackerWindowMs.store(w);
             if ((w = p.getULong("huntCool", 0))) ah_detect::g_huntCooldown.store(w);
-            if ((u = p.getUChar("fragN", 0))) ah_detect::g_fragReuseThresh.store(u);
             ah_detect::g_pmkidEnabled.store(p.getBool("pmkidOn", true));
             ah_detect::g_eviltwinEnabled.store(p.getBool("etwOn", true));
             ah_detect::g_ssidConfusionEnabled.store(p.getBool("scnOn", false));
@@ -3004,7 +3002,6 @@ void detect_persistTunables() {
     p.putUShort("pflSng", ah_detect::g_probeSingleMacThresh.load());
     p.putUShort("pflRTot", ah_detect::g_probeRandTotalThresh.load());
     p.putUShort("pflRDst", ah_detect::g_probeRandDistinctThresh.load());
-    p.putUChar("fragN", ah_detect::g_fragReuseThresh.load());
     p.putBool("karmaOn", ah_detect::g_karmaEnabled.load());
     p.putULong("trkWin", ah_detect::g_trackerWindowMs.load());
     p.putULong("huntCool", ah_detect::g_huntCooldown.load());
@@ -4303,7 +4300,6 @@ String detect_getConfigJson() {
     j += _ijson("pmkid_min_bssids", g_pmkidMinBssids.load());
     j += _ijson("sae_window", g_saeWindow.load());
     j += _ijson("sae_unmatched_thresh", g_saeUnmatchedThresh.load());
-    j += _ijson("frag_reuse_thresh", g_fragReuseThresh.load());
     j += _ijson("probe_single_thresh", g_probeSingleMacThresh.load());
     j += _ijson("probe_rand_total", g_probeRandTotalThresh.load());
     j += _ijson("probe_rand_distinct", g_probeRandDistinctThresh.load());
@@ -4392,7 +4388,6 @@ bool detect_setConfigFromJson(const String &b) {
     _setu8(b, "pmkid_min_bssids", g_pmkidMinBssids);
     _seti(b, "sae_window", g_saeWindow);
     _setu8(b, "sae_unmatched_thresh", g_saeUnmatchedThresh);
-    _setu8(b, "frag_reuse_thresh", g_fragReuseThresh);
     _seti(b, "probe_single_thresh", g_probeSingleMacThresh);
     _seti(b, "probe_rand_total", g_probeRandTotalThresh);
     _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);

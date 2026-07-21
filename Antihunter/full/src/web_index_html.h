@@ -5590,7 +5590,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['pmkid_min_bssids','PMKID Min BSSIDs',2,10],
         ['sae_window','SAE Window (ms)',1000,60000],
         ['sae_unmatched_thresh','SAE Unmatched',3,50],
-        ['frag_reuse_thresh','FragAttacks Reuse Count',2,32],
         ['probe_single_thresh','Probe Flood: 1-MAC probes /5s',10,500],
         ['probe_rand_total','Probe Flood: randomized total /5s',10,1000],
         ['probe_rand_distinct','Probe Flood: randomized distinct MACs /5s',5,500],
