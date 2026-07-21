@@ -19,7 +19,7 @@ extern StringSetPsram respondedSsids;
 // ---- Probe SSID helpers (defined in scanner_probe.cpp, called from snifferScanTask) ----
 void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse = false);
 bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
-bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize);
+bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize, bool *isWildcard = nullptr);
 
 // ---- Shared scanner helpers (defined in scanner.cpp, called from scanner_probe.cpp) ----
 bool matchesMac(const uint8_t *mac);

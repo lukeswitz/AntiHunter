@@ -63,6 +63,7 @@ struct ProbeDevice {
     uint32_t firstSeen;
     uint32_t lastSeen;
     uint32_t probeCount;
+    uint32_t wildcardCount;
     char ssids[8][33];
     uint8_t ssidCount;
     bool isRandomized;
