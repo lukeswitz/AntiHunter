@@ -1282,14 +1282,15 @@ static void handleBeacon(const DetectFrameEvent &e) {
                              bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
                     snprintf(owbBuf, sizeof(owbBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
                              ev.oweBssid[0],ev.oweBssid[1],ev.oweBssid[2],ev.oweBssid[3],ev.oweBssid[4],ev.oweBssid[5]);
+                    const char *safeSsid = ssidIsValid(ssid, strlen(ssid)) ? ssid : "";
                     char lineBuf[260];
                     snprintf(lineBuf, sizeof(lineBuf),
                              "{\"open_bssid\":\"%s\",\"owe_bssid\":\"%s\",\"ssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-                             obBuf, owbBuf, ssid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
+                             obBuf, owbBuf, safeSsid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                     logEventToSD("/owe_abuse.jsonl", String(lineBuf));
-                    ::detect_logIncident(String("OWE_ABUSE:") + obBuf + ":" + ssid, nullptr);
+                    ::detect_logIncident(String("OWE_ABUSE:") + obBuf + ":" + safeSsid, nullptr);
                     if (meshEnabled && sentinel_isRunning() && g_meshOwe.load() && meshRateGate(String("OWE_ABUSE_") + obBuf, 30000))
-                        sendToSerial1(getNodeId() + ": OWE_ABUSE:" + obBuf + ":" + ssid + ":" + String((int)e.rssi), true);
+                        sendToSerial1(getNodeId() + ": OWE_ABUSE:" + obBuf + ":" + safeSsid + ":" + String((int)e.rssi), true);
                     break;
                 }
             }
@@ -1883,7 +1884,8 @@ static void handleProbeResp(const DetectFrameEvent &e) {
     char lineBuf[280];
     snprintf(lineBuf, sizeof(lineBuf),
              "{\"bssid\":\"%s\",\"beacon_ssid\":\"%s\",\"resp_ssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
-             bsBuf, b.ssid, ssid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
+             bsBuf, ssidIsValid(b.ssid, strlen(b.ssid)) ? b.ssid : "",
+             ssidIsValid(ssid, strlen(ssid)) ? ssid : "", (int)e.rssi, (unsigned)e.channel, (unsigned)now);
     logEventToSD("/ssid_confusion.jsonl", String(lineBuf));
     ::detect_logIncident(String("SSID_CONFUSION:") + bsBuf + ":" + String((int)e.rssi), nullptr);
     if (meshEnabled) {
