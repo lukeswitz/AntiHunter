@@ -279,3 +279,5 @@ String getSnifferCache();
 String getAllowlistText();
 void saveAllowlist(const String &txt);
 bool isAllowlisted(const uint8_t *mac);
+
+bool ssidIsValid(const char *s, size_t len);
