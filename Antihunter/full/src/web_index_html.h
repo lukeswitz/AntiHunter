@@ -5449,7 +5449,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       const DETECTOR_TAB_MAP = {
         'events':'live','sentinel':'live','mesh':'config','config':'config',
-        'overview':'live','apclients':'live',
+        'overview':'live','apclients':'live','meshcmd':'live',
         'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
         'physical':'detectors','meshcfg':'detectors','mesh':'detectors',
         'analysis':'analysis'
