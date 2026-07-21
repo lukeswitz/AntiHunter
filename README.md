@@ -32,7 +32,6 @@
 Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunter.html)
 
 
-- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection [(beta)](https://github.com/lukeswitz/AntiHunter/tree/beta)
 - `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 
@@ -59,10 +58,11 @@ Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunte
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
 - ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
-- Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
+- Deploy one node or a distributed network- each scans independently and coordinates over mesh
 
 <p align="center">
-<img height="600" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
+<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
+
 </p>
 
 > [!TIP]
@@ -79,7 +79,6 @@ Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunte
 | **Baseline Anomaly Detection** | Learn-then-alert: spots new, missing, and changed devices | WiFi + BLE |
 | **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
-| **Sentinel Counterintel** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
 | **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
@@ -89,9 +88,9 @@ Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunte
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
-<p align="center">
+<!-- <p align="center">
 <img height="600" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
-</p>
+</p> -->
 
 ### Use Cases
 
@@ -111,7 +110,8 @@ Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunte
 
 ### 1. Target Scan
 <p align="center">
-<img height="400" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
+  <img width="940" alt="9F8EB018-AD99-4066-9B60-C485FB631181_1_105_c" src="https://github.com/user-attachments/assets/8b26b014-1a3c-4e62-b41d-2a672cb5c099" />
+
 </p>
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
@@ -204,7 +204,8 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 
 ### F. Probe Request Scanner
 <p align="center">
-  <img height="600" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
+  <img width="615" height="482" alt="24689442-51E9-4F1A-8B61-E931F0B5CD09" src="https://github.com/user-attachments/assets/71a4857a-022d-4ac7-8c1d-4c2caaeff666" />
+
 </p>
 
 Goes beyond probe request capture: correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in the device's history), identify which APs responded, and catch silent devices via destination address matching.
@@ -219,41 +220,6 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - MAC randomization detection (locally-administered bit check)
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
-
-### G. Sentinel — Counterintel Engine (Beta)
-
-<p align="center">
-  <img height="600" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
-</p>
-
-- Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
-- Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
-- **Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
-- Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
-
-
-
-| Group | Detectors | How they're caught |
-|---|---|---|
-| **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS | Fixed/rotated deauth seqCtrl + reason codes, impersonation bursts, beacon-spam rate + static templates, open-system auth flood, assoc-req PM-bit floods, SAE commit floods (algo 3 / txn 1) |
-| **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Clone of our own AP (SSID/BSSID collision); OWE-transition downgrade; bait-probe answered by an AP that never beacons that SSID |
-| **Recon** | PMKID harvest, probe flood, handshake capture | Orphaned-M1 / KDE PMKID solicitation; fixed-seq + behavioral probe spam (≥15 MACs/SSID/5s); forced & passive EAPOL M1–M4 capture |
-| **Physical** | FragAttacks, TSF / multi-channel twin, WiFi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
-| **Mesh disruption** | Self-spoof, channel flood, command audit | Own node-id seen inbound; inbound rate DoS; every privileged mesh command logged with the radio id that issued it — a provenance **audit trail**, not an alert (injection is indistinguishable from legit ops on a shared channel, so we record the source instead of guessing) |
-
-- **Field-verified on hardware** (confirmed firing against the live tools above): deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
-
-- **Experimental**: OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, WiFi interference, mesh disruption.
-
-- **Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
-
-- **Hotspot false-positive suppression**: the crypto/handshake detectors (PMKID, KRACK, handshake capture, SAE-DoS) and all beacon-based detectors (evil-twin, OWE, SSID-confusion, TSF, beacon-flood) skip **locally-administered / randomized BSSIDs**. Phone hotspots and MAC-randomizing devices produce normal handshakes, SAE retries and M3 retransmits that would otherwise trip these detectors as attacks. Volume-based DoS detectors (deauth/auth/assoc floods, probe-flood) intentionally do **not** skip them, since real floods commonly spoof randomized sources.
-
-- **Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
-
-- **Mesh command audit:** every privileged command received on the mesh is logged with the radio id that issued it. It shows up in the **Sentinel UI** (the *Mesh Commands* panel, below AP Clients — full build) and via the **API** (`GET /api/mesh_cmd.jsonl`), and is persisted to SD (`/mesh_cmd.jsonl`). This is a provenance audit trail, not an alert — so it never false-positives.
-
-- **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
 
 ---
 
@@ -441,7 +407,6 @@ Flash and configure directly from your browser -- no tools to install. Requires 
 2. Optional: After flashing, set the configuration choices and press send to device. 
 
    - Use it to change settings without using the device (especially useful for headless FW).
-   - The **Sentinel & Detectors** section configures the full detection engine: persistent *Start Sentinel on Boot*, radio mode, every detector enable/disable, mesh-broadcast flags, and detector thresholds — full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting (beta fw).
 
 ### CLI Flash
 
@@ -544,6 +509,8 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1..11` |
 | `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
+| `CONFIG_SESSION_DEDUP` | `0`/`1` — toggle per-session dedup. ACK: `CONFIG_ACK:SESSION_DEDUP:<0\|1>` | `@ALL CONFIG_SESSION_DEDUP:1` |
+| `MESH_DEDUP_CLEAR` | None — clear mesh dedup cache. ACK: `DEDUP_CLEAR_ACK:OK` | `@ALL MESH_DEDUP_CLEAR` |
 
 ### Scanning
 
@@ -560,15 +527,6 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
-
-### Sentinel (beta fw)
-
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
-| `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
-| `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
-| `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -595,6 +553,8 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 | `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
 | `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
 | `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
+| `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) — set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
+| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` — factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 
 </details>
 
@@ -726,24 +686,14 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 </details>
 
 <details>
-<summary>Sentinel / Detection Endpoints (beta)</summary>
+<summary>Mesh Command Audit</summary>
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/detect/config` | GET | Current detector config (JSON: every detector enable, mesh-broadcast flag, threshold) |
-| `/api/detect/config` | POST | Set detector config. JSON body of `{key:bool/int}` — same keys returned by GET (e.g. `pmkid`, `eviltwin`, `sae`, `karma`, `probe_flood`, `assoc_sleep`, `mesh_*` flags, thresholds). The Web Flasher/Configurator sends these under a nested `detectors` object at flash time. |
-| `/api/detect/health` | GET | Detector runtime health (heap, queue depth, drops, per-detector counts) |
-| `/api/sentinel/status` | GET | Sentinel running state |
-| `/api/sentinel/start` / `/api/sentinel/stop` | POST | Start/stop the Sentinel engine |
-| `/api/incidents.json` | GET | Recent incident ring (JSON) |
-| `/api/incidents.jsonl` | GET | Full incident log from SD (JSONL) |
-| `/api/incidents` | DELETE | Clear all incidents (RAM + SD) |
 | `/api/mesh_cmd.jsonl` | GET | Mesh command provenance audit from SD (JSONL: `ts`, `epoch`, `src` radio id, `cmd`) |
 | `/api/mesh_cmd` | DELETE | Clear the mesh command audit log |
 
-Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds — `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
-
-Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pref `sentBoot` — auto-starts the Sentinel at power-on when true.
+Every privileged command received on the mesh is logged with the radio id that issued it and persisted to SD (`/mesh_cmd.jsonl`). This is a provenance audit trail, not an alert.
 
 </details>
 

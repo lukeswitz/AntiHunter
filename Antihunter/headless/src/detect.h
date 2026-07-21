@@ -7,6 +7,10 @@
 // Phase 3: BLE perimeter (tracker persistence/watchlist, BLE ODID, OUI category,
 //          CYT recon score, StateFi chipset fingerprint)
 
+#ifndef AH_SENTINEL
+#define AH_SENTINEL 1
+#endif
+
 #include <Arduino.h>
 #include <atomic>
 #include <vector>

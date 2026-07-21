@@ -1,6 +1,10 @@
 #pragma once
 #include <pgmspace.h>
 
+#ifndef AH_SENTINEL
+#define AH_SENTINEL 1
+#endif
+
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html>
 <html data-theme="light">
@@ -373,7 +377,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div class="status-item idle" id="scanStatus">Idle</div>
               <div class="status-item" id="gpsStatus">GPS</div>
               <div class="status-item" id="meshTxStatus" style="display:none;cursor:pointer;" onclick="cancelMeshDrain()" title="Click to cancel pending mesh TX">Mesh TX 0/0</div>
+)HTML"
+#if AH_SENTINEL
+R"HTML(
               <div class="status-item" id="sentStatusHdr" onclick="sentinelToggleHdr()" style="cursor:pointer;display:none;" title="Click to toggle Sentinel">SENTINEL</div>
+)HTML"
+#endif
+R"HTML(
         </div></div>
         <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -405,7 +415,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
         <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
+)HTML"
+#if AH_SENTINEL
+R"HTML(
         <div class="page-tab-btn" onclick="switchPage('detect')">Sentinel</div>
+)HTML"
+#endif
+R"HTML(
       </div>
     </div>
     <script>
@@ -976,7 +992,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="card-body collapsed" id="factoryWipeCardBody">
           <div class="banner">WARNING: Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</div>
           <div style="margin-top:10px;font-size:11px;color:var(--mut);line-height:1.5;">
+)HTML"
+#if AH_SENTINEL
+R"HTML(
             Removes: probedb, probes, deauth, drones, vibrations, baseline, syslog, incidents, sentinel state, randdet identities, all logs.<br>
+)HTML"
+#else
+R"HTML(
+            Removes: probedb, probes, deauth, drones, vibrations, baseline, syslog, randdet identities, all logs.<br>
+)HTML"
+#endif
+R"HTML(
             Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.
           </div>
           <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Reset Scope</label>
@@ -1044,7 +1070,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <option value="vibrations">Vibration Events</option>
             <option value="baseline">Baseline Stats</option>
             <option value="syslog">System Log</option>
+)HTML"
+#if AH_SENTINEL
+R"HTML(
             <option value="incidents">Sentinel Incidents (all sessions)</option>
+)HTML"
+#endif
+R"HTML(
           </select>
           <input type="text" id="dataSearch" placeholder="Search..." oninput="onDataSearch()">
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
@@ -1062,6 +1094,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       </div>
       </div>
 
+)HTML"
+#if AH_SENTINEL
+R"HTML(
       <!-- ===== DETECT TAB ===== -->
       <div class="page-tab" id="page-detect">
         <style>
@@ -1481,7 +1516,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </div><!-- /det-grid -->
       </div>
       <!-- ===== /DETECT TAB ===== -->
-
+)HTML"
+#endif
+R"HTML(
       <div align="center" class="footer">v1.0.0 Stable | Node: <span id="footerNodeId">--</span></div>
     
       <script>
@@ -1532,12 +1569,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (pg) pg.classList.add('active');
         window.scrollTo(0, 0);
         if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
+)HTML"
+#if AH_SENTINEL
+R"HTML(
         if (pageName === 'detect') {
           if (typeof sentinelRefresh === 'function') sentinelRefresh();
           if (typeof detAllTicks === 'function') detAllTicks();
           if (typeof detRenderBanner === 'function') detRenderBanner();
           if (typeof loadIncidents === 'function') loadIncidents();
         }
+)HTML"
+#endif
+R"HTML(
         if (pageName === 'system' && typeof updateBatterySaverStatus === 'function') updateBatterySaverStatus();
       }
       function pageActive(name) {
@@ -3839,7 +3882,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const _factoryResetTiers = {
         full: {btn: 'WIPE EVERYTHING', hint: 'Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
         config: {btn: 'RESET CONFIG', hint: 'Resets NVS config (AP creds, node ID, targets, allowlist, RF/mesh/auto-erase, erase PSK) to defaults. Captured SD data is KEPT. Device reboots.', warn: 'Resets all settings to factory defaults (captured data is kept). Device will reboot. Proceed?'},
+)HTML"
+#if AH_SENTINEL
+R"HTML(
         data: {btn: 'ERASE DATA', hint: 'Erases ALL captured SD data (probedb, probes, deauth, drones, baseline, logs, incidents). Settings/identity are KEPT. Device reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
+)HTML"
+#else
+R"HTML(
+        data: {btn: 'ERASE DATA', hint: 'Erases ALL captured SD data (probedb, probes, deauth, drones, baseline, logs). Settings/identity are KEPT. Device reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
+)HTML"
+#endif
+R"HTML(
       };
       function updateFactoryResetTier() {
         const tier = document.getElementById('factoryResetTier').value;
@@ -4117,6 +4170,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
+)HTML"
+#if AH_SENTINEL
+R"HTML(
       // === Incidents panel ===
       function fmtIncUptime(ms){
         const s = Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
@@ -4229,7 +4285,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       setInterval(() => { if (pageActive('detect')) sentinelRefresh(); }, 4000);
       sentinelRefresh();
-
+)HTML"
+#endif
+R"HTML(
       document.getElementById('triangulate').addEventListener('change', e => {
         document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
         const secsInput = document.querySelector('input[name="secs"]');
@@ -4687,10 +4745,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         baseline:{url:'/baseline/stats',clear:'/baseline/reset',fmt:'baseline',cols:[],keys:[]},
         syslog:{url:'/api/antihunter.log',clear:'/api/antihunter.log/clear',fmt:'text',
           cols:['Time','Message'],keys:['_time','_msg']},
+)HTML"
+#if AH_SENTINEL
+R"HTML(
         incidents:{url:'/api/incidents.jsonl',clear:'/api/incidents/clear',fmt:'jsonl',
           cols:['Uptime','Node','Src','Type','Raw'],
           keys:['ts','node','src','type','raw']}
+)HTML"
+#endif
+R"HTML(
       };
+)HTML"
+#if AH_SENTINEL
+R"HTML(
       let _saData=null;
       function refreshSentinelAnalysis(){ _saData=null; loadSentinelAnalysis(); }
       async function clearSentinelAnalysis(){
@@ -4752,6 +4819,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(/^(FRAG|ASSOC_SLEEP)/.test(t))return 'med';
         return 'info';
       }
+)HTML"
+#endif
+R"HTML(
       function loadDataSet(){
         var ds=document.getElementById('dataSet').value;
         var cfg=DATA_SETS[ds];
@@ -4893,7 +4963,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       setInterval(tick, 5000);
       setInterval(() => { const a = document.getElementById('diagAge'); if (!a || !window.__lastDiag) return; const s = Math.max(0, Math.round((Date.now() - window.__lastDiag) / 1000)); a.innerText = s < 1 ? 'refreshed just now' : 'refreshed ' + s + 's ago'; }, 1000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
-
+)HTML"
+#if AH_SENTINEL
+R"HTML(
       // ===== Detect tab logic =====
       function _safeParse(s){
         try{return JSON.parse(s);}
@@ -5739,6 +5811,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       detLoadCfg();
       setInterval(()=>{ if(pageActive('detect')) detAllTicks(); },5000);
       detAllTicks();
+)HTML"
+#endif
+R"HTML(
     </script>
   </body>
 </html>

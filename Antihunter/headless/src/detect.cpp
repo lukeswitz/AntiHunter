@@ -2816,6 +2816,7 @@ static std::atomic<bool> g_sentinelAlwaysOnActive{false};
 static std::atomic<bool> g_sentinelUserEnabled{false};
 static TaskHandle_t g_sentinelTaskHandle = nullptr;
 
+#if AH_SENTINEL
 static void sentinelAlwaysOnTask(void *pv) {
     (void)pv;
     bool sentinelStartedWifi = false;
@@ -2919,7 +2920,12 @@ static void sentinelAlwaysOnTask(void *pv) {
     vTaskDelete(NULL);
 }
 
+#endif
+
 void sentinel_startAlwaysOn() {
+#if !AH_SENTINEL
+    return;
+#else
     if (!g_sentinelUserEnabled.load()) return;
     if (scanning.load()) return;
     if (g_sentinelAlwaysOnActive.exchange(true)) return;
@@ -2929,6 +2935,7 @@ void sentinel_startAlwaysOn() {
         g_sentinelTaskHandle = nullptr;
         g_sentinelAlwaysOnActive.store(false);
     }
+#endif
 }
 
 void sentinel_kill() {
@@ -2936,6 +2943,10 @@ void sentinel_kill() {
 }
 
 void sentinel_setUserEnabled(bool on) {
+#if !AH_SENTINEL
+    (void)on;
+    return;
+#else
     bool prev = g_sentinelUserEnabled.exchange(on);
     { Preferences p; if (p.begin("ahdetect", false)) { p.putBool("sentEn", on); p.end(); } }
     if (!on && prev) {
@@ -2945,6 +2956,7 @@ void sentinel_setUserEnabled(bool on) {
     if (on && !prev && !scanning.load()) {
         sentinel_startAlwaysOn();
     }
+#endif
 }
 
 bool sentinel_isUserEnabled() { return g_sentinelUserEnabled.load(); }
@@ -2965,8 +2977,10 @@ bool sentinel_yieldAndWait(uint32_t timeoutMs) {
 
 void sentinel_loadUserPref() {
     bool on = false;
+#if AH_SENTINEL
     Preferences p;
     if (p.begin("ahdetect", true)) { on = p.getBool("sentEn", false); p.end(); }
+#endif
     g_sentinelUserEnabled.store(on);
 }
 

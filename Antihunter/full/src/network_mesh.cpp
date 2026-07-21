@@ -1585,6 +1585,7 @@ static void handleHbInterval(const String &command)
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
 }
 
+#if AH_SENTINEL
 static void handleSentinelOn(const String &command)
 {
   (void)command;
@@ -1624,6 +1625,7 @@ static void handleSentinelBoot(const String &command)
   if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
   sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
 }
+#endif
 
 void processCommand(const String &command, const String &targetId = "")
 {
@@ -1648,11 +1650,13 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("PROBE_STOP"))            handleProbeStop(command);
   else if (command.startsWith("PROBE_HIT "))            handleProbeHit(command);
   else if (command.startsWith("STOP"))                  handleStop(command);
+#if AH_SENTINEL
   else if (command == "SENTINEL_ON")                    handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                   handleSentinelOff(command);
   else if (command.startsWith("SENTINEL_STATUS"))       handleSentinelStatus(command);
   else if (command.startsWith("SENTINEL_MODE:"))        handleSentinelMode(command);
   else if (command.startsWith("SENTINEL_BOOT:"))        handleSentinelBoot(command);
+#endif
   else if (command.startsWith("STATUS"))                handleStatus(command);
   else if (command.startsWith("VIBRATION_STATUS"))      handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                   handleVibrationOn(command);

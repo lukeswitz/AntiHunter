@@ -773,11 +773,13 @@ void loadConfiguration() {
         prefs.putBool("vibEnabled", vibrationEnabled);
     }
 
+#if AH_SENTINEL
     if (doc.containsKey("sentinelBoot")) {
         bool sb = doc["sentinelBoot"].as<bool>();
         prefs.putBool("sentBoot", sb);
         Serial.printf("[CONFIG] sentinelBoot=%s\n", sb ? "on" : "off");
     }
+#endif
 
     if (doc.containsKey("detectors") && doc["detectors"].is<JsonObject>()) {
         String dj;

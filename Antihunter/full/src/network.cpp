@@ -2002,6 +2002,7 @@ void registerRemainingRoutes() {
       r->send(200, "text/plain", "cleared");
   });
 
+#if AH_SENTINEL
   server->on("/api/sentinel/status", HTTP_GET, [](AsyncWebServerRequest *r) {
       String j = String("{\"enabled\":") + (sentinel_isUserEnabled() ? "true" : "false") +
                  ",\"running\":" + (sentinel_isRunning() ? "true" : "false") +
@@ -2043,6 +2044,7 @@ void registerRemainingRoutes() {
       Serial.printf("[SENTINEL] Boot auto-start set %s\n", on ? "ON" : "OFF");
       r->send(200, "application/json", String("{\"boot\":") + (on ? "true" : "false") + "}");
   });
+#endif
 
   server->on("/api/detect/verbose", HTTP_GET, [](AsyncWebServerRequest *r) {
       String j = String("{\"verbose\":") + (detect_isVerbose() ? "true" : "false") +
