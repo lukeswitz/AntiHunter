@@ -888,6 +888,28 @@ std::mutex probeMutex;
 StringSetPsram uniqueSsids;
 StringSetPsram respondedSsids;
 
+bool ssidIsValid(const char *s, size_t len) {
+    if (!s || len == 0 || len > 32) return false;
+    size_t i = 0;
+    while (i < len) {
+        unsigned char c = (unsigned char)s[i];
+        if (c < 0x20 || c == 0x7F) return false;
+        if (c < 0x80) { i++; continue; }
+        int n;
+        if (c >= 0xC2 && c <= 0xDF) n = 1;
+        else if (c >= 0xE0 && c <= 0xEF) n = 2;
+        else if (c >= 0xF0 && c <= 0xF4) n = 3;
+        else return false;
+        if (i + (size_t)n >= len) return false;
+        for (int k = 1; k <= n; k++) {
+            unsigned char cc = (unsigned char)s[i + k];
+            if (cc < 0x80 || cc > 0xBF) return false;
+        }
+        i += (size_t)n + 1;
+    }
+    return true;
+}
+
 String sanitizeAscii(const char *s, size_t maxLen) {
     String out;
     out.reserve(maxLen);
