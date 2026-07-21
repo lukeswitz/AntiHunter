@@ -1967,6 +1967,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
     if (algo != 3) return;
     uint16_t seq = (uint16_t)p[26] | ((uint16_t)p[27] << 8);
     const uint8_t *bssid = p + 16;
+    if (bssid[0] & 0x02) return;
     uint64_t k = packMac(bssid);
     uint32_t now = millis();
     uint16_t win = g_saeWindow.load();
