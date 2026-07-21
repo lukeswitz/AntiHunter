@@ -560,6 +560,7 @@ uint8_t classifyEapolMsg(uint16_t keyInfo) {
 void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
                        uint64_t replayCtr, int8_t rssi, const char *nodeId, uint32_t now) {
     if (msgNum < 1 || msgNum > 4) return;
+    if (bssid[0] & 0x02) return;
     uint64_t k = hshkKey(bssid, sta);
     auto it = g_hshk.find(k);
     if (it == g_hshk.end()) {
