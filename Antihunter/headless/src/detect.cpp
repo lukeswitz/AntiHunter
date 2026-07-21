@@ -1769,7 +1769,8 @@ static void handleProbeReq(const DetectFrameEvent &e) {
             ssidB[l] = 0;
         }
     }
-    bool ssidOk = ssidB[0] && ssidIsValid(ssidB, strlen(ssidB));
+    bool ssidOk = ssidB[0] && ssidIsValid(ssidB, strlen(ssidB)) &&
+                   !ssidLooksRandom(ssidB, strlen(ssidB));
     if (ssidOk) probeBehaveCheck(p + 10, ssidB, e.rssi, e.channel, millis());
 
     // tool template: seq ctrl bytes 22-23 = 0x01 0x00 (= seqCtrl LE 0x0001).

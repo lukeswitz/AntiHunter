@@ -262,3 +262,4 @@ void saveAllowlist(const String &txt);
 bool isAllowlisted(const uint8_t *mac);
 
 bool ssidIsValid(const char *s, size_t len);
+bool ssidLooksRandom(const char *s, size_t len);

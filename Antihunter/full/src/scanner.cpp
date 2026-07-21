@@ -899,6 +899,27 @@ std::mutex probeMutex;
 StringSetPsram uniqueSsids;
 StringSetPsram respondedSsids;
 
+bool ssidLooksRandom(const char *s, size_t len) {
+    if (!s || len < 20) return false;
+    bool up = false, lo = false, di = false;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c >= 'A' && c <= 'Z') up = true;
+        else if (c >= 'a' && c <= 'z') lo = true;
+        else if (c >= '0' && c <= '9') di = true;
+        else return false;
+    }
+    if (!(up && lo && di)) return false;
+    size_t sw = 0;
+    for (size_t i = 1; i < len; i++) {
+        char a = s[i - 1], b = s[i];
+        int ca = (a >= 'A' && a <= 'Z') ? 0 : (a >= 'a' && a <= 'z') ? 1 : 2;
+        int cb = (b >= 'A' && b <= 'Z') ? 0 : (b >= 'a' && b <= 'z') ? 1 : 2;
+        if (ca != cb) sw++;
+    }
+    return (sw * 100) / (len - 1) >= 55;
+}
+
 bool ssidIsValid(const char *s, size_t len) {
     if (!s || len == 0 || len > 32) return false;
     size_t i = 0;
