@@ -183,11 +183,6 @@ bool sendToSerial1(const String &message, bool canDelay) {
 
     xSemaphoreGive(serial1Mutex);
 
-    {
-        int sep = message.indexOf(": ");
-        String body = (sep > 0) ? message.substring(sep + 2) : message;
-        detect_logIncident(body, "local");
-    }
     // No unconditional post-delay: Serial1.flush() drains the FIFO; meshTxTask vTaskDelayUntil owns inter-frame pacing.
 
     return true;

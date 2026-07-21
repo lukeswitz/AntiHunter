@@ -521,6 +521,8 @@ void detect_correlateEapolBait(const uint8_t *sta, int8_t rssi, uint8_t channel)
                  confidence, (int)rssi, (unsigned)channel, (unsigned)now);
         String line(lineBuf);
         logEventToSD("/eapol_bait.jsonl", line);
+        ::detect_logIncident(String("EAPOL_BAIT:") + srcS + ":" + dstS + ":" +
+                             String(w.deauthCount) + ":" + String(rssi) + ":" + confidence, nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshEapolBait.load() && meshRateGate("EAPOL_BAIT_" + srcS + "_" + dstS, 60000)) {
             sendToSerial1(getNodeId() + ": EAPOL_BAIT:" + srcS + ":" + dstS +
                           ":" + String(w.deauthCount) + ":" + String(rssi) +
@@ -624,7 +626,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                      "{\"src\":\"%s\",\"sta\":\"%s\",\"keyinfo\":\"0x%04X\",\"reason\":\"FORGE_PMKID\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                      srBuf, bsBuf, (unsigned)keyInfo, (int)e.rssi, (unsigned)e.channel, (unsigned)millis());
             logEventToSD("/pmkid_forge.jsonl", String(lineBuf));
-            ::detect_logIncident(String("PMKID_FORGE:") + sr + ":" + bs, srBuf);
+            ::detect_logIncident(String("PMKID_FORGE:") + sr + ":" + bs, nullptr);
             if (meshEnabled && meshRateGate(String("PMKID_FORGE_") + sr, 30000)) {
                 char meshBuf[80];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: PMKID_FORGE:%s:%s:%d",
@@ -652,7 +654,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                 snprintf(sb, sizeof(sb), "%02X:%02X:%02X:%02X:%02X:%02X", src[0],src[1],src[2],src[3],src[4],src[5]);
                 Serial.printf("[DETECT] PMKID_FORGE tool=ROGUE_M1 src=%s (zero ANonce)\n", sb);
                 logEventToSD("/pmkid_forge.jsonl", String("{\"src\":\"") + sb + "\",\"reason\":\"FAKE_M1_ZERONONCE\",\"rssi\":" + String((int)e.rssi) + ",\"ch\":" + String((unsigned)e.channel) + ",\"ts\":" + String((unsigned)nowm) + "}");
-                ::detect_logIncident(String("PMKID_FORGE:") + sb + ":FAKE_M1", sb);
+                ::detect_logIncident(String("PMKID_FORGE:") + sb + ":FAKE_M1", nullptr);
                 quorum_addReport("PMKID_FORGE", String(sb), getNodeId(), e.rssi);
                 if (meshEnabled && meshRateGate(String("PMKID_FORGE_") + sb, 30000)) {
                     sendToSerial1(getNodeId() + ": PMKID_FORGE:" + sb + ":FAKE_M1:" + String((int)e.rssi), true);
@@ -693,7 +695,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                 if (s_hshkInc.size() >= 32) s_hshkInc.erase(s_hshkInc.begin());
                 s_hshkInc[hk] = now;
                 Serial.printf("[DETECT] HSHK bssid=%s sta=%s M%u (forced)\n", macStr(bssid).c_str(), macStr(sta).c_str(), (unsigned)msgNum);
-                ::detect_logIncident(String("HSHK:") + macStr(bssid) + ":" + macStr(sta), macStr(bssid).c_str());
+                ::detect_logIncident(String("HSHK:") + macStr(bssid) + ":" + macStr(sta), nullptr);
             }
         }
         if (forced && meshEnabled && sentinel_isRunning() && g_meshHshk.load() && meshRateGate("HSHK", 1000)) {
@@ -727,7 +729,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                 snprintf(ss, sizeof(ss), "%02X:%02X:%02X:%02X:%02X:%02X", src[0],src[1],src[2],src[3],src[4],src[5]);
                 Serial.printf("[DETECT] PMKID_HARVEST bssid=%s sta=%s (PMKID KDE present)\n", bb, ss);
                 logEventToSD("/pmkid.jsonl", String("{\"src\":\"")+ss+"\",\"bssid\":\""+bb+"\",\"reason\":\"PMKID_KDE\",\"rssi\":"+String((int)e.rssi)+",\"ch\":"+String((unsigned)e.channel)+",\"ts\":"+String((unsigned)nk)+"}");
-                ::detect_logIncident(String("PMKID_HARVEST:") + ss + ":" + bb, ss);
+                ::detect_logIncident(String("PMKID_HARVEST:") + ss + ":" + bb, nullptr);
                 quorum_addReport("PMKID", String(ss), getNodeId(), e.rssi);
                 if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() && meshRateGate(String("PMKID_HARVEST_") + bb, 30000)) {
                     sendToSerial1(getNodeId() + ": PMKID_HARVEST:" + ss + ":" + bb + ":" + String((int)e.rssi), true);
@@ -770,7 +772,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
                  srBuf, bsBuf, (int)ev.rssi, (unsigned)ev.channel, (unsigned)now,
                  (unsigned)b.bssidTs.size(), broadcastDest ? "true" : "false");
         logEventToSD("/pmkid.jsonl", String(lineBuf));
-        ::detect_logIncident(String("PMKID_HARVEST:") + sr + ":" + bs, srBuf);
+        ::detect_logIncident(String("PMKID_HARVEST:") + sr + ":" + bs, nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() && meshRateGate("PMKID_HARVEST", 5000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: PMKID_HARVEST:%s:%s:%d",
@@ -969,7 +971,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                          "{\"bssid\":\"%s\",\"ssid\":\"%s\",\"reason\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                          bb, ssidSelf, rsn, (int)e.rssi, (unsigned)e.channel, (unsigned)nowc);
                 logEventToSD("/eviltwin.jsonl", String(lb));
-                ::detect_logIncident(String("EVILTWIN:") + bb + ":" + rsn, bb);
+                ::detect_logIncident(String("EVILTWIN:") + bb + ":" + rsn, nullptr);
                 quorum_addReport("EVILTWIN", String(bb), getNodeId(), e.rssi);
                 attacker_kick(bssid, "EVILTWIN");
                 if (meshEnabled && sentinel_isRunning() && g_meshEviltwin.load() && meshRateGate(String("ETW_SELF_") + bb, 30000))
@@ -1251,7 +1253,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                          getNodeId().c_str(), bs, ev.reason, (int)ev.rssi);
                 sendToSerial1(String(meshMsg), true);
             }
-            ::detect_logIncident(String("EVILTWIN:") + bsStr + ":" + ev.reason, bs);
+            ::detect_logIncident(String("EVILTWIN:") + bsStr + ":" + ev.reason, nullptr);
             quorum_addReport("EVILTWIN", bsStr, getNodeId(), ev.rssi);
         }
         b.lastEvilEmitMs = now;
@@ -1285,7 +1287,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                              "{\"open_bssid\":\"%s\",\"owe_bssid\":\"%s\",\"ssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                              obBuf, owbBuf, ssid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                     logEventToSD("/owe_abuse.jsonl", String(lineBuf));
-                    ::detect_logIncident(String("OWE_ABUSE:") + obBuf + ":" + ssid, obBuf);
+                    ::detect_logIncident(String("OWE_ABUSE:") + obBuf + ":" + ssid, nullptr);
                     if (meshEnabled && sentinel_isRunning() && g_meshOwe.load() && meshRateGate(String("OWE_ABUSE_") + obBuf, 30000))
                         sendToSerial1(getNodeId() + ": OWE_ABUSE:" + obBuf + ":" + ssid + ":" + String((int)e.rssi), true);
                     break;
@@ -1366,6 +1368,7 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
              (int)rssi, (unsigned)channel, (unsigned)ev.ts);
     logEventToSD("/eviltwin.jsonl", String(jsonLine));
     String bsStr(bs);
+    ::detect_logIncident(String("BEACON_FORGE:") + bs + ":" + reason + ":" + String((int)rssi), nullptr);
     if (meshEnabled && sentinel_isRunning() && g_meshEviltwin.load() && meshRateGate(String("BEACON_FORGE_REASON_") + reason, 30000)) {
         char meshMsg[80];
         snprintf(meshMsg, sizeof(meshMsg), "%s: BEACON_FORGE:%s:%s:%d",
@@ -1508,7 +1511,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                              getNodeId().c_str(), sb, behavTool, (int)e.rssi);
                     sendToSerial1(String(mb), true);
                 }
-                ::detect_logIncident(String("DEAUTH_FORGE:") + sb + ":" + behavTool, sb);
+                ::detect_logIncident(String("DEAUTH_FORGE:") + sb + ":" + behavTool, nullptr);
                 quorum_addReport("DEAUTH_FORGE", String(sb), getNodeId(), e.rssi);
                 attacker_kick(src, "DEAUTH_FORGE");
             }
@@ -1538,7 +1541,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                          getNodeId().c_str(), srcBuf, (unsigned)r.count, (int)e.rssi);
                 sendToSerial1(String(meshBuf), true);
             }
-            ::detect_logIncident(String("DEAUTH_FLOOD:") + srcS + ":" + String(r.count), srcBuf);
+            ::detect_logIncident(String("DEAUTH_FLOOD:") + srcS + ":" + String(r.count), nullptr);
             quorum_addReport("DEAUTH_FLOOD", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FLOOD");
         }
@@ -1568,7 +1571,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                      srcBuf, toolTag, (unsigned)reason, (unsigned)seqCtrl, (unsigned)durLE,
                      selfSrc ? "true" : "false", (int)e.rssi, (unsigned)e.channel, (unsigned)now);
             logEventToSD("/deauth_flood.jsonl", String(lineBuf));
-            ::detect_logIncident(String("DEAUTH_FORGE:") + srcS + ":" + toolTag, srcBuf);
+            ::detect_logIncident(String("DEAUTH_FORGE:") + srcS + ":" + toolTag, nullptr);
             quorum_addReport("DEAUTH_FORGE", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FORGE");
             // Mesh forwarding is separate/additional.
@@ -1629,7 +1632,7 @@ static void handleAssocReq(const DetectFrameEvent &e) {
                  getNodeId().c_str(), bsBuf, (unsigned)w.distinctSrc.size(), (int)w.bestRssi);
         sendToSerial1(String(meshBuf), true);
     }
-    ::detect_logIncident(String("ASSOC_SLEEP:") + bs + ":" + String((unsigned)w.distinctSrc.size()), bsBuf);
+    ::detect_logIncident(String("ASSOC_SLEEP:") + bs + ":" + String((unsigned)w.distinctSrc.size()), nullptr);
     quorum_addReport("ASSOC_SLEEP", bs, getNodeId(), w.bestRssi);
 }
 
@@ -1704,7 +1707,9 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
              w.ssid, (unsigned)w.distinctSrc.size(), (unsigned)PROBE_BEHAVE_WIN_MS,
              (int)w.bestRssi, (unsigned)w.channel, (unsigned)now);
     logEventToSD("/probe_flood.jsonl", String(lineBuf));
-    ::detect_logIncident(String("PROBE_FLOOD:") + w.ssid + ":" + String((unsigned)w.distinctSrc.size()), w.ssid);
+    ::detect_logIncident(String("PROBE_FLOOD:") + w.ssid + ":" + String((unsigned)w.distinctSrc.size()), nullptr);
+    ::detect_logIncident(String("PROBE_FLOOD_BEHAVE:") + w.ssid + ":src=" +
+                         String((unsigned)w.distinctSrc.size()) + ":" + String((int)w.bestRssi), nullptr);
     char rateKeyBuf[40];
     snprintf(rateKeyBuf, sizeof(rateKeyBuf), "PROBE_BEHAVE_%08X", (uint32_t)key);
     if (meshEnabled && meshRateGate(String(rateKeyBuf), 30000)) {
@@ -1815,7 +1820,7 @@ static void handleProbeReq(const DetectFrameEvent &e) {
                  ",\"reason\":\"FORGE_PROBE_FLOOD\"" +
                  ",\"ts\":" + String(now) + "}";
     logEventToSD("/probe_flood.jsonl", msg);
-    ::detect_logIncident(String("PROBE_FLOOD:") + w.ssid + ":" + String(w.hits), w.ssid);
+    ::detect_logIncident(String("PROBE_FLOOD:") + w.ssid + ":" + String(w.hits), nullptr);
     if (meshEnabled && sentinel_isRunning() && g_meshProbeFlood.load() && meshRateGate("PROBE_FLOOD_" + String((uint32_t)key, HEX), 30000)) {
         sendToSerial1(getNodeId() + ": PROBE_FLOOD:" + w.ssid + ":" + String(w.hits) + ":" + String(w.bestRssi), true);
     }
@@ -1874,6 +1879,7 @@ static void handleProbeResp(const DetectFrameEvent &e) {
              "{\"bssid\":\"%s\",\"beacon_ssid\":\"%s\",\"resp_ssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
              bsBuf, b.ssid, ssid, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
     logEventToSD("/ssid_confusion.jsonl", String(lineBuf));
+    ::detect_logIncident(String("SSID_CONFUSION:") + bsBuf + ":" + String((int)e.rssi), nullptr);
     if (meshEnabled) {
         if (g_meshSsidConf.load() && meshRateGate(String("SSIDCONF_") + bs, 30000)) {
             char meshBuf[80];
@@ -1931,7 +1937,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
             Serial.printf("[DETECT] AUTH_FLOOD bssid=%s distinct_src=%u frames=%u in %ums\n",
                           bsBuf, (unsigned)w.distinctSrc.size(), (unsigned)w.frames,
                           (unsigned)(tnow - w.windowStartMs));
-            ::detect_logIncident(String("AUTH_FLOOD:") + bs + ":" + String((unsigned)w.distinctSrc.size()) + ":" + String((int)w.bestRssi), bsBuf);
+            ::detect_logIncident(String("AUTH_FLOOD:") + bs + ":" + String((unsigned)w.distinctSrc.size()) + ":" + String((int)w.bestRssi), nullptr);
             char lb[260];
             snprintf(lb, sizeof(lb),
                      "{\"bssid\":\"%s\",\"distinct_src\":%u,\"frames\":%u,\"win_ms\":%u,\"rssi\":%d,\"ch\":%u,\"reason\":\"AUTH_DOS\",\"ts\":%u}",
@@ -1997,7 +2003,7 @@ static void handleAuthSae(const DetectFrameEvent &e) {
                  bsBuf, (unsigned)unmatched, (int)e.rssi, (unsigned)e.channel,
                  (unsigned)c.windowStart, (unsigned)now);
         logEventToSD("/sae_dos.jsonl", String(lineBuf));
-        ::detect_logIncident(String("SAE_DOS:") + bs + ":" + String((unsigned)unmatched), bsBuf);
+        ::detect_logIncident(String("SAE_DOS:") + bs + ":" + String((unsigned)unmatched), nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshSae.load() && meshRateGate(String("SAE_DOS_") + bs, 10000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: SAE_DOS:%s:%u",
@@ -2069,6 +2075,7 @@ static void handleQosData(const DetectFrameEvent &e) {
                  srcBuf, (unsigned)tid, reason, (unsigned)lastPN,
                  (unsigned)obsPN, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
         logEventToSD("/fragattack.jsonl", String(lineBuf));
+        ::detect_logIncident(String("FRAG:") + srcBuf + ":" + reason, nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshFrag.load() && meshRateGate(String("FRAG_") + srcBuf + reason, 30000)) {
             char meshBuf[80];
             snprintf(meshBuf, sizeof(meshBuf), "%s: FRAG:%s:%s",
@@ -2284,7 +2291,7 @@ static void emitBleAttack(const uint8_t *addr, int8_t rssi, const BleAttackSig &
                   ",\"ts\":" + String(now) + "}";
     logEventToSD("/ble_attack.jsonl", line);
     Serial.printf("[DETECT] BLE_ATTACK tool=%s family=%s addr=%s rssi=%d\n", ev.tool, ev.family, a.c_str(), (int)rssi);
-    ::detect_logIncident(String("BLE_ATTACK:") + ev.tool + ":" + a, a.c_str());
+    ::detect_logIncident(String("BLE_ATTACK:") + ev.tool + ":" + a, nullptr);
     if (meshEnabled && meshRateGate(String("BLEATK_") + ev.tool + "_" + a, 30000)) {
         sendToSerial1(getNodeId() + ": BLE_ATTACK:" + ev.tool + ":" + a + ":" + String(rssi), true);
     }
@@ -2354,7 +2361,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
                                   ":models=" + String(fpModels.size()), true);
                 }
                 Serial.printf("[DETECT] BLE_ATTACK tool=FastPair_Rotate addr=%s models=%u\n", a.c_str(), (unsigned)fpModels.size());
-                ::detect_logIncident(String("BLE_ATTACK:FastPair_Rotate:") + a, a.c_str());
+                ::detect_logIncident(String("BLE_ATTACK:FastPair_Rotate:") + a, nullptr);
                 quorum_addReport("BLE_ATTACK", String("FastPair_Rotate"), getNodeId(), rssi);
             }
             break;
@@ -2396,7 +2403,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
                                   ":addrs=" + String(iosAddrs.size()), true);
                 }
                 Serial.printf("[DETECT] BLE_ATTACK tool=iOS_Pair_Spam addr=%s types=%u addrs=%u\n", a.c_str(), (unsigned)iosTypes.size(), (unsigned)iosAddrs.size());
-                ::detect_logIncident(String("BLE_ATTACK:iOS_Pair_Spam:") + a, a.c_str());
+                ::detect_logIncident(String("BLE_ATTACK:iOS_Pair_Spam:") + a, nullptr);
                 quorum_addReport("BLE_ATTACK", String("iOS_Pair_Spam"), getNodeId(), rssi);
             }
             break;
@@ -3159,7 +3166,7 @@ static void jammingEval(uint32_t now) {
                 (unsigned)ch, (unsigned)pdrPct, (unsigned)e, (unsigned)v, (int)avgErrRssi, (unsigned)now);
             logEventToSD("/jamming.jsonl", String(line));
             char bch[8]; snprintf(bch, sizeof(bch), "%u", (unsigned)ch);
-            ::detect_logIncident(String("JAMMING:") + bch + ":" + String((unsigned)pdrPct) + ":" + String((unsigned)e), bch);
+            ::detect_logIncident(String("JAMMING:") + bch + ":" + String((unsigned)pdrPct) + ":" + String((unsigned)e), nullptr);
             quorum_addReport("JAMMING", String(bch), getNodeId(), avgErrRssi);
             if (meshEnabled && sentinel_isRunning() && g_meshJam.load() && meshRateGate(String("JAM_") + bch, 60000)) {
                 char mb[80];
@@ -3464,7 +3471,7 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
         String body = String("DEAUTH_AP_TARGETED:") + mc + ":" + String(reasonCode) + ":" + String(g_softApDeauth.count);
         Serial.printf("[DETECT] %s (AP under deauth - %u disconnects in %ums)\n",
                       body.c_str(), g_softApDeauth.count, (unsigned)(now - g_softApDeauth.winStartMs));
-        ::detect_logIncident(body, mc);
+        ::detect_logIncident(body, nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load()) {
             sendToSerial1(getNodeId() + ": " + body, true);
         }
@@ -3534,6 +3541,8 @@ void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi) {
         Serial.printf("[DETECT] PROBE_FLOOD_AP distinct=%u in %ums rssi=%d\n",
                       (unsigned)g_softApProbe.srcCounts.size(),
                       (unsigned)(now - g_softApProbe.winStartMs), (int)rssi);
+        ::detect_logIncident(String("PROBE_FLOOD_AP:") + String((unsigned)g_softApProbe.srcCounts.size()) +
+                             ":" + String((int)rssi), nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshProbeFlood.load()) {
             sendToSerial1(getNodeId() + ": PROBE_FLOOD_AP:" + String((unsigned)g_softApProbe.srcCounts.size()) +
                           ":" + String((int)rssi), true);
@@ -4048,6 +4057,9 @@ void recon_updateFromProbeSession(const char *identityId, uint8_t addToScore, co
         }
     }
     r.ts = millis();
+    if (r.score >= 70) {
+        ::detect_logIncident(String("RECON:") + identityId + ":" + String(r.score), nullptr);
+    }
     if (r.score >= 70 && meshEnabled) {
         if (g_meshRecon.load() && meshRateGate("RECON_" + String(identityId), 30000))
             sendToSerial1(getNodeId() + ": RECON:" + identityId + ":" + String(r.score), true);
