@@ -260,7 +260,11 @@
         </select>
       </div>
 
-      <div class="flash-area">
+      <div id="buildInfo" class="banner info" style="max-width:420px;margin:0 auto 14px;text-align:center">
+        Resolving build&hellip;
+      </div>
+
+      <div class="flash-area" id="flashArea" style="display:none">
         <esp-web-install-button id="flashBtn">
           <button class="btn primary" slot="activate" style="font-size:16px;padding:16px 40px">
             Connect & Flash
@@ -542,6 +546,7 @@ chmod +x flashAntihunter.sh
     let selectedFirmware = 'full';
     let selectedChannel = 'stable';
     let latestVersion = null;
+    let manifestReq = 0;
     let port = null;
     let reader = null;
     let keepReading = false;
@@ -561,13 +566,43 @@ chmod +x flashAntihunter.sh
       updateManifest();
     }
 
-    function updateManifest() {
+    function setBuildInfo(text, cls, ready) {
+      const el = document.getElementById('buildInfo');
+      el.className = 'banner ' + cls;
+      el.textContent = text;
+      document.getElementById('flashArea').style.display = ready ? 'block' : 'none';
+    }
+
+    // Channel lives in the manifest filename AND in the manifest body; both are
+    // checked before the flash button is armed, so a mislabelled build cannot flash.
+    async function updateManifest() {
       const variant = selectedFirmware === 'full' ? 'full' : 'headless';
-      // CI (release.yml) commits per-variant manifests to each channel's branch:
-      // stable channel -> main branch, beta channel -> beta branch.
-      const ref = (selectedChannel === 'beta') ? 'beta' : 'main';
-      const url = `https://raw.githubusercontent.com/${REPO}/${ref}/docs/flasher/manifest-${variant}.json`;
-      document.getElementById('flashBtn').setAttribute('manifest', url);
+      const channel = selectedChannel;
+      const label = (channel === 'beta') ? 'Beta' : 'Stable';
+      const url = new URL(`flasher/manifest-${variant}-${channel}.json`, location.href).toString();
+      const req = ++manifestReq;
+      const btn = document.getElementById('flashBtn');
+
+      btn.removeAttribute('manifest');
+      setBuildInfo(`Resolving ${label} ${variant} build…`, 'info', false);
+
+      try {
+        const resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`manifest HTTP ${resp.status}`);
+        const m = await resp.json();
+        if (req !== manifestReq) return;
+        if (m.channel !== channel || m.variant !== variant) {
+          throw new Error(`manifest says ${m.channel || '?'}/${m.variant || '?'}, expected ${channel}/${variant}`);
+        }
+        const version = m.version || 'unknown';
+        btn.setAttribute('manifest', url);
+        document.getElementById('versionText').textContent = `${label} ${version}`;
+        setBuildInfo(`${label} · ${variant} · ${version}`, 'ok', true);
+      } catch (e) {
+        if (req !== manifestReq) return;
+        document.getElementById('versionText').textContent = label;
+        setBuildInfo(`Cannot verify the ${label} ${variant} build (${e.message}). Flashing disabled.`, 'warn', false);
+      }
     }
 
     /* -- Terminal -- */
@@ -813,21 +848,12 @@ chmod +x flashAntihunter.sh
         document.getElementById('browserWarning').style.display = 'block';
       }
 
-      try {
-        const resp = await fetch(
-          `https://api.github.com/repos/${REPO}/releases/latest`,
-          { headers: { Accept: 'application/vnd.github.v3+json' } }
-        );
-        if (resp.ok) {
-          const data = await resp.json();
-          latestVersion = data.tag_name;
-        }
-      } catch (e) {}
-
-      latestVersion = latestVersion || FALLBACK_VERSION;
+      // Version shown is the one the selected channel will actually flash,
+      // taken from the manifest itself - not from releases/latest, which is
+      // always the stable tag and misreports the beta channel.
       document.getElementById('versionBadge').style.display = 'inline-flex';
-      document.getElementById('versionText').textContent = latestVersion;
-      updateManifest();
+      document.getElementById('versionText').textContent = FALLBACK_VERSION;
+      await updateManifest();
     }
 
     init();

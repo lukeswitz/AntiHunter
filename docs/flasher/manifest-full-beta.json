@@ -1,0 +1,17 @@
+{
+  "name": "AntiHunter Full - Beta (v0.9.5-beta1)",
+  "version": "v0.9.5-beta1",
+  "channel": "beta",
+  "variant": "full",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/bootloader.bin", "offset": 0 },
+        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/partitions.bin", "offset": 32768 },
+        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/antihunter-full-v0.9.5-beta1.bin", "offset": 65536 }
+      ]
+    }
+  ]
+}
