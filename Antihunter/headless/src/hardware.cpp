@@ -520,7 +520,6 @@ void saveConfiguration() {
     configFile.close();
 
     Serial.println("[CONFIG] Configuration saved to NVS and SD card");
-    Serial.printf("[CONFIG] hbEnabled=%s\n", hbEnabled ? "ENABLED" : "DISABLED");
 }
 
 void loadConfiguration() {
