@@ -16,7 +16,10 @@
   <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
 </div>
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
-</p>
+
+  Also for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+  
+ <strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong>
 
    > Beta version with new features in development. Potential stability issues and unexpected behavior may occur.   
 
@@ -29,7 +32,11 @@
   <a href="https://lectronz.com/stores/antihunter"  alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
 
 
-- `May 2026` - New **[Sentinel](#g-sentinel--counterintel-engine)** counterintel layer: passive WiFi attack detection (beta)
+---
+
+- `Jul 2026` Official [website](https://rootdowndigital.com/antihunter.html)
+
+
 - `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
 
 
