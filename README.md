@@ -16,6 +16,8 @@
 <div align="center">
 
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+
+  Also for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
   
  <strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong>
 
@@ -29,7 +31,7 @@
 
 ---
 
-Learn more: [Visit the AntiHunter Website](https://rootdowndigital.com/antihunter.html)
+- `Jul 2026` Official [website](https://rootdowndigital.com/antihunter.html)
 
 
 - `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
