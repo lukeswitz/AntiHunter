@@ -240,6 +240,8 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 
 - **Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
 
+- **Hotspot false-positive suppression**: the crypto/handshake detectors (PMKID, KRACK, handshake capture, SAE-DoS) and all beacon-based detectors (evil-twin, OWE, SSID-confusion, TSF, beacon-flood) skip **locally-administered / randomized BSSIDs**. Phone hotspots and MAC-randomizing devices produce normal handshakes, SAE retries and M3 retransmits that would otherwise trip these detectors as attacks. Volume-based DoS detectors (deauth/auth/assoc floods, probe-flood) intentionally do **not** skip them, since real floods commonly spoof randomized sources.
+
 - **Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
 
 - **Mesh command audit:** every privileged command received on the mesh is logged with the radio id that issued it. It shows up in the **Sentinel UI** (the *Mesh Commands* panel, below AP Clients — full build) and via the **API** (`GET /api/mesh_cmd.jsonl`), and is persisted to SD (`/mesh_cmd.jsonl`). This is a provenance audit trail, not an alert — so it never false-positives.
