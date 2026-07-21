@@ -84,8 +84,9 @@ bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieSta
     return false;
 }
 
-bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize)
+bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize, bool *isWildcard)
 {
+    if (isWildcard) *isWildcard = false;
     if (frameLen < 26) return false;
     const uint8_t *ie = payload + 24;
     uint16_t ieLen = frameLen - 24;
@@ -97,6 +98,7 @@ bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidB
         if (tag == 0) {
             if (len == 0) {
                 ssidBuf[0] = '\0';
+                if (isWildcard) *isWildcard = true;
                 return false;
             }
             size_t copyLen = (len < ssidBufSize - 1) ? len : (ssidBufSize - 1);
@@ -281,8 +283,9 @@ void probeDetectionTask(void *pv)
 
             char ssidBuf[33] = {0};
             bool hasSSID = false;
+            bool isWildcardProbe = false;
             if (!event.dstMatch) {
-                hasSSID = extractSsidFromProbe(event.payload, event.payloadLen, ssidBuf, sizeof(ssidBuf));
+                hasSSID = extractSsidFromProbe(event.payload, event.payloadLen, ssidBuf, sizeof(ssidBuf), &isWildcardProbe);
             }
 
             bool macHit = matchesMac(event.mac);
@@ -313,6 +316,7 @@ void probeDetectionTask(void *pv)
                     dev.lastSeen = millis();
                     dev.probeCount++;
                     if (hasSSID) addProbeSsid(dev, ssidBuf);
+                    if (isWildcardProbe) dev.wildcardCount++;
                     if (isHit && !dev.isTargetHit) {
                         dev.isTargetHit = true;
                         probeHitCount++;
@@ -376,6 +380,7 @@ void probeDetectionTask(void *pv)
                     else dev.hitReason[0] = '\0';
 
                     if (hasSSID) addProbeSsid(dev, ssidBuf);
+                    if (isWildcardProbe) dev.wildcardCount++;
                     probeDevices[String(macStr)] = dev;
                     if (isHit) probeHitCount++;
                 }
@@ -591,8 +596,8 @@ String getProbeResults()
                 bool ghost = respondedSsids.find(String(dev.ssids[i])) == respondedSsids.end();
                 results += (ghost ? "~\"" : "\"") + s + "\"";
             }
-            if (!any) results += " (wildcard)";
-        } else {
+            if (!any && dev.wildcardCount) results += " (wildcard)";
+        } else if (dev.wildcardCount) {
             results += " (wildcard)";
         }
 

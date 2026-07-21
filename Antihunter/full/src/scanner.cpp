@@ -1337,8 +1337,9 @@ void snifferScanTask(void *pv)
 
                 char pssid[33] = {0};
                 bool pHasSsid = false;
+                bool pWildcard = false;
                 if (!pEvt.dstMatch) {
-                    pHasSsid = extractSsidFromProbe(pEvt.payload, pEvt.payloadLen, pssid, sizeof(pssid));
+                    pHasSsid = extractSsidFromProbe(pEvt.payload, pEvt.payloadLen, pssid, sizeof(pssid), &pWildcard);
                 }
 
                 bool pRandomized = (pEvt.mac[0] & 0x02) && !(pEvt.mac[0] & 0x01);
@@ -1353,6 +1354,7 @@ void snifferScanTask(void *pv)
                     pd.lastSeen = millis();
                     pd.probeCount++;
                     if (pHasSsid) addProbeSsid(pd, pssid);
+                    if (pWildcard) pd.wildcardCount++;
                 } else if (probeDevices.size() < 100) {
                     ProbeDevice pd = {};
                     memcpy(pd.mac, pEvt.mac, 6);
@@ -1371,6 +1373,7 @@ void snifferScanTask(void *pv)
                         if (pvLocal) strncpy(pd.vendor, pvLocal, sizeof(pd.vendor) - 1);
                     }
                     if (pHasSsid) addProbeSsid(pd, pssid);
+                    if (pWildcard) pd.wildcardCount++;
                     probeDevices[String(pmac)] = pd;
                 }
             }
