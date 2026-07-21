@@ -300,7 +300,7 @@ void karma_observeProbeResp(const uint8_t *bssid, const char *ssid, int8_t rssi)
         lk.unlock();
         karmaEmitBait(emitBssid);
         Serial.printf("[DETECT] KARMA_CAND bssid=%s distinct_ssids=%u\n", macStr(emitBssid).c_str(), (unsigned)emitDistinctSsids);
-        ::detect_logIncident(String("KARMA_CAND:") + macStr(emitBssid) + ":" + String(emitDistinctSsids), macStr(emitBssid).c_str());
+        ::detect_logIncident(String("KARMA_CAND:") + macStr(emitBssid) + ":" + String(emitDistinctSsids), nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshKarma.load() && meshRateGate("KARMA_CAND_" + macStr(emitBssid), 60000)) {
             sendToSerial1(getNodeId() + ": KARMA_CAND:" + macStr(emitBssid) +
                           ":" + String(emitDistinctSsids), true);
@@ -325,7 +325,7 @@ bool karma_checkBaitMatch(const char *ssid, const uint8_t *bssid, int8_t rssi) {
     strncpy(cand.lastSsid, ssid, sizeof(cand.lastSsid) - 1);
     if (!wasConfirmed) {   // emit once per BSSID — karma answers every bait, would storm otherwise
         Serial.printf("[DETECT] KARMA_CONFIRMED bssid=%s ssid=%s rssi=%d\n", macStr(bssid).c_str(), ssid, (int)rssi);
-        ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), macStr(bssid).c_str());
+        ::detect_logIncident(String("KARMA_CONFIRMED:") + macStr(bssid) + ":" + String(rssi), nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshKarma.load() && meshRateGate("KARMA_CONF_" + macStr(bssid), 30000)) {
             sendToSerial1(getNodeId() + ": KARMA_CONFIRMED:" + macStr(bssid) + ":" + String(rssi), true);
         }
@@ -426,6 +426,7 @@ void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
     s.lastSeen = now;
     pwnagotchiExtractSnippet(ie, ieLen, s.snippet, sizeof(s.snippet));
 
+    ::detect_logIncident(String("PWNAGOTCHI:") + macStr(bssid) + ":" + String(rssi), nullptr);
     if (meshEnabled && sentinel_isRunning() && g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
         sendToSerial1(getNodeId() + ": PWNAGOTCHI:" + macStr(bssid) + ":" + String(rssi), true);
     quorum_addReport("PWNAGOTCHI", macStr(bssid), getNodeId(), rssi);
@@ -497,6 +498,7 @@ void attacker_kick(const uint8_t *mac, const char *attackType) {
         }
     }
     if (startTrilat) ::startTriangulation(macS, 60);
+    ::detect_logIncident(String("ATTACKER_HUNT:") + macStr(mac) + ":" + String(attackType ? attackType : "?"), nullptr);
     if (meshEnabled && sentinel_isRunning() && g_meshAttackerHunt.load() && meshRateGate("HUNT_" + macStr(mac), 60000)) {
         sendToSerial1(getNodeId() + ": ATTACKER_HUNT:" + macStr(mac) + ":" + String(attackType ? attackType : "?"), true);
     }
@@ -583,6 +585,8 @@ void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
         if (kfit != r.fragments.end()) {
             if (r.krackEvents < 255) r.krackEvents++;
             g_krackEvents.fetch_add(1);
+            ::detect_logIncident(String("KRACK:") + macStr(bssid) + ":" + macStr(sta) +
+                                 ":" + String((unsigned long)replayCtr), nullptr);
             if (meshEnabled && sentinel_isRunning() && g_meshHshk.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
                 sendToSerial1(getNodeId() + ": KRACK:" + macStr(bssid) + ":" + macStr(sta) +
                               ":" + String((unsigned long)replayCtr), true);
