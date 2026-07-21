@@ -41,6 +41,7 @@ static const uint32_t PROBE_HIT_COOLDOWN_MS = 60000;
 void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse)
 {
     if (!ssid || ssid[0] == '\0') return;
+    if (!ssidIsValid(ssid, strlen(ssid))) return;
     for (uint8_t i = 0; i < dev.ssidCount; i++) {
         if (strcasecmp(dev.ssids[i], ssid) == 0) return;
     }
