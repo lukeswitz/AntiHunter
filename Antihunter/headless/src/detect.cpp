@@ -130,15 +130,6 @@ static constexpr uint32_t AUTH_FLOOD_WIN_MS  = 5000;
 static constexpr uint16_t AUTH_FLOOD_DISTINCT_SRC = 16;  // spoofed-MAC fan-out
 static constexpr uint16_t AUTH_FLOOD_FRAMES  = 60;        // raw rate floor in window
 
-struct PnState {
-    uint64_t highPN;
-    uint64_t dupPN;
-    uint32_t lastSeen;
-    uint8_t  dupCount;
-};
-PsramMap<uint64_t, PnState> g_pnState;
-static constexpr uint64_t PN_REKEY_DROP = 4096;
-static constexpr uint64_t PN_REKEY_LOW  = 16;
 // In-progress fragmented-MSDU tracking for real FragAttacks signatures
 // (CVE-2020-26146 non-consecutive PN, CVE-2020-26147 mixed enc/plaintext) —
 // key = (srcMac<<4 | tid). Passive: reads FC MoreFrag + seq-ctrl frag# + CCMP PN.
@@ -2046,21 +2037,14 @@ static void handleQosData(const DetectFrameEvent &e) {
     if ((int)e.len < hdrLen) return;
     uint8_t qos0 = p[hdrLen - 2];
     uint8_t tid = qos0 & 0x0F;
-    uint8_t aMsdu = (qos0 >> 7) & 1;
 
     bool havePN = false;
     uint32_t pn32 = 0;
-    uint64_t pn48 = 0;
-    uint8_t  keyId = 0;
     if (protectedBit && (int)e.len >= hdrLen + 8) {
         const uint8_t *cc = p + hdrLen;
         if (cc[3] & 0x20) {
             pn32 = ((uint32_t)cc[5] << 24) | ((uint32_t)cc[4] << 16) |
                    ((uint32_t)cc[1] << 8)  |  cc[0];
-            pn48 = ((uint64_t)cc[7] << 40) | ((uint64_t)cc[6] << 32) |
-                   ((uint64_t)cc[5] << 24) | ((uint64_t)cc[4] << 16) |
-                   ((uint64_t)cc[1] << 8)  |  (uint64_t)cc[0];
-            keyId = cc[3] & 0x03;
             havePN = true;
         }
     }
@@ -2131,42 +2115,6 @@ static void handleQosData(const DetectFrameEvent &e) {
         }
     }
 
-    if (havePN && !isFragment) {
-        uint64_t pnKey = (packMac(a2) << 6) | ((uint64_t)tid << 2) | keyId;
-        auto it = g_pnState.find(pnKey);
-        if (it == g_pnState.end()) {
-            if (g_pnState.size() >= 64) {
-                uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-                for (const auto &kv : g_pnState) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
-                g_pnState.erase(oldestK);
-            }
-            g_pnState[pnKey] = PnState{pn48, 0, now, 0};
-            return;
-        }
-        PnState &st = it->second;
-        st.lastSeen = now;
-        if (pn48 > st.highPN) {
-            st.highPN = pn48;
-            st.dupCount = 0;
-            return;
-        }
-        if (st.highPN - pn48 >= PN_REKEY_DROP && pn48 <= PN_REKEY_LOW) {
-            st.highPN = pn48;
-            st.dupPN = 0;
-            st.dupCount = 0;
-            return;
-        }
-        if (pn48 == st.dupPN) {
-            if (st.dupCount < 255) st.dupCount++;
-        } else {
-            st.dupPN = pn48;
-            st.dupCount = 1;
-        }
-        if (st.dupCount >= g_fragReuseThresh.load()) {
-            fireFrag(aMsdu ? "AMSDU_BAD" : "PN_REPLAY", (uint32_t)st.highPN, (uint32_t)pn48);
-            st.dupCount = 0;
-        }
-    }
 }
 
 // =============================================================================
@@ -3316,10 +3264,6 @@ void detectTask(void *pv) {
                 if (now - it->second.windowStart > 60000) it = g_saeCounters.erase(it);
                 else ++it;
             }
-            for (auto it = g_pnState.begin(); it != g_pnState.end(); ) {
-                if (now - it->second.lastSeen > 600000) it = g_pnState.erase(it);
-                else ++it;
-            }
             for (auto it = g_apBaseline.begin(); it != g_apBaseline.end(); ) {
                 if (now - it->second.lastSeen > 3600000UL) it = g_apBaseline.erase(it);
                 else ++it;
@@ -4421,7 +4365,6 @@ String detect_getHealthJson() {
     j += ",\"state\":{\"ap_baseline\":" + String((unsigned)g_apBaseline.size()) +
          ",\"pmkid_bursts\":" + String((unsigned)g_pmkidBursts.size()) +
          ",\"sae_counters\":" + String((unsigned)g_saeCounters.size()) +
-         ",\"pn_state\":" + String((unsigned)g_pnState.size()) +
          ",\"frag_msdu\":" + String((unsigned)g_fragMsdu.size()) +
          ",\"ble_trackers\":" + String((unsigned)g_bleTrackers.size()) +
          ",\"airtag\":" + String((unsigned)g_airtag.size()) +
@@ -4457,7 +4400,6 @@ void detect_clearAll() {
     g_saeCounters.clear();
     g_oweAbuseLog.clear();
     g_fragLog.clear();
-    g_pnState.clear();
     g_bleMalformedLog.clear();
     g_ridClaims.clear();
     g_alerts.clear();
