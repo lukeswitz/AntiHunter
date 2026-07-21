@@ -170,13 +170,10 @@ static uint32_t g_jamLastEval = 0;
 // LOCALLY only (never re-broadcast — would amplify a flood). Replay/malformed
 // dropped (weak/FP-prone).
 std::atomic<bool> g_meshGuardEnabled{false};
-static PsramSet<String> g_meshPeers;          // senders seen issuing benign lines
-static PsramMap<String,uint8_t> g_meshSeenCnt; // benign-line count per sender
 static uint32_t g_meshInbWinMs = 0;
 static uint32_t g_meshInbCount = 0;
 static uint32_t g_meshLastFloodMs = 0;
 static uint32_t g_meshLastSpoofMs = 0;
-static uint32_t g_meshLastInjectMs = 0;
 static uint32_t g_meshGuardHits = 0;
 
 // Per-feature enable (local detection on/off)
@@ -212,7 +209,7 @@ std::atomic<bool> g_meshHshk{true};        // HSHK, KRACK
 std::atomic<bool> g_meshFrag{true};        // FRAG
 std::atomic<bool> g_meshTsf{true};         // TSF (EVILTWIN w/ TSF reason)
 std::atomic<bool> g_meshJam{true};         // JAM
-std::atomic<bool> g_meshGuard{true};       // MESH_SPOOF_SELF, MESH_FLOOD, MESH_CMD_INJECT
+std::atomic<bool> g_meshGuard{true};       // MESH_SPOOF_SELF, MESH_FLOOD (+ cmd provenance audit)
 // Legacy atomics kept to avoid linker break — not in UI
 std::atomic<bool> g_meshSsidConf{true};
 std::atomic<bool> g_meshBleMalformed{false};
@@ -708,6 +705,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     if (msgNum != 1 || !g_pmkidEnabled.load()) return;
     const uint8_t *src = sta;
     bool broadcastDest = (a1[0] & 0x01) != 0;
+    if (bssid[0] & 0x02) return;
 
     {   // M1 carrying a real PMKID KDE = harvestable PMKID exposed (clientless capture)
         static const uint8_t KDE[6] = {0xDD,0x14,0x00,0x0F,0xAC,0x04};
@@ -1093,7 +1091,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
         b.lastTSFSampleMs = now;
         b.beaconInterval = beaconInt;
         b.ieHash = ieHash;
-        strncpy(b.ssid, ssid, sizeof(b.ssid) - 1);
+        if (ssid[0] == 0 || ssidIsValid(ssid, strlen(ssid))) strncpy(b.ssid, ssid, sizeof(b.ssid) - 1);
         b.channel = e.channel;
         b.rssi = e.rssi;
         b.isOpen = isOpen;
@@ -1302,7 +1300,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
     b.lastTSFSampleMs = now;
     b.beaconInterval = beaconInt;
     b.ieHash = ieHash;
-    strncpy(b.ssid, ssid, sizeof(b.ssid) - 1);
+    if (ssid[0] == 0 || ssidIsValid(ssid, strlen(ssid))) strncpy(b.ssid, ssid, sizeof(b.ssid) - 1);
     b.channel = e.channel;
     b.rssi = e.rssi;
     b.isOpen = isOpen;
@@ -1847,6 +1845,7 @@ static void handleProbeResp(const DetectFrameEvent &e) {
     char ssid[33] = {0};
     if (!extractSSID(ie, ieLen, ssid, sizeof(ssid))) return;
     if (ssid[0] == 0) return;
+    if (!ssidIsValid(ssid, strlen(ssid))) return;
 
     if (g_karmaEnabled.load()) {
         karma_observeProbeResp(bssid, ssid, e.rssi);
@@ -3189,23 +3188,20 @@ void mesh_observeInbound(const String &sender, const String &body) {
         }
     }
 
-    // 3. privileged-command injection from a sender with no benign history
-    bool isCmd = body.startsWith("TRIANGULATE") || body.startsWith("TRI_") ||
-                 body.startsWith("TIME_SYNC_REQ") || body.startsWith("@ALL");
-    if (isCmd) {
-        uint8_t hist = g_meshSeenCnt.count(sender) ? g_meshSeenCnt[sender] : 0;
-        if (sender.length() && hist < 2) {
-            if (g_meshLastInjectMs == 0 || (now - g_meshLastInjectMs) >= 30000UL) {
-                g_meshLastInjectMs = now;
-                emit(String("MESH_CMD_INJECT:") + sender + ":" + body.substring(0, 16));
-            }
-        }
-    } else if (sender.length()) {
-        if (g_meshSeenCnt.size() >= 32 && !g_meshSeenCnt.count(sender)) g_meshSeenCnt.clear();
-        uint8_t &c = g_meshSeenCnt[sender];
-        if (c < 255) c++;
-        if (g_meshPeers.size() >= 256 && !g_meshPeers.count(sender)) g_meshPeers.clear();
-        g_meshPeers.insert(sender);
+    // 3. Command provenance audit — record which radio issued which command.
+    //    Injection is indistinguishable from legit ops on a shared channel, so we
+    //    log the source (audit trail) instead of alerting: zero false positives.
+    if (sender.length() && (body.startsWith("@") || body.startsWith("TRIANGULATE") ||
+                            body.startsWith("TRI_"))) {
+        String cmd = body.substring(0, 96);
+        cmd.replace("\\", "\\\\"); cmd.replace("\"", "\\\"");
+        String src = sender;
+        src.replace("\\", "\\\\"); src.replace("\"", "\\\"");
+        char al[240];
+        snprintf(al, sizeof(al), "{\"ts\":%u,\"epoch\":%u,\"src\":\"%s\",\"cmd\":\"%s\"}",
+                 (unsigned)now, (unsigned)getRTCEpoch(), src.c_str(), cmd.c_str());
+        logEventToSD("/mesh_cmd.jsonl", String(al));
+        Serial.printf("[MESH CMD] %s -> %s\n", src.c_str(), cmd.c_str());
     }
 }
 

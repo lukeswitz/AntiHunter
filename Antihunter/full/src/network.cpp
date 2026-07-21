@@ -1985,6 +1985,14 @@ void registerRemainingRoutes() {
       if (SD.exists("/incidents.jsonl")) r->send(SD, "/incidents.jsonl", "application/x-ndjson");
       else                               r->send(200, "application/x-ndjson", "");
   });
+  server->on("/api/mesh_cmd.jsonl", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/mesh_cmd.jsonl")) r->send(SD, "/mesh_cmd.jsonl", "application/x-ndjson");
+      else                              r->send(200, "application/x-ndjson", "");
+  });
+  server->on("/api/mesh_cmd", HTTP_DELETE, [](AsyncWebServerRequest *r) {
+      if (SD.exists("/mesh_cmd.jsonl")) SD.remove("/mesh_cmd.jsonl");
+      r->send(200, "text/plain", "cleared");
+  });
   server->on("/api/incidents", HTTP_DELETE, [](AsyncWebServerRequest *r) {
       detect_clearIncidents();
       r->send(200, "text/plain", "cleared");

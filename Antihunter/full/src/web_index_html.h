@@ -1233,6 +1233,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
 
+        <div class="card" data-key="meshcmd">
+          <div class="card-header" onclick="toggleCollapse('meshCmdCard')">
+            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Mesh Commands <span style="font-size:11px;color:var(--mut);">(radio id &rarr; command)</span></h3>
+            <span class="collapse-icon open" id="meshCmdCardIcon">&#9654;</span>
+          </div>
+          <div class="card-body" id="meshCmdCardBody">
+            <div id="meshCmdArea" style="overflow-x:auto;"><div style="color:var(--mut);font-size:12px;">No commands logged.</div></div>
+          </div>
+        </div>
+
         <div class="card" data-key="dctl">
           <div class="card-header" onclick="toggleCollapse('detCtlCard')">
             <h3><span class="sev info">control</span>Sentinel Control</h3>
@@ -4908,7 +4918,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         recon:[[['PMKID_HARVEST','PMKID_FORGE'],'PMKID Harvest','pmkid'],
           ['PROBE_FLOOD','Probe Flood','probe_flood'],['HSHK','Handshake Capture','hshk']],
         physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','WiFi Interf (L2)','jam']],
-        mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard'],['MESH_CMD_INJECT','Cmd Inject','mesh_guard']]
+        mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]
         /* BLE attack group display disabled per user 2026-05-23 (BLE scan path unreliable on this build)
         ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed'],['BLETRACK','Tracker','tracker'],['AIRTAG','AirTag','airtag']]
         */
@@ -4996,7 +5006,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         setc('d-pfl',['PROBE_FLOOD','PROBE_FLOOD_BEHAVE','PROBE_FLOOD_AP']);
         setc('d-tsf',['TSF']);
         setc('d-jam',['JAM']);
-        setc('d-mgd',['MESH_SPOOF_SELF','MESH_FLOOD','MESH_CMD_INJECT']);
+        setc('d-mgd',['MESH_SPOOF_SELF','MESH_FLOOD']);
         setc('d-pwna',['PWNAGOTCHI']);
         setc('d-rid-ov',['RID']);
         _overviewVisibility(cfg);
@@ -5659,11 +5669,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             +'</tbody></table>';
         }catch(e){console.warn('apClientsTick',e);}
       }
+      async function meshCmdTick(){
+        if(!detTabActive())return;
+        const a=await _jsonl('/api/mesh_cmd.jsonl');
+        const el=document.getElementById('meshCmdArea'); if(!el)return;
+        if(!a.length){el.innerHTML='<div style="color:var(--mut);font-size:12px;">No commands logged.</div>';return;}
+        const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        const when=r=>{if(r.epoch&&r.epoch>946684800){const d=new Date(r.epoch*1000);return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});}return Math.round((r.ts||0)/1000)+'s up';};
+        el.innerHTML='<table class="dt"><thead><tr><th>Time</th><th>Radio</th><th>Command</th></tr></thead><tbody>'
+          +a.slice(-100).reverse().map(r=>`<tr><td>${esc(when(r))}</td><td style="color:var(--acc);">${esc(r.src)}</td><td>${esc(r.cmd)}</td></tr>`).join('')
+          +'</tbody></table>';
+      }
       function detAllTicks(){
         if(!detTabActive())return;
         detectTick();pgTick();trkTick();atTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
-        bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();baTick();apClientsTick();
+        bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();baTick();apClientsTick();meshCmdTick();
       }
       async function _jsonl(path){
         try{const r=await fetch(path);if(!r.ok)return [];const t=await r.text();
