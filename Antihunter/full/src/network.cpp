@@ -89,11 +89,6 @@ void SerialRateLimiter::flush() {
 
 
 bool sendToSerial1(const String &message, bool canDelay) {
-    {
-        int sep = message.indexOf(": ");
-        String body = (sep > 0) ? message.substring(sep + 2) : message;
-        detect_logIncident(body, "local");
-    }
     if (serial1Mutex == nullptr) {
         return false;
     }
