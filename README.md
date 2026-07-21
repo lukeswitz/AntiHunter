@@ -54,12 +54,12 @@
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
 - ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
-- Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
+- Deploy one node or a distributed network- each scans independently and coordinates over mesh
 
 <p align="center">
-<img height="600" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
-</p>
+<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
 
+</p>
 
 ## Features
 
@@ -82,9 +82,9 @@
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
-<p align="center">
+<!-- <p align="center">
 <img height="600" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
-</p>
+</p> -->
 
 ### Use Cases
 
@@ -104,7 +104,8 @@
 
 ### 1. Target Scan
 <p align="center">
-<img height="400" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
+  <img width="940" alt="9F8EB018-AD99-4066-9B60-C485FB631181_1_105_c" src="https://github.com/user-attachments/assets/8b26b014-1a3c-4e62-b41d-2a672cb5c099" />
+
 </p>
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
@@ -197,7 +198,8 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 
 ### F. Probe Request Scanner
 <p align="center">
-  <img height="600" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
+  <img width="615" height="482" alt="24689442-51E9-4F1A-8B61-E931F0B5CD09" src="https://github.com/user-attachments/assets/71a4857a-022d-4ac7-8c1d-4c2caaeff666" />
+
 </p>
 
 Goes beyond probe request capture: correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in the device's history), identify which APs responded, and catch silent devices via destination address matching.
@@ -216,7 +218,8 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 ### G. Sentinel — Counterintel Engine
 
 <p align="center">
-  <img height="600" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
+  <img width="796" height="986" alt="043A7862-DA67-4110-85E9-EE001DA261BB_1_105_c" src="https://github.com/user-attachments/assets/5584de74-f64e-44fa-8b02-cd3393b524e3" />
+
 </p>
 
 - Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
