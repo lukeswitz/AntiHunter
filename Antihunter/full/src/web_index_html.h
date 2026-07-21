@@ -5622,7 +5622,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         function rowMesh(k,label){
           const on=_detCfg[k]===true;
           return `<div class="det-row"><div class="name">${label}</div>
-            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}> broadcast</label></div>`;
+            <label><input type="checkbox" data-cfg="${k}" ${on?'checked':''}></label></div>`;
         }
         const meshEl=document.getElementById('cfg-mesh');
         if(meshEl)meshEl.innerHTML=DET_FEATURES_MESH.map(p=>rowMesh(p[0],p[1])).join('');
