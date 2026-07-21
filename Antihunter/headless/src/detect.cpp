@@ -1739,12 +1739,16 @@ static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, u
     if (!randomized && !singleMac) return;
     g_probeGlobal.alerted = true;
     const char *kind = randomized ? "RANDOMIZED" : "SINGLE_MAC";
-    Serial.printf("[DETECT] PROBE_FLOOD %s total=%u distinct=%u in 5s ch=%u\n",
-                  kind, (unsigned)g_probeGlobal.total, (unsigned)g_probeGlobal.srcCount.size(), (unsigned)channel);
-    ::detect_logIncident(String("PROBE_FLOOD:") + kind + ":" + String((unsigned)g_probeGlobal.total), nullptr);
+    String what = randomized
+        ? String((unsigned)g_probeGlobal.total) + ":" + String((unsigned)g_probeGlobal.srcCount.size())
+        : macStr(src) + ":" + String((unsigned)sc);
+    Serial.printf("[DETECT] PROBE_FLOOD %s src=%s src_probes=%u total=%u distinct=%u in 5s ch=%u rssi=%d\n",
+                  kind, macStr(src).c_str(), (unsigned)sc, (unsigned)g_probeGlobal.total,
+                  (unsigned)g_probeGlobal.srcCount.size(), (unsigned)channel, (int)rssi);
+    ::detect_logIncident(String("PROBE_FLOOD:") + kind + ":" + what, nullptr);
     quorum_addReport("PROBE_FLOOD", String(kind), getNodeId(), rssi);
     if (meshEnabled && meshRateGate(String("PROBE_FLOOD_") + kind, 30000)) {
-        sendToSerial1(getNodeId() + ": PROBE_FLOOD:" + kind + ":" + String((unsigned)g_probeGlobal.total) + ":" + String((int)rssi), true);
+        sendToSerial1(getNodeId() + ": PROBE_FLOOD:" + kind + ":" + what + ":" + String((int)rssi), true);
     }
 }
 
