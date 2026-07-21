@@ -529,7 +529,7 @@ size_t attacker_huntCount() {
 void attacker_setCooldown(uint32_t ms) { g_huntCooldown.store(ms); }
 
 // =============================================================================
-// Feature 5: Distributed 4-way handshake reconstruction + KRACK
+// Feature 5: Distributed 4-way handshake reconstruction
 // =============================================================================
 PsramMap<uint64_t, HandshakeReconstruction> g_hshk;
 std::atomic<uint32_t> g_krackEvents{0};
@@ -580,22 +580,6 @@ void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
         it = g_hshk.find(k);
     }
     HandshakeReconstruction &r = it->second;
-    if (msgNum == 3) {
-        auto kfit = std::find_if(r.fragments.begin(), r.fragments.end(),
-            [replayCtr](const HandshakeFragment &frag) { return frag.msgNum == 3 && frag.replayCtr == replayCtr; });
-        if (kfit != r.fragments.end()) {
-            if (r.krackEvents < 255) r.krackEvents++;
-            g_krackEvents.fetch_add(1);
-            ::detect_logIncident(String("KRACK:") + macStr(bssid) + ":" + macStr(sta) +
-                                 ":" + String((unsigned long)replayCtr), nullptr);
-            if (meshEnabled && sentinel_isRunning() && g_meshHshk.load() && meshRateGate("KRACK_" + macStr(bssid), 30000)) {
-                sendToSerial1(getNodeId() + ": KRACK:" + macStr(bssid) + ":" + macStr(sta) +
-                              ":" + String((unsigned long)replayCtr), true);
-            }
-            quorum_addReport("KRACK", macStr(bssid) + "/" + macStr(sta), getNodeId(), rssi);
-            attacker_kick(bssid, "KRACK");
-        }
-    }
     HandshakeFragment f{};
     memcpy(f.bssid, bssid, 6);
     memcpy(f.sta, sta, 6);
