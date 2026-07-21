@@ -3191,9 +3191,22 @@ static void jammingEval(uint32_t now) {
 // Mesh-channel disruption observer — called from uartForwardTask for EVERY inbound
 // mesh line (sender + body), before prefix dispatch. Local-only alerts.
 void mesh_observeInbound(const String &sender, const String &body) {
-    if (!g_meshGuardEnabled.load()) return;
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
+
+    if (body.startsWith("@") || body.startsWith("TRIANGULATE") || body.startsWith("TRI_")) {
+        String cmd = body.substring(0, 96);
+        cmd.replace("\\", "\\\\"); cmd.replace("\"", "\\\"");
+        String src = sender.length() ? sender : String("?");
+        src.replace("\\", "\\\\"); src.replace("\"", "\\\"");
+        char al[240];
+        snprintf(al, sizeof(al), "{\"ts\":%u,\"epoch\":%u,\"src\":\"%s\",\"cmd\":\"%s\"}",
+                 (unsigned)now, (unsigned)getRTCEpoch(), src.c_str(), cmd.c_str());
+        logEventToSD("/mesh_cmd.jsonl", String(al));
+        Serial.printf("[MESH CMD] %s -> %s\n", src.c_str(), cmd.c_str());
+    }
+
+    if (!g_meshGuardEnabled.load()) return;
 
     if (g_meshInbWinMs == 0 || (now - g_meshInbWinMs) > 10000UL) { g_meshInbWinMs = now; g_meshInbCount = 0; }
     g_meshInbCount++;
@@ -3225,21 +3238,6 @@ void mesh_observeInbound(const String &sender, const String &body) {
         }
     }
 
-    // 3. Command provenance audit — record which radio issued which command.
-    //    Injection is indistinguishable from legit ops on a shared channel, so we
-    //    log the source (audit trail) instead of alerting: zero false positives.
-    if (sender.length() && (body.startsWith("@") || body.startsWith("TRIANGULATE") ||
-                            body.startsWith("TRI_"))) {
-        String cmd = body.substring(0, 96);
-        cmd.replace("\\", "\\\\"); cmd.replace("\"", "\\\"");
-        String src = sender;
-        src.replace("\\", "\\\\"); src.replace("\"", "\\\"");
-        char al[240];
-        snprintf(al, sizeof(al), "{\"ts\":%u,\"epoch\":%u,\"src\":\"%s\",\"cmd\":\"%s\"}",
-                 (unsigned)now, (unsigned)getRTCEpoch(), src.c_str(), cmd.c_str());
-        logEventToSD("/mesh_cmd.jsonl", String(al));
-        Serial.printf("[MESH CMD] %s -> %s\n", src.c_str(), cmd.c_str());
-    }
 }
 
 void detectTask(void *pv) {
