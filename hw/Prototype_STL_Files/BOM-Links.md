@@ -4,6 +4,46 @@
 
 **Link key:** `MFR` manufacturer/OEM · `AMZN` Amazon (US) · `ALI` AliExpress (cheapest, live search) · `ALT` other verified reseller
 
+## AntiHunter DIGI Node — Bill of Materials
+
+### Core Electronics
+| Qty | Part |
+|-----|------|
+| 1× | DIGI PCB |
+| 1× | Seeed XIAO ESP32-S3 (2.4 GHz) |
+| 1× | Heltec WiFi LoRa 32 V3.2 |
+| 1× | ATGM336H GPS Module |
+| 1× | DS3231 RTC Module |
+| 1× | SW-420 Vibration Sensor |
+| 1× | MicroSD SPI Reader Module |
+| 1× | MicroSD Card — 16 GB, FAT32 |
+
+### Power & Enclosure
+| Qty | Part |
+|-----|------|
+| 1× | Type-C 15W 3A 5V UPS (2S 18650) |
+| 1× | 30mm 5V JST Fan |
+| 1× | 3-Pin Mini On/Off Switch (6mm) |
+| 1× | JST Power Male Cable |
+| 1× | Weatherproof Enclosure |
+
+### Antennas & Cables
+| Qty | Part |
+|-----|------|
+| 3× | U.FL → SMA Pigtail |
+| 1× | 6dBi 2.4GHz Antenna |
+| 1× | 6dBi LoRa Antenna |
+| 1× | GNSS Antenna — Active L1, SMA |
+
+### Fasteners & Hardware
+| Qty | Part |
+|-----|------|
+| 10× | M3 Heat-Set Inserts |
+| 2× | M3×15mm Brass Standoffs |
+| 8× + 6× | M3 Flat-Top Screws + M3 Screws (PCB / power board) |
+| 6× | JST 2.54 2-Pin Terminals |
+| 1× | 1/4" Tripod Insert |
+
 ---
 
 ## Core Electronics
