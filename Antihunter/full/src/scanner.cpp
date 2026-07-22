@@ -430,13 +430,8 @@ static const size_t OUI_TABLE_SIZE = sizeof(ouiTable) / sizeof(ouiTable[0]);
 const char* lookupOuiVendor(const uint8_t *mac)
 {
     for (size_t i = 0; i < OUI_TABLE_SIZE; i++) {
-        OuiEntry entry;
-        memcpy_P(&entry, &ouiTable[i], sizeof(OuiEntry));
-        if (mac[0] == entry.oui[0] && mac[1] == entry.oui[1] && mac[2] == entry.oui[2]) {
-            static char vendorBuf[16];
-            strncpy(vendorBuf, entry.vendor, sizeof(vendorBuf) - 1);
-            vendorBuf[sizeof(vendorBuf) - 1] = '\0';
-            return vendorBuf;
+        if (mac[0] == ouiTable[i].oui[0] && mac[1] == ouiTable[i].oui[1] && mac[2] == ouiTable[i].oui[2]) {
+            return ouiTable[i].vendor;
         }
     }
     return nullptr;
@@ -1192,6 +1187,10 @@ void snifferScanTask(void *pv)
                             strncpy(h.name, cleanName.c_str(), sizeof(h.name) - 1);
                             h.name[sizeof(h.name) - 1] = '\0';
                             h.isBLE = true;
+                            {
+                                std::string mfr = device->getManufacturerData();
+                                h.isApple = (mfr.size() >= 2 && (uint8_t)mfr[0] == 0x4C && (uint8_t)mfr[1] == 0x00);
+                            }
                             if (hitsLog.size() < MAX_LOG_SIZE) {
                                 hitsLog.push_back(h);
                             }
@@ -1405,6 +1404,8 @@ void snifferScanTask(void *pv)
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
                     results += " \"" + std::string(hit.name) + "\"";
                 }
+                if (hit.isBLE && hit.isApple) results += " APPLE";
+                { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
                 results += "\n";
             }
             if (hitsLog.size() > 50) {
@@ -1552,6 +1553,7 @@ void snifferScanTask(void *pv)
                 }
             }
 
+            { const char *hv = lookupOuiVendor(hit.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";
         }
 
@@ -3483,6 +3485,7 @@ void listScanTask(void *pv) {
                 if (!sh.isBLE && sh.ch > 0) pr += " CH=" + std::to_string(sh.ch);
                 if (strlen(sh.name) > 0 && strcmp(sh.name, "Unknown") != 0 && strcmp(sh.name, "WiFi") != 0)
                     pr += " \"" + std::string(sh.name) + "\"";
+                { const char *hv = lookupOuiVendor(sh.mac); if (hv) pr += std::string(" V=") + hv; }
                 pr += "\n";
             }
             if (deduped.size() > 50) pr += "... (" + std::to_string(deduped.size() - 50) + " more)\n";
@@ -3550,6 +3553,7 @@ void listScanTask(void *pv) {
             if (strlen(e.name) > 0 && strcmp(e.name, "WiFi") != 0 && strcmp(e.name, "Unknown") != 0) {
                 results += " \"" + std::string(e.name) + "\"";
             }
+            { const char *hv = lookupOuiVendor(e.mac); if (hv) results += std::string(" V=") + hv; }
             results += "\n";
         }
         if (static_cast<int>(sortedHits.size()) > show) {
