@@ -292,6 +292,7 @@ static void appendCacheDeviceLines(String& out) {
         if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
             out += " \"" + String(dev.name) + "\"";
         }
+        { const char *dv = lookupOuiVendor(dev.mac); if (dv) out += " V=" + String(dv); }
         out += "\n";
     }
 }
@@ -324,6 +325,7 @@ String getBaselineResults() {
                 results += " \"" + String(anomaly.name) + "\"";
             }
             results += " - " + anomaly.reason;
+            { const char *av = lookupOuiVendor(anomaly.mac); if (av) results += " V=" + String(av); }
             results += "\n";
         }
     } else {

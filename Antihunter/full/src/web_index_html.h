@@ -215,6 +215,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-line{font-size:14px;color:var(--mut);line-height:1.5}
       .res-line strong{color:var(--txt);font-weight:600}
       .res-metric{text-align:right;flex-shrink:0;display:flex;flex-direction:column;gap:2px;margin-left:auto}
+      .res-metrics{display:flex;align-items:center;gap:20px;flex-shrink:0;margin-left:auto}
+      .res-metrics .res-metric{margin-left:0}
       .res-metric-val{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);line-height:1.05;letter-spacing:-0.01em}
       .res-metric-val small{font-size:13px;color:var(--mut);font-weight:500;margin-left:1px}
       .res-metric-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--mut)}
@@ -226,6 +228,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-kv-val{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);line-height:1.15}
       .res-kv-val.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px}
       .res-kv-val.sm{font-size:14px;font-weight:600}
+      .res-kv-val small{font-size:11px;color:var(--mut);font-weight:500}
       /* badges */
       .res-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;border:1px solid var(--bord);background:var(--surf);color:var(--mut);white-space:nowrap;vertical-align:middle;line-height:1.5}
       .res-badge.acc{color:var(--acc);border-color:var(--acc);background:var(--accbg)}
@@ -237,6 +240,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-badge.ble{color:var(--c-ble);border-color:var(--c-ble);background:var(--c-ble-bg)}
       .res-badge.wifi{color:var(--c-wifi);border-color:var(--c-wifi);background:var(--c-wifi-bg)}
       .res-badge.muted{color:#fff;background:var(--mut);border-color:var(--mut)}
+      .res-badge.rand{color:#fff;background:var(--c-rand);border-color:var(--c-rand)}
+      .res-badge.ident{color:#fff;background:var(--c-known);border-color:var(--c-known);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+      .res-badge.rand,.res-badge.ident{margin-left:6px}
+      .res-mac>.res-badge,.res-meta .res-badge{margin-left:0}
       /* tags (SSIDs / probes) */
       .res-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;align-items:center}
       .res-tags-lab{font-size:11px;font-weight:600;color:var(--mut);margin-right:2px}
@@ -262,9 +269,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-section{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px;box-shadow:var(--shad)}
       .res-section>summary{cursor:pointer;list-style:none;user-select:none;display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;color:var(--acc)}
       .res-section>summary::-webkit-details-marker{display:none}
+      .res-section-head{cursor:pointer;user-select:none;display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;color:var(--acc)}
       .res-section>summary .res-caret{transition:transform .2s;font-size:11px;display:inline-block}
       .res-section[open]>summary .res-caret{transform:rotate(90deg)}
       .res-section-body{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+      /* track row (rand detect): same 3-zone band as a device card, but collapsible */
+      .res-section.res-track{padding:0}
+      .res-track>summary{padding:16px 18px 16px 20px;gap:10px 18px;flex-wrap:wrap;font-size:14px;font-weight:400;color:var(--txt)}
+      .res-track>summary .res-caret{color:var(--acc);font-size:13px}
+      .res-track-body{padding:0 18px 18px 20px;border-top:1px solid var(--bord)}
       /* callout banner (no mesh, impossible, etc.) */
       .res-callout{padding:16px 18px;border-radius:12px;border:1px solid var(--bord);background:var(--surf);display:flex;gap:13px;align-items:flex-start}
       .res-callout.danger{border-color:var(--dang);background:var(--c-err-bg)}
@@ -2371,22 +2384,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               
               const rssiMatch = summaryText.match(/([-\d]+)\s*dBm/);
               const rssi = rssiMatch ? parseInt(rssiMatch[1]) : -999;
-              
-              const detailsContent = child.textContent;
-              const sessionsMatch = detailsContent.match(/SESSIONS\s*(\d+)/);
-              const sessions = sessionsMatch ? parseInt(sessionsMatch[1]) : 0;
-              
-              const lastSeenMatch = detailsContent.match(/LAST SEEN\s*(\d+)s/);
-              const lastSeen = lastSeenMatch ? parseInt(lastSeenMatch[1]) : 999999;
-              
-              const trackIdMatch = detailsContent.match(/TRACK ID\s*([A-Z0-9-]+)/);
-              const trackId = trackIdMatch ? trackIdMatch[1].trim() : '';
-              
+
+              const sessions = parseInt(child.getAttribute('data-sessions') || '0', 10);
+              const lastSeen = parseInt(child.getAttribute('data-lastseen') || '999999', 10);
+              const channel = parseInt(child.getAttribute('data-channel') || '0', 10);
+
+              const nameEl = summary.querySelector('[data-name]');
+              const name = nameEl ? nameEl.textContent.trim() : '';
+
               const deviceType = child.getAttribute('data-type') || '';
-              
+
               items.push({
                 element: child,
-                mac, confidence, rssi, sessions, lastSeen, trackId, deviceType,
+                mac, confidence, rssi, sessions, lastSeen, channel, name, deviceType,
                 sortKey: currentSort,
                 type: 'randomization'
               });
@@ -2923,14 +2933,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (!mac) return '';
         const id = identityMap[mac.toUpperCase()];
         if (!id) return '';
-        return '<span title="Linked to identity ' + id + ' by randomization scanner" style="background:var(--c-known);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;margin-left:6px;vertical-align:middle;letter-spacing:0.5px;font-family:monospace;">' + id + '</span>';
+        return '<span class="res-badge ident" title="Linked to identity ' + id + ' by randomization scanner">' + id + '</span>';
       }
 
       function randBadge(mac) {
         const linked = identityBadge(mac);
         if (linked) return linked;
         if (!isRandomMac(mac)) return '';
-        return '<span title="Locally-administered (randomized) MAC" style="background:var(--c-rand);color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;margin-left:6px;vertical-align:middle;letter-spacing:0.5px;">RAND</span>';
+        return '<span class="res-badge rand" title="Locally-administered (randomized) MAC">RAND</span>';
       }
 
       function _resEmpty(msg, icon) {
@@ -3033,7 +3043,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '<div class="res-card' + (isGPS ? ' ok' : '') + '"><div class="res-card-head"><div class="res-mac" style="font-family:inherit;">' + nodeId + '</div>';
             html += '<span class="res-badge ' + (isGPS ? 'ok' : '') + '">' + (isGPS ? 'GPS' : 'No GPS') + '</span></div>';
             html += '<div class="res-kvs">';
-            if (rssiMatch) { const rv = parseFloat(rssiMatch[1]); const rc = rv > -60 ? 'var(--succ)' : rv > -75 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">RSSI</div><div class="res-kv-val" style="color:' + rc + '">' + rssiMatch[1] + '<small style="font-size:11px;color:var(--mut);"> dBm</small></div></div>'; }
+            if (rssiMatch) { const rv = parseFloat(rssiMatch[1]); const rc = rv > -60 ? 'var(--succ)' : rv > -75 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">RSSI</div><div class="res-kv-val" style="color:' + rc + '">' + rssiMatch[1] + '<small> dBm</small></div></div>'; }
             if (hitsMatch) html += _resKv('Hits', hitsMatch[1]);
             if (signalMatch) { const sv = parseFloat(signalMatch[1]); const sc = sv >= 70 ? 'var(--succ)' : sv >= 50 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">Quality</div><div class="res-kv-val" style="color:' + sc + '">' + signalMatch[1] + '%</div></div>'; }
             if (distMatch) html += _resKv('Distance', distMatch[1] + 'm');
@@ -3059,7 +3069,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (errorMatch) {
                 const ev = parseFloat(errorMatch[1]);
                 const ec = ev < 25 ? 'var(--succ)' : ev < 50 ? 'var(--warn)' : 'var(--dang)';
-                html += '<div class="res-kv" style="border-color:' + ec + ';"><div class="res-kv-lab">Average Error</div><div class="res-kv-val" style="color:' + ec + ';font-size:20px;">' + errorMatch[1] + '%</div>' + (qualityMatch ? '<div class="res-line" style="margin-top:4px;"><strong>' + qualityMatch[1] + '</strong></div>' : '') + '</div>';
+                html += '<div class="res-kv" style="border-color:' + ec + ';"><div class="res-kv-lab">Average Error</div><div class="res-kv-val" style="color:' + ec + ';">' + errorMatch[1] + '%</div>' + (qualityMatch ? '<div class="res-line" style="margin-top:4px;"><strong>' + qualityMatch[1] + '</strong></div>' : '') + '</div>';
               }
             }
           });
@@ -3102,7 +3112,35 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         html += '<div class="res-stats">';
         if (headerMatch) html += _resStat('Active Sessions', headerMatch[1]);
         if (identitiesMatch) html += _resStat('Linked Identities', identitiesMatch[1]);
+        const pendMatch = text.match(/Pending Sessions:\s*WiFi (\d+)\s+BLE (\d+)/);
+        if (pendMatch) {
+          html += _resStat('Pending WiFi', pendMatch[1]);
+          html += _resStat('Pending BLE', pendMatch[2]);
+        }
         html += '</div></div>';
+
+        const liveLines = [];
+        text.split('\n').forEach(function(l) {
+          const m = l.match(/^Live session:\s*([0-9A-Fa-f:]{17})\s+(WiFi|BLE)\s+probes=(\d+)\s+rssi=([-\d]+)(?:\s+ch=(\d+))?/);
+          if (m) liveLines.push(m);
+        });
+        if (liveLines.length) {
+          const moreSess = text.match(/\.\.\. \(\+(\d+) more sessions\)/);
+          html += '<div id="randLiveSessions">';
+          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>Live sessions';
+          html += '<span class="res-badge acc">' + liveLines.length + ' not yet linked</span></summary>';
+          html += '<div class="res-section-body">';
+          liveLines.forEach(function(m) {
+            html += '<div class="res-card"><div class="res-row-main"><span class="res-mac">' + m[1].toUpperCase() + randBadge(m[1].toUpperCase()) + '</span>';
+            html += '<div class="res-meta"><span class="res-badge ' + (m[2] === 'BLE' ? 'ble' : 'wifi') + '">' + m[2] + '</span>';
+            if (m[5]) html += '<span class="res-badge">CH ' + m[5] + '</span>';
+            html += '<span>probes <strong>' + m[3] + '</strong></span></div>';
+            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[4]) + '">' + m[4] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+            html += '</div></div>';
+          });
+          if (moreSess) html += '<div class="res-more">+ ' + moreSess[1] + ' more sessions</div>';
+          html += '</div></details></div>';
+        }
 
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
         trackBlocks.forEach((block) => {
@@ -3118,11 +3156,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const intervalConMatch = block.match(/Interval consistency:\s*([\d.]+)/);
           const rssiConMatch = block.match(/RSSI consistency:\s*([\d.]+)/);
           const channelsMatch = block.match(/Channels:\s*(\d+)/);
+          const primaryChMatch = block.match(/^\s*Channel:\s*(\d+)\s*$/m);
+          const signaturesMatch = block.match(/^\s*Signatures:\s*(.+?)\s*$/m);
           const seqTrackMatch = block.match(/Sequence tracking:\s*(.+)/);
           const firstSeenMatch = block.match(/First seen:\s*(\d+)s ago/);
           const lastSeenMatch = block.match(/Last seen:\s*(\d+)s ago/);
           const realMacMatch = block.match(/Real MAC:\s*([A-F0-9:]+)/);
-          const vendorMatch = block.match(/Vendor:\s*([^\n]+)/);
+          const vendorMatch = block.match(/^\s*Vendor:\s*(.+?)\s*$/m);
           const mfrDataMatch = block.match(/Mfr data:\s*([^\n]+)/);
           const macsListMatch = block.match(/MACs:\s*(.+)/);
           if (!trackMatch) return;
@@ -3135,27 +3175,28 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const anchorMacMatch = block.match(/Anchor MAC:\s*([A-F0-9:]+)/);
           const anchorMac = anchorMacMatch ? anchorMacMatch[1] : (macsListMatch ? macsListMatch[1].split(',')[0].trim() : '');
           const avgRssi = rssiMatch ? parseInt(rssiMatch[1]) : null;
-          const rssiColor = avgRssi !== null ? (avgRssi >= -50 ? 'var(--succ)' : avgRssi >= -70 ? 'var(--warn)' : 'var(--dang)') : 'var(--mut)';
+          const rssiColor = avgRssi !== null ? rssiColorFor(avgRssi) : 'var(--mut)';
           const confVal = parseInt(confidence);
           const confColor = confVal >= 75 ? 'var(--succ)' : confVal >= 50 ? 'var(--warn)' : 'var(--dang)';
 
-          html += '<details class="res-section" data-type="' + deviceType + '" style="padding:0;">';
-          html += '<summary style="padding:15px 16px;justify-content:space-between;font-weight:400;color:var(--txt);">';
-          html += '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">';
-          html += '<span class="res-caret" style="color:var(--acc);">&#9654;</span>';
-          if (anchorMac) html += '<span class="res-mac acc" style="font-size:13px;">' + anchorMac + '</span>' + randBadge(anchorMac);
+          html += '<details class="res-section res-track" data-type="' + deviceType + '" data-sessions="' + (sessionsMatch ? sessionsMatch[1] : '0') + '" data-lastseen="' + (lastSeenMatch ? lastSeenMatch[1] : '999999') + '" data-channel="' + (primaryChMatch ? primaryChMatch[1] : '0') + '">';
+          html += '<summary>';
+          html += '<span class="res-caret">&#9654;</span>';
+          if (anchorMac) html += '<span class="res-mac acc">' + anchorMac + '</span>' + randBadge(anchorMac);
           html += '<span class="res-badge ' + (isBLE ? 'ble' : 'wifi') + '">' + deviceType + '</span>';
-          if (nameMatch) html += '<span data-name="' + nameMatch[1].trim() + '" class="res-line" style="color:var(--txt);">' + nameMatch[1].trim() + '</span>';
-          if (ssidMatch) html += '<span data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc);font-size:11px;">&quot;' + ssidMatch[1].trim() + '&quot;</span>';
-          if (vendorMatch) html += '<span class="res-line" style="font-size:11px;">' + vendorMatch[1].trim() + '</span>';
-          html += '<span class="res-line" style="font-size:11px;">' + macCount + ' MAC' + (macCount !== '1' ? 's' : '') + '</span>';
+          if (primaryChMatch) html += '<span class="res-badge">CH ' + primaryChMatch[1] + '</span>';
+          if (vendorMatch) html += '<span class="res-badge">' + vendorMatch[1] + '</span>';
+          html += '<div class="res-meta">';
+          if (nameMatch) html += '<span>Name: <strong data-name="' + nameMatch[1].trim() + '">' + nameMatch[1].trim() + '</strong></span>';
+          if (ssidMatch) html += '<span>SSID: <strong data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc)">' + ssidMatch[1].trim() + '</strong></span>';
+          html += '<span><strong>' + macCount + '</strong> MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
-          html += '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">';
-          if (avgRssi !== null) html += '<div class="res-metric"><span class="res-metric-val" style="font-size:14px;color:' + rssiColor + '">' + avgRssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
-          html += '<div class="res-metric"><span class="res-metric-val" style="font-size:14px;color:' + confColor + '">' + confidence + '<small>%</small></span><span class="res-metric-lab">Conf</span></div>';
+          html += '<div class="res-metrics">';
+          if (avgRssi !== null) html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColor + '">' + avgRssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+          html += '<div class="res-metric"><span class="res-metric-val" style="color:' + confColor + '">' + confidence + '<small>%</small></span><span class="res-metric-lab">Conf</span></div>';
           html += '</div></summary>';
 
-          html += '<div style="padding:0 16px 16px 16px;border-top:1px solid var(--bord);">';
+          html += '<div class="res-track-body">';
           html += '<div class="res-kvs">';
           if (sessionsMatch) html += _resKv('Sessions', sessionsMatch[1]);
           if (probesMatch) html += _resKv('Probes', probesMatch[1]);
@@ -3164,6 +3205,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (intervalConMatch) html += _resKv('Interval Consistency', (parseFloat(intervalConMatch[1]) * 100).toFixed(0) + '%');
           if (rssiConMatch) html += _resKv('RSSI Stability', (parseFloat(rssiConMatch[1]) * 100).toFixed(0) + '%');
           if (channelsMatch) html += _resKv('Unique Channels', channelsMatch[1]);
+          if (signaturesMatch) html += '<div class="res-kv"><div class="res-kv-lab">Signature</div><div class="res-kv-val sm">' + signaturesMatch[1] + '</div></div>';
           if (realMacMatch) html += '<div class="res-kv danger" style="grid-column:1/-1"><div class="res-kv-lab" style="color:var(--dang)">Real MAC Leaked</div><div class="res-kv-val mono" style="color:var(--dang)">' + realMacMatch[1] + '</div></div>';
           html += '</div>';
 
@@ -3176,7 +3218,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const moreMatch = macsList.match(/\(\+(\d+) more\)/);
             const cleanMacs = macsList.replace(/\s*\(\+\d+ more\)/, '');
             const macs = cleanMacs.split(',').map(m => m.trim()).filter(m => m.length > 0);
-            html += '<details class="res-rows" open style="margin-top:11px;"><summary style="list-style:none;cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);">MAC Addresses (' + (moreMatch ? macCount : macs.length) + ')</summary><div style="margin-top:8px;">';
+            html += '<details class="res-rows" open style="margin-top:11px;"><summary class="res-rows-lab" style="list-style:none;cursor:pointer;margin-bottom:0;">MAC Addresses (' + (moreMatch ? macCount : macs.length) + ')</summary><div style="margin-top:8px;">';
             macs.forEach((mac) => {
               const isFirst = mac === anchorMac;
               html += '<div class="res-row"><span style="color:' + (isFirst ? 'var(--acc)' : 'var(--mut)') + '">' + mac + randBadge(mac) + '</span>' + (isFirst ? '<span class="res-badge ok">Anchor</span>' : '') + '</div>';
@@ -3186,6 +3228,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           html += '</div></details>';
         });
+        const topMatch = text.match(/\.\.\. \(showing top (\d+) of (\d+) identities\)/);
+        if (topMatch) html += '<div class="res-more" style="border:1px dashed var(--bord);border-radius:8px;padding:12px;">Showing top ' + topMatch[1] + ' of ' + topMatch[2] + ' identities</div>';
         return html;
       }
 
@@ -3205,13 +3249,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function parseBaselineResults(text) {
-        function makeDeviceCard(type, mac, rssi, channel, name) {
+        function makeDeviceCard(type, mac, rssi, channel, name, vendor) {
           let c = '<div class="res-card device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
           c += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
           c += '<div class="res-meta">';
           if (name && name !== 'Unknown') c += '<span>Name: <strong>' + name + '</strong></span>';
           c += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) c += '<span class="res-badge">CH ' + channel + '</span>';
+          if (vendor) c += '<span class="res-badge">' + vendor + '</span>';
           c += '</div>';
           c += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
           c += '</div></div>';
@@ -3227,7 +3272,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div class="baseline-marker" style="display:none;"></div>';
           deviceLines.forEach(line => {
             const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
-            if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
+            const bv = line.match(/\sV=([^"\n]+)$/);
+            if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6], bv ? bv[1].trim() : '');
           });
           return html;
         }
@@ -3245,12 +3291,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             anomalySection.split('\n').filter(l => l.trim() && !l.includes('Total anomalies')).forEach(line => {
               const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI:([-\d]+)dBm(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?\s+-\s+(.+)$/);
               if (!m) return;
-              const [_, type, mac, rssi, channel, name, reason] = m;
+              const [_, type, mac, rssi, channel, name] = m;
+              let reason = m[6];
+              let anomVendor = '';
+              const av = reason.match(/\sV=([^"\n]+)$/);
+              if (av) { anomVendor = av[1].trim(); reason = reason.slice(0, av.index).trim(); }
               html += '<div class="res-card alert device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
               html += '<div class="res-row-main"><span class="res-mac warn">' + mac + randBadge(mac) + '</span>';
               html += '<div class="res-meta"><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
               if (channel) html += '<span class="res-badge">CH ' + channel + '</span>';
               if (name) html += '<span>Name: <strong>' + name + '</strong></span>';
+              if (anomVendor) html += '<span class="res-badge">' + anomVendor + '</span>';
               html += '</div>';
               html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
               html += '</div>';
@@ -3268,7 +3319,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '<details class="res-section"><summary><span class="res-caret">&#9654;</span>Baseline Devices (' + deviceLines.length + ' cached)</summary><div class="res-section-body">';
             deviceLines.forEach(line => {
               const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
-              if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6]);
+              const bv = line.match(/\sV=([^"\n]+)$/);
+              if (m) html += makeDeviceCard(m[1], m[2], m[3], m[5], m[6], bv ? bv[1].trim() : '');
             });
             html += '</div></details>';
           }
@@ -3590,11 +3642,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div id="savedDevicesPanel" style="margin-bottom:14px;">';
           html += '<div style="display:flex;align-items:center;gap:8px;">';
           html += '<div id="savedDevicesToggle" onclick="toggleSavedDevices()" class="res-section" style="flex:1;cursor:pointer;padding:11px 14px;margin:0;">';
-          html += '<div style="display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700;color:var(--acc);">';
+          html += '<div class="res-section-head">';
           html += '<span id="savedDevicesArrow" class="res-caret">&#9654;</span><span>Saved Devices (' + savedMatch[1] + ')</span></div></div>';
           html += '<button onclick="clearSavedDevices()" class="btn danger" style="padding:9px 14px;">Clear</button>';
           html += '</div>';
-          html += '<div id="savedDevicesList" style="display:none;margin-top:8px;max-height:340px;overflow-y:auto;"></div>';
+          html += '<div id="savedDevicesList" style="display:none;margin-top:10px;max-height:520px;overflow-y:auto;"></div>';
           html += '</div>';
         }
 
@@ -3624,11 +3676,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         list.style.display = savedDevicesOpen ? 'block' : 'none';
         arrow.style.transform = savedDevicesOpen ? 'rotate(90deg)' : '';
         if (savedDevicesOpen && !savedDevicesLoaded) {
-          list.innerHTML = '<div style="padding:12px;color:var(--mut);font-size:11px;">Loading...</div>';
+          list.innerHTML = '<div class="res-note">Loading...</div>';
           fetch('/api/probedb').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(devices => {
             savedDevicesLoaded = true;
             if (!devices.length) {
-              list.innerHTML = '<div style="padding:12px;color:var(--mut);font-size:11px;">No saved devices</div>';
+              list.innerHTML = '<div class="res-note">No saved devices</div>';
               return;
             }
             let h = '';
@@ -3636,19 +3688,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             for (const d of devices) {
               const isRand = d.rand;
               const border = isRand ? 'var(--c-rand)' : 'var(--bord)';
-              h += '<div style="padding:6px 10px;border-bottom:1px solid var(--bord);font-size:11px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">';
-              h += '<span style="font-family:monospace;font-weight:bold;color:var(--txt);min-width:140px;">' + d.mac + '</span>';
-              h += randBadge(d.mac);
+              h += '<div class="res-card">';
+              h += '<div class="res-row-main"><span class="res-mac">' + d.mac + randBadge(d.mac);
               if (d.vendor && !isRandomMac(d.mac)) {
-                h += '<span style="color:var(--mut);font-size:10px;">' + d.vendor + '</span>';
+                h += '<span class="res-badge">' + d.vendor + '</span>';
               }
-              h += '<span style="color:var(--mut);font-size:10px;">' + d.rssi + 'dBm</span>';
-              h += '<span style="color:var(--mut);font-size:10px;">x' + d.seen + '</span>';
-              h += '<span style="color:var(--mut);font-size:10px;">' + d.sessions + ' sess</span>';
+              h += '</span>';
+              h += '<div class="res-meta"><span>seen <strong>' + d.seen + '</strong>x</span>';
+              h += '<span><strong>' + d.sessions + '</strong> session' + (String(d.sessions) === '1' ? '' : 's') + '</span></div>';
+              h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+              h += '</div>';
               if (d.ssids && d.ssids.length > 0) {
+                h += '<div class="res-tags"><span class="res-tags-lab">Probed</span>';
                 for (const s of d.ssids) {
-                  h += '<span data-ssid="' + s + '" style="background:var(--surf);border:1px solid var(--bord);padding:1px 5px;border-radius:3px;font-size:9px;color:var(--txt);">' + s + '</span>';
+                  h += '<span class="res-tag" data-ssid="' + s + '">' + s + '</span>';
                 }
+                h += '</div>';
               }
               h += '</div>';
             }
@@ -3656,7 +3711,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (typeof privacyMode !== 'undefined' && privacyMode) applyPrivacyToElement(list);
           }).catch((e) => {
             console.error('probedb load failed', e);
-            list.innerHTML = '<div style="padding:12px;color:var(--c-err);font-size:11px;">Failed to load (' + (e && e.message ? e.message : 'error') + ')</div>';
+            list.innerHTML = '<div class="res-note danger">Failed to load (' + (e && e.message ? e.message : 'error') + ')</div>';
           });
         }
       }
@@ -3731,6 +3786,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const channel = match[4] || '';
           const name = match[5] || 'Unknown';
           const isApple = / APPLE(?:\s|$)/.test(line);
+          const vendMatch = line.match(/\sV=([^"\n]+)$/);
 
           const rssiColor = rssiColorFor(rssi);
           const isTarget = macIsTarget(mac, targetTokens);
@@ -3747,6 +3803,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           card += '<span>Name: <strong>' + name + '</strong></span>';
           card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
+          const vendName = vendMatch ? vendMatch[1].trim() : '';
+          if (vendName && !(isApple && /^apple/i.test(vendName))) card += '<span class="res-badge">' + vendName + '</span>';
           card += '</div>';
           card += '<div class="res-metric">';
           card += '<span class="res-metric-val" style="color:' + rssiColor + '">' + rssi + '<small> dBm</small></span>';

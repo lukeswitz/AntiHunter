@@ -24,6 +24,33 @@ extern "C" {
 
 extern NimBLEScan *pBLEScan;
 
+// Bluetooth SIG assigned company identifiers (subset)
+struct BleCompanyEntry { uint16_t cid; const char *name; };
+static const BleCompanyEntry kBleCompanies[] = {
+    {0x0002, "Intel"}, {0x0006, "Microsoft"}, {0x0008, "Motorola"}, {0x000A, "Qualcomm"},
+    {0x000D, "Texas Instruments"}, {0x000F, "Broadcom"}, {0x001D, "Qualcomm"}, {0x0043, "Parrot"},
+    {0x0046, "MediaTek"}, {0x004C, "Apple"}, {0x0055, "Plantronics"}, {0x0057, "Harman"},
+    {0x0059, "Nordic Semi"}, {0x005C, "Belkin"}, {0x005D, "Realtek"}, {0x006B, "Polar Electro"},
+    {0x0075, "Samsung"}, {0x0087, "Garmin"}, {0x009E, "Bose"}, {0x009F, "Suunto"},
+    {0x00C4, "LG Electronics"}, {0x00CC, "Beats"}, {0x00E0, "Google"}, {0x0103, "Bang & Olufsen"},
+    {0x012D, "Sony"}, {0x0171, "Amazon"}, {0x018E, "Google"}, {0x01AB, "Meta"},
+    {0x01DA, "Logitech"}, {0x0211, "Telink"}, {0x022B, "Tesla"}, {0x027D, "Huawei"},
+    {0x02A6, "Bosch"}, {0x02B2, "Oura"}, {0x02C5, "Lenovo"}, {0x02E5, "Espressif"},
+    {0x02F2, "GoPro"}, {0x02FF, "Silicon Labs"}, {0x0304, "Oura"}, {0x038F, "Xiaomi"},
+    {0x03FF, "Withings"}, {0x041E, "Dell"}, {0x0446, "NETGEAR"}, {0x0494, "Sennheiser"},
+    {0x04AD, "Shure"}, {0x0553, "Nintendo"}, {0x058E, "Meta"}, {0x05A7, "Sonos"},
+    {0x067C, "Tile"}, {0x072F, "OnePlus"}, {0x079A, "OPPO"}, {0x07A2, "Roku"},
+    {0x07C9, "Skullcandy"}, {0x0837, "vivo"}, {0x0870, "Wyze"}, {0x08AA, "DJI"},
+    {0x08C3, "Chipolo"}, {0x0CC2, "Anker"}, {0x0E41, "ASUS"},
+};
+
+static const char *lookupBleCompany(uint16_t cid) {
+    for (const auto &e : kBleCompanies) {
+        if (e.cid == cid) return e.name;
+    }
+    return nullptr;
+}
+
 std::atomic<bool> randomizationDetectionEnabled{false};
 ActiveSessionsMap activeSessions;
 DeviceIdentitiesMap deviceIdentities;
@@ -1143,6 +1170,21 @@ String getRandomizationResults() {
         
         results += "Track ID: " + String(identity.identityId) + "\n";
         results += "  Type: " + String(identity.isBLE ? "BLE" : "WiFi") + "\n";
+        String vendorName;
+        if (identity.isBLE && identity.mfrDataLen >= 2) {
+            uint16_t vcid = static_cast<uint16_t>(identity.mfrData[0]) | (static_cast<uint16_t>(identity.mfrData[1]) << 8);
+            const char *bv = lookupBleCompany(vcid);
+            if (bv) vendorName = bv;
+        }
+        if (vendorName.length() == 0 && identity.hasKnownGlobalMac) {
+            const char *ov = lookupOuiVendor(identity.knownGlobalMac);
+            if (ov) vendorName = ov;
+        }
+        if (vendorName.length() == 0 && !identity.macs.empty()) {
+            const char *av = lookupOuiVendor(identity.macs[0].bytes.data());
+            if (av) vendorName = av;
+        }
+        if (vendorName.length() > 0) results += "  Vendor: " + vendorName + "\n";
         if (identity.deviceName[0] != '\0') {
             String name = sanitizeAscii(identity.deviceName, sizeof(identity.deviceName));
             if (name.length() > 0) results += "  Name: " + name + "\n";
