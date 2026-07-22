@@ -292,7 +292,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-toolbar select#sortBy{width:auto;min-width:160px;padding:9px 36px 9px 13px;font-size:13px;font-weight:600;border-radius:9px;box-shadow:none;background-position:right 13px center}
       .res-toolbar .btn{padding:9px 13px;font-size:13px;line-height:1;border-radius:9px}
       .res-toolbar .btn svg{width:11px;height:15px}
-      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
+      @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:7px;width:100%}.res-toolbar-lab{font-size:10px}.res-toolbar select#sortBy{min-width:0;width:100%;padding:9px 30px 9px 11px;background-position:right 10px center}.res-toolbar .btn{padding:9px 11px}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
+      @media(max-width:379px){.res-toolbar{grid-template-columns:minmax(0,1fr) auto auto auto}.res-toolbar-lab{display:none}}
     </style>
     <script>
       let toggleHistory=[];
@@ -682,7 +683,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </select>
             <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
             <button class="btn alt" type="button" onclick="clearResults()">Clear</button>
-            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="white-space:nowrap;flex-shrink:0;"></button>
+            <button class="btn privacy-toggle" id="privacyBtn" type="button" onclick="togglePrivacy()" style="white-space:nowrap;flex-shrink:0;"></button>
           </div>
         </div>
         <div id="baselineStatus" style="display:none;padding:12px;background:var(--surf);border:2px solid var(--acc);border-radius:8px;font-size:12px;margin-bottom:12px;">
@@ -1136,11 +1137,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <button data-dtab="live" class="dtab active" onclick="detSetTab('live')">Live</button>
           <button data-dtab="detectors" class="dtab" onclick="detSetTab('detectors')">Detectors</button>
           <button data-dtab="analysis" class="dtab" onclick="detSetTab('analysis')">Analysis</button>
+          <button class="btn alt privacy-toggle det-priv" type="button" onclick="togglePrivacy()"></button>
         </div>
         <style>
           #det-tabs button.dtab{background:transparent;color:var(--mut);border:none;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;}
           #det-tabs button.dtab:hover{color:var(--txt);background:rgba(255,255,255,.03);}
           #det-tabs button.dtab.active{color:var(--txt);border-bottom-color:#ea580c;}
+          #det-tabs .det-priv{margin-left:auto;align-self:center;margin-bottom:4px;padding:6px 12px;font-size:12px;line-height:1;border-radius:8px;white-space:nowrap;}
+          @media (max-width:600px){#det-tabs button.dtab{padding:8px 9px;font-size:12px;}#det-tabs .det-priv{padding:5px 10px;font-size:11px;}}
           .dtab-hidden{display:none !important;}
           .det-empty-hidden{display:none !important;}
           .drow-head,.drow{display:grid;grid-template-columns:10px 1fr 48px 52px 44px;gap:12px;align-items:center;}
@@ -1224,8 +1228,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <span class="lbl" style="margin-left:10px;">Drops:</span><span id="d-drops" class="num">--</span>
               <span class="lbl" style="margin-left:10px;">Mesh-gated:</span><span id="d-mgated" class="num">--</span>
             </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button class="btn alt" onclick="detectClearAll()">Clear All State</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <button class="btn danger" onclick="detectClearAll()">Clear All State</button>
+              <span style="font-size:11px;color:var(--mut);">Erases every in-memory detection and deletes the saved detection logs on SD.</span>
             </div>
           </div>
         </div>
@@ -1246,6 +1251,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <span class="collapse-icon open" id="meshCmdCardIcon">&#9654;</span>
           </div>
           <div class="card-body" id="meshCmdCardBody">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+              <button class="btn alt" onclick="meshCmdClear()" style="padding:6px 12px;font-size:12px;">Clear All Events</button>
+            </div>
             <div id="meshCmdArea" style="overflow-x:auto;"><div style="color:var(--mut);font-size:12px;">No commands logged.</div></div>
           </div>
         </div>
@@ -1780,23 +1788,37 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           load();
         }
+        refreshSentinelPrivacy();
+      }
+
+      // Sentinel panes render from polled JSON, so a toggle must re-render them
+      // rather than rely on the one-shot body walk above.
+      function refreshSentinelPrivacy() {
+        _incLastHtml = null;
+        if (typeof loadIncidents === 'function') loadIncidents();
+        if (typeof detTabActive === 'function' && detTabActive() && typeof detAllTicks === 'function') detAllTicks();
+        if (typeof loadSentinelAnalysis === 'function' && document.getElementById('saArea')) loadSentinelAnalysis();
+      }
+
+      function privacyApply(el) {
+        if (typeof privacyMode !== 'undefined' && privacyMode && el) applyPrivacyToElement(el);
       }
 
       function updatePrivacyBtn() {
-        const btn = document.getElementById('privacyBtn');
-        if (!btn) return;
-        btn.textContent = 'Privacy';
-        btn.classList.remove('danger');
-        btn.style.background = '';
-        btn.style.borderColor = '';
-        btn.style.color = '';
-        if (privacyMode) {
-          btn.classList.add('primary');
-          btn.classList.remove('alt');
-        } else {
-          btn.classList.add('alt');
-          btn.classList.remove('primary');
-        }
+        document.querySelectorAll('.privacy-toggle').forEach(btn => {
+          btn.textContent = 'Privacy';
+          btn.classList.remove('danger');
+          btn.style.background = '';
+          btn.style.borderColor = '';
+          btn.style.color = '';
+          if (privacyMode) {
+            btn.classList.add('primary');
+            btn.classList.remove('alt');
+          } else {
+            btn.classList.add('alt');
+            btn.classList.remove('primary');
+          }
+        });
       }
 
       async function toggleMesh() {
@@ -4242,6 +4264,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           if (html !== _incLastHtml) {
             body.innerHTML = html;
+            privacyApply(body);
             _incLastHtml = html;
           }
         } catch(e){ console.error('loadIncidents', e); }
@@ -4795,13 +4818,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return `<span class="sa-chip" style="border-color:${SEVC[sv]};color:${on?'#fff':SEVC[sv]};background:${on?SEVC[sv]+'33':'transparent'};" onclick="(()=>{const s=document.getElementById('saType');if(s){s.value='${on?'ALL':t}';loadSentinelAnalysis();}})()">${esc(t.replace(/_/g,' '))}<span style="opacity:.6;margin-left:6px;">${counts[t]}</span></span>`;
         }).join('');
         const chipBar=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${breakdown}</div>`;
-        if(!rows.length){area.innerHTML=chipBar+'<div class="data-empty">No incidents.</div>';return;}
+        if(!rows.length){area.innerHTML=chipBar+'<div class="data-empty">No incidents.</div>';privacyApply(area);return;}
         const hasPeer=_saData.some(x=>x.src&&x.src!=='local');
         area.innerHTML=chipBar
           +`<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">${total} incident${total!=1?'s':''}${ty!=='ALL'?' · '+ty:''}</div>`
           +'<div class="sa-wrap"><table class="sa-tbl"><thead><tr><th>Time</th><th>Sev</th><th>Type</th>'+(hasPeer?'<th>Source</th>':'')+'<th>Detail</th><th>Node</th></tr></thead><tbody>'
           +rows.map(r=>{const sv=_saSev(r.type||'');return `<tr><td class="sa-when">${esc(fmtWhen(r))}</td><td><span class="sa-pill sa-${sv}">${sv.toUpperCase()}</span></td><td class="sa-type" style="color:${_atkColor(r.type)};">${esc(r.type)}</td>`+(hasPeer?`<td class="sa-mac">${esc(r.src)}</td>`:'')+`<td class="sa-detail">${esc(detailOf(r))}</td><td><span class="sa-node">${esc(r.node)}</span></td></tr>`;}).join('')
           +'</tbody></table></div>';
+        privacyApply(area);
       }
       // Prefix-based severity for sentinel incident types (mirrors detector card sev).
       function _saSev(t){
@@ -5108,8 +5132,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('d-bn').textContent=b?(b.neighbor_bits_set+' / '+b.capacity_bits):'--';
         document.getElementById('d-qc').textContent=q?((q.candidates||[]).length):0;
         document.getElementById('d-quorum').textContent=q?JSON.stringify(q,null,2):'--';
+        privacyApply(document.getElementById('d-quorum'));
         document.getElementById('d-chan').textContent=ch?JSON.stringify(ch,null,2):'--';
-        {const _e=document.getElementById('d-rid');if(_e)_e.textContent=rid?JSON.stringify(rid,null,2):'[]';}
+        privacyApply(document.getElementById('d-chan'));
+        {const _e=document.getElementById('d-rid');if(_e){_e.textContent=rid?JSON.stringify(rid,null,2):'[]';privacyApply(_e);}}
         detRenderTable('d-recpre',rc||[],[
           {key:'id',label:'TrackId'},{key:'score',label:'Score'},
           {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
@@ -5135,7 +5161,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
         renderDos();
       }
-      async function detectClearAll(){await fetch('/api/detect/clear_all',{method:'POST'});detectTick()}
+      async function detectClearAll(){
+        if(!confirm('Erase ALL Sentinel state?\n\nThis clears every detection held in memory (all detector windows, hunts, trackers, baselines) AND deletes the saved detection logs on SD, including incidents.jsonl.\n\nThis cannot be undone.'))return;
+        const r=await fetch('/api/detect/clear_all',{method:'POST'});
+        toast(r.ok?'Sentinel state and detection logs erased':'Clear failed', r.ok?'success':'error');
+        _incLastHtml=null;
+        detectTick();
+        if(typeof loadIncidents==='function')loadIncidents();
+        if(typeof refreshSentinelAnalysis==='function')refreshSentinelAnalysis();
+      }
       async function pgTick(){
         if(!detTabActive())return;
         const pg=await _jj('/api/probegraph');
@@ -5548,6 +5582,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .join('');
           
           el.innerHTML = `<table class="dt"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+          privacyApply(el);
           el._detRows = rows;
           el._detCols = cols;
         }
@@ -5731,6 +5766,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           el.innerHTML='<table class="dt"><thead><tr><th>Client MAC</th><th>Assoc #</th><th>First</th><th>Last</th></tr></thead><tbody>'
             +a.map(c=>`<tr><td style="color:var(--acc);">${c.mac}</td><td>${c.assoc}</td><td>${ago(c.first_ms_ago)} ago</td><td>${ago(c.last_ms_ago)} ago</td></tr>`).join('')
             +'</tbody></table>';
+          privacyApply(el);
         }catch(e){console.warn('apClientsTick',e);}
       }
       async function meshCmdTick(){
@@ -5743,6 +5779,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         el.innerHTML='<table class="dt"><thead><tr><th>Time</th><th>Radio</th><th>Command</th></tr></thead><tbody>'
           +a.slice(-100).reverse().map(r=>`<tr><td>${esc(when(r))}</td><td style="color:var(--acc);">${esc(r.src)}</td><td>${esc(r.cmd)}</td></tr>`).join('')
           +'</tbody></table>';
+        privacyApply(el);
+      }
+      async function meshCmdClear(){
+        if(!confirm('Clear all logged mesh commands?'))return;
+        await fetch('/api/mesh_cmd',{method:'DELETE'});
+        meshCmdTick();
       }
       function detAllTicks(){
         if(!detTabActive())return;
@@ -5760,6 +5802,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(arr.length===0){el.textContent='--';return;}
         const rows=arr.slice(-50).reverse().map(r=>cols.map(c=>{const v=r[c];return v===undefined?'':String(v)}).join(' | '));
         el.textContent=cols.join(' | ')+'\n'+rows.join('\n');
+        privacyApply(el);
       }
       async function bfTick(){if(!detTabActive())return;
         const a=await _jsonl('/api/eviltwin.jsonl');
