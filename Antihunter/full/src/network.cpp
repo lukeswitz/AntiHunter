@@ -2161,6 +2161,13 @@ void registerRemainingRoutes() {
       detect_clearAll();
       r->send(200, "text/plain", "cleared");
   });
+  server->on("/api/detect/clear_session", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearSession();
+      r->send(200, "application/json", detect_getSessionJson());
+  });
+  server->on("/api/detect/session", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getSessionJson());
+  });
   server->on("/api/detect/health", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getHealthJson());
   });

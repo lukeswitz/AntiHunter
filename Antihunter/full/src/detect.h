@@ -547,6 +547,8 @@ String detect_getFragAttackJsonl();
 String detect_getBleMalformedJsonl();
 String detect_getQuorumStatusJson();
 void   detect_clearAll();
+void   detect_clearSession();
+String detect_getSessionJson();
 
 // External queues (filled from ISR)
 extern QueueHandle_t detectFrameQueue;

@@ -1230,7 +1230,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
               <button class="btn danger" onclick="detectClearAll()">Clear All State</button>
-              <span style="font-size:11px;color:var(--mut);">Erases every in-memory detection and deletes the saved detection logs on SD.</span>
+              <button class="btn" onclick="detectClearSession()">Clear Session</button>
+              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State erases every in-memory detection and deletes the saved detection logs on SD. Clear Session zeroes the counts shown here without deleting anything.</span>
             </div>
           </div>
         </div>
@@ -4242,9 +4243,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const ftype = document.getElementById('incFilter').value;
           const fsrc  = document.getElementById('incSrc').value;
           const body = document.getElementById('incBody');
+          const sessMs = (_sessMark && _sessMark.marked) ? (_sessMark.ms||0) : 0;
           const filtered = arr.slice().reverse().filter(e =>
             (!ftype || e.type === ftype) &&
-            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local'))
+            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local')) &&
+            (!sessMs || (e.ts||0) >= sessMs)
           );
           document.getElementById('incCount').textContent = filtered.length + ' / ' + arr.length + ' total';
           let html;
@@ -4991,6 +4994,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         catch(e){console.warn('detect: fetch json failed', u, e); return null;}
       }
       function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
+      let _sessMark=null;
+      function _sessBase(path){
+        if(!_sessMark||!_sessMark.marked||!_sessMark.logs)return 0;
+        return _sessMark.logs[path]||0;
+      }
+      function _sessLines(s,path){
+        if(!s)return [];
+        const all=s.split('\n').filter(l=>l.trim());
+        const b=_sessBase(path);
+        return b>0?all.slice(b):all;
+      }
+      function _countSess(s,path){return _sessLines(s,path).length}
       const GROUPS={
         dos:[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
           ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
@@ -5050,7 +5065,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
       async function renderDos(){
-        const inc=await _jj('/api/incidents.json?limit=200')||[];
+        let inc=await _jj('/api/incidents.json?limit=200')||[];
+        if(_sessMark&&_sessMark.marked&&_sessMark.ms>0)inc=inc.filter(x=>x&&(x.ts||0)>=_sessMark.ms);
         const cfg=_detCfg||{};
         _dosSyncMode(!!cfg.sentinel_scan);
         const nowMs=inc.reduce((m,x)=>Math.max(m,(x&&x.ts)||0),0);
@@ -5109,23 +5125,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,tr,rc,ch]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,tr,rc,ch,sess]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
           _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
           _jj('/api/rid_claims'),_jj('/api/ble_tracker'),_jj('/api/recon'),
-          _jj('/api/channel_partition')
+          _jj('/api/channel_partition'),_jj('/api/detect/session')
         ]);
+        _sessMark=sess||null;
         const dEl = document.getElementById('d-dauth');
-        if (dEl) dEl.textContent = _countLines(df);
-        document.getElementById('d-pmkid').textContent=_countLines(pm);
-        document.getElementById('d-et').textContent=_countLines(et);
-        document.getElementById('d-sc').textContent=_countLines(sc);
-        document.getElementById('d-sae').textContent=_countLines(sa);
-        document.getElementById('d-owe').textContent=_countLines(ow);
-        document.getElementById('d-frag').textContent=_countLines(fr);
+        if (dEl) dEl.textContent = _countSess(df,'/deauth_flood.jsonl');
+        document.getElementById('d-pmkid').textContent=_countSess(pm,'/pmkid.jsonl');
+        document.getElementById('d-et').textContent=_countSess(et,'/eviltwin.jsonl');
+        document.getElementById('d-sc').textContent=_countSess(sc,'/ssid_confusion.jsonl');
+        document.getElementById('d-sae').textContent=_countSess(sa,'/sae_dos.jsonl');
+        document.getElementById('d-owe').textContent=_countSess(ow,'/owe_abuse.jsonl');
+        document.getElementById('d-frag').textContent=_countSess(fr,'/fragattack.jsonl');
         document.getElementById('d-rec').textContent=(rc||[]).length;
         document.getElementById('d-pps').textContent=p?(p.locked?'YES':'no')+' edge='+p.last_edge:'--';
         document.getElementById('d-bl').textContent=b?(b.local_bits_set+' / '+b.capacity_bits):'--';
@@ -5141,15 +5158,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
         ]);
         const evtRows=[];
-        function parseLines(s,kind,sevHint){
-          (s||'').split('\n').filter(l=>l.trim()).forEach(l=>{
+        function parseLines(s,kind,sevHint,path){
+          _sessLines(s,path).forEach(l=>{
             const o=_safeParse(l);
             if(o)evtRows.push({kind,sev:sevHint,ts:o.ts||0,raw:l,o});
           });
         }
-        parseLines(pm,'PMKID','crit');parseLines(et,'EvilTwin','high');parseLines(sc,'SSIDConf','high');
-        parseLines(sa,'SAE','high');parseLines(ow,'OWE','med');parseLines(fr,'Frag','med');
-        parseLines(bm,'BLEMalformed','med');
+        parseLines(pm,'PMKID','crit','/pmkid.jsonl');parseLines(et,'EvilTwin','high','/eviltwin.jsonl');
+        parseLines(sc,'SSIDConf','high','/ssid_confusion.jsonl');
+        parseLines(sa,'SAE','high','/sae_dos.jsonl');parseLines(ow,'OWE','med','/owe_abuse.jsonl');
+        parseLines(fr,'Frag','med','/fragattack.jsonl');
+        parseLines(bm,'BLEMalformed','med','/ble_malformed.jsonl');
         evtRows.sort((a,b)=>(b.ts||0)-(a.ts||0));
         detRenderTable('d-stream',evtRows.slice(0,40),[
           {key:'kind',label:'Type'},
@@ -5158,13 +5177,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           {key:'raw',label:'Detail',get:r=>r.raw}
         ]);
         if((rc||[]).length>0)detMarkActive('recon');
-        if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
+        if(_countSess(pm,'/pmkid.jsonl')>0||_countSess(et,'/eviltwin.jsonl')>0||_countSess(sc,'/ssid_confusion.jsonl')>0||_countSess(sa,'/sae_dos.jsonl')>0)detMarkActive('rid');
         renderDos();
       }
       async function detectClearAll(){
         if(!confirm('Erase ALL Sentinel state?\n\nThis clears every detection held in memory (all detector windows, hunts, trackers, baselines) AND deletes the saved detection logs on SD, including incidents.jsonl.\n\nThis cannot be undone.'))return;
         const r=await fetch('/api/detect/clear_all',{method:'POST'});
         toast(r.ok?'Sentinel state and detection logs erased':'Clear failed', r.ok?'success':'error');
+        _sessMark=null;
+        _incLastHtml=null;
+        detectTick();
+        if(typeof loadIncidents==='function')loadIncidents();
+        if(typeof refreshSentinelAnalysis==='function')refreshSentinelAnalysis();
+      }
+      async function detectClearSession(){
+        const r=await fetch('/api/detect/clear_session',{method:'POST'});
+        if(r.ok){try{_sessMark=await r.json();}catch(e){_sessMark=null;}}
+        toast(r.ok?'Session counts cleared (logs kept)':'Clear failed', r.ok?'success':'error');
         _incLastHtml=null;
         detectTick();
         if(typeof loadIncidents==='function')loadIncidents();

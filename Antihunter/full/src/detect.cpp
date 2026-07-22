@@ -4581,8 +4581,63 @@ String detect_getHealthJson() {
     j += "}";
     return j;
 }
+static const char *kDetectLogs[] = {
+    "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl", "/sae_dos.jsonl",
+    "/pmkid.jsonl", "/pmkid_forge.jsonl", "/eviltwin.jsonl", "/ssid_confusion.jsonl",
+    "/owe_abuse.jsonl", "/fragattack.jsonl", "/ble_malformed.jsonl", "/ble_attack.jsonl",
+    "/ble_follow.jsonl", "/eapol_bait.jsonl", "/probe_flood.jsonl", "/probe_ap.jsonl",
+    "/incidents.jsonl"
+};
+static constexpr size_t kDetectLogCount = sizeof(kDetectLogs) / sizeof(kDetectLogs[0]);
+
+static PsramMap<String, uint32_t> g_sessionMarkLines;
+static uint32_t g_sessionMarkMs = 0;
+static bool g_sessionMarked = false;
+
+static uint32_t countLinesSD(const char *path) {
+    if (!SafeSD::exists(path)) return 0;
+    fs::File f = SafeSD::open(path, FILE_READ);
+    if (!f) return 0;
+    uint32_t lines = 0;
+    uint8_t buf[512];
+    while (true) {
+        size_t n = SafeSD::read(f, buf, sizeof(buf));
+        if (n == 0) break;
+        for (size_t i = 0; i < n; ++i) if (buf[i] == '\n') lines++;
+    }
+    f.close();
+    return lines;
+}
+
+void detect_clearSession() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_sessionMarkLines.clear();
+    for (size_t i = 0; i < kDetectLogCount; ++i) {
+        g_sessionMarkLines[String(kDetectLogs[i])] = countLinesSD(kDetectLogs[i]);
+    }
+    g_sessionMarkMs = millis();
+    g_sessionMarked = true;
+}
+
+String detect_getSessionJson() {
+    std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    String out = String("{\"marked\":") + (g_sessionMarked ? "true" : "false") +
+                 ",\"ms\":" + String(g_sessionMarkMs) + ",\"logs\":{";
+    bool first = true;
+    for (const auto &kv : g_sessionMarkLines) {
+        if (!first) out += ",";
+        first = false;
+        out += "\"" + kv.first + "\":" + String(kv.second);
+    }
+    out += "}}";
+    return out;
+}
+
 void detect_clearAll() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    g_sessionMarkLines.clear();
+    g_sessionMarkMs = 0;
+    g_sessionMarked = false;
     g_pmkidLog.clear();
     g_pmkidBursts.clear();
     g_evilTwinLog.clear();
@@ -4619,14 +4674,7 @@ void detect_clearAll() {
     g_authFlood.clear();
     // Truncate persisted detection logs so Overview line-counts reset too.
     // (Overview reads counts from these SD files; clearing RAM alone left stale totals.)
-    static const char *kDetectLogs[] = {
-        "/deauth_flood.jsonl", "/deauth_ap.jsonl", "/assoc_sleep.jsonl", "/sae_dos.jsonl",
-        "/pmkid.jsonl", "/pmkid_forge.jsonl", "/eviltwin.jsonl", "/ssid_confusion.jsonl",
-        "/owe_abuse.jsonl", "/fragattack.jsonl", "/ble_malformed.jsonl", "/ble_attack.jsonl",
-        "/ble_follow.jsonl", "/eapol_bait.jsonl", "/probe_flood.jsonl", "/probe_ap.jsonl",
-        "/incidents.jsonl"
-    };
-    for (const char *path : kDetectLogs) {
-        if (SafeSD::exists(path)) SafeSD::remove(path);  // skip absent files (no error spam)
+    for (size_t i = 0; i < kDetectLogCount; ++i) {
+        if (SafeSD::exists(kDetectLogs[i])) SafeSD::remove(kDetectLogs[i]);  // skip absent files (no error spam)
     }
 }
