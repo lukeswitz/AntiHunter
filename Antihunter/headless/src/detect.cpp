@@ -635,7 +635,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         }
     }
 
-    // injected M1 w/ zeroed ANonce (hcxdumptool M1M2ROGUE / Marauder bad-msg)
+    // injected M1 w/ zeroed ANonce (not hcxdumptool, it randomizes ANonce)
     if (g_pmkidEnabled.load() && msgNum == 1 && eapolOff + 49 <= (int)e.len) {
         bool zeroNonce = true;
         for (int n = eapolOff + 17; n < eapolOff + 49; ++n) { if (e.payload[n] != 0) { zeroNonce = false; break; } }
@@ -703,6 +703,36 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     }
 
     if (msgNum != 1 || !g_pmkidEnabled.load()) return;
+
+    // hcxdumptool M1 replay counter (hcxdumptool.c:5237)
+    if (replayCtr >= 0xF000ULL && replayCtr <= 0xFFFEULL) {
+        const uint8_t *ap = e.payload + 10;
+        static PsramMap<uint64_t, uint32_t> s_hcxM1;
+        uint64_t hcxK = packMac(ap);
+        auto hcxIt = s_hcxM1.find(hcxK);
+        if (hcxIt == s_hcxM1.end() || (now - hcxIt->second) > 30000) {
+            if (s_hcxM1.size() >= 32) s_hcxM1.erase(s_hcxM1.begin());
+            s_hcxM1[hcxK] = now;
+            char hb[18];
+            snprintf(hb, sizeof(hb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     ap[0],ap[1],ap[2],ap[3],ap[4],ap[5]);
+            String hs(hb);
+            Serial.printf("[DETECT] PMKID_HARVEST tool=HCXDUMPTOOL src=%s rc=%u\n",
+                          hb, (unsigned)replayCtr);
+            logEventToSD("/pmkid.jsonl",
+                         String("{\"src\":\"") + hb + "\",\"tool\":\"HCXDUMPTOOL\",\"reason\":\"M1_RC_RANGE\",\"rc\":" +
+                         String((unsigned)replayCtr) + ",\"rssi\":" + String((int)e.rssi) +
+                         ",\"ch\":" + String((unsigned)e.channel) + ",\"ts\":" + String((unsigned)now) + "}");
+            ::detect_logIncident(String("PMKID_HARVEST:") + hs + ":HCXDUMPTOOL", nullptr);
+            if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() &&
+                meshRateGate(String("PMKID_HCX_") + hs, 30000)) {
+                sendToSerial1(getNodeId() + ": PMKID_HARVEST:" + hs + ":HCXDUMPTOOL:" + String((int)e.rssi), true);
+            }
+            quorum_addReport("PMKID", hs, getNodeId(), e.rssi);
+            attacker_kick(ap, "PMKID");
+        }
+    }
+
     const uint8_t *src = sta;
     bool broadcastDest = (a1[0] & 0x01) != 0;
     if (bssid[0] & 0x02) return;
@@ -862,7 +892,7 @@ static const char *classifyBeaconForgery(const uint8_t *p, uint16_t len) {
     if (len < 36) return nullptr;
     if (memcmp(p + 24, BEACON_FORGERY_TSF, 8) == 0) return "FORGE_TSF_STATIC";
     uint16_t bi = (uint16_t)p[32] | ((uint16_t)p[33] << 8);
-    if (bi == 1000 && (p[10] & 0x02)) return "FORGE_BI_1000";
+    if (bi == 1000) return "FORGE_BI_1000";
     if (len > 36) {
         uint16_t off = 36;
         while (off + 2 <= len) {
@@ -1409,7 +1439,9 @@ struct DeauthRateEntry {
     uint8_t  sawtoothHits;   // consecutive 0..63 incrementing seqs (bettercap)
     uint8_t  lastSubtype;    // 0x0C deauth / 0x0A disassoc
     uint8_t  altHits;        // consecutive deauth<->disassoc alternations (mdk4)
-    uint8_t  reason7Hits;    // reason=7 + dur=0x013A frames (aireplay/bettercap class)
+    uint8_t  reason7Hits;    // reason=7 + dur=0x013A frames (aireplay)
+    uint16_t deauthReason;   // 0xFFFF = unseen
+    uint16_t disassocReason; // 0xFFFF = unseen
     bool     toolAlerted;    // emitted a per-tool forge alert this window
 };
 static PsramMap<uint64_t, DeauthRateEntry> g_deauthRate;
@@ -1425,8 +1457,7 @@ static const char *classifyDeauthTool(uint16_t reason, uint16_t seqCtrl, uint16_
     // ESP32Marauder WiFiScan.h:491 — reason=2, seqCtrl=0xFFF0 (fixed)
     if (reason == 0x0002 && seqCtrl == 0xFFF0) return "MARAUDER";
     if (reason == 0x000E) return "MICHAEL_TKIP";
-    // reason=7+dur=0x013A is shared by aireplay AND bettercap — resolved behaviorally
-    // (sawtooth->BETTERCAP, sustained-no-sawtooth->AIREPLAY), not statically.
+    // reason=7+dur=0x013A is aireplay; bettercap is reason=7+dur=0 — both behavioral.
     return nullptr;
 }
 
@@ -1468,6 +1499,8 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         ne.alerted = false;
         ne.lastSeqNum = seqNum;
         ne.lastSubtype = subtype;
+        ne.deauthReason   = (subtype == 0x0C) ? reason : 0xFFFF;
+        ne.disassocReason = (subtype == 0x0A) ? reason : 0xFFFF;
         g_deauthRate[k] = ne;
     } else {
         DeauthRateEntry &r = it->second;
@@ -1484,14 +1517,19 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             if (r.altHits < 255) r.altHits++;
         }
         r.lastSubtype = subtype;
+        if (subtype == 0x0C) r.deauthReason = reason;
+        else if (subtype == 0x0A) r.disassocReason = reason;
         if (reason == 0x0007 && durLE == 0x013A) {
             if (r.reason7Hits < 255) r.reason7Hits++;
         }
         if (!r.toolAlerted && !(selfSrc && sentinelHop)) {
             const char *behavTool = nullptr;
-            if (r.altHits >= 6) behavTool = "MDK4";                 // deauth/disassoc alt
-            // aireplay & bettercap both emit reason=7+dur=0x013A; sawtooth is lost to
-            // frame-drop/hopping so they're not reliably distinguishable -> shared tag.
+            if (r.altHits >= 6) {
+                // mdk4 varies reason per subtype; ESP deauthers reuse one reason
+                bool bothSeen = r.deauthReason != 0xFFFF && r.disassocReason != 0xFFFF;
+                behavTool = (bothSeen && r.deauthReason != r.disassocReason)
+                                ? "MDK4" : "ESP_DEAUTHER";
+            }
             else if (r.reason7Hits >= 12 || r.sawtoothHits >= 8) behavTool = "AIREPLAY/BETTERCAP";
             if (behavTool) {
                 r.toolAlerted = true;
