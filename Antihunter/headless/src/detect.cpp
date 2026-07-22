@@ -92,9 +92,40 @@ std::recursive_mutex g_mtx;
 // PMKID burst tracking — per src MAC, list of (bssid, ts)
 struct PmkidBurst {
     PsramMap<uint64_t, uint32_t> bssidTs; // packed bssid -> ts
+    PsramMap<uint64_t, uint64_t> hshkKeys;
+    PsramSet<uint64_t> kdeBssids;
     uint32_t lastSeen{};
 };
 PsramMap<uint64_t, PmkidBurst> g_pmkidBursts;
+static constexpr uint32_t PMKID_ORPHAN_SETTLE_MS = 1500;
+
+static uint64_t eapolSessionKey(const uint8_t *bssid, const uint8_t *sta) {
+    uint64_t kb = 0, ks = 0;
+    for (int i = 0; i < 6; ++i) kb = (kb << 8) | bssid[i];
+    for (int i = 0; i < 6; ++i) ks = (ks << 8) | sta[i];
+    return kb ^ (ks * 0x9E3779B97F4A7C15ULL);
+}
+
+static constexpr uint32_t HSHK_EAPOL_TIMEOUT_MS = 5000;
+
+static const char *hshkUsablePair(const HandshakeReconstruction &r, bool &authorized) {
+    const char *challenge = nullptr;
+    authorized = false;
+    for (size_t i = 0; i < r.fragments.size(); ++i) {
+        const HandshakeFragment &a = r.fragments[i];
+        for (size_t j = 0; j < r.fragments.size(); ++j) {
+            if (i == j) continue;
+            const HandshakeFragment &b = r.fragments[j];
+            uint32_t dt = (a.ts > b.ts) ? (a.ts - b.ts) : (b.ts - a.ts);
+            if (dt > HSHK_EAPOL_TIMEOUT_MS) continue;
+            if (a.msgNum == 2 && b.msgNum == 3 && b.replayCtr == a.replayCtr + 1) { authorized = true; return "M2M3"; }
+            if (a.msgNum == 3 && b.msgNum == 4 && b.replayCtr == a.replayCtr)     { authorized = true; return "M3M4"; }
+            if (a.msgNum == 1 && b.msgNum == 4 && b.replayCtr == a.replayCtr + 1) { authorized = true; return "M1M4"; }
+            if (a.msgNum == 1 && b.msgNum == 2 && b.replayCtr == a.replayCtr && !challenge) challenge = "M1M2";
+        }
+    }
+    return challenge;
+}
 PsramVec<PmkidHarvestEvent> g_pmkidLog;
 
 // Evil-twin baseline (per BSSID) — struct ApBaseline now in detect_internal.h
@@ -535,6 +566,35 @@ void detect_correlateEapolBait(const uint8_t *sta, int8_t rssi, uint8_t channel)
 
 static std::atomic<uint32_t> g_lastRealDeauthMs{0};
 
+struct DeauthPeerMark { uint32_t lastMs; uint32_t lastBurstMs; };
+static PsramMap<uint64_t, DeauthPeerMark> g_deauthPeerTs;
+static constexpr size_t MAX_DEAUTH_PEER_MAP = 96;
+static constexpr uint32_t DEAUTH_ATTRIB_WIN_MS = 8000;
+
+struct DeauthPairEntry { uint32_t winStartMs; uint16_t count; };
+static PsramMap<uint64_t, DeauthPairEntry> g_deauthPair;
+static constexpr size_t MAX_DEAUTH_PAIR_MAP = 96;
+static constexpr uint32_t DEAUTH_PAIR_WIN_MS = 1000;
+static constexpr uint16_t DEAUTH_PAIR_THRESH = 12;
+
+static void deauthNotePeer(uint64_t k, uint32_t now, bool burst) {
+    if (g_deauthPeerTs.size() >= MAX_DEAUTH_PEER_MAP && g_deauthPeerTs.find(k) == g_deauthPeerTs.end()) {
+        uint32_t oldest = UINT32_MAX;
+        uint64_t oldestK = 0;
+        for (const auto &kv : g_deauthPeerTs) if (kv.second.lastMs < oldest) { oldest = kv.second.lastMs; oldestK = kv.first; }
+        g_deauthPeerTs.erase(oldestK);
+    }
+    DeauthPeerMark &m = g_deauthPeerTs[k];
+    m.lastMs = now;
+    if (burst) m.lastBurstMs = now;
+}
+
+static bool deauthBurstForPeer(uint64_t k, uint32_t now, uint32_t win) {
+    auto it = g_deauthPeerTs.find(k);
+    return it != g_deauthPeerTs.end() && it->second.lastBurstMs != 0 &&
+           (now - it->second.lastBurstMs) < win;
+}
+
 // PMKID detection
 // =============================================================================
 // EAPOL-Key in 802.11: data frame ftype=2, LLC/SNAP DSAP=0xAA SSAP=0xAA ctrl=0x03,
@@ -680,22 +740,35 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
 
-    if (g_hshkEnabled.load() && msgNum >= 1 && msgNum <= 4) {
+    if (msgNum >= 1 && msgNum <= 4) {
         hshkRecord(bssid, sta, msgNum, replayCtr, e.rssi, getNodeId().c_str(), now);
-        // attack only if FORCED (recent deauth) on a THIRD-PARTY AP; self-AP = legit client
-        bool forced = (now - g_lastRealDeauthMs.load()) < 8000;
-        if (forced && !isSelfMac(bssid)) {
+    }
+    if (g_hshkEnabled.load() && msgNum >= 1 && msgNum <= 4) {
+        bool forced = deauthBurstForPeer(packMac(bssid), now, DEAUTH_ATTRIB_WIN_MS) ||
+                      deauthBurstForPeer(packMac(sta), now, DEAUTH_ATTRIB_WIN_MS);
+        bool authorized = false;
+        const char *pair = nullptr;
+        auto sess = g_hshk.find(eapolSessionKey(bssid, sta));
+        if (sess != g_hshk.end()) pair = hshkUsablePair(sess->second, authorized);
+        if (::g_detectVerbose.load() && pair && !forced) {
+            Serial.printf("[VERIFY-HSHK] pair=%s %s bssid=%s sta=%s suppressed (no deauth burst)\n",
+                          pair, authorized ? "authorized" : "challenge",
+                          macStr(bssid).c_str(), macStr(sta).c_str());
+        }
+        if (pair && forced && !isSelfMac(bssid)) {
             static PsramMap<uint64_t,uint32_t> s_hshkInc;
-            uint64_t hk = packMac(bssid);
+            uint64_t hk = eapolSessionKey(bssid, sta);
             auto hit = s_hshkInc.find(hk);
-            if (hit == s_hshkInc.end() || (now - hit->second) > 10000) {
+            if (hit == s_hshkInc.end() || (now - hit->second) > 30000) {
                 if (s_hshkInc.size() >= 32) s_hshkInc.erase(s_hshkInc.begin());
                 s_hshkInc[hk] = now;
-                Serial.printf("[DETECT] HSHK bssid=%s sta=%s M%u (forced)\n", macStr(bssid).c_str(), macStr(sta).c_str(), (unsigned)msgNum);
-                ::detect_logIncident(String("HSHK:") + macStr(bssid) + ":" + macStr(sta), nullptr);
+                Serial.printf("[DETECT] HSHK bssid=%s sta=%s pair=%s %s (deauth-forced)\n",
+                              macStr(bssid).c_str(), macStr(sta).c_str(), pair,
+                              authorized ? "authorized" : "challenge");
+                ::detect_logIncident(String("HSHK:") + macStr(bssid) + ":" + macStr(sta) + ":" + pair, nullptr);
             }
         }
-        if (forced && meshEnabled && sentinel_isRunning() && g_meshHshk.load() && meshRateGate("HSHK", 1000)) {
+        if (pair && forced && meshEnabled && sentinel_isRunning() && g_meshHshk.load() && meshRateGate("HSHK", 1000)) {
             sendToSerial1(getNodeId() + ": HSHK:" + macStr(bssid) + ":" + macStr(sta) +
                           ":" + String(msgNum) + ":" + String((unsigned long)replayCtr) +
                           ":" + String(e.rssi), true);
@@ -704,35 +777,16 @@ static void handleEAPOL(const DetectFrameEvent &e) {
 
     if (msgNum != 1 || !g_pmkidEnabled.load()) return;
     const uint8_t *src = sta;
-    bool broadcastDest = (a1[0] & 0x01) != 0;
     if (bssid[0] & 0x02) return;
 
-    {   // M1 carrying a real PMKID KDE = harvestable PMKID exposed (clientless capture)
+    bool kdePresent = false;
+    {
         static const uint8_t KDE[6] = {0xDD,0x14,0x00,0x0F,0xAC,0x04};
         const uint8_t *body = e.payload + eapolOff;
         int bodyLen = (int)e.len - eapolOff;
         for (int i = 0; i + 22 <= bodyLen; ++i) {
             if (memcmp(body + i, KDE, 6) != 0) continue;
-            bool nz = false;
-            for (int j = 0; j < 16; ++j) if (body[i + 6 + j]) { nz = true; break; }
-            if (!nz) break;
-            static PsramMap<uint64_t,uint32_t> s_pmkidKde;
-            uint64_t kk = packMac(bssid); uint32_t nk = millis();
-            auto kit = s_pmkidKde.find(kk);
-            if (kit == s_pmkidKde.end() || (nk - kit->second) > 10000) {
-                if (s_pmkidKde.size() >= 32) s_pmkidKde.erase(s_pmkidKde.begin());
-                s_pmkidKde[kk] = nk;
-                char bb[18], ss[18];
-                snprintf(bb, sizeof(bb), "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
-                snprintf(ss, sizeof(ss), "%02X:%02X:%02X:%02X:%02X:%02X", src[0],src[1],src[2],src[3],src[4],src[5]);
-                Serial.printf("[DETECT] PMKID_HARVEST bssid=%s sta=%s (PMKID KDE present)\n", bb, ss);
-                logEventToSD("/pmkid.jsonl", String("{\"src\":\"")+ss+"\",\"bssid\":\""+bb+"\",\"reason\":\"PMKID_KDE\",\"rssi\":"+String((int)e.rssi)+",\"ch\":"+String((unsigned)e.channel)+",\"ts\":"+String((unsigned)nk)+"}");
-                ::detect_logIncident(String("PMKID_HARVEST:") + ss + ":" + bb, nullptr);
-                quorum_addReport("PMKID", String(ss), getNodeId(), e.rssi);
-                if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() && meshRateGate(String("PMKID_HARVEST_") + bb, 30000)) {
-                    sendToSerial1(getNodeId() + ": PMKID_HARVEST:" + ss + ":" + bb + ":" + String((int)e.rssi), true);
-                }
-            }
+            for (int j = 0; j < 16; ++j) if (body[i + 6 + j]) { kdePresent = true; break; }
             break;
         }
     }
@@ -741,12 +795,25 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     b.lastSeen = now;
     uint64_t bssK = packMac(bssid);
     b.bssidTs[bssK] = now;
+    b.hshkKeys[bssK] = eapolSessionKey(bssid, src);
+    if (kdePresent) b.kdeBssids.insert(bssK);
     uint16_t win = g_pmkidWindow.load();
     for (auto it = b.bssidTs.begin(); it != b.bssidTs.end(); ) {
-        if (now - it->second > win) it = b.bssidTs.erase(it);
-        else ++it;
+        if (now - it->second > win) {
+            b.hshkKeys.erase(it->first);
+            b.kdeBssids.erase(it->first);
+            it = b.bssidTs.erase(it);
+        } else ++it;
     }
-    bool fire = (b.bssidTs.size() >= g_pmkidMinBssids.load()) || broadcastDest;
+    uint8_t orphaned = 0;
+    for (const auto &kv : b.bssidTs) {
+        if ((now - kv.second) < PMKID_ORPHAN_SETTLE_MS) continue;
+        auto hk = b.hshkKeys.find(kv.first);
+        if (hk == b.hshkKeys.end()) continue;
+        auto hs = g_hshk.find(hk->second);
+        if (hs != g_hshk.end() && (hs->second.seenMask & 0x02) == 0) orphaned++;
+    }
+    bool fire = orphaned >= g_pmkidMinBssids.load();
     if (fire) {
         PmkidHarvestEvent ev{};
         memcpy(ev.srcMac, src, 6);
@@ -766,9 +833,13 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         String sr(srBuf);
         char lineBuf[280];
         snprintf(lineBuf, sizeof(lineBuf),
-                 "{\"src\":\"%s\",\"bssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u,\"distinct_peers\":%u,\"bcast\":%s}",
+                 "{\"src\":\"%s\",\"bssid\":\"%s\",\"rssi\":%d,\"ch\":%u,\"ts\":%u,\"distinct_peers\":%u,\"orphan_m1\":%u,\"kde\":%s}",
                  srBuf, bsBuf, (int)ev.rssi, (unsigned)ev.channel, (unsigned)now,
-                 (unsigned)b.bssidTs.size(), broadcastDest ? "true" : "false");
+                 (unsigned)b.bssidTs.size(), (unsigned)orphaned,
+                 (b.kdeBssids.size() ? "true" : "false"));
+        Serial.printf("[DETECT] PMKID_HARVEST sta=%s orphan_m1=%u peers=%u kde=%u\n",
+                      srBuf, (unsigned)orphaned, (unsigned)b.bssidTs.size(),
+                      (unsigned)b.kdeBssids.size());
         logEventToSD("/pmkid.jsonl", String(lineBuf));
         ::detect_logIncident(String("PMKID_HARVEST:") + sr + ":" + bs, nullptr);
         if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() && meshRateGate("PMKID_HARVEST", 5000)) {
@@ -780,6 +851,8 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         quorum_addReport("PMKID", sr, getNodeId(), ev.rssi);
         attacker_kick(src, "PMKID");
         b.bssidTs.clear();
+        b.hshkKeys.clear();
+        b.kdeBssids.clear();
     }
 }
 
@@ -1454,6 +1527,32 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
     }
     uint32_t now = millis();
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
+    bool pairBurst = false;
+    {
+        uint64_t pairK = packMac(src) ^ (packMac(dst) * 0x9E3779B97F4A7C15ULL);
+        auto pit = g_deauthPair.find(pairK);
+        if (pit == g_deauthPair.end() || (now - pit->second.winStartMs) > DEAUTH_PAIR_WIN_MS) {
+            if (g_deauthPair.size() >= MAX_DEAUTH_PAIR_MAP) {
+                uint32_t oldest = UINT32_MAX;
+                uint64_t oldestK = 0;
+                for (const auto &kv : g_deauthPair) if (kv.second.winStartMs < oldest) { oldest = kv.second.winStartMs; oldestK = kv.first; }
+                g_deauthPair.erase(oldestK);
+            }
+            DeauthPairEntry ne{};
+            ne.winStartMs = now;
+            ne.count = 1;
+            g_deauthPair[pairK] = ne;
+        } else {
+            DeauthPairEntry &pe = pit->second;
+            if (pe.count < 65535) pe.count++;
+            pairBurst = pe.count >= DEAUTH_PAIR_THRESH;
+        }
+    }
+    if (!selfSrc) {
+        deauthNotePeer(packMac(src), now, pairBurst);
+        deauthNotePeer(packMac(p + 16), now, pairBurst);
+        if (!isBroadcast) deauthNotePeer(packMac(dst), now, pairBurst);
+    }
     uint64_t k = packMac(src);
     auto it = g_deauthRate.find(k);
     if (it == g_deauthRate.end() || (now - it->second.winStartMs) > DEAUTH_FLOOD_WIN_MS) {
@@ -1516,7 +1615,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             }
         }
         bool suppressSelfBurst = selfSrc && sentinelHop && (r.count < (DEAUTH_FLOOD_THRESH * 2));
-        bool bcastAttack = isBroadcast && r.count >= 3 && !selfSrc;
+        bool bcastAttack = isBroadcast && pairBurst && !selfSrc;
         if (!r.alerted && (r.count >= DEAUTH_FLOOD_THRESH || bcastAttack) && !suppressSelfBurst) {
             r.alerted = true;
             char srcBuf[18];
@@ -1587,8 +1686,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
 static void handleAssocReq(const DetectFrameEvent &e) {
     if (!g_assocSleepEnabled.load() && !g_pmkidEnabled.load()) return;
     if (e.len < 28) return;
-    // Count ALL assoc-reqs: PM-bit = sleep-mode forgery,
-    // high rate w/o PM = PMKID/handshake harvest flood (angryoxide/hcxdumptool).
+    if ((e.payload[1] & 0x10) == 0) return;
     const uint8_t *src   = e.payload + 10;
     const uint8_t *bssid = e.payload + 16;
     uint64_t bssK = packMac(bssid);
@@ -1721,10 +1819,33 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
 }
 
 // Global probe-rate flood: RANDOMIZED (mdk4 unique-MAC) or SINGLE_MAC (Marauder)
-struct ProbeGlobalWin { uint32_t winMs{}; uint16_t total{}; bool alerted{}; PsramMap<uint64_t,uint16_t> srcCount; };
-static ProbeGlobalWin g_probeGlobal{0,0,false,{}};
+struct ProbeGlobalWin {
+    uint32_t winMs{};
+    uint16_t total{};
+    bool alerted{};
+    PsramMap<uint64_t,uint16_t> srcCount;
+    PsramMap<uint64_t,uint8_t> srcStreak;
+    uint32_t lastEmitMs{};
+};
+static ProbeGlobalWin g_probeGlobal;
+static constexpr uint32_t PROBE_FLOOD_QUIET_MS = 60000;
+static constexpr uint8_t  PROBE_SINGLE_MIN_STREAK = 2;
+static constexpr size_t   MAX_PROBE_STREAK_MAP = 32;
 static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, uint32_t now) {
     if (now - g_probeGlobal.winMs > 5000) {
+        uint16_t thr = g_probeSingleMacThresh.load();
+        for (auto it = g_probeGlobal.srcStreak.begin(); it != g_probeGlobal.srcStreak.end(); ) {
+            auto c = g_probeGlobal.srcCount.find(it->first);
+            if (c == g_probeGlobal.srcCount.end() || c->second < thr) it = g_probeGlobal.srcStreak.erase(it);
+            else ++it;
+        }
+        for (const auto &kv : g_probeGlobal.srcCount) {
+            if (kv.second < thr) continue;
+            if (g_probeGlobal.srcStreak.size() >= MAX_PROBE_STREAK_MAP &&
+                g_probeGlobal.srcStreak.find(kv.first) == g_probeGlobal.srcStreak.end()) continue;
+            uint8_t &s = g_probeGlobal.srcStreak[kv.first];
+            if (s < 255) s++;
+        }
         g_probeGlobal.winMs = now; g_probeGlobal.total = 0; g_probeGlobal.alerted = false; g_probeGlobal.srcCount.clear();
     }
     if (g_probeGlobal.total < 65535) g_probeGlobal.total++;
@@ -1734,9 +1855,13 @@ static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, u
     if (g_probeGlobal.srcCount.size() > 512) g_probeGlobal.srcCount.erase(g_probeGlobal.srcCount.begin());
     if (g_probeGlobal.alerted) return;
     bool randomized = g_probeGlobal.total >= g_probeRandTotalThresh.load() && g_probeGlobal.srcCount.size() >= g_probeRandDistinctThresh.load();
-    bool singleMac  = sc >= g_probeSingleMacThresh.load();
+    auto st = g_probeGlobal.srcStreak.find(sk);
+    bool singleMac = sc >= g_probeSingleMacThresh.load() &&
+                     st != g_probeGlobal.srcStreak.end() && st->second >= PROBE_SINGLE_MIN_STREAK;
     if (!randomized && !singleMac) return;
     g_probeGlobal.alerted = true;
+    if (g_probeGlobal.lastEmitMs != 0 && (now - g_probeGlobal.lastEmitMs) < PROBE_FLOOD_QUIET_MS) return;
+    g_probeGlobal.lastEmitMs = now;
     const char *kind = randomized ? "RANDOMIZED" : "SINGLE_MAC";
     String what = randomized
         ? String((unsigned)g_probeGlobal.total) + ":" + String((unsigned)g_probeGlobal.srcCount.size())
@@ -1756,8 +1881,6 @@ static void handleProbeReq(const DetectFrameEvent &e) {
     if (e.len < 26) return;
     const uint8_t *p = e.payload;
     if (isSelfMac(p + 10)) return;
-    probeGlobalCheck(p + 10, e.rssi, e.channel, millis());
-    // Extract SSID for behavioral check (runs regardless of fingerprint match).
     const uint8_t *ieB = p + 24;
     uint16_t ieLenB = e.len - 24;
     char ssidB[33] = {0};
@@ -1768,8 +1891,10 @@ static void handleProbeReq(const DetectFrameEvent &e) {
             ssidB[l] = 0;
         }
     }
-    bool ssidOk = ssidB[0] && ssidIsValid(ssidB, strlen(ssidB)) &&
-                   !ssidLooksRandom(ssidB, strlen(ssidB));
+    size_t ssidLenB = strlen(ssidB);
+    bool ssidRandom = ssidLenB && ssidLooksRandom(ssidB, ssidLenB);
+    bool ssidOk = ssidB[0] && ssidIsValid(ssidB, ssidLenB) && !ssidRandom;
+    if (!ssidRandom) probeGlobalCheck(p + 10, e.rssi, e.channel, millis());
     if (ssidOk) probeBehaveCheck(p + 10, ssidB, e.rssi, e.channel, millis());
 
     // tool template: seq ctrl bytes 22-23 = 0x01 0x00 (= seqCtrl LE 0x0001).
@@ -3464,7 +3589,8 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
     Serial.printf("[AP] STA disconnect mac=%02X:%02X:%02X:%02X:%02X:%02X reason=%u count=%u/%ums\n",
                   clientMac[0],clientMac[1],clientMac[2],clientMac[3],clientMac[4],clientMac[5],
                   reasonCode, g_softApDeauth.count, (unsigned)(now - g_softApDeauth.winStartMs));
-    bool deauthFrameSeen = (now - g_lastRealDeauthMs.load()) < 3000;
+    uint32_t lastDeauthMs = g_lastRealDeauthMs.load();
+    bool deauthFrameSeen = lastDeauthMs != 0 && (now - lastDeauthMs) < 3000;
     bool scanChurn = ah_detect::g_sentinelScanMode.load();   // hopping self-disconnects clients, not an attack
     if (!g_softApDeauth.alerted && !scanChurn && g_softApDeauth.count >= SOFTAP_DEAUTH_THRESH && deauthFrameSeen) {
         g_softApDeauth.alerted = true;
