@@ -14,12 +14,11 @@
 
 <div align="center">
   <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
-</div>
-  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
 
-  Also for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
-  
- <strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong>
+  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+  <p>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO"> AntiHunter Command Center</p>
+</div>
+
 
    > Beta version with new features in development. Potential stability issues and unexpected behavior may occur.   
 
