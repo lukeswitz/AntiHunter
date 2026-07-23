@@ -1460,6 +1460,7 @@ static bool isDetectorPrefix(const String &type) {
     static const char *kPrefixes[] = {
         "DEAUTH_FORGE","DEAUTH_FLOOD","EVILTWIN","KARMA_CAND","KARMA_CONFIRMED",
         "BEACON_FORGE","PMKID_HARVEST","PMKID_FORGE","EAPOL_BAIT","PROBE_FLOOD",
+        "CSA_SPOOF","QUIET_ABUSE",
         "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","SAE_DOS",
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
@@ -1481,6 +1482,7 @@ void detect_logIncident(const String &raw, const char *src) {
     static const char *kPrefixesFast[] = {
         "DEAUTH_FORGE","DEAUTH_FLOOD","EVILTWIN","KARMA_CAND","KARMA_CONFIRMED",
         "BEACON_FORGE","PMKID_HARVEST","PMKID_FORGE","EAPOL_BAIT","PROBE_FLOOD",
+        "CSA_SPOOF","QUIET_ABUSE",
         "PROBE_FLOOD_BEHAVE","ASSOC_SLEEP","SAE_DOS",
         "OWE_ABUSE","SSID_CONFUSION","FRAG","KRACK","PWNAGOTCHI",
         "ATTACKER_HUNT","RECON","HSHK","DEAUTH_AP_TARGETED",
