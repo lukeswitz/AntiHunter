@@ -461,6 +461,13 @@ String airtag_getPresenceJson();
 void   airtag_clear();
 size_t airtag_count();
 
+// Counter-Surveillance scan control + results
+void   cs_beginScan();
+void   cs_endScan();
+String cs_getResultsJson();
+String cs_getResultsText();
+bool   cs_isRunning();
+
 // =============================================================================
 // Feature 3: BLE tracker rotation un-linking
 // =============================================================================
@@ -544,6 +551,8 @@ String detect_getFragAttackJsonl();
 String detect_getBleMalformedJsonl();
 String detect_getQuorumStatusJson();
 void   detect_clearAll();
+void   detect_clearSession();
+String detect_getSessionJson();
 
 // External queues (filled from ISR)
 extern QueueHandle_t detectFrameQueue;

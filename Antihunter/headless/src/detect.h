@@ -461,6 +461,12 @@ String airtag_getPresenceJson();
 void   airtag_clear();
 size_t airtag_count();
 
+// Counter-Surveillance scan control + results
+void   cs_beginScan();
+void   cs_endScan();
+String cs_getResultsJson();
+bool   cs_isRunning();
+
 // =============================================================================
 // Feature 3: BLE tracker rotation un-linking
 // =============================================================================
