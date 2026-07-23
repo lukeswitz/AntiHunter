@@ -52,6 +52,16 @@ void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) {
     }
 }
 
+template <typename M, typename F> static void evictOldestBy(M &m, F key) {
+    if (m.empty()) return;
+    auto oldest = m.begin();
+    for (auto it = m.begin(); it != m.end(); ++it) if (key(it->second) < key(oldest->second)) oldest = it;
+    m.erase(oldest);
+}
+template <typename M> static void evictOldestTs(M &m) {
+    evictOldestBy(m, [](const typename M::mapped_type &v) { return v; });
+}
+
 uint32_t trackerTryLinkRotation(const uint8_t *addr, const char *vendor, int8_t rssi, uint32_t now);
 void trackerSweepVanished(uint32_t now);
 void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len);
@@ -221,6 +231,7 @@ std::atomic<bool> g_pwnaEnabled{false};
 std::atomic<bool> g_trackerEnabled{false};
 std::atomic<bool> g_airtagEnabled{false};
 std::atomic<bool> g_tsfEnabled{false};
+std::atomic<bool> g_csaQuietEnabled{true};
 std::atomic<bool> g_ridSpoofEnabled{false};
 std::atomic<bool> g_bloomGossipEnabled{false};
 std::atomic<bool> g_attackerTrilatEnabled{false};
@@ -695,7 +706,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
         }
     }
 
-    // injected M1 w/ zeroed ANonce (hcxdumptool M1M2ROGUE / Marauder bad-msg)
+    // injected M1 w/ zeroed ANonce (not hcxdumptool, it randomizes ANonce)
     if (g_pmkidEnabled.load() && msgNum == 1 && eapolOff + 49 <= (int)e.len) {
         bool zeroNonce = true;
         for (int n = eapolOff + 17; n < eapolOff + 49; ++n) { if (e.payload[n] != 0) { zeroNonce = false; break; } }
@@ -705,7 +716,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
             uint64_t fk = packMac(src); uint32_t nowm = millis();
             auto fit = s_fakeM1.find(fk);
             if (fit == s_fakeM1.end() || (nowm - fit->second) > 30000) {
-                if (s_fakeM1.size() >= 32) s_fakeM1.erase(s_fakeM1.begin());
+                if (s_fakeM1.size() >= 32) evictOldestTs(s_fakeM1);
                 s_fakeM1[fk] = nowm;
                 char sb[18];
                 snprintf(sb, sizeof(sb), "%02X:%02X:%02X:%02X:%02X:%02X", src[0],src[1],src[2],src[3],src[4],src[5]);
@@ -760,7 +771,7 @@ static void handleEAPOL(const DetectFrameEvent &e) {
             uint64_t hk = eapolSessionKey(bssid, sta);
             auto hit = s_hshkInc.find(hk);
             if (hit == s_hshkInc.end() || (now - hit->second) > 30000) {
-                if (s_hshkInc.size() >= 32) s_hshkInc.erase(s_hshkInc.begin());
+                if (s_hshkInc.size() >= 32) evictOldestTs(s_hshkInc);
                 s_hshkInc[hk] = now;
                 Serial.printf("[DETECT] HSHK bssid=%s sta=%s pair=%s %s (deauth-forced)\n",
                               macStr(bssid).c_str(), macStr(sta).c_str(), pair,
@@ -776,6 +787,36 @@ static void handleEAPOL(const DetectFrameEvent &e) {
     }
 
     if (msgNum != 1 || !g_pmkidEnabled.load()) return;
+
+    // hcxdumptool M1 replay counter (hcxdumptool.c:5237)
+    if (replayCtr >= 0xF000ULL && replayCtr <= 0xFFFEULL) {
+        const uint8_t *ap = e.payload + 10;
+        static PsramMap<uint64_t, uint32_t> s_hcxM1;
+        uint64_t hcxK = packMac(ap);
+        auto hcxIt = s_hcxM1.find(hcxK);
+        if (hcxIt == s_hcxM1.end() || (now - hcxIt->second) > 30000) {
+            if (s_hcxM1.size() >= 32) evictOldestTs(s_hcxM1);
+            s_hcxM1[hcxK] = now;
+            char hb[18];
+            snprintf(hb, sizeof(hb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     ap[0],ap[1],ap[2],ap[3],ap[4],ap[5]);
+            String hs(hb);
+            Serial.printf("[DETECT] PMKID_HARVEST tool=HCXDUMPTOOL src=%s rc=%u\n",
+                          hb, (unsigned)replayCtr);
+            logEventToSD("/pmkid.jsonl",
+                         String("{\"src\":\"") + hb + "\",\"tool\":\"HCXDUMPTOOL\",\"reason\":\"M1_RC_RANGE\",\"rc\":" +
+                         String((unsigned)replayCtr) + ",\"rssi\":" + String((int)e.rssi) +
+                         ",\"ch\":" + String((unsigned)e.channel) + ",\"ts\":" + String((unsigned)now) + "}");
+            ::detect_logIncident(String("PMKID_HARVEST:") + hs + ":HCXDUMPTOOL", nullptr);
+            if (meshEnabled && sentinel_isRunning() && g_meshPmkid.load() &&
+                meshRateGate(String("PMKID_HCX_") + hs, 30000)) {
+                sendToSerial1(getNodeId() + ": PMKID_HARVEST:" + hs + ":HCXDUMPTOOL:" + String((int)e.rssi), true);
+            }
+            quorum_addReport("PMKID", hs, getNodeId(), e.rssi);
+            attacker_kick(ap, "PMKID");
+        }
+    }
+
     const uint8_t *src = sta;
     if (bssid[0] & 0x02) return;
 
@@ -935,7 +976,7 @@ static const char *classifyBeaconForgery(const uint8_t *p, uint16_t len) {
     if (len < 36) return nullptr;
     if (memcmp(p + 24, BEACON_FORGERY_TSF, 8) == 0) return "FORGE_TSF_STATIC";
     uint16_t bi = (uint16_t)p[32] | ((uint16_t)p[33] << 8);
-    if (bi == 1000 && (p[10] & 0x02)) return "FORGE_BI_1000";
+    if (bi == 1000) return "FORGE_BI_1000";
     if (len > 36) {
         uint16_t off = 36;
         while (off + 2 <= len) {
@@ -1011,7 +1052,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
     bool wantEvil = g_eviltwinEnabled.load();
     bool wantTsf  = g_tsfEnabled.load();
     bool wantOwe  = g_oweEnabled.load();
-    if (!wantPwna && !wantEvil && !wantTsf && !wantOwe) return;
+    bool wantCsaQuiet = g_csaQuietEnabled.load();
+    if (!wantPwna && !wantEvil && !wantTsf && !wantOwe && !wantCsaQuiet) return;
     const uint8_t *p = e.payload;
     const uint8_t *bssid = p + 16;
     uint64_t tsf = 0;
@@ -1019,6 +1061,51 @@ static void handleBeacon(const DetectFrameEvent &e) {
     uint16_t beaconInt = (uint16_t)p[32] | ((uint16_t)p[33] << 8);
     const uint8_t *ie = p + 36;
     uint16_t ieLen = e.len - 36;
+
+    if (wantCsaQuiet) {
+        static PsramMap<uint64_t, uint32_t> s_csaQuietEmit;
+        uint16_t coff = 0;
+        const char *cqReason = nullptr;
+        unsigned cqVal = 0;
+        while (coff + 2 <= ieLen) {
+            uint8_t ct = ie[coff];
+            uint8_t cl = ie[coff + 1];
+            if ((size_t)coff + 2 + cl > (size_t)ieLen) break;
+            const uint8_t *cv = ie + coff + 2;
+            if (ct == 37 && cl >= 3 && cv[2] >= 50) { cqReason = "CSA_SPOOF"; cqVal = cv[2]; break; }
+            if (ct == 60 && cl >= 4 && cv[3] >= 50) { cqReason = "CSA_SPOOF"; cqVal = cv[3]; break; }
+            if (ct == 40 && cl >= 6) {
+                uint16_t qd = (uint16_t)cv[2] | ((uint16_t)cv[3] << 8);
+                if (qd >= 1000) { cqReason = "QUIET_ABUSE"; cqVal = qd; break; }
+            }
+            coff += 2 + cl;
+        }
+        if (cqReason && !isSelfMac(bssid)) {
+            uint64_t cqk = packMac(bssid);
+            uint32_t cqnow = millis();
+            auto cqit = s_csaQuietEmit.find(cqk);
+            if (cqit == s_csaQuietEmit.end() || (cqnow - cqit->second) > 30000) {
+                if (s_csaQuietEmit.size() >= 32) evictOldestTs(s_csaQuietEmit);
+                s_csaQuietEmit[cqk] = cqnow;
+                char cqb[18];
+                snprintf(cqb, sizeof(cqb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
+                Serial.printf("[DETECT] %s src=%s val=%u ch=%u\n", cqReason, cqb, cqVal, (unsigned)e.channel);
+                char cqline[200];
+                snprintf(cqline, sizeof(cqline),
+                         "{\"bssid\":\"%s\",\"reason\":\"%s\",\"value\":%u,\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
+                         cqb, cqReason, cqVal, (int)e.rssi, (unsigned)e.channel, (unsigned)cqnow);
+                logEventToSD("/beacon_dos.jsonl", String(cqline));
+                ::detect_logIncident(String(cqReason) + ":" + cqb + ":" + String(cqVal), nullptr);
+                quorum_addReport(String(cqReason), String(cqb), getNodeId(), e.rssi);
+                attacker_kick(bssid, cqReason);
+                if (meshEnabled && sentinel_isRunning() && g_meshBeacon.load() &&
+                    meshRateGate(String("CSAQ_") + cqb, 30000))
+                    sendToSerial1(getNodeId() + ": " + cqReason + ":" + cqb + ":" + String(cqVal) +
+                                  ":" + String((int)e.rssi), true);
+            }
+        }
+    }
 
     // Evil-twin-of-us: any non-self BSSID beaconing OUR SSID is a clone of our AP.
     if (wantEvil) {
@@ -1030,7 +1117,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
             uint32_t nowc = millis();
             auto sit = s_selfCloneSeen.find(ck);
             if (sit == s_selfCloneSeen.end() || (nowc - sit->second) > 30000) {
-                if (s_selfCloneSeen.size() >= 32) s_selfCloneSeen.erase(s_selfCloneSeen.begin());
+                if (s_selfCloneSeen.size() >= 32) evictOldestTs(s_selfCloneSeen);
                 s_selfCloneSeen[ck] = nowc;
                 const char *rsn = hasOpenAuth(ie, ieLen) ? "SELF_CLONE_OPEN" : "SELF_CLONE";
                 char bb[18];
@@ -1109,7 +1196,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
             auto rit = g_beaconSsidRotate.find(srcK);
             if (rit == g_beaconSsidRotate.end() || (now2 - rit->second.first) > BEACON_ROTATE_WIN_MS) {
                 if (g_beaconSsidRotate.size() >= MAX_BEACON_ROTATE_MAP) {
-                    g_beaconSsidRotate.erase(g_beaconSsidRotate.begin());
+                    evictOldestBy(g_beaconSsidRotate, [](const auto &v) { return v.first; });
                 }
                 g_beaconSsidRotate[srcK] = {now2, PsramSet<String>{String(ssidLocal2)}};
             } else {
@@ -1482,13 +1569,24 @@ struct DeauthRateEntry {
     uint8_t  sawtoothHits;   // consecutive 0..63 incrementing seqs (bettercap)
     uint8_t  lastSubtype;    // 0x0C deauth / 0x0A disassoc
     uint8_t  altHits;        // consecutive deauth<->disassoc alternations (mdk4)
-    uint8_t  reason7Hits;    // reason=7 + dur=0x013A frames (aireplay/bettercap class)
+    uint8_t  reason7Hits;    // reason=7 + dur=0x013A frames (aireplay)
+    uint16_t deauthReason;   // 0xFFFF = unseen
+    uint16_t disassocReason; // 0xFFFF = unseen
     bool     toolAlerted;    // emitted a per-tool forge alert this window
+    uint32_t lastFrameMs;
+    uint32_t lastEpoch;      // channel dwell the previous frame arrived in
+    uint32_t gapSumMs;
+    uint16_t gapSamples;
 };
 static PsramMap<uint64_t, DeauthRateEntry> g_deauthRate;
 static constexpr size_t MAX_DEAUTH_RATE_MAP = 64;
 static constexpr uint32_t DEAUTH_FLOOD_WIN_MS = 10000;
 static constexpr uint16_t DEAUTH_FLOOD_THRESH = 20;
+static constexpr uint32_t DEAUTH_RATE_GAP_MS = 150;   // slowest verified injector sends every 40ms
+static constexpr uint16_t DEAUTH_RATE_MIN_GAPS = 8;
+static constexpr uint32_t DEAUTH_ALERT_COOLDOWN_MS = 60000;
+static std::atomic<uint32_t> g_deauthRetryDrops{0};
+static std::atomic<uint32_t> g_chanEpoch{0};          // bumped when the RX channel changes
 
 // Classify a deauth/disassoc frame against verified per-tool source fingerprints.
 // Returns a static tool tag or nullptr. Single-frame static checks only.
@@ -1498,14 +1596,14 @@ static const char *classifyDeauthTool(uint16_t reason, uint16_t seqCtrl, uint16_
     // ESP32Marauder WiFiScan.h:491 — reason=2, seqCtrl=0xFFF0 (fixed)
     if (reason == 0x0002 && seqCtrl == 0xFFF0) return "MARAUDER";
     if (reason == 0x000E) return "MICHAEL_TKIP";
-    // reason=7+dur=0x013A is shared by aireplay AND bettercap — resolved behaviorally
-    // (sawtooth->BETTERCAP, sustained-no-sawtooth->AIREPLAY), not statically.
+    // reason=7+dur=0x013A is aireplay; bettercap is reason=6+dur=0 — both behavioral.
     return nullptr;
 }
 
 static void handleDeauthFrame(const DetectFrameEvent &e) {
     if (e.len < 26) return;
     const uint8_t *p = e.payload;
+    if (p[1] & 0x08) { g_deauthRetryDrops.fetch_add(1, std::memory_order_relaxed); return; }  // retransmit
     const uint8_t *dst = p + 4;
     const uint8_t *src = p + 10;
     bool selfSrc = isSelfMac(src);
@@ -1567,10 +1665,21 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         ne.alerted = false;
         ne.lastSeqNum = seqNum;
         ne.lastSubtype = subtype;
+        ne.lastFrameMs = now;
+        ne.lastEpoch = g_chanEpoch.load(std::memory_order_relaxed);
+        ne.deauthReason   = (subtype == 0x0C) ? reason : 0xFFFF;
+        ne.disassocReason = (subtype == 0x0A) ? reason : 0xFFFF;
         g_deauthRate[k] = ne;
     } else {
         DeauthRateEntry &r = it->second;
         if (r.count < 65535) r.count++;
+        uint32_t epoch = g_chanEpoch.load(std::memory_order_relaxed);
+        if (epoch == r.lastEpoch && r.gapSamples < 65535) {
+            r.gapSumMs += (now - r.lastFrameMs);
+            r.gapSamples++;
+        }
+        r.lastFrameMs = now;
+        r.lastEpoch = epoch;
         // bettercap: seq walks 0..63 then resets (wifi_deauth.go:14). Count monotonic increments.
         if (seqNum == (uint16_t)(r.lastSeqNum + 1) && seqNum <= 0x003F) {
             if (r.sawtoothHits < 255) r.sawtoothHits++;
@@ -1583,15 +1692,21 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             if (r.altHits < 255) r.altHits++;
         }
         r.lastSubtype = subtype;
+        if (subtype == 0x0C) r.deauthReason = reason;
+        else if (subtype == 0x0A) r.disassocReason = reason;
         if (reason == 0x0007 && durLE == 0x013A) {
             if (r.reason7Hits < 255) r.reason7Hits++;
         }
         if (!r.toolAlerted && !(selfSrc && sentinelHop)) {
             const char *behavTool = nullptr;
-            if (r.altHits >= 6) behavTool = "MDK4";                 // deauth/disassoc alt
-            // aireplay & bettercap both emit reason=7+dur=0x013A; sawtooth is lost to
-            // frame-drop/hopping so they're not reliably distinguishable -> shared tag.
-            else if (r.reason7Hits >= 12 || r.sawtoothHits >= 8) behavTool = "AIREPLAY/BETTERCAP";
+            if (r.altHits >= 6) {
+                // mdk4 varies reason per subtype; ESP deauthers reuse one reason
+                bool bothSeen = r.deauthReason != 0xFFFF && r.disassocReason != 0xFFFF;
+                behavTool = (bothSeen && r.deauthReason != r.disassocReason)
+                                ? "MDK4" : "ESP_DEAUTHER";
+            }
+            else if (r.reason7Hits >= 12) behavTool = "AIREPLAY";
+            else if (r.sawtoothHits >= 8) behavTool = "BETTERCAP";
             if (behavTool) {
                 r.toolAlerted = true;
                 char sb[18];
@@ -1614,22 +1729,33 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                 attacker_kick(src, "DEAUTH_FORGE");
             }
         }
+        uint32_t meanGap = r.gapSamples ? (r.gapSumMs / r.gapSamples) : UINT32_MAX;
+        bool floodRate = r.count >= DEAUTH_FLOOD_THRESH && r.gapSamples >= DEAUTH_RATE_MIN_GAPS &&
+                         meanGap <= DEAUTH_RATE_GAP_MS;
         bool suppressSelfBurst = selfSrc && sentinelHop && (r.count < (DEAUTH_FLOOD_THRESH * 2));
         bool bcastAttack = isBroadcast && pairBurst && !selfSrc;
-        if (!r.alerted && (r.count >= DEAUTH_FLOOD_THRESH || bcastAttack) && !suppressSelfBurst) {
+        static PsramMap<uint64_t, uint32_t> g_deauthFloodEmit;
+        auto fem = g_deauthFloodEmit.find(k);
+        bool floodEmitOk = (fem == g_deauthFloodEmit.end()) || ((now - fem->second) >= DEAUTH_ALERT_COOLDOWN_MS);
+        if (!r.alerted && (floodRate || bcastAttack) && !suppressSelfBurst && floodEmitOk) {
             r.alerted = true;
+            if (g_deauthFloodEmit.size() >= MAX_DEAUTH_RATE_MAP) evictOldestTs(g_deauthFloodEmit);
+            g_deauthFloodEmit[k] = now;
             char srcBuf[18];
             snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
                      src[0],src[1],src[2],src[3],src[4],src[5]);
             String srcS(srcBuf);
-            Serial.printf("[DETECT] DEAUTH_FLOOD src=%s count=%u in %ums (reason=%u seq=0x%04X bcast=%d%s)\n",
+            Serial.printf("[DETECT] DEAUTH_FLOOD src=%s count=%u in %ums gap=%ums/%u retrydrop=%u (reason=%u seq=0x%04X bcast=%d%s)\n",
                           srcBuf, r.count, (unsigned)(now - r.winStartMs),
+                          (unsigned)(r.gapSamples ? r.gapSumMs / r.gapSamples : 0), (unsigned)r.gapSamples,
+                          (unsigned)g_deauthRetryDrops.load(std::memory_order_relaxed),
                           (unsigned)reason, seqCtrl, (int)isBroadcast,
                           selfSrc ? " IMPERSONATION" : "");
-            char lineBuf[320];
+            char lineBuf[380];
             snprintf(lineBuf, sizeof(lineBuf),
-                     "{\"src\":\"%s\",\"count\":%u,\"win_ms\":%u,\"reason\":%u,\"seq\":%u,\"bcast\":%s,\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
+                     "{\"src\":\"%s\",\"count\":%u,\"win_ms\":%u,\"gap_ms\":%u,\"gap_n\":%u,\"reason\":%u,\"seq\":%u,\"bcast\":%s,\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                      srcBuf, (unsigned)r.count, (unsigned)(now - r.winStartMs),
+                     (unsigned)(r.gapSamples ? r.gapSumMs / r.gapSamples : 0), (unsigned)r.gapSamples,
                      (unsigned)reason, (unsigned)seqCtrl, isBroadcast ? "true" : "false",
                      (int)e.rssi, (unsigned)e.channel, (unsigned)now);
             logEventToSD("/deauth_flood.jsonl", String(lineBuf));
@@ -1654,7 +1780,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         auto fit = g_forgeLastEmit.find(fk);
         bool emitOk = (fit == g_forgeLastEmit.end()) || ((now - fit->second) > 10000);
         if (emitOk) {
-            if (g_forgeLastEmit.size() >= MAX_FORGE_EMIT_MAP) g_forgeLastEmit.erase(g_forgeLastEmit.begin());
+            if (g_forgeLastEmit.size() >= MAX_FORGE_EMIT_MAP) evictOldestTs(g_forgeLastEmit);
             g_forgeLastEmit[fk] = now;
             char srcBuf[18];
             snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -1695,7 +1821,7 @@ static void handleAssocReq(const DetectFrameEvent &e) {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_assocSleep.find(bssK);
     if (it == g_assocSleep.end() || (now - it->second.windowStartMs) > ASSOC_SLEEP_WIN_MS) {
-        if (g_assocSleep.size() >= MAX_ASSOC_SLEEP_MAP) g_assocSleep.erase(g_assocSleep.begin());
+        if (g_assocSleep.size() >= MAX_ASSOC_SLEEP_MAP) evictOldestBy(g_assocSleep, [](const auto &w) { return w.windowStartMs; });
         AssocSleepWindow w{};
         w.windowStartMs = now;
         w.bestRssi = e.rssi;
@@ -1785,7 +1911,7 @@ static void probeBehaveCheck(const uint8_t *src, const char *ssid, int8_t rssi,
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_probeBehave.find(key);
     if (it == g_probeBehave.end() || (now - it->second.windowStartMs) > PROBE_BEHAVE_WIN_MS) {
-        if (g_probeBehave.size() >= MAX_PROBE_BEHAVE_MAP) g_probeBehave.erase(g_probeBehave.begin());
+        if (g_probeBehave.size() >= MAX_PROBE_BEHAVE_MAP) evictOldestBy(g_probeBehave, [](const auto &w) { return w.windowStartMs; });
         ProbeBehaveWindow w{};
         w.windowStartMs = now; w.bestRssi = rssi; w.channel = channel; w.alerted = false;
         strncpy(w.ssid, ssid, sizeof(w.ssid) - 1);
@@ -1852,7 +1978,7 @@ static void probeGlobalCheck(const uint8_t *src, int8_t rssi, uint8_t channel, u
     uint64_t sk = packMac(src);
     uint16_t &sc = g_probeGlobal.srcCount[sk];
     if (sc < 65535) sc++;
-    if (g_probeGlobal.srcCount.size() > 512) g_probeGlobal.srcCount.erase(g_probeGlobal.srcCount.begin());
+    if (g_probeGlobal.srcCount.size() > 512) evictOldestTs(g_probeGlobal.srcCount);
     if (g_probeGlobal.alerted) return;
     bool randomized = g_probeGlobal.total >= g_probeRandTotalThresh.load() && g_probeGlobal.srcCount.size() >= g_probeRandDistinctThresh.load();
     auto st = g_probeGlobal.srcStreak.find(sk);
@@ -1925,7 +2051,7 @@ static void handleProbeReq(const DetectFrameEvent &e) {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     auto it = g_probeFlood.find(key);
     if (it == g_probeFlood.end() || (now - it->second.windowStartMs) > PROBE_FLOOD_WIN_MS) {
-        if (g_probeFlood.size() >= MAX_PROBE_FLOOD_MAP) g_probeFlood.erase(g_probeFlood.begin());
+        if (g_probeFlood.size() >= MAX_PROBE_FLOOD_MAP) evictOldestBy(g_probeFlood, [](const auto &w) { return w.windowStartMs; });
         ProbeFloodWindow w{};
         w.windowStartMs = now;
         w.hits = 1;
@@ -2048,7 +2174,11 @@ static void handleAuthSae(const DetectFrameEvent &e) {
         std::lock_guard<std::recursive_mutex> lk(g_mtx);
         auto ai = g_authFlood.find(bk);
         if (ai == g_authFlood.end() || (tnow - ai->second.windowStartMs) > AUTH_FLOOD_WIN_MS) {
-            if (g_authFlood.size() >= MAX_AUTH_FLOOD_MAP) g_authFlood.erase(g_authFlood.begin());
+            if (g_authFlood.size() >= MAX_AUTH_FLOOD_MAP) {
+                uint32_t oldest = UINT32_MAX; uint64_t oldestK = 0;
+                for (const auto &kv : g_authFlood) if (kv.second.windowStartMs < oldest) { oldest = kv.second.windowStartMs; oldestK = kv.first; }
+                g_authFlood.erase(oldestK);
+            }
             AuthFloodWindow w{};
             w.windowStartMs = tnow; w.frames = 1; w.bestRssi = e.rssi;
             w.channel = e.channel; w.alerted = false; w.distinctSrc.insert(sk);
@@ -2385,6 +2515,9 @@ struct BleAttackEvent {
 static PsramVec<BleAttackEvent> g_bleAttackLog;
 static constexpr size_t MAX_BLE_ATTACK_LOG = 100;
 static PsramMap<uint64_t, uint32_t> g_bleAttackSeen;  // suppress duplicate (addr,tool) within 30s
+#ifndef AH_CS_BLE
+#define AH_CS_BLE 0
+#endif
 static std::atomic<bool> g_bleAttackEnabled{false};  // off by default — BLE coexist starves heap on full (AP+webserver); enable explicitly via ble group
 
 static bool bleScanForSig(const uint8_t *payload, uint16_t len, const BleAttackSig &sig) {
@@ -2452,7 +2585,7 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
     }
 
     // tool/tool BLE attack-tool fingerprint scan — strong byte matches.
-    if (g_bleAttackEnabled.load() && payload && len >= 6) {
+    if (AH_CS_BLE && g_bleAttackEnabled.load() && payload && len >= 6) {
         std::lock_guard<std::recursive_mutex> lkA(g_mtx);
         for (size_t i = 0; i < BLE_ATTACK_SIG_COUNT; ++i) {
             if (bleScanForSig(payload, len, BLE_ATTACK_SIGS[i])) {
@@ -2864,7 +2997,7 @@ void initializeDetect() {
                     p.putBool("etwOn", true);
                     p.putBool("pflOn", true);
                     p.putBool("aslOn", true);
-                    p.putBool("blatkOn", true);
+                    p.putBool("blatkOn", false);
                     p.putBool("scnOn", false);
                     p.putBool("saeOn", false);
                     p.putBool("oweOn", false);
@@ -2875,6 +3008,7 @@ void initializeDetect() {
                     p.putBool("trkOn", false);
                     p.putBool("atgOn", false);
                     p.putBool("tsfOn", false);
+                    p.putBool("csaqOn", true);
                     p.putBool("ridOn", false);
                     p.putBool("blmgOn", false);
                     p.putBool("karmaOn", false);
@@ -2915,6 +3049,7 @@ void initializeDetect() {
             ah_detect::cs_rotation_rate.store(p.getULong("cs_rr", 5));
             ah_detect::cs_owner_absent_pct_x100.store(p.getULong("cs_oa", 80));
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
+            ah_detect::g_csaQuietEnabled.store(p.getBool("csaqOn", true));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));
             ah_detect::g_bloomGossipEnabled.store(p.getBool("blmgOn", false));
             {
@@ -2945,7 +3080,7 @@ void initializeDetect() {
             ah_detect::g_meshGuard.store(p.getBool("mGuard", true));
             ah_detect::g_probeFloodEnabled.store(p.getBool("pflOn", true));
             ah_detect::g_assocSleepEnabled.store(p.getBool("aslOn", true));
-            ah_detect::g_bleAttackEnabled.store(p.getBool("blatkOn", true));
+            ah_detect::g_bleAttackEnabled.store(p.getBool("blatkOn", false));
             p.end();
         }
     }
@@ -3169,6 +3304,7 @@ void detect_persistTunables() {
     p.putULong("cs_rr",  ah_detect::cs_rotation_rate.load());
     p.putULong("cs_oa",  ah_detect::cs_owner_absent_pct_x100.load());
     p.putBool("tsfOn", ah_detect::g_tsfEnabled.load());
+    p.putBool("csaqOn", ah_detect::g_csaQuietEnabled.load());
     p.putBool("ridOn", ah_detect::g_ridSpoofEnabled.load());
     p.putBool("blmgOn", ah_detect::g_bloomGossipEnabled.load());
     p.putBool("trlOn", ah_detect::g_attackerTrilatEnabled.load());
@@ -3196,6 +3332,8 @@ void detect_persistTunables() {
 void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel) {
     if (!sentinel_isUserEnabled() || !detectEnabled.load() || !detectFrameQueue) return;
     if (len < 24) return;
+    static uint8_t s_lastRxChan = 0;
+    if (channel != s_lastRxChan) { s_lastRxChan = channel; g_chanEpoch.fetch_add(1, std::memory_order_relaxed); }
     uint16_t fc = (uint16_t)payload[0] | ((uint16_t)payload[1] << 8);
     uint8_t ftype = (fc >> 2) & 0x3;
     uint8_t stype = (fc >> 4) & 0xF;
@@ -4418,6 +4556,7 @@ String detect_getConfigJson() {
     j += _bjson("tracker", g_trackerEnabled.load());
     j += _bjson("airtag", g_airtagEnabled.load());
     j += _bjson("tsf", g_tsfEnabled.load());
+    j += _bjson("csa_quiet", g_csaQuietEnabled.load());
     j += _bjson("rid_spoof", g_ridSpoofEnabled.load());
     j += _bjson("bloom_gossip", g_bloomGossipEnabled.load());
     j += _bjson("attacker_trilat", g_attackerTrilatEnabled.load());
@@ -4507,6 +4646,7 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "tracker", g_trackerEnabled);
     _setb(b, "airtag", g_airtagEnabled);
     _setb(b, "tsf", g_tsfEnabled);
+    _setb(b, "csa_quiet", g_csaQuietEnabled);
     _setb(b, "rid_spoof", g_ridSpoofEnabled);
     _setb(b, "bloom_gossip", g_bloomGossipEnabled);
     _setb(b, "attacker_trilat", g_attackerTrilatEnabled);
