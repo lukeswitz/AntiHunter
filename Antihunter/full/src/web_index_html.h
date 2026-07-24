@@ -585,7 +585,7 @@ R"HTML(
                 <option value="baseline">Baseline Anomaly Sniffer</option>
                 <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
-                <option value="drone-detection">Drone RID Detection (WiFi + BLE)</option>
+                <option value="drone-detection">Drone RID Detection</option>
                 <option value="probe-scan">Probe Request Scanner</option>
               </select>
 
