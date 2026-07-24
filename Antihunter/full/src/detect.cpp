@@ -1720,7 +1720,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                          "{\"src\":\"%s\",\"tool\":\"%s\",\"class\":\"behavioral\",\"rssi\":%d,\"ch\":%u,\"ts\":%u}",
                          sb, behavTool, (int)e.rssi, (unsigned)e.channel, (unsigned)now);
                 logEventToSD("/deauth_flood.jsonl", String(lb));
-                if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load() && meshRateGate(String("DEAUTH_TOOL_") + sb, 30000)) {
+                if (meshEnabled && (sentinel_isRunning() || deauthDetectionEnabled.load()) && g_meshDeauth.load() && meshRateGate(String("DEAUTH_TOOL_") + sb, 30000)) {
                     char mb[80];
                     snprintf(mb, sizeof(mb), "%s: DEAUTH_FORGE:%s:%s:%d",
                              getNodeId().c_str(), sb, behavTool, (int)e.rssi);
@@ -1761,7 +1761,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
                      (unsigned)reason, (unsigned)seqCtrl, isBroadcast ? "true" : "false",
                      (int)e.rssi, (unsigned)e.channel, (unsigned)now);
             logEventToSD("/deauth_flood.jsonl", String(lineBuf));
-            if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FLOOD_") + srcS, 30000)) {
+            if (meshEnabled && (sentinel_isRunning() || deauthDetectionEnabled.load()) && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FLOOD_") + srcS, 30000)) {
                 char meshBuf[80];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FLOOD:%s:%u:%d",
                          getNodeId().c_str(), srcBuf, (unsigned)r.count, (int)e.rssi);
@@ -1801,7 +1801,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
             quorum_addReport("DEAUTH_FORGE", srcS, getNodeId(), e.rssi);
             attacker_kick(src, "DEAUTH_FORGE");
             // Mesh forwarding is separate/additional.
-            if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
+            if (meshEnabled && (sentinel_isRunning() || deauthDetectionEnabled.load()) && g_meshDeauth.load() && meshRateGate(String("DEAUTH_FORGE_") + srcS, 30000)) {
                 char meshBuf[96];
                 snprintf(meshBuf, sizeof(meshBuf), "%s: DEAUTH_FORGE:%s:%s:%d",
                          getNodeId().c_str(), srcBuf, toolTag, (int)e.rssi);
@@ -1884,6 +1884,8 @@ static constexpr uint16_t PROBE_FLOOD_WIN_MS = 5000;
 static constexpr uint16_t PROBE_FLOOD_THRESH = 10;
 static std::atomic<bool> g_probeFloodEnabled{true};
 static std::atomic<uint16_t> g_probeSingleMacThresh{60};   // 1 src >= N probes/5s
+// Deauth Detector targeted-alert threshold: N unicast deauths to one dst / window. NVS "deauTgt".
+std::atomic<uint16_t> g_deauthTargetedThresh{DEAUTH_TARGETED_THRESHOLD};
 static std::atomic<uint16_t> g_probeRandTotalThresh{80};   // randomized flood total/5s
 static std::atomic<uint16_t> g_probeRandDistinctThresh{60};// randomized flood distinct MAC/5s
 
@@ -3027,6 +3029,7 @@ void initializeDetect() {
             if ((u = p.getUChar("saeN", 0))) ah_detect::g_saeUnmatchedThresh.store(u);
             if ((v = p.getUShort("saeWin", 0))) ah_detect::g_saeWindow.store(v);
             if ((v = p.getUShort("pflSng", 0))) ah_detect::g_probeSingleMacThresh.store(v);
+            if ((v = p.getUShort("deauTgt", 0))) ah_detect::g_deauthTargetedThresh.store(v);
             if ((v = p.getUShort("pflRTot", 0))) ah_detect::g_probeRandTotalThresh.store(v);
             if ((v = p.getUShort("pflRDst", 0))) ah_detect::g_probeRandDistinctThresh.store(v);
             ah_detect::g_karmaEnabled.store(p.getBool("karmaOn", false));
@@ -3289,6 +3292,7 @@ void detect_persistTunables() {
     p.putUChar("saeN", ah_detect::g_saeUnmatchedThresh.load());
     p.putUShort("saeWin", ah_detect::g_saeWindow.load());
     p.putUShort("pflSng", ah_detect::g_probeSingleMacThresh.load());
+    p.putUShort("deauTgt", ah_detect::g_deauthTargetedThresh.load());
     p.putUShort("pflRTot", ah_detect::g_probeRandTotalThresh.load());
     p.putUShort("pflRDst", ah_detect::g_probeRandDistinctThresh.load());
     p.putBool("karmaOn", ah_detect::g_karmaEnabled.load());
@@ -3340,7 +3344,7 @@ void detect_persistTunables() {
 }
 
 void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel) {
-    if (!sentinel_isUserEnabled() || !detectEnabled.load() || !detectFrameQueue) return;
+    if ((!sentinel_isUserEnabled() && !deauthDetectionEnabled.load()) || !detectEnabled.load() || !detectFrameQueue) return;
     if (len < 24) return;
     static uint8_t s_lastRxChan = 0;
     if (channel != s_lastRxChan) { s_lastRxChan = channel; g_chanEpoch.fetch_add(1, std::memory_order_relaxed); }
@@ -3753,7 +3757,7 @@ void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode) {
         Serial.printf("[DETECT] %s (AP under deauth - %u disconnects in %ums)\n",
                       body.c_str(), g_softApDeauth.count, (unsigned)(now - g_softApDeauth.winStartMs));
         ::detect_logIncident(body, nullptr);
-        if (meshEnabled && sentinel_isRunning() && g_meshDeauth.load()) {
+        if (meshEnabled && (sentinel_isRunning() || deauthDetectionEnabled.load()) && g_meshDeauth.load()) {
             sendToSerial1(getNodeId() + ": " + body, true);
         }
         String line = String("{\"client\":\"") + mc +
@@ -4595,6 +4599,7 @@ String detect_getConfigJson() {
     j += _ijson("sae_window", g_saeWindow.load());
     j += _ijson("sae_unmatched_thresh", g_saeUnmatchedThresh.load());
     j += _ijson("probe_single_thresh", g_probeSingleMacThresh.load());
+    j += _ijson("deauth_targeted_thresh", g_deauthTargetedThresh.load());
     j += _ijson("probe_rand_total", g_probeRandTotalThresh.load());
     j += _ijson("probe_rand_distinct", g_probeRandDistinctThresh.load());
     j += _ijson("hunt_cooldown_ms", g_huntCooldown.load());
@@ -4684,6 +4689,7 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "sae_window", g_saeWindow);
     _setu8(b, "sae_unmatched_thresh", g_saeUnmatchedThresh);
     _seti(b, "probe_single_thresh", g_probeSingleMacThresh);
+    _seti(b, "deauth_targeted_thresh", g_deauthTargetedThresh);
     _seti(b, "probe_rand_total", g_probeRandTotalThresh);
     _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
