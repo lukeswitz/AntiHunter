@@ -444,7 +444,11 @@ void loadRFConfigFromPrefs() {
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
     
-    Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm\n", rfConfig.preset, rfConfig.globalRssiThreshold);
+    uint8_t env = prefs.getUChar("rfEnv", (uint8_t)RF_ENV_INDOOR);
+    if (env > RF_ENV_INDUSTRIAL) env = RF_ENV_INDOOR;
+    setRFEnvironment((RFEnvironment)env);
+
+    Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm, Env: %d\n", rfConfig.preset, rfConfig.globalRssiThreshold, env);
 }
 
 // Detection system variables

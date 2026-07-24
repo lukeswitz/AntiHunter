@@ -770,6 +770,18 @@ R"HTML(
 
           <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
 
+          <label style="font-size:11px;">RF Environment</label>
+          <select id="rfEnv" onchange="saveRFEnv()" style="margin-bottom:6px;">
+            <option value="0">Open Sky &mdash; clear LOS</option>
+            <option value="1">Suburban &mdash; light foliage</option>
+            <option value="2">Indoor &mdash; some walls</option>
+            <option value="3">Indoor Dense &mdash; many partitions</option>
+            <option value="4">Industrial &mdash; heavy obstruction</option>
+          </select>
+          <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Path-loss model for range estimates and triangulation. Pick the one whose distances match reality on site.</p>
+
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
+
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy, all ch)</option>
             <option value="1">Balanced (Default, all ch)</option>
@@ -1823,6 +1835,7 @@ R"HTML(
             document.getElementById('bleScanInterval').value = cfg.bleScanInterval;
             document.getElementById('bleScanDuration').value = cfg.bleScanDuration;
             document.getElementById('wifiChannels').value = cfg.wifiChannels || '1..14';
+            if (cfg.rfEnv !== undefined) document.getElementById('rfEnv').value = cfg.rfEnv;
             
             // If custom not preset
             const customDiv = document.getElementById('customRFSettings');
@@ -1830,6 +1843,15 @@ R"HTML(
               customDiv.style.display = cfg.preset === 3 ? 'block' : 'none';
             }
           } catch(e) {}
+      }
+
+      async function saveRFEnv() {
+        const fd = new FormData();
+        fd.append('rfEnv', document.getElementById('rfEnv').value);
+        try {
+          const r = await fetch('/rf-config', { method: 'POST', body: fd });
+          toast(r.ok ? 'RF environment saved' : 'Save failed', r.ok ? 'success' : 'error');
+        } catch (e) { toast('Save failed: ' + e, 'error'); }
       }
 
       async function updateRFPresetUI() {

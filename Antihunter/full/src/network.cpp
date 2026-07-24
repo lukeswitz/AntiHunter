@@ -1699,13 +1699,23 @@ void registerRemainingRoutes() {
     json += "\"bleScanInterval\":" + String(rfConfig.bleScanInterval) + ",";
     json += "\"bleScanDuration\":" + String(rfConfig.bleScanDuration) + ",";
     json += "\"wifiChannels\":\"" + rfConfig.wifiChannels + "\",";
-    json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold);
+    json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold) + ",";
+    json += "\"rfEnv\":" + String((int)currentRFEnvironment);
     json += "}";
     req->send(200, "application/json", json);
   });
 
   server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
     bool updated = false;
+
+    if (req->hasParam("rfEnv", true)) {
+        int env = req->getParam("rfEnv", true)->value().toInt();
+        if (env >= 0 && env <= RF_ENV_INDUSTRIAL) {
+            setRFEnvironment((RFEnvironment)env);
+            prefs.putUChar("rfEnv", (uint8_t)env);
+            updated = true;
+        }
+    }
     
     if (req->hasParam("preset", true)) {
         uint8_t preset = req->getParam("preset", true)->value().toInt();
