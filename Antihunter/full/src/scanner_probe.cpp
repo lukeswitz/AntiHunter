@@ -152,14 +152,12 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
     if (ssid && ssid[0]) key += String(ssid);
     if (!shouldSendProbeHit(key)) return;
 
-    String msg = getNodeId() + ": PROBE_HIT " + String(macStr) + " ";
+    String msg = getNodeId() + ": PROBE_HIT " + String(macStr);
     bool randomized = (mac[0] & 0x02) && !(mac[0] & 0x01);
     if (randomized) {
-        msg += "Randomized";
+        msg += " Randomized";
     } else if (vendor && vendor[0]) {
-        msg += String(vendor);
-    } else {
-        msg += "Unknown";
+        msg += " " + String(vendor);
     }
     msg += " RSSI=" + String(rssi) + " CH=" + String(channel);
     if (ssid && ssid[0]) {
