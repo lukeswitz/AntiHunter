@@ -308,16 +308,6 @@ void startWebServer()
              { r->send(200, "text/plain", getTargetsList()); });
 
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (randomizationDetectionEnabled) {
-          static String cachedRand = "";
-          static uint32_t lastRandCalc = 0;
-          if (millis() - lastRandCalc >= 2000) {
-              cachedRand = getRandomizationResults();
-              lastRandCalc = millis();
-          }
-          r->send(200, "text/plain", cachedRand);
-          return;
-      }
 
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
@@ -326,7 +316,7 @@ void startWebServer()
           static String cachedTriResults = "";
           static uint32_t lastTriCalc = 0;
 
-          if (millis() - lastTriCalc >= 2000) {
+          if (millis() - lastTriCalc >= 1000) {
               cachedTriResults = calculateTriangulation();
               lastTriCalc = millis();
           }
@@ -613,20 +603,10 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     r->send(200, "text/plain", status); });
 
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
-      stopRequested = true;
+      stopAllScans();
       scanSessionClear();
-
-      if (triangulationActive) {
-          stopTriangulation();
-      }
-
-      scanning = false;
-
-      if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
-          stopMeshDrain.store(true);
-      }
-
-      req->send(200, "text/plain", "Scan stopped");
+      req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
+      if (triangulationActive) stopTriangulation();
   });
   registerRemainingRoutes();
 }

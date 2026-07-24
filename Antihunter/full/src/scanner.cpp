@@ -63,9 +63,43 @@ uint32_t lastScanSecs = 0;
 bool lastScanForever = false;
 uint32_t g_curScanEndMs = 0;
 bool g_curScanForever = false;
+std::atomic<bool> scanStopPending{false};
+
 void scanSetCountdown(int secs, bool forever) {
     g_curScanForever = forever;
     g_curScanEndMs = (forever || secs <= 0) ? 0 : (millis() + (uint32_t)secs * 1000);
+    if (forever || secs > 0) scanStopPending.store(false);
+}
+
+bool scanBusy() {
+    return scanning.load() || workerTaskHandle != nullptr || blueTeamTaskHandle != nullptr;
+}
+
+bool scanStopping() {
+    return scanStopPending.load() && scanBusy();
+}
+
+void scanClearStopPending() {
+    scanStopPending.store(false);
+}
+
+void stopAllScans(bool cancelMeshDrain) {
+    stopRequested = true;
+    scanStopPending.store(true);
+    scanSetCountdown(0, false);
+
+    esp_wifi_scan_stop();
+    WiFi.scanDelete();
+    if (pBLEScan) pBLEScan->stop();
+
+    if (cancelMeshDrain && (meshTxDraining.load() || meshTxQueueDepth() > 0)) {
+        stopMeshDrain.store(true);
+    }
+
+    if (!workerTaskHandle && !blueTeamTaskHandle && !triangulationActive) {
+        scanning = false;
+        scanStopPending.store(false);
+    }
 }
 
 extern TaskHandle_t blueTeamTaskHandle;
@@ -1563,7 +1597,7 @@ void snifferScanTask(void *pv)
             }
 
             antihunter::lastResults = results;
-            nextResultsUpdate = millis() + 1500;
+            nextResultsUpdate = millis() + 1000;
         }
 
         {
@@ -1980,7 +2014,7 @@ void blueTeamTask(void *pv) {
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
-    uint32_t lastResultsUpdate = millis() + 2000;
+    uint32_t lastResultsUpdate = millis() + 1000;
     uint32_t lastMeshUpdate = millis();
     const unsigned long MESH_DEAUTH_UPDATE_INTERVAL = 5000;
     DeauthHit hit;
@@ -2137,7 +2171,7 @@ void blueTeamTask(void *pv) {
                 antihunter::lastResults = results;
             }
 
-            lastResultsUpdate = millis() + 2000;
+            lastResultsUpdate = millis() + 1000;
         }
         
         if (millis() - lastCleanup > 60000) {

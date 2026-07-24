@@ -877,7 +877,7 @@ static void handleProbeStart(const String &command)
 
 static void handleProbeStop(const String &command)
 {
-  stopRequested = true;
+  stopAllScans(false);
   scanSessionClear();
   Serial.println("[MESH] Probe stop command received via mesh");
   sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
@@ -893,11 +893,8 @@ static void handleProbeHit(const String &command)
 
 static void handleStop(const String &command)
 {
-  stopRequested = true;
+  stopAllScans();
   scanSessionClear();
-  if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
-    stopMeshDrain.store(true);
-  }
   Serial.println("[MESH] Stop command received via mesh");
   sendToSerial1(nodeId + ": STOP_ACK:OK", true);
 }
