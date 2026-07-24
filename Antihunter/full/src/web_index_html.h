@@ -159,7 +159,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .page-tab.active{display:block}
       #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
       @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-      #data-table{width:100%;border-collapse:collapse;font-size:13px}
+      #data-table{width:100%;border-collapse:collapse;font-size:15px}
       #data-table th{position:sticky;top:0;background:var(--surf);border-bottom:2px solid var(--bord);padding:9px 12px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);cursor:pointer;user-select:none;white-space:nowrap}
       #data-table th:hover{color:var(--acc)}
       #data-table th .sort-arrow{margin-left:4px;font-size:9px}
@@ -215,6 +215,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-mac{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15.5px;font-weight:700;letter-spacing:0.02em;color:var(--txt);display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;word-break:break-all}
       .res-mac.acc{color:var(--acc)}
       .res-mac.warn{color:var(--warn)}
+      /* identifier floor: literal MACs and device/network names never render below 15px */
+      .res-ident{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;font-weight:700;letter-spacing:0.02em;color:var(--txt);word-break:break-all}
+      .res-ident.name{font-family:inherit;letter-spacing:0;word-break:break-word}
       .res-line{font-size:14px;color:var(--mut);line-height:1.5}
       .res-line strong{color:var(--txt);font-weight:600}
       .res-metric{text-align:right;flex-shrink:0;display:flex;flex-direction:column;gap:2px;margin-left:auto}
@@ -229,8 +232,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-kv.danger{border-color:var(--dang)}
       .res-kv-lab{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--mut);margin-bottom:6px;line-height:1.2}
       .res-kv-val{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);line-height:1.15}
-      .res-kv-val.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px}
-      .res-kv-val.sm{font-size:14px;font-weight:600}
+      .res-kv-val.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px}
+      .res-kv-val.sm{font-size:15px;font-weight:600}
       .res-kv-val small{font-size:11px;color:var(--mut);font-weight:500}
       /* badges */
       .res-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;border:1px solid var(--bord);background:var(--surf);color:var(--mut);white-space:nowrap;vertical-align:middle;line-height:1.5}
@@ -250,9 +253,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       /* tags (SSIDs / probes) */
       .res-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;align-items:center}
       .res-tags-lab{font-size:11px;font-weight:600;color:var(--mut);margin-right:2px}
-      .res-tag{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:500;border:1px solid var(--bord);background:var(--bg);color:var(--txt);white-space:nowrap}
+      .res-tag{padding:4px 11px;border-radius:999px;font-size:15px;font-weight:500;border:1px solid var(--bord);background:var(--bg);color:var(--txt);white-space:nowrap}
       .res-tag.away{border-style:dashed;border-color:var(--c-away);color:var(--c-away);background:var(--c-away-bg)}
-      .res-tag sup{font-size:8px;opacity:.7;margin-left:2px}
+      .res-tag sup{font-size:10px;opacity:.7;margin-left:2px}
       /* note / reason line */
       .res-note{margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--bord);border-left:3px solid var(--acc);border-radius:8px;font-size:12.5px;color:var(--txt);line-height:1.5}
       .res-note.warn{border-left-color:var(--warn);color:var(--warn)}
@@ -264,9 +267,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       /* nested source rows (attack sources, mac list) */
       .res-rows{margin-top:11px;padding:11px 12px;background:var(--bg);border:1px solid var(--bord);border-radius:8px}
       .res-rows-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-bottom:8px}
-      .res-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt);padding:6px 0;border-bottom:1px solid var(--bord)}
+      .res-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;font-weight:700;color:var(--txt);padding:7px 0;border-bottom:1px solid var(--bord)}
       .res-row:last-child{border-bottom:none;padding-bottom:0}
-      .res-row-meta{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:11px;color:var(--mut);white-space:nowrap}
+      .res-row-meta{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:400;color:var(--mut);white-space:nowrap}
       .res-more{padding:8px;text-align:center;color:var(--mut);font-size:11px;font-style:italic}
       /* collapsible section (Node Reports, Baseline devices, MAC lists) */
       .res-section{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px;box-shadow:var(--shad)}
@@ -1125,7 +1128,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           #page-detect .det-row label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--mut);margin:0;cursor:pointer}
           #page-detect .det-row input[type=checkbox]{margin:0;cursor:pointer}
           #page-detect .num{font-family:monospace;color:var(--acc);font-weight:700}
-          #page-detect .log-pre{max-height:240px;overflow:auto;font-size:11px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
+          #page-detect .log-pre{max-height:240px;overflow:auto;font-size:15px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
           #page-detect input[type=number],#page-detect input[type=text]{padding:4px 8px;font-size:12px}
           #det-filter{flex:1;min-width:180px;max-width:400px}
           #det-banner{display:none;background:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));border:1px solid rgba(139,92,246,.45);border-radius:6px;padding:8px 10px;margin-bottom:10px}
@@ -1143,7 +1146,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .det-chip.info{background:rgba(14,165,233,.12);color:#0ea5e9;border-color:rgba(14,165,233,.45)}
           .det-chip.firing{box-shadow:0 0 0 2px rgba(255,255,255,.15) inset}
           .det-chip.off{opacity:.35}
-          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}
+          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:15px;margin:8px 0}
           #page-detect table.dt th{text-align:left;padding:8px 10px;color:var(--mut);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bord);cursor:pointer;user-select:none;white-space:nowrap}
           #page-detect table.dt th:hover{color:var(--acc)}
           #page-detect table.dt td{padding:8px 10px;border-bottom:1px solid var(--bord);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
@@ -1208,7 +1211,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .sa-chip{cursor:pointer;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid transparent;transition:all .15s;white-space:nowrap;}
           .sa-chip:hover{filter:brightness(1.2);}
           .sa-wrap{max-height:62vh;overflow:auto;border:1px solid var(--bord);border-radius:10px;}
-          .sa-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+          .sa-tbl{width:100%;border-collapse:collapse;font-size:15px;}
           .sa-tbl th{position:sticky;top:0;z-index:1;text-align:left;padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);background:var(--surf);backdrop-filter:blur(8px);border-bottom:1px solid var(--bord);}
           .sa-tbl td{padding:9px 12px;border-bottom:1px solid var(--bord);vertical-align:middle;}
           .sa-tbl tr:last-child td{border-bottom:none;}
@@ -1219,10 +1222,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .sa-med{background:rgba(234,179,8,.15);color:#facc15;}
           .sa-info{background:rgba(56,189,248,.14);color:#38bdf8;}
           .sa-type{font-weight:600;color:var(--txt);}
-          .sa-mac{font-family:ui-monospace,monospace;font-size:12px;color:var(--mut);}
-          .sa-detail{font-family:ui-monospace,monospace;font-size:12px;color:var(--txt);opacity:.8;}
+          .sa-mac{font-family:ui-monospace,monospace;font-size:15px;font-weight:700;color:var(--txt);}
+          .sa-detail{font-family:ui-monospace,monospace;font-size:15px;color:var(--txt);opacity:.8;}
           .sa-when{font-size:12px;color:var(--mut);white-space:nowrap;}
-          .sa-node{font-size:10px;color:var(--mut);border:1px solid var(--bord);border-radius:5px;padding:1px 5px;}
+          .sa-node{font-size:15px;font-weight:700;color:var(--txt);border:1px solid var(--bord);border-radius:5px;padding:2px 7px;white-space:nowrap;}
           .dpill{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
           .dpill.verify{background:rgba(34,197,94,.18);color:#86efac;border:1px solid #16a34a;}
           .dpill.unver{background:rgba(234,179,8,.15);color:#fde047;border:1px solid #ca8a04;}
@@ -1519,8 +1522,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <thead>
                   <tr>
                     <th style="width:90px;">Time</th>
-                    <th style="width:54px;">Node</th>
-                    <th style="width:64px;">Src</th>
+                    <th style="width:72px;">Node</th>
+                    <th style="width:170px;">Src</th>
                     <th style="width:170px;">Type</th>
                     <th>Detail</th>
                   </tr>
@@ -3066,7 +3069,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
           html = parseDeviceScanResults(text);
         } else {
-          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;">' + text + '</pre></div>';
+          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + text + '</pre></div>';
         }
 
         return html;
@@ -3271,8 +3274,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (primaryChMatch) html += '<span class="res-badge">CH ' + primaryChMatch[1] + '</span>';
           if (vendorMatch) html += '<span class="res-badge">' + vendorMatch[1] + '</span>';
           html += '<div class="res-meta">';
-          if (nameMatch) html += '<span>Name: <strong data-name="' + nameMatch[1].trim() + '">' + nameMatch[1].trim() + '</strong></span>';
-          if (ssidMatch) html += '<span>SSID: <strong data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc)">' + ssidMatch[1].trim() + '</strong></span>';
+          if (nameMatch) html += '<span>Name: <strong class="res-ident name" data-name="' + nameMatch[1].trim() + '">' + nameMatch[1].trim() + '</strong></span>';
+          if (ssidMatch) html += '<span>SSID: <strong class="res-ident name" data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc)">' + ssidMatch[1].trim() + '</strong></span>';
           html += '<span><strong>' + macCount + '</strong> MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
           html += '<div class="res-metrics">';
@@ -3295,7 +3298,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           if (seqTrackMatch) html += '<div class="res-note"><span class="res-note-lab">Sequence Tracking</span><span style="font-family:ui-monospace,monospace;">' + seqTrackMatch[1].trim() + '</span></div>';
           if (vendorMatch || mfrDataMatch) { html += '<div class="res-note"><span class="res-note-lab">Manufacturer</span>'; if (vendorMatch) html += '<strong>' + vendorMatch[1].trim() + '</strong>'; if (mfrDataMatch) html += ' <span style="font-family:ui-monospace,monospace;color:var(--mut);">' + mfrDataMatch[1].trim() + '</span>'; html += '</div>'; }
-          html += '<div class="res-note ok" style="border-left-color:var(--succ);"><span class="res-note-lab">Track ID</span><span style="font-family:ui-monospace,monospace;color:var(--acc);font-weight:600;">' + trackId + '</span></div>';
+          html += '<div class="res-note ok" style="border-left-color:var(--succ);"><span class="res-note-lab">Track ID</span><span class="res-ident" style="color:var(--acc);">' + trackId + '</span></div>';
 
           if (macsListMatch) {
             const macsList = macsListMatch[1];
@@ -3337,7 +3340,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           let c = '<div class="res-card device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
           c += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
           c += '<div class="res-meta">';
-          if (name && name !== 'Unknown') c += '<span>Name: <strong>' + name + '</strong></span>';
+          if (name && name !== 'Unknown') c += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
           c += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) c += '<span class="res-badge">CH ' + channel + '</span>';
           if (vendor) c += '<span class="res-badge">' + vendor + '</span>';
@@ -3384,7 +3387,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               html += '<div class="res-row-main"><span class="res-mac warn">' + mac + randBadge(mac) + '</span>';
               html += '<div class="res-meta"><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
               if (channel) html += '<span class="res-badge">CH ' + channel + '</span>';
-              if (name) html += '<span>Name: <strong>' + name + '</strong></span>';
+              if (name) html += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
               if (anomVendor) html += '<span class="res-badge">' + anomVendor + '</span>';
               html += '</div>';
               html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
@@ -3534,7 +3537,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div class="res-card ' + (isStale ? 'alert' : 'acc') + '">';
           html += '<div class="res-row-main"><span class="res-mac acc">' + macMatch[1] + randBadge(macMatch[1]) + '</span>';
           html += '<div class="res-meta">';
-          if (uavMatch) html += '<span>UAV ID: <strong data-priv>' + uavMatch[1] + '</strong></span>';
+          if (uavMatch) html += '<span>UAV ID: <strong class="res-ident" data-priv>' + uavMatch[1] + '</strong></span>';
           if (typeMatch) html += '<span class="res-badge">' + typeMatch[1] + '</span>';
           if (viaMatch) html += '<span class="res-badge">via ' + viaMatch[1] + '</span>';
           if (isStale) html += '<span class="res-badge warn">Stale</span>';
@@ -3574,7 +3577,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const bits = [];
             if (opLocMatch) bits.push('<strong data-priv>' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>');
             if (opTypeMatch) bits.push('type <strong>' + opTypeMatch[1] + '</strong>');
-            if (opIdMatch) bits.push('ID <strong data-priv>' + opIdMatch[1] + '</strong>');
+            if (opIdMatch) bits.push('ID <strong class="res-ident" data-priv>' + opIdMatch[1] + '</strong>');
             if (descMatch) bits.push('<span data-priv>“' + descMatch[1] + '”</span>');
             if (authMatch) bits.push('Auth type ' + authMatch[1] + ', ts ' + authMatch[2]);
             html += bits.join(' &middot; ') + '</div>';
@@ -3692,7 +3695,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         h += '</span>';
         if (d.ssids.length > 1) {
           h += '<div class="res-meta"><span>also probing ';
-          h += d.ssids.map(s => s.name).join(', ');
+          h += d.ssids.map(s => '<span class="res-ident name" data-ssid="' + s.name + '">' + s.name + '</span>').join(', ');
           h += '</span></div>';
         }
         if (d.rssi !== null) h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
@@ -3710,11 +3713,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const away = !g.apResponded && !g.anyPresent;
           const n = g.devices.length;
           html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>';
-          html += '<span data-ssid="' + g.name + '">' + g.name + '</span>';
+          html += '<span class="res-ident name" data-ssid="' + g.name + '">' + g.name + '</span>';
           html += '<span class="res-badge ' + (away ? 'warn' : 'acc') + '">' + n + ' client' + (n === 1 ? '' : 's') + '</span>';
           if (g.apResponded) html += '<span class="res-badge ok">AP present</span>';
           else if (away) html += '<span class="res-badge warn">Away</span>';
-          if (g.apBssid) html += '<span class="res-badge">' + g.apBssid + '</span>';
+          if (g.apBssid) html += '<span class="res-ident">' + g.apBssid + '</span>';
           html += '</summary><div class="res-section-body">';
           for (const d of g.devices) html += renderProbeClientCard(d);
           html += '</div></details>';
@@ -3917,7 +3920,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (isApple) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
           card += '</span>';
           card += '<div class="res-meta">';
-          if (name) card += '<span>Name: <strong>' + name + '</strong></span>';
+          if (name) card += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
           card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
           if (range) card += '<span class="res-badge" title="Estimated range from RSSI path-loss model (1-sigma)">~' + range + ' m &plusmn;' + rangeSig + '</span>';
