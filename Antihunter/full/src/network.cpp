@@ -211,10 +211,12 @@ void initializeNetwork()
   if (customApSsid.length() == 0) customApSsid = AP_SSID;
   if (customApPass.length() < 8) customApPass = AP_PASS;
   
+  wifi_auth_mode_t apAuth = prefs.getUChar("apAuth", 0) == 1 ? WIFI_AUTH_WPA2_PSK
+                                                             : WIFI_AUTH_WPA2_WPA3_PSK;
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
                           AP_CHANNEL, 0, 4, false,
-                          WIFI_AUTH_WPA2_WPA3_PSK);
+                          apAuth);
   {
     wifi_config_t apCfg = {};
     if (esp_wifi_get_config(WIFI_IF_AP, &apCfg) == ESP_OK) {
@@ -223,7 +225,9 @@ void initializeNetwork()
       esp_wifi_set_config(WIFI_IF_AP, &apCfg);
     }
   }
-  Serial.printf("[WIFI] AP WPA2/WPA3-PSK mixed mode start (PMF capable): %s\n", apOk ? "OK" : "FAIL");
+  Serial.printf("[WIFI] AP %s start (PMF capable): %s\n",
+                apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
+                apOk ? "OK" : "FAIL");
   // SoftAP force-deauths an idle STA after inactive time (IDF default 300s). A sleeping
   // browser stops polling and gets kicked mid-scan. Not stored in flash - re-applied each boot.
   {
@@ -1763,7 +1767,8 @@ void registerRemainingRoutes() {
     
     String json = "{";
     json += "\"ssid\":\"" + ssid + "\",";
-    json += "\"pass\":\"" + pass + "\"";
+    json += "\"pass\":\"" + pass + "\",";
+    json += "\"auth\":" + String(prefs.getUChar("apAuth", 0));
     json += "}";
     req->send(200, "application/json", json);
   });
@@ -1899,7 +1904,11 @@ void registerRemainingRoutes() {
       if (pass.length() > 0) {
           prefs.putString("apPass", pass);
       }
-      
+      if (req->hasParam("auth", true)) {
+          uint8_t auth = req->getParam("auth", true)->value().toInt() == 1 ? 1 : 0;
+          prefs.putUChar("apAuth", auth);
+      }
+
       saveConfiguration();
       
       req->send(200, "text/plain", "WiFi settings saved. Restarting in 3s...");
@@ -2089,6 +2098,14 @@ void registerRemainingRoutes() {
       r->send(200, "application/json", String("{\"boot\":") + (on ? "true" : "false") + "}");
   });
 #endif
+
+  server->on("/api/detect/clear_session", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearSession();
+      r->send(200, "application/json", detect_getSessionJson());
+  });
+  server->on("/api/detect/session", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getSessionJson());
+  });
 
   server->on("/api/detect/verbose", HTTP_GET, [](AsyncWebServerRequest *r) {
       String j = String("{\"verbose\":") + (detect_isVerbose() ? "true" : "false") +
