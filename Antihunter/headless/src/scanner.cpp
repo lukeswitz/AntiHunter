@@ -102,6 +102,18 @@ void stopAllScans(bool cancelMeshDrain) {
         scanStopPending.store(false);
     }
 }
+
+static std::string fmtRange(int8_t rssi, bool isBLE) {
+    float d = estimateRangeM(rssi, !isBLE);
+    if (d < 0.0f) return std::string();
+    float s = estimateRangeSigmaM(rssi, !isBLE);
+    char buf[40];
+    if (d >= 100.0f) snprintf(buf, sizeof(buf), " ~%.0fm+/-%.0f", d, s);
+    else if (d >= 10.0f) snprintf(buf, sizeof(buf), " ~%.1fm+/-%.1f", d, s);
+    else snprintf(buf, sizeof(buf), " ~%.2fm+/-%.2f", d, s);
+    return std::string(buf);
+}
+
 static StringStringMapPsram apCache;
 static StringStringMapPsram bleDeviceCache;
 static std::mutex snifferCacheMutex;
@@ -1537,6 +1549,7 @@ void snifferScanTask(void *pv)
                          hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
                 results += " " + std::string(macStr);
                 results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+                results += fmtRange(hit.rssi, hit.isBLE);
                 if (!hit.isBLE && hit.ch > 0) results += " CH=" + std::to_string(hit.ch);
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
                     results += " \"" + std::string(hit.name) + "\"";
@@ -1651,6 +1664,7 @@ void snifferScanTask(void *pv)
             results += (hit.isBLE ? "BLE  " : "WiFi ");
             results += macFmt6(hit.mac).c_str();
             results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+            results += fmtRange(hit.rssi, hit.isBLE);
 
             if (!hit.isBLE && hit.ch > 0) {
                 results += " CH=" + std::to_string(hit.ch);
