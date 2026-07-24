@@ -1529,7 +1529,7 @@ String calculateTriangulation() {
         results += " (POOR)\n\n";
     }
     
-    float estLat, estLon, confidence, solverSigma;
+    float estLat = 0.0f, estLon = 0.0f, confidence = 0.0f, solverSigma = 0.0f;
     bool hasRSSI = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence, solverSigma);
 
     if (hasRSSI) {
