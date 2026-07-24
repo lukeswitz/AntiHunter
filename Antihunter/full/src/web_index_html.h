@@ -3447,6 +3447,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const hdgMatch = block.match(/Heading: (.+)/);
           const statusMatch = block.match(/Status: (.+)/);
           const opLocMatch = block.match(/Operator: ([-\d.]+), ([-\d.]+)/);
+          const opTypeMatch = block.match(/Operator location type: (.+)/);
+          const viaMatch = block.match(/Via: (.+)/);
           const opIdMatch = block.match(/Operator ID: (.+)/);
           const descMatch = block.match(/Description: (.+)/);
           const authMatch = block.match(/Auth: type (\d+) ts (\d+)/);
@@ -3457,12 +3459,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div class="res-meta">';
           if (uavMatch) html += '<span>UAV ID: <strong>' + uavMatch[1] + '</strong></span>';
           if (typeMatch) html += '<span class="res-badge">' + typeMatch[1] + '</span>';
+          if (viaMatch) html += '<span class="res-badge">via ' + viaMatch[1] + '</span>';
           html += '</div>';
           if (rssiMatch) html += '<div class="res-metric"><span class="res-metric-val">' + rssiMatch[1] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
           html += '</div>';
 
           const kvs = [];
-          if (locMatch) kvs.push(['Location', locMatch[1]]);
+          if (locMatch) {
+            const lm = locMatch[1].match(/(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/);
+            kvs.push(['Location', lm ? '<a href="https://www.google.com/maps?q=' + lm[1] + ',' + lm[2] + '" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:underline;">' + locMatch[1] + '</a>' : locMatch[1]]);
+          }
           if (altMatch) kvs.push(['Altitude MSL', altMatch[1]]);
           if (hgtMatch) kvs.push(['Height AGL', hgtMatch[1]]);
           if (speedMatch) kvs.push(['Speed', speedMatch[1] + ' <small style="color:var(--mut);font-weight:500;">(Vert ' + speedMatch[2] + ')</small>']);
@@ -3474,10 +3480,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += '</div>';
           }
 
-          if (opLocMatch || opIdMatch || descMatch || authMatch) {
+          if (opLocMatch || opTypeMatch || opIdMatch || descMatch || authMatch) {
             html += '<div class="res-note"><span class="res-note-lab">Operator</span>';
             const bits = [];
             if (opLocMatch) bits.push('<strong>' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>');
+            if (opTypeMatch) bits.push('type <strong>' + opTypeMatch[1] + '</strong>');
             if (opIdMatch) bits.push('ID <strong>' + opIdMatch[1] + '</strong>');
             if (descMatch) bits.push('“' + descMatch[1] + '”');
             if (authMatch) bits.push('Auth type ' + authMatch[1] + ', ts ' + authMatch[2]);
