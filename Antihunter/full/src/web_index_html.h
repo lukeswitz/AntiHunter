@@ -1660,11 +1660,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         resultsPolling = true;
         try {
           const txt = await (await fetch('/results')).text();
+          resultsSynced = true;
           const placeholder = !txt || txt.trim() === '' || txt.includes('None yet') || txt.includes('No scan data');
           if (radioBusy && placeholder) return;
           if (txt === lastResultsText) return;
           lastResultsText = txt;
-          resultsSynced = true;
           renderResults(txt);
         } catch (e) {
         } finally {
