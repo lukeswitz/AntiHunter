@@ -1390,7 +1390,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t nextStatus = startTime + 5000;
     uint32_t nextCleanup = startTime + 10000;
     uint32_t nextTrackCleanup = startTime + 60000;
-    uint32_t nextResultsUpdate = startTime + 2000;
+    uint32_t nextResultsUpdate = startTime + 1000;
     uint32_t lastBLEScan = 0;
     uint32_t lastMeshUpdate = 0;
     bool bleScanStarted = false;
@@ -1691,7 +1691,7 @@ void randomizationDetectionTask(void *pv) {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = results;
             }
-            nextResultsUpdate += 2000;
+            nextResultsUpdate += 1000;
         }
         
 

@@ -157,6 +157,12 @@ void setGlobalRssiThreshold(int8_t threshold);
 uint8_t nextActiveScanChannel();
 
 extern TaskHandle_t workerTaskHandle;
+extern TaskHandle_t blueTeamTaskHandle;
+extern std::atomic<bool> scanStopPending;
+bool scanBusy();
+bool scanStopping();
+void scanClearStopPending();
+void stopAllScans(bool cancelMeshDrain = true);
 extern std::atomic<bool> meshTxDraining;
 extern std::atomic<uint32_t> meshDrainSent;
 extern std::atomic<uint32_t> meshDrainTotal;

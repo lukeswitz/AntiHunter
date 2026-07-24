@@ -286,17 +286,6 @@ void startWebServer()
              { r->send(200, "text/plain", getTargetsList()); });
 
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (randomizationDetectionEnabled) {
-          static String cachedRand = "";
-          static uint32_t lastRandCalc = 0;
-          if (millis() - lastRandCalc >= 2000) {
-              cachedRand = getRandomizationResults();
-              lastRandCalc = millis();
-          }
-          r->send(200, "text/plain", cachedRand);
-          return;
-      }
-
       std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
       String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
 
@@ -304,7 +293,7 @@ void startWebServer()
           static String cachedTriResults = "";
           static uint32_t lastTriCalc = 0;
 
-          if (millis() - lastTriCalc >= 2000) {
+          if (millis() - lastTriCalc >= 1000) {
               cachedTriResults = calculateTriangulation();
               lastTriCalc = millis();
           }
@@ -432,7 +421,12 @@ void startWebServer()
       
       if (!workerTaskHandle) {
           scanning = true;
-          ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+          if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+              scanning = false;
+              workerTaskHandle = nullptr;
+              scanSetCountdown(0, false);
+              Serial.println("[SCAN] task create failed: scan");
+          }
       }
   });
 
@@ -579,19 +573,9 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     r->send(200, "text/plain", status); });
 
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
-      stopRequested = true;
-
-      if (triangulationActive) {
-          stopTriangulation();
-      }
-
-      scanning = false;
-
-      if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
-          stopMeshDrain.store(true);
-      }
-
-      req->send(200, "text/plain", "Scan stopped");
+      stopAllScans();
+      req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
+      if (triangulationActive) stopTriangulation();
   });
   registerRemainingRoutes();
 }
@@ -784,9 +768,12 @@ void registerRemainingRoutes() {
         
         if (!workerTaskHandle) {
             scanning = true;
-            ahCreateTask(droneDetectorTask, "drone", 12288,
-                                  reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
-                                  1, &workerTaskHandle, 1);
+            if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                scanning = false;
+                workerTaskHandle = nullptr;
+                scanSetCountdown(0, false);
+                Serial.println("[SCAN] task create failed: drone");
+            }
         } });
 
   server->on("/drone-results", HTTP_GET, [](AsyncWebServerRequest *r)
@@ -817,9 +804,12 @@ void registerRemainingRoutes() {
                 ("Counter-surveillance scan starting for " + String(secs) + "s"));
       if (!workerTaskHandle) {
           scanning = true;
-          ahCreateTask(counterSurveilTask, "cs", 8192,
-                       reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
-                       1, &workerTaskHandle, 1);
+          if (ahCreateTask(counterSurveilTask, "cs", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+              scanning = false;
+              workerTaskHandle = nullptr;
+              scanSetCountdown(0, false);
+              Serial.println("[SCAN] task create failed: cs");
+          }
       }
 #else
       (void)forever;
@@ -1155,7 +1145,12 @@ void registerRemainingRoutes() {
             
             if (!blueTeamTaskHandle) {
                 scanning = true;
-                ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1);
+                if (ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    blueTeamTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: blueteam");
+                }
             }
 
         } else if (detection == "baseline") {
@@ -1170,9 +1165,12 @@ void registerRemainingRoutes() {
             if (!workerTaskHandle) {
                 currentScanMode = SCAN_BOTH;
                 scanning = true;
-                ahCreateTask(baselineDetectionTask, "baseline", 12288,
-                                    reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
-                                    1, &workerTaskHandle, 1);
+                if (ahCreateTask(baselineDetectionTask, "baseline", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    workerTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: baseline");
+                }
             }
             
         } else if (detection == "randomization-detection") {
@@ -1203,9 +1201,12 @@ void registerRemainingRoutes() {
                     std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                     antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
                 }
-                ahCreateTask(randomizationDetectionTask, "randdetect", 8192,
-                                    reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
-                                    1, &workerTaskHandle, 1);
+                if (ahCreateTask(randomizationDetectionTask, "randdetect", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    workerTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: randdetect");
+                }
             }
             
         } else if (detection == "device-scan") {
@@ -1242,9 +1243,12 @@ void registerRemainingRoutes() {
                 }
 
                 scanning = true;
-                ahCreateTask(snifferScanTask, "sniffer", 12288,
-                                    reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
-                                    1, &workerTaskHandle, 1);
+                if (ahCreateTask(snifferScanTask, "sniffer", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    workerTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: sniffer");
+                }
             }
 
         } else if (detection == "probe-scan") {
@@ -1274,9 +1278,12 @@ void registerRemainingRoutes() {
                 currentScanMode = (ScanMode)scanMode;
                 scanning = true;
                 probeBroadcastAll.store(broadcastAll);
-                ahCreateTask(probeDetectionTask, "probedet", 8192,
-                                    reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
-                                    1, &workerTaskHandle, 1);
+                if (ahCreateTask(probeDetectionTask, "probedet", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    workerTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: probedet");
+                }
             }
 
         } else if (detection == "drone-detection") {
@@ -1291,9 +1298,12 @@ void registerRemainingRoutes() {
             if (!workerTaskHandle) {
                 currentScanMode = SCAN_BOTH;
                 scanning = true;
-                ahCreateTask(droneDetectorTask, "drone", 12288,
-                                    reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),
-                                    1, &workerTaskHandle, 1);
+                if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    workerTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: drone");
+                }
             }
             
         } else {

@@ -939,7 +939,9 @@ String getDiagnostics() {
     String s;
     s.reserve(1024);
 
-    s += "Scanning: " + String(scanning ? "yes" : "no") + "\n";
+    const bool busy = scanBusy();
+    s += "Scanning: " + String(busy ? "yes" : "no") + "\n";
+    s += "Stopping: " + String(scanStopping() ? "yes" : "no") + "\n";
     if (scanning) {
         if (g_curScanForever) {
             s += "Scan remaining: forever\n";
@@ -974,7 +976,7 @@ String getDiagnostics() {
     s += "Up:" + String(uptimeBuffer) + "\n";
     s += "Scan Mode: " + modeStr + "\n";
     String activeRadio;
-    if (scanning) activeRadio = modeStr;
+    if (busy) activeRadio = modeStr;
     else if (blueTeamTaskHandle) activeRadio = "WiFi";
     else if (sentinel_isRunning()) activeRadio = "WiFi";
     else activeRadio = "Idle";
@@ -2036,8 +2038,7 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     batterySaverHeartbeatInterval = heartbeatIntervalMs;
 
     // Stop any active scanning tasks
-    extern std::atomic<bool> stopRequested;
-    stopRequested = true;
+    stopAllScans(false);
 
     // Wait for tasks to stop
     uint32_t waitStart = millis();

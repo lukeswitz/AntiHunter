@@ -544,8 +544,12 @@ static void handleScanStart(const String &command)
         parseChannelsCSV(channels);
         stopRequested = false;
         scanning = true;
-        ahCreateTask(listScanTask, "scan", 8192,
-                                reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+        if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+            scanning = false;
+            workerTaskHandle = nullptr;
+            scanSetCountdown(0, false);
+            Serial.println("[SCAN] task create failed: scan");
+        }
         Serial.printf("[MESH] Started scan via mesh command\n");
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
@@ -576,8 +580,12 @@ static void handleBaselineStart(const String &command)
   } else {
     stopRequested = false;
     scanning = true;
-    ahCreateTask(baselineDetectionTask, "baseline", 12288,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    if (ahCreateTask(baselineDetectionTask, "baseline", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+        scanning = false;
+        workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
+        Serial.println("[SCAN] task create failed: baseline");
+    }
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
   }
@@ -661,8 +669,12 @@ static void handleDeviceScanStart(const String &command)
       }
 
       scanning = true;
-      ahCreateTask(snifferScanTask, "sniffer", 12288,
-                              reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+      if (ahCreateTask(snifferScanTask, "sniffer", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+          scanning = false;
+          workerTaskHandle = nullptr;
+          scanSetCountdown(0, false);
+          Serial.println("[SCAN] task create failed: sniffer");
+      }
       Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
@@ -695,8 +707,12 @@ static void handleDroneStart(const String &command)
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
     scanning = true;
-    ahCreateTask(droneDetectorTask, "drone", 12288,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+        scanning = false;
+        workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
+        Serial.println("[SCAN] task create failed: drone");
+    }
     Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
   }
@@ -724,8 +740,12 @@ static void handleCounterSurveilStart(const String &command)
     currentScanMode = SCAN_BLE;
     stopRequested = false;
     scanning = true;
-    ahCreateTask(counterSurveilTask, "cs", 8192,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    if (ahCreateTask(counterSurveilTask, "cs", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+        scanning = false;
+        workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
+        Serial.println("[SCAN] task create failed: cs");
+    }
     Serial.printf("[MESH] Started counter-surveillance scan (%ds)\n", secs);
     sendToSerial1(nodeId + ": CS_ACK:STARTED", true);
   }
@@ -767,8 +787,12 @@ static void handleDeauthStart(const String &command)
   } else {
     stopRequested = false;
     scanning = true;
-    ahCreateTask(blueTeamTask, "blueteam", 12288,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1);
+    if (ahCreateTask(blueTeamTask, "blueteam", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1) != pdPASS) {
+        scanning = false;
+        blueTeamTaskHandle = nullptr;
+        scanSetCountdown(0, false);
+        Serial.println("[SCAN] task create failed: blueteam");
+    }
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
   }
@@ -804,8 +828,12 @@ static void handleRandomizationStart(const String &command)
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
       scanning = true;
-      ahCreateTask(randomizationDetectionTask, "randdetect", 8192,
-                              reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+      if (ahCreateTask(randomizationDetectionTask, "randdetect", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+          scanning = false;
+          workerTaskHandle = nullptr;
+          scanSetCountdown(0, false);
+          Serial.println("[SCAN] task create failed: randdetect");
+      }
       Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
     }
@@ -857,8 +885,12 @@ static void handleProbeStart(const String &command)
     stopRequested = false;
     scanning = true;
     probeBroadcastAll.store(broadcastAll, std::memory_order_relaxed);
-    ahCreateTask(probeDetectionTask, "probedet", 8192,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    if (ahCreateTask(probeDetectionTask, "probedet", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+        scanning = false;
+        workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
+        Serial.println("[SCAN] task create failed: probedet");
+    }
     Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
     sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
   }
@@ -866,7 +898,7 @@ static void handleProbeStart(const String &command)
 
 static void handleProbeStop(const String &command)
 {
-  stopRequested = true;
+  stopAllScans(false);
   Serial.println("[MESH] Probe stop command received via mesh");
   sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
 }
@@ -881,10 +913,7 @@ static void handleProbeHit(const String &command)
 
 static void handleStop(const String &command)
 {
-  stopRequested = true;
-  if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
-    stopMeshDrain.store(true);
-  }
+  stopAllScans();
   Serial.println("[MESH] Stop command received via mesh");
   sendToSerial1(nodeId + ": STOP_ACK:OK", true);
 }
@@ -1500,8 +1529,13 @@ static void handleTriCycleStart(const String &command)
     } else {
       scanning = true;
       Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
-      ahCreateTask(listScanTask, "triangulate", 8192,
-                             reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1);
+      if (ahCreateTask(listScanTask, "triangulate", 8192,
+                       reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
+          scanning = false;
+          workerTaskHandle = nullptr;
+          scanSetCountdown(0, false);
+          Serial.println("[SCAN] task create failed: triangulate");
+      }
     }
   }
 }

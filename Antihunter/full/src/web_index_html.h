@@ -102,6 +102,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #gpsStatus{min-width:60px;justify-content:flex-start}
       #gpsStatus .gps-acc{text-transform:none;letter-spacing:0;font-size:11px;font-weight:700;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
       #stopAllBtn{padding:7px 16px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0}
+      #stopAllBtn.disabled{pointer-events:none;opacity:0.55;animation:scanPulse 1.2s ease-in-out infinite}
       @keyframes scanPulse{0%,100%{box-shadow:var(--glow)}50%{box-shadow:0 0 20px rgba(96,160,224,0.3),0 0 40px rgba(96,160,224,0.1)}}
       .tab-buttons{display:flex;gap:6px;margin-bottom:18px;background:rgba(0,0,0,0.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:6px;border-radius:10px;border:1px solid var(--bord)}
       .tab-btn{padding:10px 18px;background:transparent;border:none;border-radius:6px;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;transition:all 0.2s;flex:1;text-align:center}
@@ -1528,6 +1529,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let radioBusy = false;
       let radioBusyTask = '';
       let prevUniqueDevices = 0;
+      let stopPending = false;
+      let resultsPolling = false;
+      const scanDebounce = {
+        listScan: { inProgress: false, lastSubmit: 0, cooldown: 1000 },
+        sniffer: { inProgress: false, lastSubmit: 0, cooldown: 1000 }
+      };
 
 
       function isRadioBusy() {
@@ -1538,18 +1545,117 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return false;
       }
 
+      function resetScanControls() {
+        for (const k in scanDebounce) { scanDebounce[k].inProgress = false; scanDebounce[k].lastSubmit = 0; }
+        const startDetectionBtn = document.getElementById('startDetectionBtn');
+        if (startDetectionBtn) {
+          startDetectionBtn.textContent = 'Start Scan';
+          startDetectionBtn.classList.remove('danger');
+          startDetectionBtn.classList.add('primary');
+          startDetectionBtn.type = 'submit';
+          startDetectionBtn.onclick = null;
+          startDetectionBtn.disabled = false;
+        }
+        const startScanBtn = document.querySelector('#s button');
+        if (startScanBtn) {
+          startScanBtn.textContent = 'Start Scan';
+          startScanBtn.classList.remove('danger');
+          startScanBtn.classList.add('primary');
+          startScanBtn.type = 'submit';
+          startScanBtn.onclick = null;
+          startScanBtn.disabled = false;
+        }
+      }
+
+      function syncStopAllBtn() {
+        const b = document.getElementById('stopAllBtn');
+        if (!b) return;
+        const show = radioBusy || stopPending;
+        b.style.display = show ? 'inline-block' : 'none';
+        b.classList.toggle('disabled', stopPending);
+        b.textContent = stopPending ? 'STOPPING' : 'STOP';
+      }
+
       function stopScan(e) {
         if (e) e.preventDefault();
+        if (stopPending) return false;
+        stopPending = true;
         lastScanStartTime = 0;
         radioBusy = false;
         radioBusyTask = '';
-        if (typeof setScanStatus === 'function') setScanStatus('Idle', 'idle');
-        const b = document.getElementById('stopAllBtn');
-        if (b) b.style.display = 'none';
+        resetScanControls();
+        if (baselineUpdateInterval) { clearInterval(baselineUpdateInterval); baselineUpdateInterval = null; prevUniqueDevices = 0; }
+        setScanStatus('Stopping', 'active');
+        syncStopAllBtn();
         fetch('/stop').then(r => r.text()).then(t => toast(t || 'Scan stopped'))
           .catch(err => toast('Stop failed: ' + err, 'error'));
-        setTimeout(() => { if (typeof tick === 'function') tick(); }, 600);
+        awaitStopConfirmed();
         return false;
+      }
+
+      async function awaitStopConfirmed() {
+        const deadline = Date.now() + 15000;
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 400));
+          let d = '';
+          try { d = await (await fetch('/diag')).text(); } catch (err) { continue; }
+          if (!d.includes('Scanning: yes')) {
+            stopPending = false;
+            radioBusy = false;
+            radioBusyTask = '';
+            setScanStatus('Idle', 'idle');
+            resetScanControls();
+            syncStopAllBtn();
+            resultsPoll(true);
+            tick();
+            return;
+          }
+        }
+        stopPending = false;
+        syncStopAllBtn();
+        toast('Device still busy after stop — check serial', 'warning');
+      }
+
+      function renderResults(text) {
+        const el = document.getElementById('r');
+        if (!el) return;
+        const dkey = sm => sm.textContent.trim().replace(/\s*\([^)]*\)\s*$/, '');
+        const openCards = new Set();
+        el.querySelectorAll('[id$="Content"]').forEach(c => { if (c.style.display !== 'none') openCards.add(c.id); });
+        const openDetails = new Set();
+        el.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(dkey(sm)); });
+
+        el.innerHTML = parseAndStyleResults(text);
+
+        openCards.forEach(id => {
+          const c = document.getElementById(id);
+          if (!c) return;
+          c.style.display = 'block';
+          const icon = document.getElementById(id.replace('Content', 'Icon'));
+          if (icon) { icon.style.transform = 'rotate(0deg)'; icon.textContent = '▼'; }
+        });
+        if (openDetails.size) el.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(dkey(sm))) d.open = true; });
+        if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
+      }
+
+      async function resultsPoll(force) {
+        if (resultsPolling) return;
+        if (!force && !radioBusy && stopResultsRefresh <= 0) return;
+        const el = document.getElementById('r');
+        if (el && el.contains(document.activeElement)) return;
+        resultsPolling = true;
+        try {
+          const txt = await (await fetch('/results')).text();
+          const placeholder = !txt || txt.trim() === '' || txt.includes('None yet') || txt.includes('No scan data');
+          if (radioBusy && placeholder) return;
+          if (txt === lastResultsText) return;
+          lastResultsText = txt;
+          renderResults(txt);
+        } catch (e) {
+        } finally {
+          resultsPolling = false;
+          if (!radioBusy && stopResultsRefresh > 0) stopResultsRefresh--;
+        }
       }
 
       function switchPage(pageName) {
@@ -1610,8 +1716,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('targetCount').innerText = lines.length + ' targets';
           
           const resultsText = await resultsResp.text();
-          document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
-          
+          lastResultsText = resultsText;
+          renderResults(resultsText);
+
           loadNodeId();
           loadRFConfig();
           loadWiFiConfig();
@@ -2146,27 +2253,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           statusDiv.innerHTML = statusHTML + progressHTML + statsHTML;
 
-          // Always refresh results while scanning — keeps results in sync with phases card
-          if (stats.scanning) {
-            try {
-              const rr = await fetch('/results');
-              const rt = await rr.text();
-              // Don't regress to empty/placeholder while scanning
-              if (rt && rt.trim() !== '' && !rt.includes('None yet') && !rt.includes('No scan data') && rt !== lastResultsText) {
-                lastResultsText = rt;
-                const re = document.getElementById('r');
-                if (re) {
-                  const dkey = sm => sm.textContent.trim().replace(/\s*\([^)]*\)\s*$/, '');
-                  const openDetails = new Set();
-                  re.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(dkey(sm)); });
-                  re.innerHTML = parseAndStyleResults(rt);
-                  if (openDetails.size) re.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(dkey(sm))) d.open = true; });
-                  if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
-                }
-              }
-            } catch(e) {}
-          }
-
           const startDetectionBtn = document.getElementById('startDetectionBtn');
           const detectionMode = document.getElementById('detectionMode')?.value;
           const cacheBtn = document.getElementById('cacheBtn');
@@ -2175,23 +2261,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (cacheBtn) cacheBtn.style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
           if (clearOldBtn) clearOldBtn.style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
           
-           if (detectionMode === 'baseline' && stats.scanning) {
+           if (detectionMode === 'baseline' && stats.scanning && !stopPending) {
             startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
             startDetectionBtn.classList.remove('primary');
             startDetectionBtn.classList.add('danger');
             startDetectionBtn.type = 'button';
-            startDetectionBtn.onclick = async function(e) {
-              e.preventDefault();
-              try {
-                const response = await fetch('/stop');
-                const text = await response.text();
-                toast(text);
-                setTimeout(updateBaselineStatus, 500);
-              } catch (error) {
-                console.error('Stop error:', error);
-              }
-            };
-          } else if (detectionMode === 'baseline' && !stats.scanning) {
+            startDetectionBtn.onclick = stopScan;
+          } else if (detectionMode === 'baseline' && (!stats.scanning || stopPending)) {
             startDetectionBtn.textContent = 'Start Scan';
             startDetectionBtn.classList.remove('danger');
             startDetectionBtn.classList.add('primary');
@@ -2630,96 +2706,58 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
 
         if (isScanning || isTriangulating) {
-            const label = scanTaskLabels[taskType] || (isTriangulating ? 'Triangulate' : 'Scanning');
+            if (diagText.includes('Stopping: yes')) stopPending = true;
+            const label = stopPending ? 'Stopping' : (scanTaskLabels[taskType] || (isTriangulating ? 'Triangulate' : 'Scanning'));
             const remMatch = diagText.match(/Scan remaining: (\d+|forever)/);
-            if (remMatch && remMatch[1] !== 'forever') { _scanForever = false; _scanEndTs = Date.now() + parseInt(remMatch[1]) * 1000; }
+            if (stopPending) { _scanForever = true; _scanEndTs = 0; }
+            else if (remMatch && remMatch[1] !== 'forever') { _scanForever = false; _scanEndTs = Date.now() + parseInt(remMatch[1]) * 1000; }
             else { _scanForever = !!remMatch; _scanEndTs = 0; }
             setScanStatus(label, 'active');
-            
-            const startScanBtn = document.querySelector('#s button');
+            syncStopAllBtn();
+            if (stopPending) resetScanControls();
+
+            const startScanBtn = stopPending ? null : document.querySelector('#s button');
             if (startScanBtn && taskType === 'scan') {
                 startScanBtn.textContent = 'Stop Scanning';
                 startScanBtn.classList.remove('primary');
                 startScanBtn.classList.add('danger');
                 startScanBtn.type = 'button';
-                startScanBtn.onclick = function(e) {
-                    e.preventDefault();
-                    lastScanStartTime = 0;
-                    fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                        setTimeout(async () => {
-                            const refreshedDiag = await fetch('/diag').then(r => r.text());
-                            updateStatusIndicators(refreshedDiag);
-                        }, 500);
-                    });
-                };
+                startScanBtn.onclick = stopScan;
             }
 
-            if (taskType === 'triangulate') {
+            if (taskType === 'triangulate' && !stopPending) {
                 const triangulateBtn = document.querySelector('#s button');
                 if (triangulateBtn) {
                     triangulateBtn.textContent = 'Stop Scan';
                     triangulateBtn.classList.remove('primary');
                     triangulateBtn.classList.add('danger');
                     triangulateBtn.type = 'button';
-                    triangulateBtn.onclick = function(e) {
-                        e.preventDefault();
-                        lastScanStartTime = 0;
-                        fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                            setTimeout(async () => {
-                                const refreshedDiag = await fetch('/diag').then(r => r.text());
-                                updateStatusIndicators(refreshedDiag);
-                            }, 500);
-                        });
-                    };
+                    triangulateBtn.onclick = stopScan;
                 }
             }
 
-            if (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam' || taskType === 'probedet') {
+            if (!stopPending && (taskType === 'sniffer' || taskType === 'drone' || taskType === 'randdetect' || taskType === 'blueteam' || taskType === 'probedet')) {
                 const startDetectionBtn = document.getElementById('startDetectionBtn');
                 if (startDetectionBtn) {
                     startDetectionBtn.textContent = 'Stop Scanning';
                     startDetectionBtn.classList.remove('primary');
                     startDetectionBtn.classList.add('danger');
                     startDetectionBtn.type = 'button';
-                    startDetectionBtn.onclick = function(e) {
-                        e.preventDefault();
-                        lastScanStartTime = 0;
-                        fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                            setTimeout(async () => {
-                                const refreshedDiag = await fetch('/diag').then(r => r.text());
-                                updateStatusIndicators(refreshedDiag);
-                            }, 500);
-                        });
-                    };
+                    startDetectionBtn.onclick = stopScan;
                 }
             }
         } else {
-            const isWithinGracePeriod = (Date.now() - lastScanStartTime) < 3000;
+            const isWithinGracePeriod = !stopPending && (Date.now() - lastScanStartTime) < 3000;
 
             if (!isWithinGracePeriod) {
+                stopPending = false;
+                radioBusy = false;
+                radioBusyTask = '';
                 setScanStatus('Idle', 'idle');
-
+                resetScanControls();
                 const startScanBtn = document.querySelector('#s button');
-                if (startScanBtn) {
-                    startScanBtn.textContent = 'Start Scan';
-                    startScanBtn.classList.remove('danger');
-                    startScanBtn.classList.add('primary');
-                    startScanBtn.type = 'submit';
-                    startScanBtn.onclick = null;
-                    startScanBtn.style.background = '';
-                }
-
-                const detectionMode = document.getElementById('detectionMode')?.value;
-                if (detectionMode !== 'baseline') {
-                    const startDetectionBtn = document.getElementById('startDetectionBtn');
-                    if (startDetectionBtn) {
-                        startDetectionBtn.textContent = 'Start Scan';
-                        startDetectionBtn.classList.remove('danger');
-                        startDetectionBtn.classList.add('primary');
-                        startDetectionBtn.type = 'submit';
-                        startDetectionBtn.onclick = null;
-                    }
-                }
+                if (startScanBtn) startScanBtn.style.background = '';
+                syncStopAllBtn();
             }
         }
 
@@ -4177,15 +4215,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           updateStatusIndicators(diagText);
           updateMeshTxIndicator(diagText);
 
-          // --- Optional fetches: only when needed, skip what baseline already handles ---
           const droneActive = diagText.includes('Drone Detection: Active');
           const baselineHandling = !!baselineUpdateInterval;
-          const fetchPromises = [];
-          if (droneActive) fetchPromises.push(fetch('/drone/status').catch(() => null));
-          else fetchPromises.push(Promise.resolve(null));
-          if (!baselineHandling && (isScanning || stopResultsRefresh > 0)) fetchPromises.push(fetch('/results').catch(() => null));
-          else fetchPromises.push(Promise.resolve(null));
-          const [droneResponse, resultsResponse] = await Promise.all(fetchPromises);
+          const droneResponse = droneActive ? await fetch('/drone/status').catch(() => null) : null;
           if (droneResponse) {
             try {
               const droneData = await droneResponse.json();
@@ -4211,70 +4243,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               prevUniqueDevices = cur;
             } catch(e) {}
           }
-          const stopAllBtn = document.getElementById('stopAllBtn');
-          if (stopAllBtn) {
-            stopAllBtn.style.display = isScanning ? 'inline-block' : 'none';
-          }
-          const resultsElement = document.getElementById('r');
-          if (resultsElement && !resultsElement.contains(document.activeElement)) {
-            if ((isScanning || stopResultsRefresh > 0) && resultsResponse) {
-              const resultsText = await resultsResponse.text();
-              // Don't regress to empty/placeholder while scanning — server may briefly clear lastResults during task init
-              if (isScanning && (!resultsText || resultsText.trim() === '' || resultsText.includes('None yet') || resultsText.includes('No scan data'))) {
-                // skip — keep current results visible
-              } else if (resultsText !== lastResultsText) {
-                lastResultsText = resultsText;
-                if (isScanning) {
-                  setTimeout(() => {
-                    const expandedCards = new Set();
-                    const expandedDetails = new Map();
-                    const contents = resultsElement.querySelectorAll('[id$="Content"]');
-                    for (const content of contents) {
-                      if (content.style.display !== 'none') {
-                        expandedCards.add(content.id);
-                      }
-                    }
-                    const openDetails = resultsElement.querySelectorAll('details[open]');
-                    for (const details of openDetails) {
-                      const summary = details.querySelector('summary');
-                      if (summary && summary.textContent) {
-                        expandedDetails.set(summary.textContent.trim(), true);
-                      }
-                    }
-                    resultsElement.innerHTML = parseAndStyleResults(resultsText);
-                    for (const contentId of expandedCards) {
-                      const content = document.getElementById(contentId);
-                      if (content) {
-                        const iconId = contentId.replace('Content', 'Icon');
-                        const icon = document.getElementById(iconId);
-                        content.style.display = 'block';
-                        if (icon) {
-                          icon.style.transform = 'rotate(0deg)';
-                          icon.textContent = '▼';
-                        }
-                      }
-                    }
-                    const allDetails = resultsElement.querySelectorAll('details');
-                    for (const details of allDetails) {
-                      const summary = details.querySelector('summary');
-                      if (summary) {
-                        const summaryText = summary.textContent.trim();
-                        if (expandedDetails.has(summaryText)) {
-                          details.open = true;
-                        }
-                      }
-                    }
-                    if (currentSort !== 'default') sortResultsDisplay();
-                  }, 0);
-                } else {
-                  resultsElement.innerHTML = parseAndStyleResults(resultsText);
-                  if (currentSort !== 'default') sortResultsDisplay();
-                }
-              }
-            }
-          }
+          syncStopAllBtn();
           lastScanningState = isScanning;
-          if (!isScanning && stopResultsRefresh > 0) stopResultsRefresh--;
         } catch (e) {
           console.error('Tick error:', e);
         } finally {
@@ -4459,27 +4429,37 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         setTimeout(loadNodeId, 500);
       });
 
-      // Debounce state for scan forms
-      const scanDebounce = {
-        listScan: { inProgress: false, lastSubmit: 0, cooldown: 1000 },
-        sniffer: { inProgress: false, lastSubmit: 0, cooldown: 1000 }
-      };
-
-      // Unified clear-on-start: wipes the results panel + server-side lastResults
-      // BEFORE the new scan's POST so the prior scan's content cannot leak through
-      // a tick() that fires between the UI clear and the new task's initial write.
       async function prepScanStart(starterText) {
+        stopPending = false;
+        radioBusy = true;
+        stopResultsRefresh = 8;
         const el = document.getElementById('r');
         if (el && !el.contains(document.activeElement)) {
           lastResultsText = '';
           el.innerHTML = parseAndStyleResults(starterText || 'Scan starting...\n');
           switchPage('results');
         }
+        syncStopAllBtn();
         try {
           await fetch('/clear-results', { method: 'POST' });
         } catch (err) {
           console.warn('[SCAN] /clear-results failed (continuing — UI was already cleared):', err);
         }
+      }
+
+      function abortScanStart(msg) {
+        radioBusy = false;
+        radioBusyTask = '';
+        stopPending = false;
+        lastScanStartTime = 0;
+        lastResultsText = '';
+        stopResultsRefresh = 4;
+        resetScanControls();
+        setScanStatus('Idle', 'idle');
+        syncStopAllBtn();
+        const el = document.getElementById('r');
+        if (el && !el.contains(document.activeElement)) el.innerHTML = parseAndStyleResults(msg || 'Scan did not start.\n');
+        tick();
       }
 
       document.getElementById('s').addEventListener('submit', async e => {
@@ -4527,16 +4507,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               submitBtn.style.opacity = '1';
               submitBtn.style.cursor = 'pointer';
               submitBtn.type = 'button';
-              submitBtn.onclick = function(e) {
-                  e.preventDefault();
-                  lastScanStartTime = 0;
-                  fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                      setTimeout(async () => {
-                          const refreshedDiag = await fetch('/diag').then(r => r.text());
-                          updateStatusIndicators(refreshedDiag);
-                      }, 500);
-                  });
-              };
+              submitBtn.onclick = stopScan;
           }
 
           {
@@ -4550,7 +4521,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             body: fd
           }).then(r => {
             console.log('[SCAN] Response received at', new Date().toISOString());
-            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); return null; });
+            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); abortScanStart(t + '\n'); return null; });
             return r.text();
           }).then(t => {
             if (t === null) return;
@@ -4564,6 +4535,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }).catch(err => {
             console.error('[SCAN] Error at', new Date().toISOString(), err);
             toast('Error: ' + err.message, 'error');
+            abortScanStart('Scan request failed: ' + err.message + '\n');
           }).finally(() => {
             setTimeout(() => {
               state.inProgress = false;
@@ -4684,16 +4656,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             submitBtn.style.opacity = '1';
             submitBtn.style.cursor = 'pointer';
             submitBtn.type = 'button';
-            submitBtn.onclick = function(e) {
-                e.preventDefault();
-                lastScanStartTime = 0;
-                fetch('/stop').then(r => r.text()).then(t => toast(t)).then(() => {
-                    setTimeout(async () => {
-                        const refreshedDiag = await fetch('/diag').then(r => r.text());
-                        updateStatusIndicators(refreshedDiag);
-                    }, 500);
-                });
-            };
+            submitBtn.onclick = stopScan;
         }
 
         if (detectionMethod === 'randomization-detection') {
@@ -4742,7 +4705,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               body: fd
             });
           }).then(r => {
-            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); return null; });
+            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); abortScanStart(t + '\n'); return null; });
             return r.text();
           }).then(t => {
             if (t === null) return;
@@ -4751,13 +4714,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             updateBaselineStatus();
           }).catch(err => {
             toast('Error: ' + err, 'error');
+            abortScanStart('Scan request failed: ' + err + '\n');
           }).finally(resetState);
         } else {
           fetch(endpoint, {
             method: 'POST',
             body: fd
           }).then(r => {
-            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); return null; });
+            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); abortScanStart(t + '\n'); return null; });
             return r.text();
           }).then(t => {
             if (t === null) return;
@@ -4765,6 +4729,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             setTimeout(() => { tick(); }, 100);
           }).catch(err => {
             toast('Error: ' + err, 'error');
+            abortScanStart('Scan request failed: ' + err + '\n');
           }).finally(resetState);
         }
       });
@@ -4772,8 +4737,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       document.addEventListener('click', e => {
         const a = e.target.closest('a[href="/stop"]');
         if (!a) return;
-        e.preventDefault();
-        fetch('/stop').then(r => r.text()).then(t => toast(t));
+        stopScan(e);
       });
 
       document.addEventListener('click', e => {
@@ -5065,6 +5029,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       refreshPskStatus();
       pollSecureState();
       setInterval(tick, 5000);
+      setInterval(resultsPoll, 1000);
       setInterval(() => { const a = document.getElementById('diagAge'); if (!a || !window.__lastDiag) return; const s = Math.max(0, Math.round((Date.now() - window.__lastDiag) / 1000)); a.innerText = s < 1 ? 'refreshed just now' : 'refreshed ' + s + 's ago'; }, 1000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
 

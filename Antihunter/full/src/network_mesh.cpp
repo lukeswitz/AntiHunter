@@ -788,7 +788,7 @@ static void handleProbeStart(const String &command)
 static void handleProbeStop(const String &command)
 {
   (void)command;
-  stopRequested = true;
+  stopAllScans(false);
   Serial.println("[MESH] Probe stop command received via mesh");
   sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
 }
@@ -804,10 +804,7 @@ static void handleProbeHit(const String &command)
 static void handleStop(const String &command)
 {
   (void)command;
-  stopRequested = true;
-  if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
-    stopMeshDrain.store(true);
-  }
+  stopAllScans();
   Serial.println("[MESH] Stop command received via mesh");
   sendToSerial1(nodeId + ": STOP_ACK:OK", true);
 }
@@ -1298,8 +1295,13 @@ static void handleTriCycleStart(const String &command)
     } else {
       scanning = true;
       Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
-      ahCreateTask(listScanTask, "triangulate", 8192,
-                             reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1);
+      if (ahCreateTask(listScanTask, "triangulate", 8192,
+                       reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
+          scanning = false;
+          workerTaskHandle = nullptr;
+          scanSetCountdown(0, false);
+          Serial.println("[SCAN] task create failed: triangulate");
+      }
     }
   }
 }
