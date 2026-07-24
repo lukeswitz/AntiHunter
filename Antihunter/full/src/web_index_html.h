@@ -91,6 +91,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.idle{border-color:rgba(80,180,120,0.4);color:#50b478}
       .status-item.idle::before{background:#50b478;box-shadow:0 0 6px rgba(80,180,120,0.7)}
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
+      .status-item.offline{border-color:var(--dang);color:var(--dang)}
+      .status-item.offline::before{background:var(--dang);box-shadow:0 0 6px var(--dang)}
       .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       #scanStatus{min-width:130px;justify-content:flex-start}
       .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -1539,6 +1541,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let prevUniqueDevices = 0;
       let stopPending = false;
       let resultsPolling = false;
+      let diagFailStreak = 0;
+      let nodeReachable = true;
+      let resultsSynced = false;
+      let loadEverSucceeded = false;
       const scanDebounce = {
         listScan: { inProgress: false, lastSubmit: 0, cooldown: 1000 },
         sniffer: { inProgress: false, lastSubmit: 0, cooldown: 1000 }
@@ -1648,7 +1654,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       async function resultsPoll(force) {
         if (resultsPolling) return;
-        if (!force && !radioBusy && stopResultsRefresh <= 0) return;
+        if (!force && !radioBusy && stopResultsRefresh <= 0 && resultsSynced) return;
         const el = document.getElementById('r');
         if (el && el.contains(document.activeElement)) return;
         resultsPolling = true;
@@ -1658,6 +1664,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (radioBusy && placeholder) return;
           if (txt === lastResultsText) return;
           lastResultsText = txt;
+          resultsSynced = true;
           renderResults(txt);
         } catch (e) {
         } finally {
@@ -1726,6 +1733,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const resultsText = await resultsResp.text();
           lastResultsText = resultsText;
           renderResults(resultsText);
+          resultsSynced = true;
+          loadEverSucceeded = true;
 
           loadNodeId();
           loadRFConfig();
@@ -2675,7 +2684,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const el = document.getElementById('scanStatus');
         if (!el) return;
         _scanBaseLabel = label;
-        el.classList.remove('idle', 'active');
+        el.classList.remove('idle', 'active', 'offline');
         if (state) el.classList.add(state);
         if (state !== 'active') { _scanEndTs = 0; _scanForever = false; }
         el.innerText = label;
@@ -4165,7 +4174,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         try {
           refreshIdentityMap(false);
           const diagResponse = await fetch('/diag').catch(() => null);
-          if (!diagResponse) return;
+          if (!diagResponse || !diagResponse.ok) {
+            diagFailStreak++;
+            if (diagFailStreak >= 2 && nodeReachable) {
+              nodeReachable = false;
+              setScanStatus('Node unreachable', 'offline');
+            }
+            return;
+          }
+          if (!nodeReachable) {
+            nodeReachable = true;
+            resultsSynced = false;
+            if (!loadEverSucceeded) load();
+          }
+          diagFailStreak = 0;
           const diagText = await diagResponse.text();
           const isScanning = diagText.includes('Scanning: yes');
           const isTriActive = diagText.includes('Triangulating: yes');
