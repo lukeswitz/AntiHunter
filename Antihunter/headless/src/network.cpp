@@ -1514,8 +1514,12 @@ static void handleTriCycleStart(const String &command)
     } else {
       scanning = true;
       Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
-      ahCreateTask(listScanTask, "triangulate", 8192,
-                             reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1);
+      if (ahCreateTask(listScanTask, "triangulate", 8192,
+              reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
+        scanning = false;
+        workerTaskHandle = nullptr;
+        Serial.println("[TRIANGULATE] scan task create failed");
+      }
     }
   }
 }
