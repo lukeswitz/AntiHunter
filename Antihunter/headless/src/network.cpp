@@ -1842,7 +1842,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
   else if (command == "PROBE_STOP")                   handleProbeStop(command);
   else if (command.startsWith("PROBE_HIT "))          handleProbeHit(command);
-  else if (command.startsWith("STOP"))                handleStop(command);
+  else if (command == "STOP")                         handleStop(command);
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
   else if (command.startsWith("SENTINEL_STATUS"))     handleSentinelStatus(command);

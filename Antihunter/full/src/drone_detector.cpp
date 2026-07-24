@@ -29,7 +29,9 @@ QueueHandle_t droneFrameQueue = nullptr;
 
 extern std::atomic<bool> stopRequested;
 extern void radioStartSTA();
+extern void radioStartBLE();
 extern void radioStopSTA();
+extern ScanMode currentScanMode;
 extern std::atomic<bool> scanning; 
 
 static unsigned long lastDroneLog = 0;
@@ -794,7 +796,9 @@ void droneDetectorTask(void *pv)
     transmittedDrones.clear();
     { std::lock_guard<std::mutex> lock(detectedDronesMutex); droneMeshAnnounced.clear(); }
     
-    radioStartSTA();
+    // BLE-only skips promiscuous + channel hopping; radioStartSTA covers WiFi and WiFi+BLE
+    if (currentScanMode == SCAN_BLE) radioStartBLE();
+    else radioStartSTA();
     
     const uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;

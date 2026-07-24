@@ -228,6 +228,13 @@ void initializeNetwork()
   Serial.printf("[WIFI] AP %s start (PMF capable): %s\n",
                 apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
                 apOk ? "OK" : "FAIL");
+  // SoftAP force-deauths an idle STA after inactive time (IDF default 300s). A sleeping
+  // browser stops polling and gets kicked mid-scan. Not stored in flash - re-applied each boot.
+  {
+    esp_err_t itErr = esp_wifi_set_inactive_time(WIFI_IF_AP, AP_INACTIVE_TIME_SEC);
+    Serial.printf("[WIFI] AP inactive time %us: %s\n", (unsigned)AP_INACTIVE_TIME_SEC,
+                  itErr == ESP_OK ? "OK" : esp_err_to_name(itErr));
+  }
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
@@ -759,12 +766,20 @@ void registerRemainingRoutes() {
             secs = v;
         }
         
-        currentScanMode = SCAN_BOTH;
+        ScanMode dMode = SCAN_BOTH;
+        if (req->hasParam("droneScanMode", true)) {
+            int m = req->getParam("droneScanMode", true)->value().toInt();
+            if (m == 0) dMode = SCAN_WIFI;
+            else if (m == 1) dMode = SCAN_BLE;
+        }
+        String dModeStr = (dMode == SCAN_WIFI) ? "WiFi" : (dMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+
+        currentScanMode = dMode;
         stopRequested = false;
 
         req->send(200, "text/plain", forever ?
-                  "Drone detection starting (forever)" :
-                  ("Drone detection starting for " + String(secs) + "s")); 
+                  ("Drone detection starting (forever) - " + dModeStr) :
+                  ("Drone detection starting for " + String(secs) + "s - " + dModeStr));
         
         if (!workerTaskHandle) {
             scanning = true;
@@ -1290,13 +1305,20 @@ void registerRemainingRoutes() {
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
 
+            ScanMode dMode = SCAN_BOTH;
+            if (req->hasParam("droneScanMode", true)) {
+                int m = req->getParam("droneScanMode", true)->value().toInt();
+                if (m == 0) dMode = SCAN_WIFI;
+                else if (m == 1) dMode = SCAN_BLE;
+            }
+
             stopRequested = false;
             req->send(200, "text/plain",
                     forever ? "Drone detection starting (forever)" :
                     ("Drone detection starting for " + String(secs) + "s"));
 
             if (!workerTaskHandle) {
-                currentScanMode = SCAN_BOTH;
+                currentScanMode = dMode;
                 scanning = true;
                 if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
                     scanning = false;
