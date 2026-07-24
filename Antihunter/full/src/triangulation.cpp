@@ -91,6 +91,27 @@ void setRFEnvironment(RFEnvironment env) {
 
 // Helpers
 
+float estimateRangeM(int8_t rssi, bool isWiFi) {
+    if (rssi <= RSSI_SENSITIVITY_FLOOR || rssi >= 0) return -1.0f;
+    float rssi0 = isWiFi ? adaptivePathLoss.rssi0_wifi : adaptivePathLoss.rssi0_ble;
+    float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
+    float d = pow(10.0f, (rssi0 - (float)rssi) / (10.0f * n));
+    if (distanceTuning.enabled) {
+        d *= isWiFi ? distanceTuning.wifi_multiplier : distanceTuning.ble_multiplier;
+    }
+    return (d < 0.1f) ? 0.1f : d;
+}
+
+float estimateRangeSigmaM(int8_t rssi, bool isWiFi) {
+    float d = estimateRangeM(rssi, isWiFi);
+    if (d < 0.0f) return -1.0f;
+    float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
+    float sigmaDb = RF_PRESETS[currentRFEnvironment].sigma_db;
+    if (!isWiFi) sigmaDb = sqrtf(sigmaDb * sigmaDb + BLE_TXPOWER_SIGMA_DB * BLE_TXPOWER_SIGMA_DB);
+    if (!pathLoss.calibrated) sigmaDb = sqrtf(sigmaDb * sigmaDb + PATHLOSS_UNCALIBRATED_SIGMA_DB * PATHLOSS_UNCALIBRATED_SIGMA_DB);
+    return d * (logf(10.0f) / (10.0f * n)) * sigmaDb;
+}
+
 bool rssiUsable(int8_t rssi) {
     return rssi > RSSI_SENSITIVITY_FLOOR && rssi < 0;
 }
@@ -1516,7 +1537,7 @@ String calculateTriangulation() {
         results += "  Latitude:  " + String(estLat, 6) + "\n";
         results += "  Longitude: " + String(estLon, 6) + "\n";
         results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
-        results += "  Uncertainty: " + String(solverSigma, 1) + " m (1-sigma)\n";
+        results += "  Uncertainty (1-sigma): ±" + String(solverSigma, 1) + "m\n";
         results += "  GDOP: " + String(calculateGDOP(gpsNodes, estLat, estLon), 2) + "\n";
         results += "  Method: Weighted NLLS (Levenberg-Marquardt) + Kalman filtering\n";
 

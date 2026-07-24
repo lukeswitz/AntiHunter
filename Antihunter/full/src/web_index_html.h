@@ -3837,14 +3837,16 @@ R"HTML(
           if (line.startsWith('--- Probe Intelligence')) { inProbeSection = true; return; }
           if (inProbeSection) { if (line.trim().length > 0) probeLines.push(line.trim()); return; }
 
-          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
+          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+~([\d.]+)m\+\/-([\d.]+))?(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
           if (!match) return;
 
           const type = match[1];
           const mac = match[2];
           const rssi = match[3];
-          const channel = match[4] || '';
-          const name = match[5] || 'Unknown';
+          const range = match[4] || '';
+          const rangeSig = match[5] || '';
+          const channel = match[6] || '';
+          const name = match[7] || '';
           const isApple = / APPLE(?:\s|$)/.test(line);
           const vendMatch = line.match(/\sV=([^"\n]+)$/);
 
@@ -3860,9 +3862,10 @@ R"HTML(
           if (isApple) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
           card += '</span>';
           card += '<div class="res-meta">';
-          card += '<span>Name: <strong>' + name + '</strong></span>';
+          if (name) card += '<span>Name: <strong>' + name + '</strong></span>';
           card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
+          if (range) card += '<span class="res-badge" title="Estimated range from RSSI path-loss model (1-sigma)">~' + range + ' m &plusmn;' + rangeSig + '</span>';
           const vendName = vendMatch ? vendMatch[1].trim() : '';
           if (vendName && !(isApple && /^apple/i.test(vendName))) card += '<span class="res-badge">' + vendName + '</span>';
           card += '</div>';

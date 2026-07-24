@@ -174,6 +174,8 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi = true);
 float rssiDistanceSigma(const TriangulationNode &node, float distance, bool isWiFi);
 void nodeUpdateDistance(TriangulationNode &node);
 bool rssiUsable(int8_t rssi);
+float estimateRangeM(int8_t rssi, bool isWiFi);
+float estimateRangeSigmaM(int8_t rssi, bool isWiFi);
 bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence, float &uncertaintyM);
 void broadcastTimeSyncRequest();
 void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds);
