@@ -26,6 +26,12 @@ extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern void disciplineRTCFromGPS();
 
+// Preferences::getString() log_e()s on a missing key; gate it so optional keys stay quiet
+String prefsGetString(const char *key, const String &defaultValue) {
+    if (!prefs.isKey(key)) return defaultValue;
+    return prefs.getString(key, defaultValue);
+}
+
 // GPS
 TinyGPSPlus gps;
 HardwareSerial GPS(2);
@@ -348,7 +354,7 @@ void initializeHardware()
     reappearanceAlertWindow = prefs.getUInt("reappearWin", 300000);
     significantRssiChange = prefs.getInt("rssiChange", 20);
     
-    String nodeId = prefs.getString("nodeId", "");
+    String nodeId = prefsGetString("nodeId", "");
     if (nodeId.length() == 0)
     {
         int randomNum = random(10, 100);
@@ -414,7 +420,7 @@ static uint32_t configSignature() {
     };
     auto mixStr = [&](const String &s) { mix(s.c_str(), s.length()); h ^= 0x5a; h *= 16777619u; };
 
-    mixStr(prefs.getString("nodeId", ""));
+    mixStr(prefsGetString("nodeId", ""));
     int sm = currentScanMode; mix(&sm, sizeof(sm));
     for (size_t i = 0; i < CHANNELS.size(); i++) { int c = CHANNELS[i]; mix(&c, sizeof(c)); }
     mix(&meshSendInterval, sizeof(meshSendInterval));
@@ -440,12 +446,12 @@ static uint32_t configSignature() {
     mix(&rfConfig.bleScanInterval, sizeof(rfConfig.bleScanInterval));
     mix(&rfConfig.bleScanDuration, sizeof(rfConfig.bleScanDuration));
     mix(&rfConfig.globalRssiThreshold, sizeof(rfConfig.globalRssiThreshold));
-    mixStr(prefs.getString("maclist", ""));
-    mixStr(prefs.getString("apSsid", AP_SSID));
+    mixStr(prefsGetString("maclist", ""));
+    mixStr(prefsGetString("apSsid", AP_SSID));
     mix(&hbEnabled, 1);
     mix(&hbInterval, sizeof(hbInterval));
     mix(&vibrationEnabled, 1);
-    mixStr(prefs.getString("apPass", AP_PASS));
+    mixStr(prefsGetString("apPass", AP_PASS));
     return h;
 }
 
@@ -489,7 +495,7 @@ void saveConfiguration() {
     }
 
     configFile.println("{");
-    configFile.printf(" \"nodeId\":\"%s\",\n", prefs.getString("nodeId", "").c_str());
+    configFile.printf(" \"nodeId\":\"%s\",\n", prefsGetString("nodeId", "").c_str());
     configFile.printf(" \"scanMode\":%d,\n", currentScanMode);
     configFile.printf(" \"channels\":\"%s\",\n", channelsBuf);
     configFile.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
@@ -514,12 +520,12 @@ void saveConfiguration() {
     configFile.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
     configFile.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
     configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
-    configFile.printf(" \"targets\":\"%s\",\n", prefs.getString("maclist", "").c_str());
-    configFile.printf(" \"apSsid\":\"%s\",\n", prefs.getString("apSsid", AP_SSID).c_str());
+    configFile.printf(" \"targets\":\"%s\",\n", prefsGetString("maclist", "").c_str());
+    configFile.printf(" \"apSsid\":\"%s\",\n", prefsGetString("apSsid", AP_SSID).c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
     configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
     configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
-    configFile.printf(" \"apPass\":\"%s\",\n", prefs.getString("apPass", AP_PASS).c_str());
+    configFile.printf(" \"apPass\":\"%s\",\n", prefsGetString("apPass", AP_PASS).c_str());
     configFile.printf(" \"apAuth\":%u\n", prefs.getUChar("apAuth", 0));
     configFile.println("}");
 
@@ -535,7 +541,7 @@ void loadConfiguration() {
         currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
         meshSendInterval = prefs.getULong("meshInterval", 5000);
         autoEraseEnabled = prefs.getBool("autoErase", false);
-        erasePSK = prefs.getString("erasePSK", "");
+        erasePSK = prefsGetString("erasePSK", "");
         autoEraseDelay = prefs.getUInt("eraseDelay", 30000);
         autoEraseCooldown = prefs.getUInt("eraseCooldown", 300000);
         vibrationsRequired = prefs.getUInt("vibRequired", 3);

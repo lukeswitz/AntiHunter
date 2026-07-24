@@ -103,6 +103,7 @@ void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
 void parseChannelsCSV(const String &csv);
 void saveTargetsList(const String &txt);
+String prefsGetString(const char *key, const String &defaultValue);
 extern unsigned long lastSaveTime;
 void saveConfiguration();
 void loadConfiguration();

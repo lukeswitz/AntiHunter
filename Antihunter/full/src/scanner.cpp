@@ -122,7 +122,7 @@ void scanSessionSave(const ScanSession &s) {
 }
 
 void scanSessionClear() {
-    if (prefs.getString("sessKind", "").length() == 0) return;
+    if (!prefs.isKey("sessKind")) return;
     prefs.remove("sessKind");
     prefs.remove("sessMode");
     prefs.remove("sessSecs");
@@ -134,11 +134,11 @@ void scanSessionClear() {
 }
 
 bool scanSessionLoad(ScanSession &out) {
-    out.kind = prefs.getString("sessKind", "");
+    out.kind = prefsGetString("sessKind", "");
     if (out.kind.length() == 0) return false;
     out.mode = prefs.getInt("sessMode", SCAN_BOTH);
     out.secs = prefs.getInt("sessSecs", 0);
-    out.channels = prefs.getString("sessChans", "");
+    out.channels = prefsGetString("sessChans", "");
     out.captureProbes = prefs.getBool("sessProbes", false);
     out.broadcastAll = prefs.getBool("sessBcast", false);
     out.forever = true;
@@ -427,7 +427,7 @@ void loadRFConfigFromPrefs() {
         uint32_t wsi = prefs.getUInt("wifiInterval", 5000);
         uint32_t bsi = prefs.getUInt("bleInterval", 2000);
         uint32_t bsd = prefs.getUInt("bleDuration", 3000);
-        String channels = prefs.getString("channels", "1..14");
+        String channels = prefsGetString("channels", "1..14");
         int8_t rssiThreshold = prefs.getInt("globalRSSI", -95);
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
@@ -2898,12 +2898,12 @@ void radioStopListScan() {
 void initializeScanner()
 {
     Serial.println("Loading targets...");
-    String txt = prefs.getString("maclist", "");
+    String txt = prefsGetString("maclist", "");
     saveTargetsList(txt);
     Serial.printf("Loaded %d targets\n", targets.size());
 
     Serial.println("Loading allowlist...");
-    String wtxt = prefs.getString("allowlist", "");
+    String wtxt = prefsGetString("allowlist", "");
     saveAllowlist(wtxt);
     Serial.printf("Loaded %d allowlist entries\n", allowlist.size());
 
