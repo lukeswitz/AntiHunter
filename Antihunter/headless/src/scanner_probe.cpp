@@ -399,7 +399,7 @@ void probeDetectionTask(void *pv)
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = results;
             }
-            nextResultsUpdate = millis() + 2000;
+            nextResultsUpdate = millis() + 1000;
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&

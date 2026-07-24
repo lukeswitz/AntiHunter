@@ -3232,6 +3232,16 @@ void sentinel_kill() {
 void sentinel_setUserEnabled(bool on) {
     bool prev = g_sentinelUserEnabled.exchange(on);
     { Preferences p; if (p.begin("ahdetect", false)) { p.putBool("sentEn", on); p.end(); } }
+    if (!on) {
+        Preferences p;
+        if (p.begin("antihunter", false)) {
+            if (p.getBool("sentBoot", false)) {
+                p.putBool("sentBoot", false);
+                Serial.println("[SENTINEL] Boot auto-start cleared by explicit stop");
+            }
+            p.end();
+        }
+    }
     if (!on && prev) {
         esp_wifi_set_promiscuous(false);
         Serial.println("[SENTINEL] Stop requested — promiscuous released immediately");

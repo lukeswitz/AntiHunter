@@ -1826,8 +1826,7 @@ void enterBatterySaver(uint32_t heartbeatIntervalMs) {
     batterySaverHeartbeatInterval = heartbeatIntervalMs;
 
     // Stop any active scanning tasks
-    extern std::atomic<bool> stopRequested;
-    stopRequested = true;
+    stopAllScans(false);
 
     // Wait for tasks to stop
     uint32_t waitStart = millis();
