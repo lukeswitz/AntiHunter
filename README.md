@@ -655,7 +655,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Triangulation Data | `NODE_ID: T_D: MAC RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` |
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
-| Probe Watchlist Hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GHOST] [GPS=lat,lon]` |
+| Probe Watchlist Hit | `NODE_ID: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="network" [GHOST]] [DST]` — vendor token omitted entirely when unknown |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 

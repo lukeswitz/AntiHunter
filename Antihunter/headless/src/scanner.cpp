@@ -961,7 +961,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
         String macStr = addr.toString().c_str();
         if (!parseMac6(macStr, mac)) return;
 
-        String deviceName = "Unknown";
+        String deviceName = "";
         if (advertisedDevice->haveName()) {
             std::string nimbleName = advertisedDevice->getName();
             if (nimbleName.length() > 0) {
@@ -973,7 +973,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
                     }
                 }
                 if (deviceName.length() == 0) {
-                    deviceName = "Unknown";
+                    deviceName = "";
                 }
             }
         }
@@ -1310,7 +1310,7 @@ void snifferScanTask(void *pv)
 
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
-                        String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                        String name = device->haveName() ? String(device->getName().c_str()) : "";
                         String cleanName = "";
                         for (size_t j = 0; j < name.length(); j++)
                         {
@@ -1321,7 +1321,7 @@ void snifferScanTask(void *pv)
                             }
                         }
                         if (cleanName.length() == 0)
-                            cleanName = "Unknown";
+                            cleanName = "";
 
                         {
                             std::lock_guard<std::mutex> lock(snifferCacheMutex);
@@ -3263,7 +3263,7 @@ void listScanTask(void *pv) {
                 String macStrOrig = device->getAddress().toString().c_str();
                 String macStr = macStrOrig;
                 macStr.toUpperCase();
-                String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                String name = device->haveName() ? String(device->getName().c_str()) : "";
                 int8_t rssi = device->getRSSI();
                 if (rssi > -10) continue;
                 // Skip RSSI threshold during triangulation - we want ALL measurements
