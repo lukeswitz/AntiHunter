@@ -570,7 +570,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="baseline">Baseline Anomaly Sniffer</option>
                 <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
-                <option value="drone-detection">Drone RID Detection (WiFi + BLE)</option>
+                <option value="drone-detection">Drone RID Detection</option>
                 <!-- <option value="counter-surveil">Counter-Surveillance / Find My (BLE)</option> hidden: co-presence/follower engine needs mobile validation before beta -->
                 <option value="probe-scan">Probe Request Scanner</option>
               </select>
