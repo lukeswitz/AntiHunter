@@ -582,7 +582,7 @@ R"HTML(
                 <option value="baseline">Baseline Anomaly Sniffer</option>
                 <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
-                <option value="drone-detection">Drone RID Detection (WiFi)</option>
+                <option value="drone-detection">Drone RID Detection (WiFi + BLE)</option>
                 <option value="probe-scan">Probe Request Scanner</option>
               </select>
 
@@ -594,6 +594,14 @@ R"HTML(
                   <option value="1">BLE Only</option>
                 </select>
                 <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="broadcastAll" value="1">Broadcast All Probes (mesh)</label>
+              </div>
+              <div id="droneScanModeControls" style="display:none;margin-top:10px;">
+                <label style="font-size:11px;">Scan Mode</label>
+                <select id="droneScanMode" name="droneScanMode">
+                  <option value="0">WiFi Only</option>
+                  <option value="2" selected>WiFi + BLE</option>
+                  <option value="1">BLE Only</option>
+                </select>
               </div>
               <div id="randomizationModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
@@ -4567,6 +4575,7 @@ R"HTML(
         const randomizationModeControls = document.getElementById('randomizationModeControls');
         const deviceScanModeControls = document.getElementById('deviceScanModeControls');
         const probeScanModeControls = document.getElementById('probeScanModeControls');
+        const droneScanModeControls = document.getElementById('droneScanModeControls');
         const cacheBtn = document.getElementById('cacheBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
@@ -4581,6 +4590,7 @@ R"HTML(
         randomizationModeControls.style.display = 'none';
         deviceScanModeControls.style.display = 'none';
         probeScanModeControls.style.display = 'none';
+        droneScanModeControls.style.display = 'none';
         document.getElementById('baselineStatus').style.display = 'none';
 
         if (selectedMethod === 'baseline') {
@@ -4607,6 +4617,7 @@ R"HTML(
           
         } else if (selectedMethod === 'drone-detection') {
           standardControls.style.display = 'block';
+          droneScanModeControls.style.display = 'block';
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
 
