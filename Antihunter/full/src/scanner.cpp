@@ -919,6 +919,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     bool isDisassoc = (subtype == 0x0A);
     bool isDeauth   = (subtype == 0x0C);
     if (!isDisassoc && !isDeauth) return;
+    if (payload[1] & 0x08) return;   // retransmit — exact dup, drop (parity with Sentinel)
 
     DeauthHit hit;
     memcpy(hit.destMac, payload + 4,  6);
@@ -1987,7 +1988,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
 }
 
 void blueTeamTask(void *pv) {
-    sentinel_kill();
+    sentinel_yieldAndWait(1000);   // hand off radio; detect engine keeps ingesting our frames
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (duration <= 0);
 
@@ -2062,10 +2063,9 @@ void blueTeamTask(void *pv) {
                     [now](uint32_t t) { return (now - t) > DEAUTH_TARGETED_WINDOW; }),
                 times.end());
 
+            // Reason-code arm dropped (1/2/6/7 are legit deauth causes; Sentinel does attribution).
             bool isAttack = hit.isBroadcast
-                || (hit.reasonCode == 1 || hit.reasonCode == 2
-                    || hit.reasonCode == 6 || hit.reasonCode == 7)
-                || (times.size() >= DEAUTH_TARGETED_THRESHOLD);
+                || (times.size() >= ah_detect::g_deauthTargetedThresh.load());
 
             if (!isAttack) continue;
 

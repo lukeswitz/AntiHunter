@@ -572,6 +572,7 @@ extern std::atomic<bool> g_meshFrag;
 extern std::atomic<bool> g_meshTsf;
 extern std::atomic<bool> g_meshJam;
 extern std::atomic<bool> g_meshGuard;
+extern std::atomic<uint16_t> g_deauthTargetedThresh;
 } // namespace ah_detect
 
 // Tunables (config-exposed)

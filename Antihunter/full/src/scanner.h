@@ -213,7 +213,7 @@ static int blueTeamDuration = 300;
 static bool blueTeamForever = false;
 
 const uint32_t DEAUTH_TARGETED_WINDOW = 10000;     
-const uint32_t DEAUTH_TARGETED_THRESHOLD = 3;      
+const uint32_t DEAUTH_TARGETED_THRESHOLD = 10;   // compile default for ah_detect::g_deauthTargetedThresh (NVS "deauTgt")
 const uint32_t DEAUTH_CLEANUP_INTERVAL = 60000;    
 const uint32_t DEAUTH_HISTORY_MAX_SIZE = 200;    
 
