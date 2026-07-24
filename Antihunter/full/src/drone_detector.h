@@ -26,13 +26,33 @@ struct DroneDetection {
     float heading;
     float speedVertical;
     int status;
-    
+    float altitudeBaro;
+    uint8_t heightType;
+    uint8_t horizAcc;
+    uint8_t vertAcc;
+    uint8_t baroAcc;
+    uint8_t speedAcc;
+    uint8_t tsAcc;
+    float locTimestamp;
+    bool hasLocation;
+
     double operatorLat;
     double operatorLon;
     float operatorAltitude;
     uint8_t operatorLocType;
+    uint8_t classificationType;
+    uint16_t areaCount;
+    uint16_t areaRadius;
+    float areaCeiling;
+    float areaFloor;
+    uint8_t categoryEU;
+    uint8_t classEU;
+    uint32_t systemTimestamp;
+    bool hasSystem;
+    uint8_t operatorIdType;
     char operatorId[ODID_ID_SIZE + 1];
-    
+
+    uint8_t selfIdDescType;
     char description[ODID_STR_SIZE + 1];
     
     uint8_t authType;

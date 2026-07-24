@@ -3449,6 +3449,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const opLocMatch = block.match(/Operator: ([-\d.]+), ([-\d.]+)/);
           const opTypeMatch = block.match(/Operator location type: (.+)/);
           const viaMatch = block.match(/Via: (.+)/);
+          const altBaroMatch = block.match(/Altitude Baro: (.+)/);
+          const hAccMatch = block.match(/Horiz accuracy: (.+)/);
+          const vAccMatch = block.match(/Vert accuracy: (.+)/);
+          const bAccMatch = block.match(/Baro accuracy: (.+)/);
+          const sAccMatch = block.match(/Speed accuracy: (.+)/);
+          const tAccMatch = block.match(/Time accuracy: (.+)/);
+          const locTsMatch = block.match(/Location timestamp: (.+)/);
+          const classMatch = block.match(/Classification: (.+)/);
+          const areaMatch = block.match(/Operational area: (.+)/);
+          const sysTsMatch = block.match(/System timestamp: (.+)/);
           const opIdMatch = block.match(/Operator ID: (.+)/);
           const descMatch = block.match(/Description: (.+)/);
           const authMatch = block.match(/Auth: type (\d+) ts (\d+)/);
@@ -3474,6 +3484,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (speedMatch) kvs.push(['Speed', speedMatch[1] + ' <small style="color:var(--mut);font-weight:500;">(Vert ' + speedMatch[2] + ')</small>']);
           if (hdgMatch) kvs.push(['Heading', hdgMatch[1]]);
           if (statusMatch) kvs.push(['Status', statusMatch[1]]);
+          if (altBaroMatch) kvs.push(['Altitude Baro', altBaroMatch[1]]);
+          if (hAccMatch) kvs.push(['Horiz accuracy', hAccMatch[1]]);
+          if (vAccMatch) kvs.push(['Vert accuracy', vAccMatch[1]]);
+          if (bAccMatch) kvs.push(['Baro accuracy', bAccMatch[1]]);
+          if (sAccMatch) kvs.push(['Speed accuracy', sAccMatch[1]]);
+          if (tAccMatch) kvs.push(['Time accuracy', tAccMatch[1]]);
+          if (locTsMatch) kvs.push(['Location timestamp', locTsMatch[1]]);
+          if (classMatch) kvs.push(['Classification', classMatch[1]]);
+          if (areaMatch) kvs.push(['Operational area', areaMatch[1]]);
+          if (sysTsMatch) kvs.push(['System timestamp', sysTsMatch[1]]);
           if (kvs.length) {
             html += '<div class="res-kvs">';
             kvs.forEach(k => html += '<div class="res-kv"><div class="res-kv-lab">' + k[0] + '</div><div class="res-kv-val sm">' + k[1] + '</div></div>');
