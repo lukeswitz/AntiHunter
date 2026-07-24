@@ -154,6 +154,7 @@ extern const size_t MAX_ACK_INFO;
 const float KALMAN_MEASUREMENT_NOISE = 4.0;
 const uint32_t RSSI_HISTORY_SIZE = 10;
 const int8_t RSSI_SENSITIVITY_FLOOR = -95;
+const float DISTANCE_SANITY_MAX_M = 1000.0f;
 const int TRILATERATION_MAX_ITER = 24;
 const double TRILATERATION_STEP_TOL_M = 0.1;
 const float BLE_TXPOWER_SIGMA_DB = 6.0f;

@@ -107,6 +107,7 @@ float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     }
 
     if (distance < 0.1f) distance = 0.1f;
+    if (distance > DISTANCE_SANITY_MAX_M) distance = DISTANCE_SANITY_MAX_M;
     return distance;
 }
 
