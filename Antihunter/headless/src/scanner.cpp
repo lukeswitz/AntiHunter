@@ -1933,6 +1933,8 @@ void blueTeamTask(void *pv) {
         int processed = 0;
 
         while (processed++ < BATCH_LIMIT && xQueueReceive(deauthQueue, &hit, 0) == pdTRUE) {
+            // our own SoftAP dropping clients (channel hop / idle) is not an attack
+            if (detect_isSelfApMac(hit.srcMac)) continue;
             uint32_t now = millis();
             String destMacStr = macFmt6(hit.destMac);
 
@@ -2018,6 +2020,7 @@ void blueTeamTask(void *pv) {
             }
             alert += " SRC:" + srcMac + " DST:" + dstMac;
             alert += " RSSI:" + String(hit.rssi) + "dBm CH:" + String(hit.channel);
+            alert += " R:" + String(hit.reasonCode);
 
             Serial.println("[ALERT] " + alert);
             logToSD(alert);
