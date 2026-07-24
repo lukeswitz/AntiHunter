@@ -1153,14 +1153,53 @@ String getRandomizationResults() {
     const int MAX_IDENTITIES = 100;
     int count = 0;
 
+    std::vector<const DeviceIdentity*> ranked;
+    ranked.reserve(deviceIdentities.size());
     for (const auto& entry : deviceIdentities) {
+        if (entry.second.identityId[0] != '\0') ranked.push_back(&entry.second);
+    }
+    std::sort(ranked.begin(), ranked.end(), [](const DeviceIdentity* a, const DeviceIdentity* b) {
+        if (a->macs.size() != b->macs.size()) return a->macs.size() > b->macs.size();
+        if (a->hasKnownGlobalMac != b->hasKnownGlobalMac) return a->hasKnownGlobalMac;
+        if (a->confidence != b->confidence) return a->confidence > b->confidence;
+        return a->probeCount > b->probeCount;
+    });
+
+    auto ssidKeyOf = [](const DeviceIdentity* idp) -> String {
+        if (!idp->isBLE && idp->probedSSID[0] != '\0')
+            return sanitizeAscii(idp->probedSSID, sizeof(idp->probedSSID));
+        return String();
+    };
+    std::vector<String> groupOrder;
+    std::map<String, std::vector<const DeviceIdentity*>> ssidGroups;
+    for (const DeviceIdentity* idp : ranked) {
+        String key = ssidKeyOf(idp);
+        if (ssidGroups.find(key) == ssidGroups.end()) groupOrder.push_back(key);
+        ssidGroups[key].push_back(idp);
+    }
+    std::vector<const DeviceIdentity*> ordered;
+    ordered.reserve(ranked.size());
+    for (const String& gkey : groupOrder)
+        for (const DeviceIdentity* idp : ssidGroups[gkey]) ordered.push_back(idp);
+
+    String currentGroup;
+    bool groupStarted = false;
+    for (const DeviceIdentity* idp : ordered) {
         if (count++ >= MAX_IDENTITIES) {
             results += "... (showing first " + String(MAX_IDENTITIES) + " of " +
-                      String(deviceIdentities.size()) + " identities)\n";
+                      String(ranked.size()) + " identities)\n";
             break;
         }
 
-        const DeviceIdentity& identity = entry.second;
+        const DeviceIdentity& identity = *idp;
+
+        String gkey = ssidKeyOf(idp);
+        if (!groupStarted || gkey != currentGroup) {
+            currentGroup = gkey;
+            groupStarted = true;
+            results += "\n=== SSID: " + (gkey.length() ? gkey : String("(none / BLE)")) +
+                      " — " + String((unsigned)ssidGroups[gkey].size()) + " identities ===\n";
+        }
 
         if (identity.identityId[0] == '\0') {
             Serial.printf("[RAND] WARN: skipping identity with empty identityId (anchor=%s)\n",

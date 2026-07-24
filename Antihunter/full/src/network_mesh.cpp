@@ -666,7 +666,7 @@ static void handleDroneStart(const String &command)
     Serial.println("[MESH] Radio busy, rejecting DRONE_START");
     sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
   } else {
-    currentScanMode = SCAN_WIFI;
+    currentScanMode = SCAN_BOTH;
     stopRequested = false;
     scanning = true;
     ahCreateTask(droneDetectorTask, "drone", 12288,

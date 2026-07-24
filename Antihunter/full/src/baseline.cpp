@@ -242,12 +242,12 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
             baselineResultsDirty = true;
         } else {
             BaselineDevice &dev = baselineCache[macKey];
+            bool durableChange = false;
             dev.avgRssi = (int32_t(dev.avgRssi) * int32_t(dev.hitCount) + rssi) / int32_t(dev.hitCount + 1);
-            if (rssi < dev.minRssi) dev.minRssi = rssi;
-            if (rssi > dev.maxRssi) dev.maxRssi = rssi;
+            if (rssi < dev.minRssi) { dev.minRssi = rssi; durableChange = true; }
+            if (rssi > dev.maxRssi) { dev.maxRssi = rssi; durableChange = true; }
             dev.lastSeen = now;
             if (dev.hitCount < UINT32_MAX) dev.hitCount++;
-            dev.dirtyFlag = true;
             baselineResultsDirty = true;
 
             auto lruIt = lruMap.find(macKey);
@@ -261,9 +261,14 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
             }
 
             if (strlen(name) > 0 && strcmp(name, "Unknown") != 0 && strcmp(name, "WiFi") != 0) {
-                strncpy(dev.name, name, sizeof(dev.name) - 1);
-                dev.name[sizeof(dev.name) - 1] = '\0';
+                if (strncmp(dev.name, name, sizeof(dev.name) - 1) != 0) {
+                    strncpy(dev.name, name, sizeof(dev.name) - 1);
+                    dev.name[sizeof(dev.name) - 1] = '\0';
+                    durableChange = true;
+                }
             }
+
+            if (durableChange) dev.dirtyFlag = true;
         }
     }
 
