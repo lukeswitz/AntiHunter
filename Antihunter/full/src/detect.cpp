@@ -52,6 +52,8 @@ void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) {
     }
 }
 
+bool detect_isSelfApMac(const uint8_t *mac) { return isSelfMac(mac); }
+
 template <typename M, typename F> static void evictOldestBy(M &m, F key) {
     if (m.empty()) return;
     auto oldest = m.begin();
@@ -2896,6 +2898,7 @@ size_t pwnagotchi_count()                    { return ah_detect::pwnagotchi_coun
 void attacker_kick(const uint8_t *mac, const char *t) { ah_detect::attacker_kick(mac, t); }
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel) { ah_detect::detect_witnessDeauth(src, dst, rssi, channel); }
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) { ah_detect::detect_setSelfApIdentity(mac, ssid); }
+bool detect_isSelfApMac(const uint8_t *mac)  { return ah_detect::detect_isSelfApMac(mac); }
 String attacker_getActiveHuntsJson()         { return ah_detect::attacker_getActiveHuntsJson(); }
 void attacker_clearHunts()                   { ah_detect::attacker_clearHunts(); }
 size_t attacker_huntCount()                  { return ah_detect::attacker_huntCount(); }
