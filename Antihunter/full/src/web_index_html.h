@@ -1662,6 +1662,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
         if (openDetails.size) el.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(dkey(sm))) d.open = true; });
         if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
+        privacyApply(el);
       }
 
       async function resultsPoll(force) {
@@ -2448,6 +2449,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         el.querySelectorAll('[data-ap-ssid]').forEach(div => {
           const strong = div.querySelector('strong');
           if (strong) strong.textContent = ssidHash(div.getAttribute('data-ap-ssid'));
+        });
+
+        el.querySelectorAll('[data-priv]').forEach(elem => {
+          elem.textContent = 'REDACTED';
+          elem.title = 'REDACTED';
         });
       }
 
@@ -3521,14 +3527,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const opIdMatch = block.match(/Operator ID: (.+)/);
           const descMatch = block.match(/Description: (.+)/);
           const authMatch = block.match(/Auth: type (\d+) ts (\d+)/);
+          const seenMatch = block.match(/Last seen: (\d+)s ago( \(STALE\))?/);
+          const isStale = !!(seenMatch && seenMatch[2]);
           if (!macMatch) return;
 
-          html += '<div class="res-card acc">';
+          html += '<div class="res-card ' + (isStale ? 'alert' : 'acc') + '">';
           html += '<div class="res-row-main"><span class="res-mac acc">' + macMatch[1] + randBadge(macMatch[1]) + '</span>';
           html += '<div class="res-meta">';
-          if (uavMatch) html += '<span>UAV ID: <strong>' + uavMatch[1] + '</strong></span>';
+          if (uavMatch) html += '<span>UAV ID: <strong data-priv>' + uavMatch[1] + '</strong></span>';
           if (typeMatch) html += '<span class="res-badge">' + typeMatch[1] + '</span>';
           if (viaMatch) html += '<span class="res-badge">via ' + viaMatch[1] + '</span>';
+          if (isStale) html += '<span class="res-badge warn">Stale</span>';
           html += '</div>';
           if (rssiMatch) html += '<div class="res-metric"><span class="res-metric-val">' + rssiMatch[1] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
           html += '</div>';
@@ -3536,7 +3545,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const kvs = [];
           if (locMatch) {
             const lm = locMatch[1].match(/(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/);
-            kvs.push(['Location', lm ? '<a href="https://www.google.com/maps?q=' + lm[1] + ',' + lm[2] + '" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:underline;">' + locMatch[1] + '</a>' : locMatch[1]]);
+            kvs.push(['Location', '<span data-priv>' + (lm ? '<a href="https://www.google.com/maps?q=' + lm[1] + ',' + lm[2] + '" target="_blank" rel="noopener" style="color:var(--acc);text-decoration:underline;">' + locMatch[1] + '</a>' : locMatch[1]) + '</span>']);
           }
           if (altMatch) kvs.push(['Altitude MSL', altMatch[1]]);
           if (hgtMatch) kvs.push(['Height AGL', hgtMatch[1]]);
@@ -3553,6 +3562,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (classMatch) kvs.push(['Classification', classMatch[1]]);
           if (areaMatch) kvs.push(['Operational area', areaMatch[1]]);
           if (sysTsMatch) kvs.push(['System timestamp', sysTsMatch[1]]);
+          if (seenMatch) kvs.push(['Last seen', seenMatch[1] + 's ago' + (isStale ? ' — no Remote ID for 120s' : '')]);
           if (kvs.length) {
             html += '<div class="res-kvs">';
             kvs.forEach(k => html += '<div class="res-kv"><div class="res-kv-lab">' + k[0] + '</div><div class="res-kv-val sm">' + k[1] + '</div></div>');
@@ -3562,10 +3572,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (opLocMatch || opTypeMatch || opIdMatch || descMatch || authMatch) {
             html += '<div class="res-note"><span class="res-note-lab">Operator</span>';
             const bits = [];
-            if (opLocMatch) bits.push('<strong>' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>');
+            if (opLocMatch) bits.push('<strong data-priv>' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>');
             if (opTypeMatch) bits.push('type <strong>' + opTypeMatch[1] + '</strong>');
-            if (opIdMatch) bits.push('ID <strong>' + opIdMatch[1] + '</strong>');
-            if (descMatch) bits.push('“' + descMatch[1] + '”');
+            if (opIdMatch) bits.push('ID <strong data-priv>' + opIdMatch[1] + '</strong>');
+            if (descMatch) bits.push('<span data-priv>“' + descMatch[1] + '”</span>');
             if (authMatch) bits.push('Auth type ' + authMatch[1] + ', ts ' + authMatch[2]);
             html += bits.join(' &middot; ') + '</div>';
           }
