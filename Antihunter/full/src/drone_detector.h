@@ -27,6 +27,8 @@ struct DroneDetection {
     
     double operatorLat;
     double operatorLon;
+    float operatorAltitude;
+    uint8_t operatorLocType;
     char operatorId[ODID_ID_SIZE + 1];
     
     char description[ODID_STR_SIZE + 1];
