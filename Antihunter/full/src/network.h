@@ -65,6 +65,9 @@ extern volatile uint32_t apScanSuppressUntilMs;
 #ifndef AP_CHANNEL
 #define AP_CHANNEL 6
 #endif
+#ifndef AP_INACTIVE_TIME_SEC
+#define AP_INACTIVE_TIME_SEC 3600
+#endif
 
 // Network and Web Server functions
 void initializeNetwork();

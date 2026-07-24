@@ -207,6 +207,7 @@ void setup() {
     // esp_log_level_set("vfs_api", ESP_LOG_NONE);
     // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== Antihunter [Headless] Boot ===");
+    recordBootReason();
 
     if (psramFound()) {
         heap_caps_malloc_extmem_enable(64);
@@ -220,6 +221,8 @@ void setup() {
     initializeDroneDetector();
     delay(20);
     initializeSD();
+    logBootRecord();
+    loadResultsSnapshot();
 
     if (waitForInitialConfig()) {
         delay(1000);
@@ -273,12 +276,15 @@ void setup() {
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
     delay(2000);
+    scanSessionResume();
 }
 
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;
     static unsigned long lastHeapCheck = 0;
+
+    markUptimeAlive();
 
     // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
@@ -351,6 +357,7 @@ void loop() {
 
     processUSBToMesh();
     checkAndSendVibrationAlert();
+    saveResultsSnapshot();
 
     if (millis() - lastHeapCheck > 30000) {
         uint32_t freeHeap = ESP.getFreeHeap();

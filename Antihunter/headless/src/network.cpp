@@ -518,6 +518,25 @@ static void handleConfigRssi(const String &command)
   }
 }
 
+// No phantom "scanning" on create failure; forever scans persisted for resume after reset.
+static bool meshStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack, int secs,
+                              bool forever, TaskHandle_t *handle, ScanSession &sess)
+{
+  scanning = true;
+  if (ahCreateTask(fn, name, stack,
+                   reinterpret_cast<void *>(static_cast<intptr_t>(forever ? 0 : secs)),
+                   1, handle, 1) != pdPASS) {
+    scanning = false;
+    *handle = nullptr;
+    Serial.printf("[MESH] Task create failed: %s\n", name);
+    return false;
+  }
+  sess.forever = forever;
+  sess.secs = secs;
+  scanSessionSave(sess);
+  return true;
+}
+
 static void handleScanStart(const String &command)
 {
   String params = command.substring(11);
@@ -543,9 +562,14 @@ static void handleScanStart(const String &command)
         currentScanMode = (ScanMode)mode;
         parseChannelsCSV(channels);
         stopRequested = false;
-        scanning = true;
-        ahCreateTask(listScanTask, "scan", 8192,
-                                reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+        ScanSession sess;
+        sess.kind = "scan";
+        sess.mode = mode;
+        sess.channels = channels;
+        if (!meshStartScanTask(listScanTask, "scan", 8192, secs, forever, &workerTaskHandle, sess)) {
+          sendToSerial1(nodeId + ": SCAN_ACK:FAILED", true);
+          return;
+        }
         Serial.printf("[MESH] Started scan via mesh command\n");
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
@@ -575,9 +599,13 @@ static void handleBaselineStart(const String &command)
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
     stopRequested = false;
-    scanning = true;
-    ahCreateTask(baselineDetectionTask, "baseline", 12288,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    ScanSession sess;
+    sess.kind = "baseline";
+    sess.mode = (int)currentScanMode;
+    if (!meshStartScanTask(baselineDetectionTask, "baseline", 12288, secs, forever, &workerTaskHandle, sess)) {
+      sendToSerial1(nodeId + ": BASELINE_ACK:FAILED", true);
+      return;
+    }
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
   }
@@ -651,7 +679,8 @@ static void handleDeviceScanStart(const String &command)
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
 
-      if (params.indexOf("+PROBE") >= 0) {
+      bool captureProbes = (params.indexOf("+PROBE") >= 0);
+      if (captureProbes) {
           probeDetectionEnabled = true;
           if (probeRequestQueue == nullptr) {
               probeRequestQueue = xQueueCreateWithCaps(128, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -660,9 +689,14 @@ static void handleDeviceScanStart(const String &command)
           }
       }
 
-      scanning = true;
-      ahCreateTask(snifferScanTask, "sniffer", 12288,
-                              reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+      ScanSession sess;
+      sess.kind = "sniffer";
+      sess.mode = mode;
+      sess.captureProbes = captureProbes;
+      if (!meshStartScanTask(snifferScanTask, "sniffer", 12288, secs, forever, &workerTaskHandle, sess)) {
+        sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:FAILED", true);
+        return;
+      }
       Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
@@ -694,9 +728,13 @@ static void handleDroneStart(const String &command)
   } else {
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
-    scanning = true;
-    ahCreateTask(droneDetectorTask, "drone", 12288,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    ScanSession sess;
+    sess.kind = "drone";
+    sess.mode = (int)SCAN_BOTH;
+    if (!meshStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle, sess)) {
+      sendToSerial1(nodeId + ": DRONE_ACK:FAILED", true);
+      return;
+    }
     Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
   }
@@ -726,9 +764,13 @@ static void handleDeauthStart(const String &command)
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
     stopRequested = false;
-    scanning = true;
-    ahCreateTask(blueTeamTask, "blueteam", 12288,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1);
+    ScanSession sess;
+    sess.kind = "blueteam";
+    sess.mode = (int)currentScanMode;
+    if (!meshStartScanTask(blueTeamTask, "blueteam", 12288, secs, forever, &blueTeamTaskHandle, sess)) {
+      sendToSerial1(nodeId + ": DEAUTH_ACK:FAILED", true);
+      return;
+    }
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
   }
@@ -763,9 +805,13 @@ static void handleRandomizationStart(const String &command)
     } else {
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
-      scanning = true;
-      ahCreateTask(randomizationDetectionTask, "randdetect", 8192,
-                              reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+      ScanSession sess;
+      sess.kind = "randdetect";
+      sess.mode = mode;
+      if (!meshStartScanTask(randomizationDetectionTask, "randdetect", 8192, secs, forever, &workerTaskHandle, sess)) {
+        sendToSerial1(nodeId + ": RANDOMIZATION_ACK:FAILED", true);
+        return;
+      }
       Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
     }
@@ -815,10 +861,15 @@ static void handleProbeStart(const String &command)
   } else {
     currentScanMode = static_cast<ScanMode>(mode);
     stopRequested = false;
-    scanning = true;
     probeBroadcastAll.store(broadcastAll, std::memory_order_relaxed);
-    ahCreateTask(probeDetectionTask, "probedet", 8192,
-                            reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    ScanSession sess;
+    sess.kind = "probedet";
+    sess.mode = mode;
+    sess.broadcastAll = broadcastAll;
+    if (!meshStartScanTask(probeDetectionTask, "probedet", 8192, secs, forever, &workerTaskHandle, sess)) {
+      sendToSerial1(nodeId + ": PROBE_ACK:FAILED", true);
+      return;
+    }
     Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
     sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
   }
@@ -827,6 +878,7 @@ static void handleProbeStart(const String &command)
 static void handleProbeStop(const String &command)
 {
   stopRequested = true;
+  scanSessionClear();
   Serial.println("[MESH] Probe stop command received via mesh");
   sendToSerial1(nodeId + ": PROBE_ACK:STOPPED", true);
 }
@@ -842,6 +894,7 @@ static void handleProbeHit(const String &command)
 static void handleStop(const String &command)
 {
   stopRequested = true;
+  scanSessionClear();
   if (meshTxDraining.load() || meshTxQueueDepth() > 0) {
     stopMeshDrain.store(true);
   }
@@ -859,13 +912,15 @@ static void handleStatus(const String &command)
   uint32_t uptime_hours = uptime_mins / 60;
   char status_msg[MAX_MESH_SIZE];
   int written = snprintf(status_msg, sizeof(status_msg),
-                      "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d",
+                      "%s: STATUS: Mode:%s Scan:%s Hits:%d Temp:%.1fC Up:%02d:%02d:%02d Rst:%s Resumed:%d",
                       nodeId.c_str(),
                       modeStr.c_str(),
                       scanning.load() ? "ACTIVE" : "IDLE",
                       totalHits.load(),
                       esp_temp,
-                      (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60));
+                      (int)uptime_hours, (int)(uptime_mins % 60), (int)(uptime_secs % 60),
+                      getResetReasonText(),
+                      scanSessionWasResumed() ? 1 : 0);
   if (gpsValid && written > 0 && written <= sizeof(status_msg) - 1)
   {
       float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
@@ -1746,10 +1801,36 @@ static void handleHbInterval(const String &command)
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
 }
 
-void processCommand(const String &command, const String &targetId = "")
+// Handler replies; must never re-enter the dispatcher as commands.
+static bool meshIsResponse(const String &payload)
 {
+  static const char *kResponses[] = {
+    "STOP_ACK", "SCAN_ACK", "BASELINE_ACK", "DEVICE_SCAN_ACK", "DRONE_ACK", "DEAUTH_ACK",
+    "RANDOMIZATION_ACK", "PROBE_ACK", "CONFIG_ACK", "DEDUP_CLEAR_ACK", "TRI_ACK",
+    "TRI_START_ACK", "TRIANGULATE_STOP_ACK", "TRIANGULATE_RESULTS_START",
+    "TRIANGULATE_RESULTS_END", "TRIANGULATE_RESULTS:NO_DATA", "ERASE_ACK", "ERASE_TOKEN:",
+    "FACTORY_RESET_ACK", "AUTOERASE_ACK", "BATTERY_SAVER_ACK", "HB_ACK", "SENTINEL_ACK",
+    "SENTINEL_MODE_ACK", "SENTINEL_BOOT_ACK", "GROUP_ACK", "DETECT_CFG_ACK", "DETECT_CFG_LEN:",
+    "INCIDENTS_LEN:", "INCIDENTS_CLEAR_ACK", "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
+    "STATUS: ", "BASELINE_STATUS: ", "VIBRATION_STATUS: ", "AUTOERASE_STATUS: ",
+    "BATTERY_SAVER_STATUS: ", "SENTINEL_STATUS: "
+  };
+  for (const char *p : kResponses) {
+    if (payload.startsWith(p)) return true;
+  }
+  return false;
+}
+
+void processCommand(const String &commandRaw, const String &targetId = "")
+{
+  String command = commandRaw;
+  command.trim();
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n",
                 command.length(), command.c_str());
+  if (meshIsResponse(command)) {
+    Serial.println("[MESH] Response frame - not dispatched as command");
+    return;
+  }
   if (command.startsWith("CONFIG_CHANNELS:"))         handleConfigChannels(command);
   else if (command.startsWith("CONFIG_ERASE_PSK:"))    handleConfigErasePsk(command);
   else if (command.startsWith("CONFIG_TARGETS:"))     handleConfigTargets(command);
@@ -1757,10 +1838,10 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("CONFIG_RSSI:"))        handleConfigRssi(command);
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
   else if (command.startsWith("CONFIG_SESSION_DEDUP:")) handleConfigSessionDedup(command);
-  else if (command.startsWith("MESH_DEDUP_CLEAR"))    handleMeshDedupClear();
+  else if (command == "MESH_DEDUP_CLEAR")             handleMeshDedupClear();
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
-  else if (command.startsWith("BASELINE_STATUS"))     handleBaselineStatus(command);
+  else if (command == "BASELINE_STATUS")              handleBaselineStatus(command);
   else if (command.startsWith("DEVICE_SCAN_START:"))  handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))       handleDeauthStart(command);
@@ -1768,27 +1849,27 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
   else if (command == "PROBE_STOP")                   handleProbeStop(command);
   else if (command.startsWith("PROBE_HIT "))          handleProbeHit(command);
-  else if (command.startsWith("STOP"))                handleStop(command);
+  else if (command == "STOP")                         handleStop(command);
 #if AH_SENTINEL
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
-  else if (command.startsWith("SENTINEL_STATUS"))     handleSentinelStatus(command);
+  else if (command == "SENTINEL_STATUS")              handleSentinelStatus(command);
   else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
   else if (command.startsWith("SENTINEL_BOOT:"))      handleSentinelBoot(command);
 #endif
   else if (command.startsWith("GROUP:"))              handleGroup(command);
-  else if (command.startsWith("DETECT_CFG_GET"))      handleDetectCfgGet(command);
+  else if (command == "DETECT_CFG_GET")               handleDetectCfgGet(command);
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
-  else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
-  else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
-  else if (command.startsWith("STATUS"))              handleStatus(command);
-  else if (command.startsWith("VIBRATION_STATUS"))    handleVibrationStatus(command);
+  else if (command == "INCIDENTS_CLEAR")              handleIncidentsClear(command);
+  else if (command == "INCIDENTS")                    handleIncidents(command);
+  else if (command == "STATUS")                       handleStatus(command);
+  else if (command == "VIBRATION_STATUS")             handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
   else if (command == "VIBRATION_OFF")                handleVibrationOff(command);
   else if (command.startsWith("TRIANGULATE_START:"))  handleTriangulateStart(command, targetId);
   else if (command == "TRIANGULATE_STOP")             handleTriangulateStop(command);
   else if (command.startsWith("TRI_CYCLE_START:"))    handleTriCycleStart(command);
-  else if (command.startsWith("TRIANGULATE_RESULTS")) handleTriangulateResults(command);
+  else if (command == "TRIANGULATE_RESULTS")          handleTriangulateResults(command);
   else if (command.startsWith("ERASE_FORCE:"))        handleEraseForce(command);
   else if (command.startsWith("ERASE_CANCEL"))        handleEraseCancel(command);
   else if (command == "ERASE_REQUEST")                handleEraseRequest(command);

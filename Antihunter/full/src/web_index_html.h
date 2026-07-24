@@ -96,6 +96,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.idle::before{background:#50b478;box-shadow:0 0 6px rgba(80,180,120,0.7)}
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
       .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
+      .status-item.offline{border-color:var(--dang);color:var(--dang)}
+      .status-item.offline::before{background:var(--dang);box-shadow:0 0 6px var(--dang)}
       #scanStatus{min-width:130px;justify-content:flex-start}
       .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
       .statx-ticker::-webkit-scrollbar{display:none}
@@ -1549,6 +1551,10 @@ R"HTML(
       let radioBusy = false;
       let radioBusyTask = '';
       let prevUniqueDevices = 0;
+      let diagFailStreak = 0;
+      let nodeReachable = true;
+      let resultsSynced = false;
+      let loadEverSucceeded = false;
 
 
       function isRadioBusy() {
@@ -1624,27 +1630,34 @@ R"HTML(
         }
       }
 
-      async function load() {
+      async function load(attempt) {
+        attempt = attempt || 0;
         try {
           const [exportResp, resultsResp] = await Promise.all([
             fetch('/export'),
             fetch('/results')
           ]);
-          
+
           const text = await exportResp.text();
           document.getElementById('list').value = text;
           const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
           document.getElementById('targetCount').innerText = lines.length + ' targets';
-          
+
           const resultsText = await resultsResp.text();
+          lastResultsText = resultsText;
+          resultsSynced = true;
+          loadEverSucceeded = true;
           document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
-          
+
           loadNodeId();
           loadRFConfig();
           loadWiFiConfig();
           loadMeshInterval();
           loadDedupTtl();
-        } catch (e) { console.error('[CONFIG] settings panel load failed:', e); }
+        } catch (e) {
+          console.error('[CONFIG] settings panel load failed:', e);
+          if (attempt < 4) setTimeout(() => load(attempt + 1), 2000 * (attempt + 1));
+        }
       }
 
       async function loadNodeId() {
@@ -2602,7 +2615,7 @@ R"HTML(
         const el = document.getElementById('scanStatus');
         if (!el) return;
         _scanBaseLabel = label;
-        el.classList.remove('idle', 'active');
+        el.classList.remove('idle', 'active', 'offline');
         if (state) el.classList.add(state);
         if (state !== 'active') { _scanEndTs = 0; _scanForever = false; }
         el.innerText = label;
@@ -4095,7 +4108,20 @@ R"HTML(
         try {
           refreshIdentityMap(false);
           const diagResponse = await fetch('/diag').catch(() => null);
-          if (!diagResponse) return;
+          if (!diagResponse || !diagResponse.ok) {
+            diagFailStreak++;
+            if (diagFailStreak >= 2 && nodeReachable) {
+              nodeReachable = false;
+              setScanStatus('Node unreachable', 'offline');
+            }
+            return;
+          }
+          if (!nodeReachable) {
+            nodeReachable = true;
+            resultsSynced = false;
+            if (!loadEverSucceeded) load();
+          }
+          diagFailStreak = 0;
           const diagText = await diagResponse.text();
           const isScanning = diagText.includes('Scanning: yes');
           const isTriActive = diagText.includes('Triangulating: yes');
@@ -4137,7 +4163,11 @@ R"HTML(
               const match = line.match(/([\d.]+)C/);
               if (match) { document.getElementById('temperature').innerHTML = match[1] + '<small>°C</small>'; pushSpark('temperature', parseFloat(match[1])); }
             }
-            if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
+            if (line.startsWith('Last reset:') || line.startsWith('Prev uptime:') || line.startsWith('Scan resumed:') ||
+                line.startsWith('Results restored:') || line.startsWith('Free int heap:') ||
+                line.startsWith('Min free int heap:') || line.startsWith('Scan stack free:')) {
+              hardware += line + '\n';
+            } else if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
               hardware += line + '\n';
             } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
               network += line + '\n';
@@ -4159,9 +4189,10 @@ R"HTML(
           const fetchPromises = [];
           if (droneActive) fetchPromises.push(fetch('/drone/status').catch(() => null));
           else fetchPromises.push(Promise.resolve(null));
-          if (!baselineHandling && (isScanning || stopResultsRefresh > 0)) fetchPromises.push(fetch('/results').catch(() => null));
+          if (!baselineHandling && (isScanning || stopResultsRefresh > 0 || !resultsSynced)) fetchPromises.push(fetch('/results').catch(() => null));
           else fetchPromises.push(Promise.resolve(null));
           const [droneResponse, resultsResponse] = await Promise.all(fetchPromises);
+          if (resultsResponse) resultsSynced = true;
           if (droneResponse) {
             try {
               const droneData = await droneResponse.json();
@@ -4193,7 +4224,7 @@ R"HTML(
           }
           const resultsElement = document.getElementById('r');
           if (resultsElement && !resultsElement.contains(document.activeElement)) {
-            if ((isScanning || stopResultsRefresh > 0) && resultsResponse) {
+            if (resultsResponse) {
               const resultsText = await resultsResponse.text();
               // Don't regress to empty/placeholder while scanning — server may briefly clear lastResults during task init
               if (isScanning && (!resultsText || resultsText.trim() === '' || resultsText.includes('None yet') || resultsText.includes('No scan data'))) {
