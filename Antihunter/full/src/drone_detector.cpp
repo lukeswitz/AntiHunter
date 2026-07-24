@@ -78,25 +78,58 @@ static void mergeDroneTelemetry(DroneDetection &dst, const DroneDetection &src) 
     dst.rssi = src.rssi;
     dst.lastSeen = src.lastSeen;
     memcpy(dst.mac, src.mac, 6);
-    if (src.latitude != 0)                                     dst.latitude      = src.latitude;
-    if (src.longitude != 0)                                    dst.longitude     = src.longitude;
-    if (src.altitudeMsl != 0 && src.altitudeMsl > MIN_ALT)     dst.altitudeMsl   = src.altitudeMsl;
-    if (src.heightAgl != 0 && src.heightAgl > MIN_ALT)         dst.heightAgl     = src.heightAgl;
-    if (src.speed != 0 && src.speed < INV_SPEED_H)             dst.speed         = src.speed;
-    if (src.speedVertical != 0 && src.speedVertical < INV_SPEED_V) dst.speedVertical = src.speedVertical;
-    if (src.heading != 0 && src.heading < INV_DIR)             dst.heading       = src.heading;
-    if (src.uaType != 0)                                       dst.uaType        = src.uaType;
-    if (src.latitude != 0 || src.longitude != 0)               dst.status        = src.status;
-    if (src.operatorLat != 0)                                  dst.operatorLat   = src.operatorLat;
-    if (src.operatorLon != 0)                                  dst.operatorLon   = src.operatorLon;
-    if (src.operatorLat != 0 || src.operatorLon != 0) {
-        dst.operatorLocType = src.operatorLocType;
-        if (src.operatorAltitude != 0 && src.operatorAltitude > MIN_ALT) dst.operatorAltitude = src.operatorAltitude;
-    }
     if (src.viaWifi) dst.viaWifi = true;
     if (src.viaBle) dst.viaBle = true;
-    if (src.operatorId[0])                                     strncpy(dst.operatorId, src.operatorId, ODID_ID_SIZE);
-    if (src.description[0])                                    strncpy(dst.description, src.description, ODID_STR_SIZE);
+    if (src.uaType != 0) dst.uaType = src.uaType;
+
+    if (src.hasLocation) {
+        dst.hasLocation = true;
+        if (src.latitude != 0 || src.longitude != 0) {
+            dst.latitude  = src.latitude;
+            dst.longitude = src.longitude;
+        }
+        if (src.altitudeMsl   > MIN_ALT)      dst.altitudeMsl   = src.altitudeMsl;
+        if (src.altitudeBaro  > MIN_ALT)      dst.altitudeBaro  = src.altitudeBaro;
+        if (src.heightAgl     > MIN_ALT)      dst.heightAgl     = src.heightAgl;
+        if (src.speed         < INV_SPEED_H)  dst.speed         = src.speed;
+        if (src.speedVertical < INV_SPEED_V)  dst.speedVertical = src.speedVertical;
+        if (src.heading       < INV_DIR)      dst.heading       = src.heading;
+        dst.status       = src.status;
+        dst.heightType   = src.heightType;
+        dst.horizAcc     = src.horizAcc;
+        dst.vertAcc      = src.vertAcc;
+        dst.baroAcc      = src.baroAcc;
+        dst.speedAcc     = src.speedAcc;
+        dst.tsAcc        = src.tsAcc;
+        dst.locTimestamp = src.locTimestamp;
+    }
+
+    if (src.hasSystem) {
+        dst.hasSystem = true;
+        if (src.operatorLat != 0 || src.operatorLon != 0) {
+            dst.operatorLat = src.operatorLat;
+            dst.operatorLon = src.operatorLon;
+        }
+        if (src.operatorAltitude > MIN_ALT) dst.operatorAltitude = src.operatorAltitude;
+        if (src.areaCeiling      > MIN_ALT) dst.areaCeiling      = src.areaCeiling;
+        if (src.areaFloor        > MIN_ALT) dst.areaFloor        = src.areaFloor;
+        dst.operatorLocType    = src.operatorLocType;
+        dst.classificationType = src.classificationType;
+        dst.areaCount          = src.areaCount;
+        dst.areaRadius         = src.areaRadius;
+        dst.categoryEU         = src.categoryEU;
+        dst.classEU            = src.classEU;
+        if (src.systemTimestamp != 0) dst.systemTimestamp = src.systemTimestamp;
+    }
+
+    if (src.operatorId[0]) {
+        strncpy(dst.operatorId, src.operatorId, ODID_ID_SIZE);
+        dst.operatorIdType = src.operatorIdType;
+    }
+    if (src.description[0]) {
+        strncpy(dst.description, src.description, ODID_STR_SIZE);
+        dst.selfIdDescType = src.selfIdDescType;
+    }
     if (src.authType != 0) {
         dst.authType = src.authType;
         dst.authTimestamp = src.authTimestamp;
@@ -123,6 +156,62 @@ static const char *operatorLocTypeStr(uint8_t t) {
     }
 }
 
+static const char *horizAccStr(uint8_t a) {
+    switch (a) {
+        case 1:  return "<18.52 km"; case 2:  return "<7.408 km"; case 3:  return "<3.704 km";
+        case 4:  return "<1.852 km"; case 5:  return "<926 m";    case 6:  return "<555.6 m";
+        case 7:  return "<185.2 m";  case 8:  return "<92.6 m";   case 9:  return "<30 m";
+        case 10: return "<10 m";     case 11: return "<3 m";      case 12: return "<1 m";
+        default: return "unknown";
+    }
+}
+
+static const char *vertAccStr(uint8_t a) {
+    switch (a) {
+        case 1: return "<150 m"; case 2: return "<45 m"; case 3: return "<25 m";
+        case 4: return "<10 m";  case 5: return "<3 m";  case 6: return "<1 m";
+        default: return "unknown";
+    }
+}
+
+static const char *speedAccStr(uint8_t a) {
+    switch (a) {
+        case 1: return "<10 m/s"; case 2: return "<3 m/s";
+        case 3: return "<1 m/s";  case 4: return "<0.3 m/s";
+        default: return "unknown";
+    }
+}
+
+static String tsAccStr(uint8_t a) {
+    return (a == 0) ? String("unknown") : (String(a * 0.1f, 1) + " s");
+}
+
+static const char *heightTypeStr(uint8_t t) { return (t == 1) ? "above ground" : "above takeoff"; }
+
+static const char *classificationTypeStr(uint8_t t) { return (t == 1) ? "EU" : "Undeclared"; }
+
+static const char *categoryEUStr(uint8_t c) {
+    switch (c) {
+        case 1: return "Open"; case 2: return "Specific"; case 3: return "Certified";
+        default: return "Undeclared";
+    }
+}
+
+static const char *classEUStr(uint8_t c) {
+    switch (c) {
+        case 1: return "Class 0"; case 2: return "Class 1"; case 3: return "Class 2"; case 4: return "Class 3";
+        case 5: return "Class 4"; case 6: return "Class 5"; case 7: return "Class 6";
+        default: return "Undeclared";
+    }
+}
+
+static const char *descTypeStr(uint8_t t) {
+    switch (t) {
+        case 1: return "Emergency"; case 2: return "Extended status";
+        default: return "Text";
+    }
+}
+
 static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) {
     // Drones broadcast up to 2 Basic IDs (Serial + CAA). Prefer the Serial Number.
     int idSlot = -1;
@@ -146,6 +235,15 @@ static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) 
         drone->heading = uasData->Location.Direction;
         drone->speedVertical = uasData->Location.SpeedVertical;
         drone->status = uasData->Location.Status;
+        drone->altitudeBaro = uasData->Location.AltitudeBaro;
+        drone->heightType = uasData->Location.HeightType;
+        drone->horizAcc = uasData->Location.HorizAccuracy;
+        drone->vertAcc = uasData->Location.VertAccuracy;
+        drone->baroAcc = uasData->Location.BaroAccuracy;
+        drone->speedAcc = uasData->Location.SpeedAccuracy;
+        drone->tsAcc = uasData->Location.TSAccuracy;
+        drone->locTimestamp = uasData->Location.TimeStamp;
+        drone->hasLocation = true;
 
         // Phase 2.1: Feed Remote ID claim into mesh-cooperative spoof validator.
         // Uses our own GPS + RSSI vs claimed coords for geometric consistency.
@@ -160,14 +258,25 @@ static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) 
         drone->operatorLon = uasData->System.OperatorLongitude;
         drone->operatorAltitude = uasData->System.OperatorAltitudeGeo;
         drone->operatorLocType = uasData->System.OperatorLocationType;
+        drone->classificationType = uasData->System.ClassificationType;
+        drone->areaCount = uasData->System.AreaCount;
+        drone->areaRadius = uasData->System.AreaRadius;
+        drone->areaCeiling = uasData->System.AreaCeiling;
+        drone->areaFloor = uasData->System.AreaFloor;
+        drone->categoryEU = uasData->System.CategoryEU;
+        drone->classEU = uasData->System.ClassEU;
+        drone->systemTimestamp = uasData->System.Timestamp;
+        drone->hasSystem = true;
     }
 
     if (uasData->OperatorIDValid) {
         strncpy(drone->operatorId, reinterpret_cast<const char *>(uasData->OperatorID.OperatorId), ODID_ID_SIZE);
+        drone->operatorIdType = uasData->OperatorID.OperatorIdType;
     }
 
     if (uasData->SelfIDValid) {
         strncpy(drone->description, uasData->SelfID.Desc, ODID_STR_SIZE);
+        drone->selfIdDescType = uasData->SelfID.DescType;
     }
 
     if (uasData->AuthValid[0]) {
@@ -530,33 +639,52 @@ String getDroneDetectionResults() {
         results += "  RSSI: " + String(d.rssi) + " dBm\n";
         results += "  Via: " + String(d.viaWifi && d.viaBle ? "WiFi+BLE" : d.viaBle ? "BLE" : "WiFi") + "\n";
 
-        const bool hasTelem = (d.latitude != 0 || d.longitude != 0 ||
-                               d.altitudeMsl != 0 || d.heightAgl != 0 ||
-                               d.speed != 0 || d.heading != 0);
-        if (hasTelem) {
+        if (d.hasLocation) {
             results += "  Location: " + ((d.latitude != 0 || d.longitude != 0)
                         ? (String(d.latitude, 6) + ", " + String(d.longitude, 6))
                         : String("n/a")) + "\n";
             results += "  Altitude MSL: " + droneFmtAlt(d.altitudeMsl) + "\n";
-            results += "  Height AGL: " + droneFmtAlt(d.heightAgl) + "\n";
+            results += "  Altitude Baro: " + droneFmtAlt(d.altitudeBaro) + "\n";
+            results += "  Height AGL: " + droneFmtAlt(d.heightAgl) +
+                      " (" + String(heightTypeStr(d.heightType)) + ")\n";
             results += "  Speed: " + droneFmtSpeed(d.speed) + "  Vert: " +
                       droneFmtVSpeed(d.speedVertical) + "\n";
             results += "  Heading: " + droneFmtHeading(d.heading) + "\n";
             results += "  Status: " + String(d.status) + "\n";
+            results += "  Horiz accuracy: " + String(horizAccStr(d.horizAcc)) + "\n";
+            results += "  Vert accuracy: " + String(vertAccStr(d.vertAcc)) + "\n";
+            results += "  Baro accuracy: " + String(vertAccStr(d.baroAcc)) + "\n";
+            results += "  Speed accuracy: " + String(speedAccStr(d.speedAcc)) + "\n";
+            results += "  Time accuracy: " + tsAccStr(d.tsAcc) + "\n";
+            results += "  Location timestamp: " + String(d.locTimestamp, 1) + " s\n";
         }
 
         if (d.operatorLat != 0 || d.operatorLon != 0) {
             results += "  Operator: " + String(d.operatorLat, 6) + ", " + String(d.operatorLon, 6);
-            if (d.operatorAltitude != 0 && d.operatorAltitude > MIN_ALT)
+            if (d.operatorAltitude > MIN_ALT)
                 results += "  Alt: " + String(d.operatorAltitude, 1) + " m";
             results += "\n";
+        }
+        if (d.hasSystem) {
             results += "  Operator location type: " + String(operatorLocTypeStr(d.operatorLocType)) + "\n";
+            results += "  Classification: " + String(classificationTypeStr(d.classificationType));
+            if (d.classificationType == 1)
+                results += " (" + String(categoryEUStr(d.categoryEU)) + ", " + String(classEUStr(d.classEU)) + ")";
+            results += "\n";
+            if (d.areaCount > 1) {
+                results += "  Operational area: " + String(d.areaCount) + " aircraft, radius " +
+                          String(d.areaRadius) + " m, ceiling " + droneFmtAlt(d.areaCeiling) +
+                          ", floor " + droneFmtAlt(d.areaFloor) + "\n";
+            }
+            if (d.systemTimestamp != 0)
+                results += "  System timestamp: " + String(d.systemTimestamp) + "\n";
         }
         if (strlen(d.operatorId) > 0) {
-            results += "  Operator ID: " + String(d.operatorId) + "\n";
+            results += "  Operator ID: " + String(d.operatorId) + " [type " + String(d.operatorIdType) + "]\n";
         }
         if (strlen(d.description) > 0) {
-            results += "  Description: " + String(d.description) + "\n";
+            results += "  Description: " + String(d.description) +
+                      " [" + String(descTypeStr(d.selfIdDescType)) + "]\n";
         }
         if (d.authType != 0) {
             results += "  Auth: type " + String(d.authType) + " ts " + String(d.authTimestamp) + "\n";
