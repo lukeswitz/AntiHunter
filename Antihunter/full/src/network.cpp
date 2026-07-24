@@ -205,8 +205,8 @@ void initializeNetwork()
   WiFi.mode(WIFI_AP_STA);
   delay(100);
   
-  customApSsid = prefs.getString("apSsid", AP_SSID);
-  customApPass = prefs.getString("apPass", AP_PASS);
+  customApSsid = prefsGetString("apSsid", AP_SSID);
+  customApPass = prefsGetString("apPass", AP_PASS);
   
   if (customApSsid.length() == 0) customApSsid = AP_SSID;
   if (customApPass.length() < 8) customApPass = AP_PASS;
@@ -720,10 +720,10 @@ void registerRemainingRoutes() {
       extern RFScanConfig rfConfig;
       
       String configJson = "{\n";
-      configJson += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
+      configJson += "\"nodeId\":\"" + prefsGetString("nodeId", "") + "\",\n";
       configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
       configJson += "\"channels\":\"" + rfConfig.wifiChannels + "\",\n";
-      configJson += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
+      configJson += "\"targets\":\"" + prefsGetString("maclist", "") + "\"\n";
       configJson += "}";
       
       r->send(200, "application/json", configJson);
@@ -1802,8 +1802,8 @@ void registerRemainingRoutes() {
   });
 
   server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
-    String ssid = prefs.getString("apSsid", AP_SSID);
-    String pass = prefs.getString("apPass", AP_PASS);
+    String ssid = prefsGetString("apSsid", AP_SSID);
+    String pass = prefsGetString("apPass", AP_PASS);
     
     if (ssid.length() == 0) ssid = AP_SSID;
     if (pass.length() == 0) pass = AP_PASS;
