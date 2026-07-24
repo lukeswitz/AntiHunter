@@ -305,14 +305,21 @@ uint32_t meshTxDroppedCount() {
 }
 
 void meshTxFlushQueue() {
+    uint32_t dropped = 0;
     for (int i = 0; i < 3; i++) {
-        if (meshQ[i]) xQueueReset(meshQ[i]);
+        if (i == PRIO_CONTROL || meshQ[i] == nullptr) continue;
+        dropped += uxQueueMessagesWaiting(meshQ[i]);
+        xQueueReset(meshQ[i]);
     }
-    meshTxDepthHigh.store(0);
-    meshTxDraining.store(false);
+
+    uint32_t remaining = meshQ[PRIO_CONTROL] ? uxQueueMessagesWaiting(meshQ[PRIO_CONTROL]) : 0;
+
+    meshTxDepthHigh.store(remaining);
     meshDrainSent.store(0);
-    meshDrainTotal.store(0);
-    Serial.println("[MESH] TX queue flushed");
+    meshDrainTotal.store(remaining);
+    meshTxDraining.store(remaining > 0);
+    Serial.printf("[MESH] TX queue flushed: dropped %u, kept %u control\n",
+                  (unsigned)dropped, (unsigned)remaining);
 }
 
 static bool drainOne(QueueHandle_t q) {
@@ -2047,7 +2054,7 @@ void processMeshMessage(const String &message) {
                                     nodeIt->hasGPS = true;
                                     nodeIt->hdop = hdop;
                                 }
-                                nodeIt->distanceEstimate = rssiToDistance(*nodeIt, !nodeIt->isBLE);
+                                nodeUpdateDistance(*nodeIt);
                                 Serial.printf("[TRIANGULATE] Updated child %s: hits=%d avgRSSI=%ddBm Type=%s GPS=%s\n",
                                             sendingNode.c_str(), nodeIt->hitCount, rssi,
                                             nodeIt->isBLE ? "BLE" : "WiFi",
@@ -2065,7 +2072,7 @@ void processMeshMessage(const String &message) {
                                 newNode.lastUpdate = millis();
                                 initNodeKalmanFilter(newNode);
                                 updateNodeRSSI(newNode, rssi);
-                                newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
+                                nodeUpdateDistance(newNode);
                                 if (triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
                                     triangulationNodes.push_back(newNode);
                                     Serial.printf("[TRIANGULATE] Added child %s: hits=%d avgRSSI=%ddBm Type=%s\n",
@@ -2194,7 +2201,7 @@ void processMeshMessage(const String &message) {
                             nodeIt2->lon = lon;
                             nodeIt2->hasGPS = true;
                         }
-                        nodeIt2->distanceEstimate = rssiToDistance(*nodeIt2, !nodeIt2->isBLE);
+                        nodeUpdateDistance(*nodeIt2);
                         Serial.printf("[TRIANGULATE] Updated %s: RSSI=%d->%.1f Type=%s dist=%.1fm Q=%.2f\n",
                                     sendingNode.c_str(), rssi, nodeIt2->filteredRssi,
                                     nodeIt2->isBLE ? "BLE" : "WiFi",
@@ -2212,7 +2219,7 @@ void processMeshMessage(const String &message) {
                       newNode.lastUpdate = millis();
                       initNodeKalmanFilter(newNode);
                       updateNodeRSSI(newNode, rssi);
-                      newNode.distanceEstimate = rssiToDistance(newNode, !newNode.isBLE);
+                      nodeUpdateDistance(newNode);
                       if (triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
                           triangulationNodes.push_back(newNode);
                           Serial.printf("[TRIANGULATE] New node %s: RSSI=%d dist=%.1fm\n",
