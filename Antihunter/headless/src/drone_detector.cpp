@@ -89,6 +89,8 @@ static void mergeDroneTelemetry(DroneDetection &dst, const DroneDetection &src) 
         dst.operatorLocType = src.operatorLocType;
         if (src.operatorAltitude != 0 && src.operatorAltitude > MIN_ALT) dst.operatorAltitude = src.operatorAltitude;
     }
+    if (src.viaWifi) dst.viaWifi = true;
+    if (src.viaBle) dst.viaBle = true;
     if (src.operatorId[0])                                     strncpy(dst.operatorId, src.operatorId, ODID_ID_SIZE);
     if (src.description[0])                                    strncpy(dst.description, src.description, ODID_STR_SIZE);
     if (src.authType != 0) {
@@ -111,9 +113,9 @@ static const char *droneIdTypeStr(uint8_t t) {
 static const char *operatorLocTypeStr(uint8_t t) {
     switch (t) {
         case ODID_OPERATOR_LOCATION_TYPE_TAKEOFF:   return "Takeoff";
-        case ODID_OPERATOR_LOCATION_TYPE_LIVE_GNSS: return "Pilot (live)";
-        case ODID_OPERATOR_LOCATION_TYPE_FIXED:     return "Pilot (fixed)";
-        default:                                    return "Operator";
+        case ODID_OPERATOR_LOCATION_TYPE_LIVE_GNSS: return "Live GNSS";
+        case ODID_OPERATOR_LOCATION_TYPE_FIXED:     return "Fixed";
+        default:                                    return "Unknown";
     }
 }
 
@@ -320,6 +322,7 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     }
     
     if (validDrone) {
+        drone.viaWifi = true;
         String macStr = macFmt6(drone.mac);
         String uavIdStr = String(drone.uavId);
         
@@ -416,6 +419,7 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
     if (rssi < rfConfig.globalRssiThreshold) return;
     DroneDetection drone{};
     memcpy(drone.mac, addr, 6);
+    drone.viaBle = true;
     drone.rssi = rssi;
     drone.timestamp = millis();
     drone.lastSeen = millis();
@@ -509,6 +513,7 @@ String getDroneDetectionResults() {
         results += "  UAV ID: " + String(d.uavId) + " [" + String(droneIdTypeStr(d.idType)) + "]\n";
         results += "  UA Type: " + String(uaTypeStr(d.uaType)) + " (" + String(d.uaType) + ")\n";
         results += "  RSSI: " + String(d.rssi) + " dBm\n";
+        results += "  Via: " + String(d.viaWifi && d.viaBle ? "WiFi+BLE" : d.viaBle ? "BLE" : "WiFi") + "\n";
 
         const bool hasTelem = (d.latitude != 0 || d.longitude != 0 ||
                                d.altitudeMsl != 0 || d.heightAgl != 0 ||
@@ -526,11 +531,11 @@ String getDroneDetectionResults() {
         }
 
         if (d.operatorLat != 0 || d.operatorLon != 0) {
-            results += "  " + String(operatorLocTypeStr(d.operatorLocType)) + ": " +
-                      String(d.operatorLat, 6) + ", " + String(d.operatorLon, 6);
+            results += "  Operator: " + String(d.operatorLat, 6) + ", " + String(d.operatorLon, 6);
             if (d.operatorAltitude != 0 && d.operatorAltitude > MIN_ALT)
                 results += "  Alt: " + String(d.operatorAltitude, 1) + " m";
             results += "\n";
+            results += "  Operator location type: " + String(operatorLocTypeStr(d.operatorLocType)) + "\n";
         }
         if (strlen(d.operatorId) > 0) {
             results += "  Operator ID: " + String(d.operatorId) + "\n";

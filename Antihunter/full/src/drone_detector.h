@@ -15,6 +15,8 @@ struct DroneDetection {
     char uavId[ODID_ID_SIZE + 1];
     uint8_t uaType;
     uint8_t idType;
+    bool viaWifi;
+    bool viaBle;
 
     double latitude;
     double longitude;
