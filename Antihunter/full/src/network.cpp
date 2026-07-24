@@ -775,9 +775,9 @@ void registerRemainingRoutes() {
             secs = v;
         }
         
-        currentScanMode = SCAN_WIFI;  
+        currentScanMode = SCAN_BOTH;
         stopRequested = false;
-        
+
         req->send(200, "text/plain", forever ?
                   "Drone detection starting (forever)" :
                   ("Drone detection starting for " + String(secs) + "s")); 
@@ -1289,7 +1289,7 @@ void registerRemainingRoutes() {
                     ("Drone detection starting for " + String(secs) + "s"));
 
             if (!workerTaskHandle) {
-                currentScanMode = SCAN_WIFI;
+                currentScanMode = SCAN_BOTH;
                 scanning = true;
                 ahCreateTask(droneDetectorTask, "drone", 12288,
                                     reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)),

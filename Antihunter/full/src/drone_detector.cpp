@@ -89,6 +89,10 @@ static void mergeDroneTelemetry(DroneDetection &dst, const DroneDetection &src) 
     if (src.latitude != 0 || src.longitude != 0)               dst.status        = src.status;
     if (src.operatorLat != 0)                                  dst.operatorLat   = src.operatorLat;
     if (src.operatorLon != 0)                                  dst.operatorLon   = src.operatorLon;
+    if (src.operatorLat != 0 || src.operatorLon != 0) {
+        dst.operatorLocType = src.operatorLocType;
+        if (src.operatorAltitude != 0 && src.operatorAltitude > MIN_ALT) dst.operatorAltitude = src.operatorAltitude;
+    }
     if (src.operatorId[0])                                     strncpy(dst.operatorId, src.operatorId, ODID_ID_SIZE);
     if (src.description[0])                                    strncpy(dst.description, src.description, ODID_STR_SIZE);
     if (src.authType != 0) {
@@ -105,6 +109,15 @@ static const char *droneIdTypeStr(uint8_t t) {
         case ODID_IDTYPE_UTM_ASSIGNED_UUID:   return "UTM";
         case ODID_IDTYPE_SPECIFIC_SESSION_ID: return "Session";
         default:                              return "None";
+    }
+}
+
+static const char *operatorLocTypeStr(uint8_t t) {
+    switch (t) {
+        case ODID_OPERATOR_LOCATION_TYPE_TAKEOFF:   return "Takeoff";
+        case ODID_OPERATOR_LOCATION_TYPE_LIVE_GNSS: return "Pilot (live)";
+        case ODID_OPERATOR_LOCATION_TYPE_FIXED:     return "Pilot (fixed)";
+        default:                                    return "Operator";
     }
 }
 
@@ -143,6 +156,8 @@ static void parseDroneData(DroneDetection *drone, const ODID_UAS_Data *uasData) 
     if (uasData->SystemValid) {
         drone->operatorLat = uasData->System.OperatorLatitude;
         drone->operatorLon = uasData->System.OperatorLongitude;
+        drone->operatorAltitude = uasData->System.OperatorAltitudeGeo;
+        drone->operatorLocType = uasData->System.OperatorLocationType;
     }
 
     if (uasData->OperatorIDValid) {
@@ -526,8 +541,11 @@ String getDroneDetectionResults() {
         }
 
         if (d.operatorLat != 0 || d.operatorLon != 0) {
-            results += "  Operator: " + String(d.operatorLat, 6) + ", " +
-                      String(d.operatorLon, 6) + "\n";
+            results += "  " + String(operatorLocTypeStr(d.operatorLocType)) + ": " +
+                      String(d.operatorLat, 6) + ", " + String(d.operatorLon, 6);
+            if (d.operatorAltitude != 0 && d.operatorAltitude > MIN_ALT)
+                results += "  Alt: " + String(d.operatorAltitude, 1) + " m";
+            results += "\n";
         }
         if (strlen(d.operatorId) > 0) {
             results += "  Operator ID: " + String(d.operatorId) + "\n";
@@ -565,14 +583,6 @@ void cleanupDroneData() {
     const uint32_t now = millis();
     std::lock_guard<std::mutex> lock(detectedDronesMutex);
 
-    for (auto it = detectedDrones.begin(); it != detectedDrones.end();) {
-        if (now - it->second.lastSeen > DRONE_STALE_TIME) {
-            it = detectedDrones.erase(it);
-        } else {
-            ++it;
-        }
-    }
-
     for (auto it = droneMeshLastTx.begin(); it != droneMeshLastTx.end();) {
         if (now - it->second > DRONE_STALE_TIME) {
             it = droneMeshLastTx.erase(it);
@@ -592,17 +602,21 @@ void cleanupDroneData() {
         }
         if (oldestKey.length() > 0) {
             detectedDrones.erase(oldestKey);
+            if (droneDetectionCount > 0) droneDetectionCount = droneDetectionCount - 1;
+        } else {
+            break;
         }
     }
-    
+
     while (droneEventLog.size() > MAX_DRONE_LOG_ENTRIES) {
         droneEventLog.erase(droneEventLog.begin());
     }
-    
+
     if (ESP.getFreeHeap() < 20000) {
         Serial.println("[DRONE] Low memory - clearing old data");
         while (detectedDrones.size() > 10) {
             detectedDrones.erase(detectedDrones.begin());
+            if (droneDetectionCount > 0) droneDetectionCount = droneDetectionCount - 1;
         }
         while (droneEventLog.size() > 20) {
             droneEventLog.erase(droneEventLog.begin());
@@ -699,7 +713,7 @@ void droneDetectorTask(void *pv)
             for (const auto& entry : detectedDrones) {
                 const String meshDroneId = String(entry.second.uavId);
 
-                if (droneMeshCooldownReady(meshDroneId)) {
+                if ((millis() - entry.second.lastSeen) < DRONE_STALE_TIME && droneMeshCooldownReady(meshDroneId)) {
                     String droneMsg = getNodeId() + ": DRONE: " + entry.first + " ID:" + meshDroneId;
                     droneMsg += " R" + String(entry.second.rssi);
                     if (entry.second.latitude != 0) {

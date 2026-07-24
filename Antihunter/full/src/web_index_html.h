@@ -1518,6 +1518,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let selectedMode = '0';
       let baselineUpdateInterval = null;
       let lastScanningState = false;
+      let stopResultsRefresh = 0;
       let lastResultsText = '';
       let meshEnabled = true;
       let vibrationEnabled = true;
@@ -4098,6 +4099,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           radioBusy = isScanning || isTriActive;
           const taskMatch = diagText.match(/Task Type: ([^\n]+)/);
           radioBusyTask = taskMatch ? taskMatch[1].trim() : '';
+          if (isScanning) stopResultsRefresh = 4;
           const sections = diagText.split('\n');
           meshEnabled = diagText.includes('Mesh: Enabled');
           updateMeshUI();
@@ -4154,7 +4156,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const fetchPromises = [];
           if (droneActive) fetchPromises.push(fetch('/drone/status').catch(() => null));
           else fetchPromises.push(Promise.resolve(null));
-          if (!baselineHandling && (isScanning || (lastScanningState && !isScanning))) fetchPromises.push(fetch('/results').catch(() => null));
+          if (!baselineHandling && (isScanning || stopResultsRefresh > 0)) fetchPromises.push(fetch('/results').catch(() => null));
           else fetchPromises.push(Promise.resolve(null));
           const [droneResponse, resultsResponse] = await Promise.all(fetchPromises);
           if (droneResponse) {
@@ -4188,7 +4190,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }
           const resultsElement = document.getElementById('r');
           if (resultsElement && !resultsElement.contains(document.activeElement)) {
-            if ((isScanning || (lastScanningState && !isScanning)) && resultsResponse) {
+            if ((isScanning || stopResultsRefresh > 0) && resultsResponse) {
               const resultsText = await resultsResponse.text();
               // Don't regress to empty/placeholder while scanning — server may briefly clear lastResults during task init
               if (isScanning && (!resultsText || resultsText.trim() === '' || resultsText.includes('None yet') || resultsText.includes('No scan data'))) {
@@ -4245,6 +4247,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             }
           }
           lastScanningState = isScanning;
+          if (!isScanning && stopResultsRefresh > 0) stopResultsRefresh--;
         } catch (e) {
           console.error('Tick error:', e);
         } finally {

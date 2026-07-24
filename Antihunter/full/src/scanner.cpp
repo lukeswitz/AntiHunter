@@ -853,6 +853,23 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             xQueueSend(bleAdvQueue, &evt, 0);
         }
 
+        if (droneDetectionEnabled) {
+            std::vector<uint8_t> dpl = advertisedDevice->getPayload();
+            const uint8_t *dp = dpl.data();
+            size_t dlen = dpl.size();
+            size_t doff = 0;
+            while (doff + 2 <= dlen) {
+                uint8_t dl = dp[doff];
+                if (dl == 0) { doff += 1; continue; }
+                if (doff + 1 + dl > dlen) break;
+                if (dp[doff + 1] == 0x16 && dl >= 4 && dp[doff + 2] == 0xFA && dp[doff + 3] == 0xFF) {
+                    processDroneOdidBle(mac, rssi, dp + doff + 4, (int)(dlen - (doff + 4)));
+                    break;
+                }
+                doff += 1 + dl;
+            }
+        }
+
         if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
             return;
         }
@@ -1505,7 +1522,7 @@ void snifferScanTask(void *pv)
 
         std::string results =
             "Sniffer scan - Mode: " + std::string(modeStr.c_str()) +
-            " Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n" +
+            " Duration: " + (forever ? std::string("Forever\n") : (std::to_string(duration) + "s\n")) +
             "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
             "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
             "Target Hits: " + std::to_string(totalHits) + "\n" +
@@ -1745,7 +1762,7 @@ static std::string buildDeauthResults(bool forever, int duration, uint32_t deaut
     std::string results = scanning.load()
         ? ("Deauth Attack Detection Results (IN PROGRESS)\nElapsed: " + std::to_string(millis() / 1000) + "s\n")
         : "Deauth Attack Detection Results\n";
-    results += "Duration: " + (forever ? "Forever" : std::to_string(duration)) + "s\n";
+    results += "Duration: " + (forever ? std::string("Forever\n") : (std::to_string(duration) + "s\n"));
     results += "Deauth frames: " + std::to_string(deauthTotal) + "\n";
     results += "Disassoc frames: " + std::to_string(disassocTotal) + "\n";
     results += "Total attacks: " + std::to_string(deauthEntries.size()) + "\n";
@@ -3554,7 +3571,7 @@ void listScanTask(void *pv) {
     // where tick() sees scanning=false but final results aren't written yet
     std::string results =
         "List scan - Mode: " + std::string(modeStr.c_str()) +
-        " Duration: " + (forever ? "Forever" : std::to_string(secs)) + "s\n" +
+        " Duration: " + (forever ? std::string("Forever\n") : (std::to_string(secs) + "s\n")) +
         "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
         "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
         "Target Hits: " + std::to_string(totalHits) + "\n\n";
