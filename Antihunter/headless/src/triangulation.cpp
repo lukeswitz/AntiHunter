@@ -504,15 +504,13 @@ void coordinatorSetupTask(const void *parameter) {
     if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     if (!workerTaskHandle) {
-        ahCreateTask(
-            listScanTask,
-            "triangulate",
-            8192,
-            reinterpret_cast<void *>(static_cast<intptr_t>(duration)),
-            1,
-            &workerTaskHandle,
-            1
-        );
+        if (ahCreateTask(listScanTask, "triangulate", 8192,
+                reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 1, &workerTaskHandle, 1) != pdPASS) {
+            Serial.println("[TRIANGULATE] scan task create failed - aborting setup");
+            workerTaskHandle = nullptr;
+            coordinatorSetupTaskHandle = nullptr;
+            vTaskDelete(NULL);
+        }
     }
 
     // Set active flag AFTER task is created to prevent UI race condition
@@ -638,15 +636,12 @@ void startTriangulation(const String &targetMac, int duration) {
 
     // Create async task to collect ACKs and start scanning (avoids blocking web handler)
     if (!coordinatorSetupTaskHandle) {
-        ahCreateTask(
-            reinterpret_cast<TaskFunction_t>(coordinatorSetupTask),
-            "triCoordSetup",
-            4096,
-            reinterpret_cast<void *>(static_cast<intptr_t>(duration)),
-            2,  // Higher priority than scanner
-            &coordinatorSetupTaskHandle,
-            1
-        );
+        if (ahCreateTask(reinterpret_cast<TaskFunction_t>(coordinatorSetupTask), "triCoordSetup", 4096,
+                reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 2, &coordinatorSetupTaskHandle, 1) != pdPASS) {
+            coordinatorSetupTaskHandle = nullptr;
+            Serial.println("[TRIANGULATE] Coordinator setup task create failed");
+            return;
+        }
         Serial.println("[TRIANGULATE] Coordinator setup task created (async ACK collection)");
     }
 }
