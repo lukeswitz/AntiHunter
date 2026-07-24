@@ -516,6 +516,7 @@ static void handleScanStart(const String &command)
         scanning = true;
         ahCreateTask(listScanTask, "scan", 8192,
                                 reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+        scanSessionSaveKind("scan", mode, secs, forever, channels, false, false);
         Serial.printf("[MESH] Started scan via mesh command\n");
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
@@ -548,6 +549,7 @@ static void handleBaselineStart(const String &command)
     scanning = true;
     ahCreateTask(baselineDetectionTask, "baseline", 12288,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    scanSessionSaveKind("baseline", (int)currentScanMode, secs, forever, String(), false, false);
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
   }
@@ -624,6 +626,7 @@ static void handleDeviceScanStart(const String &command)
       scanning = true;
       ahCreateTask(snifferScanTask, "sniffer", 12288,
                               reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+      scanSessionSaveKind("sniffer", mode, secs, forever, String(), probeDetectionEnabled.load(), false);
       Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
@@ -658,6 +661,7 @@ static void handleDroneStart(const String &command)
     scanning = true;
     ahCreateTask(droneDetectorTask, "drone", 12288,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    scanSessionSaveKind("drone", (int)currentScanMode, secs, forever, String(), false, false);
     Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
   }
@@ -690,6 +694,7 @@ static void handleDeauthStart(const String &command)
     scanning = true;
     ahCreateTask(blueTeamTask, "blueteam", 12288,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &blueTeamTaskHandle, 1);
+    scanSessionSaveKind("blueteam", (int)currentScanMode, secs, forever, String(), false, false);
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
   }
@@ -727,6 +732,7 @@ static void handleRandomizationStart(const String &command)
       scanning = true;
       ahCreateTask(randomizationDetectionTask, "randdetect", 8192,
                               reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+      scanSessionSaveKind("randdetect", mode, secs, forever, String(), false, false);
       Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
     }
@@ -780,6 +786,7 @@ static void handleProbeStart(const String &command)
     probeBroadcastAll.store(broadcastAll, std::memory_order_relaxed);
     ahCreateTask(probeDetectionTask, "probedet", 8192,
                             reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
+    scanSessionSaveKind("probedet", mode, secs, forever, String(), false, broadcastAll);
     Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
     sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
   }
