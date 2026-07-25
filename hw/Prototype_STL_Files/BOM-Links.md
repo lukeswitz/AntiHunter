@@ -24,7 +24,8 @@
 | 1× | Type-C 15W 3A 5V UPS (2S 18650) |
 | 1× | 30mm 5V JST Fan |
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
-| 1× | JST Power Male Cable |
+| 2× | JST Power Male Cables (switch & thermal) |
+| 1× | KSD9700 Thermal Switch — NO, 30–40°C |
 | 1× | Weatherproof Enclosure |
 
 ### Antennas & Cables
@@ -66,6 +67,7 @@
 | Qty | Part | Image | MFR | AMZN | ALI |
 |:---:|------|:---:|------|------|-----|
 | 1× | **Type-C 15W 3A 5V UPS** (2S 18650)<br>*Board ID HW-465A · 88×41×22 mm* | <img width="110" src="https://github.com/user-attachments/assets/314a14bb-b0f4-422e-89bd-2c47c51900f4" /> | Commodity (HW-465A) | [DWEII](https://www.amazon.com/dp/B0DCVRXTW8) · [JUZITAO 2-Pack](https://www.amazon.com/dp/B0DNMVSD65) | [Search](https://www.aliexpress.com/w/wholesale-HW-465A-UPS-18650.html) |
+| 1× | **KSD9700 Normally Open Thermal Switch** 30–40°C close temp| <img width="110"  alt="Screenshot 2026-07-25 at 8 31 01 AM" src="https://github.com/user-attachments/assets/02a05a96-8349-4782-b067-7ede9ea27668"/> | — | [Search](https://www.amazon.com/s?k=KSD9700+40C+normally+open+thermal+switch) | [Search](https://www.aliexpress.com/w/wholesale-KSD9700-40C-NO.html) |
 | 1× | **30mm 5V JST Fan** | <img width="110" src="https://github.com/user-attachments/assets/db9b98e9-3aa0-4fcb-bfe4-1150090726e8" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="https://github.com/user-attachments/assets/5d8fb899-bb30-4b0c-8035-99af2ffc0502" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
 | 1× | **JST Power Male Cable**<br>*Switch → board · with female socket* | <img width="110" src="https://github.com/user-attachments/assets/5a8998bb-3a2d-4580-baf6-b1ac133a21d6" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
