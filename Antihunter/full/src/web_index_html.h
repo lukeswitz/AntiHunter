@@ -1734,7 +1734,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
-      async function load() {
+      async function load(attempt) {
+        attempt = attempt || 0;
         try {
           const [exportResp, resultsResp] = await Promise.all([
             fetch('/export'),
@@ -1757,7 +1758,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           loadWiFiConfig();
           loadMeshInterval();
           loadDedupTtl();
-        } catch (e) { console.error('[CONFIG] settings panel load failed:', e); }
+        } catch (e) {
+          console.error('[CONFIG] settings panel load failed:', e);
+          if (attempt < 4) setTimeout(() => load(attempt + 1), 2000 * (attempt + 1));
+        }
       }
 
       async function loadNodeId() {
