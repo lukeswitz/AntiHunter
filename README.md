@@ -8,7 +8,6 @@
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 </div>
 
-
 <p align="center">
   
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
@@ -22,8 +21,6 @@
   Also for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
   
  <h3><strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong></h3>
-
-
 
 </div>
 
@@ -51,21 +48,18 @@
 8. [Getting Started](#getting-started)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
-11. [Acknowledgments](#acknowledgments)
-12. [Legal](#legal-disclaimer)
+11. [3D Print Library](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
+12. [Acknowledgments](#acknowledgments)
+13. [Legal](#legal-disclaimer)
 
 ---
 
 ## Overview
 
-- Open-source wireless sensor node for perimeter defense and spectrum awareness. 
+- Open-source wireless sensor for perimeter defense and spectrum awareness. 
 - ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh
 
-<p align="center">
-<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
-
-</p>
 
 > [!TIP]
 > Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable)
@@ -75,20 +69,25 @@
 | Feature | What it does | Scan modes |
 |---------|-------------|------------|
 | **Target Scan** | MAC/OUI/SSID watchlist with instant mesh alerts | WiFi, BLE, or both |
-| **Device Scanner** | Captures all nearby WiFi and BLE devices with RSSI, channels, names | WiFi, BLE, or both |
-| **Probe Request Scanner** | Passive sniffer -- reveals SSIDs devices are searching for | WiFi, BLE, or both |
+| **Device Scanner** | Captures all nearby WiFi and BLE devices with RSSI, channels, names, est. distance | WiFi, BLE, or both |
+| **Probe Request Scanner** | Passive sniffer -- reveals SSIDs devices are searching for, grouped by network | WiFi, BLE, or both |
 | **Ghost SSID Detection** | Flags probed SSIDs with no responding AP nearby | Probe / Device scan |
+| **Sentinel Counterintel** |	WiFi attacker-tool activity detection (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture) | WiFi promiscuous (Beta) |
 | **Baseline Anomaly Detection** | Learn-then-alert: spots new, missing, and changed devices | WiFi + BLE |
 | **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
-| **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
 | **Secure Data Destruction** | Tamper-triggered or remote wipe with post-wipe obfuscation | Vibration / mesh |
 | **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
+
+<p align="center">
+<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
+</p>
+
 
 <!-- <p align="center">
 <img height="600" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
@@ -96,13 +95,34 @@
 
 ### Use Cases
 
-- Perimeter security and intrusion detection
-- Penetration testing and wireless security auditing
-- Counter-UAV operations and airspace monitoring
-- Surveillance detection and OPSEC audits
-- Device fingerprinting across MAC randomization
-- Probe analysis and rogue device detection
-- Event security and monitoring
+**Site & perimeter defense**
+- Continuous monitoring of a facility perimeter for unauthorized wireless devices
+- Detection of deauthentication and disassociation attacks against your own infrastructure
+- Rogue access point and evil-twin identification on premises you control
+- Coarse emitter localization using multi-node RSSI triangulation (experimental; in-dev)
+- Persistent unattended sensing at remote or unstaffed sites
+
+**Event & temporary deployments**
+- Wireless threat monitoring at conferences, competitions, and public gatherings
+- Baseline-versus-live comparison to surface devices that don't belong
+- Multi-node mesh coverage across a venue with LoRa backhaul between sensors
+- Narrowing a persistent unknown emitter to a zone or structure within a monitored site (experimental)
+
+**Counter-surveillance & OPSEC**
+- Identifying devices that persist across locations or reappear at intervals
+- Correlating randomized MAC identities to detect a single device behind rotating addresses
+- Probe request analysis to reveal what networks a nearby device is soliciting
+- Verifying that your own operational footprint isn't broadcasting more than intended
+
+**Airspace awareness**
+- Passive reception of broadcast Drone Remote ID for situational awareness over property you control
+- Logging UAS presence, operator-reported position, and flight duration for incident records
+
+**Research & training**
+- Blue-team exercises and detection-engineering practice against live RF
+- Wireless security coursework and lab instruction
+- RF environment characterization and spectrum-hygiene surveys
+- Authorized wireless security assessments with written scope and permission
 
 ---
 
@@ -160,7 +180,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength, names, and channels.
 
-- Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status):
+- Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status)
 
 <!-- <img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" /> -->
 
@@ -172,23 +192,23 @@ Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
-- RAM cache: 200-500 devices, SD overflow: 1K-100K devices (default 1500 without SD)
-- Automatic tiering between RAM and SD
-
 > [!TIP]
 > A longer initial scan produces more reliable baselines.
 
 <!-- <img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" /> -->
 
-### C. Deauth Attack Detection
+### C. Deauth Attack Detection 
 
-WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with randomization tracking for source identification.
+WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with randomization tracking for source identification. (Also done with Sentinel)
 
 <!-- <img width="858" height="382" alt="Deauth Detection" src="https://github.com/user-attachments/assets/1b1e77db-a479-4cfd-beae-e13a7187cae4" /> -->
 
 ### D. Drone RID Detection
 
-Detects drones broadcasting Remote ID per FAA/EASA standards over **WiFi and Bluetooth**. Supports ODID/ASTM F3411 over WiFi (NAN action frames, beacon frames) and **BLE (BT4 legacy + BT5 long-range advertising, service UUID 0xFFFA)**, plus French drone ID (OUI 0x6a5c35). Decodes all ODID message types (Basic ID, Location, System, Operator ID, Auth, Self-ID), preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location, and flight telemetry. Mesh alerts and SD logging.
+- Detects drones broadcasting Remote ID per FAA/EASA standards over **WiFi and Bluetooth**.
+- Supports ODID/ASTM F3411 over WiFi (NAN action frames, beacon frames) and **BLE (BT4 legacy + BT5 long-range advertising, service UUID 0xFFFA)**, plus French drone ID (OUI 0x6a5c35).
+- Decodes all ODID message types (Basic ID, Location, System, Operator ID, Auth, Self-ID), preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location, and flight telemetry.
+- Mesh alerts on appear/disappear and SD logging.
 
 ### E. MAC Randomization Correlation 
 
