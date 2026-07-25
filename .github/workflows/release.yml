@@ -89,12 +89,34 @@ jobs:
 
         mkdir -p docs/flasher
 
+        CHANNEL="${{ steps.get_version.outputs.channel }}"
+        CHANNEL_TITLE="$(echo "${CHANNEL}" | sed 's/^./\U&/')"
+
+        # Manifest name carries the channel, and the body declares channel/variant
+        # so docs/index.html can reject a manifest that does not match the selection.
         for VARIANT in full headless; do
           VARIANT_TITLE="$(echo "${VARIANT}" | sed 's/^./\U&/')"
-          printf '{\n  "name": "AntiHunter %s (%s)",\n  "new_install_prompt_erase": true,\n  "builds": [\n    {\n      "chipFamily": "ESP32-S3",\n      "parts": [\n        { "path": "%s/bootloader.bin", "offset": 0 },\n        { "path": "%s/partitions.bin", "offset": 32768 },\n        { "path": "%s/antihunter-%s-%s.bin", "offset": 65536 }\n      ]\n    }\n  ]\n}\n' \
-            "${VARIANT_TITLE}" "${VERSION}" \
-            "${RAW}" "${RAW}" "${RAW}" "${VARIANT}" "${VERSION}" \
-            > "docs/flasher/manifest-${VARIANT}.json"
+          cat > "docs/flasher/manifest-${VARIANT}-${CHANNEL}.json" <<EOF
+        {
+          "name": "AntiHunter ${VARIANT_TITLE} - ${CHANNEL_TITLE} (${VERSION})",
+          "version": "${VERSION}",
+          "channel": "${CHANNEL}",
+          "variant": "${VARIANT}",
+          "new_install_prompt_erase": true,
+          "builds": [
+            {
+              "chipFamily": "ESP32-S3",
+              "parts": [
+                { "path": "${RAW}/bootloader.bin", "offset": 0 },
+                { "path": "${RAW}/partitions.bin", "offset": 32768 },
+                { "path": "${RAW}/antihunter-${VARIANT}-${VERSION}.bin", "offset": 65536 }
+              ]
+            }
+          ]
+        }
+        EOF
+          # Legacy unsuffixed name, kept for cached copies of the old page.
+          cp "docs/flasher/manifest-${VARIANT}-${CHANNEL}.json" "docs/flasher/manifest-${VARIANT}.json"
         done
 
     - name: Checkout channel branch and apply artifacts
@@ -123,6 +145,31 @@ jobs:
         git diff --cached --quiet && echo "No changes to commit" && exit 0
         git commit -m "dist: update bins and flasher manifests for ${VERSION} (${{ steps.get_version.outputs.channel }})"
         git push origin "${BRANCH}"
+
+    - name: Publish flasher manifests to docs branch
+      run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
+        CHANNEL="${{ steps.get_version.outputs.channel }}"
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # docs/ (GitHub Pages) is served from main, so both channels' manifests
+        # must land on main. Only this channel's files are touched - a beta
+        # release can never rewrite the stable manifest.
+        git fetch origin main
+        git checkout -B main origin/main
+
+        mkdir -p docs/flasher
+        cp /tmp/ah-flasher/manifest-*-"${CHANNEL}".json docs/flasher/
+        if [ "${CHANNEL}" = "stable" ]; then
+          cp /tmp/ah-flasher/manifest-full.json /tmp/ah-flasher/manifest-headless.json docs/flasher/
+        fi
+
+        git add docs/flasher/manifest-*.json
+        git diff --cached --quiet && echo "No manifest changes to commit" && exit 0
+        git commit -m "docs: flasher manifests for ${VERSION} (${CHANNEL})"
+        git push origin main
 
     - name: Create Release
       uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2.6.1

@@ -1839,10 +1839,36 @@ static void handleHbInterval(const String &command)
   sendToSerial1(nodeId + ": HB_ACK:INTERVAL " + String(minutes) + "min", true);
 }
 
-void processCommand(const String &command, const String &targetId = "")
+// Handler replies; must never re-enter the dispatcher as commands.
+static bool meshIsResponse(const String &payload)
 {
+  static const char *kResponses[] = {
+    "STOP_ACK", "SCAN_ACK", "BASELINE_ACK", "DEVICE_SCAN_ACK", "DRONE_ACK", "DEAUTH_ACK",
+    "RANDOMIZATION_ACK", "PROBE_ACK", "CONFIG_ACK", "DEDUP_CLEAR_ACK", "TRI_ACK",
+    "TRI_START_ACK", "TRIANGULATE_STOP_ACK", "TRIANGULATE_RESULTS_START",
+    "TRIANGULATE_RESULTS_END", "TRIANGULATE_RESULTS:NO_DATA", "ERASE_ACK", "ERASE_TOKEN:",
+    "FACTORY_RESET_ACK", "AUTOERASE_ACK", "BATTERY_SAVER_ACK", "HB_ACK", "SENTINEL_ACK",
+    "SENTINEL_MODE_ACK", "SENTINEL_BOOT_ACK", "GROUP_ACK", "DETECT_CFG_ACK", "DETECT_CFG_LEN:",
+    "INCIDENTS_LEN:", "INCIDENTS_CLEAR_ACK", "CS_ACK", "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
+    "STATUS: ", "BASELINE_STATUS: ", "VIBRATION_STATUS: ", "AUTOERASE_STATUS: ",
+    "BATTERY_SAVER_STATUS: ", "SENTINEL_STATUS: "
+  };
+  for (const char *p : kResponses) {
+    if (payload.startsWith(p)) return true;
+  }
+  return false;
+}
+
+void processCommand(const String &commandRaw, const String &targetId = "")
+{
+  String command = commandRaw;
+  command.trim();
   Serial.printf("[DEBUG_RAW] Command length: %d, starts with: '%.30s'\n",
                 command.length(), command.c_str());
+  if (meshIsResponse(command)) {
+    Serial.println("[MESH] Response frame - not dispatched as command");
+    return;
+  }
   if (command.startsWith("CONFIG_CHANNELS:"))         handleConfigChannels(command);
   else if (command.startsWith("CONFIG_ERASE_PSK:"))    handleConfigErasePsk(command);
   else if (command.startsWith("CONFIG_TARGETS:"))     handleConfigTargets(command);
@@ -1850,10 +1876,10 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("CONFIG_RSSI:"))        handleConfigRssi(command);
   else if (command.startsWith("CONFIG_DEDUP_TTL:"))   handleConfigDedupTtl(command);
   else if (command.startsWith("CONFIG_SESSION_DEDUP:")) handleConfigSessionDedup(command);
-  else if (command.startsWith("MESH_DEDUP_CLEAR"))    handleMeshDedupClear();
+  else if (command == "MESH_DEDUP_CLEAR")             handleMeshDedupClear();
   else if (command.startsWith("SCAN_START:"))         handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))     handleBaselineStart(command);
-  else if (command.startsWith("BASELINE_STATUS"))     handleBaselineStatus(command);
+  else if (command == "BASELINE_STATUS")              handleBaselineStatus(command);
   else if (command.startsWith("DEVICE_SCAN_START:"))  handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
   else if (command.startsWith("CS_START:"))           handleCounterSurveilStart(command);
@@ -1866,7 +1892,7 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command == "STOP")                         handleStop(command);
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);
-  else if (command.startsWith("SENTINEL_STATUS"))     handleSentinelStatus(command);
+  else if (command == "SENTINEL_STATUS")              handleSentinelStatus(command);
   else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
   else if (command.startsWith("SENTINEL_BOOT:"))      handleSentinelBoot(command);
   else if (command.startsWith("GROUP:"))              handleGroup(command);
@@ -1874,14 +1900,14 @@ void processCommand(const String &command, const String &targetId = "")
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
   else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
   else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
-  else if (command.startsWith("STATUS"))              handleStatus(command);
-  else if (command.startsWith("VIBRATION_STATUS"))    handleVibrationStatus(command);
+  else if (command == "STATUS")                       handleStatus(command);
+  else if (command == "VIBRATION_STATUS")             handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
   else if (command == "VIBRATION_OFF")                handleVibrationOff(command);
   else if (command.startsWith("TRIANGULATE_START:"))  handleTriangulateStart(command, targetId);
   else if (command == "TRIANGULATE_STOP")             handleTriangulateStop(command);
   else if (command.startsWith("TRI_CYCLE_START:"))    handleTriCycleStart(command);
-  else if (command.startsWith("TRIANGULATE_RESULTS")) handleTriangulateResults(command);
+  else if (command == "TRIANGULATE_RESULTS")          handleTriangulateResults(command);
   else if (command.startsWith("ERASE_FORCE:"))        handleEraseForce(command);
   else if (command.startsWith("ERASE_CANCEL"))        handleEraseCancel(command);
   else if (command == "ERASE_REQUEST")                handleEraseRequest(command);

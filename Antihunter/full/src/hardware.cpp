@@ -982,6 +982,17 @@ String getDiagnostics() {
     char uptimeBuffer[10];
     snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02u:%02u:%02u", uptime_hours, uptime_minutes, uptime_seconds);
     s += "Up:" + String(uptimeBuffer) + "\n";
+    s += "Last reset: " + String(getResetReasonText()) + "\n";
+    s += "Prev uptime: " + (prevBootUptimeKnown() ? String(getPrevBootUptimeSec()) + "s" : String("unknown")) + "\n";
+    s += "Scan resumed: " + String(scanSessionWasResumed() ? "yes" : "no") + "\n";
+    s += "Results restored: " + String(resultsWereRestored() ? "yes" : "no") + "\n";
+    s += "Free int heap: " + String((unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL)) + "\n";
+    s += "Min free int heap: " + String((unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL)) + "\n";
+    if (workerTaskHandle) {
+        s += "Scan stack free: " + String((unsigned)uxTaskGetStackHighWaterMark(workerTaskHandle)) + "\n";
+    } else if (blueTeamTaskHandle) {
+        s += "Scan stack free: " + String((unsigned)uxTaskGetStackHighWaterMark(blueTeamTaskHandle)) + "\n";
+    }
     s += "Scan Mode: " + modeStr + "\n";
     String activeRadio;
     if (busy) activeRadio = modeStr;
