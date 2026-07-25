@@ -426,6 +426,18 @@ void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi,
     s.lastSeen = now;
     pwnagotchiExtractSnippet(ie, ieLen, s.snippet, sizeof(s.snippet));
 
+    static PsramMap<uint64_t, uint32_t> s_pwnaEmit;
+    auto eit = s_pwnaEmit.find(k);
+    if (eit != s_pwnaEmit.end() && (now - eit->second) < 30000) return;
+    if (eit == s_pwnaEmit.end() && s_pwnaEmit.size() >= MAX_PWNA) {
+        uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
+        for (const auto &kv : s_pwnaEmit) if (kv.second < oldestT) { oldestT = kv.second; oldestK = kv.first; }
+        s_pwnaEmit.erase(oldestK);
+    }
+    s_pwnaEmit[k] = now;
+
+    Serial.printf("[DETECT] PWNAGOTCHI src=%s rssi=%d obs=%u name=%s\n",
+                  macStr(bssid).c_str(), (int)rssi, (unsigned)s.observations, s.snippet);
     ::detect_logIncident(String("PWNAGOTCHI:") + macStr(bssid) + ":" + String(rssi), nullptr);
     if (meshEnabled && sentinel_isRunning() && g_meshPwna.load() && meshRateGate("PWNAGOTCHI_" + macStr(bssid), 30000))
         sendToSerial1(getNodeId() + ": PWNAGOTCHI:" + macStr(bssid) + ":" + String(rssi), true);
