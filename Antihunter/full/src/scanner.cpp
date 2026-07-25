@@ -2082,10 +2082,9 @@ void blueTeamTask(void *pv) {
                 }
             }
 
-            // Feed detect.cpp for EAPOL-capture-bait correlation (unicast only).
-            if (!hit.isBroadcast) {
-                detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
-            }
+            // Feed detect.cpp for EAPOL-capture-bait correlation. Broadcast included:
+            // Marauder's active-EAPOL deauth keeps the template's broadcast addr1.
+            detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
 
             // High-confidence flood detector: ≥20 deauths from same src in 10s.
             // (Cisco WLC default ~30; research recommends 20.)

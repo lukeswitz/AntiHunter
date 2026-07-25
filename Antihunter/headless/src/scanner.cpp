@@ -2037,9 +2037,9 @@ void blueTeamTask(void *pv) {
                 }
             }
 
-            if (!hit.isBroadcast) {
-                detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
-            }
+            // Feed detect.cpp for EAPOL-capture-bait correlation. Broadcast included:
+            // Marauder's active-EAPOL deauth keeps the template's broadcast addr1.
+            detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
 
             // High-confidence flood detector — same as full firmware.
             {
