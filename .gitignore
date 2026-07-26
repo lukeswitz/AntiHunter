@@ -3,16 +3,9 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-
 .DS_Store
-
 .vscode/extensions.json
-
 .vscode/settings.json
-
-*.weaudit
-
 demo.html
-
 .vscode/
 idf_component.yml
