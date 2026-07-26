@@ -169,6 +169,19 @@ void rebuildActiveChannels() {
         if (rfConfig.bandMode == 1 &&  channelIs2G(ch)) continue;  // 5GHz only
         g_activeChannels.push_back(ch);
     }
+#ifdef ARDUINO_XIAO_ESP32C5
+    // band says scan 5GHz but the saved list is 2.4-only: hop the UNII-1/3 set too, keep their 2.4 picks
+    if (rfConfig.bandMode != 0) {
+        bool has5g = false;
+        for (uint8_t ch : g_activeChannels)
+            if (!channelIs2G(ch)) { has5g = true; break; }
+        if (!has5g) {
+            static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
+            for (uint8_t ch : k5g) g_activeChannels.push_back(ch);
+            Serial.println("[RF] no 5GHz channel in list; added 36/40/44/48/149/153/157/161/165");
+        }
+    }
+#endif
     if (g_activeChannels.empty()) g_activeChannels = CHANNELS;
 }
 
