@@ -218,6 +218,20 @@ void randomizeMacAddress() {
 void runWifiSelftest();
 #endif
 
+#ifndef AH_HEAP_TRACE
+#define AH_HEAP_TRACE 0
+#endif
+#if AH_HEAP_TRACE
+static void heapMark(const char *tag) {
+    Serial.printf("[HEAPTRACE] %-22s internal=%6u largest=%6u psram=%u\n", tag,
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+}
+#else
+static void heapMark(const char *) {}
+#endif
+
 void setup() {
     delay(1000);
     Serial.begin(115200);
@@ -245,10 +259,13 @@ void setup() {
 
     delay(400);
     initializeHardware();
+    heapMark("after hardware");
     delay(10);
     initializeDroneDetector();
+    heapMark("after drone");
     delay(20);
     initializeSD();
+    heapMark("after SD");
     
     if (waitForInitialConfig()) {
         delay(1000);
@@ -256,22 +273,28 @@ void setup() {
 
     delay(500);
     loadConfiguration();
+    heapMark("after config");
 
     Serial.println("Waiting for mesh device stability...");
     delay(10000);
 
     initializeNetwork();
+    heapMark("after network+AP+web");
     delay(500);
     initializeGPS();
+    heapMark("after GPS");
     delay(1000);
     initializeRTC();
+    heapMark("after RTC");
     delay(500);
     
     initializeVibrationSensor();
     delay(50);
     initializeScanner();
+    heapMark("after scanner");
     delay(50);
     initializeDetect();
+    heapMark("after detect");
     delay(50);
 #ifdef ARDUINO_XIAO_ESP32C5
     initializeGpsPps(4);
@@ -280,6 +303,7 @@ void setup() {
 #endif
     if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
+    heapMark("after DetectTask");
     {
         uint8_t selfMac[6];
         esp_wifi_get_mac(WIFI_IF_AP, selfMac);

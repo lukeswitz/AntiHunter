@@ -2596,7 +2596,13 @@ static void bleInitTask(void *pv) {
                   xPortGetCoreID(),
                   (unsigned)ESP.getFreeHeap(),
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-    BLEDevice::init("");
+    if (!BLEDevice::init("")) {
+        Serial.println("[BLE_INIT] BLEDevice::init failed (controller alloc) - BLE unavailable");
+        bleInitFailed = true;
+        bleInitDone = true;
+        vTaskDelete(NULL);
+        return;
+    }
     pBLEScan = BLEDevice::getScan();
     if (!pBLEScan) {
         Serial.println("[BLE_INIT] getScan() returned NULL");
