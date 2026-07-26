@@ -226,9 +226,6 @@ void randomizeMacAddress() {
                   newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
 }
 
-#ifdef WIFI_SELFTEST
-void runWifiSelftest();
-#endif
 
 #ifndef AH_HEAP_TRACE
 #define AH_HEAP_TRACE 0
@@ -262,12 +259,8 @@ void setup() {
     Serial.begin(115200);
     delay(300);
 
-    Serial.println("\n=== Antihunter [FULL] Boot ===");
+    Serial.println("\n=== AntiHunter Beta v1.0.1 C5 [FULL] Boot ===");
 
-#ifdef WIFI_SELFTEST
-    runWifiSelftest();
-    while (true) { delay(1000); }
-#endif
 
 #ifdef ARDUINO_XIAO_ESP32C5
     // C5 has 320KB HP SRAM and the image eats 180KB; without this the 4096B ALWAYSINTERNAL default starves WiFi
