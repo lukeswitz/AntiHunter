@@ -970,13 +970,38 @@ bool waitForInitialConfig() {
         return false;
     }
     
+    DynamicJsonDocument merged(16384);
+    bool haveBase = false;
+    if (SafeSD::exists(CONFIG_FILE)) {
+        File base = SafeSD::open(CONFIG_FILE, FILE_READ);
+        if (base) {
+            String baseText = base.readString();
+            base.close();
+            if (deserializeJson(merged, baseText) == DeserializationError::Ok && merged.is<JsonObject>()) {
+                haveBase = true;
+            } else {
+                merged.clear();
+                Serial.println("[CONFIG] Existing config unreadable - writing pushed fields only");
+            }
+        }
+    }
+
+    uint16_t pushed = 0;
+    for (JsonPair kv : doc.as<JsonObject>()) {
+        merged[kv.key()] = kv.value();
+        pushed++;
+    }
+
+    String out;
+    serializeJson(merged, out);
+
     File configFile = SafeSD::open(CONFIG_TMP_FILE, FILE_WRITE);
     if (!configFile) {
         Serial.println("[CONFIG] Failed to create config file");
         return false;
     }
 
-    configFile.print(configBuffer);
+    configFile.print(out);
     configFile.flush();
     configFile.close();
 
@@ -984,6 +1009,7 @@ bool waitForInitialConfig() {
         return false;
     }
 
+    Serial.printf("[CONFIG] %u field(s) %s\n", pushed, haveBase ? "merged into existing config" : "written");
     Serial.println("[CONFIG] Configuration saved to SD card!");
     Serial.println("[CONFIG] Rebooting in 2 seconds...");
     Serial.flush();
