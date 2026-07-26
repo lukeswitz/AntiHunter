@@ -1683,6 +1683,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           lastResultsText = txt;
           renderResults(txt);
         } catch (e) {
+          console.warn('resultsPoll: /results fetch failed', e);
         } finally {
           resultsPolling = false;
           if (!radioBusy && stopResultsRefresh > 0) stopResultsRefresh--;
@@ -3870,7 +3871,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let html = '';
 
         const modeMatch = text.match(/Mode: ([^\s]+)/);
-        const durationMatch = text.match(/Duration: ([^\n]+)/);
+        const durationMatch = text.match(/Duration: ([^\n]+)/) || text.match(/Elapsed: ([^\n]+)/);
         const hitsMatch = text.match(/Target Hits: (\d+)/);
         const uniqueMatch = text.match(/Unique devices: (\d+)/);
 
