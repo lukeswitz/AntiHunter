@@ -435,6 +435,14 @@ static void IRAM_ATTR pps_isr(void *) {
 
 void initGpsPps(int gpio) {
     if (gpio < 0) return;
+#ifdef ARDUINO_XIAO_ESP32C5
+    // C5 GPIO15-18/20-22 are SPI0/1 lines for off-package flash + PSRAM (15=SPICS1 PSRAM CS).
+    // gpio_config() on one of them detaches it from IO_MUX and the next PSRAM access faults.
+    if ((gpio >= 15 && gpio <= 18) || (gpio >= 20 && gpio <= 22)) {
+        Serial.printf("[PPS] refusing GPIO %d (flash/PSRAM pin on C5)\n", gpio);
+        return;
+    }
+#endif
     g_ppsGpio = gpio;
     gpio_config_t cfg = {};
     cfg.pin_bit_mask = (1ULL << gpio);

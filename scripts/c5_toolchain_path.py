@@ -7,9 +7,13 @@ Import("env")
 core = env.subst("$PROJECT_CORE_DIR")
 candidates = [
     os.path.join(core, "tools", "toolchain-riscv32-esp", "bin"),
+    os.path.join(core, "tools", "toolchain-riscv32-esp", "riscv32-esp-elf", "bin"),
     os.path.join(env.subst("$PROJECT_PACKAGES_DIR"), "toolchain-riscv32-esp", "bin"),
+    os.path.join(env.subst("$PROJECT_PACKAGES_DIR"), "toolchain-riscv32-esp", "riscv32-esp-elf", "bin"),
     os.path.join(core, "packages", "toolchain-riscv32-esp", "bin"),
+    os.path.join(core, "packages", "toolchain-riscv32-esp", "riscv32-esp-elf", "bin"),
     os.path.expanduser("~/.platformio/tools/toolchain-riscv32-esp/bin"),
+    os.path.expanduser("~/.platformio/tools/toolchain-riscv32-esp/riscv32-esp-elf/bin"),
 ]
 for path in candidates:
     if os.path.isfile(os.path.join(path, "riscv32-esp-elf-g++")):

@@ -902,11 +902,313 @@ bool waitForInitialConfig() {
     return true;
 }
 
+#if CONFIG_IDF_TARGET_ESP32C5
+#include "esp_private/periph_ctrl.h"
+#include "hal/spi_ll.h"
+#include "hal/spi_types.h"
+#include "soc/periph_defs.h"
+
+// arduino-esp32 spiStartBus() has no C5 branch, so SPI2 stays clock-gated and every transfer reads 0x00
+static void spi2EnsureBusClock() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+    PERIPH_RCC_ACQUIRE_ATOMIC(PERIPH_GPSPI2_MODULE, ref_count) {
+        if (ref_count == 0) {
+            spi_ll_enable_bus_clock(SPI2_HOST, true);
+            spi_ll_reset_register(SPI2_HOST);
+            spi_ll_enable_clock(SPI2_HOST, true);
+        }
+    }
+    Serial.println("[SD] C5: SPI2 bus clock ungated");
+}
+#else
+static void spi2EnsureBusClock() {}
+#endif
+
+#ifndef AH_SD_DIAG
+#define AH_SD_DIAG 0
+#endif
+
+#if AH_SD_DIAG
+
+static const int SDDIAG_ROLE_PINS[4] = {SD_CLK_PIN, SD_MOSI_PIN, SD_MISO_PIN, SD_CS_PIN};
+static const char *SDDIAG_ROLE_NAMES[4] = {"SCK", "MOSI", "MISO", "CS"};
+
+#ifdef ARDUINO_XIAO_ESP32C5
+static const int SDDIAG_PADS[11] = {1, 0, 25, 7, 23, 24, 11, 12, 8, 9, 10};
+#else
+static const int SDDIAG_PADS[11] = {1, 2, 3, 4, 5, 6, 43, 44, 7, 8, 9};
+#endif
+static const char *SDDIAG_PAD_NAMES[11] = {"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10"};
+static const int SDDIAG_PAD_COUNT = 11;
+
+static int sdd_sck = -1, sdd_mosi = -1, sdd_miso = -1, sdd_cs = -1;
+static int sdd_halfUs = 3;
+
+static void sddPin(int pin, gpio_mode_t mode, bool pullup, bool pulldown) {
+    gpio_config_t cfg = {};
+    cfg.pin_bit_mask = 1ULL << (uint32_t)pin;
+    cfg.mode = mode;
+    cfg.pull_up_en = pullup ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
+    cfg.pull_down_en = pulldown ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
+    cfg.intr_type = GPIO_INTR_DISABLE;
+    gpio_config(&cfg);
+}
+
+static const char *sddPadName(int gpio) {
+    for (int i = 0; i < SDDIAG_PAD_COUNT; i++)
+        if (SDDIAG_PADS[i] == gpio) return SDDIAG_PAD_NAMES[i];
+    return "--";
+}
+
+static uint8_t sddXfer(uint8_t out) {
+    uint8_t in = 0;
+    for (int b = 7; b >= 0; b--) {
+        gpio_set_level((gpio_num_t)sdd_mosi, (out >> b) & 1);
+        delayMicroseconds(sdd_halfUs);
+        gpio_set_level((gpio_num_t)sdd_sck, 1);
+        delayMicroseconds(sdd_halfUs);
+        in = (uint8_t)((in << 1) | (uint8_t)gpio_get_level((gpio_num_t)sdd_miso));
+        gpio_set_level((gpio_num_t)sdd_sck, 0);
+    }
+    return in;
+}
+
+static void sddBusAttach(int sck, int mosi, int miso, int cs, bool openDrain, int halfUs) {
+    sdd_sck = sck; sdd_mosi = mosi; sdd_miso = miso; sdd_cs = cs; sdd_halfUs = halfUs;
+    gpio_mode_t om = openDrain ? GPIO_MODE_OUTPUT_OD : GPIO_MODE_OUTPUT;
+    sddPin(sck, om, openDrain, false);
+    sddPin(mosi, om, openDrain, false);
+    sddPin(cs, om, openDrain, false);
+    sddPin(miso, GPIO_MODE_INPUT, true, false);
+    gpio_set_level((gpio_num_t)cs, 1);
+    gpio_set_level((gpio_num_t)mosi, 1);
+    gpio_set_level((gpio_num_t)sck, 0);
+}
+
+static uint8_t sddCmd(uint8_t cmd, uint32_t arg, uint8_t crc, uint8_t *tail, int tailLen) {
+    sddXfer(0xFF);
+    sddXfer((uint8_t)(0x40 | cmd));
+    sddXfer((uint8_t)(arg >> 24));
+    sddXfer((uint8_t)(arg >> 16));
+    sddXfer((uint8_t)(arg >> 8));
+    sddXfer((uint8_t)arg);
+    sddXfer(crc);
+    uint8_t r1 = 0xFF;
+    for (int i = 0; i < 10 && (r1 & 0x80); i++) r1 = sddXfer(0xFF);
+    for (int i = 0; i < tailLen; i++) tail[i] = sddXfer(0xFF);
+    return r1;
+}
+
+static uint8_t sddCmd0On(int sck, int mosi, int miso, int cs, bool openDrain, int halfUs) {
+    sddBusAttach(sck, mosi, miso, cs, openDrain, halfUs);
+    gpio_set_level((gpio_num_t)cs, 1);
+    for (int i = 0; i < 12; i++) sddXfer(0xFF);
+    gpio_set_level((gpio_num_t)cs, 0);
+    uint8_t r1 = sddCmd(0, 0, 0x95, nullptr, 0);
+    gpio_set_level((gpio_num_t)cs, 1);
+    sddXfer(0xFF);
+    return r1;
+}
+
+static void sddLineTest() {
+    Serial.println("[SDDIAG] --- static line test (internal pull-up vs pull-down readback) ---");
+    for (int i = 0; i < 4; i++) {
+        int pin = SDDIAG_ROLE_PINS[i];
+        sddPin(pin, GPIO_MODE_INPUT, true, false);
+        delayMicroseconds(500);
+        int up = gpio_get_level((gpio_num_t)pin);
+        sddPin(pin, GPIO_MODE_INPUT, false, true);
+        delayMicroseconds(500);
+        int dn = gpio_get_level((gpio_num_t)pin);
+        sddPin(pin, GPIO_MODE_INPUT, true, false);
+        const char *verdict = (up && !dn)  ? "floats with pulls (normal for an idle SD line)"
+                            : (up && dn)   ? "held HIGH externally (board pull-up or a driver)"
+                            : (!up && !dn) ? "held LOW externally (short to GND, or a driver holding it)"
+                                           : "inverted/unstable";
+        Serial.printf("[SDDIAG] %-4s GPIO%-2d (%-3s) pu=%d pd=%d  %s\n",
+                      SDDIAG_ROLE_NAMES[i], pin, sddPadName(pin), up, dn, verdict);
+    }
+}
+
+static void sddShortTest() {
+    Serial.println("[SDDIAG] --- inter-line short test (drive one low, read the other three) ---");
+    for (int d = 0; d < 4; d++) {
+        for (int i = 0; i < 4; i++)
+            sddPin(SDDIAG_ROLE_PINS[i], i == d ? GPIO_MODE_INPUT_OUTPUT : GPIO_MODE_INPUT, i != d, false);
+        gpio_set_level((gpio_num_t)SDDIAG_ROLE_PINS[d], 0);
+        delayMicroseconds(500);
+        int readback = gpio_get_level((gpio_num_t)SDDIAG_ROLE_PINS[d]);
+        char followers[32];
+        followers[0] = 0;
+        for (int i = 0; i < 4; i++) {
+            if (i == d) continue;
+            if (gpio_get_level((gpio_num_t)SDDIAG_ROLE_PINS[i]) == 0) {
+                strncat(followers, SDDIAG_ROLE_NAMES[i], sizeof(followers) - strlen(followers) - 2);
+                strncat(followers, " ", sizeof(followers) - strlen(followers) - 1);
+            }
+        }
+        gpio_set_level((gpio_num_t)SDDIAG_ROLE_PINS[d], 1);
+        Serial.printf("[SDDIAG] drive %-4s LOW: readback=%d dragged_low=[%s]%s%s\n",
+                      SDDIAG_ROLE_NAMES[d], readback, followers,
+                      readback ? "  <== PIN CANNOT DRIVE LOW" : "",
+                      followers[0] ? "  <== SHORTED LINES" : "");
+    }
+    for (int i = 0; i < 4; i++) sddPin(SDDIAG_ROLE_PINS[i], GPIO_MODE_INPUT, true, false);
+}
+
+static void sddProbeFull() {
+    Serial.println("[SDDIAG] --- bit-banged SD init on nominal pins (~160 kHz, push-pull) ---");
+    sddBusAttach(SD_CLK_PIN, SD_MOSI_PIN, SD_MISO_PIN, SD_CS_PIN, false, 3);
+
+    gpio_set_level((gpio_num_t)sdd_cs, 1);
+    for (int i = 0; i < 12; i++) sddXfer(0xFF);
+
+    gpio_set_level((gpio_num_t)sdd_cs, 0);
+    uint8_t r1 = sddCmd(0, 0, 0x95, nullptr, 0);
+    gpio_set_level((gpio_num_t)sdd_cs, 1);
+    sddXfer(0xFF);
+    Serial.printf("[SDDIAG] CMD0  GO_IDLE_STATE  R1=0x%02X  %s\n", r1,
+                  r1 == 0x01 ? "OK - card entered SPI idle"
+                  : r1 == 0xFF ? "SILENT - MISO idles high, card never answered"
+                  : r1 == 0x00 ? "MISO STUCK LOW"
+                               : "unexpected R1");
+    if (r1 != 0x01) {
+        Serial.println("[SDDIAG] card did not reach SPI idle -> the fault is BELOW the SD library");
+        Serial.println("[SDDIAG]   R1=0xFF -> CS not reaching the card, card not seated, or no 3V3 at the socket");
+        Serial.println("[SDDIAG]   R1=0x00 -> MISO shorted to GND or the pad is not the MISO trace");
+        return;
+    }
+
+    uint8_t tail[4] = {0, 0, 0, 0};
+    gpio_set_level((gpio_num_t)sdd_cs, 0);
+    r1 = sddCmd(8, 0x1AA, 0x87, tail, 4);
+    gpio_set_level((gpio_num_t)sdd_cs, 1);
+    sddXfer(0xFF);
+    Serial.printf("[SDDIAG] CMD8  SEND_IF_COND   R1=0x%02X  echo=%02X %02X %02X %02X %s\n",
+                  r1, tail[0], tail[1], tail[2], tail[3],
+                  (r1 == 0x01 && tail[3] == 0xAA) ? "OK - v2 card, voltage accepted" : "");
+
+    uint32_t t0 = millis();
+    uint8_t acmd = 0xFF;
+    do {
+        gpio_set_level((gpio_num_t)sdd_cs, 0);
+        sddCmd(55, 0, 0x65, nullptr, 0);
+        acmd = sddCmd(41, 0x40000000, 0x77, nullptr, 0);
+        gpio_set_level((gpio_num_t)sdd_cs, 1);
+        sddXfer(0xFF);
+    } while (acmd == 0x01 && (millis() - t0) < 1000);
+    Serial.printf("[SDDIAG] ACMD41 INIT          R1=0x%02X  after %lums  %s\n",
+                  acmd, (unsigned long)(millis() - t0),
+                  acmd == 0x00 ? "card READY" : "card never left idle");
+
+    gpio_set_level((gpio_num_t)sdd_cs, 0);
+    r1 = sddCmd(58, 0, 0xFD, tail, 4);
+    gpio_set_level((gpio_num_t)sdd_cs, 1);
+    sddXfer(0xFF);
+    Serial.printf("[SDDIAG] CMD58 READ_OCR       R1=0x%02X  OCR=%02X%02X%02X%02X %s\n",
+                  r1, tail[0], tail[1], tail[2], tail[3],
+                  (tail[0] & 0x40) ? "(SDHC/SDXC, block addressed)" : "(byte addressed)");
+
+    if (acmd == 0x00) {
+        Serial.println("[SDDIAG] VERDICT: card + wiring answer a hand-clocked init.");
+        Serial.println("[SDDIAG]          The fault is in the SPI peripheral routing or the SD library path, not the board.");
+    }
+}
+
+static void sddFuzzPermutations() {
+    Serial.println("[SDDIAG] --- pin fuzz A: all 24 role assignments across the 4 SD pads ---");
+    const int p[4] = {SD_CLK_PIN, SD_MOSI_PIN, SD_MISO_PIN, SD_CS_PIN};
+    int hits = 0;
+    for (int a = 0; a < 4; a++) {
+        for (int b = 0; b < 4; b++) {
+            if (b == a) continue;
+            for (int c = 0; c < 4; c++) {
+                if (c == a || c == b) continue;
+                for (int d = 0; d < 4; d++) {
+                    if (d == a || d == b || d == c) continue;
+                    uint8_t r = sddCmd0On(p[a], p[b], p[c], p[d], false, 3);
+                    if (r != 0xFF)
+                        Serial.printf("[SDDIAG] SCK=%-2d MOSI=%-2d MISO=%-2d CS=%-2d -> R1=0x%02X%s\n",
+                                      p[a], p[b], p[c], p[d], r, r == 0x01 ? "  <== RESPONDS" : "");
+                    if (r == 0x01) hits++;
+                }
+            }
+        }
+    }
+    Serial.printf("[SDDIAG] fuzz A: %d of 24 orderings answered CMD0 (silent 0xFF results not printed)\n", hits);
+}
+
+static void sddFuzzRoleSweep() {
+    Serial.println("[SDDIAG] --- pin fuzz B: sweep one role over every XIAO pad, other three nominal ---");
+    Serial.println("[SDDIAG] open-drain @ ~10 kHz so a pad already driven by GPS/mesh/RTC is never fought");
+    const int nominal[4] = {SD_CLK_PIN, SD_MOSI_PIN, SD_MISO_PIN, SD_CS_PIN};
+    int hits = 0;
+    for (int role = 0; role < 4; role++) {
+        for (int i = 0; i < SDDIAG_PAD_COUNT; i++) {
+            int cand[4] = {nominal[0], nominal[1], nominal[2], nominal[3]};
+            cand[role] = SDDIAG_PADS[i];
+            bool dup = false;
+            for (int x = 0; x < 4; x++)
+                for (int y = x + 1; y < 4; y++)
+                    if (cand[x] == cand[y]) dup = true;
+            if (dup) continue;
+            uint8_t r = sddCmd0On(cand[0], cand[1], cand[2], cand[3], true, 50);
+            if (r != 0xFF)
+                Serial.printf("[SDDIAG] %-4s -> %-3s/GPIO%-2d  R1=0x%02X%s\n",
+                              SDDIAG_ROLE_NAMES[role], sddPadName(SDDIAG_PADS[i]), SDDIAG_PADS[i], r,
+                              r == 0x01 ? "  <== RESPONDS" : "");
+            if (r == 0x01) hits++;
+        }
+    }
+    Serial.printf("[SDDIAG] fuzz B: %d hits. NOTE: one role varies at a time, so two simultaneously\n", hits);
+    Serial.println("[SDDIAG]         mis-mapped lines will NOT show up here.");
+}
+
+static void sddLibRetry() {
+    Serial.println("[SDDIAG] --- SD library retry across bus frequencies ---");
+    const uint32_t freqs[5] = {200000, 400000, 1000000, 4000000, 10000000};
+    for (int i = 0; i < 5; i++) {
+        SD.end();
+        SPI.end();
+        spi2EnsureBusClock();
+        SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
+        gpio_set_pull_mode((gpio_num_t)SD_MISO_PIN, GPIO_PULLUP_ONLY);
+        delay(20);
+        bool ok = SD.begin(SD_CS_PIN, SPI, freqs[i]);
+        Serial.printf("[SDDIAG] SD.begin(cs=%d, %luHz) -> %s\n",
+                      SD_CS_PIN, (unsigned long)freqs[i], ok ? "MOUNTED" : "fail");
+        if (ok) return;
+    }
+    SD.end();
+}
+
+void sdRunDiagnostics() {
+    Serial.println("[SDDIAG] ================ SD diagnostics ================");
+    Serial.printf("[SDDIAG] SCK=GPIO%d(%s) MOSI=GPIO%d(%s) MISO=GPIO%d(%s) CS=GPIO%d(%s)\n",
+                  SD_CLK_PIN, sddPadName(SD_CLK_PIN), SD_MOSI_PIN, sddPadName(SD_MOSI_PIN),
+                  SD_MISO_PIN, sddPadName(SD_MISO_PIN), SD_CS_PIN, sddPadName(SD_CS_PIN));
+    sddLineTest();
+    sddShortTest();
+    sddProbeFull();
+    sddFuzzPermutations();
+    sddFuzzRoleSweep();
+    sddLibRetry();
+    Serial.println("[SDDIAG] ================ end ================");
+}
+
+#else
+void sdRunDiagnostics() {}
+#endif
+
 void initializeSD()
 {
     Serial.println("Initializing SD card...");
     Serial.printf("[SD] GPIO Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
+    sdRunDiagnostics();
     SPI.end();
+    spi2EnsureBusClock();
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
 #ifdef ARDUINO_XIAO_ESP32C5
     gpio_set_pull_mode((gpio_num_t)SD_MISO_PIN, GPIO_PULLUP_ONLY);

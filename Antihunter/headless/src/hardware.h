@@ -111,6 +111,7 @@ extern unsigned long lastVibrationAlert;
 void initializeHardware();
 void initializeVibrationSensor();
 void initializeSD();
+void sdRunDiagnostics();
 void initializeGPS();
 
 void updateSetupModeStatus();

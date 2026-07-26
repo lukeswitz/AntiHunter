@@ -260,7 +260,7 @@ void setup() {
     // Phase 1-3 detect module
     initializeDetect();
 #ifdef ARDUINO_XIAO_ESP32C5
-    initializeGpsPps(15);
+    initializeGpsPps(4);
 #else
     initializeGpsPps(21);
 #endif
