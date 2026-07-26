@@ -26,6 +26,8 @@
     xTaskCreatePinnedToCore(fn, nm, st, arg, pr, hd, co)
 #endif
 
+SET_LOOP_TASK_STACK_SIZE(5120);
+
 Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = DEFAULT_CHANNELS;

@@ -15,6 +15,8 @@
 #include "esp_heap_caps.h"
 
 
+SET_LOOP_TASK_STACK_SIZE(5120);
+
 Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = DEFAULT_CHANNELS;
