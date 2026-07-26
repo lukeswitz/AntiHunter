@@ -1,5 +1,15 @@
 // network_mesh.cpp - mesh subsystem extracted from network.cpp
 #include "network.h"
+#ifdef ARDUINO_XIAO_ESP32C5
+#include "freertos/idf_additions.h"
+// C5: CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y, so long-lived task stacks belong in PSRAM
+#define AH_TASK_CREATE(fn, nm, st, arg, pr, hd, co) \
+    xTaskCreatePinnedToCoreWithCaps(fn, nm, st, arg, pr, hd, co, MALLOC_CAP_SPIRAM)
+#else
+#define AH_TASK_CREATE(fn, nm, st, arg, pr, hd, co) \
+    xTaskCreatePinnedToCore(fn, nm, st, arg, pr, hd, co)
+#endif
+
 #include "baseline.h"
 #include "triangulation.h"
 #include "hardware.h"
@@ -379,7 +389,7 @@ void initializeMesh() {
     meshTxQueue = meshQ[PRIO_BULK];
 
     if (meshTxTaskHandle == nullptr && meshQ[PRIO_BULK] != nullptr) {
-        xTaskCreatePinnedToCore(meshTxTask, "meshTx", 6144, nullptr, 1, &meshTxTaskHandle, SCAN_CORE);
+        AH_TASK_CREATE(meshTxTask, "meshTx", 6144, nullptr, 1, &meshTxTaskHandle, SCAN_CORE);
     }
 
     Serial.println("[MESH] UART initialized");

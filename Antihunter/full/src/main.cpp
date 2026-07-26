@@ -16,6 +16,16 @@
 #include "esp_heap_caps.h"
 
 
+#ifdef ARDUINO_XIAO_ESP32C5
+#include "freertos/idf_additions.h"
+// C5: CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y, so long-lived task stacks belong in PSRAM
+#define AH_TASK_CREATE(fn, nm, st, arg, pr, hd, co) \
+    xTaskCreatePinnedToCoreWithCaps(fn, nm, st, arg, pr, hd, co, MALLOC_CAP_SPIRAM)
+#else
+#define AH_TASK_CREATE(fn, nm, st, arg, pr, hd, co) \
+    xTaskCreatePinnedToCore(fn, nm, st, arg, pr, hd, co)
+#endif
+
 Preferences prefs;
 ScanMode currentScanMode = SCAN_WIFI;
 std::vector<uint8_t> CHANNELS = DEFAULT_CHANNELS;
@@ -314,7 +324,7 @@ void setup() {
 #else
     initializeGpsPps(21);
 #endif
-    if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
+    if (AH_TASK_CREATE(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
     heapMark("after DetectTask");
     dumpTaskStacks("boot");
@@ -334,7 +344,7 @@ void setup() {
         Serial.println("[SENTINEL] OFF on boot (enable manually)");
     }
 
-    if (xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, SCAN_CORE) != pdPASS)
+    if (AH_TASK_CREATE(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
