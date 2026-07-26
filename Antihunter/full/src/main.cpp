@@ -231,7 +231,9 @@ void setup() {
 #endif
 
 #ifdef ARDUINO_XIAO_ESP32C5
-    Serial.printf("[MEM] C5: PSRAM enabled (containers/queues -> PSRAM; WiFi/LWIP + ISR queues internal). psram_free=%u internal_free=%u\n",
+    // C5 has 320KB HP SRAM and the image eats 180KB; without this the 4096B ALWAYSINTERNAL default starves WiFi
+    if (psramFound()) heap_caps_malloc_extmem_enable(64);
+    Serial.printf("[MEM] C5: PSRAM heap routing on (>=64B -> PSRAM; WiFi/LWIP + ISR queues internal). psram_free=%u internal_free=%u\n",
                   (unsigned)ESP.getFreePsram(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 #else
     if (psramFound()) {
