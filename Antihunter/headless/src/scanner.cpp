@@ -158,6 +158,13 @@ RFScanConfig rfConfig = {
 extern std::vector<uint8_t> CHANNELS;
 
 // Band-filtered hop list (subset of CHANNELS for the active band); rebuilt at radioStart/setBandMode.
+#ifndef AH_BLE_MIN_INTERNAL
+#define AH_BLE_MIN_INTERNAL 45000
+#endif
+#ifndef AH_BLE_MIN_BLOCK
+#define AH_BLE_MIN_BLOCK 20000
+#endif
+
 std::vector<uint8_t> g_activeChannels;
 
 static inline bool channelIs2G(uint8_t ch) { return ch >= 1 && ch <= 14; }
@@ -2530,6 +2537,20 @@ static void bleInitTask(void *pv) {
                   xPortGetCoreID(),
                   (unsigned)ESP.getFreeHeap(),
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    // NimBLE aborts (npl_freertos_funcs_init assert) instead of returning when internal RAM is short
+    {
+        size_t freeInt = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (freeInt < AH_BLE_MIN_INTERNAL || largest < AH_BLE_MIN_BLOCK) {
+            Serial.printf("[BLE_INIT] refusing: internal=%u largest=%u (need >=%u/%u) - BLE unavailable\n",
+                          (unsigned)freeInt, (unsigned)largest,
+                          (unsigned)AH_BLE_MIN_INTERNAL, (unsigned)AH_BLE_MIN_BLOCK);
+            bleInitFailed = true;
+            bleInitDone = true;
+            vTaskDelete(NULL);
+            return;
+        }
+    }
     if (!BLEDevice::init("")) {
         Serial.println("[BLE_INIT] BLEDevice::init failed (controller alloc) - BLE unavailable");
         bleInitFailed = true;
