@@ -2850,10 +2850,12 @@ void radioStartSTA() {
     vTaskDelay(pdMS_TO_TICKS(100));
 
     // Configure STA for scanning while keeping AP alive
+#ifndef ARDUINO_XIAO_ESP32C5
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
+#endif
     applyBandMode();
 
     if (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) {
@@ -2910,10 +2912,12 @@ void radioStartListScan() {
     vTaskDelay(pdMS_TO_TICKS(100));
 
     // Configure country for scanning
+#ifndef ARDUINO_XIAO_ESP32C5
     wifi_country_t ctry = {.schan = 1, .nchan = 14, .max_tx_power = 78, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(ctry.cc, COUNTRY, 2);
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
+#endif
     applyBandMode();
 
     Serial.println("[RADIO] List scan mode ready (WiFi.scanNetworks will be used)");

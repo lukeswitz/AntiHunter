@@ -324,7 +324,7 @@ void setup() {
 #else
     initializeGpsPps(21);
 #endif
-    if (AH_TASK_CREATE(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
+    if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
     heapMark("after DetectTask");
     dumpTaskStacks("boot");
