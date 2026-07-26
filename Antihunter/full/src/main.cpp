@@ -228,8 +228,21 @@ static void heapMark(const char *tag) {
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 }
+static void dumpTaskStacks(const char *tag) {
+    UBaseType_t n = uxTaskGetNumberOfTasks();
+    TaskStatus_t *ts = (TaskStatus_t *)heap_caps_malloc(sizeof(TaskStatus_t) * n, MALLOC_CAP_SPIRAM);
+    if (!ts) ts = (TaskStatus_t *)malloc(sizeof(TaskStatus_t) * n);
+    if (!ts) { Serial.println("[STACKS] alloc failed"); return; }
+    n = uxTaskGetSystemState(ts, n, nullptr);
+    Serial.printf("[STACKS] %s (%u tasks) name / unused-stack-bytes / prio\n", tag, (unsigned)n);
+    for (UBaseType_t i = 0; i < n; i++)
+        Serial.printf("[STACKS]   %-18s %6u  p%u\n", ts[i].pcTaskName,
+                      (unsigned)ts[i].usStackHighWaterMark, (unsigned)ts[i].uxCurrentPriority);
+    free(ts);
+}
 #else
 static void heapMark(const char *) {}
+static void dumpTaskStacks(const char *) {}
 #endif
 
 void setup() {
@@ -304,6 +317,7 @@ void setup() {
     if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
     heapMark("after DetectTask");
+    dumpTaskStacks("boot");
     {
         uint8_t selfMac[6];
         esp_wifi_get_mac(WIFI_IF_AP, selfMac);
@@ -418,6 +432,7 @@ void loop() {
         uint32_t freeHeap = ESP.getFreeHeap();
         if (freeHeap < 25000) {
             Serial.printf("[HEAP] LOW: %u bytes free\n", freeHeap);
+            dumpTaskStacks("heap-low");
         }
         lastHeapCheck = millis();
     }
