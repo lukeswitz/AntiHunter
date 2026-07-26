@@ -709,14 +709,14 @@ void registerRemainingRoutes() {
       extern RFScanConfig rfConfig;
       
       String configJson = "{\n";
-      configJson += "\"nodeId\":\"" + prefs.getString("nodeId", "") + "\",\n";
+      configJson += "\"nodeId\":\"" + jsonEscape(prefs.getString("nodeId", "")) + "\",\n";
       configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
-      configJson += "\"channels\":\"" + rfConfig.wifiChannels + "\",\n";
+      configJson += "\"channels\":\"" + jsonEscape(rfConfig.wifiChannels) + "\",\n";
       configJson += "\"bandMode\":" + String(rfConfig.bandMode) + ",\n";
       configJson += "\"dualBand\":";
       configJson += (DEVICE_DUAL_BAND ? "true" : "false");
       configJson += ",\n";
-      configJson += "\"targets\":\"" + prefs.getString("maclist", "") + "\"\n";
+      configJson += "\"targets\":\"" + jsonEscape(prefs.getString("maclist", "")) + "\"\n";
       configJson += "}";
       
       r->send(200, "application/json", configJson);
