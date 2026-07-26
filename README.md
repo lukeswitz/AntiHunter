@@ -8,33 +8,30 @@
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/lukeswitz/AntiHunter)](https://github.com/lukeswitz/AntiHunter/tree/main/Antihunter/src)
 </div>
 
-
 <p align="center">
   
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
 <div align="center">
 
+[Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
+
   <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
 
   Also for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
   
- <strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong>
-
-
-  
-[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/wxzwZCUDw)
-  
-<a href="https://lectronz.com/stores/antihunter"  alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>
+ <h3><strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong></h3>
 
 </div>
 
 ---
 
-- `Jul 2026` Official [website](https://rootdowndigital.com/antihunter.html)
 
+<a href="https://lectronz.com/stores/antihunter"  alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-small.png" /></a>  
 
-- `Jan 2026` - Featured in [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)
+[![AntiHunter Discord](https://img.shields.io/badge/AntiHunter-Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/wxzwZCUDw)
+
+***Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)***
 
 
 ---
@@ -51,21 +48,18 @@
 8. [Getting Started](#getting-started)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
-11. [Acknowledgments](#acknowledgments)
-12. [Legal](#legal-disclaimer)
+11. [3D Print Library](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
+12. [Acknowledgments](#acknowledgments)
+13. [Legal](#legal-disclaimer)
 
 ---
 
 ## Overview
 
-- Open-source wireless sensor node for perimeter defense and spectrum awareness. 
+- Open-source wireless sensor for perimeter defense and spectrum awareness. 
 - ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh
 
-<p align="center">
-<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
-
-</p>
 
 > [!TIP]
 > Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable)
@@ -75,20 +69,25 @@
 | Feature | What it does | Scan modes |
 |---------|-------------|------------|
 | **Target Scan** | MAC/OUI/SSID watchlist with instant mesh alerts | WiFi, BLE, or both |
-| **Device Scanner** | Captures all nearby WiFi and BLE devices with RSSI, channels, names | WiFi, BLE, or both |
-| **Probe Request Scanner** | Passive sniffer -- reveals SSIDs devices are searching for | WiFi, BLE, or both |
+| **Device Scanner** | Captures all nearby WiFi and BLE devices with RSSI, channels, names, est. distance | WiFi, BLE, or both |
+| **Probe Request Scanner** | Passive sniffer -- reveals SSIDs devices are searching for, grouped by network | WiFi, BLE, or both |
 | **Ghost SSID Detection** | Flags probed SSIDs with no responding AP nearby | Probe / Device scan |
+| **Sentinel Counterintel** |	WiFi attacker-tool activity detection (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture) | WiFi promiscuous (Beta) |
 | **Baseline Anomaly Detection** | Learn-then-alert: spots new, missing, and changed devices | WiFi + BLE |
 | **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
-| **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
 | **Secure Data Destruction** | Tamper-triggered or remote wipe with post-wipe obfuscation | Vibration / mesh |
 | **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
+
+<p align="center">
+<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
+</p>
+
 
 <!-- <p align="center">
 <img height="600" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
@@ -96,13 +95,34 @@
 
 ### Use Cases
 
-- Perimeter security and intrusion detection
-- Penetration testing and wireless security auditing
-- Counter-UAV operations and airspace monitoring
-- Surveillance detection and OPSEC audits
-- Device fingerprinting across MAC randomization
-- Probe analysis and rogue device detection
-- Event security and monitoring
+**Site & perimeter defense**
+- Continuous monitoring of a facility perimeter for unauthorized wireless devices
+- Detection of deauthentication and disassociation attacks against your own infrastructure
+- Rogue access point and evil-twin identification on premises you control
+- Coarse emitter localization using multi-node RSSI triangulation (experimental; in-dev)
+- Persistent unattended sensing at remote or unstaffed sites
+
+**Event & temporary deployments**
+- Wireless threat monitoring at conferences, competitions, and public gatherings
+- Baseline-versus-live comparison to surface devices that don't belong
+- Multi-node mesh coverage across a venue with LoRa backhaul between sensors
+- Narrowing a persistent unknown emitter to a zone or structure within a monitored site (experimental)
+
+**Counter-surveillance & OPSEC**
+- Identifying devices that persist across locations or reappear at intervals
+- Correlating randomized MAC identities to detect a single device behind rotating addresses
+- Probe request analysis to reveal what networks a nearby device is soliciting
+- Verifying that your own operational footprint isn't broadcasting more than intended
+
+**Airspace awareness**
+- Passive reception of broadcast Drone Remote ID for situational awareness over property you control
+- Logging UAS presence, operator-reported position, and flight duration for incident records
+
+**Research & training**
+- Blue-team exercises and detection-engineering practice against live RF
+- Wireless security coursework and lab instruction
+- RF environment characterization and spectrum-hygiene surveys
+- Authorized wireless security assessments with written scope and permission
 
 ---
 
@@ -160,7 +180,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength, names, and channels.
 
-- Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status):
+- Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status)
 
 <!-- <img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" /> -->
 
@@ -172,23 +192,23 @@ Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
-- RAM cache: 200-500 devices, SD overflow: 1K-100K devices (default 1500 without SD)
-- Automatic tiering between RAM and SD
-
 > [!TIP]
 > A longer initial scan produces more reliable baselines.
 
 <!-- <img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" /> -->
 
-### C. Deauth Attack Detection
+### C. Deauth Attack Detection 
 
-WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with randomization tracking for source identification.
+WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with randomization tracking for source identification. (Also done with Sentinel)
 
 <!-- <img width="858" height="382" alt="Deauth Detection" src="https://github.com/user-attachments/assets/1b1e77db-a479-4cfd-beae-e13a7187cae4" /> -->
 
 ### D. Drone RID Detection
 
-Detects drones broadcasting Remote ID per FAA/EASA standards over **WiFi and Bluetooth**. Supports ODID/ASTM F3411 over WiFi (NAN action frames, beacon frames) and **BLE (BT4 legacy + BT5 long-range advertising, service UUID 0xFFFA)**, plus French drone ID (OUI 0x6a5c35). Decodes all ODID message types (Basic ID, Location, System, Operator ID, Auth, Self-ID), preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location, and flight telemetry. Mesh alerts and SD logging.
+- Detects drones broadcasting Remote ID per FAA/EASA standards over **WiFi and Bluetooth**.
+- Supports ODID/ASTM F3411 over WiFi (NAN action frames, beacon frames) and **BLE (BT4 legacy + BT5 long-range advertising, service UUID 0xFFFA)**, plus French drone ID (OUI 0x6a5c35).
+- Decodes all ODID message types (Basic ID, Location, System, Operator ID, Auth, Self-ID), preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location, and flight telemetry.
+- Mesh alerts on appear/disappear and SD logging.
 
 ### E. MAC Randomization Correlation 
 
@@ -789,38 +809,43 @@ Original concept and hardware design by @TheRealSirHaXalot. Get [involved](https
 This project includes code from [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c), licensed under the Apache License 2.0. Copyright (C) Intel Corporation and OpenDroneID contributors
 
 ## Legal Disclaimer
+# Legal Disclaimer
 
-<details>
-<summary>Full Disclaimer</summary>
+AntiHunter ("AH", the "Project") comprises open-source firmware, source code, hardware designs, and associated documentation distributed for lawful, authorized defensive use only. You may operate the Project solely on infrastructure, networks, devices, radio spectrum, and datasets that you own or for which you hold explicit, written permission to assess. By downloading, compiling, flashing, assembling, energizing, or otherwise using the Project you agree to the following conditions:
 
-```
-AntiHunter (AH) is provided for lawful, authorized use only -- such as research,
-training, and security operations on systems and radio spectrum you own or have
-explicit written permission to assess. You are solely responsible for compliance
-with all applicable laws and policies, including privacy/data-protection (e.g.,
-GDPR), radio/telecom regulations (LoRa ISM band limits, duty cycle), and export
-controls. Do not use AH to track, surveil, or target individuals, or to collect
-personal data without a valid legal basis and consent where required.
+- **Authorization & intent.** Use is limited to security research, blue-team training, regulatory-compliant monitoring, event security, network auditing, and other defensive activities. Offensive operations, targeted surveillance, stalking, harassment, or tracking of individuals without their informed consent are strictly prohibited. Detection, correlation, and triangulation capabilities are provided to characterize an environment you are authorized to assess, not to identify or follow persons.
 
-Authors and contributors are not liable for misuse, damages, or legal
-consequences arising from use of this project.
+- **Radio & telecommunications compliance.** You are responsible for abiding by every jurisdictional regulation governing radio frequency use, including FCC Part 15 and Part 97, CE/RED, Ofcom, and equivalent national rules; LoRa/ISM band allocations, power limits, and duty-cycle restrictions; and any licensing conditions applicable to your operating class. LoRa firmware is region-locked (868 MHz EU / 915 MHz US / 923 MHz Asia); operating a build outside its intended regulatory region may be unlawful. You must not use the Project to cause harmful interference or to interfere with authorized radio communications.
 
-By using AH, you accept full responsibility for your actions and agree to
-indemnify the authors and contributors against any claims related to your use.
+- **Interception & wiretap law.** Passive reception of radio emissions is regulated separately from network access in many jurisdictions. Depending on your location and the mode in use, capturing, storing, decoding, or disclosing frame contents, payloads, or identifiers may implicate the U.S. Wiretap Act (18 U.S.C. § 2511), the Electronic Communications Privacy Act, state two-party-consent statutes, the UK Investigatory Powers Act, or equivalent law. Determine the lawfulness of each capture mode in your jurisdiction before enabling it.
 
-These tools are designed for ethical blue team use, such as securing events,
-auditing networks, or training exercises.
+- **Privacy & data protection.** MAC addresses, device identifiers, probe request contents, BLE advertisements, and Remote ID broadcasts may constitute personal data under GDPR, UK GDPR, CCPA/CPRA, ePrivacy, and similar regimes. Collect telemetry only with a lawful basis. Obtain consent where required, minimize collection, apply retention and destruction schedules that match applicable law, and honor data-subject rights. The maintainers do not process, receive, or host your data.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY
-KIND, EXPRESS OR IMPLIED. TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT
-SHALL THE DEVELOPERS, MAINTAINERS, OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM,
-DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, STRICT
-LIABILITY, OR OTHERWISE, ARISING FROM OR IN CONNECTION WITH THE SOFTWARE,
-INCLUDING ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY,
-OR PUNITIVE DAMAGES.
+- **Drone Remote ID.** Reception of broadcast Remote ID is permitted in most jurisdictions, but using Remote ID data to locate, approach, confront, or interfere with an aircraft or its operator may violate aviation, harassment, or anti-stalking law, including 18 U.S.C. § 32. Remote ID reception is not an authorization to act on what you receive.
 
-BY ACCESSING, DOWNLOADING, INSTALLING, COMPILING, EXECUTING, OR OTHERWISE USING
-THE SOFTWARE, YOU ACCEPT THIS DISCLAIMER AND THESE LIMITATIONS OF LIABILITY.
-```
+- **Computer misuse laws.** Scanning, probing, or accessing third-party networks without permission may violate the Computer Fraud and Abuse Act, the UK Computer Misuse Act, EU Directive 2013/40, or similar statutes. Always obtain written authorization before interfacing with systems you do not control.
 
-</details>
+- **Export & sanctions.** You must ensure distribution and use complies with the U.S. EAR (including controls applicable to cryptographic and telemetry functionality), EU dual-use regulations, applicable sanctions regimes, and any contractual restrictions. The maintainers make no export classification representations and grant no export approvals.
+
+- **Hardware, assembly & safety.** Kits, bare PCBs, and assembled units are supplied for use by persons competent in electronics assembly and operation. You are responsible for correct assembly, soldering, ESD control, antenna selection and attachment, and supply of regulated 5 V power. Operating the transceiver without a properly matched antenna may damage the hardware. Lithium cells are not supplied; sourcing, protection circuitry, charging, storage, transport, and disposal of any battery are your responsibility and carry fire and injury risk. The hardware is not certified for, and must not be used in, life-safety, medical, aviation, automotive, industrial-control, or other applications where failure could result in death, injury, or environmental damage. It is not a substitute for a certified security, alarm, or life-safety system, and detection results are advisory only, subject to false positives and false negatives.
+
+- **Experimental features.** Modes designated beta or experimental — including Sentinel, Triangulation, and MAC Randomization Correlation — are unvalidated, may produce inaccurate or misleading output, and must not be relied upon for operational, evidentiary, investigative, or safety decisions.
+
+- **Operational safeguards.** Run the Project on hardened, access-controlled infrastructure. You are responsible for segregation of duties, credential management, network isolation of nodes and mesh links, and preventing unauthorized access to captured telemetry or command functions.
+
+- **Forks and modifications.** The firmware is licensed under the GNU Affero General Public License v3.0; hardware and documentation are licensed as stated in their respective files. If you fork, redistribute, modify, manufacture, or resell the Project, you are solely responsible for supporting your derivative work, for its regulatory compliance and certification, and for any representations you make about it. The original authors and contributors are not liable for defects or legal issues introduced by third-party changes, packaging, integrations, or manufacture.
+
+## No Warranty / Limitation of Liability
+
+THE PROJECT — INCLUDING SOFTWARE, FIRMWARE, HARDWARE DESIGNS, AND DOCUMENTATION — IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, DETECTION EFFICACY, OR UNINTERRUPTED OPERATION. THIS DISCLAIMER SUPPLEMENTS AND DOES NOT LIMIT THE WARRANTY DISCLAIMER AND LIABILITY LIMITATION SET OUT IN SECTIONS 15 THROUGH 17 OF THE GNU AFFERO GENERAL PUBLIC LICENSE V3.0.
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE AUTHORS, DEVELOPERS, MAINTAINERS, AND CONTRIBUTORS SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE, OR CONSEQUENTIAL DAMAGES (INCLUDING, WITHOUT LIMITATION, LOSS OF DATA, PROFITS, GOODWILL, EQUIPMENT, OR BUSINESS INTERRUPTION, OR DAMAGES ARISING FROM FAILURE TO DETECT, FALSE DETECTION, OR REGULATORY ENFORCEMENT ACTION) ARISING FROM OR RELATED TO YOUR USE OF THE PROJECT, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. WHERE LIABILITY CANNOT BE FULLY DISCLAIMED, TOTAL AGGREGATE LIABILITY SHALL NOT EXCEED THE GREATER OF (A) THE AMOUNT PAID, IF ANY, FOR THE COPY OR UNIT THAT GAVE RISE TO THE CLAIM OR (B) USD $0.
+
+NOTHING IN THIS DISCLAIMER EXCLUDES OR LIMITS LIABILITY THAT CANNOT LAWFULLY BE EXCLUDED OR LIMITED, INCLUDING LIABILITY FOR DEATH OR PERSONAL INJURY CAUSED BY NEGLIGENCE, FOR FRAUD, OR ANY NON-EXCLUDABLE STATUTORY CONSUMER RIGHTS. SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OF IMPLIED WARRANTIES OR THE LIMITATION OF INCIDENTAL OR CONSEQUENTIAL DAMAGES, SO SOME OF THE ABOVE MAY NOT APPLY TO YOU.
+
+## Responsibility for Compliance
+
+You alone are responsible for ensuring your build, deployment, and operation comply with all applicable laws, regulations, licenses, permits, equipment authorizations, organizational policies, and third-party rights. No advice or information, whether oral or written, obtained from the Project, its maintainers, or its community channels creates any warranty or obligation not expressly stated in this disclaimer. Continued use signifies your agreement to indemnify and hold harmless the authors, developers, maintainers, and contributors from claims arising out of or related to your activities with the Project.
+
+If you do not agree to these terms, do not build, flash, assemble, deploy, or operate AntiHunter.
+
