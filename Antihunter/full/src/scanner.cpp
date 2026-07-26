@@ -165,6 +165,12 @@ extern std::vector<uint8_t> CHANNELS;
 #define AH_BLE_MIN_BLOCK 20000
 #endif
 
+// C5 keeps ISR queues in internal SRAM (cache-disabled ISR), where 256 entries costs ~39 KB
+#ifdef ARDUINO_XIAO_ESP32C5
+#define AH_PROBE_QUEUE_LEN 96
+#else
+#define AH_PROBE_QUEUE_LEN 256
+#endif
 std::vector<uint8_t> g_activeChannels;
 
 static inline bool channelIs2G(uint8_t ch) { return ch >= 1 && ch <= 14; }
@@ -2960,10 +2966,10 @@ void initializeScanner()
     Serial.printf("Loaded %u probe devices from DB\n", getProbeDBSize());
 
     if (!probeRequestQueue) {
-        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+        probeRequestQueue = xQueueCreateWithCaps(AH_PROBE_QUEUE_LEN, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
         if (probeRequestQueue) {
-            Serial.printf("[INIT] probeRequestQueue ISR-internal (256 entries, internal:%u psram:%u)\n",
-                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+            Serial.printf("[INIT] probeRequestQueue ISR-internal (%u entries, internal:%u psram:%u)\n",
+                          (unsigned)AH_PROBE_QUEUE_LEN, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         } else {
             Serial.println("[INIT] probeRequestQueue alloc failed at boot");
