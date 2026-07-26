@@ -720,10 +720,10 @@ void registerRemainingRoutes() {
       extern RFScanConfig rfConfig;
       
       String configJson = "{\n";
-      configJson += "\"nodeId\":\"" + prefsGetString("nodeId", "") + "\",\n";
+      configJson += "\"nodeId\":\"" + jsonEscape(prefsGetString("nodeId", "")) + "\",\n";
       configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
-      configJson += "\"channels\":\"" + rfConfig.wifiChannels + "\",\n";
-      configJson += "\"targets\":\"" + prefsGetString("maclist", "") + "\"\n";
+      configJson += "\"channels\":\"" + jsonEscape(rfConfig.wifiChannels) + "\",\n";
+      configJson += "\"targets\":\"" + jsonEscape(prefsGetString("maclist", "")) + "\"\n";
       configJson += "}";
       
       r->send(200, "application/json", configJson);

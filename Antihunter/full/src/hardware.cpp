@@ -158,6 +158,20 @@ bool SafeSD::remove(const char* path) {
     return result;
 }
 
+bool SafeSD::rename(const char* from, const char* to) {
+    if (!checkAvailability()) {
+        Serial.printf("[SAFE_SD] Cannot rename %s - SD unavailable\n", from);
+        return false;
+    }
+
+    SD.remove(to);
+    bool result = SD.rename(from, to);
+    if (!result) {
+        Serial.printf("[SAFE_SD] Failed to rename %s -> %s\n", from, to);
+    }
+    return result;
+}
+
 bool SafeSD::mkdir(const char* path) {
     if (!checkAvailability()) {
         Serial.printf("[SAFE_SD] Cannot mkdir %s - SD unavailable\n", path);
@@ -220,6 +234,32 @@ bool SafeSD::flush(fs::File& file) {
 
 void SafeSD::forceRecheck() {
     lastCheckTime = 0;
+}
+
+String jsonEscape(const String &in) {
+    String out;
+    out.reserve(in.length() + 16);
+    for (size_t i = 0; i < in.length(); i++) {
+        char c = in[i];
+        switch (c) {
+            case '"':  out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n";  break;
+            case '\r': out += "\\r";  break;
+            case '\t': out += "\\t";  break;
+            case '\b': out += "\\b";  break;
+            case '\f': out += "\\f";  break;
+            default:
+                if ((uint8_t)c < 0x20) {
+                    char esc[8];
+                    snprintf(esc, sizeof(esc), "\\u%04x", (uint8_t)c);
+                    out += esc;
+                } else {
+                    out += c;
+                }
+        }
+    }
+    return out;
 }
 
 String sanitizeNodeId(String nodeId) {
@@ -460,6 +500,33 @@ static uint32_t configSignature() {
     return h;
 }
 
+static bool commitConfigFile() {
+    File verify = SafeSD::open(CONFIG_TMP_FILE, FILE_READ);
+    size_t written = verify ? verify.size() : 0;
+    if (verify) verify.close();
+
+    if (written == 0) {
+        Serial.println("[CONFIG] ERROR: staged config is empty - previous config kept");
+        SafeSD::remove(CONFIG_TMP_FILE);
+        return false;
+    }
+
+    bool hadConfig = SafeSD::exists(CONFIG_FILE);
+    if (hadConfig) {
+        SafeSD::rename(CONFIG_FILE, CONFIG_BAK_FILE);
+    }
+
+    if (!SafeSD::rename(CONFIG_TMP_FILE, CONFIG_FILE)) {
+        Serial.println("[CONFIG] ERROR: failed to commit config - restoring previous");
+        if (hadConfig) {
+            SafeSD::rename(CONFIG_BAK_FILE, CONFIG_FILE);
+        }
+        SafeSD::remove(CONFIG_TMP_FILE);
+        return false;
+    }
+    return true;
+}
+
 void saveConfiguration() {
     uint32_t now = millis();
     if (now - lastSaveTime < SAVE_DEBOUNCE_MS) {
@@ -486,7 +553,7 @@ void saveConfiguration() {
         return;
     }
 
-    File configFile = SafeSD::open("/config.json", FILE_WRITE);
+    File configFile = SafeSD::open(CONFIG_TMP_FILE, FILE_WRITE);
     if (!configFile) {
         Serial.println("[CONFIG] ERROR: Failed to open config file for writing!");
         return;
@@ -500,9 +567,9 @@ void saveConfiguration() {
     }
 
     configFile.println("{");
-    configFile.printf(" \"nodeId\":\"%s\",\n", prefsGetString("nodeId", "").c_str());
+    configFile.printf(" \"nodeId\":\"%s\",\n", jsonEscape(prefsGetString("nodeId", "")).c_str());
     configFile.printf(" \"scanMode\":%d,\n", currentScanMode);
-    configFile.printf(" \"channels\":\"%s\",\n", channelsBuf);
+    configFile.printf(" \"channels\":\"%s\",\n", jsonEscape(channelsBuf).c_str());
     configFile.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
     configFile.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
     configFile.printf(" \"meshSessDedup\":%s,\n", getMeshSessionDedup() ? "true" : "false");
@@ -525,17 +592,21 @@ void saveConfiguration() {
     configFile.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
     configFile.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
     configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
-    configFile.printf(" \"targets\":\"%s\",\n", prefsGetString("maclist", "").c_str());
-    configFile.printf(" \"apSsid\":\"%s\",\n", prefsGetString("apSsid", AP_SSID).c_str());
+    configFile.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
+    configFile.printf(" \"apSsid\":\"%s\",\n", jsonEscape(prefsGetString("apSsid", AP_SSID)).c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
     configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
     configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
-    configFile.printf(" \"apPass\":\"%s\",\n", prefsGetString("apPass", AP_PASS).c_str());
+    configFile.printf(" \"apPass\":\"%s\",\n", jsonEscape(prefsGetString("apPass", AP_PASS)).c_str());
     configFile.printf(" \"apAuth\":%u\n", prefs.getUChar("apAuth", 0));
     configFile.println("}");
 
     configFile.flush();
     configFile.close();
+
+    if (!commitConfigFile()) {
+        return;
+    }
 
     Serial.println("[CONFIG] Configuration saved to NVS and SD card");
 }
@@ -565,12 +636,20 @@ void loadConfiguration() {
         return;
     }
 
-    if (!SafeSD::exists("/config.json")) {
-        Serial.println("No config file found on SD card, using NVS defaults");
-        return;
+    const char *configPath = CONFIG_FILE;
+    if (!SafeSD::exists(CONFIG_FILE)) {
+        if (SafeSD::exists(CONFIG_BAK_FILE)) {
+            configPath = CONFIG_BAK_FILE;
+        } else if (SafeSD::exists(CONFIG_TMP_FILE)) {
+            configPath = CONFIG_TMP_FILE;
+        } else {
+            Serial.println("No config file found on SD card, using NVS defaults");
+            return;
+        }
+        Serial.printf("[CONFIG] %s missing - recovering from %s\n", CONFIG_FILE, configPath);
     }
 
-    File configFile = SafeSD::open("/config.json", FILE_READ);
+    File configFile = SafeSD::open(configPath, FILE_READ);
     if (!configFile) {
         Serial.println("Failed to open config file!");
         return;
@@ -591,22 +670,27 @@ void loadConfiguration() {
         config += "}";
     }
 
-    DynamicJsonDocument doc(4096);
+    size_t capacity = config.length() * 2 + 1024;
+    if (capacity < MAX_CONFIG_SIZE) capacity = MAX_CONFIG_SIZE;
+    if (capacity > 32768) capacity = 32768;
+
+    DynamicJsonDocument doc(capacity);
     DeserializationError error = deserializeJson(doc, config);
 
     if (error) {
         Serial.println("Failed to parse config file: " + String(error.c_str()));
-        Serial.println("Backing up corrupt config as config.json.bak");
-        SafeSD::remove("/config.json.bak");
-        File bakFile = SafeSD::open("/config.json.bak", FILE_WRITE);
-        if (bakFile) {
-            bakFile.print(config);
-            bakFile.close();
+        SafeSD::remove(CONFIG_BAD_FILE);
+        File badFile = SafeSD::open(CONFIG_BAD_FILE, FILE_WRITE);
+        if (badFile) {
+            badFile.print(config);
+            badFile.close();
         }
-        SafeSD::remove("/config.json");
-        Serial.println("Corrupt config removed - manual reconfiguration required");
-        Serial.println("Backup saved to config.json.bak for recovery");
+        Serial.printf("[CONFIG] Unparseable copy saved as %s - original kept, using NVS values\n", CONFIG_BAD_FILE);
         return;
+    }
+
+    if (strcmp(configPath, CONFIG_FILE) != 0 && SafeSD::rename(configPath, CONFIG_FILE)) {
+        Serial.printf("[CONFIG] Restored %s from %s\n", CONFIG_FILE, configPath);
     }
 
     if (doc.containsKey("nodeId") && doc["nodeId"].is<String>()) {
@@ -838,13 +922,14 @@ bool waitForInitialConfig() {
     }
     
     // Check if config exists
-    bool configExists = SD.exists("/config.json");
-    
+    bool configExists = SD.exists(CONFIG_FILE);
+    bool reconfigRequested = false;
+
     if (configExists) {
         Serial.println("[CONFIG] Existing config found");
         Serial.println("[CONFIG] Waiting for RECONFIG command...");
         Serial.flush();
-        
+
         unsigned long startWait = millis();
         while (millis() - startWait < 10000) {
             if (Serial.available()) {
@@ -852,7 +937,7 @@ bool waitForInitialConfig() {
                 line.trim();
                 if (line == "RECONFIG") {
                     Serial.println("[CONFIG] Entering reconfiguration mode");
-                    SD.remove("/config.json");
+                    reconfigRequested = true;
                     break;
                 } else {
                     Serial.println("[CONFIG] Skipped - using existing config");
@@ -861,8 +946,8 @@ bool waitForInitialConfig() {
             }
             delay(100);
         }
-        
-        if (SD.exists("/config.json")) {
+
+        if (!reconfigRequested) {
             Serial.println("[CONFIG] Timeout - using existing config");
             return false;
         }
@@ -897,7 +982,8 @@ bool waitForInitialConfig() {
     }
     
     if (!receivingConfig || configBuffer.length() < 10) {
-        Serial.println("[CONFIG] Timeout - using defaults");
+        Serial.println(configExists ? "[CONFIG] Timeout - keeping existing config"
+                                    : "[CONFIG] Timeout - using defaults");
         return false;
     }
     
@@ -911,15 +997,20 @@ bool waitForInitialConfig() {
         return false;
     }
     
-    File configFile = SD.open("/config.json", FILE_WRITE);
+    File configFile = SafeSD::open(CONFIG_TMP_FILE, FILE_WRITE);
     if (!configFile) {
         Serial.println("[CONFIG] Failed to create config file");
         return false;
     }
-    
+
     configFile.print(configBuffer);
+    configFile.flush();
     configFile.close();
-    
+
+    if (!commitConfigFile()) {
+        return false;
+    }
+
     Serial.println("[CONFIG] Configuration saved to SD card!");
     Serial.println("[CONFIG] Rebooting in 2 seconds...");
     Serial.flush();
