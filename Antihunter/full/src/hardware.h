@@ -36,6 +36,9 @@
 
 // Configuration constants
 #define CONFIG_FILE "/config.json"
+#define CONFIG_TMP_FILE "/config.json.tmp"
+#define CONFIG_BAK_FILE "/config.json.bak"
+#define CONFIG_BAD_FILE "/config.json.bad"
 #define MAX_CONFIG_SIZE 4096
 
 class SafeSD {
@@ -50,6 +53,7 @@ public:
     static fs::File open(const char* path, const char* mode = FILE_READ);
     static bool exists(const char* path);
     static bool remove(const char* path);
+    static bool rename(const char* from, const char* to);
     static bool mkdir(const char* path);
     static bool rmdir(const char* path);
     static size_t write(fs::File& file, const uint8_t* data, size_t len);
@@ -57,6 +61,8 @@ public:
     static bool flush(fs::File& file);
     static void forceRecheck();
 };
+
+String jsonEscape(const String &in);
 
 // RTC Status
 extern RTC_DS3231 rtc;
