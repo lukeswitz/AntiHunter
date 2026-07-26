@@ -2962,7 +2962,7 @@ void initializeScanner()
     if (!probeRequestQueue) {
         probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
         if (probeRequestQueue) {
-            Serial.printf("[INIT] probeRequestQueue PSRAM (256 entries, internal:%u psram:%u)\n",
+            Serial.printf("[INIT] probeRequestQueue ISR-internal (256 entries, internal:%u psram:%u)\n",
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         } else {
@@ -2972,7 +2972,7 @@ void initializeScanner()
     if (!authFrameQueue) {
         authFrameQueue = xQueueCreateWithCaps(64, sizeof(AuthFrameEvent), AH_ISR_QUEUE_CAPS);
         if (authFrameQueue) {
-            Serial.printf("[INIT] authFrameQueue PSRAM (64 entries, internal:%u psram:%u)\n",
+            Serial.printf("[INIT] authFrameQueue ISR-internal (64 entries, internal:%u psram:%u)\n",
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         } else {
