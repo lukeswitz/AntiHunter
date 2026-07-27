@@ -619,7 +619,10 @@ chmod +x flashAntihunter.sh
       function bool(id, key) { const v = document.getElementById(id).value; if (v !== '') cfg[key] = v === '1'; }
 
       const nodeId = document.getElementById('cfgNodeId').value.trim().toUpperCase();
-      if (nodeId) cfg.nodeId = nodeId;
+      if (nodeId) {
+        if (!/^[A-Z0-9]{2,5}$/.test(nodeId)) throw new Error('Node ID must be 2-5 alphanumeric characters (A-Z, 0-9)');
+        cfg.nodeId = nodeId;
+      }
       cfg.scanMode = parseInt(document.getElementById('cfgScanMode').value, 10);
       cfg.rfPreset = parseInt(document.getElementById('cfgRfPreset').value, 10);
 
