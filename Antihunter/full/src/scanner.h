@@ -171,6 +171,7 @@ void loadRFConfigFromPrefs();
 void setGlobalRssiThreshold(int8_t threshold);
 void setBandMode(uint8_t mode);
 void rebuildActiveChannels();
+void applyBandMode();
 uint8_t nextActiveScanChannel();
 
 extern TaskHandle_t workerTaskHandle;

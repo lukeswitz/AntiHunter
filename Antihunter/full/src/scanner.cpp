@@ -183,28 +183,24 @@ void rebuildActiveChannels() {
         g_activeChannels.push_back(ch);
     }
 #ifdef ARDUINO_XIAO_ESP32C5
-    // band says scan 5GHz but the saved list is 2.4-only: hop the UNII-1/3 set too, keep their 2.4 picks
-    if (rfConfig.bandMode != 0) {
-        bool has5g = false;
-        for (uint8_t ch : g_activeChannels)
-            if (!channelIs2G(ch)) { has5g = true; break; }
-        if (!has5g) {
-            static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
-            for (uint8_t ch : k5g) g_activeChannels.push_back(ch);
-            Serial.println("[RF] no 5GHz channel in list; added 36/40/44/48/149/153/157/161/165");
-        }
+    if (rfConfig.bandMode == 1 && g_activeChannels.empty()) {
+        static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
+        for (uint8_t ch : k5g) g_activeChannels.push_back(ch);
+        Serial.println("[RF] 5GHz band, no 5GHz channel saved; using 36/40/44/48/149/153/157/161/165");
     }
 #endif
     if (g_activeChannels.empty()) g_activeChannels = CHANNELS;
 }
 
 // Apply the selected band to the radio. C5-only; compiled out on 2.4GHz-only parts.
-static void applyBandMode() {
+void applyBandMode() {
 #ifdef ARDUINO_XIAO_ESP32C5
     esp_wifi_set_country_code(COUNTRY, true);
     wifi_band_mode_t bm = WIFI_BAND_MODE_AUTO;
     if (rfConfig.bandMode == 0) bm = WIFI_BAND_MODE_2G_ONLY;
     else if (rfConfig.bandMode == 1) bm = WIFI_BAND_MODE_5G_ONLY;
+    wifi_band_mode_t cur;
+    if (esp_wifi_get_band_mode(&cur) == ESP_OK && cur == bm) return;
     esp_wifi_set_band_mode(bm);
     Serial.printf("[RF] Band mode=%u (0=2.4GHz 1=5GHz 2=both)\n", rfConfig.bandMode);
 #endif
@@ -842,10 +838,61 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
     return false;
 }
 
+#ifndef AH_C5_RF_TRACE
+#ifdef ARDUINO_XIAO_ESP32C5
+#define AH_C5_RF_TRACE 1
+#else
+#define AH_C5_RF_TRACE 0
+#endif
+#endif
+
+#if AH_C5_RF_TRACE
+static void rfTrace(const char *tag, uint8_t reqCh, int rc, uint32_t ms)
+{
+    uint8_t prim = 0;
+    wifi_second_chan_t sec;
+    esp_wifi_get_channel(&prim, &sec);
+    Serial.printf("[RF] %s req=%u rc=%d %ums radio=%u sta=%u\n", tag, (unsigned)reqCh, rc,
+                  (unsigned)ms, (unsigned)prim, (unsigned)WiFi.softAPgetStationNum());
+}
+#else
+static void rfTrace(const char *, uint8_t, int, uint32_t) {}
+#endif
+
+#ifdef ARDUINO_XIAO_ESP32C5
+static bool apBandLock(bool &want2G)
+{
+    if (WiFi.softAPgetStationNum() == 0) return false;
+    wifi_config_t cfg;
+    if (esp_wifi_get_config(WIFI_IF_AP, &cfg) != ESP_OK) return false;
+    uint8_t ch = cfg.ap.channel ? cfg.ap.channel : (uint8_t)AP_CHANNEL;
+    want2G = channelIs2G(ch);
+    return true;
+}
+
+static bool nextInBand(const std::vector<uint8_t> &pool, size_t &idx, bool want2G, uint8_t &out)
+{
+    for (size_t n = 0; n < pool.size(); n++) {
+        idx = (idx + 1) % pool.size();
+        if (channelIs2G(pool[idx]) == want2G) { out = pool[idx]; return true; }
+    }
+    return false;
+}
+#endif
+
 static void hopTimerCb(void *)
 {
     if (!hopTimer || g_activeChannels.empty()) return;
     static size_t idx = 0;
+#ifdef ARDUINO_XIAO_ESP32C5
+    bool want2G = true;
+    if (apBandLock(want2G)) {
+        uint8_t ch;
+        if (nextInBand(g_activeChannels, idx, want2G, ch))
+            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+        return;
+    }
+#endif
     idx = (idx + 1) % g_activeChannels.size();
     esp_wifi_set_channel(g_activeChannels[idx], WIFI_SECOND_CHAN_NONE);
 }
@@ -855,6 +902,14 @@ uint8_t nextActiveScanChannel()
     const std::vector<uint8_t> &pool = g_activeChannels.empty() ? CHANNELS : g_activeChannels;
     if (pool.empty()) return (uint8_t)AP_CHANNEL;
     static size_t i = 0;
+#ifdef ARDUINO_XIAO_ESP32C5
+    bool want2G = true;
+    if (apBandLock(want2G)) {
+        uint8_t ch;
+        if (nextInBand(pool, i, want2G, ch)) return ch;
+        return (uint8_t)AP_CHANNEL;
+    }
+#endif
     i = (i + 1) % pool.size();
     return pool[i];
 }
@@ -1184,12 +1239,15 @@ void snifferScanTask(void *pv)
             Serial.println("[SNIFFER] Scanning WiFi networks...");
             if (hopTimer) esp_timer_stop(hopTimer);
             esp_wifi_set_promiscuous(false);
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
+            uint8_t reqCh = nextActiveScanChannel();
+            uint32_t scanT0 = millis();
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, reqCh);
+            rfTrace("sniffer", reqCh, networksFound, millis() - scanT0);
             esp_wifi_set_promiscuous(true);
             if (!g_activeChannels.empty()) esp_wifi_set_channel(g_activeChannels[0], WIFI_SECOND_CHAN_NONE);
             else if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
             if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
-            if (stopRequested) break;
+            if (stopRequested) { WiFi.scanDelete(); break; }
 
             if (networksFound > 0)
             {
@@ -1254,6 +1312,7 @@ void snifferScanTask(void *pv)
                 }
             }
 
+            WiFi.scanDelete();
             Serial.printf("[SNIFFER] WiFi scan found %d networks\n", networksFound);
             vTaskDelay(pdMS_TO_TICKS(10));
         }
@@ -2952,6 +3011,8 @@ void radioStopListScan() {
 
 void initializeScanner()
 {
+    WiFi.setScanTimeout(5000);
+
     Serial.println("Loading targets...");
     String txt = prefs.getString("maclist", "");
     saveTargetsList(txt);
@@ -3266,8 +3327,11 @@ void listScanTask(void *pv) {
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0) &&
             (apScanSuppressUntilMs == 0 || (int32_t)(millis() - apScanSuppressUntilMs) >= 0)) {
             lastWiFiScan = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
-            if (stopRequested) break;
+            uint8_t reqCh = nextActiveScanChannel();
+            uint32_t scanT0 = millis();
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, reqCh);
+            rfTrace("listscan", reqCh, networksFound, millis() - scanT0);
+            if (stopRequested) { WiFi.scanDelete(); break; }
             if (networksFound > 0) {
                 for (int i = 0; i < networksFound; i++) {
                     String bssid = WiFi.BSSIDstr(i);
@@ -3326,9 +3390,9 @@ void listScanTask(void *pv) {
                         localDeviceLastSeen[bssid] = now;
                     }
                 }
-                WiFi.scanDelete();
                 framesSeen += networksFound;
             }
+            WiFi.scanDelete();
         }
 
         extern void processUSBToMesh();

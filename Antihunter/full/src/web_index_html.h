@@ -752,7 +752,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <option value="2">Aggressive (Fast)</option>
             <option value="3">Custom</option>
           </select>
-          
+
+          <div id="bandModeRow" style="margin-top:10px;margin-bottom:8px;display:none;">
+            <label style="font-size:10px;color:var(--mut);">Band</label>
+            <select id="wifiBandMode" style="padding:4px;font-size:11px;">
+              <option value="0">2.4 GHz</option>
+              <option value="1">5 GHz</option>
+              <option value="2">2.4 + 5 GHz</option>
+            </select>
+            <p style="font-size:10px;color:var(--warn);margin-top:6px;">Single-band radio: the AP drops off air while it sweeps 5 GHz</p>
+          </div>
+
           <div id="customRFSettings" style="display:none;margin-top:10px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
@@ -773,14 +783,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <label style="font-size:10px;color:var(--mut);">BLE Scan Interval (ms)</label>
                 <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
               </div>
-            </div>
-            <div id="bandModeRow" style="margin-bottom:8px;display:none;">
-              <label style="font-size:10px;color:var(--mut);">Band</label>
-              <select id="wifiBandMode" style="padding:4px;font-size:11px;">
-                <option value="0">2.4 GHz</option>
-                <option value="1">5 GHz</option>
-                <option value="2">2.4 + 5 GHz</option>
-              </select>
             </div>
             <div style="margin-bottom:8px;">
               <label style="font-size:10px;color:var(--mut);">WiFi Channels</label>

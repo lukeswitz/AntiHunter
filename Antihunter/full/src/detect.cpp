@@ -3170,8 +3170,7 @@ static void sentinelAlwaysOnTask(void *pv) {
             esp_err_t r2 = esp_wifi_set_promiscuous_rx_cb(&sniffer_cb);
             esp_err_t r3 = esp_wifi_set_promiscuous(true);
 #ifdef ARDUINO_XIAO_ESP32C5
-            esp_wifi_set_country_code(COUNTRY, true);
-            esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+            applyBandMode();
 #endif
             weOwn = true;
             Serial.printf("[SENTINEL] Took radio: filter=%s r1=%d r2=%d r3=%d\n",
