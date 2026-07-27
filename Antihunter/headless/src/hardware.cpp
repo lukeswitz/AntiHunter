@@ -251,35 +251,26 @@ String jsonEscape(const String &in) {
     return out;
 }
 
+// Node ID = 2-5 alphanumeric (A-Z, 0-9), same rule as /node-id and CONFIG_NODEID.
 String sanitizeNodeId(String nodeId) {
     nodeId.toUpperCase();
-    
-    if (!nodeId.startsWith("AH")) {
-        Serial.printf("[SANITIZE] Adding AH prefix to '%s'\n", nodeId.c_str());
-        nodeId = "AH" + nodeId;
-    }
-    
-    String result = nodeId.substring(0, 2);
-    for (size_t i = 2; i < nodeId.length() && result.length() < 5; i++) {
-        if (isdigit(nodeId[i])) {
+
+    String result;
+    for (size_t i = 0; i < nodeId.length() && result.length() < 5; i++) {
+        if (isalnum(nodeId[i])) {
             result += nodeId[i];
         } else {
-            Serial.printf("[SANITIZE] Skipping non-digit char '%c' at position %d\n", nodeId[i], i);
+            Serial.printf("[SANITIZE] Dropping non-alphanumeric char '%c' at position %d\n", nodeId[i], i);
         }
     }
-    
-    if (result.length() < 3) {
-        Serial.printf("[SANITIZE] Too short after sanitization, padding with digits\n");
-        while (result.length() < 3) {
-            result += String(random(0, 10));
-        }
+
+    if (result.length() < 2) {
+        char buffer[10];
+        sprintf(buffer, "AH%02d", (int)random(10, 100));
+        Serial.printf("[SANITIZE] '%s' left too little to use, generating %s\n", nodeId.c_str(), buffer);
+        result = buffer;
     }
-    
-    if (result.length() > 5) {
-        Serial.printf("[SANITIZE] Truncating from %d to 5 chars\n", result.length());
-        result = result.substring(0, 5);
-    }
-    
+
     return result;
 }
 
