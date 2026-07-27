@@ -1740,6 +1740,7 @@ void sendMeshCommand(const String &command) {
 
 void setNodeId(const String &id) {
     nodeId = id;
+    nodeId.toUpperCase();
     prefs.putString("nodeId", nodeId);
     Serial.printf("[MESH] Node ID set to: %s\n", nodeId.c_str());
 }
@@ -2193,7 +2194,7 @@ void processMeshMessage(const String &message) {
       int spaceIndex = payload.indexOf(' ');
       if (spaceIndex > 0) {
           String targetId = payload.substring(1, spaceIndex);
-          if (!targetId.equalsIgnoreCase(nodeId) && !targetId.equalsIgnoreCase("ALL")) return;
+          if (targetId != nodeId && targetId != "ALL") return;
           String command = payload.substring(spaceIndex + 1);
           processCommand(command, targetId);
       }
