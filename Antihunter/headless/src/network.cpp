@@ -2385,7 +2385,7 @@ void processMeshMessage(const String &message) {
       int spaceIndex = payload.indexOf(' ');
       if (spaceIndex > 0) {
           String targetId = payload.substring(1, spaceIndex);
-          if (targetId != nodeId && targetId != "ALL") return;
+          if (!targetId.equalsIgnoreCase(nodeId) && !targetId.equalsIgnoreCase("ALL")) return;
           String command = payload.substring(spaceIndex + 1);
           processCommand(command, targetId);
         }
