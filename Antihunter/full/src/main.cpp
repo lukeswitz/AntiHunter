@@ -195,6 +195,7 @@ void parseChannelsCSV(const String &csv) {
     const bool hasAp = std::any_of(CHANNELS.begin(), CHANNELS.end(),
         [](uint8_t ch) { return ch == (uint8_t)AP_CHANNEL; });
     if (!hasAp) CHANNELS.push_back((uint8_t)AP_CHANNEL);
+    rebuildActiveChannels();
 }
 
 void sendNodeIdUpdate() {
@@ -365,17 +366,7 @@ void loop() {
     static unsigned long lastHbSend = 0;
     static unsigned long lastHeapCheck = 0;
 
-    // Handle serial time setting (always process, even in battery saver)
-    if (Serial.available()) {
-        String cmd = Serial.readStringUntil('\n');
-        cmd.trim();
-        if (cmd.startsWith("SETTIME:")) {
-            time_t epoch = cmd.substring(8).toInt();
-            if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
-                Serial.println("OK: RTC set");
-            }
-        }
-    }
+    processUSBToMesh();
 
     // Battery saver mode - minimal operations
     if (batterySaverEnabled) {
@@ -430,7 +421,6 @@ void loop() {
         checkTamperTimeout();
     }
 
-    processUSBToMesh();
     checkAndSendVibrationAlert();
 
     if (millis() - lastHeapCheck > 30000) {

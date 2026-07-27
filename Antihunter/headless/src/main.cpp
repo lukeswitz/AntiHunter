@@ -180,6 +180,7 @@ void parseChannelsCSV(const String &csv) {
         }
     }
     if (CHANNELS.empty()) CHANNELS = DEFAULT_CHANNELS;
+    rebuildActiveChannels();
 }
 
 void sendNodeIdUpdate() {

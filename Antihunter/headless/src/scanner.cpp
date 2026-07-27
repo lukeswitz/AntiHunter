@@ -195,14 +195,23 @@ void rebuildActiveChannels() {
 // Apply the selected band to the radio. C5-only; compiled out on 2.4GHz-only parts.
 void applyBandMode() {
 #ifdef ARDUINO_XIAO_ESP32C5
-    esp_wifi_set_country_code(COUNTRY, true);
-    wifi_band_mode_t bm = WIFI_BAND_MODE_AUTO;
-    if (rfConfig.bandMode == 0) bm = WIFI_BAND_MODE_2G_ONLY;
-    else if (rfConfig.bandMode == 1) bm = WIFI_BAND_MODE_5G_ONLY;
-    wifi_band_mode_t cur;
-    if (esp_wifi_get_band_mode(&cur) == ESP_OK && cur == bm) return;
-    esp_wifi_set_band_mode(bm);
-    Serial.printf("[RF] Band mode=%u (0=2.4GHz 1=5GHz 2=both)\n", rfConfig.bandMode);
+    // esp_wifi.h:824/826 - changing country rewrites the soft-AP beacon IE and switches PHY
+    // init data, which drops associated clients. Apply once; skip when the band is unchanged.
+    static uint8_t appliedBand = 0xFF;
+    if (appliedBand == rfConfig.bandMode) return;
+    // UNII-1/UNII-3 only stay reachable under a manual regdomain spanning to ch165;
+    // set_country_code alone leaves the 5GHz channels barred.
+    if (rfConfig.bandMode != 0) {
+        wifi_country_t c = { .cc = "US", .schan = 1, .nchan = 165,
+                             .max_tx_power = 20, .policy = WIFI_COUNTRY_POLICY_MANUAL };
+        esp_wifi_set_country(&c);
+    } else {
+        esp_wifi_set_country_code(COUNTRY, true);
+    }
+    appliedBand = rfConfig.bandMode;
+    // Band follows esp_wifi_set_channel; esp_wifi_set_band_mode is not called because a band
+    // change through it re-homes the radio to ch1/ch36 (esp_wifi.h:1711) and drops AP clients.
+    Serial.printf("[RF] Band=%u (0=2.4GHz 1=5GHz 2=both) regdomain applied\n", rfConfig.bandMode);
 #endif
 }
 
@@ -856,42 +865,68 @@ static void rfTrace(const char *tag, uint8_t reqCh, int rc, uint32_t ms)
 static void rfTrace(const char *, uint8_t, int, uint32_t) {}
 #endif
 
-#ifdef ARDUINO_XIAO_ESP32C5
-static bool apBandLock(bool &want2G)
+// A station drops the SoftAP after AH_AP_BEACON_TIMEOUT_MS without a beacon (ESP-IDF default 6s),
+// so every off-channel excursion is charged against that budget and the AP is serviced before it.
+static volatile uint32_t g_apLastServedMs = 0;
+static volatile uint8_t g_apHomeCh = AP_CHANNEL;
+
+uint8_t apHomeChannel()
 {
-    if (WiFi.softAPgetStationNum() == 0) return false;
     wifi_config_t cfg;
-    if (esp_wifi_get_config(WIFI_IF_AP, &cfg) != ESP_OK) return false;
-    uint8_t ch = cfg.ap.channel ? cfg.ap.channel : (uint8_t)AP_CHANNEL;
-    want2G = channelIs2G(ch);
-    return true;
+    if (esp_wifi_get_config(WIFI_IF_AP, &cfg) == ESP_OK && cfg.ap.channel)
+        g_apHomeCh = cfg.ap.channel;
+    return g_apHomeCh;
 }
 
-static bool nextInBand(const std::vector<uint8_t> &pool, size_t &idx, bool want2G, uint8_t &out)
+bool apHasClients() { return WiFi.softAPgetStationNum() > 0; }
+
+uint32_t apServiceGapMs()
 {
-    for (size_t n = 0; n < pool.size(); n++) {
-        idx = (idx + 1) % pool.size();
-        if (channelIs2G(pool[idx]) == want2G) { out = pool[idx]; return true; }
-    }
-    return false;
+    uint32_t last = g_apLastServedMs;
+    return last ? (millis() - last) : 0;
 }
+
+void apMarkServed() { g_apLastServedMs = millis(); }
+
+void apServiceNow(const char *why)
+{
+    uint8_t home = apHomeChannel();
+    uint32_t gap = apServiceGapMs();
+    esp_wifi_set_channel(home, WIFI_SECOND_CHAN_NONE);
+    apMarkServed();
+#if AH_C5_RF_TRACE
+    if (gap > AH_AP_SERVICE_WARN_MS)
+        Serial.printf("[AP_SVC] %s home=%u gap=%ums sta=%u\n", why, (unsigned)home,
+                      (unsigned)gap, (unsigned)WiFi.softAPgetStationNum());
+#else
+    (void)why; (void)gap;
 #endif
+}
 
 static void hopTimerCb(void *)
 {
     if (!hopTimer || g_activeChannels.empty()) return;
     static size_t idx = 0;
-#ifdef ARDUINO_XIAO_ESP32C5
-    bool want2G = true;
-    if (apBandLock(want2G)) {
-        uint8_t ch;
-        if (nextInBand(g_activeChannels, idx, want2G, ch))
-            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-        return;
+    static bool serveAp = false;
+
+    if (apHasClients()) {
+        serveAp = !serveAp;
+        if (serveAp) {
+            esp_wifi_set_channel(apHomeChannel(), WIFI_SECOND_CHAN_NONE);
+            apMarkServed();
+            return;
+        }
+        if (apServiceGapMs() >= AH_AP_SERVICE_MAX_MS) {
+            esp_wifi_set_channel(apHomeChannel(), WIFI_SECOND_CHAN_NONE);
+            apMarkServed();
+            return;
+        }
     }
-#endif
+
     idx = (idx + 1) % g_activeChannels.size();
-    esp_wifi_set_channel(g_activeChannels[idx], WIFI_SECOND_CHAN_NONE);
+    uint8_t ch = g_activeChannels[idx];
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    if (ch == apHomeChannel()) apMarkServed();
 }
 
 uint8_t nextActiveScanChannel()
@@ -899,14 +934,6 @@ uint8_t nextActiveScanChannel()
     const std::vector<uint8_t> &pool = g_activeChannels.empty() ? CHANNELS : g_activeChannels;
     if (pool.empty()) return (uint8_t)AP_CHANNEL;
     static size_t i = 0;
-#ifdef ARDUINO_XIAO_ESP32C5
-    bool want2G = true;
-    if (apBandLock(want2G)) {
-        uint8_t ch;
-        if (nextInBand(pool, i, want2G, ch)) return ch;
-        return (uint8_t)AP_CHANNEL;
-    }
-#endif
     i = (i + 1) % pool.size();
     return pool[i];
 }
@@ -1230,8 +1257,7 @@ void snifferScanTask(void *pv)
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, reqCh);
             rfTrace("sniffer", reqCh, networksFound, millis() - scanT0);
             esp_wifi_set_promiscuous(true);
-            if (!g_activeChannels.empty()) esp_wifi_set_channel(g_activeChannels[0], WIFI_SECOND_CHAN_NONE);
-            else if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+            apServiceNow("post-wifi-scan");
             if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
             if (stopRequested) { WiFi.scanDelete(); break; }
 

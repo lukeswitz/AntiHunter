@@ -168,6 +168,22 @@ void rebuildActiveChannels();
 void applyBandMode();
 uint8_t nextActiveScanChannel();
 
+#ifndef AH_AP_BEACON_TIMEOUT_MS
+#define AH_AP_BEACON_TIMEOUT_MS 6000
+#endif
+#ifndef AH_AP_SERVICE_MAX_MS
+#define AH_AP_SERVICE_MAX_MS 1500
+#endif
+#ifndef AH_AP_SERVICE_WARN_MS
+#define AH_AP_SERVICE_WARN_MS 2000
+#endif
+
+uint8_t apHomeChannel();
+bool apHasClients();
+uint32_t apServiceGapMs();
+void apMarkServed();
+void apServiceNow(const char *why);
+
 extern TaskHandle_t workerTaskHandle;
 extern TaskHandle_t blueTeamTaskHandle;
 extern std::atomic<bool> scanStopPending;

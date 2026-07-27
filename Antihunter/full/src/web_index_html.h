@@ -760,7 +760,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               <option value="1">5 GHz</option>
               <option value="2">2.4 + 5 GHz</option>
             </select>
-            <p style="font-size:10px;color:var(--warn);margin-top:6px;">Single-band radio: the AP drops off air while it sweeps 5 GHz</p>
+            <p style="font-size:10px;color:var(--mut);margin-top:6px;">One radio, one band at a time: 5 GHz channels are scanned in short dwells between AP beacons</p>
           </div>
 
           <div id="customRFSettings" style="display:none;margin-top:10px;">

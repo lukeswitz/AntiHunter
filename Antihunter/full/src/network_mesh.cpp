@@ -645,10 +645,16 @@ static void handleDeviceScanStart(const String &command)
       currentScanMode = (ScanMode)mode;
       stopRequested = false;
       scanning = true;
-      ahCreateTask(snifferScanTask, "sniffer", 12288,
-                              reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1);
-      Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
-      sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
+      if (ahCreateTask(snifferScanTask, "sniffer", 12288,
+                       reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+        workerTaskHandle = nullptr;
+        scanning = false;
+        Serial.println("[MESH] Device scan task create FAILED (low heap) - not started");
+        sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:FAILED", true);
+      } else {
+        Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
+        sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
+      }
     }
   }
 }
@@ -1691,6 +1697,16 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("SCAN_START:"))           handleScanStart(command);
   else if (command.startsWith("BASELINE_START:"))       handleBaselineStart(command);
   else if (command == "BASELINE_STATUS")                handleBaselineStatus(command);
+#if AH_SELFTEST
+  else if (command.startsWith("SELFTEST_SQUEEZE:")) {
+      extern void selftestSqueezeInternal(uint32_t);
+      selftestSqueezeInternal((uint32_t)command.substring(17).toInt());
+  }
+  else if (command.startsWith("SELFTEST_RELEASE")) {
+      extern void selftestRelease();
+      selftestRelease();
+  }
+#endif
   else if (command.startsWith("DEVICE_SCAN_START:"))    handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))         handleDeauthStart(command);
@@ -2204,6 +2220,8 @@ void processMeshMessage(const String &message) {
 }
 
 void processUSBToMesh() {
+    static std::atomic_flag usbDraining = ATOMIC_FLAG_INIT;
+    if (usbDraining.test_and_set(std::memory_order_acquire)) return;
     static String usbBuffer = "";
 
     while (Serial.available()) {
@@ -2212,7 +2230,13 @@ void processUSBToMesh() {
         // Only process printable ASCII characters and line endings for mesh
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
-                if (usbBuffer.length() > 5 && usbBuffer.length() <= MAX_MESH_SIZE) {
+                usbBuffer.trim();
+                if (usbBuffer.startsWith("SETTIME:")) {
+                    time_t epoch = usbBuffer.substring(8).toInt();
+                    if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
+                        Serial.println("OK: RTC set");
+                    }
+                } else if (usbBuffer.length() > 5 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {
@@ -2232,4 +2256,5 @@ void processUSBToMesh() {
             usbBuffer = "";
         }
     }
+    usbDraining.clear(std::memory_order_release);
 }
