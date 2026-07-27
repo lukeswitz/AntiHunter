@@ -719,7 +719,7 @@ Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detection
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/node-id` | GET/POST | Get/set node ID (1-16 chars) |
+| `/node-id` | GET/POST | Get/set node ID (2-5 alphanumeric, A-Z 0-9) |
 | `/mesh-interval` | GET/POST | Get/set mesh send interval (1500-30000ms) |
 | `/save` | POST | Save target configuration |
 | `/export` | GET | Export target MAC list |
