@@ -1948,10 +1948,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             resultsElement.innerHTML = parseAndStyleResults(lastResultsText);
           }
           applyPrivacyToElement(document.body);
-          document.querySelectorAll('textarea').forEach(ta => {
-            ta.value = ta.value.replace(/\b([A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi, 'XX:XX:XX:XX:XX:XX');
-            ta.value = ta.value.replace(/(?:probes:|AP=|SSID:\s*)~?"([^"]+)"/g, (m, s) => m.replace(s, ssidHash(s)));
-          });
+          document.querySelectorAll('textarea').forEach(ta => { ta.value = privScrubText(ta.value); });
         } else {
           if (resultsElement && lastResultsText) {
             resultsElement.innerHTML = parseAndStyleResults(lastResultsText);
@@ -1959,6 +1956,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           load();
         }
         refreshSentinelPrivacy();
+        refreshDataTabPrivacy();
+      }
+
+      // Data-tab cells are formatted by fmtCell, so a toggle has to re-run the formatter
+      function refreshDataTabPrivacy() {
+        const sel = document.getElementById('dataSet');
+        if (!sel || typeof DATA_SETS === 'undefined' || !DATA_SETS[sel.value]) return;
+        if (typeof dataFiltered === 'undefined' || !dataFiltered || !dataFiltered.length) return;
+        renderDataTable(DATA_SETS[sel.value]);
       }
 
       // Sentinel panes render from polled JSON, so a toggle must re-render them
@@ -2402,16 +2408,43 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         sortResultsDisplay();
       }
 
+      // Shared scrubber: MACs, GPS pairs, labelled lat/lon (plain + JSON), map URLs, quoted SSIDs
+      function privScrubText(s) {
+        return String(s == null ? '' : s)
+          .replace(/https?:\/\/\S*maps\S*/gi, 'REDACTED')
+          .replace(/\b([A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi, 'XX:XX:XX:XX:XX:XX')
+          .replace(/-?\d{1,3}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}/g, 'REDACTED')
+          .replace(/\b(lat|lon|latitude|longitude)("?\s*[:=]\s*)-?\d{1,3}\.\d+/gi, '$1$2REDACTED')
+          .replace(/(probes:|AP=|SSID\s*[:=]\s*)~?"([^"]*)"/gi, (m, pre, ssid) => pre + '"' + ssidHash(ssid) + '"');
+      }
+
       function applyPrivacyToElement(el) {
-        // Replace MAC addresses in all text nodes
+        // href carries the coordinates even when the link label is redacted
+        el.querySelectorAll('a[href]').forEach(a => {
+          const href = a.getAttribute('href') || '';
+          if (/maps/i.test(href) || /-?\d{1,3}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}/.test(href)) {
+            a.removeAttribute('href');
+            a.removeAttribute('target');
+            a.textContent = 'REDACTED';
+            a.title = 'REDACTED';
+          }
+        });
+
+        // Replace MACs, coordinates and quoted SSIDs in all text nodes
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
         const textNodes = [];
         while (walker.nextNode()) textNodes.push(walker.currentNode);
         textNodes.forEach(node => {
-          node.nodeValue = node.nodeValue.replace(
-            /\b([A-F0-9]{2}:){5}[A-F0-9]{2}\b/gi,
-            'XX:XX:XX:XX:XX:XX'
-          );
+          const p = node.parentNode && node.parentNode.nodeName;
+          if (p === 'SCRIPT' || p === 'STYLE') return;
+          node.nodeValue = privScrubText(node.nodeValue);
+        });
+
+        // Tooltips still hold the raw value the cell was built from
+        el.querySelectorAll('[title]').forEach(elem => {
+          const t = elem.getAttribute('title');
+          const scrubbed = privScrubText(t);
+          if (scrubbed !== t) elem.setAttribute('title', scrubbed);
         });
 
         // Replace device names — <strong> whose parent div starts with "Name:"
@@ -3140,7 +3173,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (signalMatch) { const sv = parseFloat(signalMatch[1]); const sc = sv >= 70 ? 'var(--succ)' : sv >= 50 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">Quality</div><div class="res-kv-val" style="color:' + sc + '">' + signalMatch[1] + '%</div></div>'; }
             if (distMatch) html += _resKv('Distance', distMatch[1] + 'm');
             html += '</div>';
-            if (isGPS) { html += '<div class="res-note"><span class="res-note-lab">Location</span><span style="font-family:ui-monospace,monospace;color:var(--acc);">' + gpsMatch[1] + ', ' + gpsMatch[2] + '</span>' + (hdopMatch ? ' &middot; HDOP <strong>' + hdopMatch[1] + '</strong>' : '') + '</div>'; }
+            if (isGPS) { html += '<div class="res-note"><span class="res-note-lab">Location</span><span data-priv style="font-family:ui-monospace,monospace;color:var(--acc);">' + gpsMatch[1] + ', ' + gpsMatch[2] + '</span>' + (hdopMatch ? ' &middot; HDOP <strong>' + hdopMatch[1] + '</strong>' : '') + '</div>'; }
             html += '</div>';
           });
           html += '</div></details>';
@@ -3180,8 +3213,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div class="res-card acc"><div class="res-mac" style="font-family:inherit;color:var(--acc);"><svg viewBox="0 0 24 24" width="18" height="18" style="stroke:var(--acc);fill:none;vertical-align:-3px;margin-right:6px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Position Estimated</div>';
           if (latMatch && lonMatch) {
             html += '<div class="res-coord">';
-            html += _resKv('Latitude', '<span class="mono">' + latMatch[1] + '</span>');
-            html += _resKv('Longitude', '<span class="mono">' + lonMatch[1] + '</span>');
+            html += _resKv('Latitude', '<span class="mono" data-priv>' + latMatch[1] + '</span>');
+            html += _resKv('Longitude', '<span class="mono" data-priv>' + lonMatch[1] + '</span>');
             html += '</div><div class="res-kvs">';
             if (confMatch) { const cv = parseFloat(confMatch[1]); const cc = cv >= 70 ? 'var(--succ)' : cv >= 50 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">Confidence</div><div class="res-kv-val" style="color:' + cc + '">' + confMatch[1] + '%</div></div>'; }
             if (uncertaintyMatch) html += _resKv('Uncertainty (CEP68)', '±' + uncertaintyMatch[1] + 'm');
@@ -4284,6 +4317,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           });
           document.getElementById('hardwareDiag').innerHTML = formatDiagGrid(hardware, 'hardware');
           document.getElementById('networkDiag').innerHTML = formatDiagGrid(network, 'network');
+          privacyApply(document.getElementById('hardwareDiag'));
+          privacyApply(document.getElementById('networkDiag'));
           window.__lastDiag = Date.now();
           const uptimeMatch = diagText.match(/Up:(\d+):(\d+):(\d+)/);
           if (uptimeMatch) {
@@ -5011,9 +5046,21 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(key==='rssi'){var cls=val>-50?'rssi-good':val>-70?'rssi-mid':'rssi-bad';return '<span class="'+cls+'">'+val+' dBm</span>';}
         if(key==='rand') return val?'<span class="rand-yes">Yes</span>':'No';
         if(key==='hit'||key==='dst') return val?'<span style="color:var(--dang);font-weight:600">Yes</span>':'No';
-        if(key==='ss'||key==='ssids'){
-          if(Array.isArray(val)){if(val.length===0) return '-';var shown=val.slice(0,2).join(', ');if(val.length>2) shown+=' +'+(val.length-2)+' more';return shown;}
+        var _priv=(typeof privacyMode!=='undefined'&&privacyMode);
+        if(key==='lat'||key==='lon'||key==='latitude'||key==='longitude'){
+          if(_priv) return 'REDACTED';
           return String(val);
+        }
+        if(key==='uav_id'||key==='name'){
+          if(_priv) return 'REDACTED';
+          return String(val);
+        }
+        if(key==='ss'||key==='ssids'){
+          if(Array.isArray(val)){if(val.length===0) return '-';var names=_priv?val.map(ssidHash):val;var shown=names.slice(0,2).join(', ');if(names.length>2) shown+=' +'+(names.length-2)+' more';return shown;}
+          return _priv?ssidHash(String(val)):String(val);
+        }
+        if(key==='ssid'||key==='last_ssid'){
+          return _priv?ssidHash(String(val)):String(val);
         }
         if(key==='uptime_ms'){var s=Math.floor(val/1000);var m=Math.floor(s/60);s=s%60;var h=Math.floor(m/60);m=m%60;return (h?h+'h ':'')+(m?m+'m ':'')+(s+'s');}
         if(key==='mac'||key==='src'||key==='dst'||key==='bssid'){
@@ -5033,7 +5080,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         html+='</tr></thead><tbody>';
         for(var i=start;i<end;i++){html+='<tr>';for(var c=0;c<dataCols.length;c++){html+='<td>'+fmtCell(getVal(dataFiltered[i],dataCols[c]),dataCols[c])+'</td>';}html+='</tr>';}
-        html+='</tbody></table>';area.innerHTML=html;
+        html+='</tbody></table>';area.innerHTML=html;privacyApply(area);
         var pager=document.getElementById('dataPager');
         if(dataFiltered.length>DATA_PAGE_SIZE){
           pager.style.display='flex';
@@ -5736,7 +5783,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const v = c.get ? c.get(r) : r[c.key];
               const val = v === undefined || v === null ? '-' : v;
               const escaped = String(val).replace(/"/g, '&quot;');
-              return `<td title="${escaped}">${val}</td>`;
+              const k = c.key || '';
+              const ident = (k === 'ssid' || k === 'last_ssid') ? ` data-ssid="${escaped}"` : '';
+              return `<td title="${escaped}"${ident}>${val}</td>`;
             })
             .join('');
             return `<tr>${tds}</tr>`;
