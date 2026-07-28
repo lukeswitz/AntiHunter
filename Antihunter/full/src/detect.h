@@ -232,7 +232,7 @@ void detect_onPhyStat(uint8_t rxState, int8_t rssi, uint8_t channel);
 // Mesh-channel disruption guard — called per inbound mesh line from uartForwardTask.
 void mesh_observeInbound(const String &sender, const String &body);
 
-void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel);
+void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged = false);
 
 void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode);
 void detect_onSoftApConnect(const uint8_t *clientMac);
