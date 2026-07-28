@@ -118,9 +118,11 @@ struct TriangulationAccumulator {
     float lat;
     float lon;
     float hdop;
+    uint16_t gpsSamples;
     bool hasGPS;
 
     uint32_t lastSendTime;
+    uint32_t lastSendSeq;
 };
 
 struct DeauthHit {
@@ -253,6 +255,8 @@ bool scanSessionWasResumed();
 void scanSessionSaveKind(const char *kind, int mode, int secs, bool forever,
                          const String &channels, bool captureProbes, bool broadcastAll);
 extern std::atomic<bool> triangulationActive;
+extern std::atomic<uint8_t> triTargetChannel;
+extern std::atomic<uint8_t> triTargetRadio;
 
 // Triangulation
 extern TriangulationAccumulator triAccum;

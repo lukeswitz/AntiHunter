@@ -801,7 +801,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <div style="margin-bottom:8px;">
               <label style="font-size:10px;color:var(--mut);">WiFi Channels</label>
-              <input type="text" id="wifiChannels" placeholder="1..14" value="1..14" style="padding:4px;font-size:11px;">
+              <input type="text" id="wifiChannels" placeholder="1..11" value="1..11" style="padding:4px;font-size:11px;">
             </div>
           </div>
         </div>
@@ -1594,6 +1594,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           startScanBtn.onclick = null;
           startScanBtn.disabled = false;
         }
+      }
+
+      // matches firmware parseMac6() + T-<digits> identity
+      function isTriangulateTarget(v) {
+        const t = String(v || '').trim();
+        return /^T-\d{4,7}$/.test(t) || t.replace(/[^0-9a-fA-F]/g, '').length === 12;
+      }
+
+      // first Target List entry usable as a triangulation target; skips OUIs and SSIDs
+      function firstTriangulatableTarget() {
+        const el = document.getElementById('list');
+        if (!el) return '';
+        for (const line of String(el.value || '').split('\n')) {
+          const t = line.trim();
+          if (!t || t.startsWith('#')) continue;
+          if (/^(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$/.test(t) || /^[0-9a-fA-F]{12}$/.test(t) || /^T-\d{4,7}$/.test(t)) return t;
+        }
+        return '';
       }
 
       function syncStopAllBtn() {
@@ -2793,9 +2811,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         if (isScanning || isTriangulating) {
             if (diagText.includes('Stopping: yes')) stopPending = true;
-            const label = stopPending ? 'Stopping' : (scanTaskLabels[taskType] || (isTriangulating ? 'Triangulate' : 'Scanning'));
+            const triWaiting = isTriangulating && triIsCollecting(lastResultsText);
+            const triPhase = isTriangulating ? triPhaseLabel(lastResultsText) : '';
+            const label = stopPending ? 'Stopping'
+                        : triPhase ? triPhase
+                        : triWaiting ? 'Waiting for nodes'
+                        : (scanTaskLabels[taskType] || (isTriangulating ? 'Triangulate' : 'Scanning'));
             const remMatch = diagText.match(/Scan remaining: (\d+|forever)/);
-            if (stopPending) { _scanForever = true; _scanEndTs = 0; }
+            if (stopPending || triWaiting) { _scanForever = true; _scanEndTs = 0; }
             else if (remMatch && remMatch[1] !== 'forever') { _scanForever = false; _scanEndTs = Date.now() + parseInt(remMatch[1]) * 1000; }
             else { _scanForever = !!remMatch; _scanEndTs = 0; }
             setScanStatus(label, 'active');
@@ -3090,7 +3113,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         let html = '';
 
-        if (text.includes('=== Triangulation Results') || text.includes('Weighted GPS Trilateration')) {
+        if (/(^|\n)TRIANGULATING:/.test(text) && !text.includes('=== Triangulation Results')) {
+          html = parseTriangulatingStatus(text);
+        } else if (text.includes('=== Triangulation Results') || text.includes('Weighted GPS Trilateration')) {
           html = parseTriangulationResults(text);
         } else if(text.includes('MAC Randomization Detection Results')) {
           html = parseRandomizationResults(text);
@@ -3110,6 +3135,42 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + text + '</pre></div>';
         }
 
+        return html;
+      }
+
+      function triPhaseLabel(text) {
+        const msg = triStatusMessage(text);
+        if (!msg) return '';
+        if (/waiting for mesh nodes/i.test(msg)) return 'Contacting nodes';
+        if (/nodes ready/i.test(msg)) return 'Starting scan';
+        const prog = msg.match(/(\d+)\s*\/\s*(\d+)/);
+        if (/collect/i.test(msg)) return prog ? ('Collecting ' + prog[1] + '/' + prog[2]) : 'Collecting reports';
+        if (/final report/i.test(msg)) return 'Collecting reports';
+        return '';
+      }
+
+      function triStatusMessage(text) {
+        const m = String(text || '').match(/TRIANGULATING:\s*([^\n]*)/);
+        return m ? m[1].trim() : '';
+      }
+
+      function triIsCollecting(text) {
+        return /TRIANGULATING:[^\n]*(collect|final report)/i.test(String(text || ''));
+      }
+
+      function parseTriangulatingStatus(text) {
+        const msg = triStatusMessage(text);
+        const collecting = triIsCollecting(text);
+        const title = collecting ? 'Waiting for other nodes to finish reporting'
+                                 : 'Triangulation in progress';
+        const svg = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+        let html = '<div class="res-callout' + (collecting ? ' warn' : '') + '">' + svg +
+                   '<div><div class="res-callout-title">' + title + '</div>' +
+                   '<div class="res-callout-body">' + (msg || 'Working...') + '</div></div></div>';
+        if (collecting) {
+          const prog = msg.match(/(\d+)\s*\/\s*(\d+)/);
+          if (prog) html += '<div class="res-card">' + _resStat('Reports in', prog[1] + ' / ' + prog[2]) + '</div>';
+        }
         return html;
       }
 
@@ -3217,7 +3278,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             html += _resKv('Longitude', '<span class="mono" data-priv>' + lonMatch[1] + '</span>');
             html += '</div><div class="res-kvs">';
             if (confMatch) { const cv = parseFloat(confMatch[1]); const cc = cv >= 70 ? 'var(--succ)' : cv >= 50 ? 'var(--warn)' : 'var(--dang)'; html += '<div class="res-kv"><div class="res-kv-lab">Confidence</div><div class="res-kv-val" style="color:' + cc + '">' + confMatch[1] + '%</div></div>'; }
-            if (uncertaintyMatch) html += _resKv('Uncertainty (CEP68)', '±' + uncertaintyMatch[1] + 'm');
+            if (uncertaintyMatch) html += _resKv('Uncertainty', '±' + uncertaintyMatch[1] + 'm');
             html += '</div>';
             if (methodMatch) html += '<div class="res-note"><span class="res-note-lab">Method</span>' + methodMatch[1] + '</div>';
             const mapsUrl = 'https://www.google.com/maps?q=' + latMatch[1] + ',' + lonMatch[1];
@@ -4480,10 +4541,26 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       setInterval(() => { if (pageActive('detect')) sentinelRefresh(); }, 4000);
       sentinelRefresh();
 
+      // Always start unchecked so the box and the options panel agree on load.
+      (function(){
+        const tri = document.getElementById('triangulate');
+        const opts = document.getElementById('triangulateOptions');
+        if (tri) tri.checked = false;
+        if (opts) opts.style.display = 'none';
+      })();
+
       document.getElementById('triangulate').addEventListener('change', e => {
         document.getElementById('triangulateOptions').style.display = e.target.checked ? 'block' : 'none';
         const secsInput = document.querySelector('input[name="secs"]');
         if (e.target.checked) {
+          const tgtInput = document.querySelector('#s input[name="targetMac"]');
+          if (tgtInput && !tgtInput.value.trim()) {
+            const first = firstTriangulatableTarget();
+            if (first) {
+              tgtInput.value = first;
+              toast('Target MAC set from Target List: ' + first);
+            }
+          }
           if (parseInt(secsInput.value) < 20) {
             secsInput.value = 20;
             toast('Triangulation requires minimum 20 seconds');
@@ -4598,12 +4675,31 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const fd = new FormData(e.target);
           const submitBtn = e.target.querySelector('button[type="submit"]');
 
+          // Check if triangulation mode is selected
+          const isTriangulation = fd.has('triangulate') && fd.get('triangulate') === '1';
+
+          if (isTriangulation) {
+            const tgtInput = e.target.querySelector('input[name="targetMac"]');
+            let tgt = String(fd.get('targetMac') || '').trim();
+            if (!tgt) {
+              tgt = firstTriangulatableTarget();
+              if (tgt) {
+                if (tgtInput) tgtInput.value = tgt;
+                toast('No target MAC entered - using first target: ' + tgt);
+              }
+            }
+            if (!isTriangulateTarget(tgt)) {
+              toast(tgt ? 'Invalid target: ' + tgt + ' - use AA:BB:CC:DD:EE:FF'
+                        : 'Enter a target MAC, or add a full MAC to the Target List', 'error');
+              if (tgtInput) tgtInput.focus();
+              return;
+            }
+            fd.set('targetMac', tgt);
+          }
+
           // Mark as in progress
           state.inProgress = true;
           state.lastSubmit = now;
-
-          // Check if triangulation mode is selected
-          const isTriangulation = fd.has('triangulate') && fd.get('triangulate') === '1';
 
           lastScanStartTime = now;
 
@@ -4633,7 +4729,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             body: fd
           }).then(r => {
             console.log('[SCAN] Response received at', new Date().toISOString());
-            if (r.status === 409) return r.text().then(t => { toast(t, 'warning'); abortScanStart(t + '\n'); return null; });
+            if (!r.ok) return r.text().then(t => {
+              const msg = t && t.trim() ? t.trim() : ('Scan rejected (HTTP ' + r.status + ')');
+              toast(msg, r.status === 409 ? 'warning' : 'error');
+              abortScanStart(msg + '\n');
+              return null;
+            });
             return r.text();
           }).then(t => {
             if (t === null) return;

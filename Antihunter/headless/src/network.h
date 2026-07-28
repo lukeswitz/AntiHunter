@@ -67,6 +67,7 @@ void initializeMesh();
 void sendMeshNotification(const Hit &hit);
 void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);
+void meshSplitSender(const String &line, String &sender, String &payload);
 void processUSBToMesh();
 void setNodeId(const String &id);
 String getNodeId();
