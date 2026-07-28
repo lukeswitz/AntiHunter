@@ -496,15 +496,18 @@ struct DeauthWitness {
     int8_t rssi;
     uint8_t channel;
     uint8_t deauthCount;  // increments on repeat from same src
+    bool forged;
     bool alerted;
 };
 static PsramVec<DeauthWitness> g_deauthWitness;
 static constexpr size_t MAX_DEAUTH_WITNESS = 32;
 static constexpr uint32_t EAPOL_BAIT_WINDOW_MS = 30000;
+static constexpr uint32_t EAPOL_BAIT_FAST_MS = 1000;
+static constexpr uint32_t EAPOL_BAIT_HIGH_MS = 2000;
 
 void detect_correlateEapolBait(const uint8_t *sta, int8_t rssi, uint8_t channel);
 
-void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel) {
+void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged = false) {
     if (!src || !dst) return;
     if (dst[0] & 0x01) return;  // broadcast/multicast — not bait
     uint32_t now = millis();
@@ -514,6 +517,7 @@ void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, u
         if (now - it->ts > EAPOL_BAIT_WINDOW_MS) { it = g_deauthWitness.erase(it); continue; }
         if (memcmp(it->src, src, 6) == 0 && memcmp(it->dst, dst, 6) == 0) {
             it->ts = now;
+            if (forged) it->forged = true;
             if (it->deauthCount < 255) it->deauthCount++;
             return;
         }
@@ -534,6 +538,7 @@ void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, u
     w.rssi = rssi;
     w.channel = channel;
     w.deauthCount = 1;
+    w.forged = forged;
     w.alerted = false;
     g_deauthWitness.push_back(w);
 }
@@ -549,13 +554,10 @@ void detect_correlateEapolBait(const uint8_t *sta, int8_t rssi, uint8_t channel)
         // >3 deauths = ongoing DoS attack, not bait sniff.
         if (w.deauthCount > 3) continue;
         if (w.alerted) continue;
-        w.alerted = true;
         uint32_t latencyMs = now - w.ts;
-        // Confidence tier (research-based):
-        //   ≤5s deauth→EAPOL = HIGH confidence (legit re-association takes 1-6s
-        //     usually preceded by AP beacon traffic; attacker bait <1s typical)
-        //   ≤30s = MEDIUM confidence (could be slow roam or genuine bait)
-        const char *confidence = (latencyMs <= 2000) ? "high" : "medium";
+        if (!w.forged && latencyMs > EAPOL_BAIT_FAST_MS) continue;
+        w.alerted = true;
+        const char *confidence = (w.forged && latencyMs <= EAPOL_BAIT_HIGH_MS) ? "high" : "medium";
         char srcBuf[18], dstBuf[18];
         snprintf(srcBuf, sizeof(srcBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
                  w.src[0],w.src[1],w.src[2],w.src[3],w.src[4],w.src[5]);
@@ -580,7 +582,7 @@ void detect_correlateEapolBait(const uint8_t *sta, int8_t rssi, uint8_t channel)
         quorum_addReport("EAPOL_BAIT", srcS, getNodeId(), rssi);
         // Only fire attacker-trilateration on HIGH confidence to avoid kicking
         // legit gear that did a normal deauth+reconnect.
-        if (latencyMs <= 2000) attacker_kick(w.src, "EAPOL_BAIT");
+        if (w.forged && latencyMs <= EAPOL_BAIT_HIGH_MS) attacker_kick(w.src, "EAPOL_BAIT");
         return;
     }
 }
@@ -1657,6 +1659,7 @@ static void handleDeauthFrame(const DetectFrameEvent &e) {
         }
     }
     if (!selfSrc) {
+        detect_witnessDeauth(src, dst, e.rssi, e.channel, forgeFingerprint);
         deauthNotePeer(packMac(src), now, pairBurst);
         deauthNotePeer(packMac(p + 16), now, pairBurst);
         if (!isBroadcast) deauthNotePeer(packMac(dst), now, pairBurst);
@@ -2906,7 +2909,7 @@ String pwnagotchi_getJson()                  { return ah_detect::pwnagotchi_getJ
 void pwnagotchi_clear()                      { ah_detect::pwnagotchi_clear(); }
 size_t pwnagotchi_count()                    { return ah_detect::pwnagotchi_count(); }
 void attacker_kick(const uint8_t *mac, const char *t) { ah_detect::attacker_kick(mac, t); }
-void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel) { ah_detect::detect_witnessDeauth(src, dst, rssi, channel); }
+void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged) { ah_detect::detect_witnessDeauth(src, dst, rssi, channel, forged); }
 void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) { ah_detect::detect_setSelfApIdentity(mac, ssid); }
 bool detect_isSelfApMac(const uint8_t *mac)  { return ah_detect::detect_isSelfApMac(mac); }
 String attacker_getActiveHuntsJson()         { return ah_detect::attacker_getActiveHuntsJson(); }
