@@ -162,6 +162,11 @@ const float BLE_TXPOWER_SIGMA_DB = 6.0f;
 const float PATHLOSS_UNCALIBRATED_SIGMA_DB = 3.0f;
 const uint32_t SYNC_CHECK_INTERVAL = 30000;
 const uint32_t TRI_ACK_SETTLE_MS = 4000;
+const uint16_t GPS_MIN_SAMPLES_TO_JUDGE = 5;
+const float GPS_HDOP_REJECT_RATIO = 3.0f;
+const float GPS_JUMP_REJECT_M = 40.0f;
+const float ANCHOR_OUTLIER_FLOOR_M = 50.0f;
+const uint8_t GPS_REJECT_RESET_COUNT = 12;
 const float TRI_UNC_MAX_M = 100.0f;
 
 // Triangulation functions
@@ -195,7 +200,6 @@ void addPathLossSample(float rssi, float distance, bool isWiFi);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 void markTriangulationStopFromMesh();
 
-// Token-pass timings. Uncalibrated default assumes a slow LoRa mesh; the measured
 // peer spacing pulls it down on a fast one.
 static const uint32_t TRI_SKIP_UNCALIBRATED_MS = 4000;
 static const uint32_t TRI_SKIP_MIN_MS = 1500;
@@ -228,8 +232,6 @@ struct DynamicReportingSchedule {
         return nodes.find(nid) != nodes.end();
     }
 
-    // How long to wait on the expected speaker before passing the turn on. Must exceed
-    // real mesh delivery time or we declare a node silent while its frame is still in
     // flight and lap back to ourselves - so it is measured, never a fixed constant.
     uint32_t skipTimeoutMs() const {
         uint32_t t = peerIntervalMs ? peerIntervalMs + (peerIntervalMs >> 1)
@@ -239,21 +241,15 @@ struct DynamicReportingSchedule {
         return t;
     }
 
-    // Minimum spacing between two of MY OWN sends: the time every other node needs to
     // get a turn. Without this a delayed frame re-opens the send gate and one node
     // bursts three or four times while the rest of the ring waits.
     uint32_t selfGapMs() {
         std::lock_guard<std::mutex> lock(nodeMutex);
         if (nodes.size() <= 1) return slotDurationMs ? slotDurationMs : 3000u;
-        // Observed hop time, not the timeout: the ring usually runs faster than the
-        // timeout, and gapping on the timeout would block our own legitimate turn.
         uint32_t hop = peerIntervalMs ? peerIntervalMs : TRI_SKIP_UNCALIBRATED_MS;
         return (uint32_t)(nodes.size() - 1) * hop;
     }
 
-    // Last-resort re-seed for when every peer is dead. Deliberately conservative: firing
-    // early is what lets one node report twice in a row, and a lost report costs nothing
-    // next to breaking the alternation.
     bool lapElapsed(uint32_t now) {
         std::lock_guard<std::mutex> lock(nodeMutex);
         uint32_t ref = lastPeerReportMs ? lastPeerReportMs : lastActivityMs;
@@ -278,15 +274,12 @@ struct DynamicReportingSchedule {
         return h % 2000;
     }
 
-    // Whose turn it is must be a PURE function of (lastSpeaker, lastActivityMs, now).
-    // Mutating token state here made each node skip on its own clock and drift out of
     // phase, so two nodes could both believe they held the turn and transmit together.
     bool isMyTurn(const String& nid, uint32_t now, String& waitingOn) {
         std::lock_guard<std::mutex> lock(nodeMutex);
         if (nodes.empty() || nodes.find(nid) == nodes.end()) return false;
         if (lastActivityMs == 0) lastActivityMs = now;
 
-        // Hard rule: never speak twice in a row. The last speaker we know of being
         // ourselves means no peer has been heard since, so the turn is not ours -
         // regardless of what the timers say. Only a fully dead ring overrides this.
         if (lastSpeaker == nid) {
@@ -299,7 +292,6 @@ struct DynamicReportingSchedule {
             }
         }
 
-        // Per-node offset so two nodes never cross a skip boundary in the same instant.
         uint32_t skip = skipTimeoutMs() + (startupStaggerMs(nid) % 400);
         uint32_t elapsed = (uint32_t)(now - lastActivityMs);
         size_t hops = elapsed / skip;
@@ -354,8 +346,6 @@ struct DynamicReportingSchedule {
         }
     }
 
-    // fromPeer=false for our own transmission: it advances the token but must not
-    // satisfy the "wait for a peer before sending again" rule.
     void markReportReceived(const String& nid, bool fromPeer = true) {
         if (nid.length() == 0) return;
         std::lock_guard<std::mutex> lock(nodeMutex);
@@ -364,8 +354,6 @@ struct DynamicReportingSchedule {
         if (fromPeer) {
             if (lastPeerReportMs != 0) {
                 uint32_t d = (uint32_t)(now - lastPeerReportMs);
-                // Reject stall-length gaps: feeding them back would inflate the timeout,
-                // which quiets the ring further - a self-amplifying stall.
                 if (d >= 200 && d <= 10000) {
                     if (peerIntervalMs == 0) peerIntervalMs = d;
                     else if (d <= peerIntervalMs * 3) peerIntervalMs = (peerIntervalMs * 3 + d) / 4;

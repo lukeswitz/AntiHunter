@@ -123,6 +123,8 @@ struct TriangulationAccumulator {
     float lon;
     float hdop;
     uint16_t gpsSamples;
+    float bestHdop;
+    uint8_t gpsRejects;
     bool hasGPS;
 
     uint32_t lastSendTime;
