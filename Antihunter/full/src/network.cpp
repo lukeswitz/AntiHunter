@@ -410,8 +410,8 @@ void startWebServer()
               req->send(400, "text/plain", triErr.length() ? triErr : String("Triangulation failed to start"));
               return;
           }
-          String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
-          String response = "Triangulation starting for " + String(secs) + "s - " + modeStr + " (env=" + String(rfEnv);
+          // requested scan mode here - it is what the user selected, not what was found.
+          String response = "Triangulation starting for " + String(secs) + "s (env=" + String(rfEnv);
           if (distanceTuning.enabled) {
               response += ", WiFi=" + String(distanceTuning.wifi_multiplier, 1) + "x, BLE=" + String(distanceTuning.ble_multiplier, 1) + "x";
           }

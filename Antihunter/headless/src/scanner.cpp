@@ -433,7 +433,6 @@ QueueHandle_t deauthQueue = nullptr;
 // Triangulation
 TriangulationAccumulator triAccum = {0};
 std::atomic<uint8_t> triTargetChannel(0);
-// 0 = unknown, 1 = target is BLE, 2 = target is WiFi
 std::atomic<uint8_t> triTargetRadio(0);
 std::mutex triAccumMutex;
 static const uint32_t TRI_SEND_INTERVAL = 2000;
@@ -941,8 +940,6 @@ uint8_t nextActiveScanChannel()
     return pool[i];
 }
 
-// A known WiFi target sits on one channel; sweeping the other 13 costs ~93% of the
-// sample rate. Falls back to the normal sweep until the channel is known.
 static uint8_t triScanChannel() {
     if (triangulationActive.load()) {
         uint8_t ch = triTargetChannel.load();
@@ -3021,6 +3018,8 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.lon = 0.0f;
     triAccum.hdop = 99.9f;
     triAccum.gpsSamples = 0;
+    triAccum.bestHdop = 99.9f;
+    triAccum.gpsRejects = 0;
     triAccum.hasGPS = false;
     triAccum.lastSendTime = 0;
     triAccum.lastSendSeq = 0;
@@ -3144,6 +3143,15 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
 
 // Scan tasks
+static String triModeStr(const String& selected) {
+    if (triangulationActive.load()) {
+        uint8_t r = triTargetRadio.load();
+        if (r == 1) return String("BLE");
+        if (r == 2) return String("WiFi");
+    }
+    return selected;
+}
+
 void listScanTask(void *pv) {
     sentinel_kill();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
@@ -3232,9 +3240,6 @@ void listScanTask(void *pv) {
     // Use list scan mode (non-promiscuous) to avoid IPC stack overflow
     // WiFi.scanNetworks() and promiscuous mode cannot run together safely
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        // BT controller init allocates its interrupt on the ipc0 task, whose stack is
-        // fixed in the prebuilt IDF. Overlapping it with the WiFi mode change tripped
-        // the ipc0 stack canary, so do it first and let it settle.
         if (currentScanMode == SCAN_BOTH) {
             radioStartBLE();
             vTaskDelay(pdMS_TO_TICKS(300));
@@ -3494,7 +3499,6 @@ void listScanTask(void *pv) {
                             triTargetChannel.store(h.ch);
                             Serial.printf("[TRI-CH] Target on channel %u - locking scan to it\n", h.ch);
                         }
-                        // A device is one or the other; once known, stop sweeping the other radio.
                         if (triTargetRadio.load() == 0) {
                             triTargetRadio.store(h.isBLE ? 1 : 2);
                             Serial.printf("[TRI-RADIO] Target is %s - narrowing scan\n", h.isBLE ? "BLE" : "WiFi");
@@ -3518,18 +3522,39 @@ void listScanTask(void *pv) {
                                 sLat = gpsLat; sLon = gpsLon; got = true;
                                 xSemaphoreGive(gpsMutex);
                             }
-                            if (got) {
-                                // Stationary anchor: average the fix over the scan. Anchor error
-                                // bounds the whole solution, and one sample was throwing away the rest.
+                            float sHdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
+                            if (got && sHdop > 0.0f) {
                                 if (!triAccum.hasGPS || triAccum.gpsSamples == 0) {
-                                    triAccum.lat = sLat; triAccum.lon = sLon; triAccum.gpsSamples = 1;
+                                    triAccum.lat = sLat; triAccum.lon = sLon;
+                                    triAccum.gpsSamples = 1;
+                                    triAccum.bestHdop = sHdop;
+                                    triAccum.gpsRejects = 0;
+                                    triAccum.hdop = sHdop;
                                 } else {
-                                    if (triAccum.gpsSamples < 65535) triAccum.gpsSamples++;
-                                    float k = 1.0f / (float)triAccum.gpsSamples;
-                                    triAccum.lat += (sLat - triAccum.lat) * k;
-                                    triAccum.lon += (sLon - triAccum.lon) * k;
+                                    bool bad = false;
+                                    if (triAccum.gpsSamples >= GPS_MIN_SAMPLES_TO_JUDGE) {
+                                        if (sHdop > triAccum.bestHdop * GPS_HDOP_REJECT_RATIO) bad = true;
+                                        float dm = haversineDistance(triAccum.lat, triAccum.lon, sLat, sLon);
+                                        if (dm > GPS_JUMP_REJECT_M) bad = true;
+                                    }
+                                    if (bad) {
+                                        if (++triAccum.gpsRejects >= GPS_REJECT_RESET_COUNT) {
+                                            triAccum.lat = sLat; triAccum.lon = sLon;
+                                            triAccum.gpsSamples = 1;
+                                            triAccum.bestHdop = sHdop;
+                                            triAccum.gpsRejects = 0;
+                                            triAccum.hdop = sHdop;
+                                        }
+                                    } else {
+                                        triAccum.gpsRejects = 0;
+                                        if (triAccum.gpsSamples < 65535) triAccum.gpsSamples++;
+                                        float k = 1.0f / (float)triAccum.gpsSamples;
+                                        triAccum.lat += (sLat - triAccum.lat) * k;
+                                        triAccum.lon += (sLon - triAccum.lon) * k;
+                                        if (sHdop < triAccum.bestHdop) triAccum.bestHdop = sHdop;
+                                        triAccum.hdop = triAccum.bestHdop;
+                                    }
                                 }
-                                triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
                                 triAccum.hasGPS = true;
                             }
                         }
