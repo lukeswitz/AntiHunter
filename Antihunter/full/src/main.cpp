@@ -55,13 +55,8 @@ void uartForwardTask(void *parameter) {
         if (meshBuffer.length() > 0) {
           Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
 
-          String toProcess = meshBuffer;
-          String senderId = "";
-          int colonPos = meshBuffer.indexOf(": ");
-          if (colonPos > 0) {
-            senderId = meshBuffer.substring(0, colonPos);
-            toProcess = meshBuffer.substring(colonPos + 2);
-          }
+          String toProcess, senderId;
+          meshSplitSender(meshBuffer, senderId, toProcess);
 
           mesh_observeInbound(senderId, toProcess);
 
@@ -310,6 +305,7 @@ void loop() {
             if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
                 Serial.println("OK: RTC set");
             }
+
         }
     }
 

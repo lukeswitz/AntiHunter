@@ -432,7 +432,11 @@ void startWebServer()
               }
           }
 
-          startTriangulation(targetMac, secs);
+          String triErr;
+          if (!startTriangulation(targetMac, secs, &triErr)) {
+              req->send(400, "text/plain", triErr.length() ? triErr : String("Triangulation failed to start"));
+              return;
+          }
           String modeStr = (mode == SCAN_WIFI) ? "WiFi" : (mode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
           String response = "Triangulation starting for " + String(secs) + "s - " + modeStr + " (env=" + String(rfEnv);
           if (distanceTuning.enabled) {
@@ -610,7 +614,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       stopAllScans();
       scanSessionClear();
       req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
-      if (triangulationActive) stopTriangulation();
+      if (triangulationActive) requestTriangulationStop();
   });
   registerRemainingRoutes();
 }
@@ -1561,7 +1565,11 @@ void registerRemainingRoutes() {
           }
       }
 
-      startTriangulation(targetMac, duration);
+      String triErr;
+      if (!startTriangulation(targetMac, duration, &triErr)) {
+          req->send(400, "text/plain", triErr.length() ? triErr : String("Triangulation failed to start"));
+          return;
+      }
 
       String response = "Triangulation started for " + targetMac + " (" + String(duration) + "s, env=" + String(rfEnv);
       if (distanceTuning.enabled) {
@@ -1572,8 +1580,8 @@ void registerRemainingRoutes() {
   });
 
   server->on("/triangulate/stop", HTTP_POST, [](AsyncWebServerRequest *req) {
-    stopTriangulation();
-    req->send(200, "text/plain", "Triangulation stopped");
+    requestTriangulationStop();
+    req->send(200, "text/plain", "Triangulation stopping");
   });
 
   server->on("/triangulate/status", HTTP_GET, [](AsyncWebServerRequest *req) {

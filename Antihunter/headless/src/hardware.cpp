@@ -37,6 +37,7 @@ HardwareSerial GPS(2);
 bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
+static const uint32_t GPS_FIX_MAX_AGE_MS = 5000;
 std::atomic<bool> gpsValid{false};
 SemaphoreHandle_t gpsMutex = nullptr;
 extern bool hbEnabled;
@@ -705,7 +706,7 @@ void loadConfiguration() {
             uint32_t bsi = doc["bleScanInterval"].as<uint32_t>();
             uint32_t bsd = doc["bleScanDuration"].as<uint32_t>();
             String channels = doc.containsKey("channels") && doc["channels"].is<String>() ?
-                            doc["channels"].as<String>() : "1..14";
+                            doc["channels"].as<String>() : "1..11";
             int8_t rssiThreshold = doc["globalRssiThreshold"] | -95;
             setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
         }
@@ -1100,9 +1101,13 @@ void updateGPSLocation() {
         if (gps.encode(c)) {
             lastDataTime = millis();
 
-            bool nowLocked = gps.location.isValid();
+            // isValid() latches true for the rest of the session once any fix is parsed;
+            // age() is the only freshness test. Without it a node keeps publishing the
+            // last position it ever had after losing lock.
+            bool nowLocked = gps.location.isValid() && gps.location.age() < GPS_FIX_MAX_AGE_MS;
             bool fixReady = nowLocked && gps.satellites.isValid() && gps.satellites.value() > 0
-                            && gps.hdop.isValid() && gps.hdop.hdop() > 0;
+                            && gps.hdop.isValid() && gps.hdop.age() < GPS_FIX_MAX_AGE_MS
+                            && gps.hdop.hdop() > 0;
 
             if (nowLocked) {
                 if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
