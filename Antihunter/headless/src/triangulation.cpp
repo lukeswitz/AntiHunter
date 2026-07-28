@@ -448,7 +448,22 @@ void coordinatorSetupTask(const void *parameter) {
     // Children use 0-2s staggered delay + mesh propagation time
     triSetupAbort.store(false);
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
-    vTaskDelay(pdMS_TO_TICKS(15000));  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
+    // Was a flat 15s even when every node had already ACKed - that is 15s of dead UI
+    // before the scan starts. Poll instead and leave once ACKs stop arriving.
+    {
+        uint32_t waitStart = millis();
+        size_t lastCount = 0;
+        uint32_t lastChange = millis();
+        while ((uint32_t)(millis() - waitStart) < 15000) {
+            if (triSetupAbort.load()) break;
+            size_t n;
+            { std::lock_guard<std::mutex> lock(triangulationMutex); n = triangulateAcks.size(); }
+            if (n != lastCount) { lastCount = n; lastChange = millis(); }
+            if (n > 0 && (uint32_t)(millis() - lastChange) >= TRI_ACK_SETTLE_MS) break;
+            vTaskDelay(pdMS_TO_TICKS(250));
+        }
+        Serial.printf("[TRIANGULATE] ACK wait finished after %ums\n", (unsigned)(millis() - waitStart));
+    }  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
     if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
@@ -517,6 +532,10 @@ void coordinatorSetupTask(const void *parameter) {
 
     // Set active flag AFTER task is created to prevent UI race condition
     triangulationActive = true;
+    // stale from a previous run would gate this scan's radio off entirely
+    triTargetChannel.store(0);
+    triTargetRadio.store(0);
+    { std::lock_guard<std::mutex> _g(triAccumMutex); triAccum.gpsSamples = 0; triAccum.hasGPS = false; }
 
     Serial.println("[TRIANGULATE] Mesh sync initiated, scanning active");
 
@@ -525,14 +544,21 @@ void coordinatorSetupTask(const void *parameter) {
     vTaskDelete(NULL);
 }
 
-void startTriangulation(const String &targetMac, int duration) {
+bool startTriangulation(const String &targetMac, int duration, String *err) {
     // Debounce check: prevent rapid restarts
     uint32_t timeSinceLastStop = millis() - lastTriangulationStopTime;
     if (lastTriangulationStopTime > 0 && timeSinceLastStop < TRIANGULATION_DEBOUNCE_MS) {
         uint32_t remainingWait = (TRIANGULATION_DEBOUNCE_MS - timeSinceLastStop) / 1000;
         Serial.printf("[TRIANGULATE] DEBOUNCE: Must wait %us before starting again (last stopped %us ago)\n",
                      remainingWait, timeSinceLastStop / 1000);
-        return;
+        if (err) *err = "Triangulation not started: wait " + String(remainingWait) + "s after the previous run";
+        return false;
+    }
+
+    if (targetMac.length() == 0) {
+        Serial.println("[TRIANGULATE] No target MAC supplied");
+        if (err) *err = "Triangulation not started: no target MAC entered";
+        return false;
     }
 
     bool isIdentityId = false;
@@ -559,7 +585,9 @@ void startTriangulation(const String &targetMac, int duration) {
         uint8_t macBytes[6];
         if (!parseMac6(targetMac, macBytes)) {
             Serial.printf("[TRIANGULATE] Invalid MAC format: %s\n", targetMac.c_str());
-            return;
+            if (err) *err = "Triangulation not started: invalid target \"" + targetMac +
+                            "\" - use AA:BB:CC:DD:EE:FF or a T-<digits> identity";
+            return false;
         }
         memcpy(triangulationTarget, macBytes, 6);
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
@@ -591,7 +619,8 @@ void startTriangulation(const String &targetMac, int duration) {
 
         if (workerTaskHandle != nullptr) {
             Serial.println("[TRIANGULATE] ERROR: Worker task still running after 3s, aborting start");
-            return;
+            if (err) *err = "Triangulation not started: previous scan task still running";
+            return false;
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
@@ -638,17 +667,16 @@ void startTriangulation(const String &targetMac, int duration) {
 
     // Create async task to collect ACKs and start scanning (avoids blocking web handler)
     if (!coordinatorSetupTaskHandle) {
-        ahCreateTask(
-            reinterpret_cast<TaskFunction_t>(coordinatorSetupTask),
-            "triCoordSetup",
-            4096,
-            reinterpret_cast<void *>(static_cast<intptr_t>(duration)),
-            2,  // Higher priority than scanner
-            &coordinatorSetupTaskHandle,
-            1
-        );
+        if (ahCreateTask(reinterpret_cast<TaskFunction_t>(coordinatorSetupTask), "triCoordSetup", 4096,
+                reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 2, &coordinatorSetupTaskHandle, 1) != pdPASS) {
+            coordinatorSetupTaskHandle = nullptr;
+            Serial.println("[TRIANGULATE] Coordinator setup task create failed");
+            if (err) *err = "Triangulation not started: coordinator task could not be created";
+            return false;
+        }
         Serial.println("[TRIANGULATE] Coordinator setup task created (async ACK collection)");
     }
+    return true;
 }
 
 uint32_t calculateAdaptiveTimeout(uint32_t baseTimeoutMs, float perNodeFactor) {
@@ -707,6 +735,17 @@ void stopTriangulation() {
         return;
     }
 
+    static std::atomic<bool> triStopInProgress(false);
+    bool expected = false;
+    if (!triStopInProgress.compare_exchange_strong(expected, true)) {
+        Serial.println("[TRIANGULATE] Stop already in progress - ignoring re-entry");
+        return;
+    }
+    struct StopFlagGuard {
+        std::atomic<bool> &flag;
+        ~StopFlagGuard() { flag.store(false); }
+    } stopFlagGuard{triStopInProgress};
+
     Serial.println("[TRIANGULATE] Stop requested, beginning cleanup...");
 
     if (triangulationInitiator && !triStopCameFromMesh) {
@@ -724,7 +763,22 @@ void stopTriangulation() {
                          triangulateAcks.size());
         }
         Serial.println("[TRIANGULATE] Waiting for late ACKs and initial T_D reports...");
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        // Was a flat 10s even when every node had already reported.
+        {
+            uint32_t w = millis();
+            while ((uint32_t)(millis() - w) < 10000) {
+                size_t total = 0, reported = 0;
+                {
+                    std::lock_guard<std::mutex> lock(triangulationMutex);
+                    total = triangulateAcks.size();
+                    reported = (size_t)std::count_if(triangulateAcks.begin(), triangulateAcks.end(),
+                        [](const TriangulateAckInfo &a) { return a.reportReceived; });
+                }
+                if (total > 0 && reported >= total) break;
+                vTaskDelay(pdMS_TO_TICKS(250));
+            }
+            Serial.printf("[TRIANGULATE] Late-ACK wait finished after %ums\n", (unsigned)(millis() - w));
+        }
 
         int initialNodeCount = 0;
         {
@@ -740,6 +794,8 @@ void stopTriangulation() {
 
             int lastNodeCount = initialNodeCount;
             uint32_t lastNewNodeTime = millis();
+            int lastReportedCount = -1;
+            uint32_t lastReportLog = 0;
 
             while (millis() - waitStart < REPORT_TIMEOUT) {
                 // Count how many nodes have reported (mutex protected)
@@ -760,8 +816,12 @@ void stopTriangulation() {
                     lastNewNodeTime = millis();
                 }
 
-                Serial.printf("[TRIANGULATE] Reports: %d/%d (%.0f%%)\n",
-                             reportedCount, totalAcked, (reportedCount * 100.0f) / totalAcked);
+                if (reportedCount != lastReportedCount || millis() - lastReportLog > 2000) {
+                    Serial.printf("[TRIANGULATE] Reports: %d/%d (%.0f%%)\n",
+                                 reportedCount, totalAcked, (reportedCount * 100.0f) / totalAcked);
+                    lastReportedCount = reportedCount;
+                    lastReportLog = millis();
+                }
 
                 // All nodes reported - but wait a bit longer if we recently discovered new nodes
                 // This gives time for more late T_Ds to arrive
@@ -863,7 +923,20 @@ void stopTriangulation() {
                 [&](const auto& n) { return n.nodeId == myNodeId; });
             const bool selfNodeExists = (selfNodeIt != triangulationNodes.end());
             if (selfNodeExists) {
-                Serial.printf("[TRIANGULATE] Self node already exists with %d hits\n", selfNodeIt->hitCount);
+                // Was log-only: the accumulated position/RSSI gathered all scan was collected
+                // and then thrown away, leaving whatever the first loopback frame happened to carry.
+                selfNodeIt->hitCount = totalHits;
+                updateNodeRSSI(*selfNodeIt, avgRssi);
+                selfNodeIt->isBLE = isBLE;
+                if (hasGPS) {
+                    selfNodeIt->lat = lat;
+                    selfNodeIt->lon = lon;
+                    selfNodeIt->hdop = hdop;
+                    selfNodeIt->hasGPS = true;
+                }
+                selfNodeIt->lastUpdate = millis();
+                Serial.printf("[TRIANGULATE] Self node updated: %d hits, RSSI=%d, GPS=%s\n",
+                             totalHits, avgRssi, hasGPS ? "YES" : "NO");
             }
 
             if (!selfNodeExists && triangulationNodes.size() < MAX_TRIANGULATION_NODES) {
@@ -989,8 +1062,8 @@ void stopTriangulation() {
                 }
                 if (validDistances > 0) avgDistance /= validDistances;
 
-                float avgHDOP = getAverageHDOP(gpsNodes);
                 float gdop = calculateGDOP(gpsNodes);
+                float avgHDOP = getAverageHDOP(gpsNodes);
 
                 float gpsPositionError = avgHDOP * 2.5;
                 float rssiDistanceError = avgDistance * 0.20;
@@ -1006,6 +1079,9 @@ void stopTriangulation() {
                     calibError * calibError
                 );
                 float cep = uncertainty * 0.59;
+                // An unconstrained solve yields a covariance eigenvalue in the millions;
+                // reporting it as metres is meaningless. Cap it and flag it as unusable.
+                if (cep > TRI_UNC_MAX_M) cep = TRI_UNC_MAX_M;
 
                 apFinalResult.hasResult = true;
                 apFinalResult.latitude = estLat;
@@ -1183,7 +1259,7 @@ String calculateTriangulation() {
         results += "  Latitude:  " + String(apFinalResult.latitude, 6) + "\n";
         results += "  Longitude: " + String(apFinalResult.longitude, 6) + "\n";
         results += "  Confidence: " + String(apFinalResult.confidence * 100.0, 1) + "%\n";
-        results += "  Uncertainty (CEP68): ±" + String(apFinalResult.uncertainty, 1) + "m\n";
+        results += "  Uncertainty: ±" + String(apFinalResult.uncertainty, 1) + "m\n";
 
         String mapsUrl = "https://www.google.com/maps?q=" +
                         String(apFinalResult.latitude, 6) + "," +
@@ -1445,7 +1521,7 @@ String calculateTriangulation() {
         
         float cep = uncertainty * 0.59;
         
-        results += "  Uncertainty (CEP68): ±" + String(cep, 1) + "m\n";
+        results += "  Uncertainty: ±" + String(cep, 1) + "m\n";
         results += "  Uncertainty (95%): ±" + String(uncertainty, 1) + "m\n";
         results += "  Error budget: GPS=" + String(gpsPositionError, 1) + "m RSSI=" + 
                 String(rssiDistanceError, 1) + "m Geom=" + String(geometricError, 1) + "m\n";

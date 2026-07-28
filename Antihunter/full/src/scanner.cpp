@@ -150,7 +150,7 @@ RFScanConfig rfConfig = {
     .bleScanInterval = 2000,
     .bleScanDuration = 3000,
     .preset = 1,
-    .wifiChannels = "1..14",
+    .wifiChannels = "1..11",
     .globalRssiThreshold = -95,
     .bandMode = DEFAULT_BAND_MODE
 };
@@ -405,7 +405,7 @@ void loadRFConfigFromPrefs() {
         uint32_t wsi = prefs.getUInt("wifiInterval", 5000);
         uint32_t bsi = prefs.getUInt("bleInterval", 2000);
         uint32_t bsd = prefs.getUInt("bleDuration", 3000);
-        String channels = prefs.getString("channels", "1..14");
+        String channels = prefs.getString("channels", "1..11");
         int8_t rssiThreshold = prefs.getInt("globalRSSI", -95);
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
@@ -433,6 +433,9 @@ QueueHandle_t deauthQueue = nullptr;
 
 // Triangulation
 TriangulationAccumulator triAccum = {0};
+std::atomic<uint8_t> triTargetChannel(0);
+// 0 = unknown, 1 = target is BLE, 2 = target is WiFi
+std::atomic<uint8_t> triTargetRadio(0);
 std::mutex triAccumMutex;
 static const uint32_t TRI_SEND_INTERVAL = 2000;
 
@@ -969,6 +972,17 @@ uint8_t nextActiveScanChannel()
     return pool[i];
 }
 
+// A known WiFi target sits on one channel; sweeping the other 13 costs ~93% of the
+// sample rate. Falls back to the normal sweep until the channel is known.
+static uint8_t triScanChannel() {
+    if (triangulationActive.load()) {
+        uint8_t ch = triTargetChannel.load();
+        if (ch >= 1 && ch <= 14) return ch;
+    }
+    return nextActiveScanChannel();
+}
+
+
 // Deauth type
 String getDeauthReasonText(uint16_t reasonCode) {
     switch (reasonCode) {
@@ -1294,7 +1308,7 @@ void snifferScanTask(void *pv)
             Serial.println("[SNIFFER] Scanning WiFi networks...");
             if (hopTimer) esp_timer_stop(hopTimer);
             esp_wifi_set_promiscuous(false);
-            uint8_t reqCh = nextActiveScanChannel();
+            uint8_t reqCh = triScanChannel();
             uint32_t scanT0 = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, reqCh);
             rfTrace("sniffer", reqCh, networksFound, millis() - scanT0);
@@ -3120,6 +3134,8 @@ void initializeScanner()
 }
 
 static void resetTriAccumulator(const uint8_t* mac) {
+    triTargetChannel.store(0);
+    triTargetRadio.store(0);
     std::lock_guard<std::mutex> lock(triAccumMutex);
     memcpy(triAccum.targetMac, mac, 6);
 
@@ -3136,8 +3152,10 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.lat = 0.0f;
     triAccum.lon = 0.0f;
     triAccum.hdop = 99.9f;
+    triAccum.gpsSamples = 0;
     triAccum.hasGPS = false;
-    triAccum.lastSendTime = millis();
+    triAccum.lastSendTime = 0;
+    triAccum.lastSendSeq = 0;
 }
 static void sendTriAccumulatedData(const String& nodeId) {
     std::lock_guard<std::mutex> lock(triAccumMutex);
@@ -3176,35 +3194,41 @@ static void sendTriAccumulatedData(const String& nodeId) {
     reportingSchedule.addNode(nodeId);
 
     if (reportingSchedule.cycleStartMs == 0) {
-        // Use GPS-synchronized time instead of local millis() to ensure all nodes agree on slot boundaries
         int64_t syncedUs = getCorrectedMicroseconds();
         uint32_t syncedMs = (uint32_t)(syncedUs / 1000LL);
         reportingSchedule.initializeCycle(syncedMs);
-        Serial.printf("[TRI-SLOT] Initialized cycle start at syncedMs=%u (from GPS-corrected time)\n", syncedMs);
     }
 
-    // Use GPS-synchronized time for consistent slot checking across all nodes
-    int64_t syncedUs = getCorrectedMicroseconds();
-    uint32_t now = (uint32_t)(syncedUs / 1000LL);
+    uint32_t now = millis();
+    uint32_t minGap = reportingSchedule.selfGapMs();
+    if (triAccum.lastSendTime != 0 && (uint32_t)(now - triAccum.lastSendTime) < minGap) return;
 
-    uint32_t nextSlot = 0;
-    if (!reportingSchedule.isMySlotActive(nodeId, nextSlot, now)) {
-        int32_t waitMs = (int32_t)(nextSlot - now);
-
-        if (waitMs > 0 && waitMs < 60000) {
-            static uint32_t lastLog = 0;
-            if (millis() - lastLog > 2000) {
-                Serial.printf("[TRI-WAIT] Node %s: waiting %dms for slot (next=%u, now=%u)\n",
-                            nodeId.c_str(), waitMs, nextSlot, now);
-                lastLog = millis();
+    if (triAccum.lastSendTime != 0 && reportingSchedule.nodeCount() > 1 &&
+        reportingSchedule.peerSeq() == triAccum.lastSendSeq) {
+        if (!reportingSchedule.lapElapsed(now)) {
+            static uint32_t lastHoldLog = 0;
+            if (now - lastHoldLog > 5000) {
+                Serial.printf("[TRI-TURN] %s holding - no peer report received since my last send\n", nodeId.c_str());
+                lastHoldLog = now;
             }
+            return;
+        }
+        Serial.printf("[TRI-TURN] %s re-seeding ring - full lap with no peer report\n", nodeId.c_str());
+    }
+
+    String waitingOn;
+    if (!reportingSchedule.isMyTurn(nodeId, now, waitingOn)) {
+        static uint32_t lastLog = 0;
+        if (waitingOn.length() && now - lastLog > 2000) {
+            Serial.printf("[TRI-TURN] %s waiting for %s\n", nodeId.c_str(), waitingOn.c_str());
+            lastLog = now;
         }
         return;
     }
-    
+
     String macStr = macFmt6(triAccum.targetMac);
     bool sentAny = false;
-    
+
     if (triAccum.wifiHitCount > 0) {
         int8_t wifiAvgRssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
         String wifiMsg = nodeId + ": T_D: " + macStr +
@@ -3217,7 +3241,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
         }
         if (sendToSerial1(wifiMsg, true)) {
             sentAny = true;
-            reportingSchedule.markReportReceived(nodeId);
+            reportingSchedule.markReportReceived(nodeId, false);
             Serial.printf("[TRI-SLOT] %s: WiFi sent (%d hits)\n", nodeId.c_str(), triAccum.wifiHitCount);
             delay(600);
         } else {
@@ -3237,7 +3261,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
         }
         if (sendToSerial1(bleMsg, true)) {
             sentAny = true;
-            reportingSchedule.markReportReceived(nodeId);
+            reportingSchedule.markReportReceived(nodeId, false);
             Serial.printf("[TRI-SLOT] %s: BLE sent (%d hits)\n", nodeId.c_str(), triAccum.bleHitCount);
             delay(600);
         } else {
@@ -3247,6 +3271,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
     if (sentAny) {
         triAccum.lastSendTime = millis();
+        triAccum.lastSendSeq = reportingSchedule.peerSeq();
         delay(150);
     }
 }
@@ -3340,14 +3365,15 @@ void listScanTask(void *pv) {
     // Use list scan mode (non-promiscuous) to avoid IPC stack overflow
     // WiFi.scanNetworks() and promiscuous mode cannot run together safely
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
-        radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
-        vTaskDelay(pdMS_TO_TICKS(200));
-
-        // Start BLE separately if needed (SCAN_BOTH mode)
+        // BT controller init allocates its interrupt on the ipc0 task, whose stack is
+        // fixed in the prebuilt IDF. Overlapping it with the WiFi mode change tripped
+        // the ipc0 stack canary, so do it first and let it settle.
         if (currentScanMode == SCAN_BOTH) {
             radioStartBLE();
-            vTaskDelay(pdMS_TO_TICKS(200));
+            vTaskDelay(pdMS_TO_TICKS(300));
         }
+        radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
+        vTaskDelay(pdMS_TO_TICKS(200));
     } else if (currentScanMode == SCAN_BLE) {
         vTaskDelay(pdMS_TO_TICKS(100));
         radioStartBLE();
@@ -3385,10 +3411,11 @@ void listScanTask(void *pv) {
         }
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
+            !(triangulationActive.load() && triTargetRadio.load() == 1) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0) &&
             (apScanSuppressUntilMs == 0 || (int32_t)(millis() - apScanSuppressUntilMs) >= 0)) {
             lastWiFiScan = millis();
-            uint8_t reqCh = nextActiveScanChannel();
+            uint8_t reqCh = triScanChannel();
             uint32_t scanT0 = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, reqCh);
             rfTrace("listscan", reqCh, networksFound, millis() - scanT0);
@@ -3460,6 +3487,7 @@ void listScanTask(void *pv) {
         processUSBToMesh();
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) && pBLEScan &&
+            !(triangulationActive.load() && triTargetRadio.load() == 2) &&
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
             lastBLEScan = millis();
             NimBLEScanResults scanResults = pBLEScan->getResults(500, false);
@@ -3599,6 +3627,16 @@ void listScanTask(void *pv) {
                             goto skip_accumulation;
                         }
 
+                        if (!h.isBLE && h.ch >= 1 && h.ch <= 14 && triTargetChannel.load() != h.ch) {
+                            triTargetChannel.store(h.ch);
+                            Serial.printf("[TRI-CH] Target on channel %u - locking scan to it\n", h.ch);
+                        }
+                        // A device is one or the other; once known, stop sweeping the other radio.
+                        if (triTargetRadio.load() == 0) {
+                            triTargetRadio.store(h.isBLE ? 1 : 2);
+                            Serial.printf("[TRI-RADIO] Target is %s - narrowing scan\n", h.isBLE ? "BLE" : "WiFi");
+                        }
+
                         if (h.isBLE) {
                             triAccum.bleHitCount++;
                             triAccum.bleRssiSum += (float)h.rssi;
@@ -3612,16 +3650,25 @@ void listScanTask(void *pv) {
                         }
 
                         if (gpsValid) {
+                            float sLat = 0.0f, sLon = 0.0f; bool got = false;
                             if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                                triAccum.lat = gpsLat;
-                                triAccum.lon = gpsLon;
+                                sLat = gpsLat; sLon = gpsLon; got = true;
                                 xSemaphoreGive(gpsMutex);
-                            } else {
-                                triAccum.lat = 0.0;
-                                triAccum.lon = 0.0;
                             }
-                            triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
-                            triAccum.hasGPS = true;
+                            if (got) {
+                                // Stationary anchor: average the fix over the scan. Anchor error
+                                // bounds the whole solution, and one sample was throwing away the rest.
+                                if (!triAccum.hasGPS || triAccum.gpsSamples == 0) {
+                                    triAccum.lat = sLat; triAccum.lon = sLon; triAccum.gpsSamples = 1;
+                                } else {
+                                    if (triAccum.gpsSamples < 65535) triAccum.gpsSamples++;
+                                    float k = 1.0f / (float)triAccum.gpsSamples;
+                                    triAccum.lat += (sLat - triAccum.lat) * k;
+                                    triAccum.lon += (sLon - triAccum.lon) * k;
+                                }
+                                triAccum.hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9f;
+                                triAccum.hasGPS = true;
+                            }
                         }
 
                         skip_accumulation:
@@ -3752,14 +3799,13 @@ void listScanTask(void *pv) {
         }
 
         if (triangulationActive && !stopRequested) {
-            // Check periodically - sendTriAccumulatedData has built-in 3s rate limiting
             if ((int32_t)(millis() - nextTriReportCheck) >= 0) {
                 String myNodeId = getNodeId();
                 if (myNodeId.length() == 0) {
                     myNodeId = "NODE_" + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
                 }
                 sendTriAccumulatedData(myNodeId);
-                nextTriReportCheck = millis() + 1000;  // Check every second
+                nextTriReportCheck = millis() + 250;
             }
         }
 

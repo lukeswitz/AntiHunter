@@ -903,6 +903,28 @@ static void handleVibrationOff(const String &command)
   setVibrationEnabled(false);
 }
 
+static bool triPendingCycleStart = false;
+static uint32_t triPendingCycleStartMs = 0;
+static uint32_t triPendingCycleStartAt = 0;
+
+// Participant-side scan launch, shared by TRI_CYCLE_START and the latched out-of-order path.
+static void triStartParticipantScan()
+{
+  if (workerTaskHandle || blueTeamTaskHandle) {
+    Serial.println("[TRIANGULATE] Radio busy, cannot start triangulation scan task");
+    return;
+  }
+  scanning = true;
+  Serial.printf("[TRIANGULATE] Starting participant scan task (duration=%us)\n", triangulationDuration);
+  if (ahCreateTask(listScanTask, "triangulate", 8192,
+                   reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
+    scanning = false;
+    workerTaskHandle = nullptr;
+    scanSetCountdown(0, false);
+    Serial.println("[SCAN] task create failed: triangulate");
+  }
+}
+
 static void handleTriangulateStart(const String &command, const String &targetId)
 {
   String params = command.substring(18);
@@ -1136,6 +1158,10 @@ static void handleTriangulateStart(const String &command, const String &targetId
   // Participant node setup
   triangulationInitiator = false;
   triangulationActive = true;
+  // stale from a previous run would gate this scan's radio off entirely
+  triTargetChannel.store(0);
+  triTargetRadio.store(0);
+  { std::lock_guard<std::mutex> _g(triAccumMutex); triAccum.gpsSamples = 0; triAccum.hasGPS = false; }
   triangulationStart = millis();
   triangulationDuration = duration;
   currentScanMode = SCAN_BOTH;
@@ -1159,7 +1185,17 @@ static void handleTriangulateStart(const String &command, const String &targetId
   // Send acknowledgment to coordinator
   sendToSerial1(nodeId + ": TRI_START_ACK", true);
   Serial.println("[TRIANGULATE] ACK sent to coordinator");
-  Serial.println("[TRIANGULATE] Waiting for TRI_CYCLE_START before scanning...");
+
+  // Mesh can deliver TRI_CYCLE_START first; honour the latched one instead of waiting forever.
+  if (triPendingCycleStart && (uint32_t)(millis() - triPendingCycleStartAt) < 120000) {
+    triPendingCycleStart = false;
+    reportingSchedule.addNode(nodeId);
+    reportingSchedule.cycleStartMs = triPendingCycleStartMs;
+    Serial.println("[TRIANGULATE] TRI_CYCLE_START already latched - starting scan now");
+    triStartParticipantScan();
+  } else {
+    Serial.println("[TRIANGULATE] Waiting for TRI_CYCLE_START before scanning...");
+  }
 }
 
 static void handleTriangulateStop(const String &command)
@@ -1167,6 +1203,7 @@ static void handleTriangulateStop(const String &command)
   (void)command;
   Serial.println("[MESH] TRIANGULATE_STOP received");
   stopRequested = true;
+  triPendingCycleStart = false;
 
   if (triangulationActive && !triangulationInitiator) {
     rateLimiter.flush();
@@ -1278,61 +1315,67 @@ static void handleTriCycleStart(const String &command)
   // Format: TRI_CYCLE_START:timestamp:node1,node2,node3...
   String params = command.substring(16);
   int colonPos = params.indexOf(':');
+  String myNodeId = getNodeId();
+  if (myNodeId.length() == 0) myNodeId = nodeId;
+
+  // Re-broadcast mid-run must not wipe lastSpeaker/reportSeq - that would restart the ring.
+  bool alreadyRinging = (reportingSchedule.cycleStartMs != 0 && triangulationActive);
 
   if (colonPos > 0) {
-    // New format with node list
-    uint32_t cycleStartMs = params.substring(0, colonPos).toInt();
+    uint32_t cycleStartMs = (uint32_t)strtoul(params.substring(0, colonPos).c_str(), nullptr, 10);
     String nodeListStr = params.substring(colonPos + 1);
 
-    // Clear and rebuild reporting schedule with all nodes in coordinator's order
-    reportingSchedule.reset();
+    if (!alreadyRinging) reportingSchedule.reset();
 
-    // Parse comma-separated node list
     int startIdx = 0;
     int commaIdx = nodeListStr.indexOf(',');
 
     while (commaIdx >= 0) {
       String node = nodeListStr.substring(startIdx, commaIdx);
+      node.trim();
       reportingSchedule.addNode(node);
       startIdx = commaIdx + 1;
       commaIdx = nodeListStr.indexOf(',', startIdx);
     }
 
-    // Add last node (after final comma)
     if (startIdx < nodeListStr.length()) {
       String node = nodeListStr.substring(startIdx);
+      node.trim();
       reportingSchedule.addNode(node);
     }
 
-    // Initialize cycle start time
+    // Our own ACK may have missed the coordinator's collection window - we are always in our own ring.
+    reportingSchedule.addNode(myNodeId);
     reportingSchedule.cycleStartMs = cycleStartMs;
 
-    Serial.printf("[MESH] TRI_CYCLE_START received: %u ms, nodes: %s\n",
-                  cycleStartMs, nodeListStr.c_str());
+    Serial.printf("[MESH] TRI_CYCLE_START received: %u ms, nodes: %s (+%s, ring=%u)\n",
+                  cycleStartMs, nodeListStr.c_str(), myNodeId.c_str(),
+                  (unsigned)reportingSchedule.nodeCount());
   } else {
-    // Old format - just timestamp (for backward compatibility)
-    uint32_t cycleStartMs = params.toInt();
-    reportingSchedule.addNode(nodeId);
+    uint32_t cycleStartMs = (uint32_t)strtoul(params.c_str(), nullptr, 10);
+    reportingSchedule.addNode(myNodeId);
     reportingSchedule.cycleStartMs = cycleStartMs;
     Serial.printf("[MESH] TRI_CYCLE_START received (legacy): %u ms\n", cycleStartMs);
   }
 
-  // Participant nodes: now start scanning (coordinator handles its own scan task creation)
-  if (triangulationActive && !triangulationInitiator) {
-    if (workerTaskHandle || blueTeamTaskHandle) {
-      Serial.println("[TRIANGULATE] Radio busy, cannot start triangulation scan task");
-    } else {
-      scanning = true;
-      Serial.printf("[TRIANGULATE] TRI_CYCLE_START received - starting scan task (duration=%us)\n", triangulationDuration);
-      if (ahCreateTask(listScanTask, "triangulate", 8192,
-                       reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
-          scanning = false;
-          workerTaskHandle = nullptr;
-          scanSetCountdown(0, false);
-          Serial.println("[SCAN] task create failed: triangulate");
-      }
-    }
+  if (triangulationInitiator) return;
+
+  if (!triangulationActive) {
+    // Arrived before TRIANGULATE_START; latch so the start handler can act on it.
+    triPendingCycleStart = true;
+    triPendingCycleStartMs = reportingSchedule.cycleStartMs;
+    triPendingCycleStartAt = millis();
+    Serial.println("[TRIANGULATE] TRI_CYCLE_START arrived before START - latched");
+    return;
   }
+
+  if (workerTaskHandle) {
+    Serial.println("[TRIANGULATE] Roster update applied, scan already running");
+    return;
+  }
+
+  triPendingCycleStart = false;
+  triStartParticipantScan();
 }
 
 static void handleTriangulateResults(const String &command)
@@ -1765,9 +1808,41 @@ String getNodeId() {
     return nodeId;
 }
 
+static bool meshIsNodeIdToken(const String &t) {
+    if (t.length() < 2 || t.length() > 5) return false;
+    for (size_t i = 0; i < t.length(); i++) {
+        char c = t.charAt(i);
+        if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) return false;
+    }
+    return true;
+}
+
+// Radios prepend their own shortname, so a peer line can arrive as "ah06: AH903: T_D: ..."
+void meshSplitSender(const String &line, String &sender, String &payload) {
+    sender = "";
+    payload = line;
+    int p = payload.indexOf(": ");
+    if (p <= 0) return;
+    String first = payload.substring(0, p);
+    String rest = payload.substring(p + 2);
+    if (meshIsNodeIdToken(first)) {
+        sender = first;
+        payload = rest;
+        return;
+    }
+    int q = rest.indexOf(": ");
+    if (q > 0 && meshIsNodeIdToken(rest.substring(0, q))) {
+        sender = rest.substring(0, q);
+        payload = rest.substring(q + 2);
+        return;
+    }
+    sender = first;
+    payload = rest;
+}
+
 void processMeshMessage(const String &message) {
     if (message.length() == 0 || message.length() > MAX_MESH_SIZE) return;
-    
+
     String cleanMessage = "";
     for (size_t i = 0; i < message.length(); i++) {
         char c = message[i];
@@ -1775,21 +1850,20 @@ void processMeshMessage(const String &message) {
     }
     if (cleanMessage.length() == 0) return;
 
-    int colonPos = cleanMessage.indexOf(':');
-    if (colonPos > 0) {
-        String sendingNode = cleanMessage.substring(0, colonPos);
-        if (sendingNode == getNodeId()) {
-            return;
-        }
-    }
-    
+    String sendingNode, content;
+    meshSplitSender(cleanMessage, sendingNode, content);
+    const bool haveSender = sendingNode.length() > 0;
+    if (haveSender && sendingNode == getNodeId()) return;
+
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
 
-    // Handle TRI_START_ACK from child nodes (coordinator only)
-    if (colonPos > 0 && triangulationInitiator) {
-        String sendingNode = cleanMessage.substring(0, colonPos);
-        String content = cleanMessage.substring(colonPos + 2);
+    // Every node learns the ring from ACKs it overhears, so a late joiner is still yielded to.
+    if (haveSender && content == "TRI_START_ACK" && (triangulationActive || triangulationInitiator)) {
+        reportingSchedule.addNode(sendingNode);
+    }
 
+    // Handle TRI_START_ACK from child nodes (coordinator only)
+    if (haveSender && triangulationInitiator) {
         if (content == "TRI_START_ACK") {
             Serial.printf("[TRIANGULATE] ACK received from %s\n", sendingNode.c_str());
             // Track which nodes have acknowledged - add to triangulateAcks if not already present
@@ -1819,10 +1893,7 @@ void processMeshMessage(const String &message) {
     }
 
     // Process T_D messages during active triangulation or while waiting for final reports
-    if ((triangulationActive || waitingForFinalReports) && colonPos > 0) {
-        String sendingNode = cleanMessage.substring(0, colonPos);
-        String content = cleanMessage.substring(colonPos + 2);
-
+    if ((triangulationActive || waitingForFinalReports) && haveSender) {
         // T_D from child nodes
         if (content.startsWith("T_D:")) {
             String payload = content.substring(5);
@@ -1884,6 +1955,9 @@ void processMeshMessage(const String &message) {
                             }
                         }
 
+                        reportingSchedule.addNode(sendingNode);
+                        reportingSchedule.markReportReceived(sendingNode);
+
                         {
                             std::lock_guard<std::mutex> lock(triangulationMutex);
 
@@ -1897,8 +1971,15 @@ void processMeshMessage(const String &message) {
                                 }
                                 nodeIt->isBLE = isBLE;
                                 if (hasGPS) {
-                                    nodeIt->lat = lat;
-                                    nodeIt->lon = lon;
+                                    // Stationary anchor: average reported fixes instead of last-write-wins.
+                                    if (!nodeIt->hasGPS || nodeIt->gpsSamples == 0) {
+                                        nodeIt->lat = lat; nodeIt->lon = lon; nodeIt->gpsSamples = 1;
+                                    } else {
+                                        if (nodeIt->gpsSamples < 65535) nodeIt->gpsSamples++;
+                                        float k = 1.0f / (float)nodeIt->gpsSamples;
+                                        nodeIt->lat += (lat - nodeIt->lat) * k;
+                                        nodeIt->lon += (lon - nodeIt->lon) * k;
+                                    }
                                     nodeIt->hasGPS = true;
                                     nodeIt->hdop = hdop;
                                 }
@@ -2202,9 +2283,7 @@ void processMeshMessage(const String &message) {
       }
     }    
 
-    String payload = cleanMessage;
-    int senderSep = cleanMessage.indexOf(": ");
-    if (senderSep > 0) payload = cleanMessage.substring(senderSep + 2);
+    String payload = content;
 
     if (payload.startsWith("@")) {
       int spaceIndex = payload.indexOf(' ');

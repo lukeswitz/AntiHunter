@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <Preferences.h>
 #include <map>
+#include <set>
 #include <vector>
 #include <mutex>
 
@@ -30,6 +31,7 @@ struct TriangulationNode {
     float distanceEstimate{};
     float signalQuality{};
     float hdop{};
+    uint16_t gpsSamples{};
     bool isBLE{};
 };
 
@@ -150,6 +152,8 @@ extern const size_t MAX_ACK_INFO;
 const float KALMAN_MEASUREMENT_NOISE = 4.0;
 const uint32_t RSSI_HISTORY_SIZE = 10;
 const uint32_t SYNC_CHECK_INTERVAL = 30000;
+const uint32_t TRI_ACK_SETTLE_MS = 4000;
+const float TRI_UNC_MAX_M = 100.0f;
 
 // Triangulation functions
 void initNodeKalmanFilter(TriangulationNode &node);
@@ -167,7 +171,7 @@ void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t mil
 bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);
 String calculateTriangulation();
 void stopTriangulation();
-void startTriangulation(const String &targetMac, int duration);
+bool startTriangulation(const String &targetMac, int duration, String *err = nullptr);
 void disciplineRTCFromGPS();
 int64_t getCorrectedMicroseconds();
 void calibratePathLoss(const String &targetMac, float knownDistance);
@@ -176,39 +180,143 @@ void addPathLossSample(float rssi, float distance, bool isWiFi);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 void markTriangulationStopFromMesh();
 
-struct NodeReportingInfo {
-    String nodeId;
-    uint8_t slotIndex{};
-    uint32_t firstReportTime{};
-    uint32_t lastReportTime{};
-    bool hasReported{};
-};
+// Token-pass timings. Uncalibrated default assumes a slow LoRa mesh; the measured
+// peer spacing pulls it down on a fast one.
+static const uint32_t TRI_SKIP_UNCALIBRATED_MS = 4000;
+static const uint32_t TRI_SKIP_MIN_MS = 1500;
+static const uint32_t TRI_SKIP_MAX_MS = 8000;
+static const uint32_t TRI_RESEED_MIN_MS = 15000;
 
 struct DynamicReportingSchedule {
-    std::map<String, NodeReportingInfo> nodes;
+    std::set<String> nodes;
     uint32_t slotDurationMs = 0;
     uint32_t cycleStartMs = 0;
-    uint32_t guardIntervalMs = 200;
+    String lastSpeaker;
+    uint32_t lastActivityMs = 0;
+    uint32_t lastPeerReportMs = 0;
+    uint32_t peerIntervalMs = 0;
+    uint32_t reportSeq = 0;
     std::mutex nodeMutex;
-    
-    void addNode(const String& nid) {
+
+    size_t nodeCount() {
         std::lock_guard<std::mutex> lock(nodeMutex);
-        if (nodes.find(nid) == nodes.end()) {
-            NodeReportingInfo info;
-            info.nodeId = nid;
-            info.slotIndex = nodes.size();
-            info.firstReportTime = millis();
-            info.lastReportTime = millis();
-            info.hasReported = false;
-            nodes[nid] = info;
+        return nodes.size();
+    }
 
+    uint32_t peerSeq() {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        return reportSeq;
+    }
+
+    bool hasNode(const String& nid) {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        return nodes.find(nid) != nodes.end();
+    }
+
+    // How long to wait on the expected speaker before passing the turn on. Must exceed
+    // real mesh delivery time or we declare a node silent while its frame is still in
+    // flight and lap back to ourselves - so it is measured, never a fixed constant.
+    uint32_t skipTimeoutMs() const {
+        uint32_t t = peerIntervalMs ? peerIntervalMs + (peerIntervalMs >> 1)
+                                    : TRI_SKIP_UNCALIBRATED_MS;
+        if (t < TRI_SKIP_MIN_MS) t = TRI_SKIP_MIN_MS;
+        if (t > TRI_SKIP_MAX_MS) t = TRI_SKIP_MAX_MS;
+        return t;
+    }
+
+    // Minimum spacing between two of MY OWN sends: the time every other node needs to
+    // get a turn. Without this a delayed frame re-opens the send gate and one node
+    // bursts three or four times while the rest of the ring waits.
+    uint32_t selfGapMs() {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        if (nodes.size() <= 1) return slotDurationMs ? slotDurationMs : 3000u;
+        // Observed hop time, not the timeout: the ring usually runs faster than the
+        // timeout, and gapping on the timeout would block our own legitimate turn.
+        uint32_t hop = peerIntervalMs ? peerIntervalMs : TRI_SKIP_UNCALIBRATED_MS;
+        return (uint32_t)(nodes.size() - 1) * hop;
+    }
+
+    // Last-resort re-seed for when every peer is dead. Deliberately conservative: firing
+    // early is what lets one node report twice in a row, and a lost report costs nothing
+    // next to breaking the alternation.
+    bool lapElapsed(uint32_t now) {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        uint32_t ref = lastPeerReportMs ? lastPeerReportMs : lastActivityMs;
+        if (ref == 0) return false;
+        uint32_t laps = 3u * (nodes.empty() ? 1u : (uint32_t)nodes.size()) * skipTimeoutMs();
+        if (laps < TRI_RESEED_MIN_MS) laps = TRI_RESEED_MIN_MS;
+        return (uint32_t)(now - ref) >= laps;
+    }
+
+    String successorOf(const String& who) const {
+        if (nodes.empty()) return String("");
+        auto it = nodes.find(who);
+        if (it == nodes.end()) return *nodes.begin();
+        if (++it == nodes.end()) return *nodes.begin();
+        return *it;
+    }
+
+    static uint32_t startupStaggerMs(const String& nid) {
+        uint32_t h = 2166136261u;
+        for (size_t i = 0; i < nid.length(); i++) { h ^= (uint8_t)nid.c_str()[i]; h *= 16777619u; }
+        h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
+        return h % 2000;
+    }
+
+    // Whose turn it is must be a PURE function of (lastSpeaker, lastActivityMs, now).
+    // Mutating token state here made each node skip on its own clock and drift out of
+    // phase, so two nodes could both believe they held the turn and transmit together.
+    bool isMyTurn(const String& nid, uint32_t now, String& waitingOn) {
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        if (nodes.empty() || nodes.find(nid) == nodes.end()) return false;
+        if (lastActivityMs == 0) lastActivityMs = now;
+
+        // Hard rule: never speak twice in a row. The last speaker we know of being
+        // ourselves means no peer has been heard since, so the turn is not ours -
+        // regardless of what the timers say. Only a fully dead ring overrides this.
+        if (lastSpeaker == nid) {
+            uint32_t ref = lastPeerReportMs ? lastPeerReportMs : lastActivityMs;
+            uint32_t dead = 3u * (uint32_t)nodes.size() * skipTimeoutMs();
+            if (dead < TRI_RESEED_MIN_MS) dead = TRI_RESEED_MIN_MS;
+            if (ref == 0 || (uint32_t)(now - ref) < dead) {
+                waitingOn = successorOf(nid);
+                return false;
+            }
+        }
+
+        // Per-node offset so two nodes never cross a skip boundary in the same instant.
+        uint32_t skip = skipTimeoutMs() + (startupStaggerMs(nid) % 400);
+        uint32_t elapsed = (uint32_t)(now - lastActivityMs);
+        size_t hops = elapsed / skip;
+
+        if (lastSpeaker.length() == 0) {
+            if (elapsed < startupStaggerMs(nid)) { waitingOn = String("start"); return false; }
+            auto it = nodes.begin();
+            for (size_t i = 0, k = hops % nodes.size(); i < k; i++) ++it;
+            if (*it == nid) return true;
+            waitingOn = *it;
+            return false;
+        }
+
+        hops %= nodes.size();
+        String expected = lastSpeaker;
+        for (size_t i = 0; i <= hops; i++) expected = successorOf(expected);
+        if (expected.length() == 0) return false;
+        if (expected == nid) return true;
+        waitingOn = expected;
+        return false;
+    }
+
+    void addNode(const String& nid) {
+        if (nid.length() == 0) return;
+        std::lock_guard<std::mutex> lock(nodeMutex);
+        if (nodes.insert(nid).second) {
             recalculateSlotDuration();
-
-            Serial.printf("[SLOTS] Registered: %s -> slot %d/%d (duration=%ums)\n",
-                         nid.c_str(), info.slotIndex, nodes.size(), slotDurationMs);
+            Serial.printf("[SLOTS] Registered: %s (%u nodes, gap=%ums)\n",
+                         nid.c_str(), (unsigned)nodes.size(), slotDurationMs);
         }
     }
-    
+
     void recalculateSlotDuration() {
         if (nodes.empty()) {
             slotDurationMs = 0;
@@ -229,60 +337,32 @@ struct DynamicReportingSchedule {
         } else {
             slotDurationMs = 2000;   // scales for more nodes
         }
-
-        Serial.printf("[SLOTS] Recalculated: %d nodes, %ums/slot, %ums guard\n",
-                     numNodes, slotDurationMs, guardIntervalMs);
     }
-    
-    bool isMySlotActive(const String& nid, uint32_t& nextSlotMs, uint32_t now = 0) {
+
+    // fromPeer=false for our own transmission: it advances the token but must not
+    // satisfy the "wait for a peer before sending again" rule.
+    void markReportReceived(const String& nid, bool fromPeer = true) {
+        if (nid.length() == 0) return;
         std::lock_guard<std::mutex> lock(nodeMutex);
-        if (nodes.find(nid) == nodes.end()) return false;
-        if (cycleStartMs == 0) return false;
-
-        uint8_t numNodes = nodes.size();
-        if (numNodes == 0) return false;
-
-        // Use provided GPS-synchronized time if available, otherwise fall back to millis()
-        if (now == 0) {
-            now = millis();
-        }
-        uint32_t elapsed = (now >= cycleStartMs) ? (now - cycleStartMs) :
-                          (UINT32_MAX - cycleStartMs + now + 1);
-        
-        uint32_t cycleMs = slotDurationMs * numNodes;
-        uint8_t mySlot = nodes[nid].slotIndex;
-        
-        uint32_t positionInCycle = elapsed % cycleMs;
-        uint32_t slotStartMs = mySlot * slotDurationMs;
-        uint32_t slotEndMs = slotStartMs + slotDurationMs - guardIntervalMs;
-        
-        bool isActive = (positionInCycle >= slotStartMs && positionInCycle < slotEndMs);
-        
-        if (isActive) {
-            uint32_t currentCycleStart = cycleStartMs + (elapsed / cycleMs) * cycleMs;
-            nextSlotMs = currentCycleStart + ((mySlot + 1) % numNodes) * slotDurationMs;
-        } else {
-            uint32_t cyclesCompleted = elapsed / cycleMs;
-            uint32_t currentCycleStart = cycleStartMs + cyclesCompleted * cycleMs;
-            
-            if (positionInCycle < slotStartMs) {
-                nextSlotMs = currentCycleStart + slotStartMs;
-            } else {
-                nextSlotMs = currentCycleStart + cycleMs + slotStartMs;
+        uint32_t now = millis();
+        nodes.insert(nid);
+        if (fromPeer) {
+            if (lastPeerReportMs != 0) {
+                uint32_t d = (uint32_t)(now - lastPeerReportMs);
+                // Reject stall-length gaps: feeding them back would inflate the timeout,
+                // which quiets the ring further - a self-amplifying stall.
+                if (d >= 200 && d <= 10000) {
+                    if (peerIntervalMs == 0) peerIntervalMs = d;
+                    else if (d <= peerIntervalMs * 3) peerIntervalMs = (peerIntervalMs * 3 + d) / 4;
+                }
             }
+            lastPeerReportMs = now;
         }
-        
-        return isActive;
+        lastSpeaker = nid;
+        lastActivityMs = now;
+        reportSeq++;
     }
-    
-    void markReportReceived(const String& nid) {
-        std::lock_guard<std::mutex> lock(nodeMutex);
-        if (nodes.find(nid) != nodes.end()) {
-            nodes[nid].lastReportTime = millis();
-            nodes[nid].hasReported = true;
-        }
-    }
-    
+
     void initializeCycle(uint32_t startTimeMs) {
         std::lock_guard<std::mutex> lock(nodeMutex);
         cycleStartMs = startTimeMs;
@@ -293,6 +373,11 @@ struct DynamicReportingSchedule {
     void reset() {
         std::lock_guard<std::mutex> lock(nodeMutex);
         nodes.clear();
+        lastSpeaker = "";
+        lastActivityMs = 0;
+        lastPeerReportMs = 0;
+        peerIntervalMs = 0;
+        reportSeq = 0;
         cycleStartMs = 0;
         slotDurationMs = 0;
     }
