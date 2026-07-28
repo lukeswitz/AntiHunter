@@ -305,7 +305,6 @@ void loop() {
             if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
                 Serial.println("OK: RTC set");
             }
-
         }
     }
 

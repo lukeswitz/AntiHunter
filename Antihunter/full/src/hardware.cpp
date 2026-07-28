@@ -1334,9 +1334,6 @@ void updateGPSLocation() {
         if (gps.encode(c)) {
             lastDataTime = millis();
 
-            // isValid() latches true for the rest of the session once any fix is parsed;
-            // age() is the only freshness test. Without it a node keeps publishing the
-            // last position it ever had after losing lock.
             bool nowLocked = gps.location.isValid() && gps.location.age() < GPS_FIX_MAX_AGE_MS;
             bool fixReady = nowLocked && gps.satellites.isValid() && gps.satellites.value() > 0
                             && gps.hdop.isValid() && gps.hdop.age() < GPS_FIX_MAX_AGE_MS

@@ -3211,6 +3211,12 @@ R"HTML(
           if (elapsedMatch) html += _resStat('Elapsed', elapsedMatch[1] + 's');
           if (nodesMatch) html += _resStat('Nodes', nodesMatch[1]);
           html += '</div>';
+          if (durationMatch && elapsedMatch) {
+            const over = parseInt(elapsedMatch[1]) - parseInt(durationMatch[1]);
+            if (over > 0) html += '<div class="res-note" style="margin-bottom:0;">' +
+              '<span class="res-note-lab">Note</span>Scan ran ' + durationMatch[1] +
+              's, then spent ' + over + 's collecting final reports from the mesh</div>';
+          }
           if (syncMatch) {
             const syncVerified = syncMatch[1].includes('VERIFIED');
             html += '<div class="res-note ' + (syncVerified ? '' : 'warn') + '" style="margin-bottom:0;"><span class="res-note-lab">Clock Sync</span>' + syncMatch[1] + '</div>';
@@ -4535,7 +4541,6 @@ R"HTML(
 #endif
 R"HTML(
 
-      // Always start unchecked so the box and the options panel agree on load.
       (function(){
         const tri = document.getElementById('triangulate');
         const opts = document.getElementById('triangulateOptions');
@@ -4718,7 +4723,9 @@ R"HTML(
           {
               const modeVal = parseInt(document.querySelector('#s select[name="mode"]')?.value ?? '2');
               const modeLabel = ['WiFi', 'BLE', 'WiFi+BLE'][modeVal] ?? 'WiFi+BLE';
-              await prepScanStart('Target scan starting...\nMode: ' + modeLabel + '\n');
+              // known until the first hit - do not claim the selected scan mode here.
+              const triOn = document.getElementById('triangulate')?.checked;
+              await prepScanStart('Target scan starting...\nMode: ' + (triOn ? 'detecting' : modeLabel) + '\n');
           }
 
           fetch('/scan', {

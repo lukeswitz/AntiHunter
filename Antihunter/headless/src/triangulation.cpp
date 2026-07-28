@@ -587,8 +587,6 @@ void coordinatorSetupTask(const void *parameter) {
     // Children use 0-2s staggered delay + mesh propagation time
     triSetupAbort.store(false);
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
-    // Was a flat 15s even when every node had already ACKed - that is 15s of dead UI
-    // before the scan starts. Poll instead and leave once ACKs stop arriving.
     {
         uint32_t waitStart = millis();
         size_t lastCount = 0;
@@ -669,7 +667,6 @@ void coordinatorSetupTask(const void *parameter) {
 
     // Set active flag AFTER task is created to prevent UI race condition
     triangulationActive = true;
-    // stale from a previous run would gate this scan's radio off entirely
     triTargetChannel.store(0);
     triTargetRadio.store(0);
     { std::lock_guard<std::mutex> _g(triAccumMutex); triAccum.gpsSamples = 0; triAccum.hasGPS = false; }
@@ -900,7 +897,6 @@ void stopTriangulation() {
                          triangulateAcks.size());
         }
         Serial.println("[TRIANGULATE] Waiting for late ACKs and initial T_D reports...");
-        // Was a flat 10s even when every node had already reported.
         {
             uint32_t w = millis();
             while ((uint32_t)(millis() - w) < 10000) {
@@ -1067,8 +1063,6 @@ void stopTriangulation() {
                 [&](const auto& n) { return n.nodeId == myNodeId; });
             const bool selfNodeExists = (selfNodeIt != triangulationNodes.end());
             if (selfNodeExists) {
-                // Was log-only: the accumulated position/RSSI gathered all scan was collected
-                // and then thrown away, leaving whatever the first loopback frame happened to carry.
                 selfNodeIt->hitCount = totalHits;
                 updateNodeRSSI(*selfNodeIt, avgRssi);
                 selfNodeIt->isBLE = isBLE;
@@ -1182,6 +1176,39 @@ void stopTriangulation() {
                   nodesSnapshot.size(), gpsNodes.size(),
                   triangulationInitiator ? "YES" : "NO");
 
+    String anchorWarning;
+    if (gpsNodes.size() >= 3) {
+        std::vector<float> lats, lons;
+        for (const auto &n : gpsNodes) { lats.push_back(n.lat); lons.push_back(n.lon); }
+        std::sort(lats.begin(), lats.end());
+        std::sort(lons.begin(), lons.end());
+        float medLat = lats[lats.size() / 2];
+        float medLon = lons[lons.size() / 2];
+        std::vector<float> dists;
+        for (const auto &n : gpsNodes) dists.push_back(haversineDistance(medLat, medLon, n.lat, n.lon));
+        std::vector<float> sortedD = dists;
+        std::sort(sortedD.begin(), sortedD.end());
+        float medDist = sortedD[sortedD.size() / 2];
+        float cutoff = medDist * 4.0f + ANCHOR_OUTLIER_FLOOR_M;
+        for (size_t i = 0; i < gpsNodes.size(); ) {
+            if (dists[i] > cutoff) {
+                if (gpsNodes.size() > 3) {
+                    Serial.printf("[TRIANGULATE] Dropping anchor %s - %.0fm from the other nodes (cutoff %.0fm)\n",
+                                  gpsNodes[i].nodeId.c_str(), dists[i], cutoff);
+                    gpsNodes.erase(gpsNodes.begin() + i);
+                    dists.erase(dists.begin() + i);
+                    continue;
+                }
+                Serial.printf("[TRIANGULATE] WARNING: anchor %s is %.0fm from the other nodes "
+                              "(HDOP %.1f) - position unreliable, results will be degraded\n",
+                              gpsNodes[i].nodeId.c_str(), dists[i], gpsNodes[i].hdop);
+                anchorWarning = gpsNodes[i].nodeId + " is " + String((int)dists[i]) +
+                                "m from the other nodes - its GPS is unreliable";
+            }
+            i++;
+        }
+    }
+
     if (gpsNodes.size() >= 3) {
         Serial.println("[TRIANGULATE] Sufficient GPS nodes, attempting trilateration...");
         float estLat = 0.0, estLon = 0.0, confidence = 0.0, solverSigma = 0.0;
@@ -1224,8 +1251,6 @@ void stopTriangulation() {
                     calibError * calibError
                 );
                 float cep = uncertainty * 0.59;
-                // An unconstrained solve yields a covariance eigenvalue in the millions;
-                // reporting it as metres is meaningless. Cap it and flag it as unusable.
                 if (cep > TRI_UNC_MAX_M) cep = TRI_UNC_MAX_M;
 
                 apFinalResult.hasResult = true;

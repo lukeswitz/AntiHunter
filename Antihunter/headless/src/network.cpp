@@ -1099,7 +1099,6 @@ static bool triPendingCycleStart = false;
 static uint32_t triPendingCycleStartMs = 0;
 static uint32_t triPendingCycleStartAt = 0;
 
-// Participant-side scan launch, shared by TRI_CYCLE_START and the latched out-of-order path.
 static void triStartParticipantScan()
 {
   if (workerTaskHandle || blueTeamTaskHandle) {
@@ -1359,7 +1358,6 @@ static void handleTriangulateStart(const String &command, const String &targetId
   // Participant node setup
   triangulationInitiator = false;
   triangulationActive = true;
-  // stale from a previous run would gate this scan's radio off entirely
   triTargetChannel.store(0);
   triTargetRadio.store(0);
   { std::lock_guard<std::mutex> _g(triAccumMutex); triAccum.gpsSamples = 0; triAccum.hasGPS = false; }
@@ -1387,7 +1385,6 @@ static void handleTriangulateStart(const String &command, const String &targetId
   sendToSerial1(nodeId + ": TRI_START_ACK", true);
   Serial.println("[TRIANGULATE] ACK sent to coordinator");
 
-  // Mesh can deliver TRI_CYCLE_START first; honour the latched one instead of waiting forever.
   if (triPendingCycleStart && (uint32_t)(millis() - triPendingCycleStartAt) < 120000) {
     triPendingCycleStart = false;
     reportingSchedule.addNode(nodeId);
@@ -1517,7 +1514,6 @@ static void handleTriCycleStart(const String &command)
   String myNodeId = getNodeId();
   if (myNodeId.length() == 0) myNodeId = nodeId;
 
-  // Re-broadcast mid-run must not wipe lastSpeaker/reportSeq - that would restart the ring.
   bool alreadyRinging = (reportingSchedule.cycleStartMs != 0 && triangulationActive);
 
   if (colonPos > 0) {
@@ -1543,7 +1539,6 @@ static void handleTriCycleStart(const String &command)
       reportingSchedule.addNode(node);
     }
 
-    // Our own ACK may have missed the coordinator's collection window - we are always in our own ring.
     reportingSchedule.addNode(myNodeId);
     reportingSchedule.cycleStartMs = cycleStartMs;
 
@@ -1560,7 +1555,6 @@ static void handleTriCycleStart(const String &command)
   if (triangulationInitiator) return;
 
   if (!triangulationActive) {
-    // Arrived before TRIANGULATE_START; latch so the start handler can act on it.
     triPendingCycleStart = true;
     triPendingCycleStartMs = reportingSchedule.cycleStartMs;
     triPendingCycleStartAt = millis();
@@ -1970,7 +1964,6 @@ static bool meshIsNodeIdToken(const String &t) {
     return true;
 }
 
-// Radios prepend their own shortname, so a peer line can arrive as "ah06: AH903: T_D: ..."
 void meshSplitSender(const String &line, String &sender, String &payload) {
     sender = "";
     payload = line;
@@ -2010,7 +2003,6 @@ void processMeshMessage(const String &message) {
 
     Serial.printf("[MESH] Processing message: '%s'\n", cleanMessage.c_str());
 
-    // Every node learns the ring from ACKs it overhears, so a late joiner is still yielded to.
     if (haveSender && content == "TRI_START_ACK" && (triangulationActive || triangulationInitiator)) {
         reportingSchedule.addNode(sendingNode);
     }
@@ -2124,7 +2116,6 @@ void processMeshMessage(const String &message) {
                                 }
                                 nodeIt->isBLE = isBLE;
                                 if (hasGPS) {
-                                    // Stationary anchor: average reported fixes instead of last-write-wins.
                                     if (!nodeIt->hasGPS || nodeIt->gpsSamples == 0) {
                                         nodeIt->lat = lat; nodeIt->lon = lon; nodeIt->gpsSamples = 1;
                                     } else {
