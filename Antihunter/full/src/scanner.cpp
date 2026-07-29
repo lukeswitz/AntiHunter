@@ -3060,6 +3060,46 @@ static void resetTriAccumulator(const uint8_t* mac) {
     triAccum.lastSendTime = 0;
     triAccum.lastSendSeq = 0;
 }
+static std::atomic<bool> triSelfDirty(false);
+
+static void triUpsertSelfNode(const String& nodeId) {
+    if (!triangulationActive.load() || nodeId.length() == 0) return;
+    if (!triSelfDirty.exchange(false)) return;
+    int hits = 0; int8_t rssi = 0; bool isBle = false;
+    float lat = 0, lon = 0, hdop = 99.9f; bool hasGps = false;
+    {
+        std::lock_guard<std::mutex> lock(triAccumMutex);
+        if (triAccum.wifiHitCount == 0 && triAccum.bleHitCount == 0) return;
+        if (triAccum.wifiHitCount >= triAccum.bleHitCount) {
+            hits = triAccum.wifiHitCount;
+            rssi = (int8_t)(triAccum.wifiRssiSum / triAccum.wifiHitCount);
+            isBle = false;
+        } else {
+            hits = triAccum.bleHitCount;
+            rssi = (int8_t)(triAccum.bleRssiSum / triAccum.bleHitCount);
+            isBle = true;
+        }
+        lat = triAccum.lat; lon = triAccum.lon; hdop = triAccum.hdop; hasGps = triAccum.hasGPS;
+    }
+    std::lock_guard<std::mutex> lock(triangulationMutex);
+    auto it = std::find_if(triangulationNodes.begin(), triangulationNodes.end(),
+        [&](const TriangulationNode& n) { return n.nodeId == nodeId; });
+    if (it == triangulationNodes.end()) {
+        if (triangulationNodes.size() >= MAX_TRIANGULATION_NODES) return;
+        TriangulationNode n;
+        n.nodeId = nodeId;
+        initNodeKalmanFilter(n);
+        triangulationNodes.push_back(n);
+        it = triangulationNodes.end() - 1;
+    }
+    it->hitCount = hits;
+    it->isBLE = isBle;
+    updateNodeRSSI(*it, rssi);
+    if (hasGps) { it->lat = lat; it->lon = lon; it->hdop = hdop; it->hasGPS = true; }
+    nodeUpdateDistance(*it);
+    it->lastUpdate = millis();
+}
+
 static void sendTriAccumulatedData(const String& nodeId) {
     std::lock_guard<std::mutex> lock(triAccumMutex);
 
@@ -3175,6 +3215,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
     if (sentAny) {
         triAccum.lastSendTime = millis();
         triAccum.lastSendSeq = reportingSchedule.peerSeq();
+        triSelfDirty.store(true);
         delay(150);
     }
 }
@@ -3510,6 +3551,8 @@ void listScanTask(void *pv) {
 
                 if (needsReset) {
                     sendTriAccumulatedData(myNodeId);
+                triUpsertSelfNode(myNodeId);
+                    triUpsertSelfNode(myNodeId);
                     resetTriAccumulator(triangulationTarget);
                 }
 
@@ -3731,6 +3774,7 @@ void listScanTask(void *pv) {
                     myNodeId = "NODE_" + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
                 }
                 sendTriAccumulatedData(myNodeId);
+                triUpsertSelfNode(myNodeId);
                 nextTriReportCheck = millis() + 250;
             }
         }

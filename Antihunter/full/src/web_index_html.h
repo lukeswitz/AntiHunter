@@ -1641,7 +1641,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       async function awaitStopConfirmed() {
-        const deadline = Date.now() + 15000;
+        const deadline = Date.now() + 45000;
         while (Date.now() < deadline) {
           await new Promise(r => setTimeout(r, 400));
           let d = '';
@@ -1660,7 +1660,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         stopPending = false;
         syncStopAllBtn();
-        toast('Device still busy after stop — check serial', 'warning');
+        toast('Still stopping — mesh teardown is slow, watch the status pill', 'warning');
       }
 
       function renderResults(text) {
