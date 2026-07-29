@@ -453,20 +453,7 @@ void coordinatorSetupTask(const void *parameter) {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = "TRIANGULATING: Waiting for mesh nodes to respond...";
     }
-    {
-        uint32_t waitStart = millis();
-        size_t lastCount = 0;
-        uint32_t lastChange = millis();
-        while ((uint32_t)(millis() - waitStart) < 15000) {
-            if (triSetupAbort.load()) break;
-            size_t n;
-            { std::lock_guard<std::mutex> lock(triangulationMutex); n = triangulateAcks.size(); }
-            if (n != lastCount) { lastCount = n; lastChange = millis(); }
-            if (n > 0 && (uint32_t)(millis() - lastChange) >= TRI_ACK_SETTLE_MS) break;
-            vTaskDelay(pdMS_TO_TICKS(250));
-        }
-        Serial.printf("[TRIANGULATE] ACK wait finished after %ums\n", (unsigned)(millis() - waitStart));
-    }
+    vTaskDelay(pdMS_TO_TICKS(15000));
     if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
@@ -813,6 +800,7 @@ void stopTriangulation() {
                         [](const TriangulateAckInfo &a) { return a.reportReceived; });
                 }
                 if (total > 0 && reported >= total) break;
+                if (reported > 0 && (uint32_t)(millis() - w) >= 4000) break;
                 vTaskDelay(pdMS_TO_TICKS(250));
             }
             Serial.printf("[TRIANGULATE] Late-ACK wait finished after %ums\n", (unsigned)(millis() - w));

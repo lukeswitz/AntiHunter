@@ -448,20 +448,7 @@ void coordinatorSetupTask(const void *parameter) {
     // Children use 0-2s staggered delay + mesh propagation time
     triSetupAbort.store(false);
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
-    {
-        uint32_t waitStart = millis();
-        size_t lastCount = 0;
-        uint32_t lastChange = millis();
-        while ((uint32_t)(millis() - waitStart) < 15000) {
-            if (triSetupAbort.load()) break;
-            size_t n;
-            { std::lock_guard<std::mutex> lock(triangulationMutex); n = triangulateAcks.size(); }
-            if (n != lastCount) { lastCount = n; lastChange = millis(); }
-            if (n > 0 && (uint32_t)(millis() - lastChange) >= TRI_ACK_SETTLE_MS) break;
-            vTaskDelay(pdMS_TO_TICKS(250));
-        }
-        Serial.printf("[TRIANGULATE] ACK wait finished after %ums\n", (unsigned)(millis() - waitStart));
-    }  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
+    vTaskDelay(pdMS_TO_TICKS(15000));  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
     if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
@@ -771,6 +758,7 @@ void stopTriangulation() {
                         [](const TriangulateAckInfo &a) { return a.reportReceived; });
                 }
                 if (total > 0 && reported >= total) break;
+                if (reported > 0 && (uint32_t)(millis() - w) >= 4000) break;
                 vTaskDelay(pdMS_TO_TICKS(250));
             }
             Serial.printf("[TRIANGULATE] Late-ACK wait finished after %ums\n", (unsigned)(millis() - w));
