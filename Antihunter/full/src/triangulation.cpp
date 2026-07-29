@@ -54,6 +54,7 @@ uint32_t stopSentTimestamp = 0;
 bool waitingForFinalReports = false;
 const uint32_t FINAL_REPORT_TIMEOUT_MS = 15000;
 static volatile bool triStopCameFromMesh = false;
+static std::atomic<bool> triOperatorStop(false);
 static uint32_t lastTriangulationStopTime = 0;
 const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000;
 
@@ -444,6 +445,40 @@ bool verifyNodeSynchronization(uint32_t maxOffsetMs) {
 
 // Traingulation actions
 
+// Unwind initiator/session state when setup is aborted before the scan worker runs.
+// Setup already broadcast TRIANGULATE_START, so tell child nodes to stop too.
+static void triAbortCleanup(const char *reason) {
+    if (triangulationInitiator && !triStopCameFromMesh) {
+        sendMeshCommand("@ALL TRIANGULATE_STOP");
+        Serial.println("[TRIANGULATE] Abort - STOP broadcast to child nodes");
+    }
+    triSetupAbort.store(false);
+    triOperatorStop.store(false);
+    coordinatorSetupTaskHandle = nullptr;
+    triangulationActive = false;
+    triangulationInitiator = false;
+    triangulationDuration = 0;
+    waitingForFinalReports = false;
+    stopSentTimestamp = 0;
+    triangulationOrchestratorAssigned = false;
+    triStopCameFromMesh = false;
+    {
+        std::lock_guard<std::mutex> lock(triangulationMutex);
+        triangulateAcks.clear();
+        triangulateReportedNodes.clear();
+        triangulationNodes.clear();
+        nodeSyncStatus.clear();
+        nodePropagationDelays.clear();
+    }
+    reportingSchedule.reset();
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        antihunter::lastResults = "Triangulation stopped.";
+    }
+    lastTriangulationStopTime = millis();
+    Serial.printf("[TRIANGULATE] %s\n", reason);
+}
+
 // Task that handles ACK collection and cycle start (runs async to avoid blocking web handler)
 void coordinatorSetupTask(const void *parameter) {
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(parameter));
@@ -471,7 +506,7 @@ void coordinatorSetupTask(const void *parameter) {
             vTaskDelay(pdMS_TO_TICKS(200));
         }
     }
-    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
+    if (triSetupAbort.load()) { triAbortCleanup("Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
     int ackedChildren;
@@ -530,18 +565,15 @@ void coordinatorSetupTask(const void *parameter) {
                   cycleStartMs, nodeList.size(), nodeListStr.c_str());
 
     vTaskDelay(pdMS_TO_TICKS(500));
-    if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
+    if (triSetupAbort.load()) { triAbortCleanup("Setup aborted by stop"); vTaskDelete(NULL); }
 
     if (!workerTaskHandle) {
-        ahCreateTask(
-            listScanTask,
-            "triangulate",
-            8192,
-            reinterpret_cast<void *>(static_cast<intptr_t>(duration)),
-            1,
-            &workerTaskHandle,
-            1
-        );
+        if (ahCreateTask(listScanTask, "triangulate", 8192,
+                reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 1, &workerTaskHandle, 1) != pdPASS) {
+            workerTaskHandle = nullptr;
+            triAbortCleanup("scan task create failed - aborting setup");
+            vTaskDelete(NULL);
+        }
     }
 
     // Set active flag AFTER task is created to prevent UI race condition
@@ -655,6 +687,7 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
     triangulationDuration = duration;
     currentScanMode = SCAN_BOTH;
     stopRequested = false;
+    triOperatorStop.store(false);
     triangulationInitiator = true;
     reportingSchedule.reset();
 
@@ -749,12 +782,13 @@ static void triStopTask(void *pv) {
 
 // stopTriangulation() blocks 10s+ collecting reports - never run it on async_tcp or the mesh RX task
 void requestTriangulationStop() {
+    triOperatorStop.store(true);
     if (!triangulationActive && coordinatorSetupTaskHandle == nullptr) {
         stopTriangulation();
         return;
     }
     if (triStopTaskHandle != nullptr || triStopInProgress.load()) {
-        Serial.println("[TRIANGULATE] Stop already running");
+        Serial.println("[TRIANGULATE] Stop already running - escalating operator abort");
         return;
     }
     if (ahCreateTask(triStopTask, "triStop", 4096, nullptr, 2, &triStopTaskHandle, 1) != pdPASS) {
@@ -810,6 +844,7 @@ void stopTriangulation() {
         {
             uint32_t w = millis();
             while ((uint32_t)(millis() - w) < 10000) {
+                if (triOperatorStop.load()) { Serial.println("[TRIANGULATE] Operator stop - skipping late-ACK wait"); break; }
                 size_t total = 0, reported = 0;
                 {
                     std::lock_guard<std::mutex> lock(triangulationMutex);
@@ -849,6 +884,7 @@ void stopTriangulation() {
             int lastProgress = -1;
 
             while (millis() < deadline && millis() < hardStop) {
+                if (triOperatorStop.load()) { Serial.println("[TRIANGULATE] Operator stop - ending report collection"); break; }
                 int reportedCount = 0;
                 int totalAcked = 0;
                 {
@@ -1274,6 +1310,7 @@ void stopTriangulation() {
 
     triangulationOrchestratorAssigned = false;
     triStopCameFromMesh = false;
+    triOperatorStop.store(false);
 
     {
         std::lock_guard<std::mutex> lock(triangulationMutex);
