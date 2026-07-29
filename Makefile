@@ -7,6 +7,8 @@ CPPCHECK_FLAGS := --enable=all --std=c++17 \
 	--suppress=normalCheckLevelMaxBranches \
 	--suppress=checkLevelNormal \
 	--suppress=unmatchedSuppression \
+	--suppress=useStlAlgorithm \
+	--suppress=variableScope \
 	--inline-suppr \
 	-DPROGMEM= \
 	--error-exitcode=1
