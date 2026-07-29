@@ -17,9 +17,9 @@
 <div align="center">
   <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
 
-  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
-  <p>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO"> AntiHunter Command Center</p>
-</div>
+[Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
+
+  <h3 align="center">DIGI Detection Node Firmware</h3>
 
 
  <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
@@ -55,7 +55,8 @@
 <p align="center">
 <img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
 
-</p>
+> [!NOTE]
+> Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable). **ESP32C5 support** is almost done. Backwards compatible with the PCB and other nodes.
 
 ## Features
 
