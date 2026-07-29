@@ -1,6 +1,7 @@
 #include "triangulation.h"
 #include "scanner.h"
 #include "hardware.h"
+#include "detect.h"
 #include <algorithm>
 #include <iterator>
 #include <numeric>
@@ -44,6 +45,7 @@ std::atomic<bool> triangulationActive(false);
 bool triangulationInitiator = false;
 char triangulationTargetIdentity[10] = {0};
 DynamicReportingSchedule reportingSchedule;
+static size_t triLastChildCount = 0;
 std::vector<TriangulateAckInfo> triangulateAcks;
 std::vector<String> triangulateReportedNodes;  // Nodes that sent final T_D
 String triangulationCoordinator = "";
@@ -587,7 +589,22 @@ void coordinatorSetupTask(const void *parameter) {
     // Children use 0-2s staggered delay + mesh propagation time
     triSetupAbort.store(false);
     Serial.println("[TRIANGULATE] Waiting for child node ACKs...");
-    vTaskDelay(pdMS_TO_TICKS(15000));  // Wait 15s for staggered ACKs (0-2s stagger + mesh latency + buffer)
+    {
+        uint32_t ackWaitStart = millis();
+        size_t peers = detect_meshPeerCount();
+        size_t expected = peers > triLastChildCount ? peers : triLastChildCount;
+        while ((uint32_t)(millis() - ackWaitStart) < 15000) {
+            if (triSetupAbort.load()) break;
+            size_t have;
+            { std::lock_guard<std::mutex> lock(triangulationMutex); have = triangulateAcks.size(); }
+            if (expected > 0 && have >= expected) {
+                Serial.printf("[TRIANGULATE] All %u known nodes ACKed in %ums - starting early\n",
+                              (unsigned)have, (unsigned)(millis() - ackWaitStart));
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+    }
     if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     // Count total nodes: coordinator + ACK'd children
@@ -597,6 +614,7 @@ void coordinatorSetupTask(const void *parameter) {
         ackedChildren = (int)triangulateAcks.size();
     }
     int totalNodes = 1 + ackedChildren;  // 1 = coordinator
+    if ((size_t)ackedChildren > triLastChildCount) triLastChildCount = (size_t)ackedChildren;
     Serial.printf("[TRIANGULATE] ACK collection complete: %d child nodes responded (%d total)\n",
                   ackedChildren, totalNodes);
 
@@ -918,7 +936,13 @@ void stopTriangulation() {
             int lastReportedCount = -1;
             uint32_t lastReportLog = 0;
 
-            while (millis() - waitStart < REPORT_TIMEOUT) {
+            uint32_t firstWait = REPORT_TIMEOUT;
+            if (firstWait < REPORT_FIRST_MIN_MS) firstWait = REPORT_FIRST_MIN_MS;
+            uint32_t deadline = waitStart + firstWait;
+            uint32_t hardStop = waitStart + REPORT_HARD_CEILING_MS;
+            int lastProgress = -1;
+
+            while (millis() < deadline && millis() < hardStop) {
                 // Count how many nodes have reported (mutex protected)
                 int reportedCount = 0;
                 int totalAcked = 0;
@@ -927,6 +951,16 @@ void stopTriangulation() {
                     totalAcked = triangulateAcks.size();
                     reportedCount = static_cast<int>(std::count_if(triangulateAcks.begin(), triangulateAcks.end(),
                         [](const auto& ack) { return ack.reportReceived; }));
+                }
+
+                if (reportedCount > lastProgress) {
+                    lastProgress = reportedCount;
+                    uint32_t extended = millis() + REPORT_PROGRESS_GRACE_MS;
+                    if (extended > deadline) {
+                        deadline = extended;
+                        Serial.printf("[TRIANGULATE] Report %d/%d arrived - extending wait\n",
+                                      reportedCount, totalAcked);
+                    }
                 }
 
                 // Check if new nodes were discovered (late T_D from nodes whose ACK was lost)
@@ -1612,7 +1646,6 @@ String calculateTriangulation() {
         results += "  Method: Weighted NLLS (Levenberg-Marquardt) + Kalman filtering\n";
 
 
-         // Calibrate path loss using estimated target position
         for (const auto& node : gpsNodes) {
             float distToTarget = haversineDistance(node.lat, node.lon, estLat, estLon);
             if (distToTarget > 0.5 && distToTarget < 50.0) {
@@ -2130,10 +2163,10 @@ void estimatePathLossParameters(bool isWiFi) {
         n_estimate = constrain(n_estimate, 1.5, 6.0);
     }
     
-    if (rssi0_estimate < -60.0 || rssi0_estimate > -20.0) {
+    if (rssi0_estimate < -120.0 || rssi0_estimate > 0.0) {
         Serial.printf("[PATH_LOSS] Invalid RSSI0=%f for %s, clamping\n",
                      rssi0_estimate, isWiFi ? "WiFi" : "BLE");
-        rssi0_estimate = constrain(rssi0_estimate, -60.0, -20.0);
+        rssi0_estimate = constrain(rssi0_estimate, -120.0, 0.0);
     }
     
     // Update estimates with exponential moving average for stability
@@ -2181,7 +2214,10 @@ void addPathLossSample(float rssi, float distance, bool isWiFi) {
     }
     
     // Trigger re-estimation every 10 samples or every 30 seconds
-    if (samples.size() % 10 == 0 || millis() - adaptivePathLoss.lastUpdate > 30000) {
+    static uint32_t wifiSinceFit = 0, bleSinceFit = 0;
+    uint32_t &sinceFit = isWiFi ? wifiSinceFit : bleSinceFit;
+    if (++sinceFit >= 10 || millis() - adaptivePathLoss.lastUpdate > 30000) {
+        sinceFit = 0;
         estimatePathLossParameters(isWiFi);
     }
 }
