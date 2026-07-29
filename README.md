@@ -18,7 +18,7 @@
 
 [Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
 
-  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
+  <h3 align="center">DIGI Detection Node Firmware</h3>
 
   Also for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
   
@@ -56,8 +56,8 @@
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh
 
 
-> [!TIP]
-> Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable)
+> [!NOTE]
+> Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable). **ESP32C5 support** is almost done. Backwards compatible with the PCB and other nodes.
 
 ## Features
 
