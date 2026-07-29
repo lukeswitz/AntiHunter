@@ -24,6 +24,8 @@
 
  <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
 
+> Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
+
 </div>
 
 ---
