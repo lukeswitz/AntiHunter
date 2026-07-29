@@ -6,12 +6,12 @@
 #include "scanner.h"
 
 // T114 v2 rate limiter for Serial Module
-// Rebalanced (Phase 4): ~167 B/s sustained, 1 KB burst. Consumer task owns inter-frame pacing via vTaskDelayUntil.
+// ~400 B/s sustained, 1 KB burst. Consumer task owns inter-frame pacing via vTaskDelayUntil.
 class SerialRateLimiter {
 private:
     static const uint32_t MAX_TOKENS = 1000;
-    static const uint32_t REFILL_INTERVAL = 3000;
-    static const uint32_t TOKENS_PER_REFILL = 500;
+    static const uint32_t REFILL_INTERVAL = 1000;
+    static const uint32_t TOKENS_PER_REFILL = 400;
 
     uint32_t tokens;
     unsigned long lastRefill;

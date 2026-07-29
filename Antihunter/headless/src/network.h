@@ -9,8 +9,8 @@
 class SerialRateLimiter {
 private:
     static const uint32_t MAX_TOKENS = 1000;
-    static const uint32_t REFILL_INTERVAL = 3000;
-    static const uint32_t TOKENS_PER_REFILL = 500;
+    static const uint32_t REFILL_INTERVAL = 1000;
+    static const uint32_t TOKENS_PER_REFILL = 400;
 
     uint32_t tokens;
     unsigned long lastRefill;
