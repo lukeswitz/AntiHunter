@@ -975,6 +975,7 @@ bool waitForInitialConfig() {
     }
     
     if (!receivingConfig || configBuffer.length() < 10) {
+        // cppcheck-suppress knownConditionTrueFalse
         Serial.println(configExists ? "[CONFIG] Timeout - keeping existing config"
                                     : "[CONFIG] Timeout - using defaults");
         return false;

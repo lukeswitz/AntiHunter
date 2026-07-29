@@ -33,7 +33,7 @@ const unsigned long DRONE_LOG_INTERVAL = 1000;
 static unsigned long lastDroneMeshSend = 0;
 static const unsigned long DRONE_MESH_INTERVAL = 3000;
 
-struct DroneAnnounce { String mac; uint32_t announcedMs; };
+struct DroneAnnounce { String mac; uint32_t announcedMs = 0; };
 static std::map<String, DroneAnnounce> droneMeshAnnounced;
 static const uint32_t DRONE_LOST_TIME_MS = 30000;
 static String droneMeshKey(const String &uavId, const String &mac) {
