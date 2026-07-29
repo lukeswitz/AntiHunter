@@ -2104,8 +2104,6 @@ AdaptivePathLoss adaptivePathLoss = {
     -67.0,                             // rssi0_ble (dBm @ 1m, most devices TX 0 to -8dBm)
     3.2,                               // n_wifi (indoor path loss exponent)
     3.0,                               // n_ble (indoor path loss exponent, research: 2.0-4.0)
-    std::vector<PathLossSample>(),     // wifiSamples
-    std::vector<PathLossSample>(),     // bleSamples
     false,                             // wifi_calibrated
     false,                             // ble_calibrated
     0                                  // lastUpdate
