@@ -3284,8 +3284,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (durationMatch && elapsedMatch) {
             const over = parseInt(elapsedMatch[1]) - parseInt(durationMatch[1]);
             if (over > 0) html += '<div class="res-note" style="margin-bottom:0;">' +
-              '<span class="res-note-lab">Note</span>Scan ran ' + durationMatch[1] +
-              's, then spent ' + over + 's collecting final reports from the mesh</div>';
+              '<span class="res-note-lab">Timing</span>' + durationMatch[1] + 's scanning, ' +
+              over + 's mesh coordination. Elapsed is scan + coordination.</div>';
           }
           if (syncMatch) {
             const syncVerified = syncMatch[1].includes('VERIFIED');

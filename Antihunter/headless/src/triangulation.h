@@ -161,7 +161,9 @@ const double TRILATERATION_STEP_TOL_M = 0.1;
 const float BLE_TXPOWER_SIGMA_DB = 6.0f;
 const float PATHLOSS_UNCALIBRATED_SIGMA_DB = 3.0f;
 const uint32_t SYNC_CHECK_INTERVAL = 30000;
-const uint32_t TRI_ACK_SETTLE_MS = 4000;
+const uint32_t REPORT_PROGRESS_GRACE_MS = 8000;
+const uint32_t REPORT_HARD_CEILING_MS = 60000;
+const uint32_t REPORT_FIRST_MIN_MS = 20000;
 const uint16_t GPS_MIN_SAMPLES_TO_JUDGE = 5;
 const float GPS_HDOP_REJECT_RATIO = 3.0f;
 const float GPS_JUMP_REJECT_M = 40.0f;
@@ -280,9 +282,7 @@ struct DynamicReportingSchedule {
         if (nodes.empty() || nodes.find(nid) == nodes.end()) return false;
         if (lastActivityMs == 0) lastActivityMs = now;
 
-        // ourselves means no peer has been heard since, so the turn is not ours -
-        // regardless of what the timers say. Only a fully dead ring overrides this.
-        if (lastSpeaker == nid) {
+        if (lastSpeaker == nid && nodes.size() > 1) {
             uint32_t ref = lastPeerReportMs ? lastPeerReportMs : lastActivityMs;
             uint32_t dead = 3u * (uint32_t)nodes.size() * skipTimeoutMs();
             if (dead < TRI_RESEED_MIN_MS) dead = TRI_RESEED_MIN_MS;
