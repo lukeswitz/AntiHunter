@@ -99,7 +99,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.offline{border-color:var(--dang);color:var(--dang)}
       .status-item.offline::before{background:var(--dang);box-shadow:0 0 6px var(--dang)}
       #scanStatus{min-width:142px;justify-content:flex-start}
-      .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+      .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;text-align:right;scrollbar-width:none;-webkit-overflow-scrolling:touch}
       .statx-ticker::-webkit-scrollbar{display:none}
       .statx-track{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
       @keyframes statxScroll{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
@@ -1660,6 +1660,7 @@ R"HTML(
         lastScanStartTime = 0;
         radioBusy = false;
         radioBusyTask = '';
+        document.querySelectorAll('#r .res-scanning').forEach(function(p) { p.remove(); });
         resetScanControls();
         if (baselineUpdateInterval) { clearInterval(baselineUpdateInterval); baselineUpdateInterval = null; prevUniqueDevices = 0; }
         setScanStatus('Stopping', 'active');
@@ -2399,7 +2400,7 @@ R"HTML(
             // Phase 1: Establishing baseline
             const progress = Math.min(100, (stats.elapsedTime / stats.totalDuration) * 100);
             statusHTML = '<div style="color:var(--succ);font-weight:bold;">⬤ Phase 1: Establishing Baseline...</div>';
-            progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:var(--bord);border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,var(--succ),var(--acc));transition:width 0.5s;"></div>' + '</div>' + '</div>';
+            progressHTML = '<div style="margin-top:10px;">' + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;">' + '<span>Progress</span>' + '<span>' + Math.floor(progress) + '%</span>' + '</div>' + '<div style="width:100%;height:6px;background:var(--bord);border-radius:3px;overflow:hidden;">' + '<div style="height:100%;width:' + progress + '%;background:linear-gradient(90deg,#00cc66,var(--acc));transition:width 0.5s;"></div>' + '</div>' + '</div>';
           } else if (stats.scanning && stats.phase1Complete) {
             // Phase 2: Monitoring - add active status indicator
             statusHTML = '<div style="color:var(--acc);font-weight:bold;">⬤ Phase 2: Monitoring for Anomalies</div>';
@@ -3216,7 +3217,7 @@ R"HTML(
           '</div><div class="res-kv-val">' + value + '</div></div>';
       }
       function _resScanPill(text) {
-        return (radioBusy || (text && text.includes('IN PROGRESS'))) ? '<span class="res-scanning">Scanning</span>' : '';
+        return (!stopPending && (radioBusy || (text && text.includes('IN PROGRESS')))) ? '<span class="res-scanning">Scanning</span>' : '';
       }
 
       function parseAndStyleResults(text) {
