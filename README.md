@@ -472,9 +472,9 @@ pio device monitor -e AntiHunter-full              # Serial monitor
 pio run -e AntiHunter-full -t erase -t upload      # Clean flash (erase + upload)
 ```
 
-**Build environments:**
-- `AntiHunter-full` -- Web server (ESPAsyncWebServer, AsyncTCP) with AP dashboard
-- `AntiHunter-headless` -- Minimal dependencies, no web UI, mesh/serial only
+**Build environments** (same firmware sources; differ only in features/board):
+- `AntiHunter-full` -- Web UI/SoftAP dashboard (ESPAsyncWebServer + AsyncTCP); `AntiHunter-headless` -- serial + mesh only, no web deps.
+- ESP32-C5 (dual-band 2.4/5 GHz): build from the `feat/c5` branch -- envs `AntiHunter-c5-full` / `-c5-headless`, board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`.
 
 ---
 
