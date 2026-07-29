@@ -238,6 +238,45 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
+### G. Sentinel — Counterintel Engine
+
+> [!NOTE]
+> **Beta feature — not in this stable build.** Sentinel ships on the [`beta` branch](https://github.com/lukeswitz/AntiHunter/tree/beta). Documented here for reference.
+
+<p align="center">
+  <img width="796" height="986" alt="043A7862-DA67-4110-85E9-EE001DA261BB_1_105_c" src="https://github.com/user-attachments/assets/5584de74-f64e-44fa-8b02-cd3393b524e3" />
+
+</p>
+
+- Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
+- Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+- **Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
+- Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
+
+
+
+| Group | Detectors | How they're caught |
+|---|---|---|
+| **DoS** | Deauth flood, deauth forge, broadcast deauth, AP-targeted deauth, beacon flood, auth flood, assoc-sleep, SAE DoS | Fixed/rotated deauth seqCtrl + duration (reason codes are used for tool *attribution*, never on their own as an attack trigger — reasons 1/2/6/7 are all legitimate deauth causes), impersonation bursts, beacon-spam rate + static templates, open-system auth flood, assoc-req PM-bit floods, SAE commit floods (algo 3 / txn 1) |
+| **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Clone of our own AP (SSID/BSSID collision); OWE-transition downgrade; bait-probe answered by an AP that never beacons that SSID |
+| **Recon** | PMKID harvest, probe flood, handshake capture | Orphaned-M1 / KDE PMKID solicitation; fixed-seq + behavioral probe spam (≥15 MACs/SSID/5s); forced & passive EAPOL M1–M4 capture |
+| **Physical** | FragAttacks, TSF / multi-channel twin, WiFi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
+| **Mesh disruption** | Self-spoof, channel flood, command audit | Own node-id seen inbound; inbound rate DoS; every privileged mesh command logged with the radio id that issued it — a provenance **audit trail**, not an alert (injection is indistinguishable from legit ops on a shared channel, so we record the source instead of guessing) |
+
+- **Field-verified on hardware** (confirmed firing against the live tools above): deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
+
+- **Experimental**: OWE abuse, PMKID harvest, FragAttacks, TSF multi-channel twin, WiFi interference, mesh disruption.
+
+- **Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
+
+- **Hotspot false-positive suppression**: the crypto/handshake detectors (PMKID, KRACK, handshake capture, SAE-DoS) and all beacon-based detectors (evil-twin, OWE, SSID-confusion, TSF, beacon-flood) skip **locally-administered / randomized BSSIDs**. Phone hotspots and MAC-randomizing devices produce normal handshakes, SAE retries and M3 retransmits that would otherwise trip these detectors as attacks. Volume-based DoS detectors (deauth/auth/assoc floods, probe-flood) intentionally do **not** skip them, since real floods commonly spoof randomized sources.
+
+- **Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
+
+- **Mesh command audit:** every privileged command received on the mesh is logged with the radio id that issued it. It shows up in the **Sentinel UI** (the *Mesh Commands* panel, below AP Clients — full build) and via the **API** (`GET /api/mesh_cmd.jsonl`), and is persisted to SD (`/mesh_cmd.jsonl`). This is a provenance audit trail, not an alert — so it never false-positives.
+
+- **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
+
 ---
 
 ## Secure Data Destruction
@@ -474,7 +513,8 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing.
 - **Rate limiting**: 3s intervals (configurable)
 - **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
 
-### Mesh TX Architecture
+<details>
+<summary>Mesh TX Architecture</summary>
 
 Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap) so a scan's devices ride out in the fewest LoRa packets.
 
@@ -483,7 +523,10 @@ Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. The
 - `/stop` (web UI or mesh STOP command) flushes the queue immediately (cancels pending TX).
 - Header badge `Mesh TX K/N` shows live drain progress; auto-hides when queue empty.
 
-### Cross-Scan Dedup
+</details>
+
+<details>
+<summary>Cross-Scan Dedup</summary>
 
 To save airtime on repeated scans of the same RF environment, broadcast `DEVICE:` messages are deduplicated by MAC address with a configurable TTL.
 
@@ -502,6 +545,8 @@ To save airtime on repeated scans of the same RF environment, broadcast `DEVICE:
 - HTTP: `POST /mesh-dedup-ttl?ttl=N` where N is seconds (0=disable)
 - Mesh: `@ALL CONFIG_DEDUP_TTL:N` (sec)
 - Clear cache: `POST /mesh-dedup-clear` (forces all MACs to re-broadcast on next scan)
+
+</details>
 
 ## Mesh Commands
 
@@ -544,6 +589,76 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
+
+### Sentinel
+
+> [!NOTE]
+> **Beta feature — not in this stable build.** Sentinel ships on the [`beta` branch](https://github.com/lukeswitz/AntiHunter/tree/beta). Documented here for reference.
+
+<details>
+<summary>Sentinel commands</summary>
+
+| Command | Parameters | Example |
+|---------|------------|---------|
+| `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
+| `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
+| `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
+| `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
+| `GROUP` | `<name>:<on\|off>` — toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
+| `DETECT_CFG` | `<json>` — apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
+| `DETECT_CFG_GET` | None — dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
+| `INCIDENTS` | `[:<1-200>]` — dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
+| `INCIDENTS_CLEAR` | None — clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
+
+</details>
+
+<details>
+<summary>Sentinel label reference (every enumerated value on the wire)</summary>
+
+Any consumer (AHCC, C2, log parser) must accept **all** of these. Values are extracted
+from `detect.cpp`; anything not listed here is not emitted.
+
+| Mesh prefix | Payload | Enumerated values |
+|---|---|---|
+| `DEAUTH_FORGE:<src>:<tool>:<rssi>` | tool tag | **static:** `MARAUDER` (reason=2 + seq=0xFFF0 + dur=0x013A — the template shared by ESP32Marauder, Bruce and Evil-M5Project), `MICHAEL_TKIP` (reason=14). **behavioral:** `MDK4`, `ESP_DEAUTHER`, `AIREPLAY`, `BETTERCAP` |
+| `DEAUTH_FLOOD:<src>:<count>:<rssi>` | frame count | — |
+| `DEAUTH_AP_TARGETED:<client>:<reason>:<count>` | client + reason code | reason is context only, see the table above |
+| `BEACON_FORGE:<bssid>:<reason>:<rssi>` | forgery reason | `FORGE_TSF_STATIC`, `FORGE_BI_1000`, `FORGE_SRC_MCAST`, `FORGE_CSA_FF`, `FORGE_QUIET_ELEM`, `FORGE_SSID_ROTATE`, `FORGE_EVIL_PORTAL`, `FORGE_EVIL_PORTAL_ESP`, `FORGE_KARMA_BRUCE` |
+| `BEACON_FLOOD:<rssi>` | — | serial line also carries `tool=<reason>` or `tool=-` |
+| `EVILTWIN:<bssid>:<reason>:<rssi>` | twin reason | `SELF_CLONE`, `SELF_CLONE_OPEN`, `SSID_COLLISION`, `TWIN_MULTICH`, `TSF_RESTART` |
+| `PROBE_FLOOD:<kind>:<what>:<rssi>` | flood kind | `RANDOMIZED`, `SINGLE_MAC`, `MARAUDER` (probe-request template seq=0x0001, fires on one frame) |
+| `PROBE_FLOOD_BEHAVE:<ssid>:src=<n>:<rssi>` / `PROBE_FLOOD_AP:...` | — | — |
+| `FRAG:<src>:<reason>` | CVE shape | `PN_GAP` (CVE-2020-26146), `MIXED_PLAIN` (CVE-2020-26147) |
+| `HSHK:<bssid>:<sta>:<msg>:<replay>:<rssi>` | usable pair | `M1M2` (challenge), `M1M4`, `M2M3`, `M3M4` (authorized) |
+| `PMKID_HARVEST:<src>:<bssid>:<rssi>` | tool | serial adds `tool=HCXDUMPTOOL` when the M1 replay counter is in `[0xF000,0xFFFE]` |
+| `PMKID_FORGE:<src>:<bssid>:<rssi>` / `PMKID_FORGE:<src>:FAKE_M1:<rssi>` | forge kind | `FORGE_PMKID` (Marauder `BAD_MSG`, fixed PMKID `11 22 … ff 11`), `FAKE_M1` (zero ANonce; serial tag `ROGUE_M1`) |
+| `EAPOL_BAIT:<src>:<sta>:<count>:<rssi>:<confidence>` | confidence | `high` (deauth carried a `DEAUTH_FORGE` tool fingerprint **and** EAPOL followed ≤2 s), `medium` (fingerprinted deauth >2 s, or unfingerprinted deauth with EAPOL ≤1 s). An unfingerprinted deauth followed by EAPOL after >1 s is a normal reassociation and does **not** alert |
+| `CSA_SPOOF:<bssid>:<switch_count>` | count | fires at `switch_count ≥ 50`; Marauder hardcodes 255 |
+| `QUIET_ABUSE:<bssid>:<duration_tu>` | duration | fires at `≥ 1000` TU; Marauder uses 0xFFFF |
+| `KARMA_CAND:<bssid>:<distinct_ssids>` / `KARMA_CONFIRMED:<bssid>:<rssi>` | — | candidate at ≥2 distinct SSIDs on one BSSID / 60 s |
+| `AUTH_FLOOD:<bssid>:<distinct_src>:<frames>` | — | open-system (algo 0) only; SAE is `SAE_DOS` |
+| `SAE_DOS:<bssid>:<unmatched_commits>` | — | — |
+| `ASSOC_SLEEP`, `SSID_CONFUSION`, `OWE_ABUSE`, `JAMMING`, `PWNAGOTCHI`, `RECON`, `ATTACKER_HUNT` | — | single-reason detectors |
+
+**`R:` deauth/disassoc reason codes** (IEEE 802.11-2020 Table 9-49). The value is reported
+as context only — since `c0d710d` the reason code is **not** used to decide whether a frame
+is an attack, because 1/2/6/7 are all normal causes. Codes seen in practice:
+
+| Code | Meaning | Typical source |
+|---|---|---|
+| 1 | Unspecified reason | esp8266_deauther template; generic tools |
+| 2 | Previous authentication no longer valid | **Marauder / Bruce / Evil-M5 template** (with `seq=0xFFF0`, `dur=0x013A`) |
+| 3 | Deauthenticated, STA leaving | normal client roam/disconnect |
+| 4 | Disassociated due to inactivity | normal AP housekeeping |
+| 5 | Disassociated, AP out of resources | normal AP under load |
+| 6 | Class 2 frame from non-authenticated STA | bettercap; also normal |
+| 7 | Class 3 frame from non-associated STA | aireplay-ng (with `dur=0x013A`), GhostESP; also normal AP behaviour |
+| 8 | STA leaving BSS | normal |
+| 14 | Michael MIC failure (TKIP) | `MICHAEL_TKIP` forge tag |
+
+Any other value is passed through verbatim as `Reason code N`.
+
+</details>
 
 <details>
 <summary>Triangulation Commands</summary>
