@@ -105,31 +105,17 @@ extern RFEnvironment currentRFEnvironment;
 extern DistanceTuning distanceTuning;
 void setRFEnvironment(RFEnvironment env);
 
-struct PathLossSample {
-    float rssi;
-    float distance;  // from GPS
-    bool isWiFi;
-    uint32_t timestamp;
-};
-
 struct AdaptivePathLoss {
     // Current estimates
     float rssi0_wifi{};
     float rssi0_ble{};
     float n_wifi{};
     float n_ble{};
-    
-    // Sample buffers for adaptation
-    std::vector<PathLossSample> wifiSamples;
-    std::vector<PathLossSample> bleSamples;
-    
+
     // Estimation confidence
     bool wifi_calibrated{};
     bool ble_calibrated{};
     uint32_t lastUpdate{};
-    
-    static constexpr size_t MIN_SAMPLES = 5;
-    static constexpr size_t MAX_SAMPLES = 50;
 };
 
 struct APFinalResult {
