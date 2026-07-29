@@ -1645,13 +1645,6 @@ String calculateTriangulation() {
         results += "  Method: Weighted NLLS (Levenberg-Marquardt) + Kalman filtering\n";
 
 
-        for (const auto& node : gpsNodes) {
-            float distToTarget = haversineDistance(node.lat, node.lon, estLat, estLon);
-            if (distToTarget > 0.5 && distToTarget < 50.0) {
-                addPathLossSample(node.filteredRssi, distToTarget, !node.isBLE);
-            }
-        }
-
         if (gpsNodes.size() >= 1) {
             results += "\n  Position validation:\n";
             for (const auto& node : gpsNodes) {
@@ -1947,7 +1940,10 @@ void calibrationTask(void *parameter) {
         variance /= wifiSamples.size();
         float stdDev = sqrt(variance);
         // so many variables to dial this - ipex length, antenna, env, noise, wind, even birds damn
-        pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance); 
+        pathLoss.rssi0_wifi = meanRssi + 10.0 * pathLoss.n_wifi * log10(knownDistance);
+        adaptivePathLoss.rssi0_wifi = pathLoss.rssi0_wifi;
+        adaptivePathLoss.n_wifi = pathLoss.n_wifi;
+        adaptivePathLoss.wifi_calibrated = true;
 
         Serial.println("[CALIB] WiFi Calibration: SUCCESS");
         Serial.printf("  Distance: %.1f m\n", knownDistance);
@@ -1972,6 +1968,9 @@ void calibrationTask(void *parameter) {
         float stdDev = sqrt(variance);
 
         pathLoss.rssi0_ble = meanRssi + 10.0 * pathLoss.n_ble * log10(knownDistance);
+        adaptivePathLoss.rssi0_ble = pathLoss.rssi0_ble;
+        adaptivePathLoss.n_ble = pathLoss.n_ble;
+        adaptivePathLoss.ble_calibrated = true;
 
         Serial.println("[CALIB] BLE Calibration: SUCCESS");
         Serial.printf("  Distance: %.1f m\n", knownDistance);
@@ -2112,111 +2111,3 @@ AdaptivePathLoss adaptivePathLoss = {
     0                                  // lastUpdate
 };
 
-// Least squares estimation of path loss parameters
-void estimatePathLossParameters(bool isWiFi) {
-    const auto& samples = isWiFi ? adaptivePathLoss.wifiSamples : adaptivePathLoss.bleSamples;
-    
-    if (samples.size() < adaptivePathLoss.MIN_SAMPLES) {
-        Serial.printf("[PATH_LOSS] Insufficient samples for %s: %d/%d\n",
-                     isWiFi ? "WiFi" : "BLE", samples.size(), adaptivePathLoss.MIN_SAMPLES);
-        return;
-    }
-    
-    // Linear regression on (log10(distance), RSSI)
-    // Model: RSSI = A - 10*n*log10(d)
-    // Where A = RSSI0, slope = -10*n
-    
-    float sum_x = 0, sum_y = 0, sum_xx = 0, sum_xy = 0;
-    size_t n_samples = samples.size();
-    
-    for (const auto& sample : samples) {
-        if (sample.distance > 0.1) {  // Minimum 10cm to avoid log(0)
-            float x = log10(sample.distance);
-            float y = sample.rssi;
-            sum_x += x;
-            sum_y += y;
-            sum_xx += x * x;
-            sum_xy += x * y;
-        }
-    }
-    
-    // Least squares solution
-    float denominator = n_samples * sum_xx - sum_x * sum_x;
-    if (abs(denominator) < 0.0001) {
-        Serial.printf("[PATH_LOSS] Singular matrix for %s, using defaults\n",
-                     isWiFi ? "WiFi" : "BLE");
-        return;
-    }
-    
-    float slope = (n_samples * sum_xy - sum_x * sum_y) / denominator;
-    float intercept = (sum_y - slope * sum_x) / n_samples;
-    
-    // Extract parameters
-    float n_estimate = -slope / 10.0;
-    float rssi0_estimate = intercept;
-    
-    // Sanity check: n should be 1.5-6.0, RSSI0 should be -60 to -20 dBm
-    if (n_estimate < 1.5 || n_estimate > 6.0) {
-        Serial.printf("[PATH_LOSS] Invalid n=%f for %s, clamping\n", 
-                     n_estimate, isWiFi ? "WiFi" : "BLE");
-        n_estimate = constrain(n_estimate, 1.5, 6.0);
-    }
-    
-    if (rssi0_estimate < -120.0 || rssi0_estimate > 0.0) {
-        Serial.printf("[PATH_LOSS] Invalid RSSI0=%f for %s, clamping\n",
-                     rssi0_estimate, isWiFi ? "WiFi" : "BLE");
-        rssi0_estimate = constrain(rssi0_estimate, -120.0, 0.0);
-    }
-    
-    // Update estimates with exponential moving average for stability
-    const float alpha = 0.3;  // Learning rate
-    if (isWiFi) {
-        if (adaptivePathLoss.wifi_calibrated) {
-            adaptivePathLoss.n_wifi = alpha * n_estimate + (1 - alpha) * adaptivePathLoss.n_wifi;
-            adaptivePathLoss.rssi0_wifi = alpha * rssi0_estimate + (1 - alpha) * adaptivePathLoss.rssi0_wifi;
-        } else {
-            adaptivePathLoss.n_wifi = n_estimate;
-            adaptivePathLoss.rssi0_wifi = rssi0_estimate;
-            adaptivePathLoss.wifi_calibrated = true;
-        }
-        Serial.printf("[PATH_LOSS] WiFi updated: RSSI0=%.1f n=%.2f (samples=%d)\n",
-                     adaptivePathLoss.rssi0_wifi, adaptivePathLoss.n_wifi, n_samples);
-    } else {
-        if (adaptivePathLoss.ble_calibrated) {
-            adaptivePathLoss.n_ble = alpha * n_estimate + (1 - alpha) * adaptivePathLoss.n_ble;
-            adaptivePathLoss.rssi0_ble = alpha * rssi0_estimate + (1 - alpha) * adaptivePathLoss.rssi0_ble;
-        } else {
-            adaptivePathLoss.n_ble = n_estimate;
-            adaptivePathLoss.rssi0_ble = rssi0_estimate;
-            adaptivePathLoss.ble_calibrated = true;
-        }
-        Serial.printf("[PATH_LOSS] BLE updated: RSSI0=%.1f n=%.2f (samples=%d)\n",
-                     adaptivePathLoss.rssi0_ble, adaptivePathLoss.n_ble, n_samples);
-    }
-    
-    adaptivePathLoss.lastUpdate = millis();
-}
-
-// Add sample when we have both RSSI and GPS-derived distance
-void addPathLossSample(float rssi, float distance, bool isWiFi) {
-    if (distance < 0.1 || distance > 200.0) return;  // Sanity check
-    
-    PathLossSample sample = {rssi, distance, isWiFi, millis()};
-    std::vector<PathLossSample>& samples = isWiFi
-        ? adaptivePathLoss.wifiSamples
-        : adaptivePathLoss.bleSamples;
-
-    samples.push_back(sample);
-
-    if (samples.size() > adaptivePathLoss.MAX_SAMPLES) {
-        samples.erase(samples.begin());
-    }
-    
-    // Trigger re-estimation every 10 samples or every 30 seconds
-    static uint32_t wifiSinceFit = 0, bleSinceFit = 0;
-    uint32_t &sinceFit = isWiFi ? wifiSinceFit : bleSinceFit;
-    if (++sinceFit >= 10 || millis() - adaptivePathLoss.lastUpdate > 30000) {
-        sinceFit = 0;
-        estimatePathLossParameters(isWiFi);
-    }
-}

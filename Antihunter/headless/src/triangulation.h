@@ -197,8 +197,6 @@ bool startTriangulation(const String &targetMac, int duration, String *err = nul
 void disciplineRTCFromGPS();
 int64_t getCorrectedMicroseconds();
 void calibratePathLoss(const String &targetMac, float knownDistance);
-void estimatePathLossParameters(bool isWiFi);
-void addPathLossSample(float rssi, float distance, bool isWiFi);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 void markTriangulationStopFromMesh();
 
