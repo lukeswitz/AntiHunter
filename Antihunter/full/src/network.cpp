@@ -590,7 +590,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
       stopAllScans();
       req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
-      if (triangulationActive) requestTriangulationStop();
+      if (triangulationActive || triangulationInitiator) requestTriangulationStop();
   });
   registerRemainingRoutes();
 }
