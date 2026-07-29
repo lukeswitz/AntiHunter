@@ -975,6 +975,7 @@ static uint8_t triScanChannel() {
     if (triangulationActive.load()) {
         uint8_t ch = triTargetChannel.load();
         if (ch >= 1 && ch <= 14) return ch;
+        return 0;
     }
     return nextActiveScanChannel();
 }
@@ -3281,7 +3282,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
             sentAny = true;
             reportingSchedule.markReportReceived(nodeId, false);
             Serial.printf("[TRI-SLOT] %s: WiFi sent (%d hits)\n", nodeId.c_str(), triAccum.wifiHitCount);
-            delay(600);
+            delay(150);
         } else {
             Serial.printf("[TRI-SLOT] %s: WiFi DROPPED by rate limiter\n", nodeId.c_str());
         }
@@ -3301,7 +3302,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
             sentAny = true;
             reportingSchedule.markReportReceived(nodeId, false);
             Serial.printf("[TRI-SLOT] %s: BLE sent (%d hits)\n", nodeId.c_str(), triAccum.bleHitCount);
-            delay(600);
+            delay(150);
         } else {
             Serial.printf("[TRI-SLOT] %s: BLE DROPPED by rate limiter\n", nodeId.c_str());
         }
@@ -3649,7 +3650,6 @@ void listScanTask(void *pv) {
 
                 if (needsReset) {
                     sendTriAccumulatedData(myNodeId);
-                triUpsertSelfNode(myNodeId);
                     triUpsertSelfNode(myNodeId);
                     resetTriAccumulator(triangulationTarget);
                 }
