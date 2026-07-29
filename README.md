@@ -16,9 +16,10 @@
 
 <div align="center">
   <a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a>  
-</div>
-  <h3 align="center">DIGI Detection Node 2.4GHz WiFi/BLE Firmware</h3>
-</p>
+
+[Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
+
+  <h3 align="center">DIGI Detection Node Firmware</h3>
 
 
  <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
@@ -52,8 +53,10 @@
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
 
 <p align="center">
-<img height="600" alt="image" src="https://github.com/user-attachments/assets/66817c73-58db-4697-b4e9-38f8ba449c4c" />
-</p>
+<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
+
+> [!NOTE]
+> Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable). **ESP32C5 support** is almost done. Backwards compatible with the PCB and other nodes.
 
 
 ## Features
