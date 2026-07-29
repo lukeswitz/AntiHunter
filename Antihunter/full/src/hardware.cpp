@@ -38,7 +38,7 @@ HardwareSerial GPS(2);
 bool sdAvailable = false;
 String lastGPSData = "No GPS data";
 float gpsLat = 0.0, gpsLon = 0.0;
-static const uint32_t GPS_FIX_MAX_AGE_MS = 5000;
+static const uint32_t GPS_FIX_MAX_AGE_MS = 20000;
 std::atomic<bool> gpsValid{false};
 SemaphoreHandle_t gpsMutex = nullptr;
 extern bool hbEnabled;
