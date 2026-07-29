@@ -3697,8 +3697,20 @@ void listScanTask(void *pv) {
                 results += "Target MAC: " + std::string(macFmt6(triangulationTarget).c_str()) + "\n";
                 results += "Duration: " + std::to_string(triangulationDuration) + "s\n";
                 results += "Elapsed: " + std::to_string((millis() - triangulationStart) / 1000) + "s\n";
-                results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n\n";
-                results += "--- Node Reports ---\n";
+                results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n";
+
+                std::vector<TriangulationNode> liveGps;
+                for (const auto& n : triangulationNodes) if (n.hasGPS) liveGps.push_back(n);
+                if (liveGps.size() >= 3) {
+                    float lat = 0, lon = 0, conf = 0;
+                    if (performWeightedTrilateration(liveGps, lat, lon, conf) && conf > 0.0f) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "Estimate: %.6f,%.6f CONF=%.1f%%\n",
+                                 lat, lon, conf * 100.0f);
+                        results += buf;
+                    }
+                }
+                results += "\n--- Node Reports ---\n";
 
                 for (const auto& node : triangulationNodes) {
                     results += std::string(node.nodeId.c_str()) + ": ";
