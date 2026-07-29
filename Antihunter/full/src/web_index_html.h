@@ -3194,6 +3194,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return '<div class="res-kv' + (cls ? ' ' + cls : '') + '"><div class="res-kv-lab">' + label +
           '</div><div class="res-kv-val">' + value + '</div></div>';
       }
+      function _resScanPill(text) {
+        return (radioBusy || (text && text.includes('IN PROGRESS'))) ? '<span class="res-scanning">Scanning</span>' : '';
+      }
 
       function parseAndStyleResults(text) {
         if (!text || text.trim() === '' || text.includes('None yet') || text.includes('No scan data')) {
@@ -3389,7 +3392,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const identitiesMatch = text.match(/Device Identities: (\d+)/);
 
         let html = '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
-        html += '<svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Randomized Device Tracer</div></div>';
+        html += '<svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Randomized Device Tracer</div>' + _resScanPill(text) + '</div>';
         html += '<div class="res-stats">';
         if (headerMatch) html += _resStat('Active Sessions', headerMatch[1]);
         if (identitiesMatch) html += _resStat('Linked Identities', identitiesMatch[1]);
@@ -3564,7 +3567,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         if (anomalyCount > 0) {
           html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
-          html += '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Baseline Anomalies</div></div>';
+          html += '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Baseline Anomalies</div>' + _resScanPill(text) + '</div>';
           html += '<div class="res-stats">' + _resStat('Anomalies', anomalyCount, 'danger') + '</div></div>';
 
           const anomalySection = text.split('=== ANOMALIES DETECTED ===')[1];
@@ -3618,7 +3621,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const targetsMatch = text.match(/Targets attacked: (\d+)/);
 
         html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
-        html += '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Deauth Attack Detection</div></div>';
+        html += '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Deauth Attack Detection</div>' + _resScanPill(text) + '</div>';
         html += '<div class="res-stats">';
         if (durationMatch) html += _resStat('Duration', durationMatch[1]);
         if (deauthMatch) html += _resStat('Deauth Frames', deauthMatch[1], parseInt(deauthMatch[1]) > 0 ? 'danger' : '');
@@ -3690,7 +3693,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const uniqueMatch = text.match(/Unique drones: (\d+)/);
 
         html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
-        html += '<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Drone Detection</div></div>';
+        html += '<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Drone Detection</div>' + _resScanPill(text) + '</div>';
         html += '<div class="res-stats">';
         if (totalMatch) html += _resStat('Total Detections', totalMatch[1]);
         if (uniqueMatch) html += _resStat('Unique Drones', uniqueMatch[1]);
@@ -4068,7 +4071,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '<div id="deviceScanHeader" class="res-hero">';
           html += '<div class="res-hero-top"><div class="res-hero-title">';
           html += '<svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
-          html += 'Device Discovery</div></div>';
+          html += 'Device Discovery</div>' + _resScanPill(text) + '</div>';
           const _dsN = [modeMatch, durationMatch, hitsMatch, uniqueMatch].filter(Boolean).length;
           html += '<div class="res-stats" data-n="' + _dsN + '">';
           if (modeMatch) html += _resStat('Mode', modeMatch[1]);
