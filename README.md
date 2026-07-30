@@ -21,6 +21,7 @@
 
   <h3 align="center">DIGI Detection Node Firmware</h3>
 
+  <p>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO"> AntiHunter Command Center</p>
 
  <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
 
