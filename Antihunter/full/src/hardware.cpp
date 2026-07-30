@@ -18,6 +18,7 @@
 #include "esp_pm.h"
 #include "esp_sleep.h"
 #include "esp_bt.h"
+#include "esp_system.h"
 #include "driver/gpio.h"
 
 extern Preferences prefs;
@@ -1093,6 +1094,9 @@ String getDiagnostics() {
     char uptimeBuffer[10];
     snprintf(uptimeBuffer, sizeof(uptimeBuffer), "%02u:%02u:%02u", uptime_hours, uptime_minutes, uptime_seconds);
     s += "Up:" + String(uptimeBuffer) + "\n";
+    s += "Last reset: " + String(getResetReasonText()) + "\n";
+    s += "Prev uptime: " + (prevBootUptimeKnown() ? String(getPrevBootUptimeSec()) + "s" : String("unknown")) + "\n";
+    s += "Results restored: " + String(resultsWereRestored() ? "yes" : "no") + "\n";
     s += "Scan Mode: " + modeStr + "\n";
     String activeRadio;
     if (busy) activeRadio = modeStr;
@@ -1737,6 +1741,124 @@ void logToSD(const String &data) {
         lastSizeCheck = millis();
     }
 }
+
+// Survives panic/WDT/SW resets (lost on power cycle, which is itself the diagnosis).
+RTC_DATA_ATTR static uint32_t rtcBootMagic = 0;
+RTC_DATA_ATTR static uint32_t rtcLastUptimeSec = 0;
+RTC_DATA_ATTR static uint32_t rtcResumeCount = 0;
+static const uint32_t BOOT_MAGIC = 0xA471B007;
+
+static esp_reset_reason_t g_resetReason = ESP_RST_UNKNOWN;
+static uint32_t g_prevUptimeSec = 0;
+static bool g_prevUptimeKnown = false;
+static bool g_resultsRestored = false;
+
+const char *getResetReasonText() {
+    switch (g_resetReason) {
+        case ESP_RST_POWERON:  return "POWERON";
+        case ESP_RST_EXT:      return "EXT";
+        case ESP_RST_SW:       return "SW";
+        case ESP_RST_PANIC:    return "PANIC";
+        case ESP_RST_INT_WDT:  return "INT_WDT";
+        case ESP_RST_TASK_WDT: return "TASK_WDT";
+        case ESP_RST_WDT:      return "WDT";
+        case ESP_RST_DEEPSLEEP:return "DEEPSLEEP";
+        case ESP_RST_BROWNOUT: return "BROWNOUT";
+        case ESP_RST_SDIO:     return "SDIO";
+        default:               return "UNKNOWN";
+    }
+}
+
+uint32_t getPrevBootUptimeSec() { return g_prevUptimeSec; }
+bool prevBootUptimeKnown() { return g_prevUptimeKnown; }
+bool wasCleanBoot() { return g_resetReason == ESP_RST_POWERON || g_resetReason == ESP_RST_EXT; }
+bool resultsWereRestored() { return g_resultsRestored; }
+
+void recordBootReason() {
+    g_resetReason = esp_reset_reason();
+    if (rtcBootMagic == BOOT_MAGIC) {
+        g_prevUptimeSec = rtcLastUptimeSec;
+        g_prevUptimeKnown = true;
+    } else {
+        rtcResumeCount = 0;
+        g_prevUptimeSec = 0;
+        g_prevUptimeKnown = false;
+    }
+    rtcBootMagic = BOOT_MAGIC;
+    rtcLastUptimeSec = 0;
+    Serial.printf("[BOOT] reset=%s prevUptime=%s resumes=%u\n", getResetReasonText(),
+                  g_prevUptimeKnown ? String(g_prevUptimeSec).c_str() : "unknown",
+                  (unsigned)rtcResumeCount);
+}
+
+void markUptimeAlive() {
+    uint32_t sec = millis() / 1000;
+    if (sec != rtcLastUptimeSec) rtcLastUptimeSec = sec;
+    if (sec > 300 && rtcResumeCount != 0) rtcResumeCount = 0;
+}
+
+void logBootRecord() {
+    String line = "BOOT reset=" + String(getResetReasonText()) +
+                  " prevUptime=" + (g_prevUptimeKnown ? String(g_prevUptimeSec) + "s" : String("unknown")) +
+                  " resumes=" + String((unsigned)rtcResumeCount) +
+                  " heap=" + String((unsigned)ESP.getFreeHeap());
+    logToSD(line);
+}
+
+static uint32_t resultsHash(const std::string &s) {
+    uint32_t h = 2166136261u;
+    for (char c : s) { h ^= (uint8_t)c; h *= 16777619u; }
+    return h;
+}
+
+void saveResultsSnapshot(bool force) {
+    static uint32_t nextSaveMs = 0;
+    static uint32_t lastHash = 0;
+    if (!SafeSD::isAvailable()) return;
+    uint32_t now = millis();
+    if (!force && nextSaveMs != 0 && (int32_t)(now - nextSaveMs) < 0) return;
+    nextSaveMs = now + RESULTS_SNAPSHOT_INTERVAL_MS;
+
+    std::string copy;
+    {
+        std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+        copy = antihunter::lastResults;
+    }
+    if (copy.empty() || copy.size() > RESULTS_SNAPSHOT_MAX_BYTES) return;
+    uint32_t h = resultsHash(copy);
+    if (h == lastHash) return;
+
+    File f = SafeSD::open(RESULTS_SNAPSHOT_FILE, FILE_WRITE);
+    if (!f) return;
+    f.write(reinterpret_cast<const uint8_t *>(copy.data()), copy.size());
+    f.close();
+    lastHash = h;
+}
+
+void loadResultsSnapshot() {
+    if (!SafeSD::isAvailable() || !SafeSD::exists(RESULTS_SNAPSHOT_FILE)) return;
+    File f = SafeSD::open(RESULTS_SNAPSHOT_FILE, FILE_READ);
+    if (!f) return;
+    size_t len = f.size();
+    if (len == 0 || len > RESULTS_SNAPSHOT_MAX_BYTES) { f.close(); return; }
+
+    std::string buf;
+    buf.resize(len);
+    size_t got = f.read(reinterpret_cast<uint8_t *>(&buf[0]), len);
+    f.close();
+    if (got == 0) return;
+    buf.resize(got);
+
+    std::string header = "[Recovered after reset: " + std::string(getResetReasonText());
+    if (g_prevUptimeKnown) header += ", prior uptime " + std::to_string(g_prevUptimeSec) + "s";
+    header += "]\n\n";
+
+    std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+    antihunter::lastResults = header + buf;
+    g_resultsRestored = true;
+    Serial.printf("[BOOT] Restored %u bytes of results from snapshot\n", (unsigned)got);
+}
+
 void logVibrationEvent(int sensorValue) {
     String event = String(sensorValue ? "Motion" : "Impact") + " detected";
     if (gpsValid) {

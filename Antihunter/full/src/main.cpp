@@ -255,6 +255,7 @@ void setup() {
     delay(300);
 
     Serial.println("\n=== AntiHunter Beta v1.0.1 C5 [FULL] Boot ===");
+    recordBootReason();
 
 
 #ifdef ARDUINO_XIAO_ESP32C5
@@ -279,6 +280,8 @@ void setup() {
     delay(20);
     initializeSD();
     heapMark("after SD");
+    logBootRecord();
+    if (!wasCleanBoot()) loadResultsSnapshot();
 
 
     if (waitForInitialConfig()) {
@@ -362,6 +365,8 @@ void loop() {
     static unsigned long lastHbSend = 0;
     static unsigned long lastHeapCheck = 0;
 
+    markUptimeAlive();
+
     processUSBToMesh();
 
     // Battery saver mode - minimal operations
@@ -418,6 +423,7 @@ void loop() {
     }
 
     checkAndSendVibrationAlert();
+    saveResultsSnapshot();
 
     if (millis() - lastHeapCheck > 30000) {
         uint32_t freeHeap = ESP.getFreeHeap();

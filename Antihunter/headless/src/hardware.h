@@ -133,6 +133,18 @@ void syncSettingsToNVS();
 void logToSD(const String &data);
 void logEventToSD(const char* path, const String& jsonLine);
 
+#define RESULTS_SNAPSHOT_FILE "/last_results.txt"
+#define RESULTS_SNAPSHOT_INTERVAL_MS 60000
+#define RESULTS_SNAPSHOT_MAX_BYTES 16384
+
+void recordBootReason();
+void logBootRecord();
+void markUptimeAlive();
+const char *getResetReasonText();
+bool wasCleanBoot();
+void saveResultsSnapshot(bool force = false);
+void loadResultsSnapshot();
+
 // Tamper Detection System
 extern bool tamperEraseActive;
 extern uint32_t tamperSequenceStart;

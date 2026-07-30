@@ -202,6 +202,7 @@ void setup() {
     // esp_log_level_set("vfs_api", ESP_LOG_NONE);
     // esp_log_level_set("gpio", ESP_LOG_NONE);
     Serial.println("\n=== Antihunter [Headless] Boot ===");
+    recordBootReason();
 
 #ifdef ARDUINO_XIAO_ESP32C5
     // C5 has 320KB HP SRAM and the image eats 180KB; without this the 4096B ALWAYSINTERNAL default starves WiFi
@@ -222,6 +223,8 @@ void setup() {
     initializeDroneDetector();
     delay(20);
     initializeSD();
+    logBootRecord();
+    if (!wasCleanBoot()) loadResultsSnapshot();
 
     if (waitForInitialConfig()) {
         delay(1000);
@@ -281,6 +284,8 @@ void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;
     static unsigned long lastHeapCheck = 0;
+
+    markUptimeAlive();
 
     // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
@@ -353,6 +358,7 @@ void loop() {
 
     processUSBToMesh();
     checkAndSendVibrationAlert();
+    saveResultsSnapshot();
 
     if (millis() - lastHeapCheck > 30000) {
         uint32_t freeHeap = ESP.getFreeHeap();
