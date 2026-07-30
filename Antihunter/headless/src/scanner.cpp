@@ -164,10 +164,20 @@ void rebuildActiveChannels() {
         g_activeChannels.push_back(ch);
     }
 #ifdef ARDUINO_XIAO_ESP32C5
-    if (rfConfig.bandMode == 1 && g_activeChannels.empty()) {
+    // bandMode 1/2 need 5GHz in the rotation; a 2.4-only saved list would otherwise never scan 5GHz.
+    if (rfConfig.bandMode != 0) {
         static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
-        for (uint8_t ch : k5g) g_activeChannels.push_back(ch);
-        Serial.println("[RF] 5GHz band, no 5GHz channel saved; using 36/40/44/48/149/153/157/161/165");
+        bool have5g = false;
+        for (uint8_t ch : g_activeChannels) if (!channelIs2G(ch)) { have5g = true; break; }
+        if (!have5g) {
+            for (uint8_t ch : k5g) g_activeChannels.push_back(ch);
+            Serial.println("[RF] no 5GHz channel saved; adding 36/40/44/48/149/153/157/161/165");
+        }
+    }
+    if (rfConfig.bandMode == 2) {
+        bool have2g = false;
+        for (uint8_t ch : g_activeChannels) if (channelIs2G(ch)) { have2g = true; break; }
+        if (!have2g) { const uint8_t k2g[3] = {1, 6, 11}; for (uint8_t ch : k2g) g_activeChannels.push_back(ch); }
     }
 #endif
     if (g_activeChannels.empty()) g_activeChannels = CHANNELS;
@@ -1094,6 +1104,10 @@ void snifferScanTask(void *pv)
     if (currentScanMode == SCAN_BOTH) {
         wifiInterval = min(WIFI_SCAN_INTERVAL, BLE_SCAN_INTERVAL);
     }
+#ifdef ARDUINO_XIAO_ESP32C5
+    // 9+ 5GHz channels visited one-per-interval is too slow; tighten cadence so a full sweep is ~seconds.
+    if (rfConfig.bandMode != 0) wifiInterval = min(wifiInterval, (uint32_t)800);
+#endif
 
     scanning = true;
     {
