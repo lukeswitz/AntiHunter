@@ -2885,6 +2885,7 @@ R"HTML(
         el.classList.remove('idle', 'active', 'offline');
         if (state) el.classList.add(state);
         if (state !== 'active') { _scanEndTs = 0; _scanForever = false; }
+        if (state !== 'active') document.querySelectorAll('#r .res-scanning').forEach(p => p.remove());
         el.innerText = label;
         renderScanStatus();
       }
@@ -3222,7 +3223,8 @@ R"HTML(
           '</div><div class="res-kv-val">' + value + '</div></div>';
       }
       function _resScanPill(text) {
-        return (!stopPending && (radioBusy || (text && text.includes('IN PROGRESS')))) ? '<span class="res-scanning">Scanning</span>' : '';
+        const el = document.getElementById('scanStatus');
+        return (!stopPending && el && el.classList.contains('active')) ? '<span class="res-scanning">Scanning</span>' : '';
       }
 
       function parseAndStyleResults(text) {
@@ -3577,8 +3579,11 @@ R"HTML(
         if (isEstablishing) {
           const devSection = text.split('=== BASELINE DEVICES (Cached in RAM) ===')[1];
           const deviceLines = devSection ? devSection.split('\n').filter(l => l.trim() && l.match(/^(WiFi|BLE)/)) : [];
-          if (deviceLines.length === 0) return _resEmpty('Cataloging devices…');
+          html += '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
+          html += '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/></svg>Baseline</div>' + _resScanPill(text) + '</div>';
+          html += '<div class="res-stats">' + _resStat('Cataloged', deviceLines.length) + '</div></div>';
           html += '<div class="baseline-marker" style="display:none;"></div>';
+          if (deviceLines.length === 0) return html + _resEmpty('Cataloging devices…');
           deviceLines.forEach(line => {
             const m = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+Avg:([-\d]+)dBm\s+Min:[-\d]+dBm\s+Max:[-\d]+dBm\s+Hits:(\d+)(?:\s+CH:(\d+))?(?:\s+"([^"]+)")?/);
             const bv = line.match(/\sV=([^"\n]+)$/);
@@ -3927,7 +3932,7 @@ R"HTML(
         html += '<div class="res-hero-top"><div class="res-hero-title">';
         html += '<svg viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>';
         html += 'Probe Detection</div>';
-        if (inProgress) html += '<span class="res-scanning">Scanning</span>';
+        html += _resScanPill(text);
         html += '</div><div class="res-stats">';
         if (devMatch) html += _resStat('Devices', devMatch[1]);
         if (probeMatch) html += _resStat('Probes', probeMatch[1]);
