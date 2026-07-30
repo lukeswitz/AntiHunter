@@ -469,6 +469,7 @@ void probeDetectionTask(void *pv)
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
         radioStopSTA();
     }
+    releaseProbeQueue();
 
     // Merge all devices into SD database and save
     {

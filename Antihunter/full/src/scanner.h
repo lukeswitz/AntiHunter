@@ -25,6 +25,13 @@
 #define AH_ISR_QUEUE_CAPS AH_ALLOC_CAPS
 #endif
 
+// C5 keeps ISR queues in internal SRAM (cache-disabled ISR), where 256 entries costs ~39 KB
+#ifdef ARDUINO_XIAO_ESP32C5
+#define AH_PROBE_QUEUE_LEN 96
+#else
+#define AH_PROBE_QUEUE_LEN 256
+#endif
+
 static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint32_t stack,
                                        void *arg, UBaseType_t prio, TaskHandle_t *handle,
                                        BaseType_t core) {
@@ -228,6 +235,8 @@ extern std::vector<Allowlist> allowlist;
 extern std::vector<String> ssidTargets;
 extern std::atomic<bool> probeDetectionEnabled;
 extern std::atomic<bool> probeBroadcastAll;
+void releaseProbeQueue();
+void releaseAuthFrameQueue();
 bool matchesSsid(const char *ssid);
 const char* lookupOuiVendor(const uint8_t *mac);
 void probeDetectionTask(void *pv);

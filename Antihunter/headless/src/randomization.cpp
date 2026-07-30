@@ -1288,9 +1288,16 @@ void randomizationDetectionTask(void *pv) {
 
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
 
+    if (!probeRequestQueue)
+        probeRequestQueue = xQueueCreateWithCaps(AH_PROBE_QUEUE_LEN, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+    if (!authFrameQueue)
+        authFrameQueue = xQueueCreateWithCaps(32, sizeof(AuthFrameEvent), AH_ISR_QUEUE_CAPS);
     if (!probeRequestQueue || !authFrameQueue) {
-        Serial.printf("[RAND] FATAL: queues not allocated at boot (probe=%p auth=%p heap=%u), aborting\n",
-                      probeRequestQueue, authFrameQueue, ESP.getFreeHeap());
+        Serial.printf("[RAND] FATAL: queue alloc failed (probe=%p auth=%p internal=%u), aborting\n",
+                      probeRequestQueue, authFrameQueue,
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        releaseProbeQueue();
+        releaseAuthFrameQueue();
         scanning = false;
         workerTaskHandle = nullptr;
         vTaskDelete(nullptr);
@@ -1401,7 +1408,7 @@ void randomizationDetectionTask(void *pv) {
             ProbeRequestEvent event;
             int processedCount = 0;
             
-            while (processedCount < 200 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
+            while (probeRequestQueue && processedCount < 200 && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE) {
                 processedCount++;
                 
                 String macStr = macFmt6(event.mac);
@@ -1785,8 +1792,8 @@ void randomizationDetectionTask(void *pv) {
     transmittedIdentities.clear();
 
     scanning = false;
-    if (probeRequestQueue) xQueueReset(probeRequestQueue);
-    if (authFrameQueue)    xQueueReset(authFrameQueue);
+    releaseProbeQueue();
+    releaseAuthFrameQueue();
     if (bleAdvQueue)       xQueueReset(bleAdvQueue);
 
     Serial.printf("[RAND] Complete (internal:%u psram:%u)\n",
