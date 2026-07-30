@@ -214,11 +214,6 @@ struct DynamicReportingSchedule {
         return reportSeq;
     }
 
-    bool hasNode(const String& nid) {
-        std::lock_guard<std::mutex> lock(nodeMutex);
-        return nodes.find(nid) != nodes.end();
-    }
-
     // flight and lap back to ourselves - so it is measured, never a fixed constant.
     uint32_t skipTimeoutMs() const {
         uint32_t t = peerIntervalMs ? peerIntervalMs + (peerIntervalMs >> 1)

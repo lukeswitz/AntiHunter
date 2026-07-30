@@ -163,9 +163,6 @@ uint8_t nextActiveScanChannel();
 extern TaskHandle_t workerTaskHandle;
 extern TaskHandle_t blueTeamTaskHandle;
 extern std::atomic<bool> scanStopPending;
-bool scanBusy();
-bool scanStopping();
-void scanClearStopPending();
 void stopAllScans(bool cancelMeshDrain = true);
 extern std::atomic<bool> meshTxDraining;
 extern std::atomic<uint32_t> meshDrainSent;
@@ -180,7 +177,6 @@ void initBLEOnce();
 bool meshShouldSendMac(const String& mac);
 void meshMarkMacSent(const String& mac);
 void meshDedupClear();
-uint32_t meshDedupCount();
 void setMeshDedupTtlSec(uint32_t sec);
 uint32_t getMeshDedupTtlSec();
 void setMeshSessionDedup(bool on);
@@ -206,8 +202,6 @@ void saveProbeDB();
 void mergeProbeDeviceToDB(const ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
-String getProbeDBJson();
-void clearProbeDB();
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s
@@ -253,7 +247,6 @@ void scanSessionSave(const ScanSession &s);
 void scanSessionClear();
 bool scanSessionLoad(ScanSession &out);
 void scanSessionResume();
-bool scanSessionWasResumed();
 void scanSessionSaveKind(const char *kind, int mode, int secs, bool forever,
                          const String &channels, bool captureProbes, bool broadcastAll);
 extern std::atomic<bool> triangulationActive;
@@ -274,10 +267,8 @@ void rebuildIdentityMacSnapshot();
 void saveTargetsList(const String &txt);
 void snifferScanTask(void *pv);
 void listScanTask(void *pv);
-void counterSurveilTask(void *pv);
 void baselineDetectionTask(void *pv);
 void blueTeamTask(void *pv);
-String getDeauthReasonText(uint16_t reasonCode);
 
 // Radio control functions
 void radioStartSTA();       // Promiscuous mode for sniffer
@@ -294,11 +285,8 @@ bool safeMacQueueReceive(Hit* hit, TickType_t timeout);
 void safeMacQueueDelete();
 bool safeMacQueueCreate(size_t queueSize);
 
-String getTargetsList();
 size_t getTargetCount();
-String getSnifferCache();
 
-String getAllowlistText();
 void saveAllowlist(const String &txt);
 bool isAllowlisted(const uint8_t *mac);
 

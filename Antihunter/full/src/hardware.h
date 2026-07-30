@@ -154,7 +154,6 @@ void clearResumeCount();
 bool resultsWereRestored();
 void saveResultsSnapshot(bool force = false);
 void loadResultsSnapshot();
-void clearResultsSnapshot();
 
 // Tamper Detection System
 extern bool tamperEraseActive;

@@ -88,8 +88,6 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("KARMA_CAND:") ||
                 toProcess.startsWith("KARMA_CONFIRMED:") ||
                 toProcess.startsWith("BLE_ATTACK:") ||
-                toProcess.startsWith("BLETRACK:") ||
-                toProcess.startsWith("TRK_LINK:") ||
                 toProcess.startsWith("TOF_PING:") ||
                 toProcess.startsWith("TOF_PONG:")) {
               detect_processMesh(senderId, toProcess);
@@ -197,6 +195,7 @@ void randomizeMacAddress() {
                   newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
 }
 
+// cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
     delay(1000);
     Serial.begin(115200);
@@ -218,8 +217,8 @@ void setup() {
     delay(20);
     initializeSD();
     logBootRecord();
-    loadResultsSnapshot();
-    
+    if (!wasCleanBoot()) loadResultsSnapshot();
+
     if (waitForInitialConfig()) {
         delay(1000);
     }
@@ -288,6 +287,7 @@ void setup() {
     scanSessionResume();
 }
 
+// cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;

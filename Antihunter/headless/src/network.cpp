@@ -57,7 +57,6 @@ extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
-extern void randomizeMacAddress();
 
 // Mesh serial processing
 SerialRateLimiter rateLimiter;
@@ -95,8 +94,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     }
 
 #if !AH_CS_BLE
-    if (message.indexOf(": BLE_ATTACK") >= 0 || message.indexOf(": FOLLOWER:") >= 0 ||
-        message.indexOf(": BLETRACK:") >= 0 || message.indexOf(": TRK_LINK:") >= 0) {
+    if (message.indexOf(": BLE_ATTACK") >= 0) {
         return false;
     }
 #endif
@@ -234,11 +232,11 @@ static MeshPriority classifyMeshMessage(const String &msg) {
     }
     if (msg.indexOf("ATTACK") >= 0 || msg.indexOf("DEAUTH") >= 0 || msg.indexOf("DETECT") >= 0 ||
         msg.indexOf("EAPOL") >= 0 || msg.indexOf("HSHK") >= 0 || msg.indexOf("KARMA") >= 0 ||
-        msg.indexOf("BLETRACK") >= 0 || msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
+        msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
         msg.indexOf("RTC_SYNC") >= 0 || msg.indexOf("STARTUP") >= 0 || msg.indexOf("Target:") >= 0 ||
         msg.indexOf("EVILTWIN") >= 0 || msg.indexOf("PMKID") >= 0 || msg.indexOf("OWE_ABUSE") >= 0 ||
         msg.indexOf("KRACK") >= 0 || msg.indexOf("PWNAGOTCHI") >= 0 || msg.indexOf("PROBE_FLOOD") >= 0 ||
-        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 || msg.indexOf("TRK_LINK") >= 0 ||
+        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 ||
         msg.indexOf("IDHASH") >= 0 || msg.indexOf("BLOOM") >= 0 || msg.indexOf("RECON") >= 0 ||
         msg.indexOf("FRAGATTACK") >= 0 || msg.indexOf("SSID_CONFUSION") >= 0 || msg.indexOf("SAE_DOS") >= 0 ||
         msg.indexOf("BLE_MALFORMED") >= 0) {
@@ -299,10 +297,6 @@ uint32_t meshTxQueueDepth() {
 }
 
 bool meshTxPending() { return meshTxDraining.load() || meshTxQueueDepth() > 0; }
-
-uint32_t meshTxDroppedCount() {
-    return meshTxDroppedFull.load();
-}
 
 void meshTxFlushQueue() {
     uint32_t dropped = 0;
@@ -733,49 +727,6 @@ static void handleDroneStart(const String &command)
   }
 }
 
-static void handleCounterSurveilStart(const String &command)
-{
-  String params = command.substring(9);   // "CS_START:"
-  int secs = params.toInt();
-  bool forever = false;
-  int colonPos = params.indexOf(':');
-  if (colonPos > 0)
-  {
-    secs = params.substring(0, colonPos).toInt();
-    if (params.substring(colonPos + 1) == "FOREVER") forever = true;
-  }
-  if (secs < 0) secs = 0;
-  if (secs > 86400) secs = 86400;
-
-#if AH_CS_BLE
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
-    Serial.println("[MESH] Radio busy, rejecting CS_START");
-    sendToSerial1(nodeId + ": CS_ACK:BUSY", true);
-  } else {
-    currentScanMode = SCAN_BLE;
-    stopRequested = false;
-    scanning = true;
-    if (ahCreateTask(counterSurveilTask, "cs", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
-        scanning = false;
-        workerTaskHandle = nullptr;
-        scanSetCountdown(0, false);
-        Serial.println("[SCAN] task create failed: cs");
-    }
-    Serial.printf("[MESH] Started counter-surveillance scan (%ds)\n", secs);
-    sendToSerial1(nodeId + ": CS_ACK:STARTED", true);
-  }
-#else
-  (void)secs;
-  (void)forever;
-  sendToSerial1(nodeId + ": CS_ACK:DISABLED", true);
-#endif
-}
-
-static void handleCounterSurveilResults(const String &command)
-{
-  (void)command;
-  Serial.println(cs_getResultsJson());
-}
 
 static void handleDeauthStart(const String &command)
 {
@@ -1888,7 +1839,7 @@ static bool meshIsResponse(const String &payload)
     "TRIANGULATE_RESULTS_END", "TRIANGULATE_RESULTS:NO_DATA", "ERASE_ACK", "ERASE_TOKEN:",
     "FACTORY_RESET_ACK", "AUTOERASE_ACK", "BATTERY_SAVER_ACK", "HB_ACK", "SENTINEL_ACK",
     "SENTINEL_MODE_ACK", "SENTINEL_BOOT_ACK", "GROUP_ACK", "DETECT_CFG_ACK", "DETECT_CFG_LEN:",
-    "INCIDENTS_LEN:", "INCIDENTS_CLEAR_ACK", "CS_ACK", "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
+    "INCIDENTS_LEN:", "INCIDENTS_CLEAR_ACK", "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
     "STATUS: ", "BASELINE_STATUS: ", "VIBRATION_STATUS: ", "AUTOERASE_STATUS: ",
     "BATTERY_SAVER_STATUS: ", "SENTINEL_STATUS: "
   };
@@ -1921,8 +1872,6 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "BASELINE_STATUS")              handleBaselineStatus(command);
   else if (command.startsWith("DEVICE_SCAN_START:"))  handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))        handleDroneStart(command);
-  else if (command.startsWith("CS_START:"))           handleCounterSurveilStart(command);
-  else if (command.startsWith("CS_RESULTS"))          handleCounterSurveilResults(command);
   else if (command.startsWith("DEAUTH_START:"))       handleDeauthStart(command);
   else if (command.startsWith("RANDOMIZATION_START:")) handleRandomizationStart(command);
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);

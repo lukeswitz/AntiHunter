@@ -1,8 +1,7 @@
 CPPCHECK := cppcheck
-CPPCHECK_FLAGS := --enable=warning,style,performance,portability --std=c++17 \
+CPPCHECK_FLAGS := --enable=warning,style,performance,portability,unusedFunction --std=c++17 \
 	--check-level=exhaustive \
 	--suppress=useStlAlgorithm \
-	--suppress=variableScope \
 	--inline-suppr \
 	-DPROGMEM= \
 	--error-exitcode=1

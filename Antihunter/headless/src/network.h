@@ -40,7 +40,6 @@ void meshTxFlushQueue();
 uint32_t meshTxQueueDepth();
 bool meshTxPending();
 uint32_t meshMsgUnits(const String &msg);
-uint32_t meshTxDroppedCount();
 enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 
 // Headless has no SoftAP; AP_CHANNEL is the sentinel's default pin channel.

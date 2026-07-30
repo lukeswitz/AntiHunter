@@ -182,7 +182,6 @@ void stopTriangulation();
 bool startTriangulation(const String &targetMac, int duration, String *err = nullptr);
 void disciplineRTCFromGPS();
 int64_t getCorrectedMicroseconds();
-void calibratePathLoss(const String &targetMac, float knownDistance);
 void processMeshTimeSyncWithDelay(const String &senderId, const String &message, uint32_t rxMicros);
 void markTriangulationStopFromMesh();
 
@@ -211,11 +210,6 @@ struct DynamicReportingSchedule {
     uint32_t peerSeq() {
         std::lock_guard<std::mutex> lock(nodeMutex);
         return reportSeq;
-    }
-
-    bool hasNode(const String& nid) {
-        std::lock_guard<std::mutex> lock(nodeMutex);
-        return nodes.find(nid) != nodes.end();
     }
 
     // flight and lap back to ourselves - so it is measured, never a fixed constant.

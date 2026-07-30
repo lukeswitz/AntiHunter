@@ -30,7 +30,7 @@ public:
 // CONTROL preempts EVENT preempts BULK at drain time, and CONTROL/EVENT may evict back-of-BULK on enqueue-full.
 enum MeshPriority : uint8_t {
     PRIO_CONTROL = 0,  // triangulation T_F/T_C/T_D, *_ACK, TRI_*, TRIANGULATE_*
-    PRIO_EVENT   = 1,  // ATTACK, DEAUTH, DETECT, EAPOL, HSHK, KARMA, BLETRACK, VIBRATION, GPS, RTC_SYNC, STARTUP, Target
+    PRIO_EVENT   = 1,  // ATTACK, DEAUTH, DETECT, EAPOL, HSHK, KARMA, VIBRATION, GPS, RTC_SYNC, STARTUP, Target
     PRIO_BULK    = 2,  // DEVICE, SCAN_DONE, heartbeat, default
     PRIO_DEFAULT = PRIO_BULK,
 };

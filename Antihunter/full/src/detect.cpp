@@ -64,9 +64,6 @@ template <typename M> static void evictOldestTs(M &m) {
     evictOldestBy(m, [](const typename M::mapped_type &v) { return v; });
 }
 
-uint32_t trackerTryLinkRotation(const uint8_t *addr, const char *vendor, int8_t rssi, uint32_t now);
-void trackerSweepVanished(uint32_t now);
-void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len);
 uint8_t classifyEapolMsg(uint16_t keyInfo);
 void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
                        uint64_t replayCtr, int8_t rssi, const char *nodeId, uint32_t now);
@@ -91,9 +88,6 @@ std::atomic<uint8_t>  g_pmkidMinBssids{3};
 std::atomic<uint16_t> g_saeWindow{5000};
 std::atomic<uint8_t>  g_saeUnmatchedThresh{10};
 std::atomic<uint16_t> g_beaconDriftPermil{50};
-std::atomic<uint32_t> g_trackerWindowMs{4UL * 3600UL * 1000UL};
-std::atomic<uint32_t> g_trackerGapMs{30UL * 60UL * 1000UL};
-std::atomic<uint8_t>  g_trackerMinSightings{3};
 
 // Frame queue (from sniffer_cb)
 QueueHandle_t g_detectFrameQueue = nullptr;
@@ -231,8 +225,6 @@ std::atomic<bool> g_oweEnabled{false};
 std::atomic<bool> g_bleMalformedEnabled{false};
 std::atomic<bool> g_hshkEnabled{true};
 std::atomic<bool> g_pwnaEnabled{true};
-std::atomic<bool> g_trackerEnabled{false};
-std::atomic<bool> g_airtagEnabled{false};
 std::atomic<bool> g_tsfEnabled{false};
 std::atomic<bool> g_csaQuietEnabled{true};
 std::atomic<bool> g_ridSpoofEnabled{false};
@@ -267,9 +259,6 @@ std::atomic<bool> g_meshEapolBait{true};
 
 // BLE malformed
 PsramVec<BleMalformedEvent> g_bleMalformedLog;
-
-// BLE tracker
-PsramMap<uint64_t, BleTrackerSighting> g_bleTrackers;
 
 // Recon
 PsramMap<String, ReconAlert> g_recon;
@@ -311,7 +300,6 @@ static constexpr size_t MAX_SAE_LOG = 100;
 static constexpr size_t MAX_OWE_LOG = 50;
 static constexpr size_t MAX_FRAG_LOG = 100;
 static constexpr size_t MAX_BLEM_LOG = 100;
-static constexpr size_t MAX_TRACKER_MAP = 200;
 
 // =============================================================================
 // Helpers
@@ -2492,76 +2480,7 @@ static void handleQosData(const DetectFrameEvent &e) {
 
 }
 
-// =============================================================================
-// BLE tracker watchlist + BLE malformed PDU
-// =============================================================================
-struct WatchEntry {
-    uint16_t serviceUuid;   // 0 means use mfgId check
-    uint16_t mfgId;         // 0xFFFF if N/A
-    uint8_t mfgPrefixLen;
-    uint8_t mfgPrefix[4];
-    const char *vendor;
-};
-static const WatchEntry kWatch[] = {
-    {0xFEEC, 0xFFFF, 0, {0,0,0,0}, "TileUnreg"},
-    {0xFEED, 0xFFFF, 0, {0,0,0,0}, "Tile"},
-    {0xFD59, 0xFFFF, 0, {0,0,0,0}, "SmartTagUnreg"},
-    {0xFD5A, 0xFFFF, 0, {0,0,0,0}, "SamsungSmartTag"},
-    {0xFEAA, 0xFFFF, 1, {0x40,0,0,0}, "GoogleFMDN"},
-    {0xFCB2, 0xFFFF, 0, {0,0,0,0}, "DULT"},
-    {0xFD44, 0xFFFF, 0, {0,0,0,0}, "AppleFMNA"},
-    {0xFFFA, 0xFFFF, 1, {0x0D,0,0,0}, "OpenDroneID"},
-    {0,       0x004C, 2, {0x12,0x19,0,0}, "AirTag_or_FindMy"},
-    {0,       0x004C, 1, {0x07,0,0,0}, "AppleProxPair"},
-    {0,       0x004C, 1, {0x10,0,0,0}, "AppleNearby"},
-    {0,       0x004C, 0, {0,0,0,0}, "Apple"},
-    {0,       0x0075, 0, {0,0,0,0}, "Samsung"},
-};
-
-static bool parseAdvForWatch(const uint8_t *p, uint16_t len, WatchEntry &outMatch) {
-    uint16_t off = 0;
-    while (off + 2 <= len) {
-        uint8_t l = p[off];
-        if (l == 0) { off += 1; continue; }
-        if (off + 1 + l > len) return false;
-        uint8_t adType = p[off + 1];
-        if (adType == 0x16 && l >= 3) {
-            uint16_t uuid = (uint16_t)p[off + 2] | ((uint16_t)p[off + 3] << 8);
-            for (const auto &w : kWatch) {
-                if (w.serviceUuid != uuid) continue;
-                if (w.mfgPrefixLen == 0) { outMatch = w; return true; }
-                if (l >= 3 + w.mfgPrefixLen &&
-                    memcmp(&p[off + 4], w.mfgPrefix, w.mfgPrefixLen) == 0) {
-                    outMatch = w; return true;
-                }
-            }
-        }
-        if (adType == 0xFF && l >= 3) {
-            uint16_t mfg = (uint16_t)p[off + 2] | ((uint16_t)p[off + 3] << 8);
-            for (const auto &w : kWatch) {
-                if (w.serviceUuid != 0) continue;
-                if (w.mfgId != mfg) continue;
-                if (w.mfgPrefixLen == 0) { outMatch = w; return true; }
-                if (l >= 3 + w.mfgPrefixLen &&
-                    memcmp(&p[off + 4], w.mfgPrefix, w.mfgPrefixLen) == 0) {
-                    outMatch = w; return true;
-                }
-            }
-        }
-        if ((adType == 0x02 || adType == 0x03) && l >= 3) {
-            for (uint8_t di = 0; di + 1 < (uint8_t)(l - 1); di += 2) {
-                uint16_t uuid = (uint16_t)p[off + 2 + di] | ((uint16_t)p[off + 3 + di] << 8);
-                auto it = std::find_if(std::begin(kWatch), std::end(kWatch), [&](const WatchEntry &w) {
-                    return w.serviceUuid != 0 && w.serviceUuid == uuid && w.mfgPrefixLen == 0;
-                });
-                if (it != std::end(kWatch)) { outMatch = *it; return true; }
-            }
-        }
-        off += 1 + l;
-    }
-    return false;
-}
-
+// BLE malformed PDU
 static bool validateBleAdvStructure(const uint8_t *p, uint16_t len, const char **reason) {
     if (len > 254) { *reason = "PAYLOAD_OVERLEN"; return false; }
     uint16_t off = 0;
@@ -2821,79 +2740,6 @@ void onBleAdv(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t
         logEventToSD("/ble_malformed.jsonl", line);
         return;
     }
-    if (!g_trackerEnabled.load() && !g_airtagEnabled.load()) return;
-    WatchEntry match{};
-    if (!parseAdvForWatch(payload, len, match)) return;
-
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    if (g_airtagEnabled.load()) airtagProcess(addr, rssi, payload, len);
-    if (g_csEnabled.load()) rotationAnomaly(payload, len, packMac(addr), rssi, now);
-    if (!g_trackerEnabled.load() && !g_csEnabled.load()) return;
-    uint64_t k = packMac(addr);
-    auto it = g_bleTrackers.find(k);
-    if (it == g_bleTrackers.end()) {
-        if (g_bleTrackers.size() >= MAX_TRACKER_MAP) {
-            // evict oldest
-            uint64_t oldestK = 0; uint32_t oldestT = UINT32_MAX;
-            for (const auto &kv : g_bleTrackers) if (kv.second.lastSeen < oldestT) { oldestT = kv.second.lastSeen; oldestK = kv.first; }
-            g_bleTrackers.erase(oldestK);
-        }
-        BleTrackerSighting s{};
-        memcpy(s.addr, addr, 6);
-        s.serviceUuid = match.serviceUuid;
-        s.mfgId = match.mfgId;
-        strncpy(s.vendor, match.vendor, sizeof(s.vendor) - 1);
-        s.firstSeen = now;
-        s.lastSeen = now;
-        s.sightingCount = 1;
-        s.avgRssi = rssi;
-        s.rssiVarN = 0;
-        s.persistenceScore = 10;
-        s.followAlerted = false;
-        g_bleTrackers[k] = s;
-        trackerSweepVanished(now);
-        trackerTryLinkRotation(addr, match.vendor, rssi, now);
-        return;
-    }
-    BleTrackerSighting &s = it->second;
-    uint32_t gap = now - s.lastSeen;
-    if (gap >= g_trackerGapMs.load()) {
-        s.sightingCount++;
-    }
-    s.lastSeen = now;
-    // Update avg/var
-    s.avgRssi = (int8_t)(((int)s.avgRssi * 7 + rssi) / 8);
-    int diff = rssi - s.avgRssi;
-    if (diff < 0) diff = -diff;
-    if (diff > 4) s.rssiVarN = (s.rssiVarN < 120) ? s.rssiVarN + 1 : s.rssiVarN;
-
-    // Persistence score: time-window-based
-    uint32_t windowDur = now - s.firstSeen;
-    uint8_t score = 0;
-    if (windowDur > 15UL * 60UL * 1000UL) score += 20;
-    if (windowDur > 60UL * 60UL * 1000UL) score += 20;
-    if (windowDur > g_trackerWindowMs.load()) score += 30;
-    if (s.sightingCount >= g_trackerMinSightings.load()) score += 20;
-    if (s.rssiVarN < 10) score += 10;   // low variance = stationary follower
-    s.persistenceScore = (score > 100) ? 100 : score;
-
-    bool followCriteria = (s.sightingCount >= g_trackerMinSightings.load()) &&
-                          (windowDur >= g_trackerWindowMs.load());
-    if (followCriteria && !s.followAlerted) {
-        s.followAlerted = true;
-        String a_s = macStr(addr);
-        String line = String("{\"addr\":\"") + a_s +
-                      "\",\"vendor\":\"" + match.vendor +
-                      "\",\"sightings\":" + String(s.sightingCount) +
-                      ",\"window_ms\":" + String(windowDur) +
-                      ",\"score\":" + String(s.persistenceScore) +
-                      ",\"ts\":" + String(now) + "}";
-        logEventToSD("/ble_follow.jsonl", line);
-        if (meshEnabled && sentinel_isRunning() && g_meshTracker.load() && meshRateGate("BLETRACK_" + a_s, 60000)) {
-            sendToSerial1(getNodeId() + ": BLETRACK:" + a_s + ":" + match.vendor + ":" + String(s.persistenceScore), true);
-        }
-        quorum_addReport("BLETRACK", a_s, getNodeId(), rssi);
-    }
 }
 
 // =============================================================================
@@ -3011,26 +2857,6 @@ String hshk_getReconJson()                   { return ah_detect::hshk_getReconJs
 void hshk_clear()                            { ah_detect::hshk_clear(); }
 size_t hshk_count()                          { return ah_detect::hshk_count(); }
 uint32_t hshk_krackEvents()                  { return ah_detect::hshk_krackEvents(); }
-String airtag_getPresenceJson()              { return ah_detect::airtag_getPresenceJson(); }
-void airtag_clear()                          { ah_detect::airtag_clear(); }
-size_t airtag_count()                        { return ah_detect::airtag_count(); }
-void cs_beginScan() {
-    std::lock_guard<std::recursive_mutex> lk(ah_detect::g_mtx);
-    ah_detect::g_followers.clear();
-    ah_detect::g_csEnabled.store(true);
-    ah_detect::g_airtagEnabled.store(true);
-}
-void cs_endScan() {
-    ah_detect::g_csEnabled.store(false);
-    ah_detect::g_airtagEnabled.store(false);
-}
-String cs_getResultsJson()                   { return ah_detect::cs_getResultsJson(); }
-String cs_getResultsText()                   { return ah_detect::cs_getResultsText(); }
-bool cs_isRunning()                          { return ah_detect::g_csEnabled.load(); }
-
-String tracker_getChainsJson()               { return ah_detect::tracker_getChainsJson(); }
-void tracker_clearChains()                   { ah_detect::tracker_clearChains(); }
-size_t tracker_chainCount()                  { return ah_detect::tracker_chainCount(); }
 void pg_init()                                                 { ah_detect::pg_init(); }
 uint32_t pg_computeHashFromBytes(const uint8_t *a, const uint8_t *b, uint8_t bl, const uint8_t *c, uint8_t cl) {
     return ah_detect::pg_computeHashFromBytes(a, b, bl, c, cl);
@@ -3057,14 +2883,6 @@ void BloomFilter::add(uint32_t hash) {
     bits[b >> 3] |= (1 << (b & 7));
     bits[c >> 3] |= (1 << (c & 7));
 }
-bool BloomFilter::maybeContains(uint32_t hash) const {
-    uint32_t a = h1(hash) % BITS;
-    uint32_t b = h2(hash) % BITS;
-    uint32_t c = h3(hash) % BITS;
-    return (bits[a >> 3] & (1 << (a & 7))) &&
-           (bits[b >> 3] & (1 << (b & 7))) &&
-           (bits[c >> 3] & (1 << (c & 7)));
-}
 // =============================================================================
 // Public C++ API (out of namespace, matches detect.h declarations)
 // =============================================================================
@@ -3077,9 +2895,6 @@ std::atomic<uint8_t>  pmkid_burst_min_bssids{3};
 std::atomic<uint16_t> sae_window_ms{5000};
 std::atomic<uint8_t>  sae_unmatched_threshold{10};
 std::atomic<uint16_t> beacon_int_drift_permil{50};
-std::atomic<uint32_t> tracker_follow_window_ms{4UL * 3600UL * 1000UL};
-std::atomic<uint32_t> tracker_follow_gap_ms{30UL * 60UL * 1000UL};
-std::atomic<uint8_t>  tracker_follow_min_sightings{3};
 
 void initializeDetect() {
     // 24 deep (was 64). Each entry is sizeof(DetectFrameEvent) (~266B with the
@@ -3092,7 +2907,6 @@ void initializeDetect() {
     g_quorumRequired["EVILTWIN"] = 2;
     g_quorumRequired["SSIDCONF"] = 2;
     g_quorumRequired["SAE_DOS"] = 1;
-    g_quorumRequired["BLETRACK"] = 2;
     g_quorumRequired["RECON"] = 2;
     // loadOuiTable() removed — unused, triggered vfs_api error on missing file
     {
@@ -3113,8 +2927,6 @@ void initializeDetect() {
                     p.putBool("blemOn", false);
                     p.putBool("hshkOn", true);
                     p.putBool("pwnaOn", true);
-                    p.putBool("trkOn", false);
-                    p.putBool("atgOn", false);
                     p.putBool("tsfOn", false);
                     p.putBool("csaqOn", true);
                     p.putBool("ridOn", false);
@@ -3136,7 +2948,6 @@ void initializeDetect() {
             if ((v = p.getUShort("pflRDst", 0))) ah_detect::g_probeRandDistinctThresh.store(v);
             ah_detect::g_karmaEnabled.store(p.getBool("karmaOn", false));
             uint32_t w;
-            if ((w = p.getULong("trkWin", 0))) ah_detect::g_trackerWindowMs.store(w);
             if ((w = p.getULong("huntCool", 0))) ah_detect::g_huntCooldown.store(w);
             ah_detect::g_pmkidEnabled.store(p.getBool("pmkidOn", true));
             ah_detect::g_eviltwinEnabled.store(p.getBool("etwOn", true));
@@ -3150,13 +2961,6 @@ void initializeDetect() {
             ah_detect::g_bleMalformedEnabled.store(p.getBool("blemOn", false));
             ah_detect::g_hshkEnabled.store(p.getBool("hshkOn", true));
             ah_detect::g_pwnaEnabled.store(p.getBool("pwnaOn", true));
-            ah_detect::g_trackerEnabled.store(p.getBool("trkOn", false));
-            ah_detect::g_airtagEnabled.store(p.getBool("atgOn", false));
-            ah_detect::cs_copresent_ms.store(p.getULong("cs_cop", 600000));
-            ah_detect::cs_persist_ms.store(p.getULong("cs_per", 900000));
-            ah_detect::cs_min_clusters.store(p.getULong("cs_cl", 2));
-            ah_detect::cs_rotation_rate.store(p.getULong("cs_rr", 5));
-            ah_detect::cs_owner_absent_pct_x100.store(p.getULong("cs_oa", 80));
             ah_detect::g_tsfEnabled.store(p.getBool("tsfOn", false));
             ah_detect::g_csaQuietEnabled.store(p.getBool("csaqOn", true));
             ah_detect::g_ridSpoofEnabled.store(p.getBool("ridOn", false));
@@ -3426,7 +3230,6 @@ void detect_persistTunables() {
     p.putUShort("pflRTot", ah_detect::g_probeRandTotalThresh.load());
     p.putUShort("pflRDst", ah_detect::g_probeRandDistinctThresh.load());
     p.putBool("karmaOn", ah_detect::g_karmaEnabled.load());
-    p.putULong("trkWin", ah_detect::g_trackerWindowMs.load());
     p.putULong("huntCool", ah_detect::g_huntCooldown.load());
     p.putBool("pmkidOn", ah_detect::g_pmkidEnabled.load());
     p.putBool("etwOn", ah_detect::g_eviltwinEnabled.load());
@@ -3440,13 +3243,6 @@ void detect_persistTunables() {
     p.putBool("blemOn", ah_detect::g_bleMalformedEnabled.load());
     p.putBool("hshkOn", ah_detect::g_hshkEnabled.load());
     p.putBool("pwnaOn", ah_detect::g_pwnaEnabled.load());
-    p.putBool("trkOn", ah_detect::g_trackerEnabled.load());
-    p.putBool("atgOn", ah_detect::g_airtagEnabled.load());
-    p.putULong("cs_cop", ah_detect::cs_copresent_ms.load());
-    p.putULong("cs_per", ah_detect::cs_persist_ms.load());
-    p.putULong("cs_cl",  ah_detect::cs_min_clusters.load());
-    p.putULong("cs_rr",  ah_detect::cs_rotation_rate.load());
-    p.putULong("cs_oa",  ah_detect::cs_owner_absent_pct_x100.load());
     p.putBool("tsfOn", ah_detect::g_tsfEnabled.load());
     p.putBool("csaqOn", ah_detect::g_csaQuietEnabled.load());
     p.putBool("ridOn", ah_detect::g_ridSpoofEnabled.load());
@@ -3527,7 +3323,7 @@ void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t r
 void detect_onBleAdv(const uint8_t *addr, int8_t rssi,
                      const uint8_t *payload, uint16_t payloadLen,
                      const char *name) {
-    bool bleIngestWanted = sentinel_isUserEnabled() || g_csEnabled.load() || g_airtagEnabled.load() || g_trackerEnabled.load();
+    bool bleIngestWanted = sentinel_isUserEnabled();
     if (!bleIngestWanted || !detectEnabled.load() || !detectFrameQueue || !addr || !payload) return;
     if (uxQueueSpacesAvailable(detectFrameQueue) < 4) { g_droppedBle.fetch_add(1); return; }
     DetectFrameEvent ev;
@@ -3721,18 +3517,6 @@ void detectTask(void *pv) {
             }
             for (auto it = g_apBaseline.begin(); it != g_apBaseline.end(); ) {
                 if (now - it->second.lastSeen > 3600000UL) it = g_apBaseline.erase(it);
-                else ++it;
-            }
-            for (auto it = g_bleTrackers.begin(); it != g_bleTrackers.end(); ) {
-                if (now - it->second.lastSeen > 1800000UL) it = g_bleTrackers.erase(it);
-                else ++it;
-            }
-            for (auto it = g_airtag.begin(); it != g_airtag.end(); ) {
-                if (now - it->second.lastSeen > 1800000UL) it = g_airtag.erase(it);
-                else ++it;
-            }
-            for (auto it = g_chains.begin(); it != g_chains.end(); ) {
-                if (now - it->second.lastSeen > 7200000UL) it = g_chains.erase(it);
                 else ++it;
             }
             for (auto it = g_hunts.begin(); it != g_hunts.end(); ) {
@@ -4041,14 +3825,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         quorum_addReport("DEAUTH_FLOOD", src, fromNode, (int8_t)rssi);
         return;
     }
-    if (msg.startsWith("FOLLOWER:")) {
-        // FOLLOWER:<identityHex> seen=Nx owner-absent=P% rssi=R — peer saw this tracker; fromNode = its location cluster
-        int sp = msg.indexOf(' ', 9);
-        String hx = (sp > 0) ? msg.substring(9, sp) : msg.substring(9);
-        uint32_t h = (uint32_t)strtoul(hx.c_str(), nullptr, 16);
-        ah_detect::followerAddCluster(h, fromNode, millis());
-        return;
-    }
     // === Existing handlers ===
     if (msg.startsWith("PMKID_HARVEST:")) {
         int p1 = msg.indexOf(':', 14);
@@ -4200,12 +3976,6 @@ void detect_processMesh(const String &fromNode, const String &msg) {
         String key = (last > 11) ? msg.substring(11, last) : msg.substring(11);
         int rssi = (last > 0) ? msg.substring(last + 1).toInt() : -60;
         quorum_addReport("BLE_ATTACK", key, fromNode, (int8_t)rssi);
-    } else if (msg.startsWith("BLETRACK:")) {
-        int last = msg.lastIndexOf(':');
-        String key = (last > 9) ? msg.substring(9, last) : msg.substring(9);
-        quorum_addReport("BLETRACK", key, fromNode, -60);
-    } else if (msg.startsWith("TRK_LINK:")) {
-        quorum_addReport("TRK_LINK", msg.substring(9), fromNode, -60);
     } else if (msg.startsWith("IDHASH:")) {
         int p1 = msg.indexOf(':', 7);
         int p2 = msg.indexOf(':', p1 + 1);
@@ -4657,29 +4427,6 @@ String detect_getQuorumStatusJson() {
     out += "]}";
     return out;
 }
-String detect_getBleTrackerJson() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    String out = "[";
-    bool first = true;
-    for (auto &kv : g_bleTrackers) {
-        if (!first) out += ",";
-        first = false;
-        out += "{\"addr\":\"" + macStr(kv.second.addr) +
-               "\",\"vendor\":\"" + String(kv.second.vendor) +
-               "\",\"sightings\":" + String(kv.second.sightingCount) +
-               ",\"first_seen\":" + String(kv.second.firstSeen) +
-               ",\"last_seen\":" + String(kv.second.lastSeen) +
-               ",\"avg_rssi\":" + String(kv.second.avgRssi) +
-               ",\"score\":" + String(kv.second.persistenceScore) +
-               ",\"followed\":" + String(kv.second.followAlerted ? "true" : "false") + "}";
-    }
-    out += "]";
-    return out;
-}
-void detect_clearBleTracker() {
-    std::lock_guard<std::recursive_mutex> lk(g_mtx);
-    g_bleTrackers.clear();
-}
 static inline String _bjson(const char *k, bool v, bool first=false) {
     return String(first ? "\"" : ",\"") + k + "\":" + (v ? "true" : "false");
 }
@@ -4700,8 +4447,6 @@ String detect_getConfigJson() {
     j += _bjson("ble_malformed", g_bleMalformedEnabled.load());
     j += _bjson("hshk", g_hshkEnabled.load());
     j += _bjson("pwna", g_pwnaEnabled.load());
-    j += _bjson("tracker", g_trackerEnabled.load());
-    j += _bjson("airtag", g_airtagEnabled.load());
     j += _bjson("tsf", g_tsfEnabled.load());
     j += _bjson("csa_quiet", g_csaQuietEnabled.load());
     j += _bjson("rid_spoof", g_ridSpoofEnabled.load());
@@ -4736,12 +4481,6 @@ String detect_getConfigJson() {
     j += _ijson("probe_rand_total", g_probeRandTotalThresh.load());
     j += _ijson("probe_rand_distinct", g_probeRandDistinctThresh.load());
     j += _ijson("hunt_cooldown_ms", g_huntCooldown.load());
-    j += _ijson("tracker_window_ms", g_trackerWindowMs.load());
-    j += _ijson("cs_copresent_ms", cs_copresent_ms.load());
-    j += _ijson("cs_persist_ms", cs_persist_ms.load());
-    j += _ijson("cs_min_clusters", cs_min_clusters.load());
-    j += _ijson("cs_rotation_rate", cs_rotation_rate.load());
-    j += _ijson("cs_owner_absent_pct", cs_owner_absent_pct_x100.load());
     j += "}";
     return j;
 }
@@ -4791,8 +4530,6 @@ bool detect_setConfigFromJson(const String &b) {
     _setb(b, "ble_malformed", g_bleMalformedEnabled);
     _setb(b, "hshk", g_hshkEnabled);
     _setb(b, "pwna", g_pwnaEnabled);
-    _setb(b, "tracker", g_trackerEnabled);
-    _setb(b, "airtag", g_airtagEnabled);
     _setb(b, "tsf", g_tsfEnabled);
     _setb(b, "csa_quiet", g_csaQuietEnabled);
     _setb(b, "rid_spoof", g_ridSpoofEnabled);
@@ -4826,11 +4563,6 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "probe_rand_total", g_probeRandTotalThresh);
     _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
-    _setu32(b, "cs_copresent_ms", cs_copresent_ms);
-    _setu32(b, "cs_persist_ms", cs_persist_ms);
-    _setu32(b, "cs_min_clusters", cs_min_clusters);
-    _setu32(b, "cs_rotation_rate", cs_rotation_rate);
-    _setu32(b, "cs_owner_absent_pct", cs_owner_absent_pct_x100);
     return true;
 }
 String detect_getHealthJson() {
@@ -4849,9 +4581,6 @@ String detect_getHealthJson() {
          ",\"pmkid_bursts\":" + String((unsigned)g_pmkidBursts.size()) +
          ",\"sae_counters\":" + String((unsigned)g_saeCounters.size()) +
          ",\"frag_msdu\":" + String((unsigned)g_fragMsdu.size()) +
-         ",\"ble_trackers\":" + String((unsigned)g_bleTrackers.size()) +
-         ",\"airtag\":" + String((unsigned)g_airtag.size()) +
-         ",\"chains\":" + String((unsigned)g_chains.size()) +
          ",\"hshk\":" + String((unsigned)g_hshk.size()) +
          ",\"hunts\":" + String((unsigned)g_hunts.size()) +
          ",\"pwna\":" + String((unsigned)g_pwna.size()) +
@@ -4865,8 +4594,7 @@ String detect_getHealthJson() {
          ",\"probe_behave\":" + String((unsigned)g_probeBehave.size()) +
          ",\"assoc_sleep\":" + String((unsigned)g_assocSleep.size()) +
          ",\"beacon_forge\":" + String((unsigned)g_beaconForgeFired.size()) +
-         ",\"ble_attack\":" + String((unsigned)g_bleAttackLog.size()) +
-         ",\"airtag_replay\":" + String((unsigned)g_airtagReplay.size()) + "}";
+         ",\"ble_attack\":" + String((unsigned)g_bleAttackLog.size()) + "}";
     j += ",\"counters\":{\"krack_events\":" + String(g_krackEvents.load()) + "}";
     j += ",\"pps_locked\":" + String(g_ppsLocked.load() ? "true" : "false");
     j += ",\"karma_enabled\":" + String(g_karmaEnabled.load() ? "true" : "false");
@@ -4941,13 +4669,9 @@ void detect_clearAll() {
     g_bleMalformedLog.clear();
     g_ridClaims.clear();
     g_alerts.clear();
-    g_bleTrackers.clear();
     g_recon.clear();
     g_apBaseline.clear();
     g_pgGraph.clear();
-    g_chains.clear();
-    g_vanished.clear();
-    g_airtag.clear();
     g_hshk.clear();
     g_krackEvents.store(0);
     g_hunts.clear();
