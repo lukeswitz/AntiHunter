@@ -31,6 +31,11 @@
 #define AH_PROBE_QUEUE_LEN 256
 #endif
 
+// Dual/5GHz has 9+ channels; cap the per-channel WiFi interval so a full sweep is ~seconds.
+#ifndef AH_WIFI_5G_INTERVAL_MS
+#define AH_WIFI_5G_INTERVAL_MS 800
+#endif
+
 static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint32_t stack,
                                        void *arg, UBaseType_t prio, TaskHandle_t *handle,
                                        BaseType_t core) {

@@ -142,9 +142,9 @@ static std::mutex allowlistMutex;
 // Scan config
 RFScanConfig rfConfig = {
     .wifiChannelTime = 120,
-    .wifiScanInterval = 6000,
+    .wifiScanInterval = 3000,
     .bleScanInterval = 2000,
-    .bleScanDuration = 3000,
+    .bleScanDuration = 500,
     .preset = 1,
     .wifiChannels = "1..11",
     .globalRssiThreshold = -95,
@@ -294,21 +294,21 @@ void setRFPreset(uint8_t preset) {
             rfConfig.wifiChannelTime = 300;
             rfConfig.wifiScanInterval = 8000;
             rfConfig.bleScanInterval = 4000;
-            rfConfig.bleScanDuration = 3000;
+            rfConfig.bleScanDuration = 500;
             rfConfig.globalRssiThreshold = -80;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
-            rfConfig.wifiScanInterval = 6000;
+            rfConfig.wifiScanInterval = 3000;
             rfConfig.bleScanInterval = 3000;
-            rfConfig.bleScanDuration = 3000;
+            rfConfig.bleScanDuration = 500;
             rfConfig.globalRssiThreshold = -95;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
             rfConfig.wifiScanInterval = 4000;
             rfConfig.bleScanInterval = 2000;
-            rfConfig.bleScanDuration = 2000;
+            rfConfig.bleScanDuration = 500;
             rfConfig.globalRssiThreshold = -70;
             break;
         default:
@@ -331,7 +331,7 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
     rfConfig.wifiChannelTime = constrain(wifiChanTime, 50, 300);
     rfConfig.wifiScanInterval = constrain(wifiInterval, 1000, 10000);
     rfConfig.bleScanInterval = constrain(bleInterval, 1000, 10000);
-    rfConfig.bleScanDuration = constrain(bleDuration, 1000, 5000);
+    rfConfig.bleScanDuration = constrain(bleDuration, 200, 5000);
     rfConfig.globalRssiThreshold = constrain(rssiThreshold, -128, -10);
     rfConfig.preset = 3;
     
@@ -1198,7 +1198,7 @@ void snifferScanTask(void *pv)
     }
 #ifdef ARDUINO_XIAO_ESP32C5
     // 9+ 5GHz channels visited one-per-interval is too slow; tighten cadence so a full sweep is ~seconds.
-    if (rfConfig.bandMode != 0) wifiInterval = min(wifiInterval, (uint32_t)800);
+    if (rfConfig.bandMode != 0) wifiInterval = min(wifiInterval, (uint32_t)AH_WIFI_5G_INTERVAL_MS);
 #endif
 
     scanning = true;
@@ -1358,7 +1358,7 @@ void snifferScanTask(void *pv)
             apServiceNow("pre-ble-scan");
 
             {
-                NimBLEScanResults scanResults = bleScan->getResults(500, false);
+                NimBLEScanResults scanResults = bleScan->getResults(rfConfig.bleScanDuration, false);
                 if (stopRequested) break;
                 apServiceNow("post-ble-scan");
 
