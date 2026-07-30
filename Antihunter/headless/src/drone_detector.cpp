@@ -485,6 +485,13 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     
     if (validDrone) {
         drone.viaWifi = true;
+        {
+            int n = length < 96 ? length : 96;
+            String hx; hx.reserve(n * 2);
+            for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", payload[i]); hx += b; }
+            Serial.printf("[DRONE][WIFI-RAW] %s rssi=%d len=%d raw=%s%s\n",
+                          macFmt6(drone.mac).c_str(), rssi, length, hx.c_str(), length > n ? "..." : "");
+        }
         String macStr = macFmt6(drone.mac);
         String uavIdStr = String(drone.uavId);
         
@@ -562,6 +569,16 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
 void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
                          const uint8_t *odid, int odidLen) {
     if (!droneDetectionEnabled || !addr || !odid || odidLen < 1) return;
+
+    {
+        int n = odidLen < 96 ? odidLen : 96;
+        String hx; hx.reserve(n * 2);
+        for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", odid[i]); hx += b; }
+        uint8_t mt = odidLen > 2 ? (uint8_t)(odid[2] >> 4) : 0xFF;
+        Serial.printf("[DRONE][BLE-RAW] %s rssi=%d len=%d msgtype=%u raw=%s%s\n",
+                      macFmt6(addr).c_str(), rssi, odidLen, mt, hx.c_str(), odidLen > n ? "..." : "");
+    }
+
     if (rssi < rfConfig.globalRssiThreshold) return;
     DroneDetection drone{};
     memcpy(drone.mac, addr, 6);
@@ -667,25 +684,24 @@ String getDroneDetectionResults() {
         results += "  RSSI: " + String(d.rssi) + " dBm\n";
         results += "  Via: " + String(d.viaWifi && d.viaBle ? "WiFi+BLE" : d.viaBle ? "BLE" : "WiFi") + "\n";
 
-        if (d.hasLocation) {
-            results += "  Location: " + ((d.latitude != 0 || d.longitude != 0)
-                        ? (String(d.latitude, 6) + ", " + String(d.longitude, 6))
-                        : String("n/a")) + "\n";
-            results += "  Altitude MSL: " + droneFmtAlt(d.altitudeMsl) + "\n";
-            results += "  Altitude Baro: " + droneFmtAlt(d.altitudeBaro) + "\n";
-            results += "  Height AGL: " + droneFmtAlt(d.heightAgl) +
-                      " (" + String(heightTypeStr(d.heightType)) + ")\n";
-            results += "  Speed: " + droneFmtSpeed(d.speed) + "  Vert: " +
-                      droneFmtVSpeed(d.speedVertical) + "\n";
-            results += "  Heading: " + droneFmtHeading(d.heading) + "\n";
-            results += "  Status: " + String(d.status) + "\n";
-            results += "  Horiz accuracy: " + String(horizAccStr(d.horizAcc)) + "\n";
-            results += "  Vert accuracy: " + String(vertAccStr(d.vertAcc)) + "\n";
-            results += "  Baro accuracy: " + String(vertAccStr(d.baroAcc)) + "\n";
-            results += "  Speed accuracy: " + String(speedAccStr(d.speedAcc)) + "\n";
-            results += "  Time accuracy: " + tsAccStr(d.tsAcc) + "\n";
-            results += "  Location timestamp: " + String(d.locTimestamp, 1) + " s\n";
-        }
+        // Always emit the full field skeleton (zero-coordinate RIDs included) for a consistent card.
+        results += "  Location: " + ((d.latitude != 0 || d.longitude != 0)
+                    ? (String(d.latitude, 6) + ", " + String(d.longitude, 6))
+                    : String("n/a")) + "\n";
+        results += "  Altitude MSL: " + droneFmtAlt(d.altitudeMsl) + "\n";
+        results += "  Altitude Baro: " + droneFmtAlt(d.altitudeBaro) + "\n";
+        results += "  Height AGL: " + droneFmtAlt(d.heightAgl) +
+                  " (" + String(heightTypeStr(d.heightType)) + ")\n";
+        results += "  Speed: " + droneFmtSpeed(d.speed) + "  Vert: " +
+                  droneFmtVSpeed(d.speedVertical) + "\n";
+        results += "  Heading: " + droneFmtHeading(d.heading) + "\n";
+        results += "  Status: " + String(d.status) + "\n";
+        results += "  Horiz accuracy: " + String(horizAccStr(d.horizAcc)) + "\n";
+        results += "  Vert accuracy: " + String(vertAccStr(d.vertAcc)) + "\n";
+        results += "  Baro accuracy: " + String(vertAccStr(d.baroAcc)) + "\n";
+        results += "  Speed accuracy: " + String(speedAccStr(d.speedAcc)) + "\n";
+        results += "  Time accuracy: " + tsAccStr(d.tsAcc) + "\n";
+        results += "  Location timestamp: " + String(d.locTimestamp, 1) + " s\n";
 
         if (d.operatorLat != 0 || d.operatorLon != 0) {
             results += "  Operator: " + String(d.operatorLat, 6) + ", " + String(d.operatorLon, 6);
@@ -693,26 +709,26 @@ String getDroneDetectionResults() {
                 results += "  Alt: " + String(d.operatorAltitude, 1) + " m";
             results += "\n";
         }
-        if (d.hasSystem) {
-            results += "  Operator location type: " + String(operatorLocTypeStr(d.operatorLocType)) + "\n";
-            results += "  Classification: " + String(classificationTypeStr(d.classificationType));
-            if (d.classificationType == 1)
-                results += " (" + String(categoryEUStr(d.categoryEU)) + ", " + String(classEUStr(d.classEU)) + ")";
-            results += "\n";
-            if (d.areaCount > 1) {
-                results += "  Operational area: " + String(d.areaCount) + " aircraft, radius " +
-                          String(d.areaRadius) + " m, ceiling " + droneFmtAlt(d.areaCeiling) +
-                          ", floor " + droneFmtAlt(d.areaFloor) + "\n";
-            }
-            if (d.systemTimestamp != 0)
-                results += "  System timestamp: " + String(d.systemTimestamp) + "\n";
+        results += "  Operator location type: " + String(operatorLocTypeStr(d.operatorLocType)) + "\n";
+        results += "  Classification: " + String(classificationTypeStr(d.classificationType));
+        if (d.classificationType == 1)
+            results += " (" + String(categoryEUStr(d.categoryEU)) + ", " + String(classEUStr(d.classEU)) + ")";
+        results += "\n";
+        if (d.areaCount > 1) {
+            results += "  Operational area: " + String(d.areaCount) + " aircraft, radius " +
+                      String(d.areaRadius) + " m, ceiling " + droneFmtAlt(d.areaCeiling) +
+                      ", floor " + droneFmtAlt(d.areaFloor) + "\n";
         }
+        if (d.systemTimestamp != 0)
+            results += "  System timestamp: " + String(d.systemTimestamp) + "\n";
         if (strlen(d.operatorId) > 0) {
             results += "  Operator ID: " + String(d.operatorId) + " [type " + String(d.operatorIdType) + "]\n";
         }
         if (strlen(d.description) > 0) {
-            results += "  Description: " + String(d.description) +
-                      " [" + String(descTypeStr(d.selfIdDescType)) + "]\n";
+            results += "  Description: " + String(d.description);
+            if (d.selfIdDescType != 0)
+                results += " [" + String(descTypeStr(d.selfIdDescType)) + "]";
+            results += "\n";
         }
         if (d.authType != 0) {
             results += "  Auth: type " + String(d.authType) + " ts " + String(d.authTimestamp) + "\n";
