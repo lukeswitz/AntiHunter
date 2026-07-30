@@ -2970,6 +2970,7 @@ R"HTML(
             const isWithinGracePeriod = !stopPending && (Date.now() - lastScanStartTime) < 3000;
 
             if (!isWithinGracePeriod) {
+                const wasBusy = radioBusy || stopPending;
                 stopPending = false;
                 radioBusy = false;
                 radioBusyTask = '';
@@ -2978,6 +2979,10 @@ R"HTML(
                 const startScanBtn = document.querySelector('#s button');
                 if (startScanBtn) startScanBtn.style.background = '';
                 syncStopAllBtn();
+                if (wasBusy) {
+                    document.querySelectorAll('#r .res-scanning').forEach(el => el.remove());
+                    resultsPoll(true);
+                }
             }
         }
 
