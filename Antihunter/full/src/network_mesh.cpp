@@ -203,11 +203,11 @@ static MeshPriority classifyMeshMessage(const String &msg) {
     // EVENT: alerts, detections, status changes — caller may also pass priority=true to land here
     if (msg.indexOf("ATTACK") >= 0 || msg.indexOf("DEAUTH") >= 0 || msg.indexOf("DETECT") >= 0 ||
         msg.indexOf("EAPOL") >= 0 || msg.indexOf("HSHK") >= 0 || msg.indexOf("KARMA") >= 0 ||
-        msg.indexOf("BLETRACK") >= 0 || msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
+        msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
         msg.indexOf("RTC_SYNC") >= 0 || msg.indexOf("STARTUP") >= 0 || msg.indexOf("Target:") >= 0 ||
         msg.indexOf("EVILTWIN") >= 0 || msg.indexOf("PMKID") >= 0 || msg.indexOf("OWE_ABUSE") >= 0 ||
         msg.indexOf("KRACK") >= 0 || msg.indexOf("PWNAGOTCHI") >= 0 || msg.indexOf("PROBE_FLOOD") >= 0 ||
-        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 || msg.indexOf("TRK_LINK") >= 0 ||
+        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 ||
         msg.indexOf("IDHASH") >= 0 || msg.indexOf("BLOOM") >= 0 || msg.indexOf("RECON") >= 0 ||
         msg.indexOf("FRAGATTACK") >= 0 || msg.indexOf("SSID_CONFUSION") >= 0 || msg.indexOf("SAE_DOS") >= 0 ||
         msg.indexOf("BLE_MALFORMED") >= 0) {

@@ -547,14 +547,15 @@ void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
                          const uint8_t *odid, int odidLen) {
     if (!droneDetectionEnabled || !addr || !odid || odidLen < 1) return;
 
-    {
-        int n = odidLen < 96 ? odidLen : 96;
-        String hx; hx.reserve(n * 2);
-        for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", odid[i]); hx += b; }
-        uint8_t mt = odidLen > 2 ? (uint8_t)(odid[2] >> 4) : 0xFF;
-        Serial.printf("[DRONE][BLE-RAW] %s rssi=%d len=%d msgtype=%u raw=%s%s\n",
-                      macFmt6(addr).c_str(), rssi, odidLen, mt, hx.c_str(), odidLen > n ? "..." : "");
-    }
+    // Uncomment this to sanity check incoming RID
+    // {
+    //     int n = odidLen < 96 ? odidLen : 96;
+    //     String hx; hx.reserve(n * 2);
+    //     for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", odid[i]); hx += b; }
+    //     uint8_t mt = odidLen > 2 ? (uint8_t)(odid[2] >> 4) : 0xFF;
+    //     Serial.printf("[DRONE][BLE-RAW] %s rssi=%d len=%d msgtype=%u raw=%s%s\n",
+    //                   macFmt6(addr).c_str(), rssi, odidLen, mt, hx.c_str(), odidLen > n ? "..." : "");
+    // }
 
     if (rssi < rfConfig.globalRssiThreshold) return;
     DroneDetection drone{};
@@ -711,20 +712,6 @@ String getDroneDetectionResults() {
 
     cachedResults = results;
     return cachedResults;
-}
-
-String getDroneEventLog() {
-    String log = "[\n";
-    {
-        std::lock_guard<std::mutex> lock(detectedDronesMutex);
-        for (size_t i = 0; i < droneEventLog.size(); i++) {
-            log += droneEventLog[i];
-            if (i < droneEventLog.size() - 1) log += ",";
-            log += "\n";
-        }
-    }
-    log += "]";
-    return log;
 }
 
 void cleanupDroneData() {

@@ -548,21 +548,18 @@ void processDronePacket(const uint8_t *payload, int length, int8_t rssi) {
     }
 }
 
-// Phase 3.2: BLE-side ODID Remote ID. Decodes ASTM F3411 message bytes directly
-// (already extracted from BLE adv 0x16 FA FF AD header by scanner). Same
-// DroneDetection upsert/dedup logic as the WiFi path.
 void processDroneOdidBle(const uint8_t *addr, int8_t rssi,
                          const uint8_t *odid, int odidLen) {
     if (!droneDetectionEnabled || !addr || !odid || odidLen < 1) return;
 
-    {
-        int n = odidLen < 96 ? odidLen : 96;
-        String hx; hx.reserve(n * 2);
-        for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", odid[i]); hx += b; }
-        uint8_t mt = odidLen > 2 ? (uint8_t)(odid[2] >> 4) : 0xFF;
-        Serial.printf("[DRONE][BLE-RAW] %s rssi=%d len=%d msgtype=%u raw=%s%s\n",
-                      macFmt6(addr).c_str(), rssi, odidLen, mt, hx.c_str(), odidLen > n ? "..." : "");
-    }
+    // {
+    //     int n = odidLen < 96 ? odidLen : 96;
+    //     String hx; hx.reserve(n * 2);
+    //     for (int i = 0; i < n; i++) { char b[3]; snprintf(b, sizeof(b), "%02X", odid[i]); hx += b; }
+    //     uint8_t mt = odidLen > 2 ? (uint8_t)(odid[2] >> 4) : 0xFF;
+    //     Serial.printf("[DRONE][BLE-RAW] %s rssi=%d len=%d msgtype=%u raw=%s%s\n",
+    //                   macFmt6(addr).c_str(), rssi, odidLen, mt, hx.c_str(), odidLen > n ? "..." : "");
+    // }
 
     if (rssi < rfConfig.globalRssiThreshold) return;
 

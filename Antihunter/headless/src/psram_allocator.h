@@ -28,6 +28,7 @@ struct PsramAllocator {
     template <typename U>
     explicit PsramAllocator(const PsramAllocator<U>&) noexcept {}
 
+    // cppcheck-suppress unusedFunction // STL allocator API, called via PsramMap/Vec/Set template instantiation
     static T* allocate(size_type n) {
         if (n == 0) return nullptr;
         if (n > std::numeric_limits<size_type>::max() / sizeof(T)) {
@@ -41,6 +42,7 @@ struct PsramAllocator {
         return static_cast<T*>(p);
     }
 
+    // cppcheck-suppress unusedFunction // STL allocator API, called via container template instantiation
     static void deallocate(T* p, size_type) noexcept {
         if (p) heap_caps_free(p);
     }

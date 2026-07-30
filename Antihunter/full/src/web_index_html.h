@@ -570,7 +570,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="randomization-detection">Randomized Device Tracer</option>
                 <option value="deauth">Deauthentication Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection (WiFi)</option>
-                <!-- <option value="counter-surveil">Counter-Surveillance / Find My (BLE)</option> hidden: co-presence/follower engine needs mobile validation before beta -->
                 <option value="probe-scan">Probe Request Scanner</option>
               </select>
 
@@ -1327,7 +1326,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         </div>
 
         <div style="margin:4px 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
-          <input id="det-filter" placeholder="Filter (e.g. airtag, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
+          <input id="det-filter" placeholder="Filter (e.g. deauth, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
           <div class="det-chips" id="det-chips">
             <span class="det-chip all" data-sev="all">All</span>
             <span class="det-chip crit" data-sev="crit">Crit</span>
@@ -3197,8 +3196,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html = parseDeauthResults(text);
         } else if (text.includes('Drone Detection Results')) {
           html = parseDroneResults(text);
-        } else if (text.includes('Counter-Surveillance / Find My')) {
-          html = parseCounterSurveilResults(text);
         } else if (text.includes('Probes:') && text.includes('SSIDs:')) {
           html = parseProbeResults(text);
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
@@ -3758,49 +3755,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div>';
         });
 
-        return html;
-      }
-
-      function parseCounterSurveilResults(text) {
-        const air = text.match(/AirTags \/ Find My present: (\d+)/);
-        const fol = text.match(/Potential followers: (\d+)/);
-        const trk = text.match(/BLE trackers: (\d+)/);
-        let html = '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
-        html += '<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Counter-Surveillance</div></div>';
-        html += '<div class="res-stats">';
-        html += _resStat('AirTags / Find My', air ? air[1] : '0', (air && parseInt(air[1]) > 0) ? 'warn' : '');
-        html += _resStat('BLE Trackers', trk ? trk[1] : '0');
-        html += _resStat('Followers', fol ? fol[1] : '0', (fol && parseInt(fol[1]) > 0) ? 'danger' : '');
-        html += '</div></div>';
-
-        let section = '', items = 0, m;
-        text.split('\n').forEach(function(line) {
-          if (/AirTags \/ Find My present:/.test(line)) { section = 'air'; return; }
-          if (/Potential followers:/.test(line)) { section = 'fol'; return; }
-          if (/BLE trackers:/.test(line)) { section = 'trk'; return; }
-          const t = line.trim();
-          if (!t) return;
-          if (section === 'air' && (m = t.match(/^([0-9A-Fa-f:]{17})\s+RSSI (-?\d+)dBm\s+(\S+)\s+seen (\d+)x/))) {
-            const near = m[3] === 'owner-nearby';
-            html += '<div class="res-card' + (near ? ' acc' : ' danger') + '"><div class="res-row-main"><span class="res-mac acc">' + m[1] + '<span class="res-badge">Find My</span></span>';
-            html += '<div class="res-meta"><span>' + (near ? 'owner nearby' : '<span class="res-badge danger">Separated (lost mode)</span>') + '</span><span>seen <strong>' + m[4] + '</strong>x</span></div>';
-            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[2]) + '">' + m[2] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div></div></div>';
-            items++;
-          } else if (section === 'fol' && (m = t.match(/^id ([0-9a-f]+)\s+seen (\d+)x\s+owner-absent (\d+)%\s+clusters (\d+)(.*)$/))) {
-            const al = /ALERTED/.test(m[5]);
-            html += '<div class="res-card' + (al ? ' danger' : '') + '"><div class="res-row-main"><span class="res-mac acc">follower ' + m[1] + (al ? '<span class="res-badge danger">Follower</span>' : '') + '</span>';
-            html += '<div class="res-meta"><span>seen <strong>' + m[2] + '</strong>x</span><span>' + m[4] + ' node cluster' + (m[4] === '1' ? '' : 's') + '</span></div>';
-            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + (parseInt(m[3]) >= 70 ? 'var(--dang)' : 'var(--txt)') + '">' + m[3] + '<small>%</small></span><span class="res-metric-lab">Owner-absent</span></div></div></div>';
-            items++;
-          } else if (section === 'trk' && (m = t.match(/^([0-9A-Fa-f:]{17})\s+(\S+)\s+RSSI (-?\d+)dBm\s+seen (\d+)x\s+persist (\d+)(.*)$/))) {
-            const fw = /FOLLOWING/.test(m[6]);
-            html += '<div class="res-card' + (fw ? ' danger' : '') + '"><div class="res-row-main"><span class="res-mac acc">' + m[1] + '<span class="res-badge">' + m[2] + '</span></span>';
-            html += '<div class="res-meta"><span>seen <strong>' + m[4] + '</strong>x</span><span>persistence ' + m[5] + '</span>' + (fw ? '<span class="res-badge danger">Following</span>' : '') + '</div>';
-            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[3]) + '">' + m[3] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div></div></div>';
-            items++;
-          }
-        });
-        if (items === 0) html += _resEmpty('No AirTags, trackers, or followers detected yet.', 'ok');
         return html;
       }
 
@@ -4506,7 +4460,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(t.startsWith('PWNA'))return '#fbbf24';
         if(t.startsWith('ATTACKER'))return '#fb923c';
         if(t.startsWith('SSID'))return '#fcd34d';
-        if(t.startsWith('BLE')||t.startsWith('AIRTAG')||t.startsWith('TRACK'))return '#94a3b8';
+        if(t.startsWith('BLE'))return '#94a3b8';
         return '#9ca3af';
       }
       function _incWhen(e){
@@ -4909,8 +4863,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const detMethodLabels = {
           'device-scan': 'Device Scan', 'drone-detection': 'Drone Detect',
           'blue-team': 'Blue Team', 'baseline': 'Baseline',
-          'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect',
-          'counter-surveil': 'Counter-Surveil'
+          'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect'
         };
         setScanStatus(detMethodLabels[detectionMethod] || 'Scanning', 'active');
 
@@ -4931,10 +4884,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         if (detectionMethod === 'drone-detection') {
           endpoint = '/drone';
-          fd.delete('detection');
-        }
-        if (detectionMethod === 'counter-surveil') {
-          endpoint = '/countersurveil';
           fd.delete('detection');
         }
 
@@ -5337,7 +5286,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','WiFi Interf (L2)','jam']],
         mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]
         /* BLE attack group display disabled per user 2026-05-23 (BLE scan path unreliable on this build)
-        ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed'],['BLETRACK','Tracker','tracker'],['AIRTAG','AirTag','airtag']]
+        ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed']]
         */
       };
       function _grpRows(dets,inc,cfg,nowMs){
@@ -5443,14 +5392,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,tr,rc,ch]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,rc,ch,sess]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
           _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
-          _jj('/api/rid_claims'),_jj('/api/ble_tracker'),_jj('/api/recon'),
-          _jj('/api/channel_partition')
+          _jj('/api/rid_claims'),_jj('/api/recon'),
+          _jj('/api/channel_partition'),_jj('/api/detect/session')
         ]);
         const dEl = document.getElementById('d-dauth');
         if (dEl) dEl.textContent = _countLines(df);
@@ -5589,37 +5538,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(a.length>0)detMarkActive('meshguard');
       }
       async function mgdClear(){await fetch('/api/meshguard/clear',{method:'POST'});meshGuardTick();}
-      async function trkTick(){
-        if(!detTabActive())return;
-        const [chains,watch]=await Promise.all([_jj('/api/tracker_chains'),_jj('/api/ble_tracker')]);
-        const n=(chains||[]).length;
-        document.getElementById('trk-n').textContent=n;
-        detRenderTable('trk-pre',chains||[],[
-          {key:'chain',label:'Chain'},{key:'vendor',label:'Vendor'},
-          {key:'links',label:'Links'},{key:'avg_rssi',label:'Avg RSSI'},
-          {key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        detRenderTable('d-trkpre',watch||[],[
-          {key:'addr',label:'Addr'},{key:'vendor',label:'Vendor'},
-          {key:'sightings',label:'Sight'},{key:'avg_rssi',label:'RSSI'},
-          {key:'score',label:'Score'},{key:'last_seen',label:'Last',get:r=>_ago(r.last_seen)}
-        ]);
-        if(n>0||(watch||[]).length>0)detMarkActive('trackers');
-      }
-      async function trkClear(){await fetch('/api/tracker_chains/clear',{method:'POST'});trkTick();}
-      async function atTick(){
-        if(!detTabActive())return;
-        const a=await _jj('/api/airtag_presence');
-        const n=(a||[]).length;
-        document.getElementById('at-n').textContent=n;
-        detRenderTable('at-pre',a||[],[
-          {key:'addr',label:'Addr'},{key:'owner_nearby',label:'Owner'},
-          {key:'battery',label:'Battery'},{key:'observations',label:'Obs'},
-          {key:'last_rssi',label:'RSSI'},{key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        if(n>0)detMarkActive('airtag');
-      }
-      async function atClear(){await fetch('/api/airtag_presence/clear',{method:'POST'});atTick();}
       async function baTick(){if(!detTabActive())return;
         const a=await _jsonl('/api/ble_attack.jsonl');
         document.getElementById('ba-n').textContent=a.length;
@@ -5627,7 +5545,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if(a.length>0)detMarkActive('bleattack');
       }
       async function baClear(){await fetch('/api/ble_attack/clear',{method:'POST'});baTick();}
-      async function detectClearTrackers(){await fetch('/api/ble_tracker/clear',{method:'POST'});detectTick()}
       async function tofTick(){
         if(!detTabActive())return;
         const t=await _jj('/api/tof');
@@ -5751,7 +5668,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
         'oweabuse':'oweOn','frag':'fragOn','karma':'karmaOn',
         'pwna':'pwnaOn','tsf':'tsfOn','jamming':'jamOn','meshguard':'mgdOn',
-        'trackers':'trkOn','airtag':'atgOn','bleattack':'blatkOn','blemal':'blemOn',
+        'bleattack':'blatkOn','blemal':'blemOn',
         'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn',
         'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
         'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn'
@@ -5945,7 +5862,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
         ['hshk','Handshake Reconstruction'],
         ['tsf','TSF / Evil-Twin'],['jam','WiFi Interference (L2)'],['mesh_guard','Mesh Disruption'],
-        ['ble_malformed','BLE Malformed'],['tracker','BLE Tracker'],['airtag','AirTag (+ Replay)'],['ble_attack','BLE Attack Tools'],
+        ['ble_malformed','BLE Malformed'],['ble_attack','BLE Attack Tools'],
         ['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
         ['karma','KARMA Bait'],
@@ -6028,7 +5945,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         recon:    ['pmkid','probe_flood','hshk'],
         physical: ['frag','tsf','jam'],
         mesh:     ['mesh_guard'],
-        ble:      ['ble_attack','ble_malformed','tracker','airtag']
+        ble:      ['ble_attack','ble_malformed']
       };
       const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];
       const DET_ALL_MESH=['mesh_deauth','mesh_beacon','mesh_auth','mesh_assoc_sleep',
@@ -6124,7 +6041,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       function detAllTicks(){
         if(!detTabActive())return;
-        detectTick();pgTick();trkTick();atTick();hsTick();
+        detectTick();pgTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
         bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();baTick();apClientsTick();meshCmdTick();
       }

@@ -129,45 +129,6 @@ void setBaselineRssiThreshold(int8_t threshold) {
     }
 }
 
-void resetBaselineDetection() {
-    std::lock_guard<std::recursive_mutex> sdLock(baselineSDMutex);
-    {
-        std::lock_guard<std::mutex> lock(baselineMutex);
-        baselineCache.clear();
-        anomalyLog.clear();
-        sdDeviceIndex.clear();
-        lruList.clear();
-        lruMap.clear();
-        anomalyCount = 0;
-        baselineDeviceCount = 0;
-        baselineEstablished = false;
-        totalDevicesOnSD = 0;
-
-        baselineStats.wifiDevices = 0;
-        baselineStats.bleDevices = 0;
-        baselineStats.totalDevices = 0;
-        baselineStats.wifiHits = 0;
-        baselineStats.bleHits = 0;
-    }
-
-    // Clear SD storage
-      if (SafeSD::isAvailable()) {
-        if (SafeSD::exists("/baseline_data.bin")) {
-            SafeSD::remove("/baseline_data.bin");
-            Serial.println("[BASELINE] Removed SD data file");
-        }
-        if (SafeSD::exists("/baseline_stats.json")) {
-            SafeSD::remove("/baseline_stats.json");
-            Serial.println("[BASELINE] Removed SD stats file");
-        }
-    }
-    
-    sdBaselineInitialized = false;
-    initializeBaselineSD();
-    
-    Serial.println("[BASELINE] Reset complete");
-}
-
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel) {
     // Discard implausible RSSI (self-reception / NimBLE glitch values like -8 dBm)
     if (rssi > -10) {
@@ -276,59 +237,6 @@ void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, boo
         flushBaselineCacheToSD();
         lastSDFlush = millis();
     }
-}
-
-String getBaselineResults() {
-    String results;
-    std::lock_guard<std::mutex> lock(baselineMutex);
-
-    if (baselineEstablished) {
-        results += "=== BASELINE ESTABLISHED ===\n";
-        results += "Total devices in baseline: " + String(baselineDeviceCount) + "\n";
-        results += "WiFi devices: " + String(baselineStats.wifiDevices) + "\n";
-        results += "BLE devices: " + String(baselineStats.bleDevices) + "\n";
-        results += "RSSI threshold: " + String(baselineRssiThreshold) + " dBm\n\n";
-        
-        results += "=== BASELINE DEVICES (Cached in RAM) ===\n";
-        for (const auto &entry : baselineCache) {
-            const BaselineDevice &dev = entry.second;
-            results += String(dev.isBLE ? "BLE  " : "WiFi ") + macFmt6(dev.mac);
-            results += " Avg:" + String(dev.avgRssi) + "dBm";
-            results += " Min:" + String(dev.minRssi) + "dBm";
-            results += " Max:" + String(dev.maxRssi) + "dBm";
-            results += " Hits:" + String(dev.hitCount);
-            if (!dev.isBLE && dev.channel > 0) {
-                results += " CH:" + String(dev.channel);
-            }
-            if (strlen(dev.name) > 0 && strcmp(dev.name, "Unknown") != 0 && strcmp(dev.name, "WiFi") != 0) {
-                results += " \"" + String(dev.name) + "\"";
-            }
-            { const char *dv = lookupOuiVendor(dev.mac); if (dv) results += " V=" + String(dv); }
-            results += "\n";
-        }
-        
-        results += "\n=== ANOMALIES DETECTED ===\n";
-        results += "Total anomalies: " + String(anomalyCount) + "\n\n";
-        
-        for (const auto &anomaly : anomalyLog) {
-            results += String(anomaly.isBLE ? "BLE  " : "WiFi ") + macFmt6(anomaly.mac);
-            results += " RSSI:" + String(anomaly.rssi) + "dBm";
-            if (!anomaly.isBLE && anomaly.channel > 0) {
-                results += " CH:" + String(anomaly.channel);
-            }
-            if (strlen(anomaly.name) > 0 && strcmp(anomaly.name, "Unknown") != 0) {
-                results += " \"" + String(anomaly.name) + "\"";
-            }
-            results += " - " + anomaly.reason;
-            { const char *av = lookupOuiVendor(anomaly.mac); if (av) results += " V=" + String(av); }
-            results += "\n";
-        }
-    } else {
-        results += "Baseline not yet established\n";
-        results += "Devices detected so far: " + String(baselineDeviceCount) + "\n";
-    }
-    
-    return results;
 }
 
 void updateBaselineStats() {

@@ -1081,18 +1081,6 @@ void cleanupStaleTracks() {
     }
 }
 
-void resetRandomizationDetection() {
-    {
-        std::lock_guard<std::mutex> lock(randMutex);
-        activeSessions.clear();
-        deviceIdentities.clear();
-        identityIdCounter = 0;
-    }
-    SafeSD::remove("/rand_identities.dat");
-    rebuildIdentityMacSnapshot();
-    Serial.println("[RAND] Reset: cleared identities + wiped /rand_identities.dat");
-}
-
 static String sanitizeAscii(const char *s, size_t maxLen) {
     String out;
     out.reserve(maxLen);

@@ -100,8 +100,6 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("KARMA_CAND:") ||
                 toProcess.startsWith("KARMA_CONFIRMED:") ||
                 toProcess.startsWith("BLE_ATTACK:") ||
-                toProcess.startsWith("BLETRACK:") ||
-                toProcess.startsWith("TRK_LINK:") ||
                 toProcess.startsWith("TOF_PING:") ||
                 toProcess.startsWith("TOF_PONG:")) {
               detect_processMesh(senderId, toProcess);
@@ -250,6 +248,7 @@ static void heapMark(const char *) {}
 static void dumpTaskStacks(const char *) {}
 #endif
 
+// cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
     delay(1000);
     Serial.begin(115200);
@@ -280,7 +279,8 @@ void setup() {
     delay(20);
     initializeSD();
     heapMark("after SD");
-    
+
+
     if (waitForInitialConfig()) {
         delay(1000);
     }
@@ -356,6 +356,7 @@ void setup() {
     delay(2000);
 }
 
+// cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;

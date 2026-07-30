@@ -888,9 +888,9 @@ bool waitForInitialConfig() {
     
     // Check if config exists
     bool configExists = SD.exists(CONFIG_FILE);
-    bool reconfigRequested = false;
 
     if (configExists) {
+        bool reconfigRequested = false;
         Serial.println("[CONFIG] Existing config found");
         Serial.println("[CONFIG] Waiting for RECONFIG command...");
         Serial.flush();
@@ -1569,10 +1569,6 @@ void logEventToSD(const char* path, const String& jsonLine) {
     }
 }
 
-String getGPSData()
-{
-    return lastGPSData;
-}
 
 // Vibration Sensor
 void IRAM_ATTR vibrationISR() {
@@ -1890,11 +1886,6 @@ void updateRTCTime() {
     }
 }
 
-
-String getRTCTimeString() {
-    updateRTCTime();
-    return rtcTimeString;
-}
 
 String getFormattedTimestamp() {
     if (!rtcAvailable) {

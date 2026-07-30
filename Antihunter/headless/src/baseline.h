@@ -108,12 +108,10 @@ extern bool sdBaselineInitialized;
 
 // Core baseline functions
 void baselineDetectionTask(void *pv);
-void resetBaselineDetection();
 bool isDeviceInBaseline(const uint8_t *mac);
 void updateBaselineDevice(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
 void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool isBLE, uint8_t channel);
 void cleanupBaselineMemory();
-String getBaselineResults();
 void updateBaselineStats();
 
 // Baseline configuration getters/setters
