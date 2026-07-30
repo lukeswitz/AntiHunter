@@ -94,8 +94,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     }
 
 #if !AH_CS_BLE
-    if (message.indexOf(": BLE_ATTACK") >= 0 || message.indexOf(": FOLLOWER:") >= 0 ||
-        message.indexOf(": BLETRACK:") >= 0 || message.indexOf(": TRK_LINK:") >= 0) {
+    if (message.indexOf(": BLE_ATTACK") >= 0) {
         return false;
     }
 #endif
@@ -2174,13 +2173,6 @@ void registerRemainingRoutes() {
   });
 
   // Phase 3 BLE perimeter / recon / OUI
-  server->on("/api/ble_tracker", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "application/json", detect_getBleTrackerJson());
-  });
-  server->on("/api/ble_tracker/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
-      detect_clearBleTracker();
-      r->send(200, "text/plain", "cleared");
-  });
   server->on("/api/recon", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getReconJson());
   });
@@ -2231,22 +2223,6 @@ void registerRemainingRoutes() {
   });
   server->on("/api/probegraph/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
       pg_clear();
-      r->send(200, "text/plain", "cleared");
-  });
-
-  server->on("/api/tracker_chains", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "application/json", tracker_getChainsJson());
-  });
-  server->on("/api/tracker_chains/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
-      tracker_clearChains();
-      r->send(200, "text/plain", "cleared");
-  });
-
-  server->on("/api/airtag_presence", HTTP_GET, [](AsyncWebServerRequest *r) {
-      r->send(200, "application/json", airtag_getPresenceJson());
-  });
-  server->on("/api/airtag_presence/clear", HTTP_POST, [](AsyncWebServerRequest *r) {
-      airtag_clear();
       r->send(200, "text/plain", "cleared");
   });
 
@@ -2370,18 +2346,15 @@ nav a{color:#ffae00;text-decoration:none;margin-right:1em}
 <pre id=rid></pre>
 </section>
 <section><h2>BLE perimeter</h2>
-<div><span class=k>Trackers seen:</span> <span id=trk class=v>-</span></div>
 <div><span class=k>Recon flagged:</span> <span id=rec class=v>-</span></div>
-<button onclick="fetch('/api/ble_tracker/clear',{method:'POST'})">Clear trackers</button>
 <button onclick="fetch('/api/recon/clear',{method:'POST'})">Clear recon</button>
-<pre id=trkpre></pre>
 <pre id=recpre></pre>
 </section>
 </div>
 <script>
 async function jget(u){const r=await fetch(u);try{return await r.json()}catch(e){return await r.text()}}
 async function tick(){
- const [pm,et,sc,sa,ow,fr,bm,q,b,p,rid,tr,rc]=await Promise.all([
+ const [pm,et,sc,sa,ow,fr,bm,q,b,p,rid,rc]=await Promise.all([
   fetch('/api/pmkid.jsonl').then(r=>r.text()),
   fetch('/api/eviltwin.jsonl').then(r=>r.text()),
   fetch('/api/ssid_confusion.jsonl').then(r=>r.text()),
@@ -2390,7 +2363,7 @@ async function tick(){
   fetch('/api/fragattack.jsonl').then(r=>r.text()),
   fetch('/api/ble_malformed.jsonl').then(r=>r.text()),
   jget('/api/quorum'),jget('/api/bloom'),jget('/api/pps'),
-  jget('/api/rid_claims'),jget('/api/ble_tracker'),jget('/api/recon')
+  jget('/api/rid_claims'),jget('/api/recon')
  ]);
  const c=t=>t.split('\n').filter(l=>l.trim()).length;
  cnt_pmkid.textContent=c(pm);cnt_et.textContent=c(et);cnt_sc.textContent=c(sc);
@@ -2402,9 +2375,7 @@ async function tick(){
  qc.textContent=(q.candidates||[]).length;
  quorum.textContent=JSON.stringify(q,null,2);
  rid_.textContent=JSON.stringify(rid,null,2);
- trk.textContent=(tr||[]).length;
  rec.textContent=(rc||[]).length;
- trkpre.textContent=JSON.stringify(tr,null,2);
  recpre.textContent=JSON.stringify(rc,null,2);
 }
 const rid_=document.getElementById('rid');

@@ -57,7 +57,6 @@ extern TaskHandle_t blueTeamTaskHandle;
 extern String macFmt6(const uint8_t *m);
 extern bool parseMac6(const String &in, uint8_t out[6]);
 extern void parseChannelsCSV(const String &csv);
-extern void randomizeMacAddress();
 
 // Mesh serial processing
 SerialRateLimiter rateLimiter;
@@ -95,8 +94,7 @@ bool sendToSerial1(const String &message, bool canDelay) {
     }
 
 #if !AH_CS_BLE
-    if (message.indexOf(": BLE_ATTACK") >= 0 || message.indexOf(": FOLLOWER:") >= 0 ||
-        message.indexOf(": BLETRACK:") >= 0 || message.indexOf(": TRK_LINK:") >= 0) {
+    if (message.indexOf(": BLE_ATTACK") >= 0) {
         return false;
     }
 #endif
@@ -234,11 +232,11 @@ static MeshPriority classifyMeshMessage(const String &msg) {
     }
     if (msg.indexOf("ATTACK") >= 0 || msg.indexOf("DEAUTH") >= 0 || msg.indexOf("DETECT") >= 0 ||
         msg.indexOf("EAPOL") >= 0 || msg.indexOf("HSHK") >= 0 || msg.indexOf("KARMA") >= 0 ||
-        msg.indexOf("BLETRACK") >= 0 || msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
+        msg.indexOf("VIBRATION") >= 0 || msg.indexOf("GPS:") >= 0 ||
         msg.indexOf("RTC_SYNC") >= 0 || msg.indexOf("STARTUP") >= 0 || msg.indexOf("Target:") >= 0 ||
         msg.indexOf("EVILTWIN") >= 0 || msg.indexOf("PMKID") >= 0 || msg.indexOf("OWE_ABUSE") >= 0 ||
         msg.indexOf("KRACK") >= 0 || msg.indexOf("PWNAGOTCHI") >= 0 || msg.indexOf("PROBE_FLOOD") >= 0 ||
-        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 || msg.indexOf("TRK_LINK") >= 0 ||
+        msg.indexOf("BLE_ATTACK") >= 0 || msg.indexOf("ATTACKER_HUNT") >= 0 ||
         msg.indexOf("IDHASH") >= 0 || msg.indexOf("BLOOM") >= 0 || msg.indexOf("RECON") >= 0 ||
         msg.indexOf("FRAGATTACK") >= 0 || msg.indexOf("SSID_CONFUSION") >= 0 || msg.indexOf("SAE_DOS") >= 0 ||
         msg.indexOf("BLE_MALFORMED") >= 0) {
@@ -299,10 +297,6 @@ uint32_t meshTxQueueDepth() {
 }
 
 bool meshTxPending() { return meshTxDraining.load() || meshTxQueueDepth() > 0; }
-
-uint32_t meshTxDroppedCount() {
-    return meshTxDroppedFull.load();
-}
 
 void meshTxFlushQueue() {
     uint32_t dropped = 0;

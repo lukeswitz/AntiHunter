@@ -71,18 +71,6 @@ void scanSetCountdown(int secs, bool forever) {
     if (forever || secs > 0) scanStopPending.store(false);
 }
 
-bool scanBusy() {
-    return scanning.load() || workerTaskHandle != nullptr || blueTeamTaskHandle != nullptr;
-}
-
-bool scanStopping() {
-    return scanStopPending.load() && scanBusy();
-}
-
-void scanClearStopPending() {
-    scanStopPending.store(false);
-}
-
 void stopAllScans(bool cancelMeshDrain) {
     stopRequested = true;
     scanStopPending.store(true);
@@ -261,7 +249,6 @@ const uint32_t SCAN_MESH_SLOT_CYCLE_MS = 15000;
 const uint32_t SCAN_MESH_NUM_SLOTS = 5;
 const uint32_t SCAN_MESH_SLOT_DURATION_MS = SCAN_MESH_SLOT_CYCLE_MS / SCAN_MESH_NUM_SLOTS;
 const uint32_t SLOT_GUARD_MS = 200;
-static uint32_t scanMeshCycleStartTime = 0;
 
 const uint32_t MESH_DEDUP_TTL_MIN_S = 0;
 const uint32_t MESH_DEDUP_TTL_MAX_S = 3600;
@@ -314,40 +301,6 @@ void meshDedupClear() {
     std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
     g_meshSentMacs.clear();
 }
-
-uint32_t meshDedupCount() {
-    std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
-    return g_meshSentMacs.size();
-}
-
-static uint8_t getScanNodeSlot() {
-    String nodeId = getNodeId();
-    uint32_t hash = 0;
-    for (size_t i = 0; i < nodeId.length(); i++) {
-        hash = hash * 31 + nodeId.charAt(i);
-    }
-    return hash % SCAN_MESH_NUM_SLOTS;
-}
-
-// Returns remaining milliseconds in current slot, or 0 if not in our slot
-static uint32_t getTimeRemainingInSlot() {
-    if (scanMeshCycleStartTime == 0) {
-        scanMeshCycleStartTime = millis();
-    }
-    uint32_t elapsed = millis() - scanMeshCycleStartTime;
-    uint32_t positionInCycle = elapsed % SCAN_MESH_SLOT_CYCLE_MS;
-    uint8_t currentSlot = positionInCycle / SCAN_MESH_SLOT_DURATION_MS;
-
-    if (currentSlot != getScanNodeSlot()) {
-        return 0;  // Not our slot
-    }
-
-    uint32_t slotStart = currentSlot * SCAN_MESH_SLOT_DURATION_MS;
-    uint32_t slotEnd = slotStart + SCAN_MESH_SLOT_DURATION_MS;
-    uint32_t remaining = slotEnd - positionInCycle;
-    return remaining;
-}
-
 
 void setRFPreset(uint8_t preset) {
     switch(preset) {
@@ -480,15 +433,6 @@ extern bool isZeroOrBroadcast(const uint8_t *mac);
 inline uint16_t u16(const uint8_t *p)
 {
     return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
-}
-
-inline int clampi(int v, int lo, int hi)
-{
-    if (v < lo)
-        return lo;
-    if (v > hi)
-        return hi;
-    return v;
 }
 
 struct OuiEntry {
@@ -734,35 +678,6 @@ static inline bool matchesIdentityMacSnapshot(const uint8_t *mac)
     return false;
 }
 
-String getTargetsList()
-{
-    String out;
-    for (auto &t : targets)
-    {
-        if (t.len == 255) {
-            out += String(t.ssid);
-        }
-        else if (t.len == 0 && strlen(t.identityId) > 0) {
-            out += String(t.identityId);
-        }
-        else if (t.len == 6)
-        {
-            char b[18];
-            snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X",
-                     t.bytes[0], t.bytes[1], t.bytes[2], t.bytes[3], t.bytes[4], t.bytes[5]);
-            out += b;
-        }
-        else
-        {
-            char b[9];
-            snprintf(b, sizeof(b), "%02X:%02X:%02X", t.bytes[0], t.bytes[1], t.bytes[2]);
-            out += b;
-        }
-        out += "\n";
-    }
-    return out;
-}
-
 void saveTargetsList(const String &txt)
 {
     prefs.putString("maclist", txt);
@@ -903,16 +818,6 @@ static uint8_t triScanChannel() {
 
 
 // Deauth type
-String getDeauthReasonText(uint16_t reasonCode) {
-    switch (reasonCode) {
-        case 1: return "Unspecified reason";
-        case 2: return "Previous authentication no longer valid";
-        case 6: return "Class 2 frame from non-authenticated station";
-        case 7: return "Class 3 frame from non-associated station";
-        default: return "Reason code " + String(reasonCode);
-    }
-}
-
 static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     if (!deauthDetectionEnabled) return;
     if (!ppkt || ppkt->rx_ctrl.sig_len < 28) return;
@@ -954,6 +859,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
 
 // Main NimBLE callback
 class MyBLEScanCallbacks : public NimBLEScanCallbacks {
+    // cppcheck-suppress unusedFunction // NimBLEScanCallbacks override, invoked by NimBLE per advertisement
     void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
         bleFramesSeen = bleFramesSeen + 1;
 
@@ -1791,47 +1697,6 @@ void snifferScanTask(void *pv)
 
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
-}
-
-String getSnifferCache()
-{
-    static String cachedResult = "";
-    static unsigned long lastCacheTime = 0;
-
-    if (millis() - lastCacheTime < 5000 && cachedResult.length() > 0) {
-        return cachedResult;
-    }
-    lastCacheTime = millis();
-
-    String result = "=== Sniffer Cache ===\n\n";
-    std::lock_guard<std::mutex> lock(snifferCacheMutex);
-    result += "WiFi APs: " + String(apCache.size()) + "\n";
-
-    int apCount = 0;
-    const int MAX_ENTRIES = 250;
-    for (const auto &entry : apCache)
-    {
-        if (apCount++ >= MAX_ENTRIES) {
-            result += "... (showing first " + String(MAX_ENTRIES) + " of " + String(apCache.size()) + ")\n";
-            break;
-        }
-        result += entry.first + " : " + entry.second + "\n";
-    }
-
-    result += "\nBLE Devices: " + String(bleDeviceCache.size()) + "\n";
-
-    int bleCount = 0;
-    for (const auto &entry : bleDeviceCache)
-    {
-        if (bleCount++ >= MAX_ENTRIES) {
-            result += "... (showing first " + String(MAX_ENTRIES) + " of " + String(bleDeviceCache.size()) + ")\n";
-            break;
-        }
-        result += entry.first + " : " + entry.second + "\n";
-    }
-
-    cachedResult = result;
-    return result;
 }
 
 static std::string buildDeauthResults(bool forever, int duration, uint32_t deauthFrames,
@@ -3077,15 +2942,6 @@ static void sendTriAccumulatedData(const String& nodeId) {
 
 
 // Scan tasks
-static String triModeStr(const String& selected) {
-    if (triangulationActive.load()) {
-        uint8_t r = triTargetRadio.load();
-        if (r == 1) return String("BLE");
-        if (r == 2) return String("WiFi");
-    }
-    return selected;
-}
-
 void listScanTask(void *pv) {
     sentinel_kill();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
@@ -3847,30 +3703,6 @@ static bool parseAllowlistEntry(const String &ln, Allowlist &out)
         return true;
     }
     return false;
-}
-
-String getAllowlistText()
-{
-    String out;
-    std::lock_guard<std::mutex> lock(allowlistMutex);
-    for (const auto &w : allowlist)
-    {
-        if (w.len == 6)
-        {
-            char b[18];
-            snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X",
-                     w.bytes[0], w.bytes[1], w.bytes[2], w.bytes[3], w.bytes[4], w.bytes[5]);
-            out += b;
-        }
-        else
-        {
-            char b[9];
-            snprintf(b, sizeof(b), "%02X:%02X:%02X", w.bytes[0], w.bytes[1], w.bytes[2]);
-            out += b;
-        }
-        out += "\n";
-    }
-    return out;
 }
 
 void saveAllowlist(const String &txt)

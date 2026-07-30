@@ -1368,7 +1368,7 @@ R"HTML(
         </div>
 
         <div style="margin:4px 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
-          <input id="det-filter" placeholder="Filter (e.g. airtag, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
+          <input id="det-filter" placeholder="Filter (e.g. deauth, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
           <div class="det-chips" id="det-chips">
             <span class="det-chip all" data-sev="all">All</span>
             <span class="det-chip crit" data-sev="crit">Crit</span>
@@ -4550,7 +4550,7 @@ R"HTML(
         if(t.startsWith('PWNA'))return '#fbbf24';
         if(t.startsWith('ATTACKER'))return '#fb923c';
         if(t.startsWith('SSID'))return '#fcd34d';
-        if(t.startsWith('BLE')||t.startsWith('AIRTAG')||t.startsWith('TRACK'))return '#94a3b8';
+        if(t.startsWith('BLE'))return '#94a3b8';
         return '#9ca3af';
       }
       function _incWhen(e){
@@ -5396,7 +5396,7 @@ R"HTML(
         physical:[['FRAG','FragAttacks','frag'],['TSF','TSF / Evil-Twin','tsf'],['JAM','WiFi Interf (L2)','jam']],
         mesh:[['MESH_SPOOF_SELF','Self-Spoof','mesh_guard'],['MESH_FLOOD','Channel Flood','mesh_guard']]
         /* BLE attack group display disabled per user 2026-05-23 (BLE scan path unreliable on this build)
-        ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed'],['BLETRACK','Tracker','tracker'],['AIRTAG','AirTag','airtag']]
+        ,ble:[['BLE_ATTACK','BLE Attack Tools','ble_attack'],['BLE_MALFORMED','BLE Malformed','ble_malformed']]
         */
       };
       function _grpRows(dets,inc,cfg,nowMs){
@@ -5502,13 +5502,13 @@ R"HTML(
       async function detectTick(){
         const tab=document.getElementById('page-detect');
         if(!tab||!tab.classList.contains('active'))return;
-        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,tr,rc,ch]=await Promise.all([
+        const [pm,et,sc,sa,ow,fr,bm,df,q,b,p,rid,rc,ch]=await Promise.all([
           _jt('/api/pmkid.jsonl'),_jt('/api/eviltwin.jsonl'),
           _jt('/api/ssid_confusion.jsonl'),_jt('/api/sae_dos.jsonl'),
           _jt('/api/owe_abuse.jsonl'),_jt('/api/fragattack.jsonl'),
           _jt('/api/ble_malformed.jsonl'),_jt('/api/deauth_flood.jsonl'),
           _jj('/api/quorum'),_jj('/api/bloom'),_jj('/api/pps'),
-          _jj('/api/rid_claims'),_jj('/api/ble_tracker'),_jj('/api/recon'),
+          _jj('/api/rid_claims'),_jj('/api/recon'),
           _jj('/api/channel_partition')
         ]);
         const dEl = document.getElementById('d-dauth');
@@ -5638,37 +5638,6 @@ R"HTML(
         if(a.length>0)detMarkActive('meshguard');
       }
       async function mgdClear(){await fetch('/api/meshguard/clear',{method:'POST'});meshGuardTick();}
-      async function trkTick(){
-        if(!detTabActive())return;
-        const [chains,watch]=await Promise.all([_jj('/api/tracker_chains'),_jj('/api/ble_tracker')]);
-        const n=(chains||[]).length;
-        document.getElementById('trk-n').textContent=n;
-        detRenderTable('trk-pre',chains||[],[
-          {key:'chain',label:'Chain'},{key:'vendor',label:'Vendor'},
-          {key:'links',label:'Links'},{key:'avg_rssi',label:'Avg RSSI'},
-          {key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        detRenderTable('d-trkpre',watch||[],[
-          {key:'addr',label:'Addr'},{key:'vendor',label:'Vendor'},
-          {key:'sightings',label:'Sight'},{key:'avg_rssi',label:'RSSI'},
-          {key:'score',label:'Score'},{key:'last_seen',label:'Last',get:r=>_ago(r.last_seen)}
-        ]);
-        if(n>0||(watch||[]).length>0)detMarkActive('trackers');
-      }
-      async function trkClear(){await fetch('/api/tracker_chains/clear',{method:'POST'});trkTick();}
-      async function atTick(){
-        if(!detTabActive())return;
-        const a=await _jj('/api/airtag_presence');
-        const n=(a||[]).length;
-        document.getElementById('at-n').textContent=n;
-        detRenderTable('at-pre',a||[],[
-          {key:'addr',label:'Addr'},{key:'owner_nearby',label:'Owner'},
-          {key:'battery',label:'Battery'},{key:'observations',label:'Obs'},
-          {key:'last_rssi',label:'RSSI'},{key:'last',label:'Last',get:r=>_ago(r.last)}
-        ]);
-        if(n>0)detMarkActive('airtag');
-      }
-      async function atClear(){await fetch('/api/airtag_presence/clear',{method:'POST'});atTick();}
       async function baTick(){if(!detTabActive())return;
         const a=await _jsonl('/api/ble_attack.jsonl');
         document.getElementById('ba-n').textContent=a.length;
@@ -5676,7 +5645,6 @@ R"HTML(
         if(a.length>0)detMarkActive('bleattack');
       }
       async function baClear(){await fetch('/api/ble_attack/clear',{method:'POST'});baTick();}
-      async function detectClearTrackers(){await fetch('/api/ble_tracker/clear',{method:'POST'});detectTick()}
       async function tofTick(){
         if(!detTabActive())return;
         const t=await _jj('/api/tof');
@@ -5800,7 +5768,7 @@ R"HTML(
         'pmkid':'pmkidOn','eviltwin':'etwOn','ssidconf':'scnOn','saedos':'saeOn',
         'oweabuse':'oweOn','frag':'fragOn','karma':'karmaOn',
         'pwna':'pwnaOn','tsf':'tsfOn','jamming':'jamOn','meshguard':'mgdOn',
-        'trackers':'trkOn','airtag':'atgOn','bleattack':'blatkOn','blemal':'blemOn',
+        'bleattack':'blatkOn','blemal':'blemOn',
         'rid':'ridOn','probeflood':'pflOn','assocsleep':'aslOn',
         'pmkidforge':'pmkidOn','beaconforge':'etwOn','eapolbait':'pmkidOn',
         'handshake':'hshkOn','krack':'krackOn','hunts':'trlOn'
@@ -5994,7 +5962,7 @@ R"HTML(
         ['sae','SAE DoS'],['owe','OWE Abuse'],['frag','FragAttacks'],
         ['hshk','Handshake Reconstruction'],
         ['tsf','TSF / Evil-Twin'],['jam','WiFi Interference (L2)'],['mesh_guard','Mesh Disruption'],
-        ['ble_malformed','BLE Malformed'],['tracker','BLE Tracker'],['airtag','AirTag (+ Replay)'],['ble_attack','BLE Attack Tools'],
+        ['ble_malformed','BLE Malformed'],['ble_attack','BLE Attack Tools'],
         ['rid_spoof','RID Spoof Validator'],
         ['bloom_gossip','Bloom Gossip'],['attacker_trilat','Attacker Trilat'],
         ['karma','KARMA Bait'],
@@ -6072,7 +6040,7 @@ R"HTML(
         recon:    ['pmkid','probe_flood','hshk'],
         physical: ['frag','tsf','jam'],
         mesh:     ['mesh_guard'],
-        ble:      ['ble_attack','ble_malformed','tracker','airtag']
+        ble:      ['ble_attack','ble_malformed']
       };
       const DET_ALL_LOCAL=[...new Set(Object.keys(DET_GROUPS).filter(g=>g!=='ble').flatMap(g=>DET_GROUPS[g]))];
       const DET_ALL_MESH=['mesh_deauth','mesh_beacon','mesh_auth','mesh_assoc_sleep',
@@ -6161,7 +6129,7 @@ R"HTML(
       }
       function detAllTicks(){
         if(!detTabActive())return;
-        detectTick();pgTick();trkTick();atTick();hsTick();
+        detectTick();pgTick();hsTick();
         ahTick();kmTick();tsfTick();tofTick();detHealthTick();
         bfTick();pfTick();ebTick();pflTick();asTick();jammingTick();meshGuardTick();baTick();apClientsTick();meshCmdTick();
       }

@@ -86,8 +86,6 @@ void uartForwardTask(void *parameter) {
                 toProcess.startsWith("KARMA_CAND:") ||
                 toProcess.startsWith("KARMA_CONFIRMED:") ||
                 toProcess.startsWith("BLE_ATTACK:") ||
-                toProcess.startsWith("BLETRACK:") ||
-                toProcess.startsWith("TRK_LINK:") ||
                 toProcess.startsWith("TOF_PING:") ||
                 toProcess.startsWith("TOF_PONG:")) {
               detect_processMesh(senderId, toProcess);
@@ -180,20 +178,7 @@ void sendNodeIdUpdate() {
     }
 }
 
-void randomizeMacAddress() {
-    uint8_t newMACAddress[6];
-    newMACAddress[0] = (random(0, 256) & 0xFE) | 0x02;
-    for (int i = 1; i < 6; i++) {
-        newMACAddress[i] = random(0, 256);
-    }
-    
-    esp_err_t err = esp_wifi_set_mac(WIFI_IF_AP, newMACAddress);
-    
-    Serial.printf("[MAC] Randomized MAC: %02x:%02x:%02x:%02x:%02x:%02x (status: %d)\n",
-                  newMACAddress[0], newMACAddress[1], newMACAddress[2],
-                  newMACAddress[3], newMACAddress[4], newMACAddress[5], err);
-}
-
+// cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void setup() {
     delay(1000);
     Serial.begin(115200);
@@ -217,7 +202,7 @@ void setup() {
     delay(20);
     initializeSD();
     logBootRecord();
-    loadResultsSnapshot();
+    if (!wasCleanBoot()) loadResultsSnapshot();
 
     if (waitForInitialConfig()) {
         delay(1000);
@@ -274,6 +259,7 @@ void setup() {
     scanSessionResume();
 }
 
+// cppcheck-suppress unusedFunction // Arduino entry point, called by the framework
 void loop() {
     static unsigned long lastSaveSend = 0;
     static unsigned long lastHbSend = 0;

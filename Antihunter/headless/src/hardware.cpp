@@ -884,9 +884,9 @@ bool waitForInitialConfig() {
     
     // Check if config exists
     bool configExists = SD.exists(CONFIG_FILE);
-    bool reconfigRequested = false;
 
     if (configExists) {
+        bool reconfigRequested = false;
         Serial.println("[CONFIG] Existing config found");
         Serial.println("[CONFIG] Waiting for RECONFIG command...");
         Serial.flush();
@@ -1240,7 +1240,6 @@ bool wasCleanBoot() { return g_resetReason == ESP_RST_POWERON || g_resetReason =
 uint32_t getResumeCount() { return rtcResumeCount; }
 void bumpResumeCount() { rtcResumeCount++; }
 void clearResumeCount() { rtcResumeCount = 0; }
-bool resultsWereRestored() { return g_resultsRestored; }
 
 void recordBootReason() {
     g_resetReason = esp_reset_reason();
@@ -1327,13 +1326,6 @@ void loadResultsSnapshot() {
     Serial.printf("[BOOT] Restored %u bytes of results from snapshot\n", (unsigned)got);
 }
 
-void clearResultsSnapshot() {
-    g_resultsRestored = false;
-    if (SafeSD::isAvailable() && SafeSD::exists(RESULTS_SNAPSHOT_FILE)) {
-        SafeSD::remove(RESULTS_SNAPSHOT_FILE);
-    }
-}
-
 void logVibrationEvent(int sensorValue) {
     String event = String(sensorValue ? "Motion" : "Impact") + " detected";
     if (gpsValid) {
@@ -1388,10 +1380,6 @@ void logEventToSD(const char* path, const String& jsonLine) {
     }
 }
 
-String getGPSData()
-{
-    return lastGPSData;
-}
 
 // Vibration Sensor
 void IRAM_ATTR vibrationISR() {
@@ -1709,11 +1697,6 @@ void updateRTCTime() {
     }
 }
 
-
-String getRTCTimeString() {
-    updateRTCTime();
-    return rtcTimeString;
-}
 
 String getFormattedTimestamp() {
     if (!rtcAvailable) {

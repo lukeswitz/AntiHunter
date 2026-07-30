@@ -188,8 +188,7 @@ extern QueueHandle_t authFrameQueue;
 void randomizationDetectionTask(void *pv);
 void processProbeRequest(const uint8_t *mac, int8_t rssi, uint8_t channel, 
                         const uint8_t *payload, uint16_t length);
-void resetRandomizationDetection();
-void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi, 
+void correlateAuthFrameToRandomizedSession(const uint8_t* globalMac, int8_t rssi,
                                            uint8_t channel, const uint8_t* frame, uint16_t frameLen);
 void extractIEFingerprint(const uint8_t *ieData, uint16_t ieLength, uint16_t fingerprint[6]);
 void extractIEOrderSignature(const uint8_t *ieData, uint16_t ieLength, IEOrderSignature& sig);

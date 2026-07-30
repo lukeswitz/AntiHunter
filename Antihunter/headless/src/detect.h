@@ -130,7 +130,7 @@ struct DetectFrameEvent {
 // =============================================================================
 
 struct AlertCandidate {
-    String type;     // "PMKID", "EVILTWIN", "DEAUTH", "RECON", "BLETRACK"
+    String type;     // "PMKID", "EVILTWIN", "DEAUTH", "RECON"
     String key;      // e.g. BSSID or src MAC
     struct Report {
         String nodeId;
@@ -169,7 +169,6 @@ public:
     static constexpr size_t BYTES = BITS / 8;
     BloomFilter() { memset(bits, 0, BYTES); }
     void add(uint32_t hash);
-    bool maybeContains(uint32_t hash) const;
     void clear() { memset(bits, 0, BYTES); }
     const uint8_t* data() const { return bits; }
     uint8_t* mutableData() { return bits; }
@@ -183,21 +182,6 @@ private:
 // =============================================================================
 // Phase 3 — BLE perimeter / OUI / recon
 // =============================================================================
-
-struct BleTrackerSighting {
-    uint8_t addr[6];
-    uint16_t serviceUuid;   // 0xFF4F AirTag, 0xFD6F FindMy, 0xFD5A SmartTag, etc.
-    uint16_t mfgId;
-    uint8_t mfgPrefix[4];
-    char vendor[16];        // "AirTag", "SmartTag", "Tile", "Chipolo", ...
-    uint32_t firstSeen;
-    uint32_t lastSeen;
-    uint32_t sightingCount;
-    int8_t avgRssi;
-    int8_t rssiVarN;        // simple count-based variance proxy
-    uint8_t persistenceScore; // 0..100
-    bool followAlerted;
-};
 
 struct ReconAlert {
     char identityId[10];
@@ -238,12 +222,6 @@ void mesh_observeInbound(const String &sender, const String &body);
 
 void detect_witnessDeauth(const uint8_t *src, const uint8_t *dst, int8_t rssi, uint8_t channel, bool forged = false);
 
-void detect_onSoftApDisconnect(const uint8_t *clientMac, uint8_t reasonCode);
-void detect_onSoftApConnect(const uint8_t *clientMac);
-String detect_getApClientsJson();
-void detect_onSoftApProbeReq(const uint8_t *srcMac, int8_t rssi);
-
-void detect_setVerbose(bool on);
 bool detect_isVerbose();
 size_t detect_meshPeerCount();
 
@@ -277,26 +255,14 @@ void detect_clearIncidents();
 // Quorum
 void quorum_addReport(const String &type, const String &key,
                       const String &fromNode, int8_t rssi);
-void quorum_setRequired(const String &type, uint8_t n);
 
 // RID claim validator (called by drone_detector when ODID location received)
 void detect_recordRidClaim(const char *uavId, double lat, double lon, float alt, int8_t rssi);
-String detect_getRidClaimsJson();
 
 // Bloom gossip
 void detect_addLocalBaseline(const uint8_t *mac, uint32_t ieHash);
-String detect_getBloomStatsJson();
-
-// OUI category
-bool loadOuiTable();  // from LittleFS /oui_cat.bin if present
-
-// BLE tracker watchlist
-String detect_getBleTrackerJson();
-void detect_clearBleTracker();
 
 // Recon score
-String detect_getReconJson();
-void detect_clearRecon();
 void recon_updateFromProbeSession(const char *identityId, uint8_t addToScore, const char *reason);
 
 // =============================================================================
@@ -436,66 +402,6 @@ size_t hshk_count();
 uint32_t hshk_krackEvents();
 
 // =============================================================================
-// Feature 4: AirTag owner-presence inference + battery decode
-// =============================================================================
-// Apple Find My adv: FF 4C 00 12 19 [status] ...
-// status bit 2 = Maintained (owner connected within last ~15 min)
-// status bits 6-7 = battery level (00 full, 01 medium, 10 low, 11 critical)
-//                   only meaningful when Maintained set
-//
-// We decode per-adv and aggregate: owner-present rate + battery + chain to
-// tracker rotation chain id from Feature 3.
-
-struct AirTagPresence {
-    uint8_t addr[6];
-    uint8_t lastStatusByte;
-    uint16_t observations;
-    uint16_t maintainedCount;
-    uint8_t batteryLastSeen;
-    int8_t lastRssi;
-    uint32_t firstSeen;
-    uint32_t lastSeen;
-    bool isFindMy;
-};
-
-String airtag_getPresenceJson();
-void   airtag_clear();
-size_t airtag_count();
-
-// Counter-Surveillance scan control + results
-void   cs_beginScan();
-void   cs_endScan();
-String cs_getResultsJson();
-bool   cs_isRunning();
-
-// =============================================================================
-// Feature 3: BLE tracker rotation un-linking
-// =============================================================================
-// Trackers rotate identifiers: Tile/SmartTag every ~15 min, AirTag every ~24h.
-// When one disappears and a new tracker of same vendor class appears at similar
-// RSSI within a rotation window, stitch them into a persistent chain.
-
-struct TrackerChain {
-    uint32_t chainId{};
-    char vendor[16]{};
-    int8_t avgRssi{};
-    uint8_t linkCount{};
-    uint32_t firstSeen{};
-    uint32_t lastSeen{};
-    struct Link {
-        uint8_t addr[6];
-        int8_t rssi;
-        uint32_t startTs;
-        uint32_t endTs;
-    };
-    PsramVec<Link> links;
-};
-
-String tracker_getChainsJson();
-void tracker_clearChains();
-size_t tracker_chainCount();
-
-// =============================================================================
 // Feature 2: Probe-graph identity correlator (mesh-wide)
 // =============================================================================
 // Each node already de-randomizes via IE fingerprint + IE order + chan-sequence
@@ -526,7 +432,6 @@ String pg_getGraphJson();
 void pg_clear();
 size_t pg_size();
 
-String detect_getHealthJson();
 String detect_getConfigJson();
 bool   detect_setConfigFromJson(const String &body);
 void   detect_persistTunables();
@@ -534,23 +439,6 @@ void   detect_persistTunables();
 // PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);
 uint64_t getDisciplinedMicros();   // sub-µs epoch if PPS locked; else esp_timer_get_time + boot offset
-bool ppsLocked();
-uint32_t ppsLastEdgeMicros();
-
-// Channel partition (coordinator-side)
-void detect_assignChannelPartition();
-String detect_getChannelAssignmentJson();
-
-// API JSON getters for /api/* endpoints
-String detect_getPmkidJsonl();
-String detect_getEvilTwinJsonl();
-String detect_getSsidConfusionJsonl();
-String detect_getSaeDosJsonl();
-String detect_getOweAbuseJsonl();
-String detect_getFragAttackJsonl();
-String detect_getBleMalformedJsonl();
-String detect_getQuorumStatusJson();
-void   detect_clearAll();
 
 // External queues (filled from ISR)
 extern QueueHandle_t detectFrameQueue;
@@ -581,6 +469,3 @@ extern std::atomic<uint8_t>  pmkid_burst_min_bssids;
 extern std::atomic<uint16_t> sae_window_ms;
 extern std::atomic<uint8_t>  sae_unmatched_threshold;
 extern std::atomic<uint16_t> beacon_int_drift_permil; // permil drift before alert (default 50 = 5%)
-extern std::atomic<uint32_t> tracker_follow_window_ms;
-extern std::atomic<uint32_t> tracker_follow_gap_ms;
-extern std::atomic<uint8_t>  tracker_follow_min_sightings;

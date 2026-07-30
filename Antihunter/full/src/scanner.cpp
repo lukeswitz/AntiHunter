@@ -79,10 +79,6 @@ bool scanStopping() {
     return scanStopPending.load() && scanBusy();
 }
 
-void scanClearStopPending() {
-    scanStopPending.store(false);
-}
-
 void stopAllScans(bool cancelMeshDrain) {
     stopRequested = true;
     scanStopPending.store(true);
@@ -318,35 +314,6 @@ uint32_t meshDedupCount() {
     std::lock_guard<std::mutex> lk(g_meshSentMacsMutex);
     return g_meshSentMacs.size();
 }
-static uint32_t scanMeshCycleStartTime = 0;
-
-static uint8_t getScanNodeSlot() {
-    String nodeId = getNodeId();
-    uint32_t hash = 0;
-    for (size_t i = 0; i < nodeId.length(); i++) {
-        hash = hash * 31 + nodeId.charAt(i);
-    }
-    return hash % SCAN_MESH_NUM_SLOTS;
-}
-
-// Returns remaining milliseconds in current slot, or 0 if not in our slot
-static uint32_t getTimeRemainingInSlot() {
-    if (scanMeshCycleStartTime == 0) {
-        scanMeshCycleStartTime = millis();
-    }
-    uint32_t elapsed = millis() - scanMeshCycleStartTime;
-    uint32_t positionInCycle = elapsed % SCAN_MESH_SLOT_CYCLE_MS;
-    uint8_t currentSlot = positionInCycle / SCAN_MESH_SLOT_DURATION_MS;
-
-    if (currentSlot != getScanNodeSlot()) {
-        return 0;  // Not our slot
-    }
-
-    uint32_t slotStart = currentSlot * SCAN_MESH_SLOT_DURATION_MS;
-    uint32_t slotEnd = slotStart + SCAN_MESH_SLOT_DURATION_MS;
-    uint32_t remaining = slotEnd - positionInCycle;
-    return remaining;
-}
 
 void setRFPreset(uint8_t preset) {
     switch(preset) {
@@ -481,15 +448,6 @@ extern bool isZeroOrBroadcast(const uint8_t *mac);
 inline uint16_t u16(const uint8_t *p)
 {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
-}
-
-inline int clampi(int v, int lo, int hi)
-{
-    if (v < lo)
-        return lo;
-    if (v > hi)
-        return hi;
-    return v;
 }
 
 struct OuiEntry {
@@ -964,6 +922,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
 
 // Main NimBLE callback
 class MyBLEScanCallbacks : public NimBLEScanCallbacks {
+    // cppcheck-suppress unusedFunction // NimBLEScanCallbacks override, invoked by NimBLE per advertisement
     void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
         bleFramesSeen = bleFramesSeen + 1;
 

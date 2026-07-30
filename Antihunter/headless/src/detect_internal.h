@@ -61,33 +61,6 @@ struct AttackerHunt {
     uint32_t lastKick;
 };
 
-struct AirTagReplayEntry {
-    uint64_t firstAddr{};
-    uint32_t firstSeenMs{};
-    PsramSet<uint64_t> seenAddrs;
-    bool alerted{};
-    bool persisted{};  // already on SD — skip re-write
-};
-
-struct FollowerTrack {
-    uint32_t identityHash{};
-    uint32_t firstSeen{};
-    uint32_t lastSeen{};
-    uint16_t observations{};
-    uint16_t ownerAbsentCount{};
-    PsramSet<uint32_t> clusters;   // FNV(nodeId) set — local + mesh peers
-    bool alerted{};
-};
-constexpr size_t MAX_FOLLOWERS = 64;
-
-struct VanishedTracker {
-    uint8_t addr[6];
-    char vendor[16];
-    int8_t lastRssi;
-    uint32_t vanishedAt;
-    uint32_t chainId;
-};
-
 // ---- Core globals defined in detect.cpp ----
 extern std::recursive_mutex g_mtx;
 extern PsramMap<uint64_t, ApBaseline> g_apBaseline;
@@ -96,28 +69,12 @@ extern std::atomic<bool> g_meshPwna;
 extern std::atomic<bool> g_attackerTrilatEnabled;
 extern std::atomic<bool> g_meshAttackerHunt;
 extern std::atomic<bool> g_meshTracker;
-extern PsramMap<uint64_t, BleTrackerSighting> g_bleTrackers;
 extern PsramMap<String, ReconAlert> g_recon;
 
 // ---- Feature globals defined in detect_features.cpp ----
 extern std::atomic<uint32_t> g_huntCooldown;
 extern std::atomic<uint32_t> g_krackEvents;
-extern PsramMap<uint64_t, AirTagPresence> g_airtag;
-extern PsramMap<uint32_t, AirTagReplayEntry> g_airtagReplay;
-extern PsramMap<uint32_t, FollowerTrack> g_followers;
-extern std::atomic<uint32_t> cs_copresent_ms;
-extern std::atomic<uint32_t> cs_persist_ms;
-extern std::atomic<uint32_t> cs_min_clusters;
-extern std::atomic<uint32_t> cs_rotation_rate;
-extern std::atomic<uint32_t> cs_owner_absent_pct_x100;
-void followerAddCluster(uint32_t identityHash, const String &nodeId, uint32_t now);
-extern std::atomic<bool> g_csEnabled;
-extern std::atomic<uint32_t> g_csSpamAlerts;
-extern std::atomic<uint32_t> g_csExfilAlerts;
-void rotationAnomaly(const uint8_t *payload, uint16_t len, uint64_t mac, int8_t rssi, uint32_t now);
-String cs_getResultsJson();
 extern PsramVec<String> g_baitSsids;
-extern PsramMap<uint32_t, TrackerChain> g_chains;
 extern PsramMap<uint64_t, HandshakeReconstruction> g_hshk;
 extern PsramMap<uint64_t, AttackerHunt> g_hunts;
 extern PsramMap<uint64_t, KarmaCandidate> g_karma;
@@ -126,18 +83,14 @@ extern PsramMap<uint32_t, ProbeGraphIdentity> g_pgGraph;
 extern PsramMap<uint64_t, PwnagotchiSighting> g_pwna;
 extern PsramMap<String, TofPeer> g_tofPeers;
 extern PsramVec<TofPendingPing> g_tofPending;
-extern PsramVec<VanishedTracker> g_vanished;
 
 // Internal feature helpers also called from detect.cpp.
 void karmaEmitBait(const uint8_t *targetBssid);
 uint8_t classifyEapolMsg(uint16_t keyInfo);
 void hshkRecord(const uint8_t *bssid, const uint8_t *sta, uint8_t msgNum,
                 uint64_t replayCtr, int8_t rssi, const char *nodeId, uint32_t now);
-void airtagProcess(const uint8_t *addr, int8_t rssi, const uint8_t *payload, uint16_t len);
 void pwnagotchiObserve(const uint8_t *bssid, int8_t rssi, const uint8_t *ie, uint16_t ieLen);
 bool isPwnagotchiBeacon(const uint8_t *frame, uint16_t len);
-void trackerSweepVanished(uint32_t now);
-uint32_t trackerTryLinkRotation(const uint8_t *addr, const char *vendor, int8_t rssi, uint32_t now);
 void persistSnapshot();
 void loadSnapshot();
 
@@ -170,12 +123,6 @@ String hshk_getReconJson();
 void hshk_clear();
 size_t hshk_count();
 uint32_t hshk_krackEvents();
-String airtag_getPresenceJson();
-void airtag_clear();
-size_t airtag_count();
-String tracker_getChainsJson();
-void tracker_clearChains();
-size_t tracker_chainCount();
 void pg_announceLocalIdentity(uint32_t hash, const char *localTrackId, int8_t rssi);
 void pg_clear();
 size_t pg_size();

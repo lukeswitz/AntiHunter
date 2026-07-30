@@ -912,9 +912,9 @@ bool waitForInitialConfig() {
     
     // Check if config exists
     bool configExists = SD.exists(CONFIG_FILE);
-    bool reconfigRequested = false;
 
     if (configExists) {
+        bool reconfigRequested = false;
         Serial.println("[CONFIG] Existing config found");
         Serial.println("[CONFIG] Waiting for RECONFIG command...");
         Serial.flush();
@@ -1558,13 +1558,6 @@ void loadResultsSnapshot() {
     antihunter::lastResults = header + buf;
     g_resultsRestored = true;
     Serial.printf("[BOOT] Restored %u bytes of results from snapshot\n", (unsigned)got);
-}
-
-void clearResultsSnapshot() {
-    g_resultsRestored = false;
-    if (SafeSD::isAvailable() && SafeSD::exists(RESULTS_SNAPSHOT_FILE)) {
-        SafeSD::remove(RESULTS_SNAPSHOT_FILE);
-    }
 }
 
 void logVibrationEvent(int sensorValue) {

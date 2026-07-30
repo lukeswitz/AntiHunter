@@ -76,7 +76,6 @@ bool waitForInitialConfig();
 void initializeRTC();
 void syncRTCFromGPS();
 void updateRTCTime();
-String getRTCTimeString();
 String getFormattedTimestamp();
 time_t getRTCEpoch();
 uint32_t getEventTimestamp();
@@ -101,7 +100,6 @@ void initializeGPS();
 
 void updateSetupModeStatus();
 void checkAndSendVibrationAlert();
-String getGPSData();
 void updateGPSLocation();
 void sendStartupStatus();
 void sendGPSLockStatus(bool locked);
@@ -129,10 +127,8 @@ bool wasCleanBoot();
 uint32_t getResumeCount();
 void bumpResumeCount();
 void clearResumeCount();
-bool resultsWereRestored();
 void saveResultsSnapshot(bool force = false);
 void loadResultsSnapshot();
-void clearResultsSnapshot();
 
 // Tamper Detection System
 extern bool tamperEraseActive;
