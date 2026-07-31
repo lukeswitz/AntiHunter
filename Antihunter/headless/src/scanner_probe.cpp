@@ -222,6 +222,7 @@ void probeDetectionTask(void *pv)
 
     uint32_t startTime = millis();
     uint32_t nextResultsUpdate = startTime;
+    size_t lastWrittenProbeCount = SIZE_MAX;
     uint32_t lastBLEScan = 0;
     uint32_t lastDBSave = startTime;
 
@@ -391,13 +392,14 @@ void probeDetectionTask(void *pv)
             }
         }
 
-        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0) {
+        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0 || probeDevices.size() != lastWrittenProbeCount) {
             std::string results = getProbeResults().c_str();
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = results;
             }
             nextResultsUpdate = millis() + 1000;
+            lastWrittenProbeCount = probeDevices.size();
         }
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&

@@ -820,6 +820,7 @@ void droneDetectorTask(void *pv)
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t nextResultsUpdate = millis() + 2000;
+    uint32_t lastWrittenDroneCount = UINT32_MAX;
     uint32_t lastCleanup = millis();
     uint32_t lastLossSweep = millis();
     const unsigned long MESH_DRONE_LOSS_SWEEP_MS = 5000;
@@ -903,8 +904,10 @@ void droneDetectorTask(void *pv)
             nextStatus += 5000;
         }
 
-        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0) {
+        uint32_t curDroneCount = droneDetectionCount.load();
+        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0 || curDroneCount != lastWrittenDroneCount) {
             nextResultsUpdate += 2000;
+            lastWrittenDroneCount = curDroneCount;
             String liveResults = getDroneDetectionResults();
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
             antihunter::lastResults = liveResults.c_str();
