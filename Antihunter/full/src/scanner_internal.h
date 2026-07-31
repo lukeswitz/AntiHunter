@@ -22,16 +22,6 @@ void addProbeSsid(ProbeDevice &dev, const char *ssid, bool fromResponse = false)
 bool extractSsidFromIE(const uint8_t *payload, uint16_t frameLen, uint16_t ieStart, char *ssidBuf, size_t ssidBufSize);
 bool extractSsidFromProbe(const uint8_t *payload, uint16_t frameLen, char *ssidBuf, size_t ssidBufSize, bool *isWildcard = nullptr);
 
-// ---- Passive WiFi AP capture (beacons/probe-responses sniffed in sniffer_cb) ----
-struct ApInfoEvent {
-    uint8_t bssid[6];
-    int8_t rssi;
-    uint8_t channel;
-    char ssid[33];
-};
-extern QueueHandle_t apInfoQueue;
-extern std::atomic<bool> apCaptureEnabled;
-
 // ---- Shared scanner helpers (defined in scanner.cpp, called from scanner_probe.cpp) ----
 bool matchesMac(const uint8_t *mac);
 String sanitizeAscii(const char *s, size_t maxLen);
