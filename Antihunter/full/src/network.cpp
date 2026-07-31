@@ -770,12 +770,20 @@ void registerRemainingRoutes() {
             secs = v;
         }
         
-        currentScanMode = SCAN_BOTH;
+        ScanMode dMode = SCAN_BOTH;
+        if (req->hasParam("droneScanMode", true)) {
+            int m = req->getParam("droneScanMode", true)->value().toInt();
+            if (m == 0) dMode = SCAN_WIFI;
+            else if (m == 1) dMode = SCAN_BLE;
+        }
+        String dModeStr = (dMode == SCAN_WIFI) ? "WiFi" : (dMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+
+        currentScanMode = dMode;
         stopRequested = false;
 
         req->send(200, "text/plain", forever ?
-                  "Drone detection starting (forever)" :
-                  ("Drone detection starting for " + String(secs) + "s")); 
+                  ("Drone detection starting (forever) - " + dModeStr) :
+                  ("Drone detection starting for " + String(secs) + "s - " + dModeStr));
         
         if (!workerTaskHandle) {
             scanning = true;
