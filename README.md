@@ -297,9 +297,9 @@ Tamper detection and emergency data wiping.
 
 | Preset | WiFi Chan Time | WiFi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
 |--------|----------------|---------------|--------------|--------------|----------------|----------|
-| Relaxed | 300ms | 6000ms | 8000ms | 800ms | -80 dBm | Low power |
-| Balanced | 160ms | 3000ms | 4000ms | 600ms | -95 dBm | General use (default) |
-| Aggressive | 110ms | 1500ms | 2000ms | 500ms | -100 dBm | Fast detection, high coverage |
+| Relaxed | 300ms | 5000ms | 6000ms | 3000ms | -80 dBm | Low power |
+| Balanced | 160ms | 3000ms | 4000ms | 2000ms | -95 dBm | General use (default) |
+| Aggressive | 110ms | 1500ms | 2000ms | 1000ms | -100 dBm | Fast detection, high coverage |
 | Custom | User-defined | User-defined | User-defined | User-defined | User-defined | Fine-tuned |
 
 Configure via web interface at `http://192.168.4.1` or API. All settings persist to NVS and SD.
@@ -311,6 +311,8 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 - **WiFi Scan Interval**: Time between scan cycles (1000-10000ms).
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
 - **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves discovery but reduces WiFi scan frequency.
+
+> WiFi and BLE share one 2.4 GHz radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi (active scan and promiscuous capture) is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets keep WiFi Scan Interval below BLE Scan Interval (WiFi scans more often) and set BLE Scan Duration to half the BLE Scan Interval — an even 50/50 radio split.
 - **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Triangulation is exempt.
 - **WiFi Channels**: Comma-separated (e.g. 1,6,11) or range (1..14). Default: 1,2,3,4,5,6,7,8,9,10,11 (US 2.4 GHz channels).
 
