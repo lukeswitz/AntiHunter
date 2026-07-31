@@ -168,7 +168,7 @@ struct AuthFrameEvent {
     uint8_t mac[6];
     int8_t rssi;
     uint8_t channel;
-    uint8_t payload[256];
+    uint8_t payload[32];
     uint16_t len;
 };
 
