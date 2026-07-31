@@ -792,11 +792,11 @@ R"HTML(
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Stealthy, all ch)</option>
             <option value="1">Balanced (Default, all ch)</option>
-            <option value="2">Aggressive (Fast, 1/6/11)</option>
+            <option value="2">Aggressive (Fast, all ch)</option>
             <option value="3">Custom</option>
           </select>
           
-          <div id="customRFSettings" style="display:none;margin-top:10px;">
+          <div id="customRFSettings" style="display:block;margin-top:10px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
                 <label style="font-size:10px;color:var(--mut);">WiFi Channel Time (ms)</label>
@@ -1952,7 +1952,8 @@ R"HTML(
             // If custom not preset
             const customDiv = document.getElementById('customRFSettings');
             if (customDiv) {
-              customDiv.style.display = cfg.preset === 3 ? 'block' : 'none';
+              customDiv.style.display = 'block';
+              setRFFieldsEditable(cfg.preset === 3);
             }
           } catch(e) {}
       }
@@ -1966,13 +1967,21 @@ R"HTML(
         } catch (e) { toast('Save failed: ' + e, 'error'); }
       }
 
+      function setRFFieldsEditable(editable) {
+        ['wifiChannelTime','wifiScanInterval','bleScanDuration','bleScanInterval','wifiChannels'].forEach(function(id){
+          const el = document.getElementById(id);
+          if (el) { el.readOnly = !editable; el.style.opacity = editable ? '1' : '0.6'; }
+        });
+      }
+
       async function updateRFPresetUI() {
         const preset = parseInt(document.getElementById('rfPreset').value);
         const customDiv = document.getElementById('customRFSettings');
-        
+
         if (!customDiv) return;
-        
-        customDiv.style.display = preset === 3 ? 'block' : 'none';
+
+        customDiv.style.display = 'block';
+        setRFFieldsEditable(preset === 3);
         
         if (preset <= 2) {
           const fd = new FormData();
