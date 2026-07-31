@@ -770,11 +770,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
                 <label style="font-size:10px;color:var(--mut);">WiFi Channel Time (ms)</label>
-                <input type="number" id="wifiChannelTime" min="110" max="300" value="120" style="padding:4px;font-size:11px;">
+                <input type="number" id="wifiChannelTime" min="110" max="300" value="160" style="padding:4px;font-size:11px;">
               </div>
               <div>
                 <label style="font-size:10px;color:var(--mut);">WiFi Scan Interval (ms)</label>
-                <input type="number" id="wifiScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
+                <input type="number" id="wifiScanInterval" min="1000" max="10000" value="3000" style="padding:4px;font-size:11px;">
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
@@ -784,7 +784,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
               <div>
                 <label style="font-size:10px;color:var(--mut);">BLE Scan Interval (ms)</label>
-                <input type="number" id="bleScanInterval" min="1000" max="10000" value="2000" style="padding:4px;font-size:11px;">
+                <input type="number" id="bleScanInterval" min="1000" max="10000" value="4000" style="padding:4px;font-size:11px;">
               </div>
             </div>
             <div style="margin-bottom:8px;">

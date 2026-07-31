@@ -104,8 +104,8 @@ NimBLEScan *pBLEScan;
 void sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type);
 
 // Scan intervals
-uint32_t WIFI_SCAN_INTERVAL = 4000;
-uint32_t BLE_SCAN_INTERVAL = 2000;
+uint32_t WIFI_SCAN_INTERVAL = 3000;
+uint32_t BLE_SCAN_INTERVAL = 4000;
 
 // Scanner status variables
 std::atomic<bool> scanning(false);
@@ -136,7 +136,7 @@ RFScanConfig rfConfig = {
     .wifiChannelTime = 160,
     .wifiScanInterval = 3000,
     .bleScanInterval = 4000,
-    .bleScanDuration = 600,
+    .bleScanDuration = 2000,
     .preset = 1,
     .wifiChannels = "1..11",
     .globalRssiThreshold = -95,
@@ -279,23 +279,23 @@ void setRFPreset(uint8_t preset) {
     switch(preset) {
         case 0:
             rfConfig.wifiChannelTime = 300;
-            rfConfig.wifiScanInterval = 6000;
-            rfConfig.bleScanInterval = 8000;
-            rfConfig.bleScanDuration = 800;
+            rfConfig.wifiScanInterval = 5000;
+            rfConfig.bleScanInterval = 6000;
+            rfConfig.bleScanDuration = 3000;
             rfConfig.globalRssiThreshold = -80;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
             rfConfig.wifiScanInterval = 3000;
             rfConfig.bleScanInterval = 4000;
-            rfConfig.bleScanDuration = 600;
+            rfConfig.bleScanDuration = 2000;
             rfConfig.globalRssiThreshold = -95;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
             rfConfig.wifiScanInterval = 1500;
             rfConfig.bleScanInterval = 2000;
-            rfConfig.bleScanDuration = 500;
+            rfConfig.bleScanDuration = 1000;
             rfConfig.globalRssiThreshold = -100;
             break;
         default:
@@ -318,7 +318,7 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
     rfConfig.wifiChannelTime = constrain(wifiChanTime, 50, 300);
     rfConfig.wifiScanInterval = constrain(wifiInterval, 1000, 10000);
     rfConfig.bleScanInterval = constrain(bleInterval, 1000, 10000);
-    rfConfig.bleScanDuration = constrain(bleDuration, 200, 5000);
+    rfConfig.bleScanDuration = constrain(bleDuration, 1000, 5000);
     rfConfig.globalRssiThreshold = constrain(rssiThreshold, -128, -10);
     rfConfig.preset = 3;
     
@@ -358,10 +358,10 @@ void loadRFConfigFromPrefs() {
     if (preset < 3) {
         setRFPreset(preset);
     } else {
-        uint32_t wct = prefs.getUInt("wifiChanTime", 120);
-        uint32_t wsi = prefs.getUInt("wifiInterval", 5000);
-        uint32_t bsi = prefs.getUInt("bleInterval", 2000);
-        uint32_t bsd = prefs.getUInt("bleDuration", 3000);
+        uint32_t wct = prefs.getUInt("wifiChanTime", 160);
+        uint32_t wsi = prefs.getUInt("wifiInterval", 3000);
+        uint32_t bsi = prefs.getUInt("bleInterval", 4000);
+        uint32_t bsd = prefs.getUInt("bleDuration", 2000);
         String channels = prefs.getString("channels", "1..11");
         int8_t rssiThreshold = prefs.getInt("globalRSSI", -95);
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
