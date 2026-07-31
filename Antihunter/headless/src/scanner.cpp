@@ -49,6 +49,8 @@ static std::atomic<uint16_t> macTargetSnapshotCount{0};
 static std::atomic<bool> identityTargetPresentSnap{false};
 
 std::atomic<bool> probeDetectionEnabled(false);
+std::atomic<bool> apCaptureEnabled(false);
+QueueHandle_t apInfoQueue = nullptr;
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
@@ -1040,6 +1042,11 @@ void snifferScanTask(void *pv)
                   forever ? "(forever)" : String("for " + String(duration) + "s").c_str());
 
     if (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) {
+        if (apInfoQueue == nullptr) {
+            apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        }
+        if (apInfoQueue) xQueueReset(apInfoQueue);
+        apCaptureEnabled = true;
         radioStartSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
     } else if (currentScanMode == SCAN_BLE) {
@@ -1048,11 +1055,7 @@ void snifferScanTask(void *pv)
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    uint32_t wifiInterval = WIFI_SCAN_INTERVAL;
     uint32_t bleInterval = BLE_SCAN_INTERVAL;
-    if (currentScanMode == SCAN_BOTH) {
-        wifiInterval = min(WIFI_SCAN_INTERVAL, BLE_SCAN_INTERVAL);
-    }
 
     scanning = true;
     {
@@ -1072,7 +1075,6 @@ void snifferScanTask(void *pv)
     scanSetCountdown(duration, forever);
 
     unsigned long lastBLEScan = 0;
-    unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long lastTotalPrint = 0;
@@ -1115,87 +1117,62 @@ void snifferScanTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && static_cast<int>(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
-        if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
-            !(triangulationActive.load() && triTargetRadio.load() == 1) &&
-            (millis() - lastWiFiScan >= wifiInterval || lastWiFiScan == 0))
-        {
-            lastWiFiScan = millis();
+        if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
+            ApInfoEvent ae;
+            int apDrained = 0;
+            while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && apDrained < 50) {
+                apDrained++;
+                if (!triangulationActive && ae.rssi < rfConfig.globalRssiThreshold) continue;
 
-            Serial.println("[SNIFFER] Scanning WiFi networks...");
-            if (hopTimer) esp_timer_stop(hopTimer);
-            esp_wifi_set_promiscuous(false);
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, triScanChannel());
-            esp_wifi_set_promiscuous(true);
-            if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
-            if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
-            if (stopRequested) break;
+                char bstr[18];
+                snprintf(bstr, sizeof(bstr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         ae.bssid[0], ae.bssid[1], ae.bssid[2], ae.bssid[3], ae.bssid[4], ae.bssid[5]);
+                String bssid = bstr;
+                String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
 
-            if (networksFound > 0)
-            {
-                for (int i = 0; i < networksFound; i++)
+                if (apCache.find(bssid) == apCache.end())
                 {
-                    String bssid = WiFi.BSSIDstr(i);
-                    String ssid = WiFi.SSID(i);
-                    int32_t rssi = WiFi.RSSI(i);
-                    if (rssi < rfConfig.globalRssiThreshold) {
-                        continue;
+                    std::lock_guard<std::mutex> lock(snifferCacheMutex);
+                    if (apCache.size() < MAX_AP_CACHE) {
+                        apCache[bssid] = ssid;
                     }
-                    const uint8_t *bssidBytes = WiFi.BSSID(i);
+                    if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
 
-                    if (ssid.length() == 0)
-                    {
-                        ssid = "[Hidden]";
+                    Hit h;
+                    memcpy(h.mac, ae.bssid, 6);
+                    h.rssi = ae.rssi;
+                    h.ch = ae.channel;
+                    strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
+                    h.name[sizeof(h.name) - 1] = '\0';
+                    h.isBLE = false;
+
+                    if (hitsLog.size() < MAX_LOG_SIZE) {
+                        hitsLog.push_back(h);
                     }
 
-                    if (apCache.find(bssid) == apCache.end())
+                    if (matchesMac(ae.bssid)) {
+                        totalHits = totalHits + 1;
+                    }
+
+                    String logEntry = "WiFi AP: " + bssid + " SSID: " + ssid +
+                                      " RSSI: " + String(ae.rssi) + "dBm CH: " + String(ae.channel);
+
+                    if (gpsValid)
                     {
-                        std::lock_guard<std::mutex> lock(snifferCacheMutex);
-                        if (apCache.size() < MAX_AP_CACHE) {
-                            apCache[bssid] = ssid;
+                        if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                            logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                            xSemaphoreGive(gpsMutex);
                         }
-                        if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
+                    }
 
-                        Hit h;
-                        memcpy(h.mac, bssidBytes, 6);
-                        h.rssi = rssi;
-                        h.ch = WiFi.channel(i);
-                        strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
-                        h.name[sizeof(h.name) - 1] = '\0';
-                        h.isBLE = false;
+                    Serial.println("[SNIFFER] " + logEntry);
+                    logToSD(logEntry);
 
-                        if (hitsLog.size() < MAX_LOG_SIZE) {
-                            hitsLog.push_back(h);
-                        }
-
-                        if (matchesMac(bssidBytes)) {
-                            totalHits = totalHits + 1;
-                        }
-
-                        String logEntry = "WiFi AP: " + bssid + " SSID: " + ssid +
-                                          " RSSI: " + String(rssi) + "dBm CH: " + String(WiFi.channel(i));
-
-                        if (gpsValid)
-                        {
-                            if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                                logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
-                                xSemaphoreGive(gpsMutex);
-                            }
-                        }
-
-                        Serial.println("[SNIFFER] " + logEntry);
-                        logToSD(logEntry);
-
-                        uint8_t mac[6];
-                        if (parseMac6(bssid, mac) && matchesMac(mac))
-                        {
-                            sendMeshNotification(h);
-                        }
+                    if (matchesMac(ae.bssid)) {
+                        sendMeshNotification(h);
                     }
                 }
             }
-
-            Serial.printf("[SNIFFER] WiFi scan found %d networks\n", networksFound);
-            vTaskDelay(pdMS_TO_TICKS(10));
         }
 
         if (bleScan && (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
@@ -1548,6 +1525,7 @@ void snifferScanTask(void *pv)
         Serial.printf("[SNIFFER] Saved %u probe devices to DB\n", probeDevices.size());
     }
 
+    apCaptureEnabled = false;
     probeDetectionEnabled = false;
     scanning = false;
     lastScanEnd = millis();
@@ -2201,6 +2179,24 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
         BaseType_t woken = pdFALSE;
         xQueueSendFromISR(droneFrameQueue, &droneEvt, &woken);
         if (woken) portYIELD_FROM_ISR();
+    }
+
+    if (apCaptureEnabled && apInfoQueue && ppkt->rx_ctrl.sig_len >= 36) {
+        const uint8_t *p = ppkt->payload;
+        uint16_t fc = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+        uint8_t ftype = (fc >> 2) & 0x3;
+        uint8_t stype = (fc >> 4) & 0xF;
+        if (ftype == 0 && (stype == 8 || stype == 5)) {
+            ApInfoEvent ae = {};
+            memcpy(ae.bssid, p + 16, 6);
+            ae.rssi = ppkt->rx_ctrl.rssi;
+            uint8_t chIe = extractChannelFromIE(p, ppkt->rx_ctrl.sig_len, 36);
+            ae.channel = (chIe >= 1 && chIe <= 14) ? chIe : ppkt->rx_ctrl.channel;
+            extractSsidFromIE(p, ppkt->rx_ctrl.sig_len, 36, ae.ssid, sizeof(ae.ssid));
+            BaseType_t woken = pdFALSE;
+            xQueueSendFromISR(apInfoQueue, &ae, &woken);
+            if (woken) portYIELD_FROM_ISR();
+        }
     }
 
     if ((randomizationDetectionEnabled || probeDetectionEnabled) && ppkt->rx_ctrl.sig_len >= 24) {
