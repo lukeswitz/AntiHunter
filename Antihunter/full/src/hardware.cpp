@@ -357,10 +357,10 @@ void initializeHardware()
         prefs.putInt("blRssi", -70);
         prefs.putUInt("rfPreset", 1);
         prefs.putInt("globalRSSI", -95);
-        prefs.putUInt("wifiChanTime", 120);
-        prefs.putUInt("wifiInterval", 5000);
-        prefs.putUInt("bleInterval", 2000);
-        prefs.putUInt("bleDuration", 3000);
+        prefs.putUInt("wifiChanTime", 160);
+        prefs.putUInt("wifiInterval", 3000);
+        prefs.putUInt("bleInterval", 4000);
+        prefs.putUInt("bleDuration", 2000);
     }
     
     randomSeed(esp_random());
