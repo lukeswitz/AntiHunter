@@ -1091,6 +1091,7 @@ void snifferScanTask(void *pv)
     size_t lastTotalAp = SIZE_MAX, lastTotalBle = SIZE_MAX, lastTotalUniq = SIZE_MAX;
     int lastTotalHits = -1;
     unsigned long nextResultsUpdate = millis();
+    size_t lastWrittenHitCount = SIZE_MAX;
 
     std::set<String> transmittedDevices;
     if (!getMeshSessionDedup()) meshDedupClear();
@@ -1446,7 +1447,7 @@ void snifferScanTask(void *pv)
             }
         }
 
-        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0) {
+        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0 || hitsLog.size() != lastWrittenHitCount) {
             std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
             std::string results = "Sniffer scan - Mode: " + std::string(modeStr.c_str()) + " (IN PROGRESS)\n";
@@ -1522,6 +1523,7 @@ void snifferScanTask(void *pv)
 
             antihunter::lastResults = results;
             nextResultsUpdate = millis() + 1000;
+            lastWrittenHitCount = hitsLog.size();
         }
 
         {
@@ -1868,6 +1870,7 @@ void blueTeamTask(void *pv) {
     uint32_t nextStatus = millis() + 5000;
     uint32_t lastCleanup = millis();
     uint32_t lastResultsUpdate = millis() + 1000;
+    uint32_t lastWrittenDeauthTotal = UINT32_MAX;
     uint32_t lastMeshUpdate = millis();
     const unsigned long MESH_DEAUTH_UPDATE_INTERVAL = 5000;
     DeauthHit hit;
@@ -2020,7 +2023,8 @@ void blueTeamTask(void *pv) {
             nextStatus += 5000;
         }
 
-        if (static_cast<int32_t>(millis() - lastResultsUpdate) >= 0) {
+        uint32_t curDeauthTotal = deauthCount.load() + disassocCount.load();
+        if (static_cast<int32_t>(millis() - lastResultsUpdate) >= 0 || curDeauthTotal != lastWrittenDeauthTotal) {
             std::string results;
             {
                 std::lock_guard<std::mutex> lock(deauthLogMutex);
@@ -2033,6 +2037,7 @@ void blueTeamTask(void *pv) {
             }
             
             lastResultsUpdate = millis() + 1000;
+            lastWrittenDeauthTotal = curDeauthTotal;
         }
         
         if (millis() - lastCleanup > 60000) {
@@ -3070,6 +3075,7 @@ void listScanTask(void *pv) {
     Hit h;
 
     uint32_t nextTriResultsUpdate = millis() + 2000;
+    size_t lastWrittenHitCount = SIZE_MAX;
     uint32_t lastTimeSyncBroadcast = 0;
 
     while ((forever && !stopRequested) ||
@@ -3453,7 +3459,7 @@ void listScanTask(void *pv) {
         }
 
         // Dynamic update to results (only while running, stop when stopRequested is set)
-        if (triangulationActive && !stopRequested && static_cast<int32_t>(millis() - nextTriResultsUpdate) >= 0) {
+        if (triangulationActive && !stopRequested && (static_cast<int32_t>(millis() - nextTriResultsUpdate) >= 0 || hitsLog.size() != lastWrittenHitCount)) {
             Serial.println("[SCAN] Updating IN PROGRESS triangulation results");
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
@@ -3497,6 +3503,7 @@ void listScanTask(void *pv) {
                 Serial.printf("[SCAN] IN PROGRESS results stored (%d chars)\n", results.length());
             }
             nextTriResultsUpdate = millis() + 2000;
+            lastWrittenHitCount = hitsLog.size();
         }
 
         if (triangulationActive && !stopRequested) {

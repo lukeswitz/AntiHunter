@@ -1391,6 +1391,7 @@ void randomizationDetectionTask(void *pv) {
     uint32_t nextCleanup = startTime + 10000;
     uint32_t nextTrackCleanup = startTime + 60000;
     uint32_t nextResultsUpdate = startTime + 1000;
+    size_t lastWrittenIdentityCount = SIZE_MAX;
     uint32_t lastBLEScan = 0;
     uint32_t lastMeshUpdate = 0;
     bool bleScanStarted = false;
@@ -1685,13 +1686,14 @@ void randomizationDetectionTask(void *pv) {
 
         
 
-        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0) {
+        if (static_cast<int32_t>(millis() - nextResultsUpdate) >= 0 || deviceIdentities.size() != lastWrittenIdentityCount) {
             std::string results = getRandomizationResults().c_str();
             {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = results;
             }
             nextResultsUpdate += 1000;
+            lastWrittenIdentityCount = deviceIdentities.size();
         }
         
 
