@@ -141,10 +141,10 @@ static std::mutex allowlistMutex;
 
 // Scan config
 RFScanConfig rfConfig = {
-    .wifiChannelTime = 120,
+    .wifiChannelTime = 160,
     .wifiScanInterval = 3000,
-    .bleScanInterval = 2000,
-    .bleScanDuration = 500,
+    .bleScanInterval = 4000,
+    .bleScanDuration = 600,
     .preset = 1,
     .wifiChannels = "1..11",
     .globalRssiThreshold = -95,
@@ -292,24 +292,24 @@ void setRFPreset(uint8_t preset) {
     switch(preset) {
         case 0:
             rfConfig.wifiChannelTime = 300;
-            rfConfig.wifiScanInterval = 8000;
-            rfConfig.bleScanInterval = 4000;
-            rfConfig.bleScanDuration = 500;
+            rfConfig.wifiScanInterval = 6000;
+            rfConfig.bleScanInterval = 8000;
+            rfConfig.bleScanDuration = 800;
             rfConfig.globalRssiThreshold = -80;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
             rfConfig.wifiScanInterval = 3000;
-            rfConfig.bleScanInterval = 3000;
-            rfConfig.bleScanDuration = 500;
+            rfConfig.bleScanInterval = 4000;
+            rfConfig.bleScanDuration = 600;
             rfConfig.globalRssiThreshold = -95;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
-            rfConfig.wifiScanInterval = 4000;
+            rfConfig.wifiScanInterval = 1500;
             rfConfig.bleScanInterval = 2000;
             rfConfig.bleScanDuration = 500;
-            rfConfig.globalRssiThreshold = -70;
+            rfConfig.globalRssiThreshold = -100;
             break;
         default:
             setRFPreset(1);
