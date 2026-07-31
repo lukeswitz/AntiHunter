@@ -323,9 +323,9 @@ Tamper detection and emergency data wiping.
 
 | Preset | WiFi Chan Time | WiFi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
 |--------|----------------|---------------|--------------|--------------|----------------|----------|
-| Relaxed | 300ms | 8000ms | 4000ms | 3000ms | -80 dBm | Low power |
-| Balanced | 160ms | 6000ms | 3000ms | 3000ms | -95 dBm | General use (default) |
-| Aggressive | 110ms | 4000ms | 2000ms | 2000ms | -70 dBm | Fast detection, high coverage |
+| Relaxed | 300ms | 6000ms | 8000ms | 800ms | -80 dBm | Low power |
+| Balanced | 160ms | 3000ms | 4000ms | 600ms | -95 dBm | General use (default) |
+| Aggressive | 110ms | 1500ms | 2000ms | 500ms | -100 dBm | Fast detection, high coverage |
 | Custom | User-defined | User-defined | User-defined | User-defined | User-defined | Fine-tuned |
 
 Configure via web interface at `http://192.168.4.1` or API. All settings persist to NVS and SD.

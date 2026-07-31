@@ -236,10 +236,10 @@ static std::mutex allowlistMutex;
 
 // Scan config
 RFScanConfig rfConfig = {
-    .wifiChannelTime = 120,
-    .wifiScanInterval = 6000,
-    .bleScanInterval = 2000,
-    .bleScanDuration = 3000,
+    .wifiChannelTime = 160,
+    .wifiScanInterval = 3000,
+    .bleScanInterval = 4000,
+    .bleScanDuration = 600,
     .preset = 1,
     .wifiChannels = "1..11",
     .globalRssiThreshold = -95
@@ -306,24 +306,24 @@ void setRFPreset(uint8_t preset) {
     switch(preset) {
         case 0:
             rfConfig.wifiChannelTime = 300;
-            rfConfig.wifiScanInterval = 8000;
-            rfConfig.bleScanInterval = 4000;
-            rfConfig.bleScanDuration = 3000;
+            rfConfig.wifiScanInterval = 6000;
+            rfConfig.bleScanInterval = 8000;
+            rfConfig.bleScanDuration = 800;
             rfConfig.globalRssiThreshold = -80;
             break;
         case 1:
             rfConfig.wifiChannelTime = 160;
-            rfConfig.wifiScanInterval = 6000;
-            rfConfig.bleScanInterval = 3000;
-            rfConfig.bleScanDuration = 3000;
+            rfConfig.wifiScanInterval = 3000;
+            rfConfig.bleScanInterval = 4000;
+            rfConfig.bleScanDuration = 600;
             rfConfig.globalRssiThreshold = -95;
             break;
         case 2:
             rfConfig.wifiChannelTime = 110;
-            rfConfig.wifiScanInterval = 4000;
+            rfConfig.wifiScanInterval = 1500;
             rfConfig.bleScanInterval = 2000;
-            rfConfig.bleScanDuration = 2000;
-            rfConfig.globalRssiThreshold = -70;
+            rfConfig.bleScanDuration = 500;
+            rfConfig.globalRssiThreshold = -100;
             break;
         default:
             setRFPreset(1);
@@ -349,7 +349,7 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
     rfConfig.wifiChannelTime = constrain(wifiChanTime, 50, 300);
     rfConfig.wifiScanInterval = constrain(wifiInterval, 1000, 10000);
     rfConfig.bleScanInterval = constrain(bleInterval, 1000, 10000);
-    rfConfig.bleScanDuration = constrain(bleDuration, 1000, 5000);
+    rfConfig.bleScanDuration = constrain(bleDuration, 200, 5000);
     rfConfig.globalRssiThreshold = constrain(rssiThreshold, -128, -10);
     rfConfig.preset = 3;
     
@@ -1204,7 +1204,7 @@ void snifferScanTask(void *pv)
 
             Serial.println("[SNIFFER] Scanning BLE devices...");
 
-                NimBLEScanResults scanResults = bleScan->getResults(500, false);
+                NimBLEScanResults scanResults = bleScan->getResults(rfConfig.bleScanDuration, false);
                 if (stopRequested) break;
 
                 for (int i = 0; i < scanResults.getCount(); i++)
