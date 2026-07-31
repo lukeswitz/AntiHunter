@@ -286,6 +286,15 @@ extern std::atomic<bool> droneDetectionEnabled;
 extern void processDronePacket(const uint8_t *payload, int length, int8_t rssi);
 extern QueueHandle_t macQueue;
 
+struct ApInfoEvent {
+    uint8_t bssid[6];
+    int8_t rssi;
+    uint8_t channel;
+    char ssid[33];
+};
+extern QueueHandle_t apInfoQueue;
+extern std::atomic<bool> apCaptureEnabled;
+
 // Functions
 void initializeScanner();
 bool matchesIdentityMac(const char* identityId, const uint8_t* mac);
