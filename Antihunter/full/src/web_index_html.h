@@ -790,9 +790,9 @@ R"HTML(
           <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
 
           <select id="rfPreset" onchange="updateRFPresetUI()">
-            <option value="0">Relaxed (Stealthy, all ch)</option>
-            <option value="1">Balanced (Default, all ch)</option>
-            <option value="2">Aggressive (Fast, all ch)</option>
+            <option value="0">Relaxed (Quiet</option>
+            <option value="1">Balanced (Default)</option>
+            <option value="2">Aggressive (Fast)</option>
             <option value="3">Custom</option>
           </select>
           
