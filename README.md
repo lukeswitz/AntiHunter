@@ -15,16 +15,15 @@
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
 <div align="center">
-
-[Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
-
   <h3 align="center">DIGI Detection Node Firmware</h3>
-
-  Also for use with the [AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
+  <h3><a href="#quick-start">Quick Start</a> • <a href="#what-it-detects">What It Detects</a> • <a href="#hardware">DIY Build</a></h3>
   
- <h3><strong><a href="#features">Features</a> • <a href="#getting-started">Quick Start</a> • <a href="#hardware">DIY Build</a></strong></h3>
+  <p><strong>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO"> AntiHunter Command Center</p></strong>
 
- <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
+  <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
+  
+  [Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
+
 
 </div>
 
@@ -32,14 +31,36 @@
 
 # Table of Contents
 
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Detection Modes](#detection-modes)
-4. [Secure Data Destruction](#secure-data-destruction)
-5. [RF Configuration](#rf-configuration)
-6. [System Architecture](#system-architecture)
-7. [Hardware](#hardware)
-8. [Getting Started](#getting-started)
+**A self-contained wireless detection node. Runs standalone — no server, no cloud, no subscription.**
+
+*Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).*
+
+Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs on the device, and you drive one node two ways with no extra infrastructure:
+  - **Web UI** — the node hosts its own WiFi access point. Connect a phone or laptop, run scans and read results in the browser. Nothing to install.
+  - **Meshtastic radio** — send commands and receive detections over LoRa from a paired Meshtastic radio, with no WiFi AP. The Headless firmware runs this way with no web UI at all.
+  - To cover a larger area, add nodes. They share detections over the same mesh and can report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+
+
+
+**At a glance**
+
+- ESP32-S3 · WiFi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
+- **Full** firmware: standalone web UI over the node's own AP · **Headless** firmware: serial + mesh only, for silent deployments
+- One node standalone, or a distributed network that coordinates over mesh
+- Vibration & attack triggered actions for set and forget operation
+
+---
+
+## Table of Contents
+
+1. [Quick Start](#quick-start)
+2. [What It Detects](#what-it-detects)
+3. [Use Cases](#use-cases)
+4. [Hardware](#hardware)
+5. [Build & Flash](#build--flash)
+6. [Configuration & Operations](#configuration--operations)
+7. [System Architecture](#system-architecture)
+8. [Mesh Networking](#mesh-networking)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
 11. [3D Print Library](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
@@ -74,62 +95,20 @@
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
 | **Secure Data Destruction** | Tamper-triggered or remote wipe with post-wipe obfuscation | Vibration / mesh |
+ **Vibration Trigger** | Choose a scan to run when vibration detected | Vibration / mesh |
 | **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
-<p align="center">
-<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
-</p>
+### Targets & watchlists
+
+
 
 
 <!-- <p align="center">
-<img height="600" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
+  <img width="940" alt="Target Scan" src="https://github.com/user-attachments/assets/8b26b014-1a3c-4e62-b41d-2a672cb5c099" />
 </p> -->
-
-### Use Cases
-
-**Site & perimeter defense**
-- Continuous monitoring of a facility perimeter for unauthorized wireless devices
-- Detection of deauthentication and disassociation attacks against your own infrastructure
-- Rogue access point and evil-twin identification on premises you control
-- Coarse emitter localization using multi-node RSSI triangulation (experimental; in-dev)
-- Persistent unattended sensing at remote or unstaffed sites
-
-**Event & temporary deployments**
-- Wireless threat monitoring at conferences, competitions, and public gatherings
-- Baseline-versus-live comparison to surface devices that don't belong
-- Multi-node mesh coverage across a venue with LoRa backhaul between sensors
-- Narrowing a persistent unknown emitter to a zone or structure within a monitored site (experimental)
-
-**Counter-surveillance & OPSEC**
-- Identifying devices that persist across locations or reappear at intervals
-- Correlating randomized MAC identities to detect a single device behind rotating addresses
-- Probe request analysis to reveal what networks a nearby device is soliciting
-- Verifying that your own operational footprint isn't broadcasting more than intended
-
-**Airspace awareness**
-- Passive reception of broadcast Drone Remote ID for situational awareness over property you control
-- Logging UAS presence, operator-reported position, and flight duration for incident records
-
-**Research & training**
-- Blue-team exercises and detection-engineering practice against live RF
-- Wireless security coursework and lab instruction
-- RF environment characterization and spectrum-hygiene surveys
-- Authorized wireless security assessments with written scope and permission
-
----
-
-## Detection Modes
-
-<!-- <img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" /> -->
-
-### 1. Target Scan
-<p align="center">
-  <img width="940" alt="9F8EB018-AD99-4066-9B60-C485FB631181_1_105_c" src="https://github.com/user-attachments/assets/8b26b014-1a3c-4e62-b41d-2a672cb5c099" />
-
-</p>
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
 
@@ -140,10 +119,16 @@ Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity I
 
 ### 2. Triangulation (in development)
 
-Multiple nodes scan for a target simultaneously. Each records RSSI and GPS coordinates. Data is aggregated over mesh for weighted trilateration with Kalman filtering.
 
-> [!TIP]
-> Target RSSI above -80 produces better results for BLE devices
+**Device Scanner**  
+
+- Captures all WiFi and BLE devices in range: MACs, SSIDs, signal strength, names, and channels.
+- WiFi discovery is fully passive — beacons and frames are captured in promiscuous mode while hopping channels.
+- Check **Capture Probes** to piggyback probe-request collection onto the scan, feeding the probe database (MAC, vendor, RSSI, SSIDs, randomization status).
+
+<img width="1500" alt="ug5o3" src="https://github.com/user-attachments/assets/e5cea92c-77a9-434d-9bf3-74e62584a927" />
+
+**Probe Request Scanner**
 
 - Outputs: GPS coordinates, confidence, estimated uncertainty (m), average HDOP
 - Google Maps link sent over mesh
@@ -248,8 +233,8 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 
 </p>
 
-- Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
-- Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+Enable and it runs in the background whenever you aren't scanning. Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks. Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+
 - **Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
 - Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
 
@@ -304,20 +289,18 @@ Tamper detection and emergency data wiping.
 | Erase delay | 10-300s | Countdown before destruction |
 | Cooldown period | 5-60min | Minimum time between tamper attempts |
 
-**Usage:**
-1. Enable auto-erase via web interface with setup delay
-2. Configure thresholds for your environment
-3. Deploy and walk away during setup period
-4. Monitor mesh alerts for tamper events
-5. Remote erase: `@NODE ERASE_REQUEST` to generate token, then `@NODE ERASE_FORCE:<token>`
+- RAM cache: 200-500 devices, SD overflow: 1K-100K device db
+- Automatic tiering between RAM and SD with quick lookups
 
-</details>
+> [!IMPORTANT]
+> A longer initial scan produces a more reliable baseline.
 
----
+**MAC Randomization Correlation** (beta) — links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence-number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
 
 ## RF Configuration
 
-<!-- <img width="815" height="616" alt="RF Configuration" src="https://github.com/user-attachments/assets/0463de41-dd3c-4d85-a4c7-bc6ada393488" /> -->
+> [!TIP]
+> Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
 
 ### Scan Presets
 
@@ -329,6 +312,9 @@ Tamper detection and emergency data wiping.
 | Custom | User-defined | User-defined | User-defined | User-defined | User-defined | Fine-tuned |
 
 Configure via web interface at `http://192.168.4.1` or API. All settings persist to NVS and SD.
+
+> [!NOTE]
+> Target RSSI greater than -80 produces better results for BLE devices.
 
 <details>
 <summary>Parameter Tuning</summary>
@@ -580,7 +566,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 | Command | Parameters | Example |
 |---------|------------|---------|
-| `SCAN_START` | `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..11` |
+| `SCAN_START` (Target scan)| `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..11` 
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
 | `BASELINE_START` | `duration[:FOREVER]` (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
@@ -667,7 +653,7 @@ Any other value is passed through verbatim as `Reason code N`.
 
 | Command | Parameters | Example |
 |---------|------------|---------|
-| `TRIANGULATE_START` | `target:duration[:rfEnv[:wifiPwr:blePwr]]` rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial. wifiPwr/blePwr: 0.1-5.0 | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.5:0.8` |
+| `TRIANGULATE_START` | `target:duration[:rfEnv[:wifiPwr:blePwr]]` rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial. wifiPwr/blePwr: 0.1-5.0 | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0` |
 | `TRIANGULATE_STOP` | None | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | `@AH01 TRIANGULATE_RESULTS` |
 
