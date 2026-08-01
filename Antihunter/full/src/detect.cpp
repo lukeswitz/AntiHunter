@@ -1013,6 +1013,21 @@ static void emitBeaconForgery(const uint8_t *bssid, const char *ssid, uint16_t b
                               uint32_t ieHash, int8_t rssi, uint8_t channel,
                               const char *reason);
 
+static uint8_t beaconAdvertisedChannel(const uint8_t *ie, uint16_t ieLen) {
+    uint16_t off = 0;
+    uint8_t dsChan = 0, htChan = 0;
+    while (off + 2 <= ieLen) {
+        uint8_t tag = ie[off];
+        uint8_t len = ie[off + 1];
+        if ((size_t)off + 2 + len > (size_t)ieLen) break;
+        if (tag == 3 && len == 1)      dsChan = ie[off + 2];
+        else if (tag == 61 && len >= 1) htChan = ie[off + 2];
+        off += 2 + len;
+    }
+    if (dsChan) return dsChan;
+    return htChan;
+}
+
 static void handleBeacon(const DetectFrameEvent &e) {
     if (e.len < 36) return;
     if (isSelfMac(e.payload + 10)) return;
@@ -1301,27 +1316,33 @@ static void handleBeacon(const DetectFrameEvent &e) {
 
     ApBaseline &b = it->second;
 
-    // Evil-twin via channel multiplicity: same BSSID beaconing on >=2 distinct
-    // channels within 5s => two radios (scan mode only; pin mode sees one channel).
-    // A legit CSA channel move is one-way (old channel goes silent) so both stamps
-    // cannot stay fresh together. Spoof-proof, no precise timing needed.
+    // Evil-twin: same BSSID advertising two DS/HT channels that keep alternating (both radios live); a legit CSA move stamps only the new channel.
     bool twinMultich = false;
     if (wantTsf) {
-        uint8_t ch = e.channel;
-        if (ch == b.chanA)      b.chanAMs = now;
-        else if (ch == b.chanB) b.chanBMs = now;
-        else if (b.chanA == 0)  { b.chanA = ch; b.chanAMs = now; }
-        else if (b.chanB == 0)  { b.chanB = ch; b.chanBMs = now; }
-        else {
-            if (b.chanAMs <= b.chanBMs) { b.chanA = ch; b.chanAMs = now; }
-            else                        { b.chanB = ch; b.chanBMs = now; }
-        }
-        bool bothFresh = b.chanA && b.chanB && b.chanA != b.chanB &&
-                         (now - b.chanAMs < 5000UL) && (now - b.chanBMs < 5000UL);
-        bool emitOk = (b.lastMultichEmitMs == 0) || ((now - b.lastMultichEmitMs) >= 300000UL);
-        if (bothFresh && emitOk && !g_beaconFloodActive) {
-            twinMultich = true;
-            b.lastMultichEmitMs = now;
+        uint8_t ch = beaconAdvertisedChannel(ie, ieLen);
+        if (ch) {
+            uint8_t prevNewest = (b.chanAMs >= b.chanBMs) ? 1 : 2;
+            uint8_t stamped = 0;
+            if (ch == b.chanA)      { b.chanAMs = now; stamped = 1; }
+            else if (ch == b.chanB) { b.chanBMs = now; stamped = 2; }
+            else if (b.chanA == 0)  { b.chanA = ch; b.chanAMs = now; stamped = 1; }
+            else if (b.chanB == 0)  { b.chanB = ch; b.chanBMs = now; stamped = 2; }
+            else if (b.chanAMs <= b.chanBMs) { b.chanA = ch; b.chanAMs = now; stamped = 1; }
+            else                             { b.chanB = ch; b.chanBMs = now; stamped = 2; }
+            bool bothFresh = b.chanA && b.chanB && b.chanA != b.chanB &&
+                             (now - b.chanAMs < 5000UL) && (now - b.chanBMs < 5000UL);
+            if (bothFresh && stamped != prevNewest) {
+                if ((now - b.tsfViolWindowMs) > 15000UL) b.tsfViolStreak = 0;
+                b.tsfViolWindowMs = now;
+                if (b.tsfViolStreak < 255) b.tsfViolStreak++;
+            } else if (!bothFresh) {
+                b.tsfViolStreak = 0;
+            }
+            bool emitOk = (b.lastMultichEmitMs == 0) || ((now - b.lastMultichEmitMs) >= 300000UL);
+            if (bothFresh && b.tsfViolStreak >= 4 && emitOk && !g_beaconFloodActive) {
+                twinMultich = true;
+                b.lastMultichEmitMs = now;
+            }
         }
     }
 
