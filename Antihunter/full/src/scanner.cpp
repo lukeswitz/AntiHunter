@@ -1195,7 +1195,7 @@ void snifferScanTask(void *pv)
                 snprintf(bstr, sizeof(bstr), "%02X:%02X:%02X:%02X:%02X:%02X",
                          ae.bssid[0], ae.bssid[1], ae.bssid[2], ae.bssid[3], ae.bssid[4], ae.bssid[5]);
                 String bssid = bstr;
-                String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
+                String ssid = (ae.ssid[0] && ssidIsValid(ae.ssid, strlen(ae.ssid))) ? String(ae.ssid) : String("[Hidden]");
 
                 if (apCache.find(bssid) == apCache.end())
                 {
@@ -2320,6 +2320,8 @@ void IRAM_ATTR sniffer_cb(void *buf, wifi_promiscuous_pkt_type_t type)
     }
 
     framesSeen = framesSeen + 1;
+
+    if (ppkt->rx_ctrl.rx_state != 0) return;
 
     int8_t rssiThreshold;
     portENTER_CRITICAL_ISR(&rfConfigMux);
