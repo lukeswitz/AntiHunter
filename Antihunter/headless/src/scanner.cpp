@@ -776,6 +776,7 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
 #endif
 
 #if AH_C5_RF_TRACE
+// cppcheck-suppress unusedFunction
 static void rfTrace(const char *tag, uint8_t reqCh, int rc, uint32_t ms)
 {
     uint8_t prim = 0;
@@ -785,6 +786,7 @@ static void rfTrace(const char *tag, uint8_t reqCh, int rc, uint32_t ms)
                   (unsigned)ms, (unsigned)prim, (unsigned)WiFi.softAPgetStationNum());
 }
 #else
+// cppcheck-suppress unusedFunction
 static void rfTrace(const char *, uint8_t, int, uint32_t) {}
 #endif
 
