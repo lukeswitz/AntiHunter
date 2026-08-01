@@ -451,7 +451,7 @@ Use `-c` to configure device parameters during flash, `-e` to erase flash first,
 **Post-flash:**
 
 - **Full firmware**: Connect to `Antihunter` WiFi AP (password: `antihunt3r123`), open `http://192.168.4.1`. Configure RF settings, detection modes, and change the AP credentials in RF Settings.
-- **Headless firmware**: Serial monitor or mesh commands only. Quieter: no SoftAP, no active scans — passive all-channel hopping. Full's web-UI AP pins the shared radio to one channel, so it needs an active all-channel scan for coverage.
+- **Headless firmware**: Serial monitor or mesh commands only.
 
 ### Build from Source
 
