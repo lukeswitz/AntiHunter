@@ -707,6 +707,7 @@ void coordinatorSetupTask(const void *parameter) {
     if (triSetupAbort.load()) { triAbortCleanup("Setup aborted by stop"); vTaskDelete(NULL); }
 
     if (!workerTaskHandle) {
+        listScanTriMode = true;
         if (ahCreateTask(listScanTask, "triangulate", 8192,
                 reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 1, &workerTaskHandle, 1) != pdPASS) {
             workerTaskHandle = nullptr;

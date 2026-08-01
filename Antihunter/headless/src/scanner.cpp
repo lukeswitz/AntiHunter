@@ -51,6 +51,7 @@ static std::atomic<bool> identityTargetPresentSnap{false};
 std::atomic<bool> probeDetectionEnabled(false);
 std::atomic<bool> apCaptureEnabled(false);
 QueueHandle_t apInfoQueue = nullptr;
+std::atomic<bool> listScanTriMode(false);
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
@@ -224,6 +225,7 @@ void scanSessionResume() {
     else { scanSessionClear(); return; }
 
     currentScanMode = (ScanMode)s.mode;
+    listScanTriMode = false;
     probeBroadcastAll.store(s.broadcastAll);
     if (s.captureProbes) probeDetectionEnabled = true;
     stopRequested = false;
@@ -2964,6 +2966,7 @@ static void sendTriAccumulatedData(const String& nodeId) {
 // Scan tasks
 void listScanTask(void *pv) {
     sentinel_kill();
+    bool triMode = listScanTriMode.load();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (secs <= 0);
 
@@ -3054,8 +3057,21 @@ void listScanTask(void *pv) {
             radioStartBLE();
             vTaskDelay(pdMS_TO_TICKS(300));
         }
-        radioStartListScan();  // Non-promiscuous mode for WiFi.scanNetworks()
-        vTaskDelay(pdMS_TO_TICKS(200));
+        if (triMode) {
+            radioStartListScan();
+            vTaskDelay(pdMS_TO_TICKS(200));
+        } else {
+            if (apInfoQueue == nullptr) {
+                apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            }
+            if (apInfoQueue) xQueueReset(apInfoQueue);
+            apCaptureEnabled = true;
+            ScanMode savedMode = currentScanMode;
+            currentScanMode = SCAN_WIFI;
+            radioStartSTA();
+            currentScanMode = savedMode;
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
     }
 
     if (currentScanMode == SCAN_BLE) {
@@ -3091,7 +3107,27 @@ void listScanTask(void *pv) {
             }
         }
 
-        if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
+        if (!triMode && (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
+            ApInfoEvent ae;
+            int apDrained = 0;
+            while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && apDrained < 50) {
+                apDrained++;
+                bool isMatch = matchesMac(ae.bssid);
+                if (!isMatch && ae.ssid[0]) isMatch = matchesSsid(ae.ssid);
+                if (!isMatch) continue;
+                Hit wh;
+                memcpy(wh.mac, ae.bssid, 6);
+                wh.rssi = ae.rssi;
+                wh.ch = ae.channel;
+                String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
+                strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+                wh.name[sizeof(wh.name) - 1] = '\0';
+                wh.isBLE = false;
+                safeMacQueueSend(&wh, pdMS_TO_TICKS(10));
+            }
+        }
+
+        if (triMode && (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
             lastWiFiScan = millis();
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, triScanChannel());
@@ -3680,7 +3716,12 @@ void listScanTask(void *pv) {
         }
     }
     
-    radioStopListScan();
+    if (triMode) {
+        radioStopListScan();
+    } else {
+        apCaptureEnabled = false;
+        radioStopSTA();
+    }
     vTaskDelay(pdMS_TO_TICKS(500));
 
     safeMacQueueDelete();
