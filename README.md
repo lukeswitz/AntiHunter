@@ -150,7 +150,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 <!-- <img width="800" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" /> -->
 
-Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength, names, and channels.
+Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength, names, and channels. WiFi discovery is fully passive — beacons and frames are captured in promiscuous mode while hopping channels; no probe requests are transmitted.
 
 - Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status):
 
@@ -307,12 +307,12 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 <details>
 <summary>Parameter Tuning</summary>
 
-- **WiFi Channel Time**: Duration per channel (50-300ms). Shorter = faster coverage.
-- **WiFi Scan Interval**: Time between scan cycles (1000-10000ms).
+- **WiFi Channel Time**: Passive dwell per channel (50-300ms). This is the primary WiFi knob now — it must clear the ~100ms beacon interval to catch every AP on a channel; shorter = faster channel coverage but risks missing beacons.
+- **WiFi Scan Interval**: No longer gates WiFi discovery (which is now continuous passive capture, not cyclic active scans). Retained in config/NVS for compatibility.
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
-- **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves discovery but reduces WiFi scan frequency.
+- **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves BLE discovery but keeps the shared radio on BLE longer, pausing WiFi channel-hopping.
 
-> WiFi and BLE share one 2.4 GHz radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi (active scan and promiscuous capture) is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets keep WiFi Scan Interval below BLE Scan Interval (WiFi scans more often) and set BLE Scan Duration to half the BLE Scan Interval — an even 50/50 radio split.
+> WiFi and BLE share one 2.4 GHz radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi promiscuous capture is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval — an even 50/50 radio split.
 - **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Triangulation is exempt.
 - **WiFi Channels**: Comma-separated (e.g. 1,6,11) or range (1..14). Default: 1,2,3,4,5,6,7,8,9,10,11 (US 2.4 GHz channels).
 
