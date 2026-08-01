@@ -50,6 +50,7 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 
 - ESP32-S3 · WiFi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
 - **Full** firmware: standalone web UI over the node's own AP · **Headless** firmware: serial + mesh only, for silent deployments
+  - **Headless is quieter**: no SoftAP, no active scans — passive all-channel hopping. **Full**'s web-UI AP pins the shared radio to one channel, so it needs an active all-channel scan for coverage.
 - One node standalone, or a distributed network that coordinates over mesh
 - Vibration & attack triggered actions for set and forget operation
 
