@@ -15,17 +15,19 @@
   <img src="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/blob/main/TopREADMElogo.png?raw=true" alt="AntiHunter Command Center Logo" width="320" />
 
 <div align="center">
-  <a href="#quick-start">Quick Start</a> • <a href="#what-it-detects">What It Detects</a> • <a href="#hardware">DIY Build</a>
-
-[Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
-
   <h3 align="center">DIGI Detection Node Firmware</h3>
+  <h3><a href="#quick-start">Quick Start</a> • <a href="#what-it-detects">What It Detects</a> • <a href="#hardware">DIY Build</a></h3>
+  
+  <p><strong>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO"> AntiHunter Command Center</p></strong>
 
-  <p>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO"> AntiHunter Command Center</p>
+  <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
+  
+  [Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
 
- <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
 
-> Beta version with new features in development. Potential stability issues and unexpected behavior may occur.
+
+
+`Beta branch with new features in development. Potential stability issues and unexpected behavior may occur.`
 
 </div>
 
@@ -33,29 +35,23 @@
 
 ## What is AntiHunter?
 
-**A self-contained wireless detection node. Flash one ESP32-S3 and it runs standalone — no server, no cloud, no backend.**
+**A self-contained wireless detection node. Runs standalone — no server, no cloud, no subscription.**
+
+*Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).*
 
 Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs on the device, and you drive one node two ways with no extra infrastructure:
+  - **Web UI** — the node hosts its own WiFi access point. Connect a phone or laptop, run scans and read results in the browser. Nothing to install.
+  - **Meshtastic radio** — send commands and receive detections over LoRa from a paired Meshtastic radio, with no WiFi AP. The Headless firmware runs this way with no web UI at all.
+  - To cover a larger area, add nodes. They share detections over the same mesh and can report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
 
-- **Web UI** — the node hosts its own WiFi access point. Connect a phone or laptop, run scans and read results in the browser. Nothing to install.
-- **Meshtastic radio** — send commands and receive detections over LoRa from a paired Meshtastic radio, with no WiFi AP. The Headless firmware runs this way with no web UI at all.
 
-To cover a larger area, add nodes. They share detections over the same mesh and can report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO). A single node works without any of this.
-
-<p align="center">
-<img width="1200" alt="AntiHunter node" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
-</p>
 
 **At a glance**
 
 - ESP32-S3 · WiFi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
 - **Full** firmware: standalone web UI over the node's own AP · **Headless** firmware: serial + mesh only, for silent deployments
 - One node standalone, or a distributed network that coordinates over mesh
-
-*Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).*
-
-> [!NOTE]
-> The [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) carries the latest features (not yet called stable). **ESP32-C5** support is almost done — backwards compatible with the PCB and other nodes.
+- Vibration & attack triggered actions for set and forget operation
 
 ---
 
@@ -80,20 +76,26 @@ To cover a larger area, add nodes. They share detections over the same mesh and 
 
 One node, no server. Flash it from your browser — nothing to install.
 
-1. **[Open the Web Flasher](https://lukeswitz.github.io/AntiHunter/)** (Chrome or Edge, desktop). Pick **Full** (web UI) or **Headless** (serial + mesh), choose a **Release Channel** (Stable or Beta), plug in your ESP32-S3, and click Connect & Flash.
-2. First boot:
-   - **Full firmware** — connect to the `Antihunter` WiFi AP (password `antihunt3r123`), open **http://192.168.4.1**. Every scan, setting, and result lives here. Change the AP credentials under RF Settings first.
+1. **[Open the Web Flasher](https://lukeswitz.github.io/AntiHunter/)** in Chrome or Edge, on desktop.
+   - Pick **Full** (web UI) or **Headless** (serial + mesh)
+   - Choose a **Release Channel** (Stable or Beta)
+   - Plug in your ESP32-S3, and click Connect & Flash.
+3. First boot:
+   - **Full firmware** — connect to the `Antihunter` WiFi AP (password `antihunt3r123`), open **http://192.168.4.1**. Change the AP credentials under RF Settings first.
    - **Headless firmware** — drive it over serial or [mesh commands](#mesh-commands).
-3. Add a watchlist entry or start a scan.
+4. Add a watchlist entry or start a scan.
 
-> [!TIP]
-> To flash from a terminal or build from source, see [Build & Flash](#build--flash).
+*To flash from a terminal or build from source, see [Build & Flash](#build--flash).*
 
 ---
 
 ## What It Detects
 
-Every capability runs on the node and reports to the web UI, mesh, and Command Center. Most modes run WiFi-only, BLE-only, or both.
+Every capability runs on the node and reports to the web UI, mesh, and Command Center.
+
+<p align="center">
+<img width="1200" alt="AntiHunter node" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
+</p>
 
 | Feature | What it does | Scan modes |
 |---------|-------------|------------|
@@ -109,18 +111,21 @@ Every capability runs on the node and reports to the web UI, mesh, and Command C
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
 | **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
 | **Secure Data Destruction** | Tamper-triggered or remote wipe with post-wipe obfuscation | Vibration / mesh |
+ **Vibration Trigger** | Choose a scan to run when vibration detected | Vibration / mesh |
 | **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
-### Targeting & watchlists
+### Targets & watchlists
 
 **Target Scan**
 
-<p align="center">
+
+
+<!-- <p align="center">
   <img width="940" alt="Target Scan" src="https://github.com/user-attachments/assets/8b26b014-1a3c-4e62-b41d-2a672cb5c099" />
-</p>
+</p> -->
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
 
@@ -131,7 +136,14 @@ Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity I
 
 ### Discovery & sniffing
 
-**Device Scanner** — captures all WiFi and BLE devices in range: MACs, SSIDs, signal strength, names, and channels. WiFi discovery is fully passive — beacons and frames are captured in promiscuous mode while hopping channels; no probe requests are transmitted. Check **Capture Probes** to piggyback probe-request collection onto the scan, feeding the probe database (MAC, vendor, RSSI, SSIDs, randomization status).
+
+**Device Scanner**  
+
+- Captures all WiFi and BLE devices in range: MACs, SSIDs, signal strength, names, and channels.
+- WiFi discovery is fully passive — beacons and frames are captured in promiscuous mode while hopping channels.
+- Check **Capture Probes** to piggyback probe-request collection onto the scan, feeding the probe database (MAC, vendor, RSSI, SSIDs, randomization status).
+
+<img width="1500" alt="ug5o3" src="https://github.com/user-attachments/assets/e5cea92c-77a9-434d-9bf3-74e62584a927" />
 
 **Probe Request Scanner**
 
@@ -158,7 +170,7 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
   <img width="796" height="986" alt="Sentinel" src="https://github.com/user-attachments/assets/5584de74-f64e-44fa-8b02-cd3393b524e3" />
 </p>
 
-Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks. Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+Enable and it runs in the background whenever you aren't scanning. Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks. Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
 
 - **Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
 - Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
@@ -197,20 +209,20 @@ The mesh labels Sentinel emits, for log parsers and C2, are listed under [Mesh C
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
-- RAM cache: 200-500 devices, SD overflow: 1K-100K devices (default 1500 without SD)
-- Automatic tiering between RAM and SD
+- RAM cache: 200-500 devices, SD overflow: 1K-100K device db
+- Automatic tiering between RAM and SD with quick lookups
 
-> [!TIP]
-> A longer initial scan produces more reliable baselines.
+> [!IMPORTANT]
+> A longer initial scan produces a more reliable baseline.
 
-**MAC Randomization Correlation** (experimental) — links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence-number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
+**MAC Randomization Correlation** (beta) — links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence-number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
 
 - Up to 256 simultaneous identities, 128 linked MACs each (LRU eviction of oldest identity at cap; stale tracks pruned every 60s)
 - Dual signature support (full and minimal IE patterns)
 - Confidence-based linking with adaptive thresholds
 - Detects global MAC leaks and WiFi-BLE correlation
 
-> [!NOTE]
+> [!TIP]
 > Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
 
 ### Locating
@@ -221,8 +233,8 @@ Two-phase scan: establish a baseline of known devices, then monitor for anomalie
 - Google Maps link sent over mesh
 - Per-target distance tuning multipliers (0.1x - 5.0x)
 
-> [!TIP]
-> Target RSSI above -80 produces better results for BLE devices.
+> [!NOTE]
+> Target RSSI greater than -80 produces better results for BLE devices.
 
 <details>
 <summary>RF Environment Calibration</summary>
@@ -557,7 +569,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 | Command | Parameters | Example |
 |---------|------------|---------|
-| `SCAN_START` | `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..11` |
+| `SCAN_START` (Target scan)| `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..11` 
 | `DEVICE_SCAN_START` | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
 | `BASELINE_START` | `duration[:FOREVER]` (min 60s) | `@ALL BASELINE_START:300` |
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
@@ -590,7 +602,7 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 
 | Command | Parameters | Example |
 |---------|------------|---------|
-| `TRIANGULATE_START` | `target:duration[:rfEnv[:wifiPwr:blePwr]]` rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial. wifiPwr/blePwr: 0.1-5.0 | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.5:0.8` |
+| `TRIANGULATE_START` | `target:duration[:rfEnv[:wifiPwr:blePwr]]` rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial. wifiPwr/blePwr: 0.1-5.0 | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0` |
 | `TRIANGULATE_STOP` | None | `@ALL TRIANGULATE_STOP` |
 | `TRIANGULATE_RESULTS` | None | `@AH01 TRIANGULATE_RESULTS` |
 
