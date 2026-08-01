@@ -1966,6 +1966,8 @@ void calibrationTask(void *parameter) {
         pScan->setWindow(99);
     }
     
+    radioStartListScan();
+
     uint32_t startTime = millis();
     uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
@@ -2018,6 +2020,8 @@ void calibrationTask(void *parameter) {
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     
+    radioStopListScan();
+
     Serial.println("\n[CALIB] ========== CALIBRATION RESULTS ==========");
     
     // WiFi calibration
