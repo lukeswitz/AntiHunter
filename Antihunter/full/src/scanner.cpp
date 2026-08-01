@@ -205,50 +205,9 @@ bool scanSessionLoad(ScanSession &out) {
 void scanSessionResume() {
     ScanSession s;
     if (!scanSessionLoad(s)) return;
-
-    if (prevBootUptimeKnown() && getPrevBootUptimeSec() < RESUME_MIN_UPTIME_SEC &&
-        getResumeCount() >= RESUME_MAX_ATTEMPTS) {
-        Serial.printf("[SESSION] Resume aborted after %u short-lived boots (reset=%s)\n",
-                      (unsigned)getResumeCount(), getResetReasonText());
-        logToSD(String("SCAN_RESUME_ABORTED kind=") + s.kind + " reset=" + getResetReasonText() +
-                " prevUptime=" + String(getPrevBootUptimeSec()) + "s");
-        scanSessionClear();
-        return;
-    }
-
-    if (scanning || workerTaskHandle || blueTeamTaskHandle) return;
-    if (s.channels.length() > 0) parseChannelsCSV(s.channels);
-
-    TaskFunction_t fn = nullptr;
-    const char *name = nullptr;
-    uint32_t stack = 12288;
-    TaskHandle_t *handle = &workerTaskHandle;
-
-    if (s.kind == "scan")              { fn = listScanTask;               name = "scan";      stack = 8192; }
-    else if (s.kind == "sniffer")      { fn = snifferScanTask;            name = "sniffer";   stack = 12288; }
-    else if (s.kind == "probedet")     { fn = probeDetectionTask;         name = "probedet";  stack = 8192; }
-    else if (s.kind == "randdetect")   { fn = randomizationDetectionTask; name = "randdetect";stack = 8192; }
-    else if (s.kind == "baseline")     { fn = baselineDetectionTask;      name = "baseline";  stack = 12288; }
-    else if (s.kind == "drone")        { fn = droneDetectorTask;          name = "drone";     stack = 12288; }
-    else if (s.kind == "blueteam")     { fn = blueTeamTask;               name = "blueteam";  stack = 12288; handle = &blueTeamTaskHandle; }
-    else { scanSessionClear(); return; }
-
-    currentScanMode = (ScanMode)s.mode;
-    listScanTriMode = false;
-    probeBroadcastAll.store(s.broadcastAll);
-    if (s.captureProbes) probeDetectionEnabled = true;
-    stopRequested = false;
-
-    bumpResumeCount();
-    if (ahCreateTask(fn, name, stack, reinterpret_cast<void *>(static_cast<intptr_t>(0)), 1, handle, 1) != pdPASS) {
-        Serial.printf("[SESSION] Resume failed to create task %s\n", name);
-        logToSD(String("SCAN_RESUME_FAILED kind=") + s.kind);
-        return;
-    }
-    scanning = true;
-    g_scanSessionResumed = true;
-    Serial.printf("[SESSION] Resumed forever %s after %s reset\n", name, getResetReasonText());
-    logToSD(String("SCAN_RESUMED kind=") + s.kind + " reset=" + getResetReasonText());
+    Serial.printf("[SESSION] Boot idle: clearing persisted %s session, not auto-resuming scan\n", s.kind.c_str());
+    logToSD(String("SCAN_SESSION_NOT_RESUMED kind=") + s.kind + " reset=" + getResetReasonText());
+    scanSessionClear();
 }
 
 DeviceHistoryMapPsram deviceHistory;
