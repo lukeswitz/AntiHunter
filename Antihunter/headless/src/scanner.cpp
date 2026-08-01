@@ -846,6 +846,14 @@ static void hopTimerCb(void *)
         }
     }
 
+    if (triangulationActive.load()) {
+        uint8_t tch = triTargetChannel.load();
+        if (tch >= 1 && tch <= 14) {
+            esp_wifi_set_channel(tch, WIFI_SECOND_CHAN_NONE);
+            return;
+        }
+    }
+
     idx = (idx + 1) % g_activeChannels.size();
     uint8_t ch = g_activeChannels[idx];
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
@@ -859,15 +867,6 @@ uint8_t nextActiveScanChannel()
     static size_t i = 0;
     i = (i + 1) % pool.size();
     return pool[i];
-}
-
-static uint8_t triScanChannel() {
-    if (triangulationActive.load()) {
-        uint8_t ch = triTargetChannel.load();
-        if (ch >= 1 && ch <= 14) return ch;
-        return 0;
-    }
-    return nextActiveScanChannel();
 }
 
 
@@ -3107,21 +3106,16 @@ void listScanTask(void *pv) {
             radioStartBLE();
             vTaskDelay(pdMS_TO_TICKS(300));
         }
-        if (triMode) {
-            radioStartListScan();
-            vTaskDelay(pdMS_TO_TICKS(200));
-        } else {
-            if (apInfoQueue == nullptr) {
-                apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-            }
-            if (apInfoQueue) xQueueReset(apInfoQueue);
-            apCaptureEnabled = true;
-            ScanMode savedMode = currentScanMode;
-            currentScanMode = SCAN_WIFI;
-            radioStartSTA();
-            currentScanMode = savedMode;
-            vTaskDelay(pdMS_TO_TICKS(200));
+        if (apInfoQueue == nullptr) {
+            apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         }
+        if (apInfoQueue) xQueueReset(apInfoQueue);
+        apCaptureEnabled = true;
+        ScanMode savedMode = currentScanMode;
+        currentScanMode = SCAN_WIFI;
+        radioStartSTA();
+        currentScanMode = savedMode;
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
     if (currentScanMode == SCAN_BLE) {
@@ -3131,7 +3125,6 @@ void listScanTask(void *pv) {
 
     std::map<String, uint32_t> localDeviceLastSeen;
     const uint32_t LOCAL_DEDUPE_WINDOW = 3000;
-    uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
     uint32_t lastBLEScanTri = 0;
     Hit h;
@@ -3157,13 +3150,23 @@ void listScanTask(void *pv) {
             }
         }
 
-        if (!triMode && (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
+        if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
             int apDrained = 0;
             while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && apDrained < 50) {
                 apDrained++;
-                bool isMatch = matchesMac(ae.bssid);
-                if (!isMatch && ae.ssid[0]) isMatch = matchesSsid(ae.ssid);
+                bool isMatch;
+                if (triMode) {
+                    uint8_t tmac[6];
+                    memcpy(tmac, ae.bssid, 6);
+                    if (strlen(triangulationTargetIdentity) > 0)
+                        isMatch = matchesIdentityMac(triangulationTargetIdentity, tmac);
+                    else
+                        isMatch = (memcmp(tmac, triangulationTarget, 6) == 0);
+                } else {
+                    isMatch = matchesMac(ae.bssid);
+                    if (!isMatch && ae.ssid[0]) isMatch = matchesSsid(ae.ssid);
+                }
                 if (!isMatch) continue;
                 Hit wh;
                 memcpy(wh.mac, ae.bssid, 6);
@@ -3175,76 +3178,6 @@ void listScanTask(void *pv) {
                 wh.isBLE = false;
                 safeMacQueueSend(&wh, pdMS_TO_TICKS(10));
             }
-        }
-
-        if (triMode && (currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
-            (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL || lastWiFiScan == 0)) {
-            lastWiFiScan = millis();
-            uint8_t reqCh = triScanChannel();
-            uint32_t scanT0 = millis();
-            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, reqCh);
-            rfTrace("listscan", reqCh, networksFound, millis() - scanT0);
-            if (stopRequested) { WiFi.scanDelete(); break; }
-            if (networksFound > 0) {
-                for (int i = 0; i < networksFound; i++) {
-                    String bssid = WiFi.BSSIDstr(i);
-                    bssid.toUpperCase();
-                    String ssid = WiFi.SSID(i);
-                    int32_t rssi = WiFi.RSSI(i);
-                    // Skip RSSI threshold during triangulation - we want ALL measurements
-                    if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) {
-                        continue;
-                    }
-                    uint8_t ch = WiFi.channel(i);
-                    const uint8_t *bssidBytes = WiFi.BSSID(i);
-
-                    if (ssid.length() == 0) ssid = "[Hidden]";
-
-                    uint32_t now = millis();
-                    bool shouldProcess = (localDeviceLastSeen.find(bssid) == localDeviceLastSeen.end() ||
-                                          (now - localDeviceLastSeen[bssid] >= LOCAL_DEDUPE_WINDOW));
-
-                    if (!shouldProcess) continue;
-
-                    String origBssid = WiFi.BSSIDstr(i);
-                    uint8_t mac[6];
-                    bool isMatch;
-                    if (triangulationActive) {
-                        if (strlen(triangulationTargetIdentity) > 0) {
-                            isMatch = parseMac6(origBssid, mac) && 
-                                    matchesIdentityMac(triangulationTargetIdentity, mac);
-                        } else {
-                            isMatch = parseMac6(origBssid, mac) && 
-                                    (memcmp(mac, triangulationTarget, 6) == 0);
-                        }
-                    } else {
-                        isMatch = parseMac6(origBssid, mac) && matchesMac(mac);
-                        if (!isMatch && ssid.length() > 0) {
-                            isMatch = matchesSsid(ssid.c_str());
-                        }
-                    }
-
-                    if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
-
-                    Hit wh;
-                    memcpy(wh.mac, bssidBytes, 6);
-                    wh.rssi = rssi;
-                    wh.ch = ch;
-                    strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
-                    wh.name[sizeof(wh.name) - 1] = '\0';
-                    wh.isBLE = false;
-
-                    if (isMatch) {
-                        if (!safeMacQueueSend(&wh, pdMS_TO_TICKS(10))) {
-                            Serial.printf("[SCAN] Queue full/unavailable for target %s\n", origBssid.c_str());
-                        }
-                    } else {
-                        localDeviceLastSeen[bssid] = now;
-                    }
-                }
-                framesSeen += networksFound;
-            }
-            WiFi.scanDelete();
         }
 
         extern void processUSBToMesh();
@@ -3769,12 +3702,8 @@ void listScanTask(void *pv) {
         }
     }
     
-    if (triMode) {
-        radioStopListScan();
-    } else {
-        apCaptureEnabled = false;
-        radioStopSTA();
-    }
+    apCaptureEnabled = false;
+    radioStopSTA();
     vTaskDelay(pdMS_TO_TICKS(500));
 
     safeMacQueueDelete();
