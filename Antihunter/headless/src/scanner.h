@@ -258,6 +258,7 @@ struct ApInfoEvent {
 };
 extern QueueHandle_t apInfoQueue;
 extern std::atomic<bool> apCaptureEnabled;
+extern std::atomic<bool> listScanTriMode;
 
 // Functions
 void initializeScanner();
