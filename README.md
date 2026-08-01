@@ -140,7 +140,7 @@ Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity I
 **Device Scanner**  
 
 - Captures all WiFi and BLE devices in range: MACs, SSIDs, signal strength, names, and channels.
-- WiFi discovery is fully passive — beacons and frames are captured in promiscuous mode while hopping channels.
+- WiFi AP discovery runs a periodic all-channel scan (gated by WiFi Scan Interval); target frames are captured passively in promiscuous mode while hopping channels between scans.
 - Check **Capture Probes** to piggyback probe-request collection onto the scan, feeding the probe database (MAC, vendor, RSSI, SSIDs, randomization status).
 
 <img width="1500" alt="ug5o3" src="https://github.com/user-attachments/assets/e5cea92c-77a9-434d-9bf3-74e62584a927" />
@@ -414,8 +414,8 @@ Configure via the web interface at `http://192.168.4.1` or the [API](#api-refere
 <details>
 <summary>Parameter Tuning</summary>
 
-- **WiFi Channel Time**: Passive dwell per channel (50-300ms). This is the primary WiFi knob now — it must clear the ~100ms beacon interval to catch every AP on a channel; shorter = faster channel coverage but risks missing beacons.
-- **WiFi Scan Interval**: No longer gates WiFi discovery (which is now continuous passive capture, not cyclic active scans). Retained in config/NVS for compatibility.
+- **WiFi Channel Time**: Dwell per channel (50-300ms), used for both the passive hop and per-channel time in the all-channel scan. It must clear the ~100ms beacon interval to catch every AP on a channel; shorter = faster channel coverage but risks missing beacons.
+- **WiFi Scan Interval**: Cadence of the all-channel AP discovery scan (1000-10000ms). Between scans, target frames are captured passively while hopping channels.
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
 - **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves BLE discovery but keeps the shared radio on BLE longer, pausing WiFi channel-hopping.
 

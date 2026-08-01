@@ -1153,6 +1153,7 @@ void snifferScanTask(void *pv)
     scanSetCountdown(duration, forever);
 
     unsigned long lastBLEScan = 0;
+    unsigned long lastWiFiScan = 0;
     unsigned long lastMeshUpdate = 0;
     const unsigned long MESH_DEVICE_SCAN_UPDATE_INTERVAL = 3000;
     unsigned long lastTotalPrint = 0;
@@ -1197,6 +1198,80 @@ void snifferScanTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
+        if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
+            (lastWiFiScan == 0 || millis() - lastWiFiScan >= rfConfig.wifiScanInterval)) {
+            lastWiFiScan = millis();
+
+            Serial.println("[SNIFFER] Scanning WiFi networks (all channels)...");
+            if (hopTimer) esp_timer_stop(hopTimer);
+            esp_wifi_set_promiscuous(false);
+            int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, 0);
+            esp_wifi_set_promiscuous(true);
+            if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
+            if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
+            if (stopRequested) break;
+
+            for (int i = 0; i < networksFound; i++) {
+                const uint8_t *bssidBytes = WiFi.BSSID(i);
+                if (!bssidBytes) continue;
+                int32_t rssi = WiFi.RSSI(i);
+                if (!triangulationActive && rssi < rfConfig.globalRssiThreshold) continue;
+
+                char bstr[18];
+                snprintf(bstr, sizeof(bstr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                         bssidBytes[0], bssidBytes[1], bssidBytes[2], bssidBytes[3], bssidBytes[4], bssidBytes[5]);
+                String bssid = bstr;
+                String ssid = WiFi.SSID(i);
+                if (ssid.length() == 0 || !ssidIsValid(ssid.c_str(), ssid.length())) ssid = "[Hidden]";
+
+                if (apCache.find(bssid) == apCache.end())
+                {
+                    std::lock_guard<std::mutex> lock(snifferCacheMutex);
+                    if (apCache.size() >= MAX_AP_CACHE) continue;
+                    apCache[bssid] = ssid;
+                    if (uniqueMacs.size() < MAX_UNIQUE_MACS) uniqueMacs.insert(bssid);
+
+                    Hit h;
+                    memcpy(h.mac, bssidBytes, 6);
+                    h.rssi = rssi;
+                    h.ch = WiFi.channel(i);
+                    strncpy(h.name, ssid.c_str(), sizeof(h.name) - 1);
+                    h.name[sizeof(h.name) - 1] = '\0';
+                    h.isBLE = false;
+
+                    if (hitsLog.size() < MAX_LOG_SIZE) {
+                        hitsLog.push_back(h);
+                    }
+
+                    if (matchesMac(bssidBytes)) {
+                        totalHits = totalHits + 1;
+                    }
+
+                    String logEntry = "WiFi AP: " + bssid + " SSID: " + ssid +
+                                      " RSSI: " + String(rssi) + "dBm CH: " + String(WiFi.channel(i));
+
+                    if (gpsValid)
+                    {
+                        if (gpsMutex != nullptr && xSemaphoreTake(gpsMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                            logEntry += " GPS: " + String(gpsLat, 6) + "," + String(gpsLon, 6);
+                            xSemaphoreGive(gpsMutex);
+                        }
+                    }
+
+                    Serial.println("[SNIFFER] " + logEntry);
+                    logToSD(logEntry);
+
+                    if (matchesMac(bssidBytes)) {
+                        sendMeshNotification(h);
+                    }
+                }
+            }
+
+            WiFi.scanDelete();
+            Serial.printf("[SNIFFER] WiFi scan found %d networks\n", networksFound);
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
             int apDrained = 0;
