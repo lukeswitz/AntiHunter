@@ -551,6 +551,7 @@ static void handleScanStart(const String &command)
         parseChannelsCSV(channels);
         stopRequested = false;
         scanning = true;
+        listScanTriMode = false;
         if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
             scanning = false;
             workerTaskHandle = nullptr;
@@ -1079,6 +1080,7 @@ static void triStartParticipantScan()
   }
   scanning = true;
   Serial.printf("[TRIANGULATE] Starting participant scan task (duration=%us)\n", triangulationDuration);
+  listScanTriMode = true;
   if (ahCreateTask(listScanTask, "triangulate", 8192,
                    reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
     scanning = false;
