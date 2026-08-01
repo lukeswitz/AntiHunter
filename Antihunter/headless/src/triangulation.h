@@ -360,6 +360,7 @@ struct TriangulateAckInfo {
 
 extern ClockDiscipline clockDiscipline;
 extern PathLossCalibration pathLoss;
+void calibratePathLoss(const String &targetMac, float knownDistance);
 extern std::map<String, uint32_t> nodePropagationDelays;
 extern std::vector<NodeSyncStatus> nodeSyncStatus;
 extern uint8_t triangulationTarget[6];
