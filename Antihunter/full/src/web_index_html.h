@@ -884,7 +884,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
           </div>
 
-          <hr>
+        </div>
+
+      <div class="card">
+          <h3>Sensor Alerts</h3>
+          <p class="card-sub">Vibration sensor behavior</p>
 
           <div style="margin-top:12px;">
             <label>Vibration Sensor Alerts</label>
@@ -893,7 +897,41 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <div style="font-size:10px;color:var(--mut);">Controls mesh broadcast alerts when vibration is detected</div>
           </div>
-        </div>
+
+          <hr>
+
+          <div style="margin-top:12px;">
+            <label>Vibration Auto-Scan</label>
+            <div style="font-size:10px;color:var(--mut);margin-bottom:6px;">Automatically start a scan when the vibration sensor fires</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <label class="dsw"><input type="checkbox" id="vibScanEn"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Enable</span>
+            </div>
+            <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Scan to run</label>
+            <select id="vibScanMode" style="width:100%;margin-bottom:8px;">
+              <option value="0">None</option>
+              <option value="1">All-device scan</option>
+              <option value="2">Probe-request detect</option>
+              <option value="3">Randomized-MAC detect</option>
+              <option value="4">List scan (targets)</option>
+              <option value="5">Drone / RemoteID</option>
+              <option value="6">Deauth (blue-team)</option>
+              <option value="7">Baseline anomaly</option>
+            </select>
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;">
+                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Duration (s, 0=forever)</label>
+                <input type="number" id="vibScanDur" min="0" max="65535" value="60" style="width:100%;">
+              </div>
+              <div style="flex:1;">
+                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Cooldown (s)</label>
+                <input type="number" id="vibScanCd" min="5" max="86400" value="60" style="width:100%;">
+              </div>
+            </div>
+            <button class="btn primary" type="button" onclick="saveVibScanConfig()" style="width:100%;margin-top:8px">Save Vibration Auto-Scan</button>
+            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver</div>
+          </div>
+      </div>
       </div>
 
       <!-- Secure Data Destruction -->
@@ -1320,6 +1358,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
               <label class="dsw"><input type="checkbox" id="sentBootChk" onchange="sentinelSetBoot(this.checked)"><span class="dsw-s"></span></label>
               <span style="font-size:12px;color:var(--mut);">Start Sentinel on boot (persists across reboot)</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+              <label class="dsw"><input type="checkbox" id="cfgAttackerTrilat" onchange="detPostCfg({attacker_trilat:this.checked})"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Auto-triangulate a detected attacker (on a confirmed attack with a source MAC)</span>
             </div>
             <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin:-4px 0 10px;"></div>
             <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
@@ -3051,6 +3093,28 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           _matchAePresetFromValues();
         }
       });
+      async function loadVibScanConfig() {
+        try {
+          const r = await fetch('/vibration-scan', {cache:'no-store'});
+          if (!r.ok) return;
+          const d = await r.json();
+          document.getElementById('vibScanEn').checked = !!d.enabled;
+          document.getElementById('vibScanMode').value = d.mode;
+          document.getElementById('vibScanDur').value = d.duration;
+          document.getElementById('vibScanCd').value = d.cooldown;
+        } catch(e){ console.warn('vibscan load failed', e); }
+      }
+      async function saveVibScanConfig() {
+        const fd = new URLSearchParams();
+        fd.append('enabled', document.getElementById('vibScanEn').checked ? 1 : 0);
+        fd.append('mode', document.getElementById('vibScanMode').value);
+        fd.append('duration', document.getElementById('vibScanDur').value);
+        fd.append('cooldown', document.getElementById('vibScanCd').value);
+        try {
+          const r = await fetch('/vibration-scan', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: fd.toString()});
+          toast(r.ok ? 'Vibration auto-scan saved' : 'Save failed', r.ok ? 'ok' : 'err');
+        } catch(e){ toast('Save failed', 'err'); }
+      }
       async function saveAutoEraseConfig() {
       try {
         const enabled = document.getElementById('autoEraseEnabled').checked;
@@ -5322,6 +5386,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       loadMeshInterval();
       loadDedupTtl();
       updateAutoEraseStatus();
+      loadVibScanConfig();
       refreshPskStatus();
       pollSecureState();
       setInterval(tick, 5000);
@@ -6022,6 +6087,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.querySelectorAll('#cfg-mesh input').forEach(el=>{
           el.addEventListener('change',()=>detPostCfg({[el.dataset.cfg]:el.checked}));
         });
+        const at=document.getElementById('cfgAttackerTrilat');
+        if(at)at.checked=_detCfg.attacker_trilat===true;
       }
       async function detPostCfg(patch){
         Object.assign(_detCfg||(_detCfg={}),patch);

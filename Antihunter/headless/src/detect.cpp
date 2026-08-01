@@ -3269,6 +3269,15 @@ void detect_persistTunables() {
     p.end();
 }
 
+void detect_setAttackerTrilat(bool enabled) {
+    ah_detect::g_attackerTrilatEnabled.store(enabled);
+    detect_persistTunables();
+}
+
+bool detect_getAttackerTrilat() {
+    return ah_detect::g_attackerTrilatEnabled.load();
+}
+
 void IRAM_ATTR detect_onWifiFrame(const uint8_t *payload, uint16_t len, int8_t rssi, uint8_t channel) {
     if ((!sentinel_isUserEnabled() && !deauthDetectionEnabled.load()) || !detectEnabled.load() || !detectFrameQueue) return;
     if (len < 24) return;

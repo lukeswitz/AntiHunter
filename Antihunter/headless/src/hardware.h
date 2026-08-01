@@ -112,6 +112,12 @@ extern TinyGPSPlus gps;
 extern volatile bool vibrationDetected;
 extern unsigned long lastVibrationTime;
 extern unsigned long lastVibrationAlert;
+extern bool vibAutoScanEnabled;
+extern uint8_t vibAutoScanMode;
+extern uint16_t vibAutoScanDuration;
+extern uint32_t vibAutoScanCooldownMs;
+extern volatile bool vibAutoScanPending;
+extern unsigned long lastVibAutoScanFire;
 
 void initializeHardware();
 void initializeVibrationSensor();

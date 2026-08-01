@@ -841,6 +841,46 @@ void registerRemainingRoutes() {
             req->send(400, "text/plain", "Missing enabled parameter");
         } });
 
+  server->on("/vibration-scan", HTTP_GET, [](AsyncWebServerRequest *req)
+             {
+        String j = "{";
+        j += "\"enabled\":" + String(vibAutoScanEnabled ? "true" : "false") + ",";
+        j += "\"mode\":" + String(vibAutoScanMode) + ",";
+        j += "\"duration\":" + String(vibAutoScanDuration) + ",";
+        j += "\"cooldown\":" + String(vibAutoScanCooldownMs / 1000);
+        j += "}";
+        req->send(200, "application/json", j); });
+
+  server->on("/vibration-scan", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (req->hasParam("enabled", true)) {
+            String e = req->getParam("enabled", true)->value();
+            vibAutoScanEnabled = (e == "true" || e == "1" || e == "on");
+        }
+        if (req->hasParam("mode", true)) {
+            int m = req->getParam("mode", true)->value().toInt();
+            if (m < 0) m = 0;
+            if (m > 7) m = 7;
+            vibAutoScanMode = (uint8_t)m;
+        }
+        if (req->hasParam("duration", true)) {
+            long d = req->getParam("duration", true)->value().toInt();
+            if (d < 0) d = 0;
+            if (d > 65535) d = 65535;
+            vibAutoScanDuration = (uint16_t)d;
+        }
+        if (req->hasParam("cooldown", true)) {
+            long c = req->getParam("cooldown", true)->value().toInt();
+            if (c < 5) c = 5;
+            if (c > 86400) c = 86400;
+            vibAutoScanCooldownMs = (uint32_t)c * 1000UL;
+        }
+        lastSaveTime = 0;
+        saveConfiguration();
+        Serial.printf("[VIBSCAN] Config set via web UI: en=%d mode=%u dur=%u cd=%ums\n",
+                      vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration, vibAutoScanCooldownMs);
+        req->send(200, "text/plain", "Vibration auto-scan saved"); });
+
   server->on("/mesh-hb", HTTP_POST, [](AsyncWebServerRequest *req)
              {
         if (req->hasParam("enabled", true)) {

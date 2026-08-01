@@ -446,6 +446,8 @@ String detect_getHealthJson();
 String detect_getConfigJson();
 bool   detect_setConfigFromJson(const String &body);
 void   detect_persistTunables();
+void   detect_setAttackerTrilat(bool enabled);
+bool   detect_getAttackerTrilat();
 
 // PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);
