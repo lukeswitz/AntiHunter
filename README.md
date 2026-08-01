@@ -25,10 +25,6 @@
   [Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
 
 
-
-
-`Beta branch with new features in development. Potential stability issues and unexpected behavior may occur.`
-
 </div>
 
 ---
@@ -106,7 +102,7 @@ Every capability runs on the node and reports to the web UI, mesh, and Command C
 | **Baseline Anomaly Detection** | Learn-then-alert: spots new, missing, and changed devices | WiFi + BLE |
 | **MAC Randomization Correlation** | Links randomized MACs to persistent identities via behavioral signatures | WiFi + BLE |
 | **Deauth Attack Detection** | Real-time deauth/disassoc frame detection with source tracking | WiFi promiscuous |
-| **Sentinel Counterintel** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
+| **Sentinel Counterintel (Beta only)** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
 | **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
@@ -164,7 +160,7 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 
 ### Attack detection & counter-intel
 
-**Sentinel — Counterintel Engine**
+**Sentinel — Counterintel Engine** - (Beta version only)
 
 <p align="center">
   <img width="796" height="986" alt="Sentinel" src="https://github.com/user-attachments/assets/5584de74-f64e-44fa-8b02-cd3393b524e3" />
