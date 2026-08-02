@@ -376,18 +376,28 @@ uint32_t calculateOptimalCacheSize() {
     return 400;
 }
 
-static void baselineHarvestWifiPassive() {
-    if (!apInfoQueue) return;
-    ApInfoEvent ae;
-    int drained = 0;
-    while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && drained < 50) {
-        drained++;
-        String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
+static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
+    int wifiScan = WiFi.scanComplete();
+    if (wifiScan == WIFI_SCAN_FAILED) {
+        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
+            lastWiFiScan = millis();
+            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
+        }
+        return;
+    }
+    if (wifiScan < 0) return;
+    for (int i = 0; i < wifiScan && !stopRequested; i++) {
+        const uint8_t *bssidBytes = WiFi.BSSID(i);
+        String ssid = WiFi.SSID(i);
+        int32_t rssi = WiFi.RSSI(i);
+        uint8_t channel = WiFi.channel(i);
+
+        if (ssid.length() == 0) ssid = "[Hidden]";
 
         Hit wh;
-        memcpy(wh.mac, ae.bssid, 6);
-        wh.rssi = ae.rssi;
-        wh.ch = ae.channel;
+        memcpy(wh.mac, bssidBytes, 6);
+        wh.rssi = rssi;
+        wh.ch = channel;
         strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
         wh.name[sizeof(wh.name) - 1] = '\0';
         wh.isBLE = false;
@@ -397,6 +407,7 @@ static void baselineHarvestWifiPassive() {
         }
         framesSeen = framesSeen + 1;
     }
+    WiFi.scanDelete();
 }
 
 void baselineDetectionTask(void *pv) {
@@ -471,14 +482,7 @@ void baselineDetectionTask(void *pv) {
         baselineStats.totalDuration = baselineDuration;
     }
 
-    if (apInfoQueue == nullptr) {
-        apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    }
-    if (apInfoQueue) xQueueReset(apInfoQueue);
-    apCaptureEnabled = true;
-    currentScanMode = SCAN_WIFI;
-    radioStartSTA();
-    currentScanMode = SCAN_BOTH;
+    radioStartListScan();
     vTaskDelay(pdMS_TO_TICKS(200));
 
     if (!pBLEScan) {
@@ -501,6 +505,7 @@ void baselineDetectionTask(void *pv) {
     uint32_t nextResultsUpdate = millis() + 2000;
     uint32_t nextCacheSizeCheck = millis() + 30000;
     uint32_t lastCleanup = millis();
+    uint32_t lastWiFiScan = 0;
     uint32_t lastBLEScan = 0;
     uint32_t lastMeshUpdate = 0;
     const uint32_t MESH_DEVICE_UPDATE_INTERVAL = 5000;
@@ -578,7 +583,7 @@ void baselineDetectionTask(void *pv) {
             break;
         }
         
-        baselineHarvestWifiPassive();
+        baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;
@@ -661,8 +666,7 @@ void baselineDetectionTask(void *pv) {
         scanning = false;
         updateBaselineStats();
 
-        apCaptureEnabled = false;
-        radioStopSTA();
+        radioStopListScan();
         vTaskDelay(pdMS_TO_TICKS(200));
 
         if (macQueue) {
@@ -698,6 +702,7 @@ void baselineDetectionTask(void *pv) {
     nextStatsUpdate = millis() + 1000;
     nextResultsUpdate = millis() + 2000;
     lastCleanup = millis();
+    lastWiFiScan = 0;
     lastBLEScan = 0;
     lastMeshUpdate = 0;
 
@@ -727,7 +732,7 @@ void baselineDetectionTask(void *pv) {
             break;
         }
 
-        baselineHarvestWifiPassive();
+        baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;
@@ -870,8 +875,7 @@ void baselineDetectionTask(void *pv) {
     Serial.printf("[BASELINE] Memory status: Baseline=%d devices, Anomalies=%d, Free heap=%u bytes\n",
                  baselineDeviceCount, anomalyCount, finalHeap);
     
-    apCaptureEnabled = false;
-    radioStopSTA();
+    radioStopListScan();
     vTaskDelay(pdMS_TO_TICKS(200));
 
     if (sdBaselineInitialized) {
