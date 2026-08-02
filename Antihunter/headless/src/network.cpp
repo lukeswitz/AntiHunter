@@ -551,8 +551,6 @@ static void handleScanStart(const String &command)
             workerTaskHandle = nullptr;
             scanSetCountdown(0, false);
             Serial.println("[SCAN] task create failed: scan");
-        } else {
-            scanSessionSaveKind("scan", mode, secs, forever, channels, false, false);
         }
         Serial.printf("[MESH] Started scan via mesh command\n");
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
@@ -589,8 +587,6 @@ static void handleBaselineStart(const String &command)
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: baseline");
-    } else {
-        scanSessionSaveKind("baseline", (int)currentScanMode, secs, forever, String(), false, false);
     }
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
@@ -680,8 +676,6 @@ static void handleDeviceScanStart(const String &command)
           workerTaskHandle = nullptr;
           scanSetCountdown(0, false);
           Serial.println("[SCAN] task create failed: sniffer");
-      } else {
-          scanSessionSaveKind("sniffer", mode, secs, forever, String(), probeDetectionEnabled.load(), false);
       }
       Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
@@ -720,8 +714,6 @@ static void handleDroneStart(const String &command)
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: drone");
-    } else {
-        scanSessionSaveKind("drone", (int)currentScanMode, secs, forever, String(), false, false);
     }
     Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
@@ -759,8 +751,6 @@ static void handleDeauthStart(const String &command)
         blueTeamTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: blueteam");
-    } else {
-        scanSessionSaveKind("blueteam", (int)currentScanMode, secs, forever, String(), false, false);
     }
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
@@ -802,8 +792,6 @@ static void handleRandomizationStart(const String &command)
           workerTaskHandle = nullptr;
           scanSetCountdown(0, false);
           Serial.println("[SCAN] task create failed: randdetect");
-      } else {
-          scanSessionSaveKind("randdetect", mode, secs, forever, String(), false, false);
       }
       Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
@@ -861,8 +849,6 @@ static void handleProbeStart(const String &command)
         workerTaskHandle = nullptr;
         scanSetCountdown(0, false);
         Serial.println("[SCAN] task create failed: probedet");
-    } else {
-        scanSessionSaveKind("probedet", mode, secs, forever, String(), false, broadcastAll);
     }
     Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
     sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);

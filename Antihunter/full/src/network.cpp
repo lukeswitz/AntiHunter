@@ -437,10 +437,6 @@ void startWebServer()
               workerTaskHandle = nullptr;
               scanSetCountdown(0, false);
               Serial.println("[SCAN] task create failed: scan");
-          } else {
-              scanSessionSaveKind("scan", (int)mode, secs, forever,
-                                    req->hasParam("ch", true) ? req->getParam("ch", true)->value() : String(""),
-                                    false, false);
           }
       }
   });
@@ -796,8 +792,6 @@ void registerRemainingRoutes() {
                 workerTaskHandle = nullptr;
                 scanSetCountdown(0, false);
                 Serial.println("[SCAN] task create failed: drone");
-            } else {
-                scanSessionSaveKind("drone", (int)dMode, secs, forever, String(), false, false);
             }
         } });
 
@@ -1176,8 +1170,6 @@ void registerRemainingRoutes() {
                     blueTeamTaskHandle = nullptr;
                     scanSetCountdown(0, false);
                     Serial.println("[SCAN] task create failed: blueteam");
-                } else {
-                    scanSessionSaveKind("blueteam", (int)currentScanMode, secs, forever, String(), false, false);
                 }
             }
 
@@ -1198,8 +1190,6 @@ void registerRemainingRoutes() {
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
                     Serial.println("[SCAN] task create failed: baseline");
-                } else {
-                    scanSessionSaveKind("baseline", (int)SCAN_BOTH, secs, forever, String(), false, false);
                 }
             }
             
@@ -1236,8 +1226,6 @@ void registerRemainingRoutes() {
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
                     Serial.println("[SCAN] task create failed: randdetect");
-                } else {
-                    scanSessionSaveKind("randdetect", scanMode, secs, forever, String(), false, false);
                 }
             }
             
@@ -1280,8 +1268,6 @@ void registerRemainingRoutes() {
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
                     Serial.println("[SCAN] task create failed: sniffer");
-                } else {
-                    scanSessionSaveKind("sniffer", scanMode, secs, forever, String(), probeDetectionEnabled.load(), false);
                 }
             }
 
@@ -1317,8 +1303,6 @@ void registerRemainingRoutes() {
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
                     Serial.println("[SCAN] task create failed: probedet");
-                } else {
-                    scanSessionSaveKind("probedet", scanMode, secs, forever, String(), false, broadcastAll);
                 }
             }
 
@@ -1346,8 +1330,6 @@ void registerRemainingRoutes() {
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
                     Serial.println("[SCAN] task create failed: drone");
-                } else {
-                    scanSessionSaveKind("drone", (int)dMode, secs, forever, String(), false, false);
                 }
             }
             

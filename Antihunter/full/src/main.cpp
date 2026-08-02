@@ -284,7 +284,6 @@ void setup() {
     Serial.printf("RANDOMIZED MAC: %s\n", WiFi.softAPmacAddress().c_str());
 
     delay(2000);
-    scanSessionResume();
 }
 
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework

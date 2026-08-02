@@ -255,7 +255,6 @@ void setup() {
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");
     delay(2000);
-    scanSessionResume();
 }
 
 // cppcheck-suppress unusedFunction // Arduino entry point, called by the framework

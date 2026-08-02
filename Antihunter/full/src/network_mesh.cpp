@@ -531,7 +531,6 @@ static void handleScanStart(const String &command)
             sendToSerial1(nodeId + ": SCAN_ACK:FAILED", true);
             return;
         }
-        scanSessionSaveKind("scan", mode, secs, forever, channels, false, false);
         Serial.printf("[MESH] Started scan via mesh command\n");
         sendToSerial1(nodeId + ": SCAN_ACK:STARTED", true);
       }
@@ -571,7 +570,6 @@ static void handleBaselineStart(const String &command)
         sendToSerial1(nodeId + ": BASELINE_ACK:FAILED", true);
         return;
     }
-    scanSessionSaveKind("baseline", (int)currentScanMode, secs, forever, String(), false, false);
     Serial.printf("[MESH] Started baseline detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": BASELINE_ACK:STARTED", true);
   }
@@ -655,7 +653,6 @@ static void handleDeviceScanStart(const String &command)
           sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:FAILED", true);
           return;
       }
-      scanSessionSaveKind("sniffer", mode, secs, forever, String(), probeDetectionEnabled.load(), false);
       Serial.printf("[MESH] Started device scan via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:STARTED", true);
     }
@@ -697,7 +694,6 @@ static void handleDroneStart(const String &command)
         sendToSerial1(nodeId + ": DRONE_ACK:FAILED", true);
         return;
     }
-    scanSessionSaveKind("drone", (int)currentScanMode, secs, forever, String(), false, false);
     Serial.printf("[MESH] Started drone detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DRONE_ACK:STARTED", true);
   }
@@ -737,7 +733,6 @@ static void handleDeauthStart(const String &command)
         sendToSerial1(nodeId + ": DEAUTH_ACK:FAILED", true);
         return;
     }
-    scanSessionSaveKind("blueteam", (int)currentScanMode, secs, forever, String(), false, false);
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
   }
@@ -782,7 +777,6 @@ static void handleRandomizationStart(const String &command)
           sendToSerial1(nodeId + ": RANDOMIZATION_ACK:FAILED", true);
           return;
       }
-      scanSessionSaveKind("randdetect", mode, secs, forever, String(), false, false);
       Serial.printf("[MESH] Started randomization detection via mesh command (%ds)\n", secs);
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:STARTED", true);
     }
@@ -843,7 +837,6 @@ static void handleProbeStart(const String &command)
         sendToSerial1(nodeId + ": PROBE_ACK:FAILED", true);
         return;
     }
-    scanSessionSaveKind("probedet", mode, secs, forever, String(), false, broadcastAll);
     Serial.printf("[MESH] Started probe detection via mesh (%ds, all=%d)\n", secs, broadcastAll);
     sendToSerial1(nodeId + ": PROBE_ACK:STARTED", true);
   }

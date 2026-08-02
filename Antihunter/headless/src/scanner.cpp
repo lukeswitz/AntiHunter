@@ -76,7 +76,6 @@ void scanSetCountdown(int secs, bool forever) {
 
 void stopAllScans(bool cancelMeshDrain) {
     stopRequested = true;
-    scanSessionClear();
     scanStopPending.store(true);
     scanSetCountdown(0, false);
 
@@ -139,67 +138,6 @@ std::atomic<uint32_t> bleFramesSeen(0);
 
 extern TaskHandle_t blueTeamTaskHandle;
 
-
-static bool g_scanSessionResumed = false;
-static const uint32_t RESUME_MIN_UPTIME_SEC = 300;
-static const uint32_t RESUME_MAX_ATTEMPTS = 3;
-
-
-void scanSessionSaveKind(const char *kind, int mode, int secs, bool forever,
-                         const String &channels, bool captureProbes, bool broadcastAll) {
-    ScanSession s;
-    s.kind = kind;
-    s.mode = mode;
-    s.secs = secs;
-    s.forever = forever;
-    s.channels = channels;
-    s.captureProbes = captureProbes;
-    s.broadcastAll = broadcastAll;
-    scanSessionSave(s);
-}
-
-void scanSessionSave(const ScanSession &s) {
-    if (!s.forever) { scanSessionClear(); return; }
-    prefs.putString("sessKind", s.kind);
-    prefs.putInt("sessMode", s.mode);
-    prefs.putInt("sessSecs", s.secs);
-    prefs.putString("sessChans", s.channels);
-    prefs.putBool("sessProbes", s.captureProbes);
-    prefs.putBool("sessBcast", s.broadcastAll);
-    Serial.printf("[SESSION] Saved forever session: %s\n", s.kind.c_str());
-}
-
-void scanSessionClear() {
-    if (!prefs.isKey("sessKind")) return;
-    prefs.remove("sessKind");
-    prefs.remove("sessMode");
-    prefs.remove("sessSecs");
-    prefs.remove("sessChans");
-    prefs.remove("sessProbes");
-    prefs.remove("sessBcast");
-    clearResumeCount();
-    Serial.println("[SESSION] Cleared");
-}
-
-bool scanSessionLoad(ScanSession &out) {
-    out.kind = prefsGetString("sessKind", "");
-    if (out.kind.length() == 0) return false;
-    out.mode = prefs.getInt("sessMode", SCAN_BOTH);
-    out.secs = prefs.getInt("sessSecs", 0);
-    out.channels = prefsGetString("sessChans", "");
-    out.captureProbes = prefs.getBool("sessProbes", false);
-    out.broadcastAll = prefs.getBool("sessBcast", false);
-    out.forever = true;
-    return true;
-}
-
-void scanSessionResume() {
-    ScanSession s;
-    if (!scanSessionLoad(s)) return;
-    Serial.printf("[SESSION] Boot idle: clearing persisted %s session, not auto-resuming scan\n", s.kind.c_str());
-    logToSD(String("SCAN_SESSION_NOT_RESUMED kind=") + s.kind + " reset=" + getResetReasonText());
-    scanSessionClear();
-}
 
 DeviceHistoryMapPsram deviceHistory;
 uint32_t deviceAbsenceThreshold = 120000;

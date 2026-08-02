@@ -1141,7 +1141,6 @@ String getDiagnostics() {
     s += "Up:" + String(uptimeBuffer) + "\n";
     s += "Last reset: " + String(getResetReasonText()) + "\n";
     s += "Prev uptime: " + (prevBootUptimeKnown() ? String(getPrevBootUptimeSec()) + "s" : String("unknown")) + "\n";
-    s += "Scan resumed: " + String(scanSessionWasResumed() ? "yes" : "no") + "\n";
     s += "Results restored: " + String(resultsWereRestored() ? "yes" : "no") + "\n";
     s += "Free int heap: " + String((unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL)) + "\n";
     s += "Min free int heap: " + String((unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL)) + "\n";
@@ -1495,7 +1494,6 @@ void logToSD(const String &data) {
 // Survives panic/WDT/SW resets (lost on power cycle, which is itself the diagnosis).
 RTC_DATA_ATTR static uint32_t rtcBootMagic = 0;
 RTC_DATA_ATTR static uint32_t rtcLastUptimeSec = 0;
-RTC_DATA_ATTR static uint32_t rtcResumeCount = 0;
 static const uint32_t BOOT_MAGIC = 0xA471B007;
 
 static esp_reset_reason_t g_resetReason = ESP_RST_UNKNOWN;
@@ -1522,9 +1520,6 @@ const char *getResetReasonText() {
 uint32_t getPrevBootUptimeSec() { return g_prevUptimeSec; }
 bool prevBootUptimeKnown() { return g_prevUptimeKnown; }
 bool wasCleanBoot() { return g_resetReason == ESP_RST_POWERON || g_resetReason == ESP_RST_EXT; }
-uint32_t getResumeCount() { return rtcResumeCount; }
-void bumpResumeCount() { rtcResumeCount++; }
-void clearResumeCount() { rtcResumeCount = 0; }
 bool resultsWereRestored() { return g_resultsRestored; }
 
 void recordBootReason() {
@@ -1533,27 +1528,23 @@ void recordBootReason() {
         g_prevUptimeSec = rtcLastUptimeSec;
         g_prevUptimeKnown = true;
     } else {
-        rtcResumeCount = 0;
         g_prevUptimeSec = 0;
         g_prevUptimeKnown = false;
     }
     rtcBootMagic = BOOT_MAGIC;
     rtcLastUptimeSec = 0;
-    Serial.printf("[BOOT] reset=%s prevUptime=%s resumes=%u\n", getResetReasonText(),
-                  g_prevUptimeKnown ? String(g_prevUptimeSec).c_str() : "unknown",
-                  (unsigned)rtcResumeCount);
+    Serial.printf("[BOOT] reset=%s prevUptime=%s\n", getResetReasonText(),
+                  g_prevUptimeKnown ? String(g_prevUptimeSec).c_str() : "unknown");
 }
 
 void markUptimeAlive() {
     uint32_t sec = millis() / 1000;
     if (sec != rtcLastUptimeSec) rtcLastUptimeSec = sec;
-    if (sec > 300 && rtcResumeCount != 0) rtcResumeCount = 0;
 }
 
 void logBootRecord() {
     String line = "BOOT reset=" + String(getResetReasonText()) +
                   " prevUptime=" + (g_prevUptimeKnown ? String(g_prevUptimeSec) + "s" : String("unknown")) +
-                  " resumes=" + String((unsigned)rtcResumeCount) +
                   " heap=" + String((unsigned)ESP.getFreeHeap());
     logToSD(line);
 }

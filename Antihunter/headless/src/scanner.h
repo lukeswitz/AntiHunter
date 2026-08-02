@@ -233,22 +233,6 @@ extern uint32_t g_curScanEndMs;
 extern bool g_curScanForever;
 void scanSetCountdown(int secs, bool forever);
 
-// Forever-scan session record: survives reset so an unattended scan is not lost silently.
-struct ScanSession {
-    String kind;
-    int mode = 0;
-    int secs = 0;
-    bool forever = false;
-    String channels;
-    bool captureProbes = false;
-    bool broadcastAll = false;
-};
-void scanSessionSave(const ScanSession &s);
-void scanSessionClear();
-bool scanSessionLoad(ScanSession &out);
-void scanSessionResume();
-void scanSessionSaveKind(const char *kind, int mode, int secs, bool forever,
-                         const String &channels, bool captureProbes, bool broadcastAll);
 extern std::atomic<bool> triangulationActive;
 extern std::atomic<uint8_t> triTargetChannel;
 extern std::atomic<uint8_t> triTargetRadio;
