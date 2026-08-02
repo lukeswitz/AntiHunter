@@ -269,9 +269,9 @@ void initializeNetwork()
 
 void registerRemainingRoutes();
 
-// Owns scanning/handle/session state so a failed create can never leave a phantom "scanning" node.
+// Owns scanning/handle state so a failed create can never leave a phantom "scanning" node.
 static bool ahStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack, int secs,
-                            bool forever, TaskHandle_t *handle, ScanSession &sess)
+                            bool forever, TaskHandle_t *handle)
 {
     scanning = true;
     if (ahCreateTask(fn, name, stack,
@@ -282,9 +282,6 @@ static bool ahStartScanTask(TaskFunction_t fn, const char *name, uint32_t stack,
         Serial.printf("[SCAN] Task create failed: %s\n", name);
         return false;
     }
-    sess.forever = forever;
-    sess.secs = secs;
-    scanSessionSave(sess);
     return true;
 }
 
@@ -457,13 +454,6 @@ void startWebServer()
               req->send(500, "text/plain", "Failed to start scan task");
               return;
           }
-          ScanSession sess;
-          sess.kind = "scan";
-          sess.mode = (int)mode;
-          sess.secs = secs;
-          sess.forever = forever;
-          sess.channels = req->hasParam("ch", true) ? req->getParam("ch", true)->value() : String("");
-          scanSessionSave(sess);
       }
       req->send(200, "text/plain", forever ? ("Scan starting (forever) - " + modeStr) : ("Scan starting for " + String(secs) + "s - " + modeStr));
   });
@@ -612,7 +602,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
 
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
       stopAllScans();
-      scanSessionClear();
       req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
       if (triangulationActive || triangulationInitiator) requestTriangulationStop();
   });
@@ -809,10 +798,7 @@ void registerRemainingRoutes() {
         currentScanMode = dMode;
         stopRequested = false;
 
-        ScanSession sess;
-        sess.kind = "drone";
-        sess.mode = (int)dMode;
-        if (!ahStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle, sess)) {
+        if (!ahStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle)) {
             req->send(500, "text/plain", "Failed to start drone detection task");
             return;
         }
@@ -1139,18 +1125,13 @@ void registerRemainingRoutes() {
         String detection = req->hasParam("detection", true) ? req->getParam("detection", true)->value() : "device-scan";
         int secs = req->hasParam("secs", true) ? req->getParam("secs", true)->value().toInt() : 60;
         bool forever = req->hasParam("forever", true);
-        String chParam = req->hasParam("ch", true) ? req->getParam("ch", true)->value() : String("");
 
         if (detection == "deauth") {
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
 
             stopRequested = false;
-            ScanSession sess;
-            sess.kind = "blueteam";
-            sess.mode = (int)currentScanMode;
-            sess.channels = chParam;
-            if (!ahStartScanTask(blueTeamTask, "blueteam", 12288, secs, forever, &blueTeamTaskHandle, sess)) {
+            if (!ahStartScanTask(blueTeamTask, "blueteam", 12288, secs, forever, &blueTeamTaskHandle)) {
                 req->send(500, "text/plain", "Failed to start deauth task");
                 return;
             }
@@ -1162,11 +1143,7 @@ void registerRemainingRoutes() {
 
             stopRequested = false;
             currentScanMode = SCAN_BOTH;
-            ScanSession sess;
-            sess.kind = "baseline";
-            sess.mode = (int)SCAN_BOTH;
-            sess.channels = chParam;
-            if (!ahStartScanTask(baselineDetectionTask, "baseline", 12288, secs, forever, &workerTaskHandle, sess)) {
+            if (!ahStartScanTask(baselineDetectionTask, "baseline", 12288, secs, forever, &workerTaskHandle)) {
                 req->send(500, "text/plain", "Failed to start baseline task");
                 return;
             }
@@ -1196,11 +1173,7 @@ void registerRemainingRoutes() {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = "MAC Randomization Detection Results\nActive Sessions: 0\nDevice Identities: 0\n\n(Starting...)\n";
             }
-            ScanSession sess;
-            sess.kind = "randdetect";
-            sess.mode = scanMode;
-            sess.channels = chParam;
-            if (!ahStartScanTask(randomizationDetectionTask, "randdetect", 8192, secs, forever, &workerTaskHandle, sess)) {
+            if (!ahStartScanTask(randomizationDetectionTask, "randdetect", 8192, secs, forever, &workerTaskHandle)) {
                 req->send(500, "text/plain", "Failed to start randomization task");
                 return;
             }
@@ -1235,12 +1208,7 @@ void registerRemainingRoutes() {
                     xQueueReset(probeRequestQueue);
                 }
             }
-            ScanSession sess;
-            sess.kind = "sniffer";
-            sess.mode = scanMode;
-            sess.channels = chParam;
-            sess.captureProbes = captureProbes;
-            if (!ahStartScanTask(snifferScanTask, "sniffer", 12288, secs, forever, &workerTaskHandle, sess)) {
+            if (!ahStartScanTask(snifferScanTask, "sniffer", 12288, secs, forever, &workerTaskHandle)) {
                 req->send(500, "text/plain", "Failed to start device scan task");
                 return;
             }
@@ -1269,12 +1237,7 @@ void registerRemainingRoutes() {
 
             currentScanMode = (ScanMode)scanMode;
             probeBroadcastAll.store(broadcastAll);
-            ScanSession sess;
-            sess.kind = "probedet";
-            sess.mode = scanMode;
-            sess.channels = chParam;
-            sess.broadcastAll = broadcastAll;
-            if (!ahStartScanTask(probeDetectionTask, "probedet", 8192, secs, forever, &workerTaskHandle, sess)) {
+            if (!ahStartScanTask(probeDetectionTask, "probedet", 8192, secs, forever, &workerTaskHandle)) {
                 req->send(500, "text/plain", "Failed to start probe scan task");
                 return;
             }
@@ -1295,11 +1258,7 @@ void registerRemainingRoutes() {
 
             stopRequested = false;
             currentScanMode = dMode;
-            ScanSession sess;
-            sess.kind = "drone";
-            sess.mode = (int)dMode;
-            sess.channels = chParam;
-            if (!ahStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle, sess)) {
+            if (!ahStartScanTask(droneDetectorTask, "drone", 12288, secs, forever, &workerTaskHandle)) {
                 req->send(500, "text/plain", "Failed to start drone detection task");
                 return;
             }

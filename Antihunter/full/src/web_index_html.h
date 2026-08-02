@@ -4470,7 +4470,7 @@ R"HTML(
               const match = line.match(/([\d.]+)C/);
               if (match) { document.getElementById('temperature').innerHTML = match[1] + '<small>°C</small>'; pushSpark('temperature', parseFloat(match[1])); }
             }
-            if (line.startsWith('Last reset:') || line.startsWith('Prev uptime:') || line.startsWith('Scan resumed:') ||
+            if (line.startsWith('Last reset:') || line.startsWith('Prev uptime:') ||
                 line.startsWith('Results restored:') || line.startsWith('Free int heap:') ||
                 line.startsWith('Min free int heap:') || line.startsWith('Scan stack free:')) {
               hardware += line + '\n';
