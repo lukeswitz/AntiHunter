@@ -33,7 +33,6 @@ extern std::atomic<bool> gpsValid;
 extern NimBLEScan *pBLEScan;
 extern String getNodeId();
 extern void logToSD(const String &msg);
-extern void radioStartSTA();
 extern void radioStopListScan();
 extern void radioStartListScan();
 extern void radioStopListScan();
