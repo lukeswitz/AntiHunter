@@ -50,7 +50,6 @@ static std::atomic<bool> identityTargetPresentSnap{false};
 std::atomic<bool> probeDetectionEnabled(false);
 std::atomic<bool> apCaptureEnabled(false);
 QueueHandle_t apInfoQueue = nullptr;
-std::atomic<bool> listScanTriMode(false);
 // When set, every captured probe triggers a mesh broadcast (60s dedup still applies).
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
@@ -3071,6 +3070,7 @@ void radioStopListScan() {
     Serial.println("[RADIO] Stopping list scan mode");
 
     // Clean up any pending scan
+    esp_wifi_scan_stop();
     WiFi.scanDelete();
     vTaskDelay(pdMS_TO_TICKS(50));
 
@@ -3473,6 +3473,7 @@ void listScanTask(void *pv) {
 
                     uint8_t ch = WiFi.channel(i);
                     const uint8_t *bssidBytes = WiFi.BSSID(i);
+                    if (!bssidBytes) continue;
 
                     if (ssid.length() == 0) ssid = "[Hidden]";
 
