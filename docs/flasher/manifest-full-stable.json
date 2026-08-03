@@ -1,6 +1,6 @@
 {
-  "name": "AntiHunter Full - Stable (v0.9.5)",
-  "version": "v0.9.5",
+  "name": "AntiHunter Full - Stable (v1.0.0)",
+  "version": "v1.0.0",
   "channel": "stable",
   "variant": "full",
   "new_install_prompt_erase": true,
@@ -10,7 +10,7 @@
       "parts": [
         { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/bootloader.bin", "offset": 0 },
         { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/partitions.bin", "offset": 32768 },
-        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/antihunter-full-v0.9.5.bin", "offset": 65536 }
+        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/antihunter-full-v1.0.0.bin", "offset": 65536 }
       ]
     }
   ]
