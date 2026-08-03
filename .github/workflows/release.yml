@@ -49,20 +49,22 @@ jobs:
     - name: Install PlatformIO
       run: pip install --upgrade platformio
 
-    - name: Build AntiHunter-full
-      run: pio run -e AntiHunter-full
-
-    - name: Build AntiHunter-headless
-      run: pio run -e AntiHunter-headless
-
-    - name: Prepare release artifacts
+    - name: Build firmware and collect artifacts
       run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
         mkdir -p release
-        cp .pio/build/AntiHunter-full/firmware.bin release/antihunter-full-${{ steps.get_version.outputs.version }}.bin
-        cp .pio/build/AntiHunter-headless/firmware.bin release/antihunter-headless-${{ steps.get_version.outputs.version }}.bin
+
+        pio run -e AntiHunter-full
+        test -f .pio/build/AntiHunter-full/firmware.bin
+        cp .pio/build/AntiHunter-full/firmware.bin "release/antihunter-full-${VERSION}.bin"
         # bootloader + partitions MUST come from the fresh build (IDF/core version must match the app)
         cp .pio/build/AntiHunter-full/bootloader.bin release/
         cp .pio/build/AntiHunter-full/partitions.bin release/
+
+        pio run -e AntiHunter-headless
+        test -f .pio/build/AntiHunter-headless/firmware.bin
+        cp .pio/build/AntiHunter-headless/firmware.bin "release/antihunter-headless-${VERSION}.bin"
+
         cp Dist/flashAntihunter.sh release/
 
     - name: Generate checksums
@@ -79,11 +81,11 @@ jobs:
         # Remove old versioned bins; keep bootloader, partitions, flashAntihunter.sh
         rm -f Dist/antihunter-*.bin
 
-        cp .pio/build/AntiHunter-full/firmware.bin "Dist/antihunter-full-${VERSION}.bin"
-        cp .pio/build/AntiHunter-headless/firmware.bin "Dist/antihunter-headless-${VERSION}.bin"
+        cp "release/antihunter-full-${VERSION}.bin" "Dist/antihunter-full-${VERSION}.bin"
+        cp "release/antihunter-headless-${VERSION}.bin" "Dist/antihunter-headless-${VERSION}.bin"
         # refresh bootloader + partitions from the build so they match the app's IDF/core
-        cp .pio/build/AntiHunter-full/bootloader.bin Dist/bootloader.bin
-        cp .pio/build/AntiHunter-full/partitions.bin Dist/partitions.bin
+        cp release/bootloader.bin Dist/bootloader.bin
+        cp release/partitions.bin Dist/partitions.bin
 
         mkdir -p docs/flasher
 
