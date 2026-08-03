@@ -131,8 +131,9 @@ jobs:
         cp -r Dist /tmp/ah-dist
         cp -r docs/flasher /tmp/ah-flasher
 
-        # Checkout the channel branch (already fetched via fetch-depth: 0)
-        git checkout "${BRANCH}"
+        # Base on the freshest channel branch (avoids stale non-fast-forward)
+        git fetch origin "${BRANCH}"
+        git checkout -B "${BRANCH}" "origin/${BRANCH}"
 
         # Apply artifacts onto the branch
         rm -f Dist/antihunter-*.bin
@@ -144,7 +145,13 @@ jobs:
         git add Dist/antihunter-*.bin Dist/bootloader.bin Dist/partitions.bin docs/flasher/manifest-*.json
         git diff --cached --quiet && echo "No changes to commit" && exit 0
         git commit -m "dist: update bins and flasher manifests for ${VERSION} (${{ steps.get_version.outputs.channel }})"
-        git push origin "${BRANCH}"
+        for i in 1 2 3 4 5; do
+          git push origin "HEAD:${BRANCH}" && break
+          echo "push rejected, rebasing on latest ${BRANCH} (attempt ${i})"
+          git fetch origin "${BRANCH}"
+          git rebase "origin/${BRANCH}" || { git rebase --abort; exit 1; }
+          sleep 3
+        done
 
     - name: Publish flasher manifests to docs branch
       run: |
@@ -169,7 +176,13 @@ jobs:
         git add docs/flasher/manifest-*.json
         git diff --cached --quiet && echo "No manifest changes to commit" && exit 0
         git commit -m "docs: flasher manifests for ${VERSION} (${CHANNEL})"
-        git push origin main
+        for i in 1 2 3 4 5; do
+          git push origin HEAD:main && break
+          echo "push rejected, rebasing on latest main (attempt ${i})"
+          git fetch origin main
+          git rebase origin/main || { git rebase --abort; exit 1; }
+          sleep 3
+        done
 
     - name: Create Release
       uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2.6.1
