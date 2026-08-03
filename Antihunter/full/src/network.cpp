@@ -431,7 +431,6 @@ void startWebServer()
       
       if (!workerTaskHandle) {
           scanning = true;
-          listScanTriMode = false;
           if (ahCreateTask(listScanTask, "scan", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
               scanning = false;
               workerTaskHandle = nullptr;

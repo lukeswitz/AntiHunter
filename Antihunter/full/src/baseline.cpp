@@ -387,6 +387,7 @@ static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
     if (wifiScan < 0) return;
     for (int i = 0; i < wifiScan && !stopRequested; i++) {
         const uint8_t *bssidBytes = WiFi.BSSID(i);
+        if (!bssidBytes) continue;
         String ssid = WiFi.SSID(i);
         int32_t rssi = WiFi.RSSI(i);
         uint8_t channel = WiFi.channel(i);
@@ -447,6 +448,7 @@ void baselineDetectionTask(void *pv) {
     if (!anomalyQueue) {
         Serial.println("[BASELINE] FATAL: anomalyQueue creation failed");
         scanning = false;
+        workerTaskHandle = nullptr;
         vTaskDelete(NULL);
         return;
     }
@@ -458,6 +460,7 @@ void baselineDetectionTask(void *pv) {
         vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;
         scanning = false;
+        workerTaskHandle = nullptr;
         vTaskDelete(NULL);
         return;
     }
