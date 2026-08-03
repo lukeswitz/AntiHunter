@@ -49,11 +49,8 @@ jobs:
     - name: Install PlatformIO
       run: pip install --upgrade platformio
 
-    - name: Build AntiHunter-full
-      run: pio run -e AntiHunter-full
-
-    - name: Build AntiHunter-headless
-      run: pio run -e AntiHunter-headless
+    - name: Build firmware (all environments)
+      run: pio run
 
     - name: Prepare release artifacts
       run: |
