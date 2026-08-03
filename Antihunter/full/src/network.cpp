@@ -1672,6 +1672,10 @@ void registerRemainingRoutes() {
   });
 
   server->on("/rf-config", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+        req->send(409, "text/plain", "Radio busy - stop scan before changing RF config");
+        return;
+    }
     bool updated = false;
 
     if (req->hasParam("rfEnv", true)) {

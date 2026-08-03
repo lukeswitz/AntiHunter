@@ -3703,6 +3703,7 @@ void listScanTask(void *pv) {
                 if (rem > 0) pr += " / " + std::to_string(secs) + "s (" + std::to_string(rem) + "s left)";
             }
             pr += "\nTarget Hits: " + std::to_string(totalHits.load());
+            pr += "\nUnique devices: " + std::to_string(uniqueMacs.size());
             pr += "\nWiFi frames: " + std::to_string(framesSeen.load());
             pr += "\nBLE frames: " + std::to_string(bleFramesSeen.load()) + "\n\n";
 
@@ -3756,6 +3757,7 @@ void listScanTask(void *pv) {
         " Duration: " + (forever ? std::string("Forever\n") : (std::to_string(secs) + "s\n")) +
         "WiFi Frames seen: " + std::to_string(framesSeen) + "\n" +
         "BLE Frames seen: " + std::to_string(bleFramesSeen) + "\n" +
+        "Unique devices: " + std::to_string(uniqueMacs.size()) + "\n" +
         "Target Hits: " + std::to_string(totalHits) + "\n\n";
 
     std::map<String, Hit> hitsMap;
