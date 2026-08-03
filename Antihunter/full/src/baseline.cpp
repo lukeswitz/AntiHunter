@@ -402,9 +402,7 @@ static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
         wh.name[sizeof(wh.name) - 1] = '\0';
         wh.isBLE = false;
 
-        if (macQueue) {
-            xQueueSend(macQueue, &wh, 0);
-        }
+        safeMacQueueSend(&wh, 0);
         framesSeen = framesSeen + 1;
     }
     WiFi.scanDelete();
@@ -453,9 +451,7 @@ void baselineDetectionTask(void *pv) {
         return;
     }
 
-    if (macQueue) vQueueDeleteWithCaps(macQueue);
-    macQueue = xQueueCreateWithCaps(512, sizeof(Hit), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!macQueue) {
+    if (!safeMacQueueCreate(512)) {
         Serial.println("[BASELINE] FATAL: macQueue creation failed");
         vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;
@@ -622,9 +618,7 @@ void baselineDetectionTask(void *pv) {
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
                     
-                    if (macQueue) {
-                        xQueueSend(macQueue, &bh, 0);
-                    }
+                    safeMacQueueSend(&bh, 0);
                     bleFramesSeen = bleFramesSeen + 1;
                 }  else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
@@ -633,7 +627,7 @@ void baselineDetectionTask(void *pv) {
             pBLEScan->clearResults();
         }
         
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
+        while (safeMacQueueReceive(&h, 0) && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
@@ -671,10 +665,7 @@ void baselineDetectionTask(void *pv) {
         radioStopListScan();
         vTaskDelay(pdMS_TO_TICKS(200));
 
-        if (macQueue) {
-            vQueueDeleteWithCaps(macQueue);
-            macQueue = nullptr;
-        }
+        safeMacQueueDelete();
         if (anomalyQueue) {
             vQueueDeleteWithCaps(anomalyQueue);
             anomalyQueue = nullptr;
@@ -771,9 +762,7 @@ void baselineDetectionTask(void *pv) {
                     bh.name[sizeof(bh.name) - 1] = '\0';
                     bh.isBLE = true;
 
-                    if (macQueue) {
-                        xQueueSend(macQueue, &bh, 0);
-                    }
+                    safeMacQueueSend(&bh, 0);
                     bleFramesSeen = bleFramesSeen + 1;
                 } else {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
@@ -782,7 +771,7 @@ void baselineDetectionTask(void *pv) {
             pBLEScan->clearResults();
         }
 
-        while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
+        while (safeMacQueueReceive(&h, 0) && !stopRequested) {
             if (isAllowlisted(h.mac)) {
                 continue;
             }
@@ -911,10 +900,7 @@ void baselineDetectionTask(void *pv) {
         Serial.println("[BASELINE] Detection complete summary enqueued");
     }
 
-    if (macQueue) {
-        vQueueDeleteWithCaps(macQueue);
-        macQueue = nullptr;
-    }
+    safeMacQueueDelete();
     if (anomalyQueue) {
         vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;
