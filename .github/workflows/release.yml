@@ -178,4 +178,4 @@ jobs:
         name: ${{ steps.get_version.outputs.version }}
         files: release/*
         prerelease: ${{ steps.get_version.outputs.prerelease }}
-        generate_release_notes: true
+        body_path: docs/release-notes/notes-${{ steps.get_version.outputs.channel }}.md
