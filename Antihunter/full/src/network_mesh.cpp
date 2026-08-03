@@ -536,7 +536,6 @@ static void handleScanStart(const String &command)
         currentScanMode = (ScanMode)mode;
         parseChannelsCSV(channels);
         stopRequested = false;
-        listScanTriMode = false;
         if (!meshStartScanTask(listScanTask, "scan", 8192, secs, forever, &workerTaskHandle)) {
           sendToSerial1(nodeId + ": SCAN_ACK:FAILED", true);
           return;
@@ -917,7 +916,6 @@ static void triStartParticipantScan()
   }
   scanning = true;
   Serial.printf("[TRIANGULATE] Starting participant scan task (duration=%us)\n", triangulationDuration);
-  listScanTriMode = true;
   if (ahCreateTask(listScanTask, "triangulate", 8192,
                    reinterpret_cast<void*>(static_cast<intptr_t>(triangulationDuration)), 1, &workerTaskHandle, 1) != pdPASS) {
     scanning = false;
