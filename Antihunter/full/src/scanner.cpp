@@ -54,6 +54,7 @@ QueueHandle_t apInfoQueue = nullptr;
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
+std::atomic<bool> g_dronePinChannel{false};
 std::atomic<bool> g_channelsAmended{false};
 UniqueMacsSet uniqueMacs;
 portMUX_TYPE uniqueMacsMux = portMUX_INITIALIZER_UNLOCKED;
@@ -915,6 +916,10 @@ void apServiceNow(const char *why)
 static void hopTimerCb(void *)
 {
     if (!hopTimer || g_activeChannels.empty()) return;
+    if (g_dronePinChannel.load()) {
+        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+        return;
+    }
     static size_t idx = 0;
     static bool serveAp = false;
 

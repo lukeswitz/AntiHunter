@@ -811,6 +811,7 @@ void droneDetectorTask(void *pv)
 
     if (currentScanMode == SCAN_BLE) radioStartBLE();
     else radioStartSTA();
+    g_dronePinChannel.store(true);
     
     const uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
@@ -982,6 +983,7 @@ void droneDetectorTask(void *pv)
                   droneDetectionCount.load(), (unsigned)finalUniqueN);
 
     vTaskDelay(pdMS_TO_TICKS(100));
+    g_dronePinChannel.store(false);
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

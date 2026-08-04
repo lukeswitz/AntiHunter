@@ -784,6 +784,8 @@ void droneDetectorTask(void *pv)
     
     radioStartSTA();
     
+    g_dronePinChannel.store(true);
+    
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
     uint32_t nextResultsUpdate = millis() + 1000;
@@ -954,6 +956,7 @@ void droneDetectorTask(void *pv)
                   droneDetectionCount.load(), static_cast<unsigned>(finalUniqueN));
 
     vTaskDelay(pdMS_TO_TICKS(100));
+    g_dronePinChannel.store(false);
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

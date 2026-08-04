@@ -188,6 +188,7 @@ void loadRFConfigFromPrefs();
 void setGlobalRssiThreshold(int8_t threshold);
 void setBandMode(uint8_t mode);
 void rebuildActiveChannels();
+extern std::atomic<bool> g_dronePinChannel;
 extern std::atomic<bool> g_channelsAmended;
 void applyBandMode();
 uint8_t nextActiveScanChannel();
