@@ -203,7 +203,11 @@ void initializeNetwork()
 
   WiFi.mode(WIFI_AP_STA);
   delay(100);
-  
+
+  // Country must be final before softAP(): applying it later rewrites the beacon IE and
+  // reloads PHY init data, which drops the AP that is already up.
+  applyBandMode();
+
   customApSsid = prefs.getString("apSsid", AP_SSID);
   customApPass = prefs.getString("apPass", AP_PASS);
   

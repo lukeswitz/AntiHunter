@@ -2926,29 +2926,28 @@ bool safeMacQueueReceive(Hit* hit, TickType_t timeout) {
 }
 
 // Safe queue delete with mutex protection
-// Empties the queue at scan end; the block itself is kept for the next scan.
+// Freed between scans: the SoftAP needs this internal RAM back (headless keeps it instead).
 void safeMacQueueDelete() {
     if (macQueueMutex == nullptr) return;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
         if (macQueue != nullptr) {
-            xQueueReset(macQueue);
+            vQueueDeleteWithCaps(macQueue);
+            macQueue = nullptr;
         }
         xSemaphoreGive(macQueueMutex);
     }
 }
 
 // Safe queue create with mutex protection
-// Allocated once and reused. It must live in internal RAM (sniffer_cb feeds it from an ISR),
-// and freeing 20KB of internal RAM between scans fragments the heap until it cannot be had back.
 bool safeMacQueueCreate(size_t queueSize) {
     initMacQueueMutex();
     if (macQueueMutex == nullptr) return false;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
         if (macQueue != nullptr) {
-            xQueueReset(macQueue);
-            xSemaphoreGive(macQueueMutex);
-            return true;
+            vQueueDeleteWithCaps(macQueue);
+            macQueue = nullptr;
         }
+        vTaskDelay(pdMS_TO_TICKS(50));
         macQueue = xQueueCreateWithCaps(queueSize, sizeof(Hit), AH_ISR_QUEUE_CAPS);
         xSemaphoreGive(macQueueMutex);
         return (macQueue != nullptr);
