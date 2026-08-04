@@ -813,6 +813,7 @@ uint32_t apServiceGapMs()
 
 void apMarkServed() { g_apLastServedMs = millis(); }
 
+// cppcheck-suppress unusedFunction // headless has no SoftAP; kept in step with full/
 void apServiceNow(const char *why)
 {
     uint8_t home = apHomeChannel();
