@@ -2952,7 +2952,19 @@ bool safeMacQueueCreate(size_t queueSize) {
             macQueue = nullptr;
         }
         vTaskDelay(pdMS_TO_TICKS(50));
-        macQueue = xQueueCreateWithCaps(queueSize, sizeof(Hit), AH_ISR_QUEUE_CAPS);
+        // sniffer_cb feeds this from an ISR, so it has to be internal RAM, which the SoftAP
+        // also lives on. Take the deepest queue that fits instead of failing the whole scan.
+        for (size_t depth = queueSize; depth >= 64; depth /= 2) {
+            macQueue = xQueueCreateWithCaps(depth, sizeof(Hit), AH_ISR_QUEUE_CAPS);
+            if (macQueue) {
+                if (depth < queueSize)
+                    Serial.printf("[SCAN] macQueue depth %u (%u would need %u B, largest free %u)\n",
+                                  (unsigned)depth, (unsigned)queueSize,
+                                  (unsigned)(queueSize * sizeof(Hit)),
+                                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+                break;
+            }
+        }
         xSemaphoreGive(macQueueMutex);
         return (macQueue != nullptr);
     }

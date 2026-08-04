@@ -2306,7 +2306,7 @@ void processUSBToMesh() {
                     if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
                         Serial.println("OK: RTC set");
                     }
-                } else if (usbBuffer.length() > 5 && usbBuffer.length() <= MAX_MESH_SIZE) {
+                } else if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {

@@ -199,8 +199,23 @@ void probeDetectionTask(void *pv)
     }
 
     if (probeRequestQueue == nullptr) {
-        probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
-        if (!probeRequestQueue) Serial.println("[PROBE] WARNING: queue alloc failed (PSRAM) - probe capture inert");
+        // 256 entries is 38912 B of internal RAM, which the C5 cannot spare once the SoftAP
+        // and BLE are up; take the deepest queue that fits rather than capturing nothing.
+        for (size_t depth : {256u, 128u, 64u, 32u}) {
+            probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+            if (probeRequestQueue) {
+                if (depth < 256u)
+                    Serial.printf("[PROBE] queue depth %u (256 would need %u B, largest free %u)\n",
+                                  (unsigned)depth, (unsigned)(256 * sizeof(ProbeRequestEvent)),
+                                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+                break;
+            }
+        }
+        if (!probeRequestQueue)
+            Serial.printf("[PROBE] WARNING: queue alloc failed - probe capture inert (need=%u internal=%u largest=%u)\n",
+                          (unsigned)(32 * sizeof(ProbeRequestEvent)),
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                          (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     } else {
         xQueueReset(probeRequestQueue);
     }
