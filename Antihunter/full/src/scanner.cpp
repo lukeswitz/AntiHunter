@@ -205,11 +205,19 @@ void applyBandMode() {
     // init data, which drops associated clients. Apply once; skip when the band is unchanged.
     static uint8_t appliedBand = 0xFF;
     if (appliedBand == rfConfig.bandMode) return;
-    // UNII-1/UNII-3 only stay reachable under a manual regdomain spanning to ch165;
-    // set_country_code alone leaves the 5GHz channels barred.
+    // schan/nchan describe the 2.4GHz band only; 5GHz is a separate bitmask
+    // (esp_wifi_types_generic.h:68-77). Only channels this table allows can be scanned.
     if (rfConfig.bandMode != 0) {
-        wifi_country_t c = { .cc = "US", .schan = 1, .nchan = 165,
-                             .max_tx_power = 20, .policy = WIFI_COUNTRY_POLICY_MANUAL };
+        wifi_country_t c = {};
+        memcpy(c.cc, COUNTRY, 2);
+        c.cc[2] = 0;
+        c.schan = 1;
+        c.nchan = 11;
+        c.max_tx_power = 20;
+        c.policy = WIFI_COUNTRY_POLICY_MANUAL;
+        c.wifi_5g_channel_mask = WIFI_CHANNEL_36 | WIFI_CHANNEL_40 | WIFI_CHANNEL_44 |
+                                 WIFI_CHANNEL_48 | WIFI_CHANNEL_149 | WIFI_CHANNEL_153 |
+                                 WIFI_CHANNEL_157 | WIFI_CHANNEL_161 | WIFI_CHANNEL_165;
         esp_wifi_set_country(&c);
     } else {
         esp_wifi_set_country_code(COUNTRY, true);
@@ -1279,9 +1287,6 @@ void snifferScanTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
-#ifndef ARDUINO_XIAO_ESP32C5
-        // C5 runs the SoftAP on the same radio: WiFi.scanNetworks() returns WIFI_SCAN_FAILED
-        // here and the promiscuous capture below supplies the APs (measured 54 vs 0).
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (lastWiFiScan == 0 || millis() - lastWiFiScan >= rfConfig.wifiScanInterval)) {
             lastWiFiScan = millis();
@@ -1355,7 +1360,6 @@ void snifferScanTask(void *pv)
             Serial.printf("[SNIFFER] WiFi scan found %d networks\n", networksFound);
             vTaskDelay(pdMS_TO_TICKS(10));
         }
-#endif
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
