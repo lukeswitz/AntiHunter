@@ -408,8 +408,7 @@ void probeDetectionTask(void *pv)
 
         if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
             pBLEScan && (millis() - lastBLEScan >= 3000)) {
-            pBLEScan->start(2, false);
-            NimBLEScanResults scanResults = pBLEScan->getResults(500, false);
+            NimBLEScanResults scanResults = pBLEScan->getResults(rfConfig.bleScanDuration, false);
             int count = scanResults.getCount();
             for (int i = 0; i < count; i++) {
                 const NimBLEAdvertisedDevice *device = scanResults.getDevice(i);
@@ -461,7 +460,6 @@ void probeDetectionTask(void *pv)
                     if (isHit) probeHitCount++;
                 }
             }
-            pBLEScan->clearResults();
             lastBLEScan = millis();
         }
 
