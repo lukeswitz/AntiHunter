@@ -2421,7 +2421,7 @@ void processUSBToMesh() {
         // Only process printable ASCII characters and line endings for mesh
         if ((c >= 32 && c <= 126) || c == '\n' || c == '\r') {
             if (c == '\n' || c == '\r') {
-                if (usbBuffer.length() > 5 && usbBuffer.length() <= MAX_MESH_SIZE) {
+                if (usbBuffer.length() > 0 && usbBuffer.length() <= MAX_MESH_SIZE) {
                     Serial.printf("[MESH RX] %s\n", usbBuffer.c_str());
                     processMeshMessage(usbBuffer.c_str());
                 } else if (usbBuffer.length() > 0) {

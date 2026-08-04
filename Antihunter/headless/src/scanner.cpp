@@ -3045,8 +3045,13 @@ void listScanTask(void *pv) {
 
     // Use safe queue creation with mutex protection
     if (!safeMacQueueCreate(512)) {
-        Serial.println("[SCAN] ERROR: Failed to create macQueue");
+        Serial.printf("[SCAN] ERROR: Failed to create macQueue (need=%u internal=%u largest=%u)\n",
+                      (unsigned)(512 * sizeof(Hit)),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        scanning = false;
         workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
         vTaskDelete(nullptr);
         return;
     }
