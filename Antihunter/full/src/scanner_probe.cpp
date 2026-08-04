@@ -220,6 +220,7 @@ void probeDetectionTask(void *pv)
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
+    NimBLEScan *bleScan = pBLEScan;
     uint32_t startTime = millis();
     uint32_t nextResultsUpdate = startTime;
     size_t lastWrittenProbeCount = SIZE_MAX;
@@ -406,9 +407,9 @@ void probeDetectionTask(void *pv)
             lastWrittenProbeCount = probeDevices.size();
         }
 
-        if ((currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
-            pBLEScan && (millis() - lastBLEScan >= 3000)) {
-            NimBLEScanResults scanResults = pBLEScan->getResults(rfConfig.bleScanDuration, false);
+        if (bleScan && (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
+            (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
+            NimBLEScanResults scanResults = bleScan->getResults(rfConfig.bleScanDuration, false);
             int count = scanResults.getCount();
             for (int i = 0; i < count; i++) {
                 const NimBLEAdvertisedDevice *device = scanResults.getDevice(i);
@@ -675,7 +676,9 @@ String getProbeResults()
                 results += " [";
                 for (size_t i = 0; i < s.second.size(); i++) {
                     if (i > 0) results += ", ";
-                    results += s.second[i].substring(9); // last 3 octets for brevity
+                    auto dit = probeDevices.find(s.second[i]);
+                    results += (dit != probeDevices.end() && dit->second.isBLE) ? "B:" : "W:";
+                    results += s.second[i].substring(9);
                 }
                 results += "]";
             }
