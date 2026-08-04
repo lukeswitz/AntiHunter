@@ -3324,7 +3324,6 @@ static String triModeStr(const String& selected) {
 
 void listScanTask(void *pv) {
     sentinel_kill();
-    bool triMode = listScanTriMode.load();
     int secs = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int*>(pv)));
     bool forever = (secs <= 0);
 
