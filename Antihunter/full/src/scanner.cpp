@@ -167,29 +167,34 @@ std::vector<uint8_t> g_activeChannels;
 static inline bool channelIs2G(uint8_t ch) { return ch >= 1 && ch <= 14; }
 
 void rebuildActiveChannels() {
+#ifdef ARDUINO_XIAO_ESP32C5
+    // The band needs channels the saved list may not carry. Put them in CHANNELS, not just in
+    // the derived list, so the condition clears and the next rebuild has nothing to fix.
+    if (rfConfig.bandMode != 0) {
+        static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
+        bool have5g = false;
+        for (uint8_t ch : CHANNELS) if (!channelIs2G(ch)) { have5g = true; break; }
+        if (!have5g) {
+            for (uint8_t ch : k5g) CHANNELS.push_back(ch);
+            Serial.println("[RF] 5GHz channels added to saved list: 36/40/44/48/149/153/157/161/165");
+        }
+    }
+    if (rfConfig.bandMode == 2) {
+        bool have2g = false;
+        for (uint8_t ch : CHANNELS) if (channelIs2G(ch)) { have2g = true; break; }
+        if (!have2g) {
+            const uint8_t k2g[3] = {1, 6, 11};
+            for (uint8_t ch : k2g) CHANNELS.push_back(ch);
+            Serial.println("[RF] 2.4GHz channels added to saved list: 1/6/11");
+        }
+    }
+#endif
     g_activeChannels.clear();
     for (uint8_t ch : CHANNELS) {
         if (rfConfig.bandMode == 0 && !channelIs2G(ch)) continue;  // 2.4GHz only
         if (rfConfig.bandMode == 1 &&  channelIs2G(ch)) continue;  // 5GHz only
         g_activeChannels.push_back(ch);
     }
-#ifdef ARDUINO_XIAO_ESP32C5
-    // bandMode 1/2 need 5GHz in the rotation; a 2.4-only saved list would otherwise never scan 5GHz.
-    if (rfConfig.bandMode != 0) {
-        static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
-        bool have5g = false;
-        for (uint8_t ch : g_activeChannels) if (!channelIs2G(ch)) { have5g = true; break; }
-        if (!have5g) {
-            for (uint8_t ch : k5g) g_activeChannels.push_back(ch);
-            Serial.println("[RF] no 5GHz channel saved; adding 36/40/44/48/149/153/157/161/165");
-        }
-    }
-    if (rfConfig.bandMode == 2) {
-        bool have2g = false;
-        for (uint8_t ch : g_activeChannels) if (channelIs2G(ch)) { have2g = true; break; }
-        if (!have2g) { const uint8_t k2g[3] = {1, 6, 11}; for (uint8_t ch : k2g) g_activeChannels.push_back(ch); }
-    }
-#endif
     if (g_activeChannels.empty()) g_activeChannels = CHANNELS;
 }
 
