@@ -1870,8 +1870,13 @@ void blueTeamTask(void *pv) {
 
     deauthQueue = xQueueCreateWithCaps(256, sizeof(DeauthHit), AH_ISR_QUEUE_CAPS);
     if (!deauthQueue) {
-        Serial.println("[BLUE] FATAL: Queue creation failed");
+        Serial.printf("[BLUE] FATAL: Queue creation failed (need=%u internal=%u largest=%u)\n",
+                      (unsigned)(256 * sizeof(DeauthHit)),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
         scanning = false;
+        blueTeamTaskHandle = nullptr;
+        scanSetCountdown(0, false);
         vTaskDelete(NULL);
         return;
     }
