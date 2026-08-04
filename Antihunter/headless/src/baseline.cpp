@@ -332,9 +332,7 @@ void baselineDetectionTask(void *pv) {
         return;
     }
 
-    if (macQueue) vQueueDeleteWithCaps(macQueue);
-    macQueue = xQueueCreateWithCaps(512, sizeof(Hit), AH_ISR_QUEUE_CAPS);
-    if (!macQueue) {
+    if (!safeMacQueueCreate(512)) {
         Serial.printf("[BASELINE] FATAL: macQueue creation failed (need=%u internal=%u largest=%u)\n",
                       (unsigned)(512 * sizeof(Hit)),
                       (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -541,11 +539,8 @@ void baselineDetectionTask(void *pv) {
         apCaptureEnabled = false;
         radioStopSTA();
         vTaskDelay(pdMS_TO_TICKS(200));
-        
-        if (macQueue) {
-            vQueueDeleteWithCaps(macQueue);
-            macQueue = nullptr;
-        }
+
+        safeMacQueueDelete();
         if (anomalyQueue) {
             vQueueDeleteWithCaps(anomalyQueue);
             anomalyQueue = nullptr;
@@ -760,10 +755,7 @@ void baselineDetectionTask(void *pv) {
         Serial.println("[BASELINE] Detection complete summary enqueued");
     }
 
-    if (macQueue) {
-        vQueueDeleteWithCaps(macQueue);
-        macQueue = nullptr;
-    }
+    safeMacQueueDelete();
     if (anomalyQueue) {
         vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;
