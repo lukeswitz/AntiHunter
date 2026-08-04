@@ -54,6 +54,7 @@ QueueHandle_t apInfoQueue = nullptr;
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
+std::atomic<bool> g_dronePinChannel{false};
 UniqueMacsSet uniqueMacs;
 portMUX_TYPE uniqueMacsMux = portMUX_INITIALIZER_UNLOCKED;
 DeviceLastSeenMap deviceLastSeen;
@@ -754,6 +755,33 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
+    if (g_dronePinChannel.load()) {
+        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+        return;
+    }
+    static size_t idx = 0;
+    static bool serveAp = false;
+
+    if (WiFi.softAPgetStationNum() > 0) {
+        serveAp = !serveAp;
+        if (serveAp) {
+            esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+            return;
+        }
+        idx = (idx + 1) % CHANNELS.size();
+        uint8_t ch = CHANNELS[idx];
+        if (ch == (uint8_t)AP_CHANNEL) return;
+        wifi_scan_config_t sc = {};
+        sc.channel = ch;
+        sc.show_hidden = true;
+        sc.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+        sc.scan_time.active.min = 40;
+        sc.scan_time.active.max = rfConfig.wifiChannelTime;
+        sc.home_chan_dwell_time = 30;
+        esp_wifi_scan_start(&sc, false);
+        return;
+    }
+
     if (triangulationActive.load()) {
         uint8_t tch = triTargetChannel.load();
         if (tch >= 1 && tch <= 14) {
@@ -761,7 +789,7 @@ static void hopTimerCb(void *)
             return;
         }
     }
-    static size_t idx = 0;
+
     idx = (idx + 1) % CHANNELS.size();
     esp_wifi_set_channel(CHANNELS[idx], WIFI_SECOND_CHAN_NONE);
 }
@@ -1964,6 +1992,8 @@ void blueTeamTask(void *pv) {
     if (!deauthQueue) {
         Serial.println("[BLUE] FATAL: Queue creation failed");
         scanning = false;
+        blueTeamTaskHandle = nullptr;
+        scanSetCountdown(0, false);
         vTaskDelete(NULL);
         return;
     }
@@ -3147,6 +3177,8 @@ void listScanTask(void *pv) {
     // Use safe queue creation with mutex protection
     if (!safeMacQueueCreate(512)) {
         Serial.println("[SCAN] ERROR: Failed to create macQueue");
+        scanning = false;
+        scanSetCountdown(0, false);
         workerTaskHandle = nullptr;
         vTaskDelete(nullptr);
         return;

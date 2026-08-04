@@ -67,6 +67,7 @@ struct ProbeDevice {
     bool isRandomized;
     bool isTargetHit;
     bool isDstHit;
+    bool isBLE;
     char vendor[16];
     char hitReason[10];
     // Historical intelligence (from SD probe database)
@@ -150,6 +151,7 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
 void loadRFConfigFromPrefs();
 void setGlobalRssiThreshold(int8_t threshold);
 uint8_t nextActiveScanChannel();
+extern std::atomic<bool> g_dronePinChannel;
 
 extern TaskHandle_t workerTaskHandle;
 extern TaskHandle_t blueTeamTaskHandle;

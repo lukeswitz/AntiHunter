@@ -56,6 +56,7 @@ std::atomic<bool> listScanTriMode(false);
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
+std::atomic<bool> g_dronePinChannel{false};
 UniqueMacsSet uniqueMacs;
 DeviceLastSeenMap deviceLastSeen;
 const uint32_t DEDUPE_WINDOW = 30000;
@@ -709,6 +710,10 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
+    if (g_dronePinChannel.load()) {
+        esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
+        return;
+    }
     if (triangulationActive.load()) {
         uint8_t tch = triTargetChannel.load();
         if (tch >= 1 && tch <= 14) {
@@ -1731,6 +1736,8 @@ void blueTeamTask(void *pv) {
     if (!deauthQueue) {
         Serial.println("[BLUE] FATAL: Queue creation failed");
         scanning = false;
+        blueTeamTaskHandle = nullptr;
+        scanSetCountdown(0, false);
         vTaskDelete(NULL);
         return;
     }
@@ -2880,6 +2887,8 @@ void listScanTask(void *pv) {
     // Use safe queue creation with mutex protection
     if (!safeMacQueueCreate(512)) {
         Serial.println("[SCAN] ERROR: Failed to create macQueue");
+        scanning = false;
+        scanSetCountdown(0, false);
         workerTaskHandle = nullptr;
         vTaskDelete(nullptr);
         return;
