@@ -257,6 +257,7 @@
         <select id="cfgChannel" onchange="selectChannel(this.value)">
           <option value="stable">Stable (recommended)</option>
           <option value="beta">Beta (latest — may be unstable)</option>
+          <option value="c5">C5 (XIAO ESP32-C5, 2.4 + 5GHz)</option>
         </select>
       </div>
 
@@ -563,7 +564,7 @@ chmod +x flashAntihunter.sh
     }
 
     function selectChannel(c) {
-      selectedChannel = (c === 'beta') ? 'beta' : 'stable';
+      selectedChannel = (c === 'beta' || c === 'c5') ? c : 'stable';
       updateManifest();
     }
 
@@ -579,7 +580,7 @@ chmod +x flashAntihunter.sh
     async function updateManifest() {
       const variant = selectedFirmware === 'full' ? 'full' : 'headless';
       const channel = selectedChannel;
-      const label = (channel === 'beta') ? 'Beta' : 'Stable';
+      const label = (channel === 'beta') ? 'Beta' : (channel === 'c5') ? 'C5' : 'Stable';
       const url = new URL(`flasher/manifest-${variant}-${channel}.json`, location.href).toString();
       const req = ++manifestReq;
       const btn = document.getElementById('flashBtn');
