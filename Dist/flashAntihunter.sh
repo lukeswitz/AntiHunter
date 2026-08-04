@@ -3,10 +3,8 @@ set -e
 
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 
-STABLE_BRANCH="main"
-STABLE_VERSION="v0.9.6"
-BETA_BRANCH="beta"
-BETA_VERSION="v0.9.6-beta1"
+C5_BRANCH="feat/c5"
+C5_VERSION="v0.9.6-c5"
 
 FIRMWARE_OPTIONS=()
 
@@ -14,24 +12,12 @@ select_channel() {
     if [ ${#FIRMWARE_OPTIONS[@]} -gt 0 ]; then
         return
     fi
-    local branch version label
-    echo "Release channel:"
-    echo "  1. Stable ($STABLE_VERSION) - tested, recommended"
-    echo "  2. Beta ($BETA_VERSION) - newest features, may be unstable"
+    echo "Channel: C5 ($C5_VERSION) - XIAO ESP32-C5, 2.4 + 5GHz"
     echo ""
-    while true; do
-        read -p "Select channel (1-2) [default: 1]: " ch
-        ch=${ch:-1}
-        case "$ch" in
-            1) branch="$STABLE_BRANCH"; version="$STABLE_VERSION"; label="Stable"; break ;;
-            2) branch="$BETA_BRANCH"; version="$BETA_VERSION"; label="Beta"; break ;;
-            *) echo "Invalid selection. Enter 1 or 2." ;;
-        esac
-    done
-    local base="https://github.com/lukeswitz/AntiHunter/raw/refs/heads/$branch/Dist"
+    local base="https://github.com/lukeswitz/AntiHunter/raw/refs/heads/$C5_BRANCH/Dist"
     FIRMWARE_OPTIONS=(
-        "AntiHunter AP (With WiFi AP) - $version $label:$base/antihunter-full-$version.bin"
-        "AntiHunter Headless - (Mesh only) $version $label:$base/antihunter-headless-$version.bin"
+        "AntiHunter AP (With WiFi AP) - $C5_VERSION C5:$base/antihunter-c5-full-$C5_VERSION.factory.bin"
+        "AntiHunter Headless - (Mesh only) $C5_VERSION C5:$base/antihunter-c5-headless-$C5_VERSION.factory.bin"
     )
     echo ""
 }
@@ -44,6 +30,8 @@ ERASE_FLASH=false
 MONITOR_SPEED=115200
 UPLOAD_SPEED=230400
 ESP32_PORT=""
+FACTORY_MODE=false
+BOOTLOADER_OFFSET=0x2000
 
 show_help() {
     cat << EOF
@@ -57,7 +45,10 @@ Options:
   -h, --help         Display this help message and exit
   -l, --list         List available firmware options and exit
 
-Script flashes bootloader + partitions + app. Use --erase to perform full flash erase first.
+Released images are ESP32-C5 factory images written at 0x0. A custom .bin ending in
+.factory.bin is treated the same way; any other .bin needs bootloader-c5.bin and
+partitions-c5.bin beside it and is written at 0x2000/0x8000/0x10000.
+Use --erase to perform full flash erase first.
 EOF
 }
 
@@ -265,7 +256,7 @@ fi
 
 echo ""
 echo "====================================="
-echo "Unified for multiple ESP32S3 configs"
+echo "AntiHunter C5 flasher (XIAO ESP32-C5)"
 echo "====================================="
 
 if [ -n "$CUSTOM_BIN" ]; then
@@ -275,18 +266,24 @@ if [ -n "$CUSTOM_BIN" ]; then
     fi
     FIRMWARE_FILE="$CUSTOM_BIN"
     firmware_choice="Custom firmware: $(basename "$CUSTOM_BIN")"
-    
+
     if [[ "$CUSTOM_BIN" == *"headless"* ]]; then
         IS_HEADLESS=true
     fi
-    
-    CUSTOM_DIR=$(dirname "$CUSTOM_BIN")
-    BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
-    PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
-    
-    if [ ! -f "$BOOTLOADER_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
-        echo "ERROR: Custom firmware requires bootloader.bin and partitions.bin in same directory"
-        exit 1
+
+    if [[ "$CUSTOM_BIN" == *.factory.bin ]]; then
+        FACTORY_MODE=true
+    else
+        CUSTOM_DIR=$(dirname "$CUSTOM_BIN")
+        BOOTLOADER_FILE="$CUSTOM_DIR/bootloader-c5.bin"
+        PARTITIONS_FILE="$CUSTOM_DIR/partitions-c5.bin"
+        [ -f "$BOOTLOADER_FILE" ] || BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
+        [ -f "$PARTITIONS_FILE" ] || PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
+
+        if [ ! -f "$BOOTLOADER_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
+            echo "ERROR: Custom firmware requires bootloader-c5.bin and partitions-c5.bin in same directory"
+            exit 1
+        fi
     fi
 else
     select_channel
@@ -320,19 +317,9 @@ else
                 echo ""
                 echo "Downloading $firmware_choice firmware..."
                 curl -fLo "$FIRMWARE_FILE" "$FIRMWARE_URL" || { echo "Error downloading firmware. Please check the URL and your connection."; exit 1; }
-                
-                FIRMWARE_DIR=$(dirname "$FIRMWARE_URL")
-                BOOTLOADER_URL="$FIRMWARE_DIR/bootloader.bin"
-                PARTITIONS_URL="$FIRMWARE_DIR/partitions.bin"
-                BOOTLOADER_FILE="bootloader.bin"
-                PARTITIONS_FILE="partitions.bin"
-                
-                echo "Downloading bootloader..."
-                curl -fLo "$BOOTLOADER_FILE" "$BOOTLOADER_URL" || { echo "ERROR: Failed to download bootloader.bin"; exit 1; }
-                
-                echo "Downloading partitions..."
-                curl -fLo "$PARTITIONS_FILE" "$PARTITIONS_URL" || { echo "ERROR: Failed to download partitions.bin"; exit 1; }
-                
+
+                FACTORY_MODE=true
+
             else
                 read -p "Enter path to custom .bin file: " custom_file
                 if [ ! -f "$custom_file" ]; then
@@ -341,18 +328,24 @@ else
                 fi
                 FIRMWARE_FILE="$custom_file"
                 firmware_choice="Custom firmware: $(basename "$custom_file")"
-                
+
                 if [[ "$custom_file" == *"headless"* ]]; then
                     IS_HEADLESS=true
                 fi
-                
-                CUSTOM_DIR=$(dirname "$custom_file")
-                BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
-                PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
-                
-                if [ ! -f "$BOOTLOADER_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
-                    echo "ERROR: Custom firmware requires bootloader.bin and partitions.bin in same directory"
-                    exit 1
+
+                if [[ "$custom_file" == *.factory.bin ]]; then
+                    FACTORY_MODE=true
+                else
+                    CUSTOM_DIR=$(dirname "$custom_file")
+                    BOOTLOADER_FILE="$CUSTOM_DIR/bootloader-c5.bin"
+                    PARTITIONS_FILE="$CUSTOM_DIR/partitions-c5.bin"
+                    [ -f "$BOOTLOADER_FILE" ] || BOOTLOADER_FILE="$CUSTOM_DIR/bootloader.bin"
+                    [ -f "$PARTITIONS_FILE" ] || PARTITIONS_FILE="$CUSTOM_DIR/partitions.bin"
+
+                    if [ ! -f "$BOOTLOADER_FILE" ] || [ ! -f "$PARTITIONS_FILE" ]; then
+                        echo "ERROR: Custom firmware requires bootloader-c5.bin and partitions-c5.bin in same directory"
+                        exit 1
+                    fi
                 fi
             fi
             break
@@ -413,18 +406,31 @@ if [ "$ERASE_FLASH" = true ]; then
 fi
 
 echo ""
-echo "Flashing complete firmware (bootloader + partitions + app)..."
-$ESPTOOL_CMD \
-    --chip auto \
-    --port "$ESP32_PORT" \
-    --baud "$UPLOAD_SPEED" \
-    --before default-reset \
-    --after hard-reset \
-    write-flash -z \
-    --flash-size detect \
-    0x0 "$BOOTLOADER_FILE" \
-    0x8000 "$PARTITIONS_FILE" \
-    0x10000 "$FIRMWARE_FILE"
+if [ "$FACTORY_MODE" = true ]; then
+    echo "Flashing factory image (bootloader + partitions + app) at 0x0..."
+    $ESPTOOL_CMD \
+        --chip auto \
+        --port "$ESP32_PORT" \
+        --baud "$UPLOAD_SPEED" \
+        --before default-reset \
+        --after hard-reset \
+        write-flash -z \
+        --flash-size detect \
+        0x0 "$FIRMWARE_FILE"
+else
+    echo "Flashing complete firmware (bootloader + partitions + app)..."
+    $ESPTOOL_CMD \
+        --chip auto \
+        --port "$ESP32_PORT" \
+        --baud "$UPLOAD_SPEED" \
+        --before default-reset \
+        --after hard-reset \
+        write-flash -z \
+        --flash-size detect \
+        "$BOOTLOADER_OFFSET" "$BOOTLOADER_FILE" \
+        0x8000 "$PARTITIONS_FILE" \
+        0x10000 "$FIRMWARE_FILE"
+fi
 
 echo ""
 echo "==================================================="

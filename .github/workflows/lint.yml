@@ -4,9 +4,9 @@ permissions:
 
 on:
   push:
-    branches: [ main, beta ]
+    branches: [ feat/c5 ]
   pull_request:
-    branches: [ main, beta ]
+    branches: [ feat/c5 ]
 
 jobs:
   cppcheck:
@@ -50,8 +50,8 @@ jobs:
     - name: Install PlatformIO
       run: pip install --upgrade platformio
 
-    - name: Build AntiHunter-full
-      run: pio run -e AntiHunter-full
+    - name: Build AntiHunter-c5-full
+      run: pio run -e AntiHunter-c5-full
 
-    - name: Build AntiHunter-headless
-      run: pio run -e AntiHunter-headless
+    - name: Build AntiHunter-c5-headless
+      run: pio run -e AntiHunter-c5-headless

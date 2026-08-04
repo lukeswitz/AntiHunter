@@ -24,10 +24,10 @@ lint-headless:
 build: build-full build-headless
 
 build-full:
-	pio run -e AntiHunter-full
+	pio run -e AntiHunter-c5-full
 
 build-headless:
-	pio run -e AntiHunter-headless
+	pio run -e AntiHunter-c5-headless
 
 clean:
 	pio run -t clean

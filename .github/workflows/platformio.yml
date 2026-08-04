@@ -4,9 +4,9 @@ permissions:
 
 on:
   push:
-    branches: [ main, beta ]
+    branches: [ feat/c5 ]
   pull_request:
-    branches: [ main, beta ]
+    branches: [ feat/c5 ]
 
 jobs:
   build:
@@ -14,8 +14,6 @@ jobs:
     strategy:
       matrix:
         environment:
-          - AntiHunter-full
-          - AntiHunter-headless
           - AntiHunter-c5-full
           - AntiHunter-c5-headless
     
