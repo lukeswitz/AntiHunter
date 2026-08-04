@@ -816,6 +816,7 @@ void droneDetectorTask(void *pv)
     // BLE-only skips promiscuous + channel hopping; radioStartSTA covers WiFi and WiFi+BLE
     if (currentScanMode == SCAN_BLE) radioStartBLE();
     else radioStartSTA();
+    g_dronePinChannel.store(true);
     
     uint32_t scanStart = millis();
     uint32_t nextStatus = millis() + 5000;
@@ -967,6 +968,7 @@ void droneDetectorTask(void *pv)
                   droneDetectionCount.load(), static_cast<unsigned>(finalUniqueN));
 
     vTaskDelay(pdMS_TO_TICKS(100));
+    g_dronePinChannel.store(false);
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }

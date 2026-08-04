@@ -326,6 +326,8 @@ void baselineDetectionTask(void *pv) {
     if (!anomalyQueue) {
         Serial.println("[BASELINE] FATAL: anomalyQueue creation failed");
         scanning = false;
+        workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
         vTaskDelete(NULL);
         return;
     }
@@ -337,6 +339,8 @@ void baselineDetectionTask(void *pv) {
         vQueueDeleteWithCaps(anomalyQueue);
         anomalyQueue = nullptr;
         scanning = false;
+        workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
         vTaskDelete(NULL);
         return;
     }

@@ -3146,7 +3146,18 @@ static void sentinelAlwaysOnTask(void *pv) {
             if (chans.empty()) chans.push_back(apChan);
             for (uint8_t ch : chans) {
                 if (!g_sentinelUserEnabled.load() || scanning.load() || !g_sentinelScanMode.load()) break;
-                esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+                if (WiFi.softAPgetStationNum() > 0 && ch != apChan) {
+                    wifi_scan_config_t sc = {};
+                    sc.channel = ch;
+                    sc.show_hidden = true;
+                    sc.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+                    sc.scan_time.active.min = 40;
+                    sc.scan_time.active.max = 120;
+                    sc.home_chan_dwell_time = 30;
+                    esp_wifi_scan_start(&sc, false);
+                } else {
+                    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+                }
                 uint32_t dwellMs = (ch == apChan) ? 400 : 120;
                 uint32_t waited = 0;
                 while (waited < dwellMs && g_sentinelUserEnabled.load() && !scanning.load()) {
