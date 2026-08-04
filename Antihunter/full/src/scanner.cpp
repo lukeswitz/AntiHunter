@@ -54,6 +54,7 @@ QueueHandle_t apInfoQueue = nullptr;
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
+std::atomic<bool> g_channelsAmended{false};
 UniqueMacsSet uniqueMacs;
 portMUX_TYPE uniqueMacsMux = portMUX_INITIALIZER_UNLOCKED;
 DeviceLastSeenMap deviceLastSeen;
@@ -168,14 +169,13 @@ static inline bool channelIs2G(uint8_t ch) { return ch >= 1 && ch <= 14; }
 
 void rebuildActiveChannels() {
 #ifdef ARDUINO_XIAO_ESP32C5
-    // The band needs channels the saved list may not carry. Put them in CHANNELS, not just in
-    // the derived list, so the condition clears and the next rebuild has nothing to fix.
     if (rfConfig.bandMode != 0) {
         static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
         bool have5g = false;
         for (uint8_t ch : CHANNELS) if (!channelIs2G(ch)) { have5g = true; break; }
         if (!have5g) {
             for (uint8_t ch : k5g) CHANNELS.push_back(ch);
+            g_channelsAmended.store(true);
             Serial.println("[RF] 5GHz channels added to saved list: 36/40/44/48/149/153/157/161/165");
         }
     }
@@ -185,6 +185,7 @@ void rebuildActiveChannels() {
         if (!have2g) {
             const uint8_t k2g[3] = {1, 6, 11};
             for (uint8_t ch : k2g) CHANNELS.push_back(ch);
+            g_channelsAmended.store(true);
             Serial.println("[RF] 2.4GHz channels added to saved list: 1/6/11");
         }
     }
@@ -205,8 +206,6 @@ void applyBandMode() {
     // init data, which drops associated clients. Apply once; skip when the band is unchanged.
     static uint8_t appliedBand = 0xFF;
     if (appliedBand == rfConfig.bandMode) return;
-    // schan/nchan describe the 2.4GHz band only; 5GHz is a separate bitmask
-    // (esp_wifi_types_generic.h:68-77). Only channels this table allows can be scanned.
     if (rfConfig.bandMode != 0) {
         wifi_country_t c = {};
         memcpy(c.cc, COUNTRY, 2);
@@ -917,21 +916,25 @@ static void hopTimerCb(void *)
 {
     if (!hopTimer || g_activeChannels.empty()) return;
     static size_t idx = 0;
-    static bool serveAp = false;
 
     if (apHasClients()) {
-        // Alternate target/home so the AP beacons every other slot, far inside the 6s budget.
-        serveAp = !serveAp;
-        if (serveAp) {
-            esp_wifi_set_channel(apHomeChannel(), WIFI_SECOND_CHAN_NONE);
+        // esp_wifi_set_channel is rejected while the SoftAP has associated stations, so the
+        // driver has to move the radio: a one-channel scan visits it and returns home itself.
+        idx = (idx + 1) % g_activeChannels.size();
+        uint8_t ch = g_activeChannels[idx];
+        if (ch == apHomeChannel()) {
             apMarkServed();
             return;
         }
-        if (apServiceGapMs() >= AH_AP_SERVICE_MAX_MS) {
-            esp_wifi_set_channel(apHomeChannel(), WIFI_SECOND_CHAN_NONE);
-            apMarkServed();
-            return;
-        }
+        wifi_scan_config_t sc = {};
+        sc.channel = ch;
+        sc.show_hidden = true;
+        sc.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+        sc.scan_time.active.min = 40;
+        sc.scan_time.active.max = rfConfig.wifiChannelTime;
+        sc.home_chan_dwell_time = 30;
+        if (esp_wifi_scan_start(&sc, false) != ESP_OK) apMarkServed();
+        return;
     }
 
     if (triangulationActive.load()) {
@@ -2939,7 +2942,6 @@ bool safeMacQueueReceive(Hit* hit, TickType_t timeout) {
 }
 
 // Safe queue delete with mutex protection
-// Freed between scans: the SoftAP needs this internal RAM back (headless keeps it instead).
 void safeMacQueueDelete() {
     if (macQueueMutex == nullptr) return;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
@@ -2961,8 +2963,6 @@ bool safeMacQueueCreate(size_t queueSize) {
             macQueue = nullptr;
         }
         vTaskDelay(pdMS_TO_TICKS(50));
-        // sniffer_cb feeds this from an ISR, so it has to be internal RAM, which the SoftAP
-        // also lives on. Take the deepest queue that fits instead of failing the whole scan.
         for (size_t depth = queueSize; depth >= 64; depth /= 2) {
             macQueue = xQueueCreateWithCaps(depth, sizeof(Hit), AH_ISR_QUEUE_CAPS);
             if (macQueue) {

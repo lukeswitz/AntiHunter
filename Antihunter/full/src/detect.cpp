@@ -2961,8 +2961,6 @@ static void sentinelAlwaysOnTask(void *pv) {
             }
         }
     }
-    // The SoftAP's own channel, not whatever the radio is tuned to: a scan that ended on a
-    // 5GHz channel would otherwise pin sentinel there and hold the AP off-channel.
     uint8_t apChan = apHomeChannel();
     if (!apChan) apChan = AP_CHANNEL;
     Serial.printf("[SENTINEL] task started ap_ch=%u mode=%s\n", (unsigned)apChan,

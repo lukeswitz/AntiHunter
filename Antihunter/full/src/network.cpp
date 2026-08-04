@@ -204,8 +204,6 @@ void initializeNetwork()
   WiFi.mode(WIFI_AP_STA);
   delay(100);
 
-  // Country must be final before softAP(): applying it later rewrites the beacon IE and
-  // reloads PHY init data, which drops the AP that is already up.
   applyBandMode();
 
   customApSsid = prefs.getString("apSsid", AP_SSID);
@@ -742,7 +740,6 @@ void registerRemainingRoutes() {
 
       String channelsCSV = req->getParam("channels", true)->value();
       parseChannelsCSV(channelsCSV);
-      prefs.putString("channels", channelsCSV);
 
       if (req->hasParam("bandMode", true)) {
           setBandMode((uint8_t)req->getParam("bandMode", true)->value().toInt());

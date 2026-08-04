@@ -199,8 +199,6 @@ void probeDetectionTask(void *pv)
     }
 
     if (probeRequestQueue == nullptr) {
-        // 256 entries is 38912 B of internal RAM, which the C5 cannot spare once the SoftAP
-        // and BLE are up; take the deepest queue that fits rather than capturing nothing.
         for (size_t depth : {256u, 128u, 64u, 32u}) {
             probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
             if (probeRequestQueue) {

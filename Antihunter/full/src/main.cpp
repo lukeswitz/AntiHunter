@@ -367,6 +367,8 @@ void loop() {
 
     markUptimeAlive();
 
+    if (g_channelsAmended.exchange(false)) saveConfiguration();
+
     processUSBToMesh();
 
     // Battery saver mode - minimal operations

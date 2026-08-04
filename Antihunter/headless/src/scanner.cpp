@@ -56,6 +56,7 @@ std::atomic<bool> listScanTriMode(false);
 // Otherwise only CONFIG_TARGETS matches are broadcast. Cleared on task exit.
 std::atomic<bool> probeBroadcastAll{false};
 QueueHandle_t macQueue = nullptr;
+std::atomic<bool> g_channelsAmended{false};
 UniqueMacsSet uniqueMacs;
 DeviceLastSeenMap deviceLastSeen;
 const uint32_t DEDUPE_WINDOW = 30000;
@@ -161,14 +162,13 @@ static inline bool channelIs2G(uint8_t ch) { return ch >= 1 && ch <= 14; }
 
 void rebuildActiveChannels() {
 #ifdef ARDUINO_XIAO_ESP32C5
-    // The band needs channels the saved list may not carry. Put them in CHANNELS, not just in
-    // the derived list, so the condition clears and the next rebuild has nothing to fix.
     if (rfConfig.bandMode != 0) {
         static const uint8_t k5g[9] = {36, 40, 44, 48, 149, 153, 157, 161, 165};
         bool have5g = false;
         for (uint8_t ch : CHANNELS) if (!channelIs2G(ch)) { have5g = true; break; }
         if (!have5g) {
             for (uint8_t ch : k5g) CHANNELS.push_back(ch);
+            g_channelsAmended.store(true);
             Serial.println("[RF] 5GHz channels added to saved list: 36/40/44/48/149/153/157/161/165");
         }
     }
@@ -178,6 +178,7 @@ void rebuildActiveChannels() {
         if (!have2g) {
             const uint8_t k2g[3] = {1, 6, 11};
             for (uint8_t ch : k2g) CHANNELS.push_back(ch);
+            g_channelsAmended.store(true);
             Serial.println("[RF] 2.4GHz channels added to saved list: 1/6/11");
         }
     }
@@ -198,8 +199,6 @@ void applyBandMode() {
     // init data, which drops associated clients. Apply once; skip when the band is unchanged.
     static uint8_t appliedBand = 0xFF;
     if (appliedBand == rfConfig.bandMode) return;
-    // schan/nchan describe the 2.4GHz band only; 5GHz is a separate bitmask
-    // (esp_wifi_types_generic.h:68-77). Only channels this table allows can be scanned.
     if (rfConfig.bandMode != 0) {
         wifi_country_t c = {};
         memcpy(c.cc, COUNTRY, 2);
@@ -2653,7 +2652,6 @@ bool safeMacQueueReceive(Hit* hit, TickType_t timeout) {
     return result;
 }
 
-// Empties the queue at scan end; the block itself is kept for the next scan.
 void safeMacQueueDelete() {
     if (macQueueMutex == nullptr) return;
     if (xSemaphoreTake(macQueueMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
@@ -2664,8 +2662,6 @@ void safeMacQueueDelete() {
     }
 }
 
-// Allocated once and reused. It must live in internal RAM (sniffer_cb feeds it from an ISR),
-// and freeing 20KB of internal RAM between scans fragments the heap until it cannot be had back.
 bool safeMacQueueCreate(size_t queueSize) {
     initMacQueueMutex();
     if (macQueueMutex == nullptr) return false;

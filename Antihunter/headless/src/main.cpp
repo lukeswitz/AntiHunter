@@ -287,6 +287,8 @@ void loop() {
 
     markUptimeAlive();
 
+    if (g_channelsAmended.exchange(false)) saveConfiguration();
+
     // Handle serial time setting (always process, even in battery saver)
     if (Serial.available()) {
         String cmd = Serial.readStringUntil('\n');
