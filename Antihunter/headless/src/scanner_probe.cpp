@@ -417,29 +417,46 @@ void probeDetectionTask(void *pv)
                 uint8_t mac[6];
                 if (sscanf(macStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
                            &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6) {
-                    if (matchesMac(mac)) {
-                        std::lock_guard<std::mutex> lock(probeMutex);
-                        auto it = probeDevices.find(macStr);
-                        if (it == probeDevices.end()) {
-                            ProbeDevice dev = {};
-                            memcpy(dev.mac, mac, 6);
-                            dev.rssi = device->getRSSI();
-                            dev.rssiMin = dev.rssi;
-                            dev.rssiMax = dev.rssi;
-                            dev.channel = 0;
-                            dev.firstSeen = millis();
-                            dev.lastSeen = millis();
-                            dev.probeCount = 1;
-                            dev.isRandomized = (mac[0] & 0x02) && !(mac[0] & 0x01);
+                    bool isHit = matchesMac(mac);
+                    int8_t rssi = device->getRSSI();
+                    if (!isHit && rssi < rfConfig.globalRssiThreshold) continue;
+
+                    std::lock_guard<std::mutex> lock(probeMutex);
+                    auto it = probeDevices.find(macStr);
+                    if (it != probeDevices.end()) {
+                        ProbeDevice &dev = it->second;
+                        dev.lastSeen = millis();
+                        dev.rssi = rssi;
+                        if (rssi < dev.rssiMin) dev.rssiMin = rssi;
+                        if (rssi > dev.rssiMax) dev.rssiMax = rssi;
+                        dev.probeCount++;
+                        if (isHit && !dev.isTargetHit) {
                             dev.isTargetHit = true;
-                            strncpy(dev.hitReason, "MAC", sizeof(dev.hitReason));
-                            if (device->getName().length() > 0) {
-                                strncpy(dev.vendor, device->getName().c_str(), sizeof(dev.vendor) - 1);
-                            }
-                            probeDevices[macStr] = dev;
+                            strncpy(dev.hitReason, "MAC", sizeof(dev.hitReason) - 1);
                             probeHitCount++;
                         }
+                        continue;
                     }
+                    if (probeDevices.size() >= 100) continue;
+
+                    ProbeDevice dev = {};
+                    memcpy(dev.mac, mac, 6);
+                    dev.rssi = rssi;
+                    dev.rssiMin = rssi;
+                    dev.rssiMax = rssi;
+                    dev.channel = 0;
+                    dev.firstSeen = millis();
+                    dev.lastSeen = millis();
+                    dev.probeCount = 1;
+                    dev.isRandomized = (mac[0] & 0x02) && !(mac[0] & 0x01);
+                    dev.isTargetHit = isHit;
+                    dev.isBLE = true;
+                    if (isHit) strncpy(dev.hitReason, "MAC", sizeof(dev.hitReason) - 1);
+                    if (device->getName().length() > 0) {
+                        strncpy(dev.vendor, device->getName().c_str(), sizeof(dev.vendor) - 1);
+                    }
+                    probeDevices[macStr] = dev;
+                    if (isHit) probeHitCount++;
                 }
             }
             pBLEScan->clearResults();
@@ -580,7 +597,9 @@ String getProbeResults()
 
     for (const auto &p : sorted) {
         ProbeDevice &dev = *p.second;
-        results += "WiFi " + p.first + " RSSI=" + String(dev.rssi) + "dBm CH=" + String(dev.channel) + " ";
+        results += (dev.isBLE ? "BLE " : "WiFi ") + p.first + " RSSI=" + String(dev.rssi) + "dBm";
+        if (!dev.isBLE) results += " CH=" + String(dev.channel);
+        results += " ";
 
         if (dev.isRandomized) {
             results += "Randomized";

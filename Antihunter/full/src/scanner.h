@@ -99,6 +99,7 @@ struct ProbeDevice {
     bool isRandomized;
     bool isTargetHit;
     bool isDstHit;
+    bool isBLE;
     char vendor[16];
     char hitReason[10];
     // Historical intelligence (from SD probe database)
