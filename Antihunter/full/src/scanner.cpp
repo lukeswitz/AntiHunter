@@ -1274,6 +1274,9 @@ void snifferScanTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
+#ifndef ARDUINO_XIAO_ESP32C5
+        // C5 runs the SoftAP on the same radio: WiFi.scanNetworks() returns WIFI_SCAN_FAILED
+        // here and the promiscuous capture below supplies the APs (measured 54 vs 0).
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) &&
             (lastWiFiScan == 0 || millis() - lastWiFiScan >= rfConfig.wifiScanInterval)) {
             lastWiFiScan = millis();
@@ -1347,6 +1350,7 @@ void snifferScanTask(void *pv)
             Serial.printf("[SNIFFER] WiFi scan found %d networks\n", networksFound);
             vTaskDelay(pdMS_TO_TICKS(10));
         }
+#endif
 
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
