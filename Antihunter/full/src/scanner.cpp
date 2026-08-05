@@ -1039,14 +1039,8 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     hit.companyId  = 0;
     hit.toolHint   = 0;
     // tool: FC C0 00 + reason 0x02 + seqCtrl 0xFFF0 (raw bytes 0xF0 0xFF LE).
-    // seqCtrl=0xFFF0 is FIXED non-incrementing — legit STA/AP frames increment seq.
     // Combined with reason=2 = high-confidence tool fingerprint.
     if (hit.reasonCode == 0x0002 && hit.seqCtrl == 0xFFF0) hit.toolHint |= 0x01;
-    // bit1 was "tool target reason in {1,4,6,7,8}" — REMOVED: these reasons are
-    // commonly used by real APs (router reboot, channel switch, etc.) so flagging
-    // them alone produces unacceptable false positives. The rate-based detector
-    // (≥20 deauths/10s in flood logic below) catches tool floods regardless.
-    // tool deauth flood: broadcast dst — informational only, not standalone alert.
     if (hit.isBroadcast) hit.toolHint |= 0x04;
 
     BaseType_t woken = pdFALSE;

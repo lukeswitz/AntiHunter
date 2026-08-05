@@ -3781,6 +3781,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       function parseProbeLine(raw) {
+        const typeM = raw.match(/^(WiFi|BLE)\s+/);
+        const isBLE = !!typeM && typeM[1] === 'BLE';
         const line = raw.replace(/^(WiFi|BLE)\s+/, '').trim();
         const macM = line.match(/([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})/);
         if (!macM) return null;
@@ -3800,7 +3802,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const probesM = line.match(/probes:((?:~?"[^"]*",?)+)/);
         if (probesM) { for (const m of probesM[1].matchAll(/(~?)"([^"]*)"/g)) ssids.push({ name: m[2], ghost: m[1] === '~' }); }
         return {
-          mac, rssi: rssiM ? rssiM[1] : null, ch: chM ? chM[1] : '', count: countM ? parseInt(countM[1]) : 1,
+          mac, isBLE, rssi: rssiM ? rssiM[1] : null, ch: chM ? chM[1] : '', count: countM ? parseInt(countM[1]) : 1,
           vendor, randomized, ssids, ap: apM ? apM[1] : '', apBssid: apBssidM ? apBssidM[1] : '',
           known: knownM ? { seen: knownM[1], sessions: knownM[2], last: knownM[3] } : null
         };
@@ -3836,6 +3838,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function renderProbeClientCard(d) {
         let h = '<div class="res-card' + (d.known ? ' acc' : '') + '">';
         h += '<div class="res-row-main"><span class="res-mac">' + d.mac + randBadge(d.mac);
+        h += '<span class="res-badge' + (d.isBLE ? ' acc' : '') + '">' + (d.isBLE ? 'BLE' : 'WiFi') + '</span>';
         if (d.vendor && !d.randomized && !isRandomMac(d.mac)) h += '<span class="res-badge">' + d.vendor + '</span>';
         if (d.ch) h += '<span class="res-badge">CH' + d.ch + '</span>';
         if (d.count > 1) h += '<span class="res-badge acc">x' + d.count + '</span>';
@@ -3872,8 +3875,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html += '</div></details>';
         }
         if (broadcast.length) {
+          const bBle = broadcast.filter(d => d.isBLE).length;
+          const bWifi = broadcast.length - bBle;
           html += '<details class="res-section"><summary><span class="res-caret">&#9654;</span><span>Broadcast probes (no specific network)</span>';
-          html += '<span class="res-badge">' + broadcast.length + ' device' + (broadcast.length === 1 ? '' : 's') + '</span></summary><div class="res-section-body">';
+          html += '<span class="res-badge">' + broadcast.length + ' device' + (broadcast.length === 1 ? '' : 's') + '</span>';
+          if (bWifi) html += '<span class="res-badge">' + bWifi + ' WiFi</span>';
+          if (bBle) html += '<span class="res-badge acc">' + bBle + ' BLE</span>';
+          html += '</summary><div class="res-section-body">';
           for (const d of broadcast) html += renderProbeClientCard(d);
           html += '</div></details>';
         }
@@ -5047,8 +5055,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       var DATA_PAGE_SIZE=50;
       var DATA_SETS={
         probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',
-          cols:['MAC','Vendor','RSSI','Sessions','Seen','First','Last','SSIDs','Rand'],
-          keys:['mac','vendor','rssi','sessions','seen','first','last','ssids','rand']},
+          cols:['MAC','Type','Vendor','RSSI','Sessions','Seen','First','Last','SSIDs','Rand'],
+          keys:['mac','ble','vendor','rssi','sessions','seen','first','last','ssids','rand']},
         probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',
           cols:['Time','MAC','RSSI','Ch','Count','Vendor','SSIDs','Rand','Hit'],
           keys:['t','mac','rssi','ch','cnt','v','ss','rand','hit']},
