@@ -1528,6 +1528,7 @@ void randomizationDetectionTask(void *pv) {
             if (millis() - lastBleWindow >= 2000) {
                 lastBleWindow = millis();
                 if (!bleScanStarted) { pBLEScan->setActiveScan(false); bleScanStarted = true; }
+                if (pBLEScan->isScanning()) pBLEScan->stop();
                 pBLEScan->getResults(600, false);
                 if (stopRequested) break;
             }

@@ -409,6 +409,7 @@ void probeDetectionTask(void *pv)
 
         if (bleScan && (currentScanMode == SCAN_BLE || currentScanMode == SCAN_BOTH) &&
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
+            if (bleScan->isScanning()) bleScan->stop();
             NimBLEScanResults scanResults = bleScan->getResults(rfConfig.bleScanDuration, false);
             int count = scanResults.getCount();
             for (int i = 0; i < count; i++) {
