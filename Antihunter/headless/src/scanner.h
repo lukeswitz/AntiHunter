@@ -101,6 +101,7 @@ struct ProbeDBEntry {
     int8_t bestRssi;
     char vendor[16];
     bool isRandomized;
+    bool isBLE;
 };
 
 struct TriangulationAccumulator {

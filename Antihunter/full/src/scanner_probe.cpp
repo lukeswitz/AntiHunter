@@ -736,6 +736,7 @@ void loadProbeDB()
         entry.sessionCount = doc["s"].as<uint16_t>();
         entry.bestRssi = doc["r"] | -128;
         entry.isRandomized = doc["rd"].as<bool>();
+        entry.isBLE = doc["ble"].as<bool>();
 
         const char *vendor = doc["v"] | "";
         strncpy(entry.vendor, vendor, sizeof(entry.vendor) - 1);
@@ -782,6 +783,7 @@ void saveProbeDB()
         doc["r"] = p.second.bestRssi;
         doc["v"] = p.second.vendor;
         doc["rd"] = p.second.isRandomized ? 1 : 0;
+        doc["ble"] = p.second.isBLE ? 1 : 0;
 
         JsonArray ss = doc.createNestedArray("ss");
         for (uint8_t i = 0; i < p.second.ssidCount; i++) {
@@ -848,6 +850,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
         e.sessionCount = 1;
         e.bestRssi = dev.rssi;
         e.isRandomized = dev.isRandomized;
+        e.isBLE = dev.isBLE;
         strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
         e.ssidCount = 0;
         for (uint8_t i = 0; i < dev.ssidCount && e.ssidCount < 8; i++) {
@@ -910,6 +913,8 @@ PsramJsonString getProbeDBJson()
         { String v = sanitizeAscii(e.vendor, sizeof(e.vendor)); out.append(v.c_str(), v.length()); }
         out += "\",\"rand\":";
         out += (e.isRandomized ? "true" : "false");
+        out += ",\"ble\":";
+        out += (e.isBLE ? "true" : "false");
         out += ",\"ssids\":[";
         bool sfirst = true;
         for (uint8_t i = 0; i < e.ssidCount && i < 8; i++) {
