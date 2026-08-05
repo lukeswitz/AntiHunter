@@ -3960,7 +3960,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (broadcast.length) {
           const bBle = broadcast.filter(d => d.isBLE).length;
           const bWifi = broadcast.length - bBle;
-          html += '<details class="res-section"><summary><span class="res-caret">&#9654;</span><span>Broadcast probes (no specific network)</span>';
+          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span><span>Broadcast probes</span>';
           html += '<span class="res-badge">' + broadcast.length + ' device' + (broadcast.length === 1 ? '' : 's') + '</span>';
           if (bWifi) html += '<span class="res-badge">' + bWifi + ' WiFi</span>';
           if (bBle) html += '<span class="res-badge acc">' + bBle + ' BLE</span>';
