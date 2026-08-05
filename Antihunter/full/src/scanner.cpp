@@ -1437,6 +1437,7 @@ void snifferScanTask(void *pv)
             apServiceNow("pre-ble-scan");
 
             {
+                if (bleScan->isScanning()) bleScan->stop();
                 NimBLEScanResults scanResults = bleScan->getResults(rfConfig.bleScanDuration, false);
                 if (stopRequested) break;
                 apServiceNow("post-ble-scan");
@@ -3577,6 +3578,7 @@ void listScanTask(void *pv) {
             !(triangulationActive.load() && triTargetRadio.load() == 2) &&
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
             lastBLEScan = millis();
+            if (pBLEScan->isScanning()) pBLEScan->stop();
             NimBLEScanResults scanResults = pBLEScan->getResults(500, false);
             if (stopRequested) break;
             for (int i = 0; i < scanResults.getCount(); i++) {
