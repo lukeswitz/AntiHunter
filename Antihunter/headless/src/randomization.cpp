@@ -1288,10 +1288,10 @@ void randomizationDetectionTask(void *pv) {
 
     Serial.printf("[RAND] Starting detection for %s\n", forever ? "forever" : (String(duration) + "s").c_str());
 
-    if (!probeRequestQueue)
-        probeRequestQueue = xQueueCreateWithCaps(AH_PROBE_QUEUE_LEN, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
-    if (!authFrameQueue)
-        authFrameQueue = xQueueCreateWithCaps(32, sizeof(AuthFrameEvent), AH_ISR_QUEUE_CAPS);
+    for (size_t depth = AH_PROBE_QUEUE_LEN; !probeRequestQueue && depth >= 16; depth /= 2)
+        probeRequestQueue = xQueueCreateWithCaps(depth, sizeof(ProbeRequestEvent), AH_ISR_QUEUE_CAPS);
+    for (size_t depth = 32; !authFrameQueue && depth >= 8; depth /= 2)
+        authFrameQueue = xQueueCreateWithCaps(depth, sizeof(AuthFrameEvent), AH_ISR_QUEUE_CAPS);
     if (!probeRequestQueue || !authFrameQueue) {
         Serial.printf("[RAND] FATAL: queue alloc failed (probe=%p auth=%p internal=%u), aborting\n",
                       probeRequestQueue, authFrameQueue,
