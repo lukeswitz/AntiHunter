@@ -1597,6 +1597,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let radioBusyTask = '';
       let prevUniqueDevices = 0;
       let stopPending = false;
+      let stopStalled = false;
+      let stopWatchGen = 0;
+      let stopWatchActive = false;
       let resultsPolling = false;
       let diagFailStreak = 0;
       let nodeReachable = true;
@@ -1609,14 +1612,32 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
 
       function isRadioBusy() {
+        if (stopPending) {
+          toast('Stop in progress — waiting for the node to release the radio', 'warning');
+          return true;
+        }
         if (radioBusy) {
-          toast('Radio busy — ' + (radioBusyTask || 'scan') + ' in progress. Stop it first.', 'warning');
+          toast('Radio busy — ' + (scanTaskLabels[radioBusyTask] || radioBusyTask || 'scan') + ' in progress. Stop it first.', 'warning');
           return true;
         }
         return false;
       }
 
+      function setScanControlsStopping() {
+        for (const k in scanDebounce) { scanDebounce[k].inProgress = true; }
+        [document.getElementById('startDetectionBtn'), document.querySelector('#s button')].forEach(function(btn) {
+          if (!btn) return;
+          btn.textContent = 'Stopping…';
+          btn.classList.remove('primary');
+          btn.classList.add('danger');
+          btn.type = 'button';
+          btn.onclick = null;
+          btn.disabled = true;
+        });
+      }
+
       function resetScanControls() {
+        stopStalled = false;
         for (const k in scanDebounce) { scanDebounce[k].inProgress = false; scanDebounce[k].lastSubmit = 0; }
         const startDetectionBtn = document.getElementById('startDetectionBtn');
         if (startDetectionBtn) {
@@ -1661,19 +1682,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (!b) return;
         const show = radioBusy || stopPending;
         b.style.display = show ? 'inline-block' : 'none';
-        b.classList.toggle('disabled', stopPending);
-        b.textContent = stopPending ? 'STOPPING' : 'STOP';
+        b.classList.toggle('disabled', stopPending && !stopStalled);
+        b.textContent = (stopPending && !stopStalled) ? 'STOPPING' : 'STOP';
       }
 
       function stopScan(e) {
         if (e) e.preventDefault();
-        if (stopPending) return false;
+        if (stopPending && !stopStalled) return false;
         stopPending = true;
+        stopStalled = false;
         lastScanStartTime = 0;
-        radioBusy = false;
-        radioBusyTask = '';
         document.querySelectorAll('#r .res-scanning').forEach(function(p) { p.remove(); });
-        resetScanControls();
+        setScanControlsStopping();
         if (baselineUpdateInterval) { clearInterval(baselineUpdateInterval); baselineUpdateInterval = null; prevUniqueDevices = 0; }
         setScanStatus('Stopping', 'active');
         syncStopAllBtn();
@@ -1684,11 +1704,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       async function awaitStopConfirmed() {
-        const deadline = Date.now() + 45000;
-        while (Date.now() < deadline) {
+        const gen = ++stopWatchGen;
+        const stallAt = Date.now() + 15000;
+        let warned = false;
+        stopWatchActive = true;
+        try {
+        while (stopPending && gen === stopWatchGen) {
           await new Promise(r => setTimeout(r, 400));
+          if (gen !== stopWatchGen) return;
           let d = '';
           try { d = await (await fetch('/diag')).text(); } catch (err) { continue; }
+          if (gen !== stopWatchGen) return;
           if (!d.includes('Scanning: yes')) {
             stopPending = false;
             radioBusy = false;
@@ -1700,10 +1726,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             tick();
             return;
           }
+          if (!warned && Date.now() > stallAt) {
+            warned = true;
+            stopStalled = true;
+            syncStopAllBtn();
+            toast('Node still has the radio after 15s — press STOP again to retry', 'warning');
+          }
         }
-        stopPending = false;
-        syncStopAllBtn();
-        toast('Still stopping — mesh teardown is slow, watch the status pill', 'warning');
+        } finally {
+          if (gen === stopWatchGen) stopWatchActive = false;
+        }
       }
 
       function resHasSelection(el) {
@@ -2470,13 +2502,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (cacheBtn) cacheBtn.style.display = (detectionMode === 'device-scan') ? 'inline-block' : 'none';
           if (clearOldBtn) clearOldBtn.style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
           
-           if (detectionMode === 'baseline' && stats.scanning && !stopPending) {
+           if (detectionMode === 'baseline' && stopPending) {
+            setScanControlsStopping();
+          } else if (detectionMode === 'baseline' && stats.scanning) {
             startDetectionBtn.textContent = stats.phase1Complete ? 'Stop Monitoring' : 'Stop Baseline';
             startDetectionBtn.classList.remove('primary');
             startDetectionBtn.classList.add('danger');
             startDetectionBtn.type = 'button';
+            startDetectionBtn.disabled = false;
             startDetectionBtn.onclick = stopScan;
-          } else if (detectionMode === 'baseline' && (!stats.scanning || stopPending)) {
+          } else if (detectionMode === 'baseline' && !stats.scanning) {
             startDetectionBtn.textContent = 'Start Scan';
             startDetectionBtn.classList.remove('danger');
             startDetectionBtn.classList.add('primary');
@@ -2948,7 +2983,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('resetRandBtn').style.display = (detectionMode === 'randomization-detection') ? 'inline-block' : 'none';
 
         if (isScanning || isTriangulating) {
-            if (diagText.includes('Stopping: yes')) stopPending = true;
+            if (diagText.includes('Stopping: yes')) {
+                stopPending = true;
+                if (!stopWatchActive) awaitStopConfirmed();
+            }
             const triWaiting = isTriangulating && triIsCollecting(lastResultsText);
             const triPhase = isTriangulating ? triPhaseLabel(lastResultsText) : '';
             const label = stopPending ? 'Stopping'
@@ -2961,7 +2999,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             else { _scanForever = !!remMatch; _scanEndTs = 0; }
             setScanStatus(label, 'active');
             syncStopAllBtn();
-            if (stopPending) resetScanControls();
+            if (stopPending) setScanControlsStopping();
 
             const startScanBtn = stopPending ? null : document.querySelector('#s button');
             if (startScanBtn && taskType === 'scan') {
@@ -2969,6 +3007,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 startScanBtn.classList.remove('primary');
                 startScanBtn.classList.add('danger');
                 startScanBtn.type = 'button';
+                startScanBtn.disabled = false;
                 startScanBtn.onclick = stopScan;
             }
 
@@ -2979,6 +3018,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     triangulateBtn.classList.remove('primary');
                     triangulateBtn.classList.add('danger');
                     triangulateBtn.type = 'button';
+                    triangulateBtn.disabled = false;
                     triangulateBtn.onclick = stopScan;
                 }
             }
@@ -2990,6 +3030,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     startDetectionBtn.classList.remove('primary');
                     startDetectionBtn.classList.add('danger');
                     startDetectionBtn.type = 'button';
+                    startDetectionBtn.disabled = false;
                     startDetectionBtn.onclick = stopScan;
                 }
             }
