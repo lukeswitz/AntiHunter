@@ -921,18 +921,12 @@ static void hopTimerCb(void *)
         return;
     }
     static size_t idx = 0;
-    static bool serveAp = false;
 
     if (apHasClients()) {
-        serveAp = !serveAp;
-        if (serveAp) {
-            esp_wifi_set_channel(apHomeChannel(), WIFI_SECOND_CHAN_NONE);
-            apMarkServed();
-            return;
-        }
         idx = (idx + 1) % g_activeChannels.size();
         uint8_t ch = g_activeChannels[idx];
         if (ch == apHomeChannel()) {
+            esp_wifi_set_channel(apHomeChannel(), WIFI_SECOND_CHAN_NONE);
             apMarkServed();
             return;
         }
@@ -966,15 +960,7 @@ static void hopTimerCb(void *)
 
     idx = (idx + 1) % g_activeChannels.size();
     uint8_t ch = g_activeChannels[idx];
-    esp_err_t rc = esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-    uint8_t got = 0; wifi_second_chan_t sec;
-    esp_wifi_get_channel(&got, &sec);
-    static uint32_t lastHopLog = 0;
-    if (millis() - lastHopLog >= 2000) {
-        lastHopLog = millis();
-        Serial.printf("[HOP] req=%u got=%u rc=%d sta=%u n=%u\n", (unsigned)ch, (unsigned)got,
-                      (int)rc, (unsigned)WiFi.softAPgetStationNum(), (unsigned)g_activeChannels.size());
-    }
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     if (ch == apHomeChannel()) apMarkServed();
 }
 
