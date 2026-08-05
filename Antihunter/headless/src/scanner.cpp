@@ -1253,6 +1253,7 @@ void snifferScanTask(void *pv)
 
             Serial.println("[SNIFFER] Scanning BLE devices...");
 
+                if (bleScan->isScanning()) bleScan->stop();
                 NimBLEScanResults scanResults = bleScan->getResults(rfConfig.bleScanDuration, false);
                 if (stopRequested) break;
 
@@ -3225,6 +3226,7 @@ void listScanTask(void *pv) {
             !(triangulationActive.load() && triTargetRadio.load() == 2) &&
             (millis() - lastBLEScan >= rfConfig.bleScanInterval || lastBLEScan == 0)) {
             lastBLEScan = millis();
+            if (pBLEScan->isScanning()) pBLEScan->stop();
             NimBLEScanResults scanResults = pBLEScan->getResults(500, false);
             if (stopRequested) break;
             for (int i = 0; i < scanResults.getCount(); i++) {
