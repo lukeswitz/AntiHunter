@@ -2168,10 +2168,24 @@ void blueTeamTask(void *pv) {
         vQueueDeleteWithCaps(oldQueue);
     }
 
-    deauthQueue = xQueueCreateWithCaps(256, sizeof(DeauthHit), AH_ISR_QUEUE_CAPS);
+    for (size_t depth = 256; depth >= 32; depth /= 2) {
+        deauthQueue = xQueueCreateWithCaps(depth, sizeof(DeauthHit), AH_ISR_QUEUE_CAPS);
+        if (deauthQueue) {
+            if (depth < 256)
+                Serial.printf("[BLUE] queue depth %u (256 would need %u B, largest free %u)\n",
+                              (unsigned)depth, (unsigned)(256 * sizeof(DeauthHit)),
+                              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+            break;
+        }
+    }
     if (!deauthQueue) {
-        Serial.println("[BLUE] FATAL: Queue creation failed");
+        Serial.printf("[BLUE] FATAL: Queue creation failed (need=%u internal=%u largest=%u)\n",
+                      (unsigned)(32 * sizeof(DeauthHit)),
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
         scanning = false;
+        blueTeamTaskHandle = nullptr;
+        scanSetCountdown(0, false);
         vTaskDelete(NULL);
         return;
     }
