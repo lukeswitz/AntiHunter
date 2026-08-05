@@ -758,17 +758,14 @@ static void hopTimerCb(void *)
         return;
     }
     static size_t idx = 0;
-    static bool serveAp = false;
 
     if (WiFi.softAPgetStationNum() > 0) {
-        serveAp = !serveAp;
-        if (serveAp) {
+        idx = (idx + 1) % CHANNELS.size();
+        uint8_t ch = CHANNELS[idx];
+        if (ch == (uint8_t)AP_CHANNEL) {
             esp_wifi_set_channel(AP_CHANNEL, WIFI_SECOND_CHAN_NONE);
             return;
         }
-        idx = (idx + 1) % CHANNELS.size();
-        uint8_t ch = CHANNELS[idx];
-        if (ch == (uint8_t)AP_CHANNEL) return;
         wifi_scan_config_t sc = {};
         sc.channel = ch;
         sc.show_hidden = true;
