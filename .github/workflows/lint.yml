@@ -8,10 +8,6 @@ on:
   pull_request:
     branches: [ main, beta ]
 
-concurrency:
-  group: lint-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   cppcheck:
     runs-on: ubuntu-latest
