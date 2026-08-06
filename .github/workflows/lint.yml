@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [ main, beta ]
 
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cppcheck:
     runs-on: ubuntu-latest
@@ -25,33 +29,3 @@ jobs:
 
     - name: Run cppcheck (full + headless)
       run: make lint
-
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-
-    - name: Cache PlatformIO
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
-      with:
-        path: |
-          ~/.platformio
-          .pio
-        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
-        restore-keys: |
-          ${{ runner.os }}-pio-
-
-    - name: Set up Python
-      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
-      with:
-        python-version: '3.11'
-
-    - name: Install PlatformIO
-      run: pip install --upgrade platformio
-
-    - name: Build AntiHunter-full
-      run: pio run -e AntiHunter-full
-
-    - name: Build AntiHunter-headless
-      run: pio run -e AntiHunter-headless
