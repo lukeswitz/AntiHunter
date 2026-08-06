@@ -16,16 +16,16 @@
 | 1× | DS3231 RTC Module |
 | 1× | SW-420 Vibration Sensor |
 | 1× | MicroSD SPI Reader Module |
-| 1× | MicroSD Card — 16 GB, FAT32 |
+| 1× | MicroSD Card — 8 or 16 GB, FAT32 (32GB+ not recommended)|
 
 ### Power & Enclosure
 | Qty | Part |
 |-----|------|
 | 1× | Type-C 15W 3A 5V UPS (2S 18650) |
-| 1× | 30mm 5V JST Fan |
+| 1× | 30mm 5V JST Fan (7-10mm)|
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
 | 3× | JST Power Male Cables (switch, power & thermal) |
-| 1× | KSD9700 Thermal Switch — NO, 30–40°C |
+| 1× | KSD9700 Thermal Switch — Normally Open, 30–40°C |
 | 1× | Weatherproof Enclosure |
 
 ### Antennas & Cables
@@ -75,7 +75,7 @@
 
 ---
 
-## Antennas & Cables
+## Antennas
 
 | Qty | Part | Image | AMZN | ALI |
 |:---:|------|:---:|------|-----|
