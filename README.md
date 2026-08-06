@@ -37,19 +37,6 @@
 
 *Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).*
 
-Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs on the device, and you drive one node two ways with no extra infrastructure:
-  - **Web UI** — the node hosts its own WiFi access point. Connect a phone or laptop, run scans and read results in the browser. Nothing to install.
-  - **Meshtastic radio** — send commands and receive detections over LoRa from a paired Meshtastic radio, with no WiFi AP. The Headless firmware runs this way with no web UI at all.
-  - To cover a larger area, add nodes. They share detections over the same mesh and can report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
-
-
-
-**At a glance**
-
-- ESP32-S3 · WiFi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
-- **Full** firmware: standalone web UI over the node's own AP · **Headless** firmware: serial + mesh only, for silent deployments
-- One node standalone, or a distributed network that coordinates over mesh
-- Vibration & attack triggered actions for set and forget operation
 
 ---
 
@@ -70,9 +57,15 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 
 ---
 
+### Overview
+
+AntiHunter is distributed WiFi and BLE intelligence & attack detection. Controlled from its own WiFi, or using Meshtastic radio commands.  
+
+Vibration based scans and self-destruct option. Defensive by design. Knows the devices and networks around you, alerts when it matters. Integrates as far or close as you choose. 
+
 ## Quick Start
 
-One node, no server. Flash it from your browser — nothing to install.
+Flash it from your browser — nothing to install.
 
 1. **[Open the Web Flasher](https://lukeswitz.github.io/AntiHunter/)** in Chrome or Edge, on desktop.
    - Pick **Full** (web UI) or **Headless** (serial + mesh)
@@ -80,7 +73,7 @@ One node, no server. Flash it from your browser — nothing to install.
    - Plug in your ESP32-S3, and click Connect & Flash.
 3. First boot:
    - **Full firmware** — connect to the `Antihunter` WiFi AP (password `antihunt3r123`), open **http://192.168.4.1**. Change the AP credentials under RF Settings first.
-   - **Headless firmware** — drive it over serial or [mesh commands](#mesh-commands).
+   - **Headless firmware** — configure then drive it over serial or [mesh commands](#mesh-commands).
 4. Add a watchlist entry or start a scan.
 
 *To flash from a terminal or build from source, see [Build & Flash](#build--flash).*
@@ -88,8 +81,6 @@ One node, no server. Flash it from your browser — nothing to install.
 ---
 
 ## What It Detects
-
-Every capability runs on the node and reports to the web UI, mesh, and Command Center.
 
 <p align="center">
 <img width="1200" alt="AntiHunter node" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
