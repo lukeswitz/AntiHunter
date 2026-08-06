@@ -1536,7 +1536,9 @@ void snifferScanTask(void *pv)
     if (meshEnabled) {
         const size_t txBefore = transmittedDevices.size();
         uint32_t skippedDevices = 0;
+        uint32_t abandonedDevices = 0;
         for (const auto& entry : apCache) {
+            if (stopRequested) { abandonedDevices++; continue; }
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
             if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
             String row = "DEVICE:" + entry.first + " W ";
@@ -1558,6 +1560,7 @@ void snifferScanTask(void *pv)
         }
 
         for (const auto& entry : bleDeviceCache) {
+            if (stopRequested) { abandonedDevices++; continue; }
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
             if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
             String row = "DEVICE:" + entry.first + " B ";
@@ -1575,6 +1578,10 @@ void snifferScanTask(void *pv)
             addMeshDeviceRow(row, entry.first);
         }
         flushMeshBatch();
+
+        if (abandonedDevices) {
+            Serial.printf("[SNIFFER] Stop requested: %u device rows not enqueued\n", abandonedDevices);
+        }
 
         if (!stopRequested) {
             const uint32_t totalTx = transmittedDevices.size();

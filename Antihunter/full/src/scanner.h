@@ -158,6 +158,15 @@ void setCustomRFConfig(uint32_t wifiChanTime, uint32_t wifiInterval, uint32_t bl
 void loadRFConfigFromPrefs();
 void setGlobalRssiThreshold(int8_t threshold);
 uint8_t nextActiveScanChannel();
+#ifndef AH_SCAN_ACTIVE_MIN_MS
+#define AH_SCAN_ACTIVE_MIN_MS 40
+#endif
+#ifndef AH_SCAN_ACTIVE_MIN_DEFAULT_MS
+#define AH_SCAN_ACTIVE_MIN_DEFAULT_MS 100
+#endif
+#ifndef AH_SCAN_TIMEOUT_MS
+#define AH_SCAN_TIMEOUT_MS 8000
+#endif
 extern std::atomic<bool> g_dronePinChannel;
 
 extern TaskHandle_t workerTaskHandle;
