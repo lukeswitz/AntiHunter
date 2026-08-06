@@ -750,6 +750,21 @@ static inline bool IRAM_ATTR matchesMacISR(const uint8_t *mac)
     return false;
 }
 
+static volatile uint32_t g_hopScanEndsMs = 0;
+
+static bool hopScanBusy()
+{
+    uint32_t ends = g_hopScanEndsMs;
+    return ends != 0 && (int32_t)(millis() - ends) < 0;
+}
+
+static void hopScanAbort()
+{
+    if (g_hopScanEndsMs == 0) return;
+    g_hopScanEndsMs = 0;
+    esp_wifi_scan_stop();
+}
+
 static void hopTimerCb(void *)
 {
     if (!hopTimer || CHANNELS.empty()) return;
@@ -760,6 +775,7 @@ static void hopTimerCb(void *)
     static size_t idx = 0;
 
     if (WiFi.softAPgetStationNum() > 0) {
+        if (hopScanBusy()) return;
         idx = (idx + 1) % CHANNELS.size();
         uint8_t ch = CHANNELS[idx];
         if (ch == (uint8_t)AP_CHANNEL) {
@@ -773,7 +789,11 @@ static void hopTimerCb(void *)
         sc.scan_time.active.min = 40;
         sc.scan_time.active.max = rfConfig.wifiChannelTime;
         sc.home_chan_dwell_time = 30;
-        esp_wifi_scan_start(&sc, false);
+        if (esp_wifi_scan_start(&sc, false) == ESP_OK) {
+            g_hopScanEndsMs = millis() + sc.scan_time.active.max + sc.home_chan_dwell_time;
+        } else {
+            g_hopScanEndsMs = 0;
+        }
         return;
     }
 
@@ -1131,10 +1151,15 @@ void snifferScanTask(void *pv)
             (lastWiFiScan == 0 || millis() - lastWiFiScan >= rfConfig.wifiScanInterval)) {
             lastWiFiScan = millis();
 
+            if (stopRequested) break;
             Serial.println("[SNIFFER] Scanning WiFi networks (all channels)...");
             if (hopTimer) esp_timer_stop(hopTimer);
+            hopScanAbort();
             esp_wifi_set_promiscuous(false);
+            WiFi.setScanTimeout(AH_SCAN_TIMEOUT_MS);
+            WiFi.setScanActiveMinTime(AH_SCAN_ACTIVE_MIN_MS);
             int networksFound = WiFi.scanNetworks(false, true, false, rfConfig.wifiChannelTime, 0);
+            WiFi.setScanActiveMinTime(AH_SCAN_ACTIVE_MIN_DEFAULT_MS);
             esp_wifi_set_promiscuous(true);
             if (!CHANNELS.empty()) esp_wifi_set_channel(CHANNELS[0], WIFI_SECOND_CHAN_NONE);
             if (hopTimer) esp_timer_start_periodic(hopTimer, rfConfig.wifiChannelTime * 1000);
@@ -1737,7 +1762,9 @@ void snifferScanTask(void *pv)
     if (meshEnabled) {
         const size_t txBefore = transmittedDevices.size();
         uint32_t skippedDevices = 0;
+        uint32_t abandonedDevices = 0;
         for (const auto& entry : apCache) {
+            if (stopRequested) { abandonedDevices++; continue; }
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
             if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
             String row = "DEVICE:" + entry.first + " W ";
@@ -1759,6 +1786,7 @@ void snifferScanTask(void *pv)
         }
 
         for (const auto& entry : bleDeviceCache) {
+            if (stopRequested) { abandonedDevices++; continue; }
             if (transmittedDevices.find(entry.first) != transmittedDevices.end()) continue;
             if (!meshShouldSendMac(entry.first)) { skippedDevices++; continue; }
             String row = "DEVICE:" + entry.first + " B ";
@@ -1776,6 +1804,10 @@ void snifferScanTask(void *pv)
             addMeshDeviceRow(row, entry.first);
         }
         flushMeshBatch();
+
+        if (abandonedDevices) {
+            Serial.printf("[SNIFFER] Stop requested: %u device rows not enqueued\n", abandonedDevices);
+        }
 
         if (!stopRequested) {
             const uint32_t totalTx = transmittedDevices.size();
