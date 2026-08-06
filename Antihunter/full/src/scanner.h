@@ -203,6 +203,15 @@ uint8_t nextActiveScanChannel();
 #ifndef AH_AP_SERVICE_WARN_MS
 #define AH_AP_SERVICE_WARN_MS 2000
 #endif
+#ifndef AH_SCAN_ACTIVE_MIN_MS
+#define AH_SCAN_ACTIVE_MIN_MS 40
+#endif
+#ifndef AH_SCAN_ACTIVE_MIN_DEFAULT_MS
+#define AH_SCAN_ACTIVE_MIN_DEFAULT_MS 100
+#endif
+#ifndef AH_SCAN_TIMEOUT_MS
+#define AH_SCAN_TIMEOUT_MS 8000
+#endif
 
 uint8_t apHomeChannel();
 bool apHasClients();
