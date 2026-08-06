@@ -8,10 +8,6 @@ on:
   pull_request:
     branches: [ main, beta ]
 
-concurrency:
-  group: pio-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
