@@ -67,8 +67,9 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 8. [Mesh Networking](#mesh-networking)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
-11. [Acknowledgments](#acknowledgments)
-12. [Legal](#legal-disclaimer)
+11. [RadarNode](docs/RADARNODE.md)
+12. [Acknowledgments](#acknowledgments)
+13. [Legal](#legal-disclaimer)
 
 ---
 
@@ -83,9 +84,36 @@ One node, no server. Flash it from your browser — nothing to install.
 3. First boot:
    - **Full firmware** — connect to the `Antihunter` WiFi AP (password `antihunt3r123`), open **http://192.168.4.1**. Change the AP credentials under RF Settings first.
    - **Headless firmware** — drive it over serial or [mesh commands](#mesh-commands).
-4. Add a watchlist entry or start a scan.
+4. **Configure the Meshtastic radio.** Plug the radio in on its own USB and run:
+
+   ```bash
+   pip3 install 'meshtastic[cli]' pyserial
+   python3 scripts/meshtastic_config.py
+   ```
+
+   With no arguments it prints the current settings and opens a menu. It sets the serial module to TEXTMSG at 115200 on the right pins for your board, and covers screen, LED heartbeat, BLE pairing and LoRa region. Non-interactive equivalent:
+
+   ```bash
+   python3 scripts/meshtastic_config.py --serial on --board heltec-v3 \
+       --screen off --led off --ble off --region US
+   ```
+
+   `--board` accepts `heltec-v3` or `t114`. Leaving the region `UNSET` makes the radio receive-only.
+5. Add a watchlist entry or start a scan.
 
 *To flash from a terminal or build from source, see [Build & Flash](#build--flash).*
+
+### Before you deploy
+
+**Change the defaults.** The AP ships as `Antihunter` / `antihunt3r123` — published, so treat an unchanged node as open. Set your own SSID and password in RF Settings on first boot. Set the erase PSK too if you plan to use [Secure Data Destruction](#secure-data-destruction).
+
+**Reduce what the node emits.** The AP is a beacon that identifies the device. For covert work run **Headless** — no AP at all, serial and mesh only. On the radio, `--screen off --led off --ble off` removes the visual and Bluetooth signature.
+
+**Redact before sharing.** Privacy Mode blanks MACs, SSIDs and GPS in the web UI for screenshots and demos. Exported logs and SD data are **not** redacted — scrub those separately.
+
+**Location data is identifying.** SD logs, results exports and mesh alerts can carry GPS coordinates. Review any file before posting it publicly or attaching it to a report.
+
+**Know the legal line.** Passive scanning of what is already broadcast is not the same as interception, and the rules vary by country. Scan only where you have authority. See the [Legal Disclaimer](#legal-disclaimer).
 
 ---
 
@@ -478,6 +506,15 @@ Tamper detection and emergency data wiping.
 Nodes function independently and coordinate via Meshtastic mesh networking.
 
 **Workflow:** Detection -> Data collection (RSSI, GPS, timestamp) -> Mesh broadcast -> Command center aggregation
+
+**Node types.** Two firmwares share this PCB and mesh:
+
+| | Sensor | Firmware |
+|---|---|---|
+| **DIGI** | WiFi + BLE | Full (web UI) or Headless (serial + mesh) |
+| **[RadarNode](docs/RADARNODE.md)** | 24GHz radar, WiFi/BLE on trigger | RadarNode-c5 |
+
+A RadarNode detects a moving target on radar, then sweeps WiFi and BLE to record which devices were present at that moment. Both types answer `@ALL STATUS` and appear in each other's node lists — a RadarNode reports `TYPE:RADAR` so peers can tell them apart. See the [RadarNode page](docs/RADARNODE.md) for wiring, configuration and its mesh formats.
 
 **[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO):** Aggregates data from all nodes with real-time mapping and visualization.
 
