@@ -16,16 +16,16 @@
 | 1× | DS3231 RTC Module |
 | 1× | SW-420 Vibration Sensor |
 | 1× | MicroSD SPI Reader Module |
-| 1× | MicroSD Card — 16 GB, FAT32 |
+| 1× | MicroSD Card — 8 or 16 GB, FAT32 (32GB+ not recommended)|
 
 ### Power & Enclosure
 | Qty | Part |
 |-----|------|
 | 1× | Type-C 15W 3A 5V UPS (2S 18650) |
-| 1× | 30mm 5V JST Fan |
+| 1× | 30mm 5V JST Fan (7-10mm)|
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
 | 3× | JST Power Male Cables (switch, power & thermal) |
-| 1× | KSD9700 Thermal Switch — NO, 30–40°C |
+| 1× | KSD9700 Thermal Switch — Normally Open, 30–40°C |
 | 1× | Weatherproof Enclosure |
 
 ### Antennas & Cables
@@ -58,7 +58,7 @@
 | 1× | **DS3231 RTC Module** | <img width="110" src="https://github.com/user-attachments/assets/99f5f8a3-5754-4787-a304-628279f13e48" /> | Analog Devices DS3231 | [View](https://amazon.com/dp/B08X4H3NBR) | [View](https://www.aliexpress.us/item/2251832129568616.html) |
 | 1× | **SW-420 Vibration Sensor** | <img width="110" src="https://github.com/user-attachments/assets/ae69d8a8-a507-4772-9a9a-054b8ca3f92f" /> | Commodity | [Search](https://www.amazon.com/s?k=SW-420+vibration+sensor+module) | [Search](https://www.aliexpress.us/w/wholesale-SW%2525252d420.html?spm=a2g0o.productlist.search.0) |
 | 1× | **MicroSD SPI Reader Module** | <img width="110" src="https://github.com/user-attachments/assets/8c5a6097-5f89-479c-8190-7e845566b46a" /> | Commodity | *SD Card Module* | [Search](https://www.aliexpress.com/w/wholesale-micro-sd-card-module-spi.html) |
-| 1× | **MicroSD Card — 16 GB, FAT32**<br>*SDHC, formats clean to FAT32* | — | [Micro Center](https://www.microcenter.com/product/665428/micro-center-32gb-microsdhc-class-10-u1-flash-memory-card-with-adapter-(5-pack))<br>*5pk `16GBU1 MICRO 5P` · 10pk `16GB SDHC 10PK`* | [5-Pack](https://www.amazon.com/dp/B08HD83TFJ) · [10-Pack](https://www.amazon.com/dp/B0B8G6GK4W) · [20-Pack](https://www.amazon.com/dp/B0D1KSBXXB) | [Search](https://www.aliexpress.com/w/wholesale-16GB-micro-sd-card.html) |
+| 1× | **MicroSD Card — 8 or 16 GB, FAT32**<br>*SDHC, formats clean to FAT32* | — | [Micro Center](https://www.microcenter.com/product/665428/micro-center-32gb-microsdhc-class-10-u1-flash-memory-card-with-adapter-(5-pack))<br>*5pk `16GBU1 MICRO 5P` · 10pk `16GB SDHC 10PK`* | [5-Pack](https://www.amazon.com/dp/B08HD83TFJ) · [10-Pack](https://www.amazon.com/dp/B0B8G6GK4W) · [20-Pack](https://www.amazon.com/dp/B0D1KSBXXB) | [Search](https://www.aliexpress.com/w/wholesale-16GB-micro-sd-card.html) |
 
 ---
 
@@ -70,12 +70,12 @@
 | 1× | **KSD9700 Normally Open Thermal Switch** 30–40°C close temp| <img width="110"  alt="Screenshot 2026-07-25 at 8 31 01 AM" src="https://github.com/user-attachments/assets/02a05a96-8349-4782-b067-7ede9ea27668"/> | — | [Search](https://www.amazon.com/s?k=KSD9700+40C+normally+open+thermal+switch) | [Search](https://www.aliexpress.com/w/wholesale-KSD9700-40C-NO.html) |
 | 1× | **30mm 5V JST Fan** | <img width="110" src="https://github.com/user-attachments/assets/db9b98e9-3aa0-4fcb-bfe4-1150090726e8" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="https://github.com/user-attachments/assets/5d8fb899-bb30-4b0c-8035-99af2ffc0502" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
-| 3× | **JST Power Male Cable**<br>*Switch, power, thermal sensor · with included 2.54 female sockets* | <img width="110" src="https://github.com/user-attachments/assets/5a8998bb-3a2d-4580-baf6-b1ac133a21d6" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
+| 3× | **JST Power Male Cables**<br>*Switch, thermal sensor, power board·  Includes female 2.54 JST socket* | <img width="110" src="https://github.com/user-attachments/assets/5a8998bb-3a2d-4580-baf6-b1ac133a21d6" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
 | 1× | **Weatherproof Enclosure**<br>*3D-printed, greased TPU seals* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
 
 ---
 
-## Antennas & Cables
+## Antennas
 
 | Qty | Part | Image | AMZN | ALI |
 |:---:|------|:---:|------|-----|
@@ -93,7 +93,7 @@
 | 10× | **M3 Heat-Set Inserts** | <img width="110" src="https://github.com/user-attachments/assets/dbf10511-c8dc-4347-8203-955ccc479aac" /> | [Search](https://www.amazon.com/s?k=M3+heat+set+inserts) | [Search](https://www.aliexpress.com/w/wholesale-M3-heat-set-insert.html) |
 | 2× | **M3×15mm Brass Standoffs**<br>*Male-to-female* | <img width="110" src="https://github.com/user-attachments/assets/0d6ea9c5-8f49-419b-a6b3-9034496abca7" /> | [View](https://amazon.com/dp/B07WR5ZD8G) | [Search](https://www.aliexpress.com/w/wholesale-M3-brass-standoff.html) |
 | 8× + 6× | **M3 Flat-Top Screws** (enclosure, max 6mm heads)<br>**+ M3 Screws** (PCB / power board) | — | [Search](https://www.amazon.com/s?k=M3+screw+kit) | [Search](https://www.aliexpress.com/w/wholesale-M3-screw-assortment-kit.html) |
-| 6× | **JST 2.54 2-Pin Terminals**<br>*2.0mm JST also fits · with wires* | <img width="110" src="https://github.com/user-attachments/assets/e72dc7a5-db68-4b01-bde9-6c9c16068f8f" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
+| 6× | **JST 2.54 2-Pin Terminals**<br>*2.0mm JST also fits | <img width="110" src="https://github.com/user-attachments/assets/e72dc7a5-db68-4b01-bde9-6c9c16068f8f" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
 | 1× | **1/4" Tripod Insert**<br>*1/4-20 threaded* | — | [Search](https://www.amazon.com/s?k=1%2F4-20+threaded+insert+brass) | [Search](https://www.aliexpress.com/w/wholesale-1-4-20-threaded-insert.html) |
 
 ---
