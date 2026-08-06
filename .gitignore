@@ -9,3 +9,13 @@
 demo.html
 .vscode/
 idf_component.yml
+
+idf_component.yml.orig
+
+*.log
+
+scripts/ah_bench.py
+
+scripts/__pycache__/
+
+idf_component.yml
