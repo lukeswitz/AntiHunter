@@ -4,14 +4,14 @@ set -e
 ESPTOOL_REPO="https://github.com/alphafox02/esptool"
 
 STABLE_BRANCH="main"
-STABLE_VERSION="v1.0.0"
+STABLE_VERSION="v1.0.1"
 BETA_BRANCH="beta"
-BETA_VERSION="v1.0.1-beta1"
+BETA_VERSION="v1.0.1-beta2"
 # Experimental ESP32-C5 builds. Served from main/Dist until the C5 branches are published.
 C5_BRANCH="main"
-C5_VERSION="v1.0.1-c5exp2"
+C5_VERSION="v1.0.1-c5exp3"
 RADAR_BRANCH="main"
-RADAR_VERSION="v0.1.0-radarexp1"
+RADAR_VERSION="v0.1.0-radarexp2"
 
 FIRMWARE_OPTIONS=()
 IS_C5=false
