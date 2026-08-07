@@ -1,7 +1,7 @@
 # ESP32-C5 DIGI Node
 
 > [!WARNING]
-> **Testing phase.** The C5 build ships through the web flasher's **Experimental** channel, behind a risk acknowledgement. Features may be incomplete and settings may not survive an update. The S3 build on `main`/`beta` is the stable one.
+> **Testing phase.** Breadboard the C5 and test it before you solder anything — a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. The C5 build ships through the web flasher's **Experimental** channel; the S3 build on `main`/`beta` is the stable one.
 
 The XIAO ESP32-C5 is a drop-in replacement for the XIAO ESP32-S3 on the same AntiHunter PCB — same footprint, same peripherals, same mesh. It adds dual-band WiFi: the C5 radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 is 2.4 GHz only.
 

@@ -39,9 +39,12 @@ select_channel() {
 
     if [ "$IS_C5" = true ]; then
         echo ""
-        echo "These are experimental builds. Features may be incomplete, behaviour may change"
-        echo "between releases, and settings may not survive an update. Flash them on a node"
-        echo "you are happy to reflash."
+        echo "Breadboard the C5 and test it before you solder anything. A C5 soldered into a"
+        echo "PCB can only be put back on stable firmware by desoldering it and fitting an"
+        echo "ESP32-S3 in its place."
+        echo ""
+        echo "These builds are not on the stable release track and are still being tested on"
+        echo "hardware."
         read -p "Continue? (y/N): " ack
         case "$ack" in
             [Yy]*) ;;
