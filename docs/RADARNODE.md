@@ -1,5 +1,8 @@
 # RadarNode
 
+> [!WARNING]
+> **Experimental.** The radar path works — detection, RF enrichment, web UI and mesh all run — but the firmware is unreleased: no branch is published yet, no web-flasher entry, no release binaries. Source link: _(branch not yet pushed)_.
+
 A 24GHz radar node that detects a moving target, then sweeps WiFi and BLE to record which devices were present at that moment. It joins the same LoRa mesh as DIGI nodes and appears in their node lists.
 
 Separate firmware from the DIGI node — different sensor, different app, same PCB and same mesh.
@@ -43,7 +46,9 @@ A detection record holds both halves: distance, speed, angle, direction and targ
 | `TRIGGERED` | Target confirmed, detection recorded |
 | `LINGER` | Target lost, holding before returning to idle (default 3 s) |
 
-**Target classes** — `UNKNOWN`, `PERSON`, `VEHICLE`, voted over a rolling history rather than per-frame.
+**Target classes** — `UNKNOWN`, `PERSON`, `VEHICLE`, voted over a 12-frame rolling history rather than per-frame, so one noisy frame cannot flip the class. `PERSON` scores on speeds up to 8 km/h and is weighted up by speed and angle variance (gait); `VEHICLE` scores from 15 km/h up and is weighted up by track stability. Both are scaled by SNR confidence, and `VEHICLE` is suppressed inside 5 m.
+
+**Alarm** — fires only when every gate passes: the target is approaching, within Alarm Distance, at or above Alarm Speed, within `±ANG` of boresight, and of the class selected by `CLS`. Angle and class default to open (90°, any class), so out of the box only distance, speed and direction decide. Both are set over mesh with `RADAR_CONFIG` and persist across reboot.
 
 **Traffic baseline** — learns ambient detection rate and device count over a chosen window, then reports how current activity compares. Radar events feed the detection rate; each RF sweep feeds the device count.
 
@@ -192,6 +197,8 @@ Addressed as `@ALL <CMD>` or `@<NODEID> <CMD>`.
 
 `RADAR_CONFIG` bounds: `DIST` 0–200 m, `SPD` 0–50 m/s, `ANG` 0–90°, `CLS` 0–2. Out of range returns `RADAR_CONFIG_ACK:ERR Invalid params` and changes nothing.
 
+`ANG` narrows the alarm to targets within `±ANG` of boresight. `CLS` restricts it to one class — `0` any, `1` person, `2` vehicle. Because the class is voted over a rolling history, the first frames of a new track read `UNKNOWN` and will not alarm while `CLS` is non-zero.
+
 ---
 
 ## Mesh Output
@@ -204,7 +211,7 @@ Addressed as `@ALL <CMD>` or `@<NODEID> <CMD>`.
 <NODEID> CAND<1-3> <MAC> <rssi>dBm <WiFi|BLE> [label][ mov]
 ```
 
-`TYPE:RADAR` is how DIGI nodes and the Command Center tell a RadarNode from a DIGI node. A peer reporting no `TYPE` field is treated as DIGI.
+`TYPE:RADAR` is how the RadarNode's own mesh list and the Command Center tell a RadarNode from a DIGI node. A peer reporting no `TYPE` field is treated as DIGI. DIGI firmware does not read the field.
 
 At most **three** candidates are sent per detection, ranked by score, to bound mesh traffic.
 

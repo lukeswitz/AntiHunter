@@ -49,6 +49,7 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 **At a glance**
 
 - ESP32-S3 · WiFi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
+- Drop-in [ESP32-C5](docs/ESP32-C5.md) build adds 5 GHz alongside 2.4 GHz (testing)
 - **Full** firmware: standalone web UI over the node's own AP · **Headless** firmware: serial + mesh only, for silent deployments
 - One node standalone, or a distributed network that coordinates over mesh
 - Vibration & attack triggered actions for set and forget operation
@@ -67,7 +68,8 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 8. [Mesh Networking](#mesh-networking)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
-11. [RadarNode](docs/RADARNODE.md)
+11. [ESP32-C5](docs/ESP32-C5.md)
+12. [RadarNode](docs/RADARNODE.md)
 12. [Acknowledgments](#acknowledgments)
 13. [Legal](#legal-disclaimer)
 
@@ -302,7 +304,7 @@ Buy an assembled node or a bare PCB from the [store](https://lectronz.com/stores
 
 ### Core Components
 
-- **Seeed XIAO ESP32-S3** (minimum 8MB flash)
+- **Seeed XIAO ESP32-S3** (minimum 8MB flash), or **XIAO ESP32-C5** for 2.4 + 5 GHz — drop-in on the same board, [see the C5 page](docs/ESP32-C5.md) (testing)
 - **Meshtastic board**: Heltec v3.2 (recommended) or T114. Alternatives in [discussions](https://github.com/lukeswitz/AntiHunter/discussions).
 - **GPS, SDHC, vibration, and RTC modules**
 
@@ -419,7 +421,8 @@ pio run -e AntiHunter-full -t erase -t upload      # Clean flash (erase + upload
 
 **Build environments** (same firmware sources; differ only in features/board):
 - `AntiHunter-full` -- Web UI/SoftAP dashboard (ESPAsyncWebServer + AsyncTCP); `AntiHunter-headless` -- serial + mesh only, no web deps.
-- ESP32-C5 (dual-band 2.4/5 GHz): build from the `feat/c5` branch -- envs `AntiHunter-c5-full` / `-c5-headless`, board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`.
+- ESP32-C5 (2.4 + 5 GHz, testing): envs `AntiHunter-c5-full` / `-c5-headless` on the `feat/c5` branch -- see the [ESP32-C5 page](docs/ESP32-C5.md).
+- RadarNode (24GHz radar, experimental): env `RadarNode-c5` -- see the [RadarNode page](docs/RADARNODE.md).
 
 > [!NOTE]
 > During the Web Flash process, choose "Erase Device" if upgrading from pre v0.9.2 firmware or to clear saved settings. Preferences are also saved and synced to/from SD storage; if corrupted, settings self-heal. The Web Flasher's **Sentinel & Detectors** section configures the full detection engine (Start-on-Boot, radio mode, every detector toggle, mesh flags, thresholds) — full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting.
@@ -507,14 +510,17 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 
 **Workflow:** Detection -> Data collection (RSSI, GPS, timestamp) -> Mesh broadcast -> Command center aggregation
 
-**Node types.** Two firmwares share this PCB and mesh:
+**Node types.** All of these share this PCB and mesh:
 
-| | Sensor | Firmware |
-|---|---|---|
-| **DIGI** | WiFi + BLE | Full (web UI) or Headless (serial + mesh) |
-| **[RadarNode](docs/RADARNODE.md)** | 24GHz radar, WiFi/BLE on trigger | RadarNode-c5 |
+| | Board | Sensor | Firmware | Status |
+|---|---|---|---|---|
+| **DIGI** | ESP32-S3 | WiFi + BLE, 2.4 GHz | `AntiHunter-full` / `-headless` | stable |
+| **[DIGI C5](docs/ESP32-C5.md)** | ESP32-C5 | WiFi + BLE, 2.4 **and** 5 GHz | `AntiHunter-c5-full` / `-c5-headless` | testing |
+| **[RadarNode](docs/RADARNODE.md)** | ESP32-C5 | 24GHz radar, WiFi/BLE on trigger | `RadarNode-c5` | experimental |
 
-A RadarNode detects a moving target on radar, then sweeps WiFi and BLE to record which devices were present at that moment. Both types answer `@ALL STATUS` and appear in each other's node lists — a RadarNode reports `TYPE:RADAR` so peers can tell them apart. See the [RadarNode page](docs/RADARNODE.md) for wiring, configuration and its mesh formats.
+A RadarNode detects a moving target on radar, then sweeps WiFi and BLE to record which devices were present at that moment. Both types answer `@ALL STATUS` — a RadarNode tags its reply with `TYPE:RADAR`, which the RadarNode UI and the Command Center use to type peers. See the [RadarNode page](docs/RADARNODE.md) for wiring, configuration and its mesh formats.
+
+The C5 is a drop-in replacement for the S3 on the same board — same pads, same peripherals, and it adds 5 GHz scanning. See the [ESP32-C5 page](docs/ESP32-C5.md).
 
 **[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO):** Aggregates data from all nodes with real-time mapping and visualization.
 
