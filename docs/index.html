@@ -53,6 +53,8 @@
 
     /* Firmware selector */
     .fw-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+    .fw-grid.three{grid-template-columns:1fr 1fr 1fr}
+    .fw-option .fw-tag{display:inline-block;margin-top:8px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--warn);border:1px solid var(--warn);background:rgba(160,120,48,0.08)}
     .fw-option{background:var(--surf);border:2px solid var(--bord);border-radius:10px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center;position:relative}
     .fw-option:hover{border-color:var(--bord-focus);transform:translateY(-2px);box-shadow:var(--shad-hover)}
     .fw-option.selected{border-color:var(--acc);background:var(--accbg);box-shadow:var(--glow)}
@@ -108,6 +110,12 @@
     .cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .cfg-grid .full{grid-column:1/-1}
     .cfg-note{font-size:11px;color:var(--mut);margin-top:4px}
+
+    .exp-gate{border:2px solid var(--warn);background:rgba(160,120,48,0.06);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+    .exp-gate h4{font-size:13px;font-weight:700;color:var(--warn);margin-bottom:8px;letter-spacing:0.02em}
+    .exp-gate p{font-size:12.5px;color:var(--mut);line-height:1.65;margin-bottom:12px}
+    .exp-gate label.ack{display:flex;align-items:flex-start;gap:10px;margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--txt);cursor:pointer}
+    .exp-gate label.ack input{width:16px;height:16px;flex:0 0 auto;margin-top:2px;padding:0;accent-color:var(--warn);cursor:pointer;box-shadow:none;border-radius:4px}
 
     .disclaimer-overlay{position:fixed;inset:0;background:rgba(10,14,22,0.95);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
     .disclaimer-overlay.hidden{display:none}
@@ -219,7 +227,7 @@
     <!-- 1. Flash -->
     <div class="card">
       <h3>1. Flash Firmware</h3>
-      <div class="fw-grid">
+      <div class="fw-grid" id="fwGrid">
         <div class="fw-option selected" id="opt-full" onclick="selectFirmware('full')">
           <span class="fw-check"></span>
           <span class="fw-icon">
@@ -241,6 +249,18 @@
           <div class="fw-name">Headless</div>
           <div class="fw-desc">Mesh-only, no WiFi AP. Config and control with mesh commands.</div>
         </div>
+        <div class="fw-option" id="opt-radar" style="display:none" onclick="selectFirmware('radar')">
+          <span class="fw-check"></span>
+          <span class="fw-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/>
+              <line x1="12" y1="12" x2="19" y2="7"/><line x1="12" y1="12" x2="12" y2="3"/>
+            </svg>
+          </span>
+          <div class="fw-name">RadarNode</div>
+          <div class="fw-desc">24GHz radar tripwire. Sweeps WiFi and BLE when a target is confirmed.</div>
+          <span class="fw-tag">Experimental</span>
+        </div>
       </div>
 
       <div id="fullNote" class="banner ok">
@@ -251,14 +271,32 @@
       <div id="headlessNote" class="banner info" style="display:none">
         After flashing, use the serial terminal below to send configuration.
       </div>
+      <div id="radarNote" class="banner info" style="display:none">
+        After flashing, join the <strong>RN-</strong> WiFi network the node creates
+        and open <strong>http://192.168.4.1</strong> for the radar scope.
+      </div>
 
       <div style="max-width:320px;margin:0 auto 14px;">
         <label>Release Channel</label>
         <select id="cfgChannel" onchange="selectChannel(this.value)">
           <option value="stable">Stable (recommended)</option>
           <option value="beta">Beta (latest — may be unstable)</option>
-          <option value="c5">C5 (XIAO ESP32-C5, 2.4 + 5GHz)</option>
+          <option value="c5">Experimental — XIAO ESP32-C5 (2.4 + 5GHz)</option>
         </select>
+      </div>
+
+      <div class="exp-gate" id="expGate" style="display:none">
+        <h4>Experimental build</h4>
+        <p>
+          These ESP32-C5 builds are still in testing. They are not production firmware:
+          features may be incomplete, behaviour may change between releases, and settings
+          may not survive an update. Flash them on a node you are happy to reflash, and
+          keep a Stable build handy if you need the node working.
+        </p>
+        <label class="ack">
+          <input type="checkbox" id="expAck" onchange="updateManifest()">
+          <span>I understand this is experimental firmware and I'm flashing it at my own risk.</span>
+        </label>
       </div>
 
       <div id="buildInfo" class="banner info" style="max-width:420px;margin:0 auto 14px;text-align:center">
@@ -557,14 +595,26 @@ chmod +x flashAntihunter.sh
       selectedFirmware = type;
       document.getElementById('opt-full').classList.toggle('selected', type === 'full');
       document.getElementById('opt-headless').classList.toggle('selected', type === 'headless');
+      document.getElementById('opt-radar').classList.toggle('selected', type === 'radar');
       document.getElementById('fullNote').style.display = type === 'full' ? 'block' : 'none';
       document.getElementById('headlessNote').style.display = type === 'headless' ? 'block' : 'none';
+      document.getElementById('radarNote').style.display = type === 'radar' ? 'block' : 'none';
       document.getElementById('apSettings').style.display = type === 'full' ? 'block' : 'none';
+      // The serial configurator speaks the DIGI command set; RadarNode is configured from its own web UI.
+      document.getElementById('termCard').style.display = type === 'radar' ? 'none' : 'block';
       updateManifest();
     }
 
     function selectChannel(c) {
       selectedChannel = (c === 'beta' || c === 'c5') ? c : 'stable';
+      const experimental = selectedChannel === 'c5';
+      document.getElementById('opt-radar').style.display = experimental ? 'block' : 'none';
+      document.getElementById('fwGrid').classList.toggle('three', experimental);
+      document.getElementById('expGate').style.display = experimental ? 'block' : 'none';
+      if (!experimental && selectedFirmware === 'radar') {
+        selectFirmware('full');
+        return;
+      }
       updateManifest();
     }
 
@@ -578,15 +628,22 @@ chmod +x flashAntihunter.sh
     // Channel lives in the manifest filename AND in the manifest body; both are
     // checked before the flash button is armed, so a mislabelled build cannot flash.
     async function updateManifest() {
-      const variant = selectedFirmware === 'full' ? 'full' : 'headless';
+      const variant = (selectedFirmware === 'full' || selectedFirmware === 'headless')
+        ? selectedFirmware : 'radar';
       const channel = selectedChannel;
-      const label = (channel === 'beta') ? 'Beta' : (channel === 'c5') ? 'C5' : 'Stable';
+      const label = (channel === 'beta') ? 'Beta' : (channel === 'c5') ? 'Experimental C5' : 'Stable';
       const url = new URL(`flasher/manifest-${variant}-${channel}.json`, location.href).toString();
       const req = ++manifestReq;
       const btn = document.getElementById('flashBtn');
 
       btn.removeAttribute('manifest');
       setBuildInfo(`Resolving ${label} ${variant} build…`, 'info', false);
+
+      // Experimental builds stay disarmed until the risk acknowledgement is ticked.
+      if (channel === 'c5' && !document.getElementById('expAck').checked) {
+        setBuildInfo('Tick the acknowledgement above to enable flashing.', 'warn', false);
+        return;
+      }
 
       try {
         const resp = await fetch(url, { cache: 'no-store' });

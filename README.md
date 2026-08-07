@@ -477,7 +477,7 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 | **[DIGI C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md)** | ESP32-C5 | WiFi + BLE, 2.4 **and** 5 GHz | `AntiHunter-c5-full` / `-c5-headless` | testing |
 | **[RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md)** | ESP32-C5 | 24GHz radar, WiFi/BLE on trigger | `RadarNode-c5` | experimental |
 
-The C5 is a drop-in replacement for the S3 on the same board — same pads, same peripherals, and it adds 5 GHz scanning. A RadarNode detects a moving target on radar, then sweeps WiFi and BLE to record which devices were present at that moment; it tags its `STATUS` reply with `TYPE:RADAR`, which the RadarNode UI and the Command Center use to type peers. Neither the C5 nor the RadarNode build is in the web flasher yet — both are source builds.
+The C5 is a drop-in replacement for the S3 on the same board — same pads, same peripherals, and it adds 5 GHz scanning. A RadarNode detects a moving target on radar, then sweeps WiFi and BLE to record which devices were present at that moment; it tags its `STATUS` reply with `TYPE:RADAR`, which the RadarNode UI and the Command Center use to type peers. Both are flashed from the [web flasher](https://lukeswitz.github.io/AntiHunter/) under the **Experimental** channel, which asks you to acknowledge that these are test builds before it will flash.
 
 **[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO):** Aggregates data from all nodes with real-time mapping and visualization.
 
