@@ -19,7 +19,7 @@
 
 [Website](https://rootdowndigital.com/antihunter)  • [Privacy Policy](https://rootdowndigital.com/privacy)
 
-  <h3 align="center">DIGI Detection Node Firmware</h3>
+  <h3 align="center">DIGI Detection Node Firmware &mdash; ESP32-C5</h3>
 
 
  <a href="https://lectronz.com/stores/antihunter" alt="I sell on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/i-sell-on-lectronz-small.png" /></a>
@@ -40,23 +40,26 @@
 8. [Getting Started](#getting-started)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
-11. [Acknowledgments](#acknowledgments)
-12. [Legal](#legal-disclaimer)
+11. [ESP32-C5](docs/ESP32-C5.md)
+12. [Acknowledgments](#acknowledgments)
+13. [Legal](#legal-disclaimer)
 
 ---
 ***Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/)***
 
 ## Overview
 
+> [!WARNING]
+> **This branch is the ESP32-C5 build, in testing.** It is not in the web flasher and has no release binaries — source builds only. For stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
+
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
-- ESP32-S3 with WiFi/BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
+- ESP32-C5 with dual-band 2.4 + 5 GHz WiFi and BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
+- Drop-in replacement for the ESP32-S3 on the same PCB — same pads, same peripherals, adds 5 GHz.
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
 
 <p align="center">
 <img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
 
-> [!NOTE]
-> Check out the [beta branch](https://github.com/lukeswitz/AntiHunter/tree/beta) for the latest features (not yet ready to be called stable). **ESP32C5 support** is almost done. Backwards compatible with the PCB and other nodes.
 
 
 ## Features
@@ -288,6 +291,10 @@ Tamper detection and emergency data wiping.
 
 <!-- <img width="815" height="616" alt="RF Configuration" src="https://github.com/user-attachments/assets/0463de41-dd3c-4d85-a4c7-bc6ada393488" /> -->
 
+### Band
+
+One radio, one band at a time. RF Settings *Band* selects 2.4 GHz, 5 GHz, or both; the setting filters the configured channel list into the hop list and persists to NVS. Mesh equivalent: `CONFIG_BAND:<0|1|2>`. Details on the [ESP32-C5 page](docs/ESP32-C5.md#bands-and-channels).
+
 ### Scan Presets
 
 | Preset | WiFi Chan Time | WiFi Scan Int | BLE Scan Int | BLE Scan Dur | RSSI Threshold | Use Case |
@@ -307,7 +314,7 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
 - **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves BLE discovery but keeps the shared radio on BLE longer, pausing WiFi channel-hopping.
 
-> WiFi and BLE share one 2.4 GHz radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi promiscuous capture is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval — an even 50/50 radio split.
+> WiFi and BLE share one radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi promiscuous capture is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval — an even 50/50 radio split.
 - **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Triangulation is exempt.
 - **WiFi Channels**: Comma-separated (1,6,11) or range (1..14). Default: 1,6,11.
 
@@ -327,6 +334,8 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 
 **Workflow:** Detection -> Data collection (RSSI, GPS, timestamp) -> Mesh broadcast -> Command center aggregation
 
+A second C5 firmware, [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md), shares this PCB and mesh: 24GHz radar as the primary sensor, WiFi/BLE swept on a radar trigger. It tags its `STATUS` reply with `TYPE:RADAR`, which the RadarNode UI and the Command Center use to type peers. Experimental, branch not yet published.
+
 **[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO):** Aggregates data from all nodes with real-time mapping and visualization.
 
 ---
@@ -342,7 +351,7 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 
 ### Core Components
 
-- **Seeed XIAO ESP32-S3** (minimum 8MB flash)
+- **Seeed XIAO ESP32-C5** — see the [ESP32-C5 page](docs/ESP32-C5.md) for pinout and band configuration
 - **Meshtastic board**: Heltec v3.2 (recommended) or T114. Alternatives in [discussions](https://github.com/lukeswitz/AntiHunter/discussions).
 - **GPS, SDHC, vibration, and RTC modules**
 
@@ -352,7 +361,7 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 - [Links & Images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
 
 CORE COMPONENTS
-- 1x Seeed Studio XIAO ESP32-S3
+- 1x Seeed Studio XIAO ESP32-C5
 - 1x Heltec WiFi LoRa 32 V3.2 (T114 also compatible, V3.2 preferred)
 - 1x ATGM336H GPS Module
 - 1x Micro SD SDHC TF Card Adapter Reader Module
@@ -391,23 +400,23 @@ ENCLOSURE
 <details>
 <summary>Pinout Reference</summary>
 
-XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564bd0e0add96cd723a730cb65c81e48aa891f0f9c20471cd/68747470733a2f2f66696c65732e736565656473747564696f2e636f6d2f77696b692f536565656453747564696f2d5849414f2d455350333253332f696d672f322e6a7067)
-
 > Pin assignments may evolve. Verify compatibility with your board revision.
 
-| Function | GPIO | Description |
-|----------|------|-------------|
-| Vibration Sensor | 2 | SW-420 tamper detection (interrupt) |
-| RTC SDA | 3 | DS3231 I2C data |
-| RTC SCL | 6 | DS3231 I2C clock |
-| GPS RX | 44 | NMEA data receive |
-| GPS TX | 43 | GPS transmit (unused) |
-| SD CS | 1 | SD card chip select |
-| SD SCK | 7 | SPI clock |
-| SD MISO | 8 | SPI MISO |
-| SD MOSI | 9 | SPI MOSI |
-| Mesh RX | 4 | Meshtastic UART receive |
-| Mesh TX | 5 | Meshtastic UART transmit |
+| Function | Pad | GPIO | Description |
+|----------|-----|------|-------------|
+| Vibration Sensor | D1 | 0 | SW-420 tamper detection (interrupt) |
+| RTC SDA | D2 | 25 | DS3231 I2C data |
+| RTC SCL | D5 | 24 | DS3231 I2C clock |
+| GPS RX | D7 | 12 | NMEA data receive |
+| GPS TX | D6 | 11 | GPS transmit |
+| SD CS | D0 | 1 | SD card chip select |
+| SD SCK | D8 | 8 | SPI clock |
+| SD MISO | D9 | 9 | SPI MISO |
+| SD MOSI | D10 | 10 | SPI MOSI |
+| Mesh RX | D3 | 7 | Meshtastic UART receive |
+| Mesh TX | D4 | 23 | Meshtastic UART transmit |
+
+Same pads as the S3 node — see the [ESP32-C5 page](docs/ESP32-C5.md) for the side-by-side GPIO mapping.
 
 </details>
 
@@ -420,59 +429,35 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 - Node Assembly Manual [PDF](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 - BOM Parts [Links & Images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
 
-### Web Flash & Configure (Recommended)
-
-Flash and configure directly from your browser -- no tools to install. Requires Chrome or Edge on desktop.
-
-1. **[Open Web Flasher](https://lukeswitz.github.io/AntiHunter/)** -- select Full or Headless, choose a **Release Channel** (Stable or Beta), plug in your ESP32-S3, and click Connect & Flash.
-
-- The channel selector pulls the matching firmware from the `stable` or `beta` release branch.
-- Choose "Erase Device" during process if upgrading from pre v0.9.2 firmware or to clear saved settings from flash memory.
-
-   > Preferences are also saved and synced to/from SD storage. If corrupted, the settings will self-heal. 
-
-2. Optional: After flashing, set the configuration choices and press send to device. 
-
-   - Use it to change settings without using the device (especially useful for headless FW).
-   - The **Sentinel & Detectors** section configures the full detection engine: persistent *Start Sentinel on Boot*, radio mode, every detector enable/disable, mesh-broadcast flags, and detector thresholds — full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting.
-
-### CLI Flash
-
-```bash
-curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/flashAntihunter.sh
-chmod +x flashAntihunter.sh
-./flashAntihunter.sh
-```
-
-The script first asks for a **release channel** (Stable or Beta), then Full or Headless. Stable pulls from `main`, Beta from `beta`.
-
-Use `-c` to configure device parameters during flash, `-e` to erase flash first, `-l` to list available firmware.
-
-**Post-flash:**
-
-- **Full firmware**: Connect to `Antihunter` WiFi AP (password: `antihunt3r123`), open `http://192.168.4.1`. Configure RF settings, detection modes, and change the AP credentials in RF Settings.
-- **Headless firmware**: Serial monitor or mesh commands only.
-
 ### Build from Source
+
+The web flasher and `flashAntihunter.sh` carry S3 binaries only. The C5 build is source-only while it is in testing.
 
 **Prerequisites:** PlatformIO, Git, USB cable. Optional: VS Code with PlatformIO extension.
 
 ```bash
-git clone https://github.com/lukeswitz/AntiHunter.git
+git clone -b feat/c5 https://github.com/lukeswitz/AntiHunter.git
 cd AntiHunter
 ```
 
 ```bash
-pio device list                                    # List connected devices
-pio run -e AntiHunter-full -t upload               # Flash full firmware (web UI)
-pio run -e AntiHunter-headless -t upload           # Flash headless firmware
-pio device monitor -e AntiHunter-full              # Serial monitor
-pio run -e AntiHunter-full -t erase -t upload      # Clean flash (erase + upload)
+pio device list                                       # List connected devices
+pio run -e AntiHunter-c5-full -t upload               # Flash full firmware (web UI)
+pio run -e AntiHunter-c5-headless -t upload           # Flash headless firmware
+pio device monitor -e AntiHunter-c5-full              # Serial monitor
+pio run -e AntiHunter-c5-full -t erase -t upload      # Clean flash (erase + upload)
 ```
 
-**Build environments** (same firmware sources; differ only in features/board):
-- `AntiHunter-full` -- Web UI/SoftAP dashboard (ESPAsyncWebServer + AsyncTCP); `AntiHunter-headless` -- serial + mesh only, no web deps.
-- ESP32-C5 (dual-band 2.4/5 GHz): build from the `feat/c5` branch -- envs `AntiHunter-c5-full` / `-c5-headless`, board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`.
+**Build environments** (same firmware sources; differ only in features):
+- `AntiHunter-c5-full` -- Web UI/SoftAP dashboard (ESPAsyncWebServer + AsyncTCP); `AntiHunter-c5-headless` -- serial + mesh only, no web deps.
+- Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`.
+
+**Post-flash:**
+
+- **Full firmware**: Connect to `Antihunter` WiFi AP (password: `antihunt3r123`), open `http://192.168.4.1`. Configure RF settings, band, detection modes, and change the AP credentials in RF Settings.
+- **Headless firmware**: Serial monitor or mesh commands only. Set the band with `@<NODE> CONFIG_BAND:<0|1|2>`.
+
+Preferences are also saved and synced to/from SD storage. If corrupted, the settings will self-heal.
 
 ---
 
@@ -564,6 +549,8 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 | `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
 | `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
 | `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
+| `ATTACKER_TRILAT` | `1`/`0` — auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
+| `ATTACKER_TRILAT_STATUS` | None. Reply: `ATTACKER_TRILAT_STATUS: ON`/`OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 | `GROUP` | `<name>:<on\|off>` — toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
 | `DETECT_CFG` | `<json>` — apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
 | `DETECT_CFG_GET` | None — dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
@@ -595,6 +582,8 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 | `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
 | `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
 | `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
+| `VIBSCAN_SET` | `en:mode:dur[:cooldownSecs]` — auto-start a scan when the vibration sensor fires. en 0/1; mode 0=off, 1=all-device, 2=probe-req, 3=rand-MAC, 4=list, 5=drone, 6=deauth, 7=baseline; dur seconds (0=forever). Skipped if a scan is already running or during battery-saver. ACK: `VIBSCAN_ACK:OK En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_SET:1:2:60:60` |
+| `VIBSCAN_STATUS` | None. Reply: `VIBSCAN_STATUS: En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_STATUS` |
 | `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) — set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
 | `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` — factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 
