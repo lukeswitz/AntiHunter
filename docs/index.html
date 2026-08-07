@@ -286,12 +286,15 @@
       </div>
 
       <div class="exp-gate" id="expGate" style="display:none">
-        <h4>Experimental build</h4>
+        <h4>Experimental — ESP32-C5</h4>
         <p>
-          These ESP32-C5 builds are still in testing. They are not production firmware:
-          features may be incomplete, behaviour may change between releases, and settings
-          may not survive an update. Flash them on a node you are happy to reflash, and
-          keep a Stable build handy if you need the node working.
+          Breadboard the C5 and test it before you solder anything. A C5 soldered into a
+          PCB can only be put back on stable firmware by desoldering it and fitting an
+          ESP32-S3 in its place.
+        </p>
+        <p>
+          These builds are not on the stable release track and are still being tested on
+          hardware.
         </p>
         <label class="ack">
           <input type="checkbox" id="expAck" onchange="updateManifest()">
