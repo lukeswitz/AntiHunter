@@ -351,6 +351,15 @@
             <label>WiFi Channels</label>
             <input type="text" id="cfgChannels" placeholder="1..11 or 1,6,11">
           </div>
+          <div id="cfgBandRow" style="display:none">
+            <label>Band (C5)</label>
+            <select id="cfgBand">
+              <option value="">Default</option>
+              <option value="0">2.4 GHz</option>
+              <option value="1">5 GHz</option>
+              <option value="2">2.4 + 5 GHz</option>
+            </select>
+          </div>
           <div>
             <label>Mesh Interval (ms)</label>
             <input type="number" id="cfgMeshInterval" placeholder="3000" min="500" max="30000">
@@ -611,6 +620,7 @@ chmod +x flashAntihunter.sh
       document.getElementById('opt-radar').style.display = experimental ? 'block' : 'none';
       document.getElementById('fwGrid').classList.toggle('three', experimental);
       document.getElementById('expGate').style.display = experimental ? 'block' : 'none';
+      document.getElementById('cfgBandRow').style.display = experimental ? 'block' : 'none';
       if (!experimental && selectedFirmware === 'radar') {
         selectFirmware('full');
         return;
@@ -720,6 +730,8 @@ chmod +x flashAntihunter.sh
       cfg.rfPreset = parseInt(document.getElementById('cfgRfPreset').value, 10);
 
       str('cfgChannels', 'channels');
+      const band = document.getElementById('cfgBand').value;
+      if (band !== '') cfg.bandMode = parseInt(band, 10);
       num('cfgMeshInterval', 'meshInterval');
       num('cfgBaselineRam', 'baselineRamSize');
       str('cfgTargets', 'targets');
