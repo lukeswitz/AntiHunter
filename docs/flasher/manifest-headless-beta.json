@@ -1,6 +1,6 @@
 {
-  "name": "AntiHunter Headless - Beta (v1.0.1-beta1)",
-  "version": "v1.0.1-beta1",
+  "name": "AntiHunter Headless - Beta (v1.0.1-beta2)",
+  "version": "v1.0.1-beta2",
   "channel": "beta",
   "variant": "headless",
   "new_install_prompt_erase": true,
@@ -10,7 +10,7 @@
       "parts": [
         { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/bootloader.bin", "offset": 0 },
         { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/partitions.bin", "offset": 32768 },
-        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/antihunter-headless-v1.0.1-beta1.bin", "offset": 65536 }
+        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/beta/Dist/antihunter-headless-v1.0.1-beta2.bin", "offset": 65536 }
       ]
     }
   ]
