@@ -50,7 +50,7 @@
 ## Overview
 
 > [!WARNING]
-> **This branch is the ESP32-C5 build, in testing.** It is not in the web flasher and has no release binaries — source builds only. For stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
+> **This branch is the ESP32-C5 build, in testing.** It ships through the web flasher's **Experimental** channel, behind a risk acknowledgement — features may be incomplete and settings may not survive an update. For stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
 - ESP32-C5 with dual-band 2.4 + 5 GHz WiFi and BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
@@ -429,9 +429,11 @@ Same pads as the S3 node — see the [ESP32-C5 page](docs/ESP32-C5.md) for the s
 - Node Assembly Manual [PDF](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 - BOM Parts [Links & Images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
 
-### Build from Source
+### Web Flash
 
-The web flasher and `flashAntihunter.sh` carry S3 binaries only. The C5 build is source-only while it is in testing.
+[Open the flasher](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental — XIAO ESP32-C5** channel, pick Full or Headless, tick the acknowledgement, then Connect & Flash. Requires Chrome or Edge on desktop.
+
+### Build from Source
 
 **Prerequisites:** PlatformIO, Git, USB cable. Optional: VS Code with PlatformIO extension.
 
