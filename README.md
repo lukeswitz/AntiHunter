@@ -50,7 +50,7 @@
 ## Overview
 
 > [!WARNING]
-> **This branch is the ESP32-C5 build, in testing.** It ships through the web flasher's **Experimental** channel, behind a risk acknowledgement — features may be incomplete and settings may not survive an update. For stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
+> **This branch is the ESP32-C5 build, in testing.** Breadboard the C5 and test it before you solder anything — a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. It ships through the web flasher's **Experimental** channel; for stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
 - ESP32-C5 with dual-band 2.4 + 5 GHz WiFi and BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
