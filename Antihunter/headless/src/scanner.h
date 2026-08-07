@@ -102,6 +102,7 @@ struct ProbeDBEntry {
     char vendor[16];
     bool isRandomized;
     bool isBLE;
+    uint8_t channel;
 };
 
 struct TriangulationAccumulator {
