@@ -270,7 +270,7 @@ void setup() {
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v1.0.0 STABLE BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v1.0.1 STABLE BOOT COMPLETE =====");
 
     String currentSsid = prefsGetString("apSsid", AP_SSID);
     String currentPass = prefsGetString("apPass", AP_PASS);
