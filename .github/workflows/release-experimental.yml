@@ -1,0 +1,197 @@
+name: Experimental Build
+
+# C5 firmware lives on feat/c5 and RadarNode on feat/c5-radar, so a v* tag cannot build them.
+
+on:
+  push:
+    tags:
+      - 'c5-v*'
+      - 'radar-v*'
+  workflow_dispatch:
+    inputs:
+      c5_version:
+        description: 'AntiHunter C5 version (empty to skip)'
+        required: false
+        default: ''
+      radar_version:
+        description: 'RadarNode version (empty to skip)'
+        required: false
+        default: ''
+      c5_branch:
+        description: 'Branch holding the AntiHunter C5 firmware'
+        required: false
+        default: 'feat/c5'
+      radar_branch:
+        description: 'Branch holding the RadarNode firmware'
+        required: false
+        default: 'feat/c5-radar'
+
+jobs:
+  experimental:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      with:
+        fetch-depth: 0
+
+    - name: Resolve what to build
+      id: plan
+      run: |
+        C5_BRANCH="${{ github.event.inputs.c5_branch }}"
+        RADAR_BRANCH="${{ github.event.inputs.radar_branch }}"
+        C5_VERSION="${{ github.event.inputs.c5_version }}"
+        RADAR_VERSION="${{ github.event.inputs.radar_version }}"
+
+        if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/}" ]; then
+          TAG="${GITHUB_REF#refs/tags/}"
+          case "$TAG" in
+            c5-*)    C5_VERSION="${TAG#c5-}" ;;
+            radar-*) RADAR_VERSION="${TAG#radar-}" ;;
+          esac
+        fi
+
+        : "${C5_BRANCH:=feat/c5}"
+        : "${RADAR_BRANCH:=feat/c5-radar}"
+
+        {
+          echo "c5_version=${C5_VERSION}"
+          echo "radar_version=${RADAR_VERSION}"
+          echo "c5_branch=${C5_BRANCH}"
+          echo "radar_branch=${RADAR_BRANCH}"
+        } >> $GITHUB_OUTPUT
+
+        if [ -z "${C5_VERSION}" ] && [ -z "${RADAR_VERSION}" ]; then
+          echo "Nothing to build: set c5_version and/or radar_version" >&2
+          exit 1
+        fi
+        echo "C5=${C5_VERSION:-skip} RADAR=${RADAR_VERSION:-skip}"
+
+    - name: Set up Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      with:
+        python-version: '3.11'
+
+    - name: Cache PlatformIO
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+      with:
+        path: ~/.platformio
+        key: ${{ runner.os }}-pio-c5-${{ steps.plan.outputs.c5_branch }}
+        restore-keys: |
+          ${{ runner.os }}-pio-c5-
+
+    - name: Install PlatformIO
+      # pyserial: the C5 envs load set_rtc_time.py, which imports serial at module scope
+      run: pip install --upgrade platformio pyserial
+
+    - name: Build AntiHunter C5 full and headless
+      if: steps.plan.outputs.c5_version != ''
+      run: |
+        VERSION="${{ steps.plan.outputs.c5_version }}"
+        mkdir -p release
+        git checkout -B ci-c5 "origin/${{ steps.plan.outputs.c5_branch }}"
+
+        for VARIANT in full headless; do
+          pio run -e "AntiHunter-c5-${VARIANT}"
+          SRC=".pio/build/AntiHunter-c5-${VARIANT}/firmware.factory.bin"
+          test -f "$SRC"
+          cp "$SRC" "release/antihunter-c5-${VARIANT}-${VERSION}.factory.bin"
+        done
+
+    - name: Build RadarNode C5
+      if: steps.plan.outputs.radar_version != ''
+      run: |
+        VERSION="${{ steps.plan.outputs.radar_version }}"
+        mkdir -p release
+        git checkout -B ci-radar "origin/${{ steps.plan.outputs.radar_branch }}"
+
+        pio run -e RadarNode-c5
+        SRC=".pio/build/RadarNode-c5/firmware.factory.bin"
+        test -f "$SRC"
+        cp "$SRC" "release/radarnode-c5-${VERSION}.factory.bin"
+
+    - name: Generate checksums
+      run: |
+        cd release
+        sha256sum *.factory.bin > SHA256SUMS.txt
+        cat SHA256SUMS.txt
+
+    - name: Publish bins and manifests to main
+      run: |
+        C5_VERSION="${{ steps.plan.outputs.c5_version }}"
+        RADAR_VERSION="${{ steps.plan.outputs.radar_version }}"
+        RAW="https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist"
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        cp -r release /tmp/ah-exp
+
+        git fetch origin main
+        git checkout -B main origin/main
+        mkdir -p Dist docs/flasher
+
+        write_manifest() {
+          NAME="$1"; VERSION="$2"; VARIANT="$3"; FILE="$4"
+          cat > "docs/flasher/manifest-${VARIANT}.json" <<EOF
+        {
+          "name": "${NAME}",
+          "version": "${VERSION}",
+          "channel": "c5",
+          "variant": "${VARIANT%-c5}",
+          "new_install_prompt_erase": true,
+          "builds": [
+            {
+              "chipFamily": "ESP32-C5",
+              "parts": [
+                { "path": "${RAW}/${FILE}", "offset": 0 }
+              ]
+            }
+          ]
+        }
+        EOF
+        }
+
+        if [ -n "${C5_VERSION}" ]; then
+          rm -f Dist/antihunter-c5-*.factory.bin
+          for VARIANT in full headless; do
+            FILE="antihunter-c5-${VARIANT}-${C5_VERSION}.factory.bin"
+            cp "/tmp/ah-exp/${FILE}" "Dist/${FILE}"
+            case "${VARIANT}" in
+              full)     VARIANT_TITLE="Full" ;;
+              headless) VARIANT_TITLE="Headless" ;;
+            esac
+            write_manifest "AntiHunter ${VARIANT_TITLE} - Experimental C5 (${C5_VERSION})" \
+                           "${C5_VERSION}" "${VARIANT}-c5" "${FILE}"
+          done
+        fi
+
+        if [ -n "${RADAR_VERSION}" ]; then
+          rm -f Dist/radarnode-c5-*.factory.bin
+          FILE="radarnode-c5-${RADAR_VERSION}.factory.bin"
+          cp "/tmp/ah-exp/${FILE}" "Dist/${FILE}"
+          write_manifest "AntiHunter RadarNode - Experimental C5 (${RADAR_VERSION})" \
+                         "${RADAR_VERSION}" "radar-c5" "${FILE}"
+        fi
+
+        git add -- Dist docs/flasher
+        git diff --cached --quiet && echo "No changes to commit" && exit 0
+        git commit -m "dist: experimental C5 ${C5_VERSION:-}${RADAR_VERSION:+ ${RADAR_VERSION}}"
+        for i in 1 2 3 4 5; do
+          git push origin HEAD:main && break
+          echo "push rejected, rebasing on latest main (attempt ${i})"
+          git fetch origin main
+          git rebase origin/main || { git rebase --abort; exit 1; }
+          sleep 3
+        done
+
+    - name: Create prerelease
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2.6.1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: ${{ github.ref_name }}
+        files: release/*
+        prerelease: true
