@@ -971,6 +971,43 @@ PsramJsonString getProbeDBJson()
     return out;
 }
 
+PsramJsonString getProbeEventsJsonl()
+{
+    PsramJsonString out;
+    File f = SD.open("/probes.jsonl", FILE_READ);
+    if (!f) return out;
+    out.reserve(f.size() + 4096);
+
+    while (f.available()) {
+        String line = f.readStringUntil('\n');
+        line.trim();
+        if (line.length() < 10) continue;
+
+        DynamicJsonDocument doc(768);
+        if (deserializeJson(doc, line) != DeserializationError::Ok) continue;
+
+        const char *mac = doc["mac"] | "";
+        uint8_t macBytes[6];
+        const char *v = (strlen(mac) >= 17 && parseMac6(String(mac), macBytes))
+                        ? lookupOuiVendor(macBytes) : nullptr;
+
+        if (!doc.containsKey("ble")) doc["ble"] = (doc["ch"].as<int>() == 0);
+
+        if (doc["ble"].as<bool>() && doc.containsKey("v") && !doc.containsKey("n")) {
+            doc["n"] = doc["v"];
+            doc.remove("v");
+        }
+        if (v) doc["v"] = v;
+
+        String rendered;
+        serializeJson(doc, rendered);
+        out.append(rendered.c_str(), rendered.length());
+        out.push_back('\n');
+    }
+    f.close();
+    return out;
+}
+
 void clearProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
