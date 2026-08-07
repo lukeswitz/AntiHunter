@@ -10,7 +10,10 @@ Stable channel · Previous release v1.0.0 (2026-08-05)
 - Fixed possible WiFi channel pin in some scans
 - Fixed stop button/scan behavior when ending a task
 - Probe results: Broadcast group opens by default
+- Probe results: "also probing" networks are chips, no longer cramped into vertical text
 - Probe Devices: real Type column, new Ch column
+- Probe Events: Vendor and Name are correct, including rows logged before this release
+- Probe Events: new Type column
 
 ### Headless FW
 
