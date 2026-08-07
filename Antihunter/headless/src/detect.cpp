@@ -3107,9 +3107,13 @@ static void sentinelAlwaysOnTask(void *pv) {
             Serial.printf("%s drop=%u\n", rb, (unsigned)g_droppedWifi.load());
         }
         if (!g_sentinelScanMode.load()) {
-            // PIN: stay on the AP channel. Catches attacks against us, keeps AP clients
-            // associated (no hop -> no false DEAUTH_AP_TARGETED from churn).
-            esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
+            // PIN: stay on the AP channel. esp_wifi.h:774 forbids set_channel while a STA
+            // is associated, so only retune when the radio has actually drifted off.
+            uint8_t curCh = 0;
+            wifi_second_chan_t curSec = WIFI_SECOND_CHAN_NONE;
+            if (esp_wifi_get_channel(&curCh, &curSec) != ESP_OK || curCh != apChan) {
+                esp_wifi_set_channel(apChan, WIFI_SECOND_CHAN_NONE);
+            }
             uint32_t waited = 0;
             while (waited < 1000 && g_sentinelUserEnabled.load() && !scanning.load()
                    && !g_sentinelScanMode.load()) {
