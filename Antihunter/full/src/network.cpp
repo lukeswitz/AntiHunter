@@ -1781,6 +1781,25 @@ void registerRemainingRoutes() {
       req->send(200, "text/plain", "Probe database cleared");
   });
 
+  server->on("/api/devicedb", HTTP_GET, [](AsyncWebServerRequest *req) {
+      auto body = std::make_shared<PsramJsonString>(getDeviceDBJson());
+      AsyncWebServerResponse *res = req->beginChunkedResponse("application/json",
+          [body](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+              size_t total = body->size();
+              if (index >= total) return 0;
+              size_t n = total - index;
+              if (n > maxLen) n = maxLen;
+              memcpy(buffer, body->data() + index, n);
+              return n;
+          });
+      req->send(res);
+  });
+
+  server->on("/api/devicedb/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+      clearDeviceDB();
+      req->send(200, "text/plain", "Device database cleared");
+  });
+
   server->on("/api/probes.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
       if (SD.exists("/probes.jsonl")) {
           req->send(SD, "/probes.jsonl", "application/x-ndjson");
