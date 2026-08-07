@@ -294,6 +294,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev);
 bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
 PsramJsonString getProbeDBJson();
+PsramJsonString getProbeEventsJsonl();
 void clearProbeDB();
 
 // SD device database (every device seen by any scan)

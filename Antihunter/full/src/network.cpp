@@ -1887,11 +1887,21 @@ void registerRemainingRoutes() {
   });
 
   server->on("/api/probes.jsonl", HTTP_GET, [](AsyncWebServerRequest *req) {
-      if (SD.exists("/probes.jsonl")) {
-          req->send(SD, "/probes.jsonl", "application/x-ndjson");
-      } else {
+      if (!SD.exists("/probes.jsonl")) {
           req->send(404, "text/plain", "No probe log file");
+          return;
       }
+      auto body = std::make_shared<PsramJsonString>(getProbeEventsJsonl());
+      AsyncWebServerResponse *res = req->beginChunkedResponse("application/x-ndjson",
+          [body](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+              size_t total = body->size();
+              if (index >= total) return 0;
+              size_t n = total - index;
+              if (n > maxLen) n = maxLen;
+              memcpy(buffer, body->data() + index, n);
+              return n;
+          });
+      req->send(res);
   });
 
   server->on("/api/probes/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
