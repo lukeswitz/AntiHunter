@@ -65,12 +65,15 @@ extern volatile uint32_t apScanSuppressUntilMs;
 #ifndef AP_CHANNEL
 #define AP_CHANNEL 6
 #endif
+#ifndef AP_INACTIVE_TIME_SEC
+#define AP_INACTIVE_TIME_SEC 3600
+#endif
 #ifdef ARDUINO_XIAO_ESP32C5
 #define DEFAULT_CHANNELS {1, 6, 11, 36, 40, 44, 48, 149, 153, 157, 161, 165}
 #define DEVICE_DUAL_BAND 1
 #define DEFAULT_BAND_MODE 2
 #else
-#define DEFAULT_CHANNELS {1, 6, 11}
+#define DEFAULT_CHANNELS {1,2,3,4,5,6,7,8,9,10,11}
 #define DEVICE_DUAL_BAND 0
 #define DEFAULT_BAND_MODE 0
 #endif
@@ -86,6 +89,7 @@ void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);
 void meshSplitSender(const String &line, String &sender, String &payload);
 void processUSBToMesh();
+void serviceVibrationAutoScan();
 void setNodeId(const String &id);
 String getNodeId();
 extern unsigned long meshSendInterval;

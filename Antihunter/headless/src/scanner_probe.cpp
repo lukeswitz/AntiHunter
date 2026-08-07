@@ -152,14 +152,12 @@ static void sendProbeHitMesh(const uint8_t *mac, int8_t rssi, uint8_t channel,
     if (ssid && ssid[0]) key += String(ssid);
     if (!shouldSendProbeHit(key)) return;
 
-    String msg = getNodeId() + ": PROBE_HIT " + String(macStr) + " ";
+    String msg = getNodeId() + ": PROBE_HIT " + String(macStr);
     bool randomized = (mac[0] & 0x02) && !(mac[0] & 0x01);
     if (randomized) {
-        msg += "Randomized";
+        msg += " Randomized";
     } else if (vendor && vendor[0]) {
-        msg += String(vendor);
-    } else {
-        msg += "Unknown";
+        msg += " " + String(vendor);
     }
     msg += " RSSI=" + String(rssi) + " CH=" + String(channel);
     if (ssid && ssid[0]) {
@@ -737,6 +735,7 @@ void loadProbeDB()
         entry.bestRssi = doc["r"] | -128;
         entry.isRandomized = doc["rd"].as<bool>();
         entry.isBLE = doc["ble"].as<bool>();
+        entry.channel = doc["c"].as<uint8_t>();
 
         const char *vendor = doc["v"] | "";
         strncpy(entry.vendor, vendor, sizeof(entry.vendor) - 1);
@@ -784,6 +783,7 @@ void saveProbeDB()
         doc["v"] = p.second.vendor;
         doc["rd"] = p.second.isRandomized ? 1 : 0;
         doc["ble"] = p.second.isBLE ? 1 : 0;
+        doc["c"] = p.second.channel;
 
         JsonArray ss = doc.createNestedArray("ss");
         for (uint8_t i = 0; i < p.second.ssidCount; i++) {
@@ -814,6 +814,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
         e.lastEpoch = now;
         e.sessionCount++;
         if (dev.rssi > e.bestRssi) e.bestRssi = dev.rssi;
+        if (dev.channel) e.channel = dev.channel;
         if (dev.vendor[0] && !e.vendor[0]) {
             strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
         }
@@ -851,6 +852,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
         e.bestRssi = dev.rssi;
         e.isRandomized = dev.isRandomized;
         e.isBLE = dev.isBLE;
+        e.channel = dev.channel;
         strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
         e.ssidCount = 0;
         for (uint8_t i = 0; i < dev.ssidCount && e.ssidCount < 8; i++) {

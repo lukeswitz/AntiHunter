@@ -91,6 +91,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .status-item.idle{border-color:rgba(80,180,120,0.4);color:#50b478}
       .status-item.idle::before{background:#50b478;box-shadow:0 0 6px rgba(80,180,120,0.7)}
       .status-item.active{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
+      .status-item.offline{border-color:var(--dang);color:var(--dang)}
+      .status-item.offline::before{background:var(--dang);box-shadow:0 0 6px var(--dang)}
       .status-item.active::before{background:var(--acc);box-shadow:0 0 6px var(--acc);animation:scanPulse 2s ease-in-out infinite}
       #scanStatus{min-width:142px;justify-content:flex-start}
       .statx-ticker{flex:1 1 0;min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;text-align:right;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -157,7 +159,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .page-tab.active{display:block}
       #page-results #r{min-height:calc(100vh - 200px);overflow-y:auto}
       @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-      #data-table{width:100%;border-collapse:collapse;font-size:13px}
+      #data-table{width:100%;border-collapse:collapse;font-size:15px}
       #data-table th{position:sticky;top:0;background:var(--surf);border-bottom:2px solid var(--bord);padding:9px 12px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);cursor:pointer;user-select:none;white-space:nowrap}
       #data-table th:hover{color:var(--acc)}
       #data-table th .sort-arrow{margin-left:4px;font-size:9px}
@@ -213,6 +215,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-mac{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15.5px;font-weight:700;letter-spacing:0.02em;color:var(--txt);display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;word-break:break-all}
       .res-mac.acc{color:var(--acc)}
       .res-mac.warn{color:var(--warn)}
+      /* identifier floor: literal MACs and device/network names never render below 15px */
+      .res-ident{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;font-weight:700;letter-spacing:0.02em;color:var(--txt);word-break:break-all}
+      .res-ident.name{font-family:inherit;letter-spacing:0;word-break:break-word}
       /* tap an identifier to copy it — DOM churn during a scan makes drag-select unreliable */
       #r .res-mac,#r .res-ident:not(.name),#r .res-row>span:first-child{cursor:copy;border-radius:5px;transition:background .12s,box-shadow .12s}
       #r .res-mac:hover,#r .res-ident:not(.name):hover,#r .res-row>span:first-child:hover{background:var(--accbg);box-shadow:0 0 0 4px var(--accbg)}
@@ -231,8 +236,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-kv.danger{border-color:var(--dang)}
       .res-kv-lab{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--mut);margin-bottom:6px;line-height:1.2}
       .res-kv-val{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);line-height:1.15}
-      .res-kv-val.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px}
-      .res-kv-val.sm{font-size:14px;font-weight:600}
+      .res-kv-val.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px}
+      .res-kv-val.sm{font-size:15px;font-weight:600}
       .res-kv-val small{font-size:11px;color:var(--mut);font-weight:500}
       /* badges */
       .res-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;border:1px solid var(--bord);background:var(--surf);color:var(--mut);white-space:nowrap;vertical-align:middle;line-height:1.5}
@@ -252,9 +257,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       /* tags (SSIDs / probes) */
       .res-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;align-items:center}
       .res-tags-lab{font-size:11px;font-weight:600;color:var(--mut);margin-right:2px}
-      .res-tag{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:500;border:1px solid var(--bord);background:var(--bg);color:var(--txt);white-space:nowrap}
+      .res-tag{padding:4px 11px;border-radius:999px;font-size:15px;font-weight:500;border:1px solid var(--bord);background:var(--bg);color:var(--txt);white-space:nowrap}
       .res-tag.away{border-style:dashed;border-color:var(--c-away);color:var(--c-away);background:var(--c-away-bg)}
-      .res-tag sup{font-size:8px;opacity:.7;margin-left:2px}
+      .res-tag sup{font-size:10px;opacity:.7;margin-left:2px}
       /* note / reason line */
       .res-note{margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--bord);border-left:3px solid var(--acc);border-radius:8px;font-size:12.5px;color:var(--txt);line-height:1.5}
       .res-note.warn{border-left-color:var(--warn);color:var(--warn)}
@@ -266,9 +271,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       /* nested source rows (attack sources, mac list) */
       .res-rows{margin-top:11px;padding:11px 12px;background:var(--bg);border:1px solid var(--bord);border-radius:8px}
       .res-rows-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-bottom:8px}
-      .res-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt);padding:6px 0;border-bottom:1px solid var(--bord)}
+      .res-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;font-weight:700;color:var(--txt);padding:7px 0;border-bottom:1px solid var(--bord)}
       .res-row:last-child{border-bottom:none;padding-bottom:0}
-      .res-row-meta{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:11px;color:var(--mut);white-space:nowrap}
+      .res-row-meta{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:400;color:var(--mut);white-space:nowrap}
       .res-more{padding:8px;text-align:center;color:var(--mut);font-size:11px;font-style:italic}
       /* collapsible section (Node Reports, Baseline devices, MAC lists) */
       .res-section{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px;box-shadow:var(--shad)}
@@ -757,6 +762,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
 
+          <label style="font-size:11px;">RF Environment</label>
+          <select id="rfEnv" onchange="saveRFEnv()" style="margin-bottom:6px;">
+            <option value="0">Open Sky &mdash; clear LOS</option>
+            <option value="1">Suburban &mdash; light foliage</option>
+            <option value="2">Indoor &mdash; some walls</option>
+            <option value="3">Indoor Dense &mdash; many partitions</option>
+            <option value="4">Industrial &mdash; heavy obstruction</option>
+          </select>
+          <p style="font-size:10px;color:var(--mut);margin-bottom:12px;">Path-loss model for range estimates and triangulation. Pick the one whose distances match reality on site.</p>
+
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--bord);">
+
           <select id="rfPreset" onchange="updateRFPresetUI()">
             <option value="0">Relaxed (Quiet</option>
             <option value="1">Balanced (Default)</option>
@@ -802,28 +819,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           </div>
         </div>
         <button class="btn primary" type="button" onclick="saveRFConfig()" style="width:100%;margin-top:8px;">Save RF Settings</button>
+      </div>
 
-        <hr style="margin:16px 0;border:none;border-top:1px solid var(--bord);">
-        <div class="card-header" onclick="toggleCollapse('wifiApCard')" style="cursor:pointer;padding:0;margin-bottom:12px;border:none;background:none;box-shadow:none;">
-            <h4 style="margin:0;font-size:13px;">WiFi Access Point</h4>
-            <span class="collapse-icon" id="wifiApCardIcon">▶</span>
-          </div>
-          <div class="card-body collapsed" id="wifiApCardBody" style="max-height:0;">
-            <label style="font-size:11px;">SSID</label>
-            <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
-            
-            <label style="font-size:11px;">Password</label>
-            <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
+      <div class="card">
+        <h3>WiFi Access Point</h3>
+        <p class="card-sub">Node SoftAP credentials</p>
+        <label style="font-size:11px;">SSID</label>
+        <input type="text" id="apSsid" maxlength="32" placeholder="Antihunter" style="margin-bottom:8px;">
 
-            <label style="font-size:11px;">Security</label>
-            <select id="apAuth" style="margin-bottom:8px;">
-              <option value="0">WPA2/WPA3 (default)</option>
-              <option value="1">WPA2 only (more stable)</option>
-            </select>
+        <label style="font-size:11px;">Password</label>
+        <input type="password" id="apPass" minlength="8" maxlength="63" placeholder="Min 8 characters" style="margin-bottom:8px;">
 
-            <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
-          </div>
-        </div>
+        <label style="font-size:11px;">Security</label>
+        <select id="apAuth" style="margin-bottom:8px;">
+          <option value="0">WPA2/WPA3 (default)</option>
+          <option value="1">WPA2 only (more stable)</option>
+        </select>
+
+        <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
+      </div>
 
       <div class="card">
           <h3>Node Configuration</h3>
@@ -877,7 +891,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
           </div>
 
-          <hr>
+        </div>
+
+      <div class="card">
+          <h3>Sensor Alerts</h3>
+          <p class="card-sub">Vibration sensor behavior</p>
 
           <div style="margin-top:12px;">
             <label>Vibration Sensor Alerts</label>
@@ -886,7 +904,41 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <div style="font-size:10px;color:var(--mut);">Controls mesh broadcast alerts when vibration is detected</div>
           </div>
-        </div>
+
+          <hr>
+
+          <div style="margin-top:12px;">
+            <label>Vibration Auto-Scan</label>
+            <div style="font-size:10px;color:var(--mut);margin-bottom:6px;">Automatically start a scan when the vibration sensor fires</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <label class="dsw"><input type="checkbox" id="vibScanEn"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Enable</span>
+            </div>
+            <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Scan to run</label>
+            <select id="vibScanMode" style="width:100%;margin-bottom:8px;">
+              <option value="0">None</option>
+              <option value="1">All-device scan</option>
+              <option value="2">Probe-request detect</option>
+              <option value="3">Randomized-MAC detect</option>
+              <option value="4">List scan (targets)</option>
+              <option value="5">Drone / RemoteID</option>
+              <option value="6">Deauth (blue-team)</option>
+              <option value="7">Baseline anomaly</option>
+            </select>
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;">
+                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Duration (s, 0=forever)</label>
+                <input type="number" id="vibScanDur" min="0" max="65535" value="60" style="width:100%;">
+              </div>
+              <div style="flex:1;">
+                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Cooldown (s)</label>
+                <input type="number" id="vibScanCd" min="5" max="86400" value="60" style="width:100%;">
+              </div>
+            </div>
+            <button class="btn primary" type="button" onclick="saveVibScanConfig()" style="width:100%;margin-top:8px">Save Vibration Auto-Scan</button>
+            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver</div>
+          </div>
+      </div>
       </div>
 
       <!-- Secure Data Destruction -->
@@ -1124,7 +1176,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           #page-detect .det-row label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--mut);margin:0;cursor:pointer}
           #page-detect .det-row input[type=checkbox]{margin:0;cursor:pointer}
           #page-detect .num{font-family:monospace;color:var(--acc);font-weight:700}
-          #page-detect .log-pre{max-height:240px;overflow:auto;font-size:11px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
+          #page-detect .log-pre{max-height:240px;overflow:auto;font-size:15px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
           #page-detect input[type=number],#page-detect input[type=text]{padding:4px 8px;font-size:12px}
           #det-filter{flex:1;min-width:180px;max-width:400px}
           #det-banner{display:none;background:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));border:1px solid rgba(139,92,246,.45);border-radius:6px;padding:8px 10px;margin-bottom:10px}
@@ -1142,7 +1194,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .det-chip.info{background:rgba(14,165,233,.12);color:#0ea5e9;border-color:rgba(14,165,233,.45)}
           .det-chip.firing{box-shadow:0 0 0 2px rgba(255,255,255,.15) inset}
           .det-chip.off{opacity:.35}
-          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}
+          #page-detect table.dt{width:100%;border-collapse:collapse;font-size:15px;margin:8px 0}
           #page-detect table.dt th{text-align:left;padding:8px 10px;color:var(--mut);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--bord);cursor:pointer;user-select:none;white-space:nowrap}
           #page-detect table.dt th:hover{color:var(--acc)}
           #page-detect table.dt td{padding:8px 10px;border-bottom:1px solid var(--bord);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
@@ -1207,7 +1259,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .sa-chip{cursor:pointer;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid transparent;transition:all .15s;white-space:nowrap;}
           .sa-chip:hover{filter:brightness(1.2);}
           .sa-wrap{max-height:62vh;overflow:auto;border:1px solid var(--bord);border-radius:10px;}
-          .sa-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+          .sa-tbl{width:100%;border-collapse:collapse;font-size:15px;}
           .sa-tbl th{position:sticky;top:0;z-index:1;text-align:left;padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);background:var(--surf);backdrop-filter:blur(8px);border-bottom:1px solid var(--bord);}
           .sa-tbl td{padding:9px 12px;border-bottom:1px solid var(--bord);vertical-align:middle;}
           .sa-tbl tr:last-child td{border-bottom:none;}
@@ -1218,10 +1270,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           .sa-med{background:rgba(234,179,8,.15);color:#facc15;}
           .sa-info{background:rgba(56,189,248,.14);color:#38bdf8;}
           .sa-type{font-weight:600;color:var(--txt);}
-          .sa-mac{font-family:ui-monospace,monospace;font-size:12px;color:var(--mut);}
-          .sa-detail{font-family:ui-monospace,monospace;font-size:12px;color:var(--txt);opacity:.8;}
+          .sa-mac{font-family:ui-monospace,monospace;font-size:15px;font-weight:700;color:var(--txt);}
+          .sa-detail{font-family:ui-monospace,monospace;font-size:15px;color:var(--txt);opacity:.8;}
           .sa-when{font-size:12px;color:var(--mut);white-space:nowrap;}
-          .sa-node{font-size:10px;color:var(--mut);border:1px solid var(--bord);border-radius:5px;padding:1px 5px;}
+          .sa-node{font-size:15px;font-weight:700;color:var(--txt);border:1px solid var(--bord);border-radius:5px;padding:2px 7px;white-space:nowrap;}
           .dpill{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
           .dpill.verify{background:rgba(34,197,94,.18);color:#86efac;border:1px solid #16a34a;}
           .dpill.unver{background:rgba(234,179,8,.15);color:#fde047;border:1px solid #ca8a04;}
@@ -1265,7 +1317,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
               <button class="btn danger" onclick="detectClearAll()">Clear All State</button>
-              <span style="font-size:11px;color:var(--mut);">Erases every in-memory detection and deletes the saved detection logs on SD.</span>
+              <button class="btn" onclick="detectClearSession()">Clear Session</button>
+              <span id="d-sessnote" style="font-size:11px;color:var(--mut);">Clear All State erases every in-memory detection and deletes the saved detection logs on SD. Clear Session zeroes the counts shown here without deleting anything.</span>
             </div>
           </div>
         </div>
@@ -1312,6 +1365,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
               <label class="dsw"><input type="checkbox" id="sentBootChk" onchange="sentinelSetBoot(this.checked)"><span class="dsw-s"></span></label>
               <span style="font-size:12px;color:var(--mut);">Start Sentinel on boot (persists across reboot)</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+              <label class="dsw"><input type="checkbox" id="cfgAttackerTrilat" onchange="detPostCfg({attacker_trilat:this.checked})"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Auto-triangulate a detected attacker (on a confirmed attack with a source MAC)</span>
             </div>
             <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin:-4px 0 10px;"></div>
             <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
@@ -1517,8 +1574,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <thead>
                   <tr>
                     <th style="width:90px;">Time</th>
-                    <th style="width:54px;">Node</th>
-                    <th style="width:64px;">Src</th>
+                    <th style="width:72px;">Node</th>
+                    <th style="width:170px;">Src</th>
                     <th style="width:170px;">Type</th>
                     <th>Detail</th>
                   </tr>
@@ -1554,6 +1611,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let stopWatchGen = 0;
       let stopWatchActive = false;
       let resultsPolling = false;
+      let diagFailStreak = 0;
+      let nodeReachable = true;
+      let resultsSynced = false;
+      let loadEverSucceeded = false;
       const scanDebounce = {
         listScan: { inProgress: false, lastSubmit: 0, cooldown: 1000 },
         sniffer: { inProgress: false, lastSubmit: 0, cooldown: 1000 }
@@ -1791,17 +1852,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
         if (openDetails.size) el.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(dkey(sm))) d.open = true; });
         if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
+        privacyApply(el);
       }
 
       async function resultsPoll(force) {
         if (resultsPolling) return;
-        if (!force && !radioBusy && stopResultsRefresh <= 0) return;
+        if (!force && !radioBusy && stopResultsRefresh <= 0 && resultsSynced) return;
         const el = document.getElementById('r');
         if (el && el.contains(document.activeElement)) return;
         if (el && resHasSelection(el)) return;
         resultsPolling = true;
         try {
           const txt = await (await fetch('/results')).text();
+          resultsSynced = true;
           const placeholder = !txt || txt.trim() === '' || txt.includes('None yet') || txt.includes('No scan data');
           if (radioBusy && placeholder) return;
           if (txt === lastResultsText) return;
@@ -1860,7 +1923,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
-      async function load() {
+      async function load(attempt) {
+        attempt = attempt || 0;
         try {
           const [exportResp, resultsResp] = await Promise.all([
             fetch('/export'),
@@ -1875,13 +1939,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const resultsText = await resultsResp.text();
           lastResultsText = resultsText;
           renderResults(resultsText);
+          resultsSynced = true;
+          loadEverSucceeded = true;
 
           loadNodeId();
           loadRFConfig();
           loadWiFiConfig();
           loadMeshInterval();
           loadDedupTtl();
-        } catch (e) { console.error('[CONFIG] settings panel load failed:', e); }
+        } catch (e) {
+          console.error('[CONFIG] settings panel load failed:', e);
+          if (attempt < 4) setTimeout(() => load(attempt + 1), 2000 * (attempt + 1));
+        }
       }
 
       async function loadNodeId() {
@@ -1934,6 +2003,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (bandSel && typeof cfg.bandMode !== 'undefined') bandSel.value = cfg.bandMode;
             document.getElementById('wifiChannels').placeholder = cfg.dualBand ? '1,6,11,36,149' : '1..14';
 
+            if (cfg.rfEnv !== undefined) document.getElementById('rfEnv').value = cfg.rfEnv;
+            
             // If custom not preset
             const customDiv = document.getElementById('customRFSettings');
             if (customDiv) {
@@ -1941,6 +2012,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               setRFFieldsEditable(cfg.preset === 3);
             }
           } catch(e) {}
+      }
+
+      async function saveRFEnv() {
+        const fd = new FormData();
+        fd.append('rfEnv', document.getElementById('rfEnv').value);
+        try {
+          const r = await fetch('/rf-config', { method: 'POST', body: fd });
+          toast(r.ok ? 'RF environment saved' : 'Save failed', r.ok ? 'success' : 'error');
+        } catch (e) { toast('Save failed: ' + e, 'error'); }
       }
 
       function setRFFieldsEditable(editable) {
@@ -2886,7 +2966,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const el = document.getElementById('scanStatus');
         if (!el) return;
         _scanBaseLabel = label;
-        el.classList.remove('idle', 'active');
+        el.classList.remove('idle', 'active', 'offline');
         if (state) el.classList.add(state);
         if (state !== 'active') { _scanEndTs = 0; _scanForever = false; }
         if (state !== 'active') document.querySelectorAll('#r .res-scanning').forEach(p => p.remove());
@@ -3074,6 +3154,28 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           _matchAePresetFromValues();
         }
       });
+      async function loadVibScanConfig() {
+        try {
+          const r = await fetch('/vibration-scan', {cache:'no-store'});
+          if (!r.ok) return;
+          const d = await r.json();
+          document.getElementById('vibScanEn').checked = !!d.enabled;
+          document.getElementById('vibScanMode').value = d.mode;
+          document.getElementById('vibScanDur').value = d.duration;
+          document.getElementById('vibScanCd').value = d.cooldown;
+        } catch(e){ console.warn('vibscan load failed', e); }
+      }
+      async function saveVibScanConfig() {
+        const fd = new URLSearchParams();
+        fd.append('enabled', document.getElementById('vibScanEn').checked ? 1 : 0);
+        fd.append('mode', document.getElementById('vibScanMode').value);
+        fd.append('duration', document.getElementById('vibScanDur').value);
+        fd.append('cooldown', document.getElementById('vibScanCd').value);
+        try {
+          const r = await fetch('/vibration-scan', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: fd.toString()});
+          toast(r.ok ? 'Vibration auto-scan saved' : 'Save failed', r.ok ? 'ok' : 'err');
+        } catch(e){ toast('Save failed', 'err'); }
+      }
       async function saveAutoEraseConfig() {
       try {
         const enabled = document.getElementById('autoEraseEnabled').checked;
@@ -3261,7 +3363,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } else if (text.includes('Target Hits:') || text.match(/^(WiFi|BLE)\s+[A-F0-9:]/m)) {
           html = parseDeviceScanResults(text);
         } else {
-          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;">' + text + '</pre></div>';
+          html = '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + text + '</pre></div>';
         }
 
         return html;
@@ -3508,8 +3610,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (primaryChMatch) html += '<span class="res-badge">CH ' + primaryChMatch[1] + '</span>';
           if (vendorMatch) html += '<span class="res-badge">' + vendorMatch[1] + '</span>';
           html += '<div class="res-meta">';
-          if (nameMatch) html += '<span>Name: <strong data-name="' + nameMatch[1].trim() + '">' + nameMatch[1].trim() + '</strong></span>';
-          if (ssidMatch) html += '<span>SSID: <strong data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc)">' + ssidMatch[1].trim() + '</strong></span>';
+          if (nameMatch) html += '<span>Name: <strong class="res-ident name" data-name="' + nameMatch[1].trim() + '">' + nameMatch[1].trim() + '</strong></span>';
+          if (ssidMatch) html += '<span>SSID: <strong class="res-ident name" data-ssid="' + ssidMatch[1].trim() + '" style="color:var(--acc)">' + ssidMatch[1].trim() + '</strong></span>';
           html += '<span><strong>' + macCount + '</strong> MAC' + (macCount !== '1' ? 's' : '') + '</span>';
           html += '</div>';
           html += '<div class="res-metrics">';
@@ -3532,7 +3634,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
           if (seqTrackMatch) html += '<div class="res-note"><span class="res-note-lab">Sequence Tracking</span><span style="font-family:ui-monospace,monospace;">' + seqTrackMatch[1].trim() + '</span></div>';
           if (vendorMatch || mfrDataMatch) { html += '<div class="res-note"><span class="res-note-lab">Manufacturer</span>'; if (vendorMatch) html += '<strong>' + vendorMatch[1].trim() + '</strong>'; if (mfrDataMatch) html += ' <span style="font-family:ui-monospace,monospace;color:var(--mut);">' + mfrDataMatch[1].trim() + '</span>'; html += '</div>'; }
-          html += '<div class="res-note ok" style="border-left-color:var(--succ);"><span class="res-note-lab">Track ID</span><span style="font-family:ui-monospace,monospace;color:var(--acc);font-weight:600;">' + trackId + '</span></div>';
+          html += '<div class="res-note ok" style="border-left-color:var(--succ);"><span class="res-note-lab">Track ID</span><span class="res-ident" style="color:var(--acc);">' + trackId + '</span></div>';
 
           if (macsListMatch) {
             const macsList = macsListMatch[1];
@@ -3574,7 +3676,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           let c = '<div class="res-card device-card" data-type="' + type + '" data-channel="' + (channel || '0') + '">';
           c += '<div class="res-row-main"><span class="res-mac">' + mac + randBadge(mac) + '</span>';
           c += '<div class="res-meta">';
-          if (name && name !== 'Unknown') c += '<span>Name: <strong>' + name + '</strong></span>';
+          if (name && name !== 'Unknown') c += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
           c += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) c += '<span class="res-badge">CH ' + channel + '</span>';
           if (vendor) c += '<span class="res-badge">' + vendor + '</span>';
@@ -3624,7 +3726,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               html += '<div class="res-row-main"><span class="res-mac warn">' + mac + randBadge(mac) + '</span>';
               html += '<div class="res-meta"><span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
               if (channel) html += '<span class="res-badge">CH ' + channel + '</span>';
-              if (name) html += '<span>Name: <strong>' + name + '</strong></span>';
+              if (name) html += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
               if (anomVendor) html += '<span class="res-badge">' + anomVendor + '</span>';
               html += '</div>';
               html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(rssi) + '">' + rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
@@ -3767,14 +3869,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const opIdMatch = block.match(/Operator ID: (.+)/);
           const descMatch = block.match(/Description: (.+)/);
           const authMatch = block.match(/Auth: type (\d+) ts (\d+)/);
+          const seenMatch = block.match(/Last seen: (\d+)s ago( \(STALE\))?/);
+          const isStale = !!(seenMatch && seenMatch[2]);
           if (!macMatch) return;
 
-          html += '<div class="res-card acc">';
+          html += '<div class="res-card ' + (isStale ? 'alert' : 'acc') + '">';
           html += '<div class="res-row-main"><span class="res-mac acc">' + macMatch[1] + randBadge(macMatch[1]) + '</span>';
           html += '<div class="res-meta">';
-          if (uavMatch) html += '<span>UAV ID: <strong data-priv>' + uavMatch[1] + '</strong></span>';
+          if (uavMatch) html += '<span>UAV ID: <strong class="res-ident" data-priv>' + uavMatch[1] + '</strong></span>';
           if (typeMatch) html += '<span class="res-badge">' + typeMatch[1] + '</span>';
           if (viaMatch) html += '<span class="res-badge">via ' + viaMatch[1] + '</span>';
+          if (isStale) html += '<span class="res-badge warn">Stale</span>';
           html += '</div>';
           if (rssiMatch) html += '<div class="res-metric"><span class="res-metric-val">' + rssiMatch[1] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
           html += '</div>';
@@ -3799,6 +3904,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (classMatch) kvs.push(['Classification', classMatch[1]]);
           if (areaMatch) kvs.push(['Operational area', areaMatch[1]]);
           if (sysTsMatch) kvs.push(['System timestamp', sysTsMatch[1]]);
+          if (seenMatch) kvs.push(['Last seen', seenMatch[1] + 's ago' + (isStale ? ' — no Remote ID for 120s' : '')]);
           if (kvs.length) {
             html += '<div class="res-kvs">';
             kvs.forEach(k => html += '<div class="res-kv"><div class="res-kv-lab">' + k[0] + '</div><div class="res-kv-val sm">' + k[1] + '</div></div>');
@@ -3810,7 +3916,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const bits = [];
             if (opLocMatch) bits.push('<strong data-priv>' + opLocMatch[1] + ', ' + opLocMatch[2] + '</strong>');
             if (opTypeMatch) bits.push('type <strong>' + opTypeMatch[1] + '</strong>');
-            if (opIdMatch) bits.push('ID <strong data-priv>' + opIdMatch[1] + '</strong>');
+            if (opIdMatch) bits.push('ID <strong class="res-ident" data-priv>' + opIdMatch[1] + '</strong>');
             if (descMatch) bits.push('<span data-priv>“' + descMatch[1] + '”</span>');
             if (authMatch) bits.push('Auth type ' + authMatch[1] + ', ts ' + authMatch[2]);
             html += bits.join(' &middot; ') + '</div>';
@@ -3888,7 +3994,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         h += '</span>';
         if (d.ssids.length > 1) {
           h += '<div class="res-meta"><span>also probing ';
-          h += d.ssids.map(s => '<span data-ssid="' + s.name + '">' + s.name + '</span>').join(', ');
+          h += d.ssids.map(s => '<span class="res-ident name" data-ssid="' + s.name + '">' + s.name + '</span>').join(', ');
           h += '</span></div>';
         }
         if (d.rssi !== null) h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
@@ -3906,11 +4012,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const away = !g.apResponded && !g.anyPresent;
           const n = g.devices.length;
           html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>';
-          html += '<span data-ssid="' + g.name + '">' + g.name + '</span>';
+          html += '<span class="res-ident name" data-ssid="' + g.name + '">' + g.name + '</span>';
           html += '<span class="res-badge ' + (away ? 'warn' : 'acc') + '">' + n + ' client' + (n === 1 ? '' : 's') + '</span>';
           if (g.apResponded) html += '<span class="res-badge ok">AP present</span>';
           else if (away) html += '<span class="res-badge warn">Away</span>';
-          if (g.apBssid) html += '<span class="res-badge">' + g.apBssid + '</span>';
+          if (g.apBssid) html += '<span class="res-ident">' + g.apBssid + '</span>';
           html += '</summary><div class="res-section-body">';
           for (const d of g.devices) html += renderProbeClientCard(d);
           html += '</div></details>';
@@ -4093,14 +4199,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (line.startsWith('--- Probe Intelligence')) { inProbeSection = true; return; }
           if (inProbeSection) { if (line.trim().length > 0) probeLines.push(line.trim()); return; }
 
-          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
+          const match = line.match(/^(WiFi|BLE)\s+([A-F0-9:]+)\s+RSSI=([-\d]+)dBm(?:\s+~([\d.]+)m\+\/-([\d.]+))?(?:\s+CH=(\d+))?(?:\s+"([^"]*)")?/);
           if (!match) return;
 
           const type = match[1];
           const mac = match[2];
           const rssi = match[3];
-          const channel = match[4] || '';
-          const name = match[5] || 'Unknown';
+          const range = match[4] || '';
+          const rangeSig = match[5] || '';
+          const channel = match[6] || '';
+          const name = match[7] || '';
           const isApple = / APPLE(?:\s|$)/.test(line);
           const vendMatch = line.match(/\sV=([^"\n]+)$/);
 
@@ -4116,9 +4224,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (isApple) card += '<span class="res-badge muted" title="Apple device (advertises Apple 0x004C continuity)">APPLE</span>';
           card += '</span>';
           card += '<div class="res-meta">';
-          card += '<span>Name: <strong>' + name + '</strong></span>';
+          if (name) card += '<span>Name: <strong class="res-ident name">' + name + '</strong></span>';
           card += '<span class="res-badge ' + (type === 'BLE' ? 'ble' : 'wifi') + '">' + type + '</span>';
           if (channel) card += '<span class="res-badge">CH ' + channel + '</span>';
+          if (range) card += '<span class="res-badge" title="Estimated range from RSSI path-loss model (1-sigma)">~' + range + ' m &plusmn;' + rangeSig + '</span>';
           const vendName = vendMatch ? vendMatch[1].trim() : '';
           if (vendName && !(isApple && /^apple/i.test(vendName))) card += '<span class="res-badge">' + vendName + '</span>';
           card += '</div>';
@@ -4407,7 +4516,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         try {
           refreshIdentityMap(false);
           const diagResponse = await fetch('/diag').catch(() => null);
-          if (!diagResponse) return;
+          if (!diagResponse || !diagResponse.ok) {
+            diagFailStreak++;
+            if (diagFailStreak >= 2 && nodeReachable) {
+              nodeReachable = false;
+              setScanStatus('Node unreachable', 'offline');
+            }
+            return;
+          }
+          if (!nodeReachable) {
+            nodeReachable = true;
+            resultsSynced = false;
+            if (!loadEverSucceeded) load();
+          }
+          diagFailStreak = 0;
           const diagText = await diagResponse.text();
           const isScanning = diagText.includes('Scanning: yes');
           const isTriActive = diagText.includes('Triangulating: yes');
@@ -4449,7 +4571,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               const match = line.match(/([\d.]+)C/);
               if (match) { document.getElementById('temperature').innerHTML = match[1] + '<small>°C</small>'; pushSpark('temperature', parseFloat(match[1])); }
             }
-            if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
+            if (line.startsWith('Last reset:') || line.startsWith('Prev uptime:') ||
+                line.startsWith('Results restored:') || line.startsWith('Free int heap:') ||
+                line.startsWith('Min free int heap:') || line.startsWith('Scan stack free:')) {
+              hardware += line + '\n';
+            } else if (line.includes('SD Card') || line.includes('GPS') || line.includes('RTC') || line.includes('Vibration')) {
               hardware += line + '\n';
             } else if (line.includes('AP IP') || line.includes('Mesh') || line.includes('WiFi Channels')) {
               network += line + '\n';
@@ -4553,9 +4679,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const ftype = document.getElementById('incFilter').value;
           const fsrc  = document.getElementById('incSrc').value;
           const body = document.getElementById('incBody');
+          const sessMs = (_sessMark && _sessMark.marked) ? (_sessMark.ms||0) : 0;
           const filtered = arr.slice().reverse().filter(e =>
             (!ftype || e.type === ftype) &&
-            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local'))
+            (!fsrc  || (fsrc === 'local' ? e.src === 'local' : e.src !== 'local')) &&
+            (!sessMs || (e.ts||0) >= sessMs)
           );
           document.getElementById('incCount').textContent = filtered.length + ' / ' + arr.length + ' total';
           let html;
@@ -5096,8 +5224,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       var DATA_PAGE_SIZE=50;
       var DATA_SETS={
         probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',
-          cols:['MAC','Type','Vendor','RSSI','Sessions','Seen','First','Last','SSIDs','Rand'],
-          keys:['mac','ble','vendor','rssi','sessions','seen','first','last','ssids','rand']},
+          cols:['MAC','Type','Vendor','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
+          keys:['mac','ble','vendor','rssi','ch','sessions','seen','first','last','ssids','rand']},
         probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',
           cols:['Time','MAC','RSSI','Ch','Count','Vendor','SSIDs','Rand','Hit'],
           keys:['t','mac','rssi','ch','cnt','v','ss','rand','hit']},
@@ -5218,6 +5346,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           return String(val);
         }
         if(key==='rssi'){var cls=val>-50?'rssi-good':val>-70?'rssi-mid':'rssi-bad';return '<span class="'+cls+'">'+val+' dBm</span>';}
+        if(key==='ble') return val?'BLE':'WiFi';
+        if(key==='ch') return val?String(val):'-';
         if(key==='rand') return val?'<span class="rand-yes">Yes</span>':'No';
         if(key==='hit'||key==='dst') return val?'<span style="color:var(--dang);font-weight:600">Yes</span>':'No';
         var _priv=(typeof privacyMode!=='undefined'&&privacyMode);
@@ -5327,6 +5457,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       loadMeshInterval();
       loadDedupTtl();
       updateAutoEraseStatus();
+      loadVibScanConfig();
       refreshPskStatus();
       pollSecureState();
       setInterval(tick, 5000);
@@ -5348,6 +5479,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         catch(e){console.warn('detect: fetch json failed', u, e); return null;}
       }
       function _countLines(s){if(!s)return 0;return s.split('\n').filter(l=>l.trim()).length}
+      let _sessMark=null;
+      function _sessBase(path){
+        if(!_sessMark||!_sessMark.marked||!_sessMark.logs)return 0;
+        return _sessMark.logs[path]||0;
+      }
+      function _sessLines(s,path){
+        if(!s)return [];
+        const all=s.split('\n').filter(l=>l.trim());
+        const b=_sessBase(path);
+        return b>0?all.slice(b):all;
+      }
+      function _countSess(s,path){return _sessLines(s,path).length}
       const GROUPS={
         dos:[['DEAUTH_FORGE','Deauth Forge',null],['DEAUTH_FLOOD','Deauth Flood',null],
           ['BEACON_FLOOD','Beacon Flood','eviltwin'],['AUTH_FLOOD','Auth Flood',null],
@@ -5407,7 +5550,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
       async function renderDos(){
-        const inc=await _jj('/api/incidents.json?limit=200')||[];
+        let inc=await _jj('/api/incidents.json?limit=200')||[];
+        if(_sessMark&&_sessMark.marked&&_sessMark.ms>0)inc=inc.filter(x=>x&&(x.ts||0)>=_sessMark.ms);
         const cfg=_detCfg||{};
         _dosSyncMode(!!cfg.sentinel_scan);
         const nowMs=inc.reduce((m,x)=>Math.max(m,(x&&x.ts)||0),0);
@@ -5475,14 +5619,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           _jj('/api/rid_claims'),_jj('/api/recon'),
           _jj('/api/channel_partition'),_jj('/api/detect/session')
         ]);
+        _sessMark=sess||null;
         const dEl = document.getElementById('d-dauth');
-        if (dEl) dEl.textContent = _countLines(df);
-        document.getElementById('d-pmkid').textContent=_countLines(pm);
-        document.getElementById('d-et').textContent=_countLines(et);
-        document.getElementById('d-sc').textContent=_countLines(sc);
-        document.getElementById('d-sae').textContent=_countLines(sa);
-        document.getElementById('d-owe').textContent=_countLines(ow);
-        document.getElementById('d-frag').textContent=_countLines(fr);
+        if (dEl) dEl.textContent = _countSess(df,'/deauth_flood.jsonl');
+        document.getElementById('d-pmkid').textContent=_countSess(pm,'/pmkid.jsonl');
+        document.getElementById('d-et').textContent=_countSess(et,'/eviltwin.jsonl');
+        document.getElementById('d-sc').textContent=_countSess(sc,'/ssid_confusion.jsonl');
+        document.getElementById('d-sae').textContent=_countSess(sa,'/sae_dos.jsonl');
+        document.getElementById('d-owe').textContent=_countSess(ow,'/owe_abuse.jsonl');
+        document.getElementById('d-frag').textContent=_countSess(fr,'/fragattack.jsonl');
         document.getElementById('d-rec').textContent=(rc||[]).length;
         document.getElementById('d-pps').textContent=p?(p.locked?'YES':'no')+' edge='+p.last_edge:'--';
         document.getElementById('d-bl').textContent=b?(b.local_bits_set+' / '+b.capacity_bits):'--';
@@ -5498,15 +5643,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           {key:'reasons',label:'Reasons'},{key:'ts',label:'Last',get:r=>_ago(r.ts)}
         ]);
         const evtRows=[];
-        function parseLines(s,kind,sevHint){
-          (s||'').split('\n').filter(l=>l.trim()).forEach(l=>{
+        function parseLines(s,kind,sevHint,path){
+          _sessLines(s,path).forEach(l=>{
             const o=_safeParse(l);
             if(o)evtRows.push({kind,sev:sevHint,ts:o.ts||0,raw:l,o});
           });
         }
-        parseLines(pm,'PMKID','crit');parseLines(et,'EvilTwin','high');parseLines(sc,'SSIDConf','high');
-        parseLines(sa,'SAE','high');parseLines(ow,'OWE','med');parseLines(fr,'Frag','med');
-        parseLines(bm,'BLEMalformed','med');
+        parseLines(pm,'PMKID','crit','/pmkid.jsonl');parseLines(et,'EvilTwin','high','/eviltwin.jsonl');
+        parseLines(sc,'SSIDConf','high','/ssid_confusion.jsonl');
+        parseLines(sa,'SAE','high','/sae_dos.jsonl');parseLines(ow,'OWE','med','/owe_abuse.jsonl');
+        parseLines(fr,'Frag','med','/fragattack.jsonl');
+        parseLines(bm,'BLEMalformed','med','/ble_malformed.jsonl');
         evtRows.sort((a,b)=>(b.ts||0)-(a.ts||0));
         detRenderTable('d-stream',evtRows.slice(0,40),[
           {key:'kind',label:'Type'},
@@ -5515,13 +5662,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           {key:'raw',label:'Detail',get:r=>r.raw}
         ]);
         if((rc||[]).length>0)detMarkActive('recon');
-        if(_countLines(pm)>0||_countLines(et)>0||_countLines(sc)>0||_countLines(sa)>0)detMarkActive('rid');
+        if(_countSess(pm,'/pmkid.jsonl')>0||_countSess(et,'/eviltwin.jsonl')>0||_countSess(sc,'/ssid_confusion.jsonl')>0||_countSess(sa,'/sae_dos.jsonl')>0)detMarkActive('rid');
         renderDos();
       }
       async function detectClearAll(){
         if(!confirm('Erase ALL Sentinel state?\n\nThis clears every detection held in memory (all detector windows, hunts, trackers, baselines) AND deletes the saved detection logs on SD, including incidents.jsonl.\n\nThis cannot be undone.'))return;
         const r=await fetch('/api/detect/clear_all',{method:'POST'});
         toast(r.ok?'Sentinel state and detection logs erased':'Clear failed', r.ok?'success':'error');
+        _sessMark=null;
+        _incLastHtml=null;
+        detectTick();
+        if(typeof loadIncidents==='function')loadIncidents();
+        if(typeof refreshSentinelAnalysis==='function')refreshSentinelAnalysis();
+      }
+      async function detectClearSession(){
+        const r=await fetch('/api/detect/clear_session',{method:'POST'});
+        if(r.ok){try{_sessMark=await r.json();}catch(e){_sessMark=null;}}
+        toast(r.ok?'Session counts cleared (logs kept)':'Clear failed', r.ok?'success':'error');
         _incLastHtml=null;
         detectTick();
         if(typeof loadIncidents==='function')loadIncidents();
@@ -6001,6 +6158,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         document.querySelectorAll('#cfg-mesh input').forEach(el=>{
           el.addEventListener('change',()=>detPostCfg({[el.dataset.cfg]:el.checked}));
         });
+        const at=document.getElementById('cfgAttackerTrilat');
+        if(at)at.checked=_detCfg.attacker_trilat===true;
       }
       async function detPostCfg(patch){
         Object.assign(_detCfg||(_detCfg={}),patch);

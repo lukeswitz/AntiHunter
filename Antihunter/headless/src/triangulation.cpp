@@ -60,7 +60,7 @@ const uint32_t TRIANGULATION_DEBOUNCE_MS = 20000; // 20 seconds
 
 RFEnvironment currentRFEnvironment = RF_ENV_INDOOR;
 
-// Path loss defaults calibrated for 8 dBi RX antenna, indoor environment
+// Path loss defaults calibrated for 6 dBi RX antenna, indoor environment
 PathLossCalibration pathLoss = {
     -28.0,   // rssi0_wifi (dBm @ 1m, measured avg: -28.3)
     -47.0,   // rssi0_ble (dBm @ 1m, measured avg: -47.2)
@@ -93,30 +93,95 @@ void setRFEnvironment(RFEnvironment env) {
 
 // Helpers
 
+float estimateRangeM(int8_t rssi, bool isWiFi) {
+    if (rssi <= RSSI_SENSITIVITY_FLOOR || rssi >= 0) return -1.0f;
+    float rssi0 = isWiFi ? adaptivePathLoss.rssi0_wifi : adaptivePathLoss.rssi0_ble;
+    float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
+    float d = pow(10.0f, (rssi0 - (float)rssi) / (10.0f * n));
+    if (distanceTuning.enabled) {
+        d *= isWiFi ? distanceTuning.wifi_multiplier : distanceTuning.ble_multiplier;
+    }
+    return (d < 0.1f) ? 0.1f : d;
+}
+
+float estimateRangeSigmaM(int8_t rssi, bool isWiFi) {
+    float d = estimateRangeM(rssi, isWiFi);
+    if (d < 0.0f) return -1.0f;
+    float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
+    float sigmaDb = RF_PRESETS[currentRFEnvironment].sigma_db;
+    if (!isWiFi) sigmaDb = sqrtf(sigmaDb * sigmaDb + BLE_TXPOWER_SIGMA_DB * BLE_TXPOWER_SIGMA_DB);
+    if (!pathLoss.calibrated) sigmaDb = sqrtf(sigmaDb * sigmaDb + PATHLOSS_UNCALIBRATED_SIGMA_DB * PATHLOSS_UNCALIBRATED_SIGMA_DB);
+    return d * (logf(10.0f) / (10.0f * n)) * sigmaDb;
+}
+
+bool rssiUsable(int8_t rssi) {
+    return rssi > RSSI_SENSITIVITY_FLOOR && rssi < 0;
+}
+
 float rssiToDistance(const TriangulationNode &node, bool isWiFi) {
     float rssi0 = isWiFi ? adaptivePathLoss.rssi0_wifi : adaptivePathLoss.rssi0_ble;
     float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
-    
-    // Log-distance path loss model: d = 10^((RSSI0 - RSSI)/(10*n))
-    float distance = pow(10.0, (rssi0 - node.filteredRssi) / (10.0 * n));
-    
-    // Apply signal quality degradation
-    float qualityFactor = 1.0 + (1.0 - node.signalQuality) * 0.5;
-    distance *= qualityFactor;
+
+    float distance = pow(10.0f, (rssi0 - node.filteredRssi) / (10.0f * n));
 
     if (distanceTuning.enabled) {
         float multiplier = isWiFi ? distanceTuning.wifi_multiplier : distanceTuning.ble_multiplier;
         distance *= multiplier;
     }
 
-    if (distance < 0.1) distance = 0.1;
-    if (isWiFi) {
-        if (distance > 50.0) distance = 50.0;
-    } else {
-        if (distance > 30.0) distance = 30.0;
+    if (distance < 0.1f) distance = 0.1f;
+    return distance;
+}
+
+void nodeUpdateDistance(TriangulationNode &node) {
+    bool primaryIsWiFi = !node.isBLE;
+    float d1 = rssiToDistance(node, primaryIsWiFi);
+    float s1 = rssiDistanceSigma(node, d1, primaryIsWiFi);
+
+    if (!node.hasBLE || node.bleRssi >= 0 || !rssiUsable(node.bleRssi)) {
+        node.distanceEstimate = d1;
+        node.distanceSigma = s1;
+        return;
     }
 
-    return distance;
+    TriangulationNode bleView = node;
+    bleView.filteredRssi = (float)node.bleRssi;
+    bleView.rssiHistory.clear();
+    float d2 = rssiToDistance(bleView, false);
+    float s2 = rssiDistanceSigma(bleView, d2, false);
+
+    float w1 = 1.0f / (s1 * s1);
+    float w2 = 1.0f / (s2 * s2);
+    node.distanceEstimate = (d1 * w1 + d2 * w2) / (w1 + w2);
+    node.distanceSigma = sqrtf(1.0f / (w1 + w2));
+}
+
+float rssiDistanceSigma(const TriangulationNode &node, float distance, bool isWiFi) {
+    float n = isWiFi ? adaptivePathLoss.n_wifi : adaptivePathLoss.n_ble;
+    float shadowDb = RF_PRESETS[currentRFEnvironment].sigma_db;
+
+    if (node.rssiHistory.size() >= 3) {
+        float mean = std::accumulate(node.rssiHistory.begin(), node.rssiHistory.end(), 0.0f);
+        mean /= node.rssiHistory.size();
+        float variance = 0.0f;
+        for (int8_t r : node.rssiHistory) {
+            float d = (float)r - mean;
+            variance += d * d;
+        }
+        variance /= node.rssiHistory.size();
+        shadowDb = max(shadowDb, sqrtf(variance));
+    }
+
+    float sigmaDb = shadowDb;
+    if (!isWiFi) {
+        sigmaDb = sqrtf(shadowDb * shadowDb + BLE_TXPOWER_SIGMA_DB * BLE_TXPOWER_SIGMA_DB);
+    }
+    if (!pathLoss.calibrated) {
+        sigmaDb = sqrtf(sigmaDb * sigmaDb + PATHLOSS_UNCALIBRATED_SIGMA_DB * PATHLOSS_UNCALIBRATED_SIGMA_DB);
+    }
+
+    float sigma = distance * (logf(10.0f) / (10.0f * n)) * sigmaDb;
+    return max(0.5f, sigma);
 }
 
 float getAverageHDOP(const std::vector<TriangulationNode> &nodes) {
@@ -136,32 +201,37 @@ float getAverageHDOP(const std::vector<TriangulationNode> &nodes) {
     return totalHDOP / validCount;
 }
 
-float calculateGDOP(const std::vector<TriangulationNode> &nodes) {
-    if (nodes.size() < 3) return 999.9;
-    
-    float minAngle = 180.0;
-    for (size_t i = 0; i < nodes.size(); i++) {
-        for (size_t j = i + 1; j < nodes.size(); j++) {
-            float dx1 = nodes[i].lat;
-            float dy1 = nodes[i].lon;
-            float dx2 = nodes[j].lat;
-            float dy2 = nodes[j].lon;
-            
-            float mag1 = sqrt(dx1*dx1 + dy1*dy1);
-            float mag2 = sqrt(dx2*dx2 + dy2*dy2);
+float calculateGDOP(const std::vector<TriangulationNode> &nodes, double estLat, double estLon) {
+    if (nodes.size() < 3) return 999.9f;
 
-            if (mag1 > 0 && mag2 > 0) {
-                float dot = dx1 * dx2 + dy1 * dy2;
-                float angle = acos(dot / (mag1 * mag2)) * 180.0 / M_PI;
-                if (angle < minAngle) minAngle = angle;
-            }
-        }
+    double a = 0.0, b = 0.0, c = 0.0;
+    int used = 0;
+
+    for (const auto &node : nodes) {
+        if (!node.hasGPS) continue;
+        double east, north;
+        geodeticToENU(node.lat, node.lon, estLat, estLon, east, north);
+        double r = sqrt(east * east + north * north);
+        if (r < 0.5) continue;
+        double ux = east / r;
+        double uy = north / r;
+        a += ux * ux;
+        b += ux * uy;
+        c += uy * uy;
+        used++;
     }
-    
-    if (minAngle < 20.0) return 9.0;
-    if (minAngle < 30.0) return 5.0;
-    if (minAngle < 45.0) return 3.0;
-    return 1.5;
+
+    if (used < 3) return 999.9f;
+
+    double det = a * c - b * b;
+    if (fabs(det) < 1e-9) return 999.9f;
+
+    double trace = (a + c) / det;
+    if (trace <= 0.0) return 999.9f;
+
+    float gdop = (float)sqrt(trace);
+    if (gdop > 999.9f) gdop = 999.9f;
+    return gdop;
 }
 
 void initNodeKalmanFilter(TriangulationNode &node) {
@@ -233,93 +303,162 @@ float calculateSignalQuality(const TriangulationNode &node) {
     return (stability * 0.4f + strength * 0.3f + hitFactor * 0.3f);
 }
 
-bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, 
-                                   float &estLat, float &estLon, float &confidence) {
-    if (nodes.size() < 3) return false;
-    
-    std::vector<TriangulationNode> sortedNodes = nodes;
-    std::sort(sortedNodes.begin(), sortedNodes.end(), 
-              [](const TriangulationNode &a, const TriangulationNode &b) {
-                  return a.signalQuality > b.signalQuality;
-              });
+bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes,
+                                   float &estLat, float &estLon, float &confidence,
+                                   float &uncertaintyM) {
+    struct Obs { double e, n, d, w; };
+    std::vector<Obs> obs;
+    obs.reserve(nodes.size());
 
-    calculateGDOP(sortedNodes);
-
-    float avgHDOP = getAverageHDOP(sortedNodes);
-    if (avgHDOP > 15.0) return false;
-    
-    float refLat = 0.0;
-    float refLon = 0.0;
-    for (const auto &node : sortedNodes) {
+    double refLat = 0.0, refLon = 0.0;
+    int gpsCount = 0;
+    for (const auto &node : nodes) {
+        if (!node.hasGPS) continue;
         refLat += node.lat;
         refLon += node.lon;
+        gpsCount++;
     }
-    refLat /= sortedNodes.size();
-    refLon /= sortedNodes.size();
-    
-    float sumWeightedEast = 0.0;
-    float sumWeightedNorth = 0.0;
-    float sumWeights = 0.0;
-    
-    size_t numNodes = std::min((size_t)5, sortedNodes.size());
-    if (numNodes < 3) return false;
-    
-    for (size_t i = 0; i < numNodes; i++) {
-        for (size_t j = i + 1; j < numNodes; j++) {
-            for (size_t k = j + 1; k < numNodes; k++) {
-                float e1, n1, e2, n2, e3, n3;
-                geodeticToENU(sortedNodes[i].lat, sortedNodes[i].lon, refLat, refLon, e1, n1);
-                geodeticToENU(sortedNodes[j].lat, sortedNodes[j].lon, refLat, refLon, e2, n2);
-                geodeticToENU(sortedNodes[k].lat, sortedNodes[k].lon, refLat, refLon, e3, n3);
-                
-                float r1 = sortedNodes[i].distanceEstimate;
-                float r2 = sortedNodes[j].distanceEstimate;
-                float r3 = sortedNodes[k].distanceEstimate;
-                
-                float A = 2.0 * (e2 - e1);
-                float B = 2.0 * (n2 - n1);
-                float C = pow(r1, 2) - pow(r2, 2) - pow(e1, 2) + pow(e2, 2) - pow(n1, 2) + pow(n2, 2);
-                
-                float D = 2.0 * (e3 - e2);
-                float E = 2.0 * (n3 - n2);
-                float F = pow(r2, 2) - pow(r3, 2) - pow(e2, 2) + pow(e3, 2) - pow(n2, 2) + pow(n3, 2);
-                
-                float denominator = A * E - B * D;
-                
-                if (abs(denominator) > 0.001) {
-                    float tripletEast = (C * E - F * B) / denominator;
-                    float tripletNorth = (A * F - D * C) / denominator;
-                    
-                    float tripletWeight = sortedNodes[i].signalQuality * 
-                                         sortedNodes[j].signalQuality * 
-                                         sortedNodes[k].signalQuality;
-                    
-                    sumWeightedEast += tripletEast * tripletWeight;
-                    sumWeightedNorth += tripletNorth * tripletWeight;
-                    sumWeights += tripletWeight;
-                }
-            }
+    if (gpsCount < 3) return false;
+    refLat /= gpsCount;
+    refLon /= gpsCount;
+
+    for (const auto &node : nodes) {
+        if (!node.hasGPS) continue;
+        if (node.distanceEstimate <= 0.0f) continue;
+        double sigma = (node.distanceSigma > 0.0f) ? node.distanceSigma : 1.0;
+        Obs o;
+        geodeticToENU(node.lat, node.lon, refLat, refLon, o.e, o.n);
+        o.d = node.distanceEstimate;
+        o.w = 1.0 / (sigma * sigma);
+        obs.push_back(o);
+    }
+
+    if (obs.size() < 3) return false;
+
+    double x = 0.0, y = 0.0, wsum = 0.0;
+    for (const auto &o : obs) {
+        x += o.e * o.w;
+        y += o.n * o.w;
+        wsum += o.w;
+    }
+    if (wsum <= 0.0) return false;
+    x /= wsum;
+    y /= wsum;
+
+    auto costAt = [&obs](double px, double py) {
+        double c = 0.0;
+        for (const auto &o : obs) {
+            double dx = px - o.e;
+            double dy = py - o.n;
+            double r = sqrt(dx * dx + dy * dy);
+            if (r < 1e-6) r = 1e-6;
+            double residual = r - o.d;
+            c += o.w * residual * residual;
         }
+        return c;
+    };
+
+    double lambda = 1e-3;
+    double cost = costAt(x, y);
+
+    for (int iter = 0; iter < TRILATERATION_MAX_ITER; iter++) {
+        double jtwj00 = 0.0, jtwj01 = 0.0, jtwj11 = 0.0;
+        double jtwr0 = 0.0, jtwr1 = 0.0;
+
+        for (const auto &o : obs) {
+            double dx = x - o.e;
+            double dy = y - o.n;
+            double r = sqrt(dx * dx + dy * dy);
+            if (r < 1e-6) r = 1e-6;
+            double residual = r - o.d;
+            double gx = dx / r;
+            double gy = dy / r;
+
+            jtwj00 += o.w * gx * gx;
+            jtwj01 += o.w * gx * gy;
+            jtwj11 += o.w * gy * gy;
+            jtwr0 += o.w * gx * residual;
+            jtwr1 += o.w * gy * residual;
+        }
+
+        bool stepped = false;
+        double stepX = 0.0, stepY = 0.0;
+
+        for (int attempt = 0; attempt < 12; attempt++) {
+            double a = jtwj00 * (1.0 + lambda);
+            double b = jtwj01;
+            double c = jtwj11 * (1.0 + lambda);
+            double det = a * c - b * b;
+            if (fabs(det) < 1e-12) {
+                lambda *= 10.0;
+                if (lambda > 1e12) break;
+                continue;
+            }
+
+            stepX = -(c * jtwr0 - b * jtwr1) / det;
+            stepY = -(a * jtwr1 - b * jtwr0) / det;
+
+            double trial = costAt(x + stepX, y + stepY);
+            if (trial <= cost) {
+                x += stepX;
+                y += stepY;
+                cost = trial;
+                lambda = max(1e-7, lambda * 0.3);
+                stepped = true;
+                break;
+            }
+            lambda *= 10.0;
+            if (lambda > 1e12) break;
+        }
+
+        if (!stepped) break;
+        if (sqrt(stepX * stepX + stepY * stepY) < TRILATERATION_STEP_TOL_M) break;
     }
-    
-    if (sumWeights < 0.001) return false;
-    
-    float estEast = sumWeightedEast / sumWeights;
-    float estNorth = sumWeightedNorth / sumWeights;
-    
-    float dLat = estNorth / 6371000.0 * 180.0 / M_PI;
-    float dLon = estEast / (6371000.0 * cos(refLat * M_PI / 180.0)) * 180.0 / M_PI;
-    
-    estLat = refLat + dLat;
-    estLon = refLon + dLon;
-    
-    float avgQuality = std::accumulate(sortedNodes.begin(), sortedNodes.begin() + numNodes, 0.0f,
-        [](float acc, const auto& n) { return acc + n.signalQuality; });
-    avgQuality /= numNodes;
-    
-    confidence = avgQuality * (1.0 - 0.1 * (avgHDOP - 1.0)) * (1.0 - 0.05 * (numNodes - 3));
-    confidence = constrain(confidence, 0.0, 1.0);
-    
+
+    if (!isfinite(x) || !isfinite(y)) return false;
+
+    double jtwj00 = 0.0, jtwj01 = 0.0, jtwj11 = 0.0;
+    double chi2 = 0.0;
+    for (const auto &o : obs) {
+        double dx = x - o.e;
+        double dy = y - o.n;
+        double r = sqrt(dx * dx + dy * dy);
+        if (r < 1e-6) r = 1e-6;
+        double residual = r - o.d;
+        double gx = dx / r;
+        double gy = dy / r;
+        jtwj00 += o.w * gx * gx;
+        jtwj01 += o.w * gx * gy;
+        jtwj11 += o.w * gy * gy;
+        chi2 += o.w * residual * residual;
+    }
+
+    double det = jtwj00 * jtwj11 - jtwj01 * jtwj01;
+    if (fabs(det) < 1e-12) return false;
+
+    int dof = (int)obs.size() - 2;
+    double scale = (dof > 0) ? max(1.0, chi2 / dof) : 1.0;
+
+    double c00 = scale * jtwj11 / det;
+    double c11 = scale * jtwj00 / det;
+    double c01 = -scale * jtwj01 / det;
+
+    double tr = c00 + c11;
+    double diff = sqrt(max(0.0, (c00 - c11) * (c00 - c11) / 4.0 + c01 * c01));
+    double eigMax = tr / 2.0 + diff;
+    uncertaintyM = (float)sqrt(max(0.0, eigMax));
+
+    double outLat, outLon;
+    enuToGeodetic(x, y, refLat, refLon, outLat, outLon);
+    estLat = (float)outLat;
+    estLon = (float)outLon;
+
+    float rmsResidual = (dof > 0) ? (float)sqrt(chi2 / obs.size()) : 0.0f;
+    float fitTerm = 1.0f / (1.0f + rmsResidual);
+    float geomTerm = 1.0f / (1.0f + uncertaintyM / 10.0f);
+    float countTerm = 1.0f - 1.0f / (float)obs.size();
+
+    confidence = constrain(fitTerm * geomTerm * (0.5f + 0.5f * countTerm), 0.0f, 1.0f);
     return true;
 }
 
@@ -523,15 +662,14 @@ void coordinatorSetupTask(const void *parameter) {
     if (triSetupAbort.load()) { triSetupAbort.store(false); coordinatorSetupTaskHandle = nullptr; Serial.println("[TRIANGULATE] Setup aborted by stop"); vTaskDelete(NULL); }
 
     if (!workerTaskHandle) {
-        ahCreateTask(
-            listScanTask,
-            "triangulate",
-            8192,
-            reinterpret_cast<void *>(static_cast<intptr_t>(duration)),
-            1,
-            &workerTaskHandle,
-            1
-        );
+        listScanTriMode = true;
+        if (ahCreateTask(listScanTask, "triangulate", 8192,
+                reinterpret_cast<void *>(static_cast<intptr_t>(duration)), 1, &workerTaskHandle, 1) != pdPASS) {
+            Serial.println("[TRIANGULATE] scan task create failed - aborting setup");
+            workerTaskHandle = nullptr;
+            coordinatorSetupTaskHandle = nullptr;
+            vTaskDelete(NULL);
+        }
     }
 
     // Set active flag AFTER task is created to prevent UI race condition
@@ -907,6 +1045,8 @@ void stopTriangulation() {
     int8_t avgRssi = 0;
     int totalHits = 0;
     bool isBLE = false;
+    bool hasBLE = false;
+    int8_t bleRssi = 0;
     float lat = 0.0f, lon = 0.0f, hdop = 0.0f;
     bool hasGPS = false;
 
@@ -922,6 +1062,11 @@ void stopTriangulation() {
                 avgRssi = static_cast<int8_t>(triAccum.bleRssiSum / triAccum.bleHitCount);
                 totalHits = triAccum.bleHitCount;
                 isBLE = true;
+            }
+            if (triAccum.wifiHitCount > 0 && triAccum.bleHitCount > 0) {
+                hasBLE = true;
+                bleRssi = static_cast<int8_t>(triAccum.bleRssiSum / triAccum.bleHitCount);
+                totalHits += triAccum.bleHitCount;
             }
             lat = triAccum.lat;
             lon = triAccum.lon;
@@ -945,12 +1090,15 @@ void stopTriangulation() {
                 selfNodeIt->hitCount = totalHits;
                 updateNodeRSSI(*selfNodeIt, avgRssi);
                 selfNodeIt->isBLE = isBLE;
+                selfNodeIt->hasBLE = hasBLE;
+                selfNodeIt->bleRssi = bleRssi;
                 if (hasGPS) {
                     selfNodeIt->lat = lat;
                     selfNodeIt->lon = lon;
                     selfNodeIt->hdop = hdop;
                     selfNodeIt->hasGPS = true;
                 }
+                nodeUpdateDistance(*selfNodeIt);
                 selfNodeIt->lastUpdate = millis();
                 Serial.printf("[TRIANGULATE] Self node updated: %d hits, RSSI=%d, GPS=%s\n",
                              totalHits, avgRssi, hasGPS ? "YES" : "NO");
@@ -966,11 +1114,13 @@ void stopTriangulation() {
                 selfNode.hitCount = totalHits;
                 selfNode.hasGPS = hasGPS;
                 selfNode.isBLE = isBLE;
+                selfNode.hasBLE = hasBLE;
+                selfNode.bleRssi = bleRssi;
                 selfNode.lastUpdate = millis();
 
                 initNodeKalmanFilter(selfNode);
                 updateNodeRSSI(selfNode, avgRssi);
-                selfNode.distanceEstimate = rssiToDistance(selfNode, !isBLE);
+                nodeUpdateDistance(selfNode);
 
                 triangulationNodes.push_back(selfNode);
                 Serial.printf("[TRIANGULATE] Added coordinator self-detection: %d hits, RSSI=%d, type=%s\n",
@@ -1085,8 +1235,8 @@ void stopTriangulation() {
 
     if (gpsNodes.size() >= 3) {
         Serial.println("[TRIANGULATE] Sufficient GPS nodes, attempting trilateration...");
-        float estLat = 0.0, estLon = 0.0, confidence = 0.0;
-        bool trilaterationSuccess = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence);
+        float estLat = 0.0, estLon = 0.0, confidence = 0.0, solverSigma = 0.0;
+        bool trilaterationSuccess = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence, solverSigma);
         Serial.printf("[TRIANGULATE] Trilateration %s (confidence=%.1f%%)\n",
                       trilaterationSuccess ? "SUCCESS" : "FAILED", confidence * 100.0);
 
@@ -1113,19 +1263,15 @@ void stopTriangulation() {
                 if (validDistances > 0) avgDistance /= validDistances;
                 pendingCalibDistance = avgDistance;
 
-                float gdop = calculateGDOP(gpsNodes);
                 float avgHDOP = getAverageHDOP(gpsNodes);
 
                 float gpsPositionError = avgHDOP * 2.5;
-                float rssiDistanceError = avgDistance * 0.20;
-                float geometricError = gdop * 5.0;
                 float syncError = (maxOffsetMs / 1000.0) * avgDistance * 0.3;
                 float calibError = pathLoss.calibrated ? 0.0 : (avgDistance * 0.15);
 
                 float uncertainty = sqrt(
                     gpsPositionError * gpsPositionError +
-                    rssiDistanceError * rssiDistanceError +
-                    geometricError * geometricError +
+                    solverSigma * solverSigma +
                     syncError * syncError +
                     calibError * calibError
                 );
@@ -1257,12 +1403,20 @@ float haversineDistance(float lat1, float lon1, float lat2, float lon2) {
     return static_cast<float>(R * 2.0 * atan2(sqrt(a), sqrt(1.0 - a)));
 }
 
-void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east, float &north) {
-    float dLat = (lat - refLat) * M_PI / 180.0;
-    float dLon = (lon - refLon) * M_PI / 180.0;
-    float R = 6371000.0;
+void geodeticToENU(double lat, double lon, double refLat, double refLon, double &east, double &north) {
+    const double R = 6371000.0;
+    double dLat = (lat - refLat) * M_PI / 180.0;
+    double dLon = (lon - refLon) * M_PI / 180.0;
     east = R * dLon * cos(refLat * M_PI / 180.0);
     north = R * dLat;
+}
+
+void enuToGeodetic(double east, double north, double refLat, double refLon, double &lat, double &lon) {
+    const double R = 6371000.0;
+    lat = refLat + (north / R) * 180.0 / M_PI;
+    double cosRef = cos(refLat * M_PI / 180.0);
+    if (fabs(cosRef) < 1e-9) cosRef = (cosRef < 0.0) ? -1e-9 : 1e-9;
+    lon = refLon + (east / (R * cosRef)) * 180.0 / M_PI;
 }
 
 String calculateTriangulation() {
@@ -1489,15 +1643,17 @@ String calculateTriangulation() {
         results += " (POOR)\n\n";
     }
 
-    float estLat, estLon, confidence;
-    bool hasRSSI = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence);
+    float estLat = 0.0f, estLon = 0.0f, confidence = 0.0f, solverSigma = 0.0f;
+    bool hasRSSI = performWeightedTrilateration(gpsNodes, estLat, estLon, confidence, solverSigma);
 
     if (hasRSSI) {
         results += "ESTIMATED POSITION (RSSI):\n";
         results += "  Latitude:  " + String(estLat, 6) + "\n";
         results += "  Longitude: " + String(estLon, 6) + "\n";
         results += "  Confidence: " + String(confidence * 100.0, 1) + "%\n";
-        results += "  Method: Weighted trilateration + Kalman filtering\n";
+        results += "  Uncertainty (1-sigma): ±" + String(solverSigma, 1) + "m\n";
+        results += "  GDOP: " + String(calculateGDOP(gpsNodes, estLat, estLon), 2) + "\n";
+        results += "  Method: Weighted NLLS (Levenberg-Marquardt) + Kalman filtering\n";
 
 
         if (gpsNodes.size() >= 1) {
@@ -1958,9 +2114,9 @@ void processMeshTimeSyncWithDelay(const String &senderId, const String &message,
 }
 
 
-// Adaptive path loss calibrated for 8 dBi RX antenna, indoor environment default
+// Adaptive path loss calibrated for 6 dBi RX antenna, indoor environment default
 AdaptivePathLoss adaptivePathLoss = {
-    -27.0,                             // rssi0_wifi (dBm @ 1m, 8dBi antenna)
+    -27.0,                             // rssi0_wifi (dBm @ 1m, 6dBi antenna)
     -67.0,                             // rssi0_ble (dBm @ 1m, most devices TX 0 to -8dBm)
     3.2,                               // n_wifi (indoor path loss exponent)
     3.0,                               // n_ble (indoor path loss exponent, research: 2.0-4.0)

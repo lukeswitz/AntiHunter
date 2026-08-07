@@ -607,7 +607,7 @@ void baselineDetectionTask(void *pv) {
             for (int i = 0; i < scanResults.getCount() && !stopRequested; i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                 String macStr = device->getAddress().toString().c_str();
-                String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                String name = device->haveName() ? String(device->getName().c_str()) : "";
                 int8_t rssi = device->getRSSI();
                 if (rssi > -10) continue;
 
@@ -751,7 +751,7 @@ void baselineDetectionTask(void *pv) {
             for (int i = 0; i < scanResults.getCount() && !stopRequested; i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
                 String macStr = device->getAddress().toString().c_str();
-                String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                String name = device->haveName() ? String(device->getName().c_str()) : "";
                 int8_t rssi = device->getRSSI();
                 if (rssi > -10) continue;
 

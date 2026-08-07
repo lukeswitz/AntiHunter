@@ -101,6 +101,18 @@ void stopAllScans(bool cancelMeshDrain) {
         scanStopPending.store(false);
     }
 }
+
+static std::string fmtRange(int8_t rssi, bool isBLE) {
+    float d = estimateRangeM(rssi, !isBLE);
+    if (d < 0.0f) return std::string();
+    float s = estimateRangeSigmaM(rssi, !isBLE);
+    char buf[40];
+    if (d >= 100.0f) snprintf(buf, sizeof(buf), " ~%.0fm+/-%.0f", d, s);
+    else if (d >= 10.0f) snprintf(buf, sizeof(buf), " ~%.1fm+/-%.1f", d, s);
+    else snprintf(buf, sizeof(buf), " ~%.2fm+/-%.2f", d, s);
+    return std::string(buf);
+}
+
 static StringStringMapPsram apCache;
 static StringStringMapPsram bleDeviceCache;
 static std::mutex snifferCacheMutex;
@@ -134,6 +146,7 @@ std::atomic<uint32_t> framesSeen(0);
 std::atomic<uint32_t> bleFramesSeen(0);
 
 extern TaskHandle_t blueTeamTaskHandle;
+
 
 DeviceHistoryMapPsram deviceHistory;
 uint32_t deviceAbsenceThreshold = 120000;
@@ -331,6 +344,10 @@ void setRFPreset(uint8_t preset) {
             return;
     }
     rfConfig.preset = preset;
+    const char *presetChannels = "1,2,3,4,5,6,7,8,9,10,11";
+    rfConfig.wifiChannels = presetChannels;
+    parseChannelsCSV(presetChannels);
+    prefs.putString("channels", presetChannels);
     WIFI_SCAN_INTERVAL = rfConfig.wifiScanInterval;
     BLE_SCAN_INTERVAL = rfConfig.bleScanInterval;
     
@@ -390,7 +407,7 @@ void loadRFConfigFromPrefs() {
         uint32_t wsi = prefs.getUInt("wifiInterval", 3000);
         uint32_t bsi = prefs.getUInt("bleInterval", 4000);
         uint32_t bsd = prefs.getUInt("bleDuration", 2000);
-        String channels = prefs.getString("channels", "1..11");
+        String channels = prefsGetString("channels", "1..11");
         int8_t rssiThreshold = prefs.getInt("globalRSSI", -95);
         setCustomRFConfig(wct, wsi, bsi, bsd, channels, rssiThreshold);
     }
@@ -403,7 +420,11 @@ void loadRFConfigFromPrefs() {
 #endif
     rebuildActiveChannels();
 
-    Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm, band: %u\n", rfConfig.preset, rfConfig.globalRssiThreshold, rfConfig.bandMode);
+    uint8_t env = prefs.getUChar("rfEnv", (uint8_t)RF_ENV_INDOOR);
+    if (env > RF_ENV_INDUSTRIAL) env = RF_ENV_INDOOR;
+    setRFEnvironment((RFEnvironment)env);
+
+    Serial.printf("[RF] Loaded config - Preset: %d, RSSI threshold: %d dBm, band: %u, Env: %d\n", rfConfig.preset, rfConfig.globalRssiThreshold, rfConfig.bandMode, env);
 }
 
 // Detection system variables
@@ -1047,8 +1068,14 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
     hit.companyId  = 0;
     hit.toolHint   = 0;
     // tool: FC C0 00 + reason 0x02 + seqCtrl 0xFFF0 (raw bytes 0xF0 0xFF LE).
+    // seqCtrl=0xFFF0 is FIXED non-incrementing — legit STA/AP frames increment seq.
     // Combined with reason=2 = high-confidence tool fingerprint.
     if (hit.reasonCode == 0x0002 && hit.seqCtrl == 0xFFF0) hit.toolHint |= 0x01;
+    // bit1 was "tool target reason in {1,4,6,7,8}" — REMOVED: these reasons are
+    // commonly used by real APs (router reboot, channel switch, etc.) so flagging
+    // them alone produces unacceptable false positives. The rate-based detector
+    // (≥20 deauths/10s in flood logic below) catches tool floods regardless.
+    // tool deauth flood: broadcast dst — informational only, not standalone alert.
     if (hit.isBroadcast) hit.toolHint |= 0x04;
 
     BaseType_t woken = pdFALSE;
@@ -1070,7 +1097,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
         String macStr = addr.toString().c_str();
         if (!parseMac6(macStr, mac)) return;
 
-        String deviceName = "Unknown";
+        String deviceName = "";
         if (advertisedDevice->haveName()) {
             std::string nimbleName = advertisedDevice->getName();
             if (nimbleName.length() > 0) {
@@ -1082,7 +1109,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
                     }
                 }
                 if (deviceName.length() == 0) {
-                    deviceName = "Unknown";
+                    deviceName = "";
                 }
             }
         }
@@ -1484,7 +1511,7 @@ void snifferScanTask(void *pv)
                     if (bleDeviceCache.find(macStr) == bleDeviceCache.end())
                     {
                         if (bleDeviceCache.size() >= MAX_BLE_CACHE) continue;
-                        String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                        String name = device->haveName() ? String(device->getName().c_str()) : "";
                         String cleanName = "";
                         for (size_t j = 0; j < name.length(); j++)
                         {
@@ -1495,7 +1522,7 @@ void snifferScanTask(void *pv)
                             }
                         }
                         if (cleanName.length() == 0)
-                            cleanName = "Unknown";
+                            cleanName = "";
 
                         {
                             std::lock_guard<std::mutex> lock(snifferCacheMutex);
@@ -1726,6 +1753,7 @@ void snifferScanTask(void *pv)
                          hit.mac[0], hit.mac[1], hit.mac[2], hit.mac[3], hit.mac[4], hit.mac[5]);
                 results += " " + std::string(macStr);
                 results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+                results += fmtRange(hit.rssi, hit.isBLE);
                 if (!hit.isBLE && hit.ch > 0) results += " CH=" + std::to_string(hit.ch);
                 if (strlen(hit.name) > 0 && strcmp(hit.name, "Unknown") != 0 && strcmp(hit.name, "[Hidden]") != 0) {
                     results += " \"" + std::string(hit.name) + "\"";
@@ -1851,6 +1879,7 @@ void snifferScanTask(void *pv)
             results += (hit.isBLE ? "BLE  " : "WiFi ");
             results += macFmt6(hit.mac).c_str();
             results += " RSSI=" + std::to_string(hit.rssi) + "dBm";
+            results += fmtRange(hit.rssi, hit.isBLE);
 
             if (!hit.isBLE && hit.ch > 0) {
                 results += " CH=" + std::to_string(hit.ch);
@@ -2272,10 +2301,9 @@ void blueTeamTask(void *pv) {
                 }
             }
 
-            // Feed detect.cpp for EAPOL-capture-bait correlation (unicast only).
-            if (!hit.isBroadcast) {
-                detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
-            }
+            // Feed detect.cpp for EAPOL-capture-bait correlation. Broadcast included:
+            // Marauder's active-EAPOL deauth keeps the template's broadcast addr1.
+            detect_witnessDeauth(hit.srcMac, hit.destMac, hit.rssi, hit.channel);
 
             // High-confidence flood detector: ≥20 deauths from same src in 10s.
             // (Cisco WLC default ~30; research recommends 20.)
@@ -3184,12 +3212,12 @@ void initializeScanner()
     WiFi.setScanTimeout(5000);
 
     Serial.println("Loading targets...");
-    String txt = prefs.getString("maclist", "");
+    String txt = prefsGetString("maclist", "");
     saveTargetsList(txt);
     Serial.printf("Loaded %d targets\n", targets.size());
 
     Serial.println("Loading allowlist...");
-    String wtxt = prefs.getString("allowlist", "");
+    String wtxt = prefsGetString("allowlist", "");
     saveAllowlist(wtxt);
     Serial.printf("Loaded %d allowlist entries\n", allowlist.size());
 
@@ -3271,6 +3299,7 @@ static void triUpsertSelfNode(const String& nodeId) {
     it->isBLE = isBle;
     updateNodeRSSI(*it, rssi);
     if (hasGps) { it->lat = lat; it->lon = lon; it->hdop = hdop; it->hasGPS = true; }
+    nodeUpdateDistance(*it);
     it->lastUpdate = millis();
 }
 
@@ -3426,6 +3455,8 @@ void listScanTask(void *pv) {
     // Use safe queue creation with mutex protection
     if (!safeMacQueueCreate(512)) {
         Serial.println("[SCAN] ERROR: Failed to create macQueue");
+        scanning = false;
+        scanSetCountdown(0, false);
         workerTaskHandle = nullptr;
         vTaskDelete(nullptr);
         return;
@@ -3620,7 +3651,7 @@ void listScanTask(void *pv) {
                 String macStrOrig = device->getAddress().toString().c_str();
                 String macStr = macStrOrig;
                 macStr.toUpperCase();
-                String name = device->haveName() ? String(device->getName().c_str()) : "Unknown";
+                String name = device->haveName() ? String(device->getName().c_str()) : "";
                 int8_t rssi = device->getRSSI();
                 if (rssi > -10) continue;
                 // Skip RSSI threshold during triangulation - we want ALL measurements
@@ -3922,11 +3953,11 @@ void listScanTask(void *pv) {
                 std::vector<TriangulationNode> liveGps;
                 for (const auto& n : triangulationNodes) if (n.hasGPS) liveGps.push_back(n);
                 if (liveGps.size() >= 3) {
-                    float lat = 0, lon = 0, conf = 0;
-                    if (performWeightedTrilateration(liveGps, lat, lon, conf) && conf > 0.0f) {
+                    float lat = 0, lon = 0, conf = 0, sig = 0;
+                    if (performWeightedTrilateration(liveGps, lat, lon, conf, sig) && conf > 0.0f) {
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "Estimate: %.6f,%.6f CONF=%.1f%%\n",
-                                 lat, lon, conf * 100.0f);
+                        snprintf(buf, sizeof(buf), "Estimate: %.6f,%.6f CONF=%.1f%% UNC=%.1fm\n",
+                                 lat, lon, conf * 100.0f, sig);
                         results += buf;
                     }
                 }

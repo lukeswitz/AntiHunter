@@ -122,6 +122,7 @@ struct ProbeDBEntry {
     char vendor[16];
     bool isRandomized;
     bool isBLE;
+    uint8_t channel;
 };
 
 struct TriangulationAccumulator {
@@ -187,6 +188,7 @@ extern std::atomic<bool> g_dronePinChannel;
 extern std::atomic<bool> g_channelsAmended;
 void applyBandMode();
 uint8_t nextActiveScanChannel();
+extern std::atomic<bool> g_dronePinChannel;
 
 #ifndef AH_AP_BEACON_TIMEOUT_MS
 #define AH_AP_BEACON_TIMEOUT_MS 6000

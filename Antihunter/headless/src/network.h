@@ -51,7 +51,7 @@ enum ScanMode { SCAN_WIFI, SCAN_BLE, SCAN_BOTH };
 #define DEVICE_DUAL_BAND 1
 #define DEFAULT_BAND_MODE 2
 #else
-#define DEFAULT_CHANNELS {1, 6, 11}
+#define DEFAULT_CHANNELS {1,2,3,4,5,6,7,8,9,10,11}
 #define DEVICE_DUAL_BAND 0
 #define DEFAULT_BAND_MODE 0
 #endif
@@ -72,6 +72,7 @@ void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);
 void meshSplitSender(const String &line, String &sender, String &payload);
 void processUSBToMesh();
+void serviceVibrationAutoScan();
 void setNodeId(const String &id);
 String getNodeId();
 extern unsigned long meshSendInterval;

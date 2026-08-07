@@ -330,7 +330,7 @@ void setup() {
     {
         uint8_t selfMac[6];
         esp_wifi_get_mac(WIFI_IF_AP, selfMac);
-        String ssid = prefs.getString("apSsid", AP_SSID);
+        String ssid = prefsGetString("apSsid", AP_SSID);
         if (ssid.length() == 0) ssid = AP_SSID;
         detect_setSelfApIdentity(selfMac, ssid.c_str());
         Serial.printf("[SENTINEL] self-filter mac=%02X:%02X:%02X:%02X:%02X:%02X ssid=%s\n",
@@ -349,8 +349,8 @@ void setup() {
 
     Serial.println("===== ANTIHUNTER DIGINODE C5 v1.0.1 BETA BOOT COMPLETE =====");
 
-    String currentSsid = prefs.getString("apSsid", AP_SSID);
-    String currentPass = prefs.getString("apPass", AP_PASS);
+    String currentSsid = prefsGetString("apSsid", AP_SSID);
+    String currentPass = prefsGetString("apPass", AP_PASS);
     String currentNodeId = getNodeId();
 
     if (currentSsid.length() == 0) currentSsid = AP_SSID;
@@ -430,6 +430,7 @@ void loop() {
     }
 
     checkAndSendVibrationAlert();
+    serviceVibrationAutoScan();
     saveResultsSnapshot();
 
     if (millis() - lastHeapCheck > 30000) {

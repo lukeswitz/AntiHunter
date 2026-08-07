@@ -206,8 +206,8 @@ void initializeNetwork()
 
   applyBandMode();
 
-  customApSsid = prefs.getString("apSsid", AP_SSID);
-  customApPass = prefs.getString("apPass", AP_PASS);
+  customApSsid = prefsGetString("apSsid", AP_SSID);
+  customApPass = prefsGetString("apPass", AP_PASS);
   
   if (customApSsid.length() == 0) customApSsid = AP_SSID;
   if (customApPass.length() < 8) customApPass = AP_PASS;
@@ -229,6 +229,13 @@ void initializeNetwork()
   Serial.printf("[WIFI] AP %s start (PMF capable): %s\n",
                 apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
                 apOk ? "OK" : "FAIL");
+  // SoftAP force-deauths an idle STA after inactive time (IDF default 300s). A sleeping
+  // browser stops polling and gets kicked mid-scan. Not stored in flash - re-applied each boot.
+  {
+    esp_err_t itErr = esp_wifi_set_inactive_time(WIFI_IF_AP, AP_INACTIVE_TIME_SEC);
+    Serial.printf("[WIFI] AP inactive time %us: %s\n", (unsigned)AP_INACTIVE_TIME_SEC,
+                  itErr == ESP_OK ? "OK" : esp_err_to_name(itErr));
+  }
   delay(500);
   WiFi.setHostname("antihunter");
   delay(100);
@@ -714,14 +721,14 @@ void registerRemainingRoutes() {
       extern RFScanConfig rfConfig;
       
       String configJson = "{\n";
-      configJson += "\"nodeId\":\"" + jsonEscape(prefs.getString("nodeId", "")) + "\",\n";
+      configJson += "\"nodeId\":\"" + jsonEscape(prefsGetString("nodeId", "")) + "\",\n";
       configJson += "\"scanMode\":" + String(currentScanMode) + ",\n";
       configJson += "\"channels\":\"" + jsonEscape(rfConfig.wifiChannels) + "\",\n";
       configJson += "\"bandMode\":" + String(rfConfig.bandMode) + ",\n";
       configJson += "\"dualBand\":";
       configJson += (DEVICE_DUAL_BAND ? "true" : "false");
       configJson += ",\n";
-      configJson += "\"targets\":\"" + jsonEscape(prefs.getString("maclist", "")) + "\"\n";
+      configJson += "\"targets\":\"" + jsonEscape(prefsGetString("maclist", "")) + "\"\n";
       configJson += "}";
       
       r->send(200, "application/json", configJson);
@@ -835,6 +842,46 @@ void registerRemainingRoutes() {
         } else {
             req->send(400, "text/plain", "Missing enabled parameter");
         } });
+
+  server->on("/vibration-scan", HTTP_GET, [](AsyncWebServerRequest *req)
+             {
+        String j = "{";
+        j += "\"enabled\":" + String(vibAutoScanEnabled ? "true" : "false") + ",";
+        j += "\"mode\":" + String(vibAutoScanMode) + ",";
+        j += "\"duration\":" + String(vibAutoScanDuration) + ",";
+        j += "\"cooldown\":" + String(vibAutoScanCooldownMs / 1000);
+        j += "}";
+        req->send(200, "application/json", j); });
+
+  server->on("/vibration-scan", HTTP_POST, [](AsyncWebServerRequest *req)
+             {
+        if (req->hasParam("enabled", true)) {
+            String e = req->getParam("enabled", true)->value();
+            vibAutoScanEnabled = (e == "true" || e == "1" || e == "on");
+        }
+        if (req->hasParam("mode", true)) {
+            int m = req->getParam("mode", true)->value().toInt();
+            if (m < 0) m = 0;
+            if (m > 7) m = 7;
+            vibAutoScanMode = (uint8_t)m;
+        }
+        if (req->hasParam("duration", true)) {
+            long d = req->getParam("duration", true)->value().toInt();
+            if (d < 0) d = 0;
+            if (d > 65535) d = 65535;
+            vibAutoScanDuration = (uint16_t)d;
+        }
+        if (req->hasParam("cooldown", true)) {
+            long c = req->getParam("cooldown", true)->value().toInt();
+            if (c < 5) c = 5;
+            if (c > 86400) c = 86400;
+            vibAutoScanCooldownMs = (uint32_t)c * 1000UL;
+        }
+        lastSaveTime = 0;
+        saveConfiguration();
+        Serial.printf("[VIBSCAN] Config set via web UI: en=%d mode=%u dur=%u cd=%ums\n",
+                      vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration, vibAutoScanCooldownMs);
+        req->send(200, "text/plain", "Vibration auto-scan saved"); });
 
   server->on("/mesh-hb", HTTP_POST, [](AsyncWebServerRequest *req)
              {
@@ -1271,13 +1318,20 @@ void registerRemainingRoutes() {
             if (secs < 0) secs = 0;
             if (secs > 86400) secs = 86400;
 
+            ScanMode dMode = SCAN_BOTH;
+            if (req->hasParam("droneScanMode", true)) {
+                int m = req->getParam("droneScanMode", true)->value().toInt();
+                if (m == 0) dMode = SCAN_WIFI;
+                else if (m == 1) dMode = SCAN_BLE;
+            }
+
             stopRequested = false;
             req->send(200, "text/plain",
                     forever ? "Drone detection starting (forever)" :
                     ("Drone detection starting for " + String(secs) + "s"));
 
             if (!workerTaskHandle) {
-                currentScanMode = SCAN_BOTH;
+                currentScanMode = dMode;
                 scanning = true;
                 if (ahCreateTask(droneDetectorTask, "drone", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
                     scanning = false;
@@ -1691,7 +1745,8 @@ void registerRemainingRoutes() {
     json += "\"dualBand\":";
     json += (DEVICE_DUAL_BAND ? "true" : "false");
     json += ",";
-    json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold);
+    json += "\"globalRssiThreshold\":" + String(rfConfig.globalRssiThreshold) + ",";
+    json += "\"rfEnv\":" + String((int)currentRFEnvironment);
     json += "}";
     req->send(200, "application/json", json);
   });
@@ -1706,6 +1761,15 @@ void registerRemainingRoutes() {
     if (req->hasParam("bandMode", true)) {
         setBandMode((uint8_t)req->getParam("bandMode", true)->value().toInt());
         updated = true;
+    }
+
+    if (req->hasParam("rfEnv", true)) {
+        int env = req->getParam("rfEnv", true)->value().toInt();
+        if (env >= 0 && env <= RF_ENV_INDUSTRIAL) {
+            setRFEnvironment((RFEnvironment)env);
+            prefs.putUChar("rfEnv", (uint8_t)env);
+            updated = true;
+        }
     }
 
     if (req->hasParam("preset", true)) {
@@ -1761,8 +1825,8 @@ void registerRemainingRoutes() {
   });
 
   server->on("/wifi-config", HTTP_GET, [](AsyncWebServerRequest *req) {
-    String ssid = prefs.getString("apSsid", AP_SSID);
-    String pass = prefs.getString("apPass", AP_PASS);
+    String ssid = prefsGetString("apSsid", AP_SSID);
+    String pass = prefsGetString("apPass", AP_PASS);
     
     if (ssid.length() == 0) ssid = AP_SSID;
     if (pass.length() == 0) pass = AP_PASS;
@@ -2162,6 +2226,13 @@ void registerRemainingRoutes() {
   server->on("/api/detect/clear_all", HTTP_POST, [](AsyncWebServerRequest *r) {
       detect_clearAll();
       r->send(200, "text/plain", "cleared");
+  });
+  server->on("/api/detect/clear_session", HTTP_POST, [](AsyncWebServerRequest *r) {
+      detect_clearSession();
+      r->send(200, "application/json", detect_getSessionJson());
+  });
+  server->on("/api/detect/session", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", detect_getSessionJson());
   });
   server->on("/api/detect/health", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "application/json", detect_getHealthJson());

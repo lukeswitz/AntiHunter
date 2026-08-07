@@ -29,6 +29,9 @@ struct TriangulationNode {
     KalmanFilterState kalmanFilter{};
     float filteredRssi{};
     float distanceEstimate{};
+    float distanceSigma{};
+    bool hasBLE{};
+    int8_t bleRssi{};
     float signalQuality{};
     float hdop{};
     uint16_t gpsSamples{};
@@ -71,20 +74,21 @@ struct RFEnvironmentPreset {
     float n_ble;
     float rssi0_wifi;
     float rssi0_ble;
+    float sigma_db;
 };
 
-// RF Environment Presets calibrated for 5 dBi RX antenna (empirically verified 2026-02)
+// RF Environment Presets calibrated for 6 dBi RX antenna (empirically verified 2026-02)
 // { n_wifi, n_ble, rssi0_wifi (dBm @ 1m), rssi0_ble (dBm @ 1m) }
-// WiFi: ESP32 ~20dBm TX, 5dBi RX gain, ~40dB FSPL @ 1m
+// WiFi: ESP32 ~20dBm TX, 6dBi RX gain, ~40dB FSPL @ 1m
 // BLE: Most phones/wearables TX at 0 to -8dBm (not +4dBm), giving -62 to -69dBm @ 1m
 // BLE n typically 2.0-4.0 indoors, measurements suggest 2.5-3.0 more common
 // Calibration based on XIAO ESP32S3 measurements with antenna gain extrapolation
 static const RFEnvironmentPreset RF_PRESETS[] = {
-    { 2.0f, 2.0f, -23.0f, -60.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
-    { 2.7f, 2.5f, -24.0f, -62.0f },   // RF_ENV_SUBURBAN: light foliage, some buildings
-    { 3.2f, 2.9f, -25.0f, -65.0f },   // RF_ENV_INDOOR: typical indoor, some walls
-    { 4.0f, 3.5f, -27.0f, -69.0f },   // RF_ENV_INDOOR_DENSE: office, many partitions
-    { 4.8f, 4.0f, -30.0f, -73.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
+    { 2.0f, 2.0f, -23.0f, -60.0f, 4.0f },   // RF_ENV_OPEN_SKY: clear LOS, minimal obstruction
+    { 2.7f, 2.5f, -24.0f, -62.0f, 5.5f },   // RF_ENV_SUBURBAN: light foliage, some buildings
+    { 3.2f, 2.9f, -25.0f, -65.0f, 7.0f },   // RF_ENV_INDOOR: typical indoor, some walls
+    { 4.0f, 3.5f, -27.0f, -69.0f, 8.2f },   // RF_ENV_INDOOR_DENSE: office, many partitions
+    { 4.8f, 4.0f, -30.0f, -73.0f, 9.0f }    // RF_ENV_INDUSTRIAL: heavy obstruction, machinery
 };
 
 struct PathLossCalibration {
@@ -137,6 +141,11 @@ extern const size_t MAX_ACK_INFO;
 
 const float KALMAN_MEASUREMENT_NOISE = 4.0;
 const uint32_t RSSI_HISTORY_SIZE = 10;
+const int8_t RSSI_SENSITIVITY_FLOOR = -95;
+const int TRILATERATION_MAX_ITER = 24;
+const double TRILATERATION_STEP_TOL_M = 0.1;
+const float BLE_TXPOWER_SIGMA_DB = 6.0f;
+const float PATHLOSS_UNCALIBRATED_SIGMA_DB = 3.0f;
 const uint32_t SYNC_CHECK_INTERVAL = 30000;
 const uint32_t REPORT_PROGRESS_GRACE_MS = 8000;
 const uint32_t REPORT_HARD_CEILING_MS = 60000;
@@ -152,13 +161,19 @@ const float TRI_UNC_MAX_M = 100.0f;
 void initNodeKalmanFilter(TriangulationNode &node);
 float kalmanFilterRSSI(TriangulationNode &node, int8_t measurement);
 float haversineDistance(float lat1, float lon1, float lat2, float lon2);
-void geodeticToENU(float lat, float lon, float refLat, float refLon, float &east, float &north);
-float calculateGDOP(const std::vector<TriangulationNode> &nodes); // TODO decide if we need 3D and 2D 
+void geodeticToENU(double lat, double lon, double refLat, double refLon, double &east, double &north);
+void enuToGeodetic(double east, double north, double refLat, double refLon, double &lat, double &lon);
+float calculateGDOP(const std::vector<TriangulationNode> &nodes, double estLat, double estLon);
 float getAverageHDOP(const std::vector<TriangulationNode> &nodes);
 float calculateSignalQuality(const TriangulationNode &node);
 void updateNodeRSSI(TriangulationNode &node, int8_t newRssi);
 float rssiToDistance(const TriangulationNode &node, bool isWiFi = true);
-bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence);
+float rssiDistanceSigma(const TriangulationNode &node, float distance, bool isWiFi);
+void nodeUpdateDistance(TriangulationNode &node);
+bool rssiUsable(int8_t rssi);
+float estimateRangeM(int8_t rssi, bool isWiFi);
+float estimateRangeSigmaM(int8_t rssi, bool isWiFi);
+bool performWeightedTrilateration(const std::vector<TriangulationNode> &nodes, float &estLat, float &estLon, float &confidence, float &uncertaintyM);
 void broadcastTimeSyncRequest();
 void handleTimeSyncResponse(const String &nodeId, time_t timestamp, uint32_t milliseconds);
 bool verifyNodeSynchronization(uint32_t maxOffsetMs = 10);

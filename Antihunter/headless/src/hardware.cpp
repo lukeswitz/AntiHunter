@@ -8,6 +8,8 @@
 #include <WiFi.h>
 #include <SPI.h>
 #include <SD.h>
+#include "esp_system.h"
+#include "esp_heap_caps.h"
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include <Wire.h>
@@ -24,6 +26,12 @@ extern Preferences prefs;
 extern ScanMode currentScanMode;
 extern std::vector<uint8_t> CHANNELS;
 extern void disciplineRTCFromGPS();
+
+// Preferences::getString() log_e()s on a missing key; gate it so optional keys stay quiet
+String prefsGetString(const char *key, const String &defaultValue) {
+    if (!prefs.isKey(key)) return defaultValue;
+    return prefs.getString(key, defaultValue);
+}
 
 // GPS
 TinyGPSPlus gps;
@@ -54,6 +62,13 @@ volatile bool vibrationDetected = false;
 unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
 const unsigned long VIBRATION_ALERT_INTERVAL = 3000; 
+
+bool vibAutoScanEnabled = false;
+uint8_t vibAutoScanMode = 0;
+uint16_t vibAutoScanDuration = 60;
+uint32_t vibAutoScanCooldownMs = 60000;
+volatile bool vibAutoScanPending = false;
+unsigned long lastVibAutoScanFire = 0;
 
 // Diagnostics & Config
 extern std::atomic<bool> scanning;
@@ -332,7 +347,7 @@ void initializeHardware()
         prefs.putString("maclist", "");
         prefs.putString("allowlist", "");
         prefs.putString("nodeId", "");
-        prefs.putString("channels", "1,6,11");
+        prefs.putString("channels", "1,2,3,4,5,6,7,8,9,10,11");
         prefs.putUInt("bandMode", DEFAULT_BAND_MODE);
         prefs.putInt("scanMode", SCAN_BOTH);
         prefs.putULong("meshInterval", 5000);
@@ -355,6 +370,10 @@ void initializeHardware()
         prefs.putUInt("wifiInterval", 3000);
         prefs.putUInt("bleInterval", 4000);
         prefs.putUInt("bleDuration", 2000);
+        prefs.putBool("vibScanEn", false);
+        prefs.putUChar("vibScanMode", 0);
+        prefs.putUShort("vibScanDur", 60);
+        prefs.putUInt("vibScanCd", 60000);
     }
     
     randomSeed(esp_random());
@@ -380,7 +399,7 @@ void initializeHardware()
     reappearanceAlertWindow = prefs.getUInt("reappearWin", 300000);
     significantRssiChange = prefs.getInt("rssiChange", 20);
     
-    String nodeId = prefs.getString("nodeId", "");
+    String nodeId = prefsGetString("nodeId", "");
     if (nodeId.length() == 0)
     {
         int randomNum = random(10, 100);
@@ -424,6 +443,10 @@ void syncSettingsToNVS() {
     prefs.putBool("hbEnabled", hbEnabled);
     prefs.putUInt("hbInterval", hbInterval);
     prefs.putBool("vibEnabled", vibrationEnabled);
+    prefs.putBool("vibScanEn", vibAutoScanEnabled);
+    prefs.putUChar("vibScanMode", vibAutoScanMode);
+    prefs.putUShort("vibScanDur", vibAutoScanDuration);
+    prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -447,7 +470,7 @@ static uint32_t configSignature() {
     };
     auto mixStr = [&](const String &s) { mix(s.c_str(), s.length()); h ^= 0x5a; h *= 16777619u; };
 
-    mixStr(prefs.getString("nodeId", ""));
+    mixStr(prefsGetString("nodeId", ""));
     int sm = currentScanMode; mix(&sm, sizeof(sm));
     for (size_t i = 0; i < CHANNELS.size(); i++) { int c = CHANNELS[i]; mix(&c, sizeof(c)); }
     mix(&meshSendInterval, sizeof(meshSendInterval));
@@ -474,10 +497,14 @@ static uint32_t configSignature() {
     mix(&rfConfig.bleScanInterval, sizeof(rfConfig.bleScanInterval));
     mix(&rfConfig.bleScanDuration, sizeof(rfConfig.bleScanDuration));
     mix(&rfConfig.globalRssiThreshold, sizeof(rfConfig.globalRssiThreshold));
-    mixStr(prefs.getString("maclist", ""));
+    mixStr(prefsGetString("maclist", ""));
     mix(&hbEnabled, 1);
     mix(&hbInterval, sizeof(hbInterval));
     mix(&vibrationEnabled, 1);
+    mix(&vibAutoScanEnabled, 1);
+    mix(&vibAutoScanMode, sizeof(vibAutoScanMode));
+    mix(&vibAutoScanDuration, sizeof(vibAutoScanDuration));
+    mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
     return h;
 }
 
@@ -548,7 +575,7 @@ void saveConfiguration() {
     }
 
     configFile.println("{");
-    configFile.printf(" \"nodeId\":\"%s\",\n", jsonEscape(prefs.getString("nodeId", "")).c_str());
+    configFile.printf(" \"nodeId\":\"%s\",\n", jsonEscape(prefsGetString("nodeId", "")).c_str());
     configFile.printf(" \"scanMode\":%d,\n", currentScanMode);
     configFile.printf(" \"channels\":\"%s\",\n", jsonEscape(channelsBuf).c_str());
     configFile.printf(" \"bandMode\":%u,\n", rfConfig.bandMode);
@@ -574,10 +601,14 @@ void saveConfiguration() {
     configFile.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
     configFile.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
     configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
-    configFile.printf(" \"targets\":\"%s\",\n", jsonEscape(prefs.getString("maclist", "")).c_str());
+    configFile.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
     configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
-    configFile.printf(" \"vibEnabled\":%s\n", vibrationEnabled ? "true" : "false");
+    configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
+    configFile.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
+    configFile.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
+    configFile.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
+    configFile.printf(" \"vibScanCooldown\":%u\n", vibAutoScanCooldownMs);
     configFile.println("}");
 
     configFile.flush();
@@ -596,7 +627,7 @@ void loadConfiguration() {
         currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
         meshSendInterval = prefs.getULong("meshInterval", 5000);
         autoEraseEnabled = prefs.getBool("autoErase", false);
-        erasePSK = prefs.getString("erasePSK", "");
+        erasePSK = prefsGetString("erasePSK", "");
         autoEraseDelay = prefs.getUInt("eraseDelay", 30000);
         autoEraseCooldown = prefs.getUInt("eraseCooldown", 300000);
         vibrationsRequired = prefs.getUInt("vibRequired", 3);
@@ -612,6 +643,10 @@ void loadConfiguration() {
         hbEnabled = prefs.getBool("hbEnabled", false);
         hbInterval = prefs.getUInt("hbInterval", 600000);
         vibrationEnabled = prefs.getBool("vibEnabled", true);
+        vibAutoScanEnabled = prefs.getBool("vibScanEn", false);
+        vibAutoScanMode = prefs.getUChar("vibScanMode", 0);
+        vibAutoScanDuration = prefs.getUShort("vibScanDur", 60);
+        vibAutoScanCooldownMs = prefs.getUInt("vibScanCd", 60000);
         return;
     }
 
@@ -862,6 +897,26 @@ void loadConfiguration() {
     if (doc.containsKey("vibEnabled")) {
         vibrationEnabled = doc["vibEnabled"].as<bool>();
         prefs.putBool("vibEnabled", vibrationEnabled);
+    }
+
+    if (doc.containsKey("vibScanEnabled")) {
+        vibAutoScanEnabled = doc["vibScanEnabled"].as<bool>();
+        prefs.putBool("vibScanEn", vibAutoScanEnabled);
+    }
+
+    if (doc.containsKey("vibScanMode")) {
+        vibAutoScanMode = doc["vibScanMode"].as<uint8_t>();
+        prefs.putUChar("vibScanMode", vibAutoScanMode);
+    }
+
+    if (doc.containsKey("vibScanDuration")) {
+        vibAutoScanDuration = doc["vibScanDuration"].as<uint16_t>();
+        prefs.putUShort("vibScanDur", vibAutoScanDuration);
+    }
+
+    if (doc.containsKey("vibScanCooldown")) {
+        vibAutoScanCooldownMs = doc["vibScanCooldown"].as<uint32_t>();
+        prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
     }
 
     if (doc.containsKey("sentinelBoot")) {
@@ -1516,7 +1571,6 @@ void logToSD(const String &data) {
         lastSizeCheck = millis();
     }
 }
-
 // Survives panic/WDT/SW resets (lost on power cycle, which is itself the diagnosis).
 RTC_DATA_ATTR static uint32_t rtcBootMagic = 0;
 RTC_DATA_ATTR static uint32_t rtcLastUptimeSec = 0;
@@ -1790,6 +1844,9 @@ void checkAndSendVibrationAlert() {
             Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg);
             if (vibrationEnabled) {
                 sendToSerial1(String(vibrationMsg), true);
+            }
+            if (vibAutoScanEnabled && vibAutoScanMode != 0 && !batterySaverEnabled) {
+                vibAutoScanPending = true;
             }
             logVibrationEvent(sensorValue);
 
