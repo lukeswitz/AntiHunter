@@ -5197,8 +5197,8 @@ R"HTML(
           cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
           keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','ssids','rand']},
         probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',
-          cols:['Time','MAC','RSSI','Ch','Count','Vendor','Name','SSIDs','Rand','Hit'],
-          keys:['t','mac','rssi','ch','cnt','v','n','ss','rand','hit']},
+          cols:['Time','MAC','Type','RSSI','Ch','Count','Vendor','Name','SSIDs','Rand','Hit'],
+          keys:['t','mac','ble','rssi','ch','cnt','v','n','ss','rand','hit']},
         deauth:{url:'/api/deauth.jsonl',clear:'/api/deauth/clear',fmt:'jsonl',
           cols:['Time','Src','Dst','BSSID','RSSI','Ch','Reason','Type'],
           keys:['t','src','dst','bssid','rssi','ch','reason','_type']},
@@ -5307,6 +5307,9 @@ R"HTML(
           if(cfg.fmt==='text'){parseLogData(text,cfg);return;}
           if(cfg.fmt==='json'){dataRows=JSON.parse(text);}
           else{var lines=text.trim().split('\n');dataRows=[];for(var i=0;i<lines.length;i++){if(lines[i].trim()){try{dataRows.push(JSON.parse(lines[i]));}catch(e){}}}}
+          if(ds==='probes'){for(var pi=0;pi<dataRows.length;pi++){var pr=dataRows[pi];
+            if(pr.ble===undefined)pr.ble=!pr.ch;
+            if(pr.n===undefined&&pr.ble&&pr.v){pr.n=pr.v;delete pr.v;}}}
           dataCols=cfg.keys;dataPage=0;dataSortCol=-1;dataSortAsc=false;
           dataFiltered=dataRows.slice();
           var tk=dataCols.indexOf('last')>=0?'last':dataCols.indexOf('timestamp')>=0?'timestamp':dataCols.indexOf('t')>=0?'t':null;
