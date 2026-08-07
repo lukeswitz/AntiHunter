@@ -19,6 +19,7 @@
 #include "detect.h"
 #include "main.h"
 #include "scanner_internal.h"
+#include "oui_table.h"
 
 extern "C"
 {
@@ -363,90 +364,27 @@ inline uint16_t u16(const uint8_t *p)
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
 
-struct OuiEntry {
-    uint8_t oui[3];
-    char vendor[16];
-};
-
-static const OuiEntry PROGMEM ouiTable[] = {
-    {{0x00, 0x17, 0xC4}, "Quanta"},
-    {{0x00, 0x1A, 0x11}, "Google"},
-    {{0x00, 0x25, 0x00}, "Apple"},
-    {{0x00, 0x50, 0xF2}, "Microsoft"},
-    {{0x04, 0xF1, 0x28}, "HTC"},
+static const struct { uint8_t oui[3]; const char *vendor; } ouiOverrides[] = {
     {{0x08, 0x00, 0x27}, "Oracle VM"},
-    {{0x0C, 0x77, 0x1A}, "Apple"},
-    {{0x10, 0xDD, 0xB1}, "Apple"},
-    {{0x14, 0x5A, 0xFC}, "Liteon"},
-    {{0x18, 0xAF, 0x61}, "Samsung"},
-    {{0x1C, 0x69, 0x7A}, "EliteGroup"},
-    {{0x20, 0xDF, 0xB9}, "Google"},
-    {{0x24, 0xB2, 0xB9}, "Liteon"},
-    {{0x28, 0xCF, 0xE9}, "Apple"},
-    {{0x2C, 0xF0, 0xA2}, "Xiaomi"},
-    {{0x30, 0x07, 0x4D}, "Sony"},
-    {{0x34, 0x14, 0x5F}, "Apple"},
-    {{0x38, 0x1A, 0x52}, "Samsung"},
-    {{0x3C, 0x91, 0x80}, "Liteon"},
-    {{0x40, 0x4E, 0x36}, "HTC"},
-    {{0x44, 0x85, 0x00}, "Intel"},
-    {{0x48, 0xA4, 0x93}, "Samsung"},
-    {{0x4C, 0x34, 0x88}, "Intel"},
-    {{0x50, 0xDE, 0x06}, "Apple"},
-    {{0x54, 0x60, 0x09}, "Google"},
-    {{0x58, 0x8E, 0x81}, "Flock"},
-    {{0x5C, 0x5F, 0x67}, "Huawei"},
-    {{0x60, 0xF8, 0x1D}, "Apple"},
-    {{0x64, 0xA2, 0xF9}, "OnePlus"},
-    {{0x68, 0xDB, 0xF5}, "Amazon"},
-    {{0x6C, 0x72, 0xE7}, "Apple"},
-    {{0x70, 0xC9, 0x4E}, "Liteon"},
-    {{0x74, 0x4C, 0xA1}, "Liteon"},
-    {{0x78, 0x67, 0x0E}, "Zyxel"},
-    {{0x7C, 0x04, 0xD0}, "Apple"},
-    {{0x80, 0x30, 0x49}, "Liteon"},
-    {{0x84, 0x38, 0x35}, "Apple"},
-    {{0x88, 0xE9, 0xFE}, "Apple"},
-    {{0x8C, 0x85, 0x90}, "Apple"},
-    {{0x90, 0x35, 0xEA}, "Liteon"},
-    {{0x94, 0x34, 0x69}, "Liteon"},
-    {{0x98, 0x01, 0xA7}, "Apple"},
-    {{0x9C, 0x20, 0x7B}, "Apple"},
-    {{0xA0, 0x99, 0x9B}, "Apple"},
-    {{0xA4, 0xB1, 0xC1}, "Intel"},
-    {{0xA8, 0x51, 0xAB}, "Samsung"},
-    {{0xAC, 0xBC, 0x32}, "Apple"},
-    {{0xB0, 0x19, 0xC6}, "Apple"},
-    {{0xB4, 0x1E, 0x52}, "Liteon"},
-    {{0xB8, 0x27, 0xEB}, "Raspberry"},
-    {{0xBC, 0x3A, 0xEA}, "Guangdong"},
-    {{0xC0, 0xB6, 0x58}, "Apple"},
-    {{0xC4, 0x2A, 0xD0}, "Intel"},
-    {{0xC8, 0x69, 0xCD}, "Apple"},
-    {{0xCC, 0x46, 0xD6}, "Cisco"},
-    {{0xD0, 0x39, 0x57}, "Liteon"},
-    {{0xD4, 0xF4, 0x6F}, "Apple"},
-    {{0xD8, 0xF3, 0xBC}, "Liteon"},
-    {{0xDC, 0x2C, 0x26}, "Apple"},
-    {{0xE0, 0x0A, 0xF6}, "Samsung"},
-    {{0xE4, 0xC6, 0x3D}, "Apple"},
-    {{0xE8, 0x6F, 0x38}, "Apple"},
-    {{0xEC, 0x1B, 0xBD}, "Liteon"},
-    {{0xF0, 0x18, 0x98}, "Apple"},
-    {{0xF0, 0x82, 0xC0}, "Liteon"},
-    {{0xF4, 0x5C, 0x89}, "Apple"},
-    {{0xF8, 0x95, 0xEA}, "Apple"},
-    {{0xFC, 0xE9, 0x98}, "Apple"},
 };
-
-static const size_t OUI_TABLE_SIZE = sizeof(ouiTable) / sizeof(ouiTable[0]);
 
 const char* lookupOuiVendor(const uint8_t *mac)
 {
-    for (size_t i = 0; i < OUI_TABLE_SIZE; i++) {
-        if (mac[0] == ouiTable[i].oui[0] && mac[1] == ouiTable[i].oui[1] && mac[2] == ouiTable[i].oui[2]) {
-            return ouiTable[i].vendor;
-        }
+    if (!mac) return nullptr;
+    if ((mac[0] & 0x02) && !(mac[0] & 0x01)) return nullptr;
+
+    for (const auto &o : ouiOverrides) {
+        if (mac[0] == o.oui[0] && mac[1] == o.oui[1] && mac[2] == o.oui[2]) return o.vendor;
+    }
+
+    uint32_t key = ((uint32_t)mac[0] << 16) | ((uint32_t)mac[1] << 8) | mac[2];
+    uint32_t lo = 0, hi = OUI_TABLE_SIZE;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        const OuiEntry &e = OUI_TABLE[mid];
+        uint32_t v = ((uint32_t)e.oui[0] << 16) | ((uint32_t)e.oui[1] << 8) | e.oui[2];
+        if (v == key) return OUI_NAMES[e.nameIdx];
+        if (v < key) lo = mid + 1; else hi = mid;
     }
     return nullptr;
 }
@@ -1581,6 +1519,10 @@ void snifferScanTask(void *pv)
                             std::string v = sanitizeAsciiStd(pd.vendor, sizeof(pd.vendor));
                             if (!v.empty()) results += " " + v;
                         }
+                        if (pd.name[0]) {
+                            std::string n = sanitizeAsciiStd(pd.name, sizeof(pd.name));
+                            if (!n.empty()) results += " NAME=\"" + n + "\"";
+                        }
                         if (pd.ssidCount > 0) {
                             bool any = false;
                             for (uint8_t si = 0; si < pd.ssidCount; si++) {
@@ -1730,6 +1672,10 @@ void snifferScanTask(void *pv)
                         std::string v = sanitizeAsciiStd(pd.vendor, sizeof(pd.vendor));
                         if (!v.empty()) results += " " + v;
                     }
+                    if (pd.name[0]) {
+                        std::string n = sanitizeAsciiStd(pd.name, sizeof(pd.name));
+                        if (!n.empty()) results += " NAME=\"" + n + "\"";
+                    }
                     if (pd.ssidCount > 0) {
                         bool any = false;
                         for (uint8_t si = 0; si < pd.ssidCount; si++) {
@@ -1808,6 +1754,10 @@ void snifferScanTask(void *pv)
         if (abandonedDevices) {
             Serial.printf("[SNIFFER] Stop requested: %u device rows not enqueued\n", abandonedDevices);
         }
+
+        for (const auto &h : hitsLog) mergeHitToDeviceDB(h);
+        saveDeviceDB();
+        Serial.printf("[SNIFFER] Device database now holds %u devices\n", getDeviceDBSize());
 
         if (!stopRequested) {
             const uint32_t totalTx = transmittedDevices.size();
@@ -2962,6 +2912,9 @@ void initializeScanner()
     loadProbeDB();
     Serial.printf("Loaded %u probe devices from DB\n", getProbeDBSize());
 
+    loadDeviceDB();
+    Serial.printf("Loaded %u discovered devices from DB\n", getDeviceDBSize());
+
     if (!probeRequestQueue) {
         probeRequestQueue = xQueueCreateWithCaps(256, sizeof(ProbeRequestEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (probeRequestQueue) {
@@ -3879,6 +3832,20 @@ void listScanTask(void *pv) {
         if (static_cast<int>(sortedHits.size()) > show) {
             results += "... (" + std::to_string(sortedHits.size() - show) + " more)\n";
         }
+    }
+
+    {
+        std::map<std::string, Hit> bestForDb;
+        for (const auto &sh : hitsLog) {
+            char mb[18];
+            snprintf(mb, sizeof(mb), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     sh.mac[0], sh.mac[1], sh.mac[2], sh.mac[3], sh.mac[4], sh.mac[5]);
+            std::string key(mb);
+            auto it = bestForDb.find(key);
+            if (it == bestForDb.end() || sh.rssi > it->second.rssi) bestForDb[key] = sh;
+        }
+        for (const auto &p : bestForDb) mergeHitToDeviceDB(p.second);
+        if (!bestForDb.empty()) saveDeviceDB();
     }
 
     // Write final results while still scanning so tick() picks them up
