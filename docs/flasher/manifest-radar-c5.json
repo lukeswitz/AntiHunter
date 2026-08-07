@@ -1,0 +1,15 @@
+{
+  "name": "AntiHunter RadarNode - Experimental C5 (v0.1.0-radarexp1)",
+  "version": "v0.1.0-radarexp1",
+  "channel": "c5",
+  "variant": "radar",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C5",
+      "parts": [
+        { "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/radarnode-c5-v0.1.0-radarexp1.factory.bin", "offset": 0 }
+      ]
+    }
+  ]
+}
