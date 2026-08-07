@@ -5313,9 +5313,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if(cfg.fmt==='text'){parseLogData(text,cfg);return;}
           if(cfg.fmt==='json'){dataRows=JSON.parse(text);}
           else{var lines=text.trim().split('\n');dataRows=[];for(var i=0;i<lines.length;i++){if(lines[i].trim()){try{dataRows.push(JSON.parse(lines[i]));}catch(e){}}}}
-          if(ds==='probes'){for(var pi=0;pi<dataRows.length;pi++){var pr=dataRows[pi];
-            if(pr.ble===undefined)pr.ble=!pr.ch;
-            if(pr.n===undefined&&pr.ble&&pr.v){pr.n=pr.v;delete pr.v;}}}
           dataCols=cfg.keys;dataPage=0;dataSortCol=-1;dataSortAsc=false;
           dataFiltered=dataRows.slice();
           var tk=dataCols.indexOf('last')>=0?'last':dataCols.indexOf('timestamp')>=0?'timestamp':dataCols.indexOf('t')>=0?'t':null;
