@@ -730,9 +730,23 @@ Any other value is passed through verbatim as `Reason code N`.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/probedb` | GET | Probe database (JSON: mac, vendor, SSIDs, RSSI, randomization status) |
+| `/api/probedb` | GET | Probe database (JSON: mac, vendor, name, SSIDs, RSSI, randomization status) |
 | `/api/probedb/clear` | POST | Clear probe database |
 | `/api/probes.jsonl` | GET | Stream probe log from SD (JSONL) |
+
+`vendor` is the IEEE OUI-registered organisation, resolved from the first 24 bits of the MAC.
+`name` is the device's advertised BLE name. Randomized (locally administered) MACs carry no OUI
+assignment and resolve to no vendor.
+
+### Device Database
+
+Every device seen by a Device Discovery or target scan is merged into `/devicedb.jsonl` on SD and
+survives reboots. Capped at 2000 entries; the least recently seen entry is evicted when full.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/devicedb` | GET | All discovered devices (JSON: mac, ble, vendor, name, rssi, ch, sessions, seen, first, last, rand) |
+| `/api/devicedb/clear` | POST | Clear device database |
 
 ### Data Explorer
 
@@ -749,7 +763,7 @@ The **Data** tab in the web UI provides a searchable, sortable view of all SD-lo
 | `/api/antihunter.log` | GET | System event log (text) |
 | `/api/antihunter.log/clear` | POST | Clear system log |
 
-Available datasets: Probe Devices, Probe Events, Deauth Attacks, Drone Detections, Vibration Events, Baseline Stats, and System Log. All datasets support export (download the raw file) and clear (with confirmation). The headless firmware logs the same data to SD without the web UI.
+Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth Attacks, Drone Detections, Vibration Events, Baseline Stats, Sentinel Incidents, and System Log. All datasets support export (download the raw file) and clear (with confirmation). The headless firmware logs the same data to SD without the web UI, except the device database, which is web-build only.
 
 <details>
 <summary>Configuration Endpoints</summary>

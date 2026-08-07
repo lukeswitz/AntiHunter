@@ -97,7 +97,8 @@ struct ProbeDevice {
     bool isTargetHit;
     bool isDstHit;
     bool isBLE;
-    char vendor[16];
+    char vendor[24];
+    char name[32];
     char hitReason[10];
     // Historical intelligence (from SD probe database)
     uint32_t histTotalSeen;
@@ -119,7 +120,8 @@ struct ProbeDBEntry {
     char ssids[8][33];
     uint8_t ssidCount;
     int8_t bestRssi;
-    char vendor[16];
+    char vendor[24];
+    char name[32];
     bool isRandomized;
     bool isBLE;
     uint8_t channel;

@@ -100,7 +100,8 @@ struct ProbeDevice {
     bool isTargetHit;
     bool isDstHit;
     bool isBLE;
-    char vendor[16];
+    char vendor[24];
+    char name[32];
     char hitReason[10];
     // Historical intelligence (from SD probe database)
     uint32_t histTotalSeen;       // lifetime probe count across all sessions
@@ -123,7 +124,22 @@ struct ProbeDBEntry {
     char ssids[8][33];
     uint8_t ssidCount;
     int8_t bestRssi;
-    char vendor[16];
+    char vendor[24];
+    char name[32];
+    bool isRandomized;
+    bool isBLE;
+    uint8_t channel;
+};
+
+struct DeviceDBEntry {
+    char mac[18];
+    uint32_t totalSeen;
+    uint32_t firstEpoch;
+    uint32_t lastEpoch;
+    uint16_t sessionCount;
+    int8_t bestRssi;
+    char vendor[24];
+    char name[32];
     bool isRandomized;
     bool isBLE;
     uint8_t channel;
@@ -279,6 +295,14 @@ bool lookupProbeHistory(const char *macStr, ProbeDBEntry &out);
 uint32_t getProbeDBSize();
 PsramJsonString getProbeDBJson();
 void clearProbeDB();
+
+// SD device database (every device seen by any scan)
+void loadDeviceDB();
+void saveDeviceDB();
+void mergeHitToDeviceDB(const Hit &h);
+uint32_t getDeviceDBSize();
+PsramJsonString getDeviceDBJson();
+void clearDeviceDB();
 
 // Eviction and cleanup
 const uint32_t EVICTION_AGE_MS = 30000;            // Clean entries older than 30s

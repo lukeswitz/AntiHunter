@@ -1071,7 +1071,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="card-body collapsed" id="factoryWipeCardBody">
           <div class="banner">WARNING: Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.</div>
           <div style="margin-top:10px;font-size:11px;color:var(--mut);line-height:1.5;">
-            Removes: probedb, probes, deauth, drones, vibrations, baseline, syslog, incidents, sentinel state, randdet identities, all logs.<br>
+            Removes: devicedb, probedb, probes, deauth, drones, vibrations, baseline, syslog, incidents, sentinel state, randdet identities, all logs.<br>
             Resets: AP creds, node ID, target list, allowlist, RF settings, mesh settings, auto-erase config — to defaults.
           </div>
           <label class="field-name" style="margin-top:12px;font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.04em">Reset Scope</label>
@@ -1132,6 +1132,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <h3>Data Explorer</h3>
         <div class="data-header">
           <select id="dataSet" onchange="loadDataSet()">
+            <option value="devicedb">All Discovered Devices</option>
             <option value="probedb">Probe Devices</option>
             <option value="probes">Probe Events</option>
             <option value="deauth">Deauth Attacks</option>
@@ -1139,7 +1140,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <option value="vibrations">Vibration Events</option>
             <option value="baseline">Baseline Stats</option>
             <option value="syslog">System Log</option>
-            <option value="incidents">Sentinel Incidents (all sessions)</option>
+            <option value="incidents">Sentinel Incidents</option>
           </select>
           <input type="text" id="dataSearch" placeholder="Search..." oninput="onDataSearch()">
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
@@ -1518,7 +1519,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         <div id="det-grid">
         <div class="card" data-key="analysis">
-          <h3>Sentinel Analysis <span style="font-size:11px;color:var(--mut);">(all sessions)</span></h3>
+          <h3>Sentinel Analysis</h3>
           <div class="data-header">
             <select id="saType" onchange="loadSentinelAnalysis()"><option value="ALL">All types</option></select>
             <input type="text" id="saSearch" placeholder="Search..." oninput="loadSentinelAnalysis()">
@@ -3942,15 +3943,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const knownM = line.match(/\[KNOWN:seen=(\d+)\s+sessions=(\d+)\s+last=([^\]]+)\]/);
         const randomized = isRandomMac(mac) || /\bRand(?:omized)?\b/.test(line);
         let vendor = '';
-        let vm = line.match(/CH=\d+\s+([A-Za-z][\w-]*)/);
-        if (!vm) vm = line.match(/^[0-9A-Fa-f:]{17}\s+([A-Za-z][\w-]*)/);
-        if (vm && ['probes','AP','Rand','Randomized','RSSI','Unknown'].indexOf(vm[1]) < 0) vendor = vm[1];
+        const vStop = '(?=\\s+(?:NAME="|probes:|AP="|APBSSID=|x\\d+\\b|\\[KNOWN:)|\\s*$)';
+        const vBody = '([A-Za-z][A-Za-z0-9 .,&\'\\/-]*?)';
+        let vm = line.match(new RegExp('CH=\\d+\\s+' + vBody + vStop));
+        if (!vm) vm = line.match(new RegExp('RSSI=-?\\d+dBm\\s+' + vBody + vStop));
+        if (vm && ['probes','AP','Rand','Randomized','RSSI','Unknown'].indexOf(vm[1].trim()) < 0) vendor = vm[1].trim();
+        const nameM = line.match(/NAME="([^"]*)"/);
+        const devName = nameM ? nameM[1] : '';
         const ssids = [];
         const probesM = line.match(/probes:((?:~?"[^"]*",?)+)/);
         if (probesM) { for (const m of probesM[1].matchAll(/(~?)"([^"]*)"/g)) ssids.push({ name: m[2], ghost: m[1] === '~' }); }
         return {
           mac, isBLE, rssi: rssiM ? rssiM[1] : null, ch: chM ? chM[1] : '', count: countM ? parseInt(countM[1]) : 1,
-          vendor, randomized, ssids, ap: apM ? apM[1] : '', apBssid: apBssidM ? apBssidM[1] : '',
+          vendor, devName, randomized, ssids, ap: apM ? apM[1] : '', apBssid: apBssidM ? apBssidM[1] : '',
           known: knownM ? { seen: knownM[1], sessions: knownM[2], last: knownM[3] } : null
         };
       }
@@ -3987,6 +3992,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         h += '<div class="res-row-main"><span class="res-mac">' + d.mac + randBadge(d.mac);
         h += '<span class="res-badge' + (d.isBLE ? ' acc' : '') + '">' + (d.isBLE ? 'BLE' : 'WiFi') + '</span>';
         if (d.vendor && !d.randomized && !isRandomMac(d.mac)) h += '<span class="res-badge">' + d.vendor + '</span>';
+        if (d.devName) h += '<span class="res-badge acc">' + d.devName + '</span>';
         if (d.ch) h += '<span class="res-badge">CH' + d.ch + '</span>';
         if (d.count > 1) h += '<span class="res-badge acc">x' + d.count + '</span>';
         if (d.ap) h += '<span class="res-badge ok">Client</span>';
@@ -4115,6 +4121,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               if (d.vendor && !isRandomMac(d.mac)) {
                 h += '<span class="res-badge">' + d.vendor + '</span>';
               }
+              if (d.name) h += '<span class="res-badge acc">' + d.name + '</span>';
               h += '</span>';
               h += '<div class="res-meta"><span>seen <strong>' + d.seen + '</strong>x</span>';
               h += '<span><strong>' + d.sessions + '</strong> session' + (String(d.sessions) === '1' ? '' : 's') + '</span></div>';
@@ -4399,7 +4406,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const _factoryResetTiers = {
         full: {btn: 'WIPE EVERYTHING', hint: 'Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
         config: {btn: 'RESET CONFIG', hint: 'Resets NVS config (AP creds, node ID, targets, allowlist, RF/mesh/auto-erase, erase PSK) to defaults. Captured SD data is KEPT. Device reboots.', warn: 'Resets all settings to factory defaults (captured data is kept). Device will reboot. Proceed?'},
-        data: {btn: 'ERASE DATA', hint: 'Erases ALL captured SD data (probedb, probes, deauth, drones, baseline, logs, incidents). Settings/identity are KEPT. Device reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
+        data: {btn: 'ERASE DATA', hint: 'Erases ALL captured SD data (devicedb, probedb, probes, deauth, drones, baseline, logs, incidents). Settings/identity are KEPT. Device reboots.', warn: 'Erases all captured data on SD (settings are kept). Device will reboot. Proceed?'}
       };
       function updateFactoryResetTier() {
         const tier = document.getElementById('factoryResetTier').value;
@@ -5223,12 +5230,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       var dataRows=[],dataFiltered=[],dataCols=[],dataPage=0,dataSortCol=-1,dataSortAsc=false,dataSearchTimer=null;
       var DATA_PAGE_SIZE=50;
       var DATA_SETS={
+        devicedb:{url:'/api/devicedb',clear:'/api/devicedb/clear',fmt:'json',
+          cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','Rand'],
+          keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','rand']},
         probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',
-          cols:['MAC','Type','Vendor','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
-          keys:['mac','ble','vendor','rssi','ch','sessions','seen','first','last','ssids','rand']},
+          cols:['MAC','Type','Vendor','Name','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
+          keys:['mac','ble','vendor','name','rssi','ch','sessions','seen','first','last','ssids','rand']},
         probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',
-          cols:['Time','MAC','RSSI','Ch','Count','Vendor','SSIDs','Rand','Hit'],
-          keys:['t','mac','rssi','ch','cnt','v','ss','rand','hit']},
+          cols:['Time','MAC','RSSI','Ch','Count','Vendor','Name','SSIDs','Rand','Hit'],
+          keys:['t','mac','rssi','ch','cnt','v','n','ss','rand','hit']},
         deauth:{url:'/api/deauth.jsonl',clear:'/api/deauth/clear',fmt:'jsonl',
           cols:['Time','Src','Dst','BSSID','RSSI','Ch','Reason','Type'],
           keys:['t','src','dst','bssid','rssi','ch','reason','_type']},
@@ -5338,7 +5348,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return row[key];
       }
       function fmtCell(val,key){
-        if(val===undefined||val===null) return '-';
+        if(val===undefined||val===null||val==='') return '-';
         if(key==='t'||key==='timestamp'||key==='first'||key==='last'){
           if(typeof val==='number'&&val>946684800) return new Date(val*1000).toISOString().replace('T',' ').substring(0,19)+' UTC';
           if(typeof val==='number'&&val>0){var s=val%60,m=Math.floor(val/60)%60,h=Math.floor(val/3600);return (h?h+'h ':'')+(m?m+'m ':'')+s+'s (uptime)';}

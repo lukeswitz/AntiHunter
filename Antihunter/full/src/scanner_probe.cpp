@@ -29,6 +29,8 @@ extern "C"
 #include "esp_heap_caps.h"
 }
 
+extern bool parseMac6(const String &in, uint8_t out[6]);
+
 // Probe-hit cooldown map type (probe-only)
 using StringU32MapPsram = std::map<String, uint32_t, std::less<String>,
     PsramAllocator<std::pair<const String, uint32_t>>>;
@@ -451,6 +453,9 @@ void probeDetectionTask(void *pv)
                             strncpy(dev.hitReason, "MAC", sizeof(dev.hitReason) - 1);
                             probeHitCount++;
                         }
+                        if (!dev.name[0] && device->getName().length() > 0) {
+                            strncpy(dev.name, device->getName().c_str(), sizeof(dev.name) - 1);
+                        }
                         continue;
                     }
                     if (probeDevices.size() >= 100) continue;
@@ -469,8 +474,10 @@ void probeDetectionTask(void *pv)
                     dev.isBLE = true;
                     if (isHit) strncpy(dev.hitReason, "MAC", sizeof(dev.hitReason) - 1);
                     if (device->getName().length() > 0) {
-                        strncpy(dev.vendor, device->getName().c_str(), sizeof(dev.vendor) - 1);
+                        strncpy(dev.name, device->getName().c_str(), sizeof(dev.name) - 1);
                     }
+                    { const char *bv = lookupOuiVendor(mac);
+                      if (bv) strncpy(dev.vendor, bv, sizeof(dev.vendor) - 1); }
                     probeDevices[macStr] = dev;
                     if (isHit) probeHitCount++;
                 }
@@ -527,6 +534,7 @@ void probeDetectionTask(void *pv)
                 doc["cnt"] = dev.probeCount;
                 doc["rand"] = dev.isRandomized;
                 if (dev.vendor[0]) doc["v"] = dev.vendor;
+                if (dev.name[0]) doc["n"] = dev.name;
                 if (dev.isTargetHit) doc["hit"] = true;
                 if (dev.isDstHit) doc["dst"] = true;
                 JsonArray ss = doc.createNestedArray("ss");
@@ -621,6 +629,10 @@ String getProbeResults()
         } else if (dev.vendor[0]) {
             String v = sanitizeAscii(dev.vendor, sizeof(dev.vendor));
             if (v.length() > 0) results += v;
+        }
+        if (dev.name[0]) {
+            String n = sanitizeAscii(dev.name, sizeof(dev.name));
+            if (n.length() > 0) results += " NAME=\"" + n + "\"";
         }
 
         if (dev.ssidCount > 0) {
@@ -754,8 +766,20 @@ void loadProbeDB()
         entry.isBLE = doc["ble"].as<bool>();
         entry.channel = doc["c"].as<uint8_t>();
 
-        const char *vendor = doc["v"] | "";
-        strncpy(entry.vendor, vendor, sizeof(entry.vendor) - 1);
+        const char *devName = doc["n"] | "";
+        strncpy(entry.name, devName, sizeof(entry.name) - 1);
+
+        uint8_t macBytes[6];
+        const char *ouiVendor = parseMac6(String(mac), macBytes) ? lookupOuiVendor(macBytes) : nullptr;
+        if (ouiVendor) {
+            strncpy(entry.vendor, ouiVendor, sizeof(entry.vendor) - 1);
+        } else if (entry.isBLE && !doc.containsKey("n")) {
+            const char *legacy = doc["v"] | "";
+            if (legacy[0]) strncpy(entry.name, legacy, sizeof(entry.name) - 1);
+        } else {
+            const char *legacy = doc["v"] | "";
+            strncpy(entry.vendor, legacy, sizeof(entry.vendor) - 1);
+        }
 
         JsonArray ssArr = doc["ss"];
         entry.ssidCount = 0;
@@ -798,6 +822,7 @@ void saveProbeDB()
         doc["s"] = p.second.sessionCount;
         doc["r"] = p.second.bestRssi;
         doc["v"] = p.second.vendor;
+        if (p.second.name[0]) doc["n"] = p.second.name;
         doc["rd"] = p.second.isRandomized ? 1 : 0;
         doc["ble"] = p.second.isBLE ? 1 : 0;
         doc["c"] = p.second.channel;
@@ -832,8 +857,13 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
         e.sessionCount++;
         if (dev.rssi > e.bestRssi) e.bestRssi = dev.rssi;
         if (dev.channel) e.channel = dev.channel;
-        if (dev.vendor[0] && !e.vendor[0]) {
+        if (dev.vendor[0]) {
             strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
+            e.vendor[sizeof(e.vendor) - 1] = '\0';
+        }
+        if (dev.name[0] && !e.name[0]) {
+            strncpy(e.name, dev.name, sizeof(e.name) - 1);
+            e.name[sizeof(e.name) - 1] = '\0';
         }
         for (uint8_t i = 0; i < dev.ssidCount; i++) {
             bool found = false;
@@ -871,6 +901,7 @@ void mergeProbeDeviceToDB(const ProbeDevice &dev)
         e.isBLE = dev.isBLE;
         e.channel = dev.channel;
         strncpy(e.vendor, dev.vendor, sizeof(e.vendor) - 1);
+        strncpy(e.name, dev.name, sizeof(e.name) - 1);
         e.ssidCount = 0;
         for (uint8_t i = 0; i < dev.ssidCount && e.ssidCount < 8; i++) {
             strncpy(e.ssids[e.ssidCount], dev.ssids[i], 32);
@@ -930,6 +961,8 @@ PsramJsonString getProbeDBJson()
         snprintf(num, sizeof(num), "%d", (int)e.bestRssi); out += num;
         out += ",\"vendor\":\"";
         { String v = sanitizeAscii(e.vendor, sizeof(e.vendor)); out.append(v.c_str(), v.length()); }
+        out += "\",\"name\":\"";
+        { String n = sanitizeAscii(e.name, sizeof(e.name)); out.append(n.c_str(), n.length()); }
         out += "\",\"rand\":";
         out += (e.isRandomized ? "true" : "false");
         out += ",\"ble\":";
