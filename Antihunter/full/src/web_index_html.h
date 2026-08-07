@@ -260,6 +260,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-tag{padding:4px 11px;border-radius:999px;font-size:15px;font-weight:500;border:1px solid var(--bord);background:var(--bg);color:var(--txt);white-space:nowrap}
       .res-tag.away{border-style:dashed;border-color:var(--c-away);color:var(--c-away);background:var(--c-away-bg)}
       .res-tag sup{font-size:10px;opacity:.7;margin-left:2px}
+      .res-tags-2row{row-gap:9px;column-gap:8px;line-height:1.2}
+      .res-tag-ssid,.res-tag-more{font-size:14px;line-height:20px;padding:4px 10px}
+      .res-tag-ssid{max-width:min(220px,42%);overflow:hidden;text-overflow:ellipsis}
+      .res-tag-more{color:var(--mut);border-color:transparent;background:transparent}
       /* note / reason line */
       .res-note{margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--bord);border-left:3px solid var(--acc);border-radius:8px;font-size:12.5px;color:var(--txt);line-height:1.5}
       .res-note.warn{border-left-color:var(--warn);color:var(--warn)}
@@ -3998,13 +4002,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (d.ap) h += '<span class="res-badge ok">Client</span>';
         if (d.known) h += '<span class="res-badge known">Known</span>';
         h += '</span>';
-        if (d.ssids.length > 1) {
-          h += '<div class="res-meta"><span>also probing ';
-          h += d.ssids.map(s => '<span class="res-ident name" data-ssid="' + s.name + '">' + s.name + '</span>').join(', ');
-          h += '</span></div>';
-        }
         if (d.rssi !== null) h += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(d.rssi) + '">' + d.rssi + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
         h += '</div>';
+        if (d.ssids.length > 1) {
+          const shown = d.ssids.slice(0, 9), rest = d.ssids.length - shown.length;
+          h += '<div class="res-tags res-tags-2row"><span class="res-tags-lab">Also probing</span>';
+          h += shown.map(s => '<span class="res-tag res-tag-ssid' + (s.ghost ? ' away' : '') + '" data-ssid="' + s.name + '" title="' + s.name + '">' + s.name + '</span>').join('');
+          if (rest > 0) h += '<span class="res-tag res-tag-more">+' + rest + '</span>';
+          h += '</div>';
+        }
         if (d.known) h += '<div class="res-sub"><span style="color:var(--c-known);">Seen <strong>' + d.known.seen + '</strong> times across <strong>' + d.known.sessions + '</strong> sessions</span> &middot; last: ' + d.known.last + '</div>';
         h += '</div>';
         return h;
