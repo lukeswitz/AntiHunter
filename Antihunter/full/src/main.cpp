@@ -258,7 +258,7 @@ void setup() {
     Serial.begin(115200);
     delay(300);
 
-    Serial.println("\n=== AntiHunter Beta v1.0.1 C5 [FULL] Boot ===");
+    Serial.println("\n=== AntiHunter v1.0.1-c5exp3 C5 [FULL] Boot ===");
     recordBootReason();
 
 

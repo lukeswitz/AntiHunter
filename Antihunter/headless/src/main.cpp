@@ -201,7 +201,7 @@ void setup() {
     // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)/gpio
     // esp_log_level_set("vfs_api", ESP_LOG_NONE);
     // esp_log_level_set("gpio", ESP_LOG_NONE);
-    Serial.println("\n=== Antihunter [Headless] Boot ===");
+    Serial.println("\n=== AntiHunter v1.0.1-c5exp3 C5 [HEADLESS] Boot ===");
     recordBootReason();
 
 #ifdef ARDUINO_XIAO_ESP32C5
