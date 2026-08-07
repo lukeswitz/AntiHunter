@@ -797,6 +797,7 @@ Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pr
 | `/rf-config` | POST | `preset` (0-2) | Apply preset: 0=Relaxed, 1=Balanced, 2=Aggressive |
 | `/rf-config` | POST | `wifiChannelTime`, `wifiScanInterval`, `bleScanInterval`, `bleScanDuration`, `wifiChannels`, `globalRssiThreshold` | Full custom config |
 | `/rf-config` | POST | `globalRssiThreshold` (-100 to -10) | RSSI threshold only |
+| `/rf-config` | POST | `bandMode` (0-2) | Band: 0=2.4GHz, 1=5GHz, 2=both. Also returned by GET, and accepted on `/config` GET/POST and in the serial `CONFIG:` JSON |
 | `/wifi-config` | GET | - | WiFi AP settings (JSON) |
 | `/wifi-config` | POST | `ssid` (1-32), `pass` (8-63 or empty) | Update AP credentials (triggers reboot) |
 
