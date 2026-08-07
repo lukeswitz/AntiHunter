@@ -75,18 +75,20 @@ The C5 has two hardware UARTs. Mesh takes UART0 and radar takes UART1, so GPS ru
 
 ### Wiring the HLK-LD2451
 
-Three wires into the RTC header, plus its own power:
+Two wires into the RTC header. Power comes from the fan rail, not from this header:
 
 | RTC header pin | Connect to |
 |---|---|
 | **Data** (SDA) | HLK **TX** |
 | **Clock** (SCL) | HLK **RX** |
-| **GND** | HLK GND |
+| **GND** | leave empty |
 | Vcc | leave empty |
 | NC | leave empty |
 
 > [!IMPORTANT]
-> The HLK-LD2451 needs **5 V at 300 mA or more** from a separate supply — not the XIAO's 3V3 pin. Its IO is 3.3 V, so the data lines connect directly with no level shifting. The supply ground must tie to the board ground; without a shared ground the UART returns garbage.
+> The HLK-LD2451 needs **5 V at 300 mA or more** — more than the XIAO's 3V3 pin can supply. Its IO is 3.3 V, so the two data lines connect directly with no level shifting.
+>
+> **Do not take the radar's ground from the RTC header.** A bench supply grounded there does not work. Take both 5 V and ground from the board's fan rail (+/-), jumping the thermal switch to reach it.
 
 Serial at boot confirms the link:
 
@@ -95,7 +97,7 @@ Serial at boot confirms the link:
 [RADAR] after reset -> maxDist=60m dir=2 minSpd=1km/h
 ```
 
-`maxDist=0 ... (0/1=no-response)` means the sensor is not answering — check TX/RX orientation first, then the shared ground, then whether the 5 V rail holds under load.
+`maxDist=0 ... (0/1=no-response)` means the sensor is not answering — check TX/RX orientation first, then that power and ground come from the fan rail rather than the RTC header, then whether the 5 V rail holds under load.
 
 ---
 
