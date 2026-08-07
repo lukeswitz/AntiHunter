@@ -522,6 +522,8 @@ A RadarNode detects a moving target on radar, then sweeps WiFi and BLE to record
 
 The C5 is a drop-in replacement for the S3 on the same board — same pads, same peripherals, and it adds 5 GHz scanning. See the [ESP32-C5 page](docs/ESP32-C5.md).
 
+Both C5 builds are flashed from the [web flasher](https://lukeswitz.github.io/AntiHunter/) under the **Experimental** channel, which asks you to acknowledge that these are test builds before it will flash.
+
 **[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO):** Aggregates data from all nodes with real-time mapping and visualization.
 
 ---

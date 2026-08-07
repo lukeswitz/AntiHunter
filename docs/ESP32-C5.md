@@ -1,7 +1,7 @@
 # ESP32-C5 DIGI Node
 
 > [!WARNING]
-> **Testing phase.** The C5 build is not in the web flasher and has no release binaries. Build it from the `feat/c5` branch. The S3 build on `main`/`beta` is the stable one.
+> **Testing phase.** The C5 build ships through the web flasher's **Experimental** channel, behind a risk acknowledgement. Features may be incomplete and settings may not survive an update. The S3 build on `main`/`beta` is the stable one.
 
 The XIAO ESP32-C5 is a drop-in replacement for the XIAO ESP32-S3 on the same AntiHunter PCB — same footprint, same peripherals, same mesh. It adds dual-band WiFi: the C5 radio is 802.11ax on 2.4 GHz **and** 5 GHz, plus BLE. The S3 is 2.4 GHz only.
 
@@ -58,6 +58,10 @@ Same pads as the S3 node, different GPIO numbers. No wiring change on an assembl
 
 ## Build & Flash
 
+**Web flasher** — [open it](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental — XIAO ESP32-C5** channel, pick Full or Headless, tick the acknowledgement, then Connect & Flash.
+
+**From source:**
+
 ```bash
 git clone -b feat/c5 https://github.com/lukeswitz/AntiHunter.git
 cd AntiHunter
@@ -71,6 +75,6 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ## Known limits
 
-- No web-flasher entry and no release binaries — source builds only.
+- Experimental channel only — not covered by the stable release cadence.
 - 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
 - Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
