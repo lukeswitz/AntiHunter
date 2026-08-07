@@ -5184,8 +5184,8 @@ R"HTML(
       var DATA_PAGE_SIZE=50;
       var DATA_SETS={
         probedb:{url:'/api/probedb',clear:'/api/probedb/clear',fmt:'json',
-          cols:['MAC','Type','Vendor','RSSI','Sessions','Seen','First','Last','SSIDs','Rand'],
-          keys:['mac','ble','vendor','rssi','sessions','seen','first','last','ssids','rand']},
+          cols:['MAC','Type','Vendor','RSSI','Ch','Sessions','Seen','First','Last','SSIDs','Rand'],
+          keys:['mac','ble','vendor','rssi','ch','sessions','seen','first','last','ssids','rand']},
         probes:{url:'/api/probes.jsonl',clear:'/api/probes/clear',fmt:'jsonl',
           cols:['Time','MAC','RSSI','Ch','Count','Vendor','SSIDs','Rand','Hit'],
           keys:['t','mac','rssi','ch','cnt','v','ss','rand','hit']},
@@ -5317,6 +5317,8 @@ R"HTML(
           return String(val);
         }
         if(key==='rssi'){var cls=val>-50?'rssi-good':val>-70?'rssi-mid':'rssi-bad';return '<span class="'+cls+'">'+val+' dBm</span>';}
+        if(key==='ble') return val?'BLE':'WiFi';
+        if(key==='ch') return val?String(val):'-';
         if(key==='rand') return val?'<span class="rand-yes">Yes</span>':'No';
         if(key==='hit'||key==='dst') return val?'<span style="color:var(--dang);font-weight:600">Yes</span>':'No';
         var _priv=(typeof privacyMode!=='undefined'&&privacyMode);
