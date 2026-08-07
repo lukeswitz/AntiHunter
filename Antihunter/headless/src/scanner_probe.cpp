@@ -515,6 +515,7 @@ void probeDetectionTask(void *pv)
                 doc["ch"] = dev.channel;
                 doc["cnt"] = dev.probeCount;
                 doc["rand"] = dev.isRandomized;
+                doc["ble"] = dev.isBLE;
                 if (dev.vendor[0]) doc["v"] = dev.vendor;
                 if (dev.name[0]) doc["n"] = dev.name;
                 if (dev.isTargetHit) doc["hit"] = true;
