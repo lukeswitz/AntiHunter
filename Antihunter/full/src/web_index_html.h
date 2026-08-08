@@ -880,7 +880,7 @@ R"HTML(
               </div>
               <label>Mesh Send Interval (ms)</label>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
+                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="3000" style="flex:1;">
                 <button class="btn" onclick="saveMeshInterval()">Save</button>
               </div>
 
