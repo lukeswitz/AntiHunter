@@ -537,6 +537,38 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing. Optional — a
 - **Rate limiting**: 3s intervals (configurable)
 - **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
 
+### Radio Setup
+
+Flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
+
+```
+options:
+  --port PORT           serial port (auto-detected if omitted)
+  --board {heltec-v3,t114}
+                        board type, sets the serial-module pins (default heltec-v3)
+  --screen on|off|SECS  'off' blanks after 1s, 'on' stays lit, or give seconds
+  --led {on,off}        status LED heartbeat
+  --ble {on,off}        Bluetooth on or off
+  --pin NNNNNN|none|random
+                        BLE pairing: 6-digit fixed pin, 'none', or 'random'
+  --serial {on,off}     AntiHunter serial module (TEXTMSG, 115200, board pins)
+  --region REGION       LoRa region, e.g. US. UNSET means receive only
+```
+
+```bash
+python3 scripts/meshtastic_config.py                     # print current settings
+python3 scripts/meshtastic_config.py --serial on         # node link, pins per --board
+python3 scripts/meshtastic_config.py --region US         # UNSET = RX only, no TX
+python3 scripts/meshtastic_config.py --pin 481920 --screen off --led off
+python3 scripts/meshtastic_config.py --board t114 --serial on --ble off
+```
+
+No flags on a terminal gives an interactive menu.
+
+The same settings can be applied from the Meshtastic app or web client — Serial: enabled, TEXTMSG, 115200, pins per board.
+
+Before deployment: set the region, change the BLE pairing pin, make your own encrypted channel primary and turn the public channel off in the Meshtastic app.
+
 ### Control from your phone, TAK, and MQTT
 
 Node commands and detections travel as standard Meshtastic text messages on public or encrypted channels. Any Meshtastic client or integration that reaches the radio reaches the node:
