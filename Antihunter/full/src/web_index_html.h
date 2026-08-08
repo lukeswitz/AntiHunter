@@ -872,7 +872,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
               </div>
               <label>Mesh Send Interval (ms)</label>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="5000" style="flex:1;">
+                <input type="number" id="meshInterval" min="1500" max="30000" step="100" value="3000" style="flex:1;">
                 <button class="btn" onclick="saveMeshInterval()">Save</button>
               </div>
 
@@ -2006,7 +2006,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             const bandSel = document.getElementById('wifiBandMode');
             if (bandRow) bandRow.style.display = cfg.dualBand ? 'block' : 'none';
             if (bandSel && typeof cfg.bandMode !== 'undefined') bandSel.value = cfg.bandMode;
-            document.getElementById('wifiChannels').placeholder = cfg.dualBand ? '1,6,11,36,149' : '1..14';
+            document.getElementById('wifiChannels').placeholder = cfg.dualBand ? '1..11,36,149' : '1..11';
 
             if (cfg.rfEnv !== undefined) document.getElementById('rfEnv').value = cfg.rfEnv;
             

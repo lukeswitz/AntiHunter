@@ -350,7 +350,7 @@ void initializeHardware()
         prefs.putString("channels", "1,2,3,4,5,6,7,8,9,10,11");
         prefs.putUInt("bandMode", DEFAULT_BAND_MODE);
         prefs.putInt("scanMode", SCAN_BOTH);
-        prefs.putULong("meshInterval", 5000);
+        prefs.putULong("meshInterval", 3000);
         prefs.putUInt("blRamSize", 400);
         prefs.putUInt("blSdMax", 50000);
         prefs.putUInt("absenceThresh", 120000);
@@ -625,7 +625,7 @@ void loadConfiguration() {
     if (!SafeSD::isAvailable()) {
         Serial.println("SD card not available, loading from NVS only");
         currentScanMode = (ScanMode)prefs.getInt("scanMode", SCAN_BOTH);
-        meshSendInterval = prefs.getULong("meshInterval", 5000);
+        meshSendInterval = prefs.getULong("meshInterval", 3000);
         autoEraseEnabled = prefs.getBool("autoErase", false);
         erasePSK = prefsGetString("erasePSK", "");
         autoEraseDelay = prefs.getUInt("eraseDelay", 30000);

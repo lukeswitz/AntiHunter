@@ -316,7 +316,7 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 
 > WiFi and BLE share one radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi promiscuous capture is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval — an even 50/50 radio split.
 - **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Triangulation is exempt.
-- **WiFi Channels**: Comma-separated (1,6,11) or range (1..14). Default: 1,6,11.
+- **WiFi Channels**: Comma-separated (1,6,11) or range (1..14). Default: 1..11.
 
 > [!TIP]
 > Lower intervals = faster detection, higher power. Higher intervals = reduced power, may miss brief transmissions.
@@ -471,6 +471,38 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing.
 - **Protocol**: Standard Meshtastic serial, public and encrypted channels
 - **Rate limiting**: 3s intervals (configurable)
 - **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
+
+### Radio Setup
+
+Flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
+
+```
+options:
+  --port PORT           serial port (auto-detected if omitted)
+  --board {heltec-v3,t114}
+                        board type, sets the serial-module pins (default heltec-v3)
+  --screen on|off|SECS  'off' blanks after 1s, 'on' stays lit, or give seconds
+  --led {on,off}        status LED heartbeat
+  --ble {on,off}        Bluetooth on or off
+  --pin NNNNNN|none|random
+                        BLE pairing: 6-digit fixed pin, 'none', or 'random'
+  --serial {on,off}     AntiHunter serial module (TEXTMSG, 115200, board pins)
+  --region REGION       LoRa region, e.g. US. UNSET means receive only
+```
+
+```bash
+python3 scripts/meshtastic_config.py                     # print current settings
+python3 scripts/meshtastic_config.py --serial on         # node link, pins per --board
+python3 scripts/meshtastic_config.py --region US         # UNSET = RX only, no TX
+python3 scripts/meshtastic_config.py --pin 481920 --screen off --led off
+python3 scripts/meshtastic_config.py --board t114 --serial on --ble off
+```
+
+No flags on a terminal gives an interactive menu.
+
+The same settings can be applied from the Meshtastic app or web client — Serial: enabled, TEXTMSG, 115200, pins per board.
+
+Before deployment: set the region, change the BLE pairing pin, make your own encrypted channel primary and turn the public channel off in the Meshtastic app.
 
 ### Mesh TX Architecture
 
