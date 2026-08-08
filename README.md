@@ -62,7 +62,7 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 2. [What It Detects](#what-it-detects)
 3. [Use Cases](#use-cases)
 4. [Hardware](#hardware)
-5. [Build & Flash](#build--flash)
+5. [Build & Flash](#build--flash) — [deployment steps by tier](#deployment-steps-by-tier)
 6. [Configuration & Operations](#configuration--operations)
 7. [System Architecture](#system-architecture)
 8. [Mesh Networking](#mesh-networking)
@@ -384,6 +384,23 @@ XIAO ESP32S3 [Pin Diagram](https://camo.githubusercontent.com/29816f5888cbba2564
 ## Build & Flash
 
 The [Web Flasher](#quick-start) is the simplest path. Use the options below to flash from a terminal or build from source.
+
+### Deployment Steps by Tier
+
+The Heltec V3 arrives on the latest stable Meshtastic. The ESP32 ships empty — you flash AntiHunter, so you know what is on it.
+
+| Tier | Included | Setup required |
+|---|---|---|
+| **Bare PCB** | One 82mm board, unpopulated | Source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash Meshtastic on the radio, fit an SD card, then the steps below |
+| **Soldered Core PCB** | Board with S3, Heltec LoRa, GPS, RTC, vibration, U.FL antennas. SD card fitted, Meshtastic on the radio | Attach the antennas, then the steps below |
+| **Parts Kit** | Core PCB plus enclosure, seals, SMA antennas and pigtails, fan, switch, UPS board. Meshtastic on the radio | Assemble per the manual, fit an SD card (8 or 16GB FAT32), then the steps below |
+| **Assembled** | Built, sealed and bench-tested. SD card fitted, GPS helix antenna, Meshtastic on the radio | Add 2x 18650, then the steps below |
+
+Then, on every tier:
+
+1. **Flash AntiHunter** — [web flasher](https://lukeswitz.github.io/AntiHunter/) (Chrome or Edge), the CLI installer, or PlatformIO. See below.
+2. **Set up the radio** — serial link, region, pairing pin, your own channel: [Radio Setup](#radio-setup).
+3. **Set your node ID and AP password** — web UI at `http://192.168.4.1`, or over mesh.
 
 ### CLI Flash
 
