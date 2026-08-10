@@ -514,8 +514,10 @@
           </div>
         </div>
 
+        <div id="sentinelCfgSection">
         <hr>
         <p style="font-size:12px;color:var(--mut);margin:8px 0;text-transform:uppercase;font-weight:600">Sentinel &amp; Detectors</p>
+        <p style="font-size:11px;color:var(--mut);margin:0 0 8px">Not included in Stable firmware. Select the Beta channel to use Sentinel.</p>
         <div class="cfg-grid">
           <div>
             <label>Start Sentinel on Boot</label>
@@ -545,6 +547,7 @@
           <summary style="cursor:pointer;font-size:12px;color:var(--mut)">Detector thresholds</summary>
           <div class="cfg-grid" id="cfgDetThresh" style="margin-top:8px"></div>
         </details>
+        </div>
 
         </div>
       </details>
@@ -644,6 +647,8 @@ chmod +x flashAntihunter.sh
       const variant = (selectedFirmware === 'full' || selectedFirmware === 'headless')
         ? selectedFirmware : 'radar';
       const channel = selectedChannel;
+      const sentinelSection = document.getElementById('sentinelCfgSection');
+      if (sentinelSection) sentinelSection.style.display = (channel === 'stable') ? 'none' : 'block';
       const label = (channel === 'beta') ? 'Beta' : (channel === 'c5') ? 'Experimental C5' : 'Stable';
       const url = new URL(`flasher/manifest-${variant}-${channel}.json`, location.href).toString();
       const req = ++manifestReq;
@@ -765,15 +770,17 @@ chmod +x flashAntihunter.sh
         if (apPass && apPass.length >= 8) cfg.apPass = apPass;
       }
 
-      const sb = document.getElementById('cfgSentinelBoot').value;
-      if (sb !== '') cfg.sentinelBoot = (sb === '1');
-      const det = {};
-      const ss = document.getElementById('cfgSentinelScan').value;
-      if (ss !== '') det.sentinel_scan = (ss === '1');
-      SENT_ENABLES.forEach(([k]) => { const e = document.getElementById('den_' + k); if (e && e.value !== '') det[k] = (e.value === '1'); });
-      SENT_MESH.forEach(([k]) => { const e = document.getElementById('dms_' + k); if (e && e.value !== '') det[k] = (e.value === '1'); });
-      SENT_THRESH.forEach(([k]) => { const e = document.getElementById('dth_' + k); if (e && e.value.trim() !== '') det[k] = parseInt(e.value, 10); });
-      if (Object.keys(det).length) cfg.detectors = det;
+      if (selectedChannel !== 'stable') {
+        const sb = document.getElementById('cfgSentinelBoot').value;
+        if (sb !== '') cfg.sentinelBoot = (sb === '1');
+        const det = {};
+        const ss = document.getElementById('cfgSentinelScan').value;
+        if (ss !== '') det.sentinel_scan = (ss === '1');
+        SENT_ENABLES.forEach(([k]) => { const e = document.getElementById('den_' + k); if (e && e.value !== '') det[k] = (e.value === '1'); });
+        SENT_MESH.forEach(([k]) => { const e = document.getElementById('dms_' + k); if (e && e.value !== '') det[k] = (e.value === '1'); });
+        SENT_THRESH.forEach(([k]) => { const e = document.getElementById('dth_' + k); if (e && e.value.trim() !== '') det[k] = parseInt(e.value, 10); });
+        if (Object.keys(det).length) cfg.detectors = det;
+      }
 
       return cfg;
     }
