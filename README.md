@@ -58,7 +58,7 @@
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
 
 <p align="center">
-<img width="1200" alt="EF0ED436-D254-452E-8F13-A218D709DC73_1_201_a" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
+<img width="1200" alt="AntiHunter node" src="docs/img/node-photo.jpg" />
 
 
 
@@ -84,7 +84,7 @@
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 
 <p align="center">
-<img height="600" alt="image" src="https://github.com/user-attachments/assets/8d043f93-e5ee-495e-9aef-574d17d8b740" />
+<img height="600" alt="AntiHunter overview" src="docs/img/c5-overview.jpg" />
 </p>
 
 ### Use Cases
@@ -101,11 +101,11 @@
 
 ## Detection Modes
 
-<!-- <img width="1308" height="812" alt="Screenshot 2026-04-15 at 11 26 49 AM" src="https://github.com/user-attachments/assets/e34f42b9-a39e-41a7-8619-516a4a59f0bf" /> -->
+<!-- <img width="1200" alt="Detection modes" src="docs/img/c5-detection-modes.png" /> -->
 
 ### 1. Target Scan
 <p align="center">
-<img height="400" alt="image" src="https://github.com/user-attachments/assets/cf3c0b1e-e2f8-48ba-9fb3-655a498ad34e" />
+<img height="400" alt="Target Scan" src="docs/img/c5-target-scan.jpg" />
 </p>
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
@@ -148,18 +148,18 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ### A. Device Scanner
 
-<!-- <img width="800" alt="Device Scanner" src="https://github.com/user-attachments/assets/c8a5d38b-9020-48c9-8bc4-f22d7c64a8df" /> -->
+<!-- <img width="800" alt="Device Scanner" src="docs/img/c5-device-scanner.png" /> -->
 
 Captures all WiFi and BLE devices in range. Records MACs, SSIDs, signal strength, names, and channels. AP discovery runs a periodic all-channel scan (gated by WiFi Scan Interval) so every channel is covered even while the web-UI SoftAP holds the shared radio on its own channel; target frames are captured passively in promiscuous mode while hopping channels between scans.
 
 - Check **Capture Probes** to piggyback probe request collection onto the device scan. When enabled, probe requests are captured alongside normal scanning and fed into the probe database (MAC, vendor, RSSI, SSIDs, randomization status):
 
-<!-- <img width="800" alt="image" src="https://github.com/user-attachments/assets/060c1483-916c-45f7-87b8-58ec6a78e4d6" /> -->
+<!-- <img width="800" alt="Capture Probes" src="docs/img/c5-capture-probes.jpg" /> -->
 
 ### B. Baseline Anomaly Detection
 
 <p align="center">
-<img height="600" alt="image" src="https://github.com/user-attachments/assets/1e7d31ff-6565-49d7-8cd4-d4b54c5fe5f8" />
+<img width="1200" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
 </p>
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
@@ -170,13 +170,13 @@ Two-phase scan: establish a baseline of known devices, then monitor for anomalie
 > [!TIP]
 > A longer initial scan produces more reliable baselines.
 
-<!-- <img width="850" alt="Screenshot 2026-04-15 at 11 24 28 AM" src="https://github.com/user-attachments/assets/0fb0094e-ade2-41d5-996a-217e7e0e7824" /> -->
+<!-- <img width="850" alt="Baseline" src="docs/img/c5-baseline-old.png" /> -->
 
 ### C. Deauth Attack Detection
 
 WiFi deauth/disassoc frame sniffer with real-time detection. Integrates with randomization tracking for source identification.
 
-<!-- <img width="858" height="382" alt="Deauth Detection" src="https://github.com/user-attachments/assets/1b1e77db-a479-4cfd-beae-e13a7187cae4" /> -->
+<!-- <img width="858" height="382" alt="Deauth Detection" src="docs/img/c5-deauth.png" /> -->
 
 ### D. Drone RID Detection
 
@@ -187,7 +187,7 @@ Detects drones broadcasting Remote ID per FAA/EASA standards over **WiFi and Blu
 > [!NOTE]
 > Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
 
-<!-- <img width="861" height="721" alt="Randomization Analyzer" src="https://github.com/user-attachments/assets/1939e7b1-dcac-46e6-aae9-c08032bbb340" /> -->
+<!-- <img width="861" height="721" alt="Randomization Analyzer" src="docs/img/c5-randomization.png" /> -->
 
 Links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
 
@@ -198,12 +198,12 @@ Links randomized MAC addresses to persistent device identities using behavioral 
 
 ### F. Probe Request Scanner
 <p align="center">
-  <img height="600" alt="image" src="https://github.com/user-attachments/assets/6f0397d3-aeb8-46fe-9700-f0c3e5be7579" />
+  <img width="1200" alt="Probe Request Scanner" src="docs/img/c5-probe-scanner.jpg" />
 </p>
 
 Goes beyond probe request capture: correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in the device's history), identify which APs responded, and catch silent devices via destination address matching.
 
-<!-- <img width="500" alt="image" src="https://github.com/user-attachments/assets/99a894e1-1ab2-4dda-959d-29cb7880a637" /> -->
+<!-- <img width="500" alt="Probe alt" src="docs/img/c5-probe-alt.jpg" /> -->
 
 - **Three-field correlation**: Probe requests (addr2=source), probe responses (addr1=client, addr2=AP, addr3=BSSID), and destination address matching all feed into a single per-device record
 - **Destination address (addr1) matching**: Detects when probe requests are addressed TO a target MAC -- catches silent or sleeping devices that never transmit their own identity
@@ -217,7 +217,7 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 ### G. Sentinel — Counterintel Engine
 
 <p align="center">
-  <img height="600" alt="image" src="https://github.com/user-attachments/assets/0862b4fc-cb66-447b-bfa7-94dfc4bb5970" />
+  <img width="1200" alt="Sentinel" src="docs/img/c5-sentinel.jpg" />
 </p>
 
 - Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks
@@ -255,7 +255,7 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 
 Tamper detection and emergency data wiping.
 
-<!-- ![Secure Data Destruction](https://github.com/user-attachments/assets/bdd8825d-82aa-46d4-b20c-3ebf7ca0dd9f)  -->
+<!-- ![Secure Data Destruction](docs/img/c5-secure-wipe.jpg)  -->
 
 - **Auto-erase on tampering**: Vibration-triggered destruction (disabled by default)
 - **Setup delay**: Grace period after enabling for deployment
@@ -289,7 +289,7 @@ Tamper detection and emergency data wiping.
 
 ## RF Configuration
 
-<!-- <img width="815" height="616" alt="RF Configuration" src="https://github.com/user-attachments/assets/0463de41-dd3c-4d85-a4c7-bc6ada393488" /> -->
+<!-- <img width="815" height="616" alt="RF Configuration" src="docs/img/c5-rf-config.png" /> -->
 
 ### Band
 
@@ -327,7 +327,7 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 
 ## System Architecture
 <p align="center">
-  <img height="600" alt="System Architecture" src="https://github.com/user-attachments/assets/67348f3d-6613-462c-8e0f-dad419e43f9a" />
+  <img width="1200" alt="System Architecture" src="docs/img/architecture.png" />
 </p>
 
 Nodes function independently and coordinate via Meshtastic mesh networking.

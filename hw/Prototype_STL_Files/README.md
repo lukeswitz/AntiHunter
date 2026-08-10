@@ -6,9 +6,9 @@ Credit @TheRealSirHaxAlot
 ### AH Case v2
 External GPS, UPS board/DIY 2S 18650 
 
-<img width="50%" alt="image" src="https://github.com/user-attachments/assets/045aff39-647b-4c53-8cc7-ba1090e88eb0"/>
+<img width="50%" alt="Enclosure top" src="../../docs/img/hw-enclosure-top.jpg"/>
 
-<img width="50%" alt="image" src="https://github.com/user-attachments/assets/b0c9ac4d-9f8d-4eb8-9bfc-be8936aa8ebe"/>
+<img width="50%" alt="Enclosure side" src="../../docs/img/hw-enclosure-side.jpg"/>
 
 - Accommodates UPS board with fast/side charger options
 - Use without rear power case for dev/compact form
@@ -23,7 +23,7 @@ External GPS, UPS board/DIY 2S 18650
 ### Can Design
 10x and 2x18650 Power
 
-<img width="50%" alt="image" src="https://github.com/user-attachments/assets/aca6b72a-1571-48c0-a57b-332a085478da"/>
+<img width="50%" alt="Wiring diagram" src="../../docs/img/hw-stl-wiring.jpg"/>
 
 - Bunker vented roll-proof lid with fan mount
 - Variations for full battery (10x 18650) and 2S (2x 18650)
@@ -36,7 +36,7 @@ External GPS, UPS board/DIY 2S 18650
 
 Credit @nitekry
 
-<img width="25%" alt="image" src="https://github.com/user-attachments/assets/e954dae6-5335-4b3b-9724-8b1a6c737ce2"/> <img width="40%" alt="image" src="https://github.com/user-attachments/assets/5a8d9a3b-c9c7-4ff4-b590-bf64388a52bc">
+<img width="25%" alt="Build front" src="../../docs/img/hw-build-front.jpg"/> <img width="40%" alt="Build side" src="../../docs/img/hw-build-side.jpg">
 
 - Slim design with USBC port access
 - Vented lid and snap fit design
