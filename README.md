@@ -124,7 +124,7 @@ One node, no server. Flash it from your browser — nothing to install.
 Every capability runs on the node and reports to the web UI, mesh, and Command Center.
 
 <p align="center">
-<img width="1200" alt="AntiHunter node" src="https://github.com/user-attachments/assets/fd7236d9-80ab-4ba4-bd0c-ed32a127e64e" />
+<img width="1200" alt="AntiHunter node" src="docs/img/node-photo.jpg" />
 </p>
 
 | Feature | What it does | Scan modes |
@@ -154,7 +154,7 @@ Every capability runs on the node and reports to the web UI, mesh, and Command C
 
 
 <!-- <p align="center">
-  <img width="940" alt="Target Scan" src="https://github.com/user-attachments/assets/8b26b014-1a3c-4e62-b41d-2a672cb5c099" />
+  <img width="940" alt="Target Scan" src="docs/img/target-scan.jpg" />
 </p> -->
 
 Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (`T-XXXX`). Scans WiFi channels and BLE frequencies, alerting on detection via web UI, mesh, and command center.
@@ -173,12 +173,12 @@ Maintain a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity I
 - WiFi AP discovery runs a periodic all-channel scan (gated by WiFi Scan Interval); target frames are captured passively in promiscuous mode while hopping channels between scans.
 - Check **Capture Probes** to piggyback probe-request collection onto the scan, feeding the probe database (MAC, vendor, RSSI, SSIDs, randomization status).
 
-<img width="1500" alt="ug5o3" src="https://github.com/user-attachments/assets/e5cea92c-77a9-434d-9bf3-74e62584a927" />
+<img width="1200" alt="Mesh scan results" src="docs/img/mesh-screenshot.jpg" />
 
 **Probe Request Scanner**
 
 <p align="center">
-  <img width="615" height="482" alt="Probe Request Scanner" src="https://github.com/user-attachments/assets/71a4857a-022d-4ac7-8c1d-4c2caaeff666" />
+  <img width="615" height="482" alt="Probe Request Scanner" src="docs/img/probe-scanner.jpg" />
 </p>
 
 Correlates all three 802.11 address fields to detect ghost SSIDs (networks that exist only in a device's history), identify which APs responded, and catch silent devices via destination-address matching.
@@ -197,7 +197,7 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 **Sentinel — Counterintel Engine**
 
 <p align="center">
-  <img width="796" height="986" alt="Sentinel" src="https://github.com/user-attachments/assets/5584de74-f64e-44fa-8b02-cd3393b524e3" />
+  <img width="796" height="986" alt="Sentinel" src="docs/img/sentinel.jpg" />
 </p>
 
 Enable and it runs in the background whenever you aren't scanning. Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks. Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
@@ -234,7 +234,7 @@ The mesh labels Sentinel emits, for log parsers and C2, are listed under [Mesh C
 **Baseline Anomaly Detection**
 
 <p align="center">
-<img height="600" alt="Baseline Anomaly Detection" src="https://github.com/user-attachments/assets/1e7d31ff-6565-49d7-8cd4-d4b54c5fe5f8" />
+<img width="1200" alt="Baseline Anomaly Detection" src="docs/img/baseline.jpg" />
 </p>
 
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
@@ -520,7 +520,7 @@ Tamper detection and emergency data wiping.
 ## System Architecture
 
 <p align="center">
-  <img height="600" alt="System Architecture" src="https://github.com/user-attachments/assets/67348f3d-6613-462c-8e0f-dad419e43f9a" />
+  <img width="1200" alt="System Architecture" src="docs/img/architecture.png" />
 </p>
 
 Nodes function independently and coordinate via Meshtastic mesh networking.
