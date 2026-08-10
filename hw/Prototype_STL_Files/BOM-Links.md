@@ -1,6 +1,8 @@
 ## DIGI Node — BOM Links
 > [!NOTE]
 > No affiliate links. These links are for reference only and may change.
+>
+> Product images are sourced from their respective manufacturers or retailers and remain the property of their owners. They are used here solely for part identification — no ownership or endorsement is implied.
 
 **Link key:** `MFR` manufacturer/OEM · `AMZN` Amazon (US) · `ALI` AliExpress (cheapest, live search) · `ALT` other verified reseller
 
