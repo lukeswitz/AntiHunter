@@ -3251,11 +3251,14 @@ R"HTML(
         if (j) identityMap = j;
       }
 
-      function identityBadge(mac) {
-        if (!mac) return '';
-        const id = identityMap[mac.toUpperCase()];
+      function identBadgeText(id) {
         if (!id) return '';
         return '<span class="res-badge ident" title="Linked to identity ' + id + ' by randomization scanner">' + id + '</span>';
+      }
+
+      function identityBadge(mac) {
+        if (!mac) return '';
+        return identBadgeText(identityMap[mac.toUpperCase()]);
       }
 
       function randBadge(mac) {
@@ -3550,7 +3553,7 @@ R"HTML(
           html += '<details class="res-section res-track" data-type="' + deviceType + '" data-sessions="' + (sessionsMatch ? sessionsMatch[1] : '0') + '" data-lastseen="' + (lastSeenMatch ? lastSeenMatch[1] : '999999') + '" data-channel="' + (primaryChMatch ? primaryChMatch[1] : '0') + '">';
           html += '<summary>';
           html += '<span class="res-caret">&#9654;</span>';
-          if (anchorMac) html += '<span class="res-mac acc">' + anchorMac + '</span>' + randBadge(anchorMac);
+          if (anchorMac) html += '<span class="res-mac acc">' + anchorMac + '</span>' + identBadgeText(trackId);
           html += '<span class="res-badge ' + (isBLE ? 'ble' : 'wifi') + '">' + deviceType + '</span>';
           if (primaryChMatch) html += '<span class="res-badge">CH ' + primaryChMatch[1] + '</span>';
           if (vendorMatch) html += '<span class="res-badge">' + vendorMatch[1] + '</span>';
@@ -3589,7 +3592,7 @@ R"HTML(
             html += '<details class="res-rows" open style="margin-top:11px;"><summary class="res-rows-lab" style="list-style:none;cursor:pointer;margin-bottom:0;">MAC Addresses (' + (moreMatch ? macCount : macs.length) + ')</summary><div style="margin-top:8px;">';
             macs.forEach((mac) => {
               const isFirst = mac === anchorMac;
-              html += '<div class="res-row"><span style="color:' + (isFirst ? 'var(--acc)' : 'var(--mut)') + '">' + mac + randBadge(mac) + '</span>' + (isFirst ? '<span class="res-badge ok">Anchor</span>' : '') + '</div>';
+              html += '<div class="res-row"><span style="color:' + (isFirst ? 'var(--acc)' : 'var(--mut)') + '">' + mac + identBadgeText(trackId) + '</span>' + (isFirst ? '<span class="res-badge ok">Anchor</span>' : '') + '</div>';
             });
             if (moreMatch) html += '<div class="res-more">+ ' + moreMatch[1] + ' more</div>';
             html += '</div></details>';
