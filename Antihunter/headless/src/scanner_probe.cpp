@@ -232,6 +232,8 @@ void probeDetectionTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < static_cast<uint32_t>(duration * 1000) && !stopRequested)) {
 
+        bleScan = pBLEScan;
+
         ProbeRequestEvent event;
         int processedCount = 0;
         while (probeRequestQueue && xQueueReceive(probeRequestQueue, &event, 0) == pdTRUE && processedCount < 200) {

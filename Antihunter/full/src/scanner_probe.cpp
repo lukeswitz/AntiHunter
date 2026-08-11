@@ -246,6 +246,8 @@ void probeDetectionTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < (uint32_t)(duration * 1000) && !stopRequested)) {
 
+        bleScan = pBLEScan;
+
         ProbeRequestEvent event;
         int processedCount = 0;
         // Drain aggressively each loop — queue is 256 deep, ISR fills fast.
