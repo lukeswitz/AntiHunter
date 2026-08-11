@@ -628,7 +628,27 @@ void linkSessionToTrackBehavioral(ProbeSession& session) {
                  macStr.c_str(), session.probeCount, sessionAvgRssi,
                  sessionIntervalConsistency, sessionRssiConsistency, isBLE ? "BLE" : "WiFi",
                  sessionIsMinimal ? "MIN" : "FULL");
-    
+
+    for (auto& ownerEntry : deviceIdentities) {
+        DeviceIdentity& owner = ownerEntry.second;
+        const bool ownsMac = std::any_of(owner.macs.begin(), owner.macs.end(),
+            [&session](const MacAddress& m) {
+                return memcmp(m.bytes.data(), session.mac, 6) == 0;
+            });
+        if (!ownsMac) continue;
+
+        owner.lastSeen = now;
+        owner.probeCount += session.probeCount;
+        session.linkedToIdentity = true;
+        strncpy(session.linkedIdentityId, owner.identityId, sizeof(session.linkedIdentityId) - 1);
+        session.linkedIdentityId[sizeof(session.linkedIdentityId) - 1] = '\0';
+
+        if (detect_isVerbose())
+            Serial.printf("[RAND] Re-observed %s under %s (probes:%d)\n",
+                          macStr.c_str(), owner.identityId, session.probeCount);
+        return;
+    }
+
     String bestIdentityKey;
     float bestScore = 0.0f;
     int8_t bestRssiDelta = 127;
@@ -1982,5 +2002,37 @@ void loadDeviceIdentities() {
     }
 
     file.close();
-    Serial.printf("[RAND] Loaded %d identities (fmt RAN4)\n", deviceIdentities.size());
+
+    using MacOwnerMap = std::map<String, String, std::less<String>,
+                                 PsramAllocator<std::pair<const String, String>>>;
+    MacOwnerMap macOwner;
+    for (const auto& entry : deviceIdentities) {
+        if (entry.second.macs.empty()) continue;
+        macOwner[macFmt6(entry.second.macs[0].bytes.data())] = entry.first;
+    }
+    for (const auto& entry : deviceIdentities) {
+        for (const auto& m : entry.second.macs) {
+            String key = macFmt6(m.bytes.data());
+            if (macOwner.find(key) == macOwner.end()) macOwner[key] = entry.first;
+        }
+    }
+    uint32_t stripped = 0;
+    for (auto& entry : deviceIdentities) {
+        DeviceIdentity& id = entry.second;
+        auto keepEnd = std::remove_if(id.macs.begin(), id.macs.end(),
+            [&](const MacAddress& m) {
+                auto owner = macOwner.find(macFmt6(m.bytes.data()));
+                return owner != macOwner.end() && owner->second != entry.first;
+            });
+        const size_t drop = static_cast<size_t>(std::distance(keepEnd, id.macs.end()));
+        if (drop > 0) {
+            id.macs.erase(keepEnd, id.macs.end());
+            stripped += drop;
+            Serial.printf("[RAND] Dedup: %s dropped %u MAC(s) owned by another identity\n",
+                          id.identityId, (unsigned)drop);
+        }
+    }
+
+    Serial.printf("[RAND] Loaded %d identities (fmt RAN4), deduped %u MAC(s)\n",
+                  deviceIdentities.size(), (unsigned)stripped);
 }
