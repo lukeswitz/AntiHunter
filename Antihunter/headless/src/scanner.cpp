@@ -969,6 +969,8 @@ void snifferScanTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && static_cast<int>(millis() - lastScanStart) < duration * 1000 && !stopRequested))
     {
+        bleScan = pBLEScan;
+
         if ((currentScanMode == SCAN_WIFI || currentScanMode == SCAN_BOTH) && apInfoQueue) {
             ApInfoEvent ae;
             int apDrained = 0;
@@ -2367,9 +2369,7 @@ void initBLEOnce() {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
     if (!bleInitDone) {
-        Serial.println("[BLE_INIT] timeout");
-        bleInitFailed = true;
-        bleInitDone = true;
+        Serial.println("[BLE_INIT] not ready after 8s, init still running");
     }
 }
 
