@@ -2012,8 +2012,7 @@ void loadDeviceIdentities() {
     }
     for (const auto& entry : deviceIdentities) {
         for (const auto& m : entry.second.macs) {
-            String key = macFmt6(m.bytes.data());
-            if (macOwner.find(key) == macOwner.end()) macOwner[key] = entry.first;
+            macOwner.try_emplace(macFmt6(m.bytes.data()), entry.first);
         }
     }
     uint32_t stripped = 0;
