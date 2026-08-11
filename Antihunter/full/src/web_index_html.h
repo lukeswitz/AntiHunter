@@ -1843,8 +1843,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const dkey = sm => sm.textContent.trim().replace(/\s*\([^)]*\)\s*$/, '');
         const openCards = new Set();
         el.querySelectorAll('[id$="Content"]').forEach(c => { if (c.style.display !== 'none') openCards.add(c.id); });
+        const dkeyOf = d => { if (d.dataset.dkey) return d.dataset.dkey; const sm = d.querySelector('summary'); return sm ? dkey(sm) : ''; };
         const openDetails = new Set();
-        el.querySelectorAll('details[open]').forEach(d => { const sm = d.querySelector('summary'); if (sm) openDetails.add(dkey(sm)); });
+        el.querySelectorAll('details[open]').forEach(d => { const k = dkeyOf(d); if (k) openDetails.add(k); });
 
         el.innerHTML = parseAndStyleResults(text);
 
@@ -1855,7 +1856,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const icon = document.getElementById(id.replace('Content', 'Icon'));
           if (icon) { icon.style.transform = 'rotate(0deg)'; icon.textContent = '▼'; }
         });
-        if (openDetails.size) el.querySelectorAll('details').forEach(d => { const sm = d.querySelector('summary'); if (sm && openDetails.has(dkey(sm))) d.open = true; });
+        if (openDetails.size) el.querySelectorAll('details').forEach(d => { const k = dkeyOf(d); if (k && openDetails.has(k)) d.open = true; });
         if (typeof currentSort !== 'undefined' && currentSort !== 'default' && typeof sortResultsDisplay === 'function') sortResultsDisplay();
         privacyApply(el);
       }
@@ -3555,22 +3556,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const m = l.match(/^Live session:\s*([0-9A-Fa-f:]{17})\s+(WiFi|BLE)\s+probes=(\d+)\s+rssi=([-\d]+)(?:\s+ch=(\d+))?/);
           if (m) liveLines.push(m);
         });
+        let liveHtml = '';
         if (liveLines.length) {
           const moreSess = text.match(/\.\.\. \(\+(\d+) more sessions\)/);
-          html += '<div id="randLiveSessions">';
-          html += '<details class="res-section" open><summary><span class="res-caret">&#9654;</span>Live sessions';
-          html += '<span class="res-badge acc">' + liveLines.length + ' not yet linked</span></summary>';
-          html += '<div class="res-section-body">';
+          liveHtml += '<div id="randLiveSessions">';
+          liveHtml += '<details class="res-section" data-dkey="rand-live-sessions"><summary><span class="res-caret">&#9654;</span>Live sessions';
+          liveHtml += '<span class="res-badge acc">' + liveLines.length + ' not yet linked</span></summary>';
+          liveHtml += '<div class="res-section-body">';
           liveLines.forEach(function(m) {
-            html += '<div class="res-card"><div class="res-row-main"><span class="res-mac">' + m[1].toUpperCase() + randBadge(m[1].toUpperCase()) + '</span>';
-            html += '<div class="res-meta"><span class="res-badge ' + (m[2] === 'BLE' ? 'ble' : 'wifi') + '">' + m[2] + '</span>';
-            if (m[5]) html += '<span class="res-badge">CH ' + m[5] + '</span>';
-            html += '<span>probes <strong>' + m[3] + '</strong></span></div>';
-            html += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[4]) + '">' + m[4] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
-            html += '</div></div>';
+            liveHtml += '<div class="res-card"><div class="res-row-main"><span class="res-mac">' + m[1].toUpperCase() + randBadge(m[1].toUpperCase()) + '</span>';
+            liveHtml += '<div class="res-meta"><span class="res-badge ' + (m[2] === 'BLE' ? 'ble' : 'wifi') + '">' + m[2] + '</span>';
+            if (m[5]) liveHtml += '<span class="res-badge">CH ' + m[5] + '</span>';
+            liveHtml += '<span>probes <strong>' + m[3] + '</strong></span></div>';
+            liveHtml += '<div class="res-metric"><span class="res-metric-val" style="color:' + rssiColorFor(m[4]) + '">' + m[4] + '<small> dBm</small></span><span class="res-metric-lab">RSSI</span></div>';
+            liveHtml += '</div></div>';
           });
-          if (moreSess) html += '<div class="res-more">+ ' + moreSess[1] + ' more sessions</div>';
-          html += '</div></details></div>';
+          if (moreSess) liveHtml += '<div class="res-more">+ ' + moreSess[1] + ' more sessions</div>';
+          liveHtml += '</div></details></div>';
         }
 
         const trackBlocks = text.split(/(?=Track ID:)/g).filter(b => b.includes('Track ID'));
@@ -3661,6 +3663,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
         const topMatch = text.match(/\.\.\. \(showing top (\d+) of (\d+) identities\)/);
         if (topMatch) html += '<div class="res-more" style="border:1px dashed var(--bord);border-radius:8px;padding:12px;">Showing top ' + topMatch[1] + ' of ' + topMatch[2] + ' identities</div>';
+        html += liveHtml;
         return html;
       }
 
