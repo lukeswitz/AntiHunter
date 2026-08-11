@@ -222,7 +222,6 @@ void probeDetectionTask(void *pv)
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    NimBLEScan *bleScan = pBLEScan;
     uint32_t startTime = millis();
     uint32_t nextResultsUpdate = startTime;
     size_t lastWrittenProbeCount = SIZE_MAX;
@@ -232,7 +231,7 @@ void probeDetectionTask(void *pv)
     while ((forever && !stopRequested) ||
            (!forever && (millis() - startTime) < static_cast<uint32_t>(duration * 1000) && !stopRequested)) {
 
-        bleScan = pBLEScan;
+        NimBLEScan *bleScan = pBLEScan;
 
         ProbeRequestEvent event;
         int processedCount = 0;
