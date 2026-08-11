@@ -1,47 +1,32 @@
-# AntiHunter v1.0.1-beta2 (beta)
+# AntiHunter v1.0.2-beta1 (beta)
 
-Beta channel · Previous release v1.0.1-beta1 (2026-08-03)
+Beta channel · Previous release v1.0.1-beta2 (2026-08-07)
 
 ## What's Changed
 
+### Both FW
+
+- Randomized Device Tracer: a MAC could be linked into a second identity, so a track listed MACs belonging to other tracks and its badges showed their T- ids. A MAC is now attributed to the identity that already owns it.
+- Randomized Device Tracer: identity files already written to SD are repaired on load — MACs held by more than one identity are dropped from every identity but their owner.
+- Mesh send interval default is 3000 ms, was 5000 ms. Applies to the NVS seed, the no-SD fallback, and the web field.
+
 ### Full FW
 
-- Data explorer: show all found devices
-- Fixed possible WiFi channel pin in some scans
-- Fixed stop button/scan behavior when ending a task
-- Probe results: Broadcast group opens by default
-- Probe results: "also probing" networks are chips, no longer cramped into vertical text
-- Probe Devices: real Type column, new Ch column
-- Probe Events: Vendor and Name are correct, including rows logged before this release
-- Probe Events: new Type column
+- Randomization results: each MAC row and the track header carry that track's own Track ID.
 
-### Headless FW
+### Flasher
 
-- Fix USB serial commands being eaten by loop
-- Fix potential stuck scan and dropped STOP
-
-### Both
-
-- Labels devices BLE/WiFi in probe and randomization scans
-- New vendor lookup database in results and data explorer
-- Device names no longer land in the Vendor column
-- Probe scan now captures BLE
-- STOP responds in under a second, was up to 60s
-- Sentinel pin mode no longer drops AP clients
-- Fixed empty first BLE scan window
+- Sentinel & Detectors config panel is hidden on the Stable channel. Stable firmware builds with `AH_SENTINEL=0` and silently dropped those keys.
 
 ### Experimental
 
-On the Experimental flasher channel, for testing:
+On the Experimental C5 flasher channel, for testing:
 
-- ESP32-C5 full and headless: dual-band 2.4/5 GHz, band set at flash time or with `CONFIG_BAND`
-- RadarNode C5: HLK-LD2451 radar. No serial config on this build.
-- RadarNode power: 5V and ground off the fan rail via the thermal switch, not the RTC header
-- Breadboard the C5 first. Desoldering is the only way back to an S3.
+- ESP32-C5 full and headless carry the same randomization identity fix.
 
-### Docs and tooling
+### Docs
 
-- `scripts/meshtastic_config.py` configures the mesh radio
-- ESP32-C5 and RadarNode pages, node-types table
-- Deploy checklist: AP creds, headless emissions, Privacy Mode scope, GPS in logs, legal scope
-- BOM: 8GB and FAT32 SD cards work
+- README: deployment steps by tier
+- README: mesh radio setup with `scripts/meshtastic_config.py`
+- README: images served from the repo, capped at 1200px wide
+- BOM: image attribution disclaimer
