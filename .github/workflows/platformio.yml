@@ -37,18 +37,10 @@ jobs:
         python-version: '3.11'
     
     - name: Install PlatformIO
-      run: pip install --upgrade platformio
-    
+      run: pip install "https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip"
+
     - name: Build ${{ matrix.environment }}
-      env:
-        UV_HTTP_TIMEOUT: '120'
-      run: |
-        for attempt in 1 2 3; do
-          pio run -e ${{ matrix.environment }} && exit 0
-          echo "Build attempt $attempt failed, retrying..."
-          sleep 15
-        done
-        exit 1
+      run: pio run -e ${{ matrix.environment }}
     
     - name: Upload firmware
       uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b  # v4.6.2
