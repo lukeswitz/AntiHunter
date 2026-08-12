@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-ESPTOOL_REPO="https://github.com/alphafox02/esptool"
-
 STABLE_BRANCH="main"
 STABLE_VERSION="v1.0.1"
 BETA_BRANCH="beta"
@@ -68,7 +66,7 @@ select_channel() {
     )
     echo ""
 }
-ESPTOOL_DIR="esptool"
+
 CUSTOM_BIN=""
 CONFIG_MODE=false
 IS_HEADLESS=false
@@ -95,6 +93,8 @@ Options:
 S3 builds ship bootloader + partitions + app and are written at 0x0/0x8000/0x10000.
 Experimental C5 builds ship a single .factory.bin written at 0x0; a custom .bin ending
 in .factory.bin is treated the same way. Use --erase to perform full flash erase first.
+
+Requires esptool and pyserial. Install them with your system package manager.
 EOF
 }
 
@@ -122,34 +122,34 @@ collect_configuration() {
     echo "Device Configuration Setup"
     echo "==================================================="
     echo ""
-    
+
     while true; do
         read -p "Node ID (2-5 alphanumeric characters, leave empty for auto): " NODE_ID
-        
+
         if [ -z "$NODE_ID" ]; then
             echo "Using auto-generated node ID"
             break
         fi
-        
+
         NODE_ID=$(echo "$NODE_ID" | tr '[:lower:]' '[:upper:]')
-        
+
         if [ ${#NODE_ID} -lt 2 ] || [ ${#NODE_ID} -gt 5 ]; then
             echo "Node ID must be 2-5 characters"
             echo "You entered: $NODE_ID (length ${#NODE_ID})"
             echo "Examples: AB (2 chars), A1C (3 chars), XYZ99 (5 chars)"
             continue
         fi
-        
+
         if [[ ! "$NODE_ID" =~ ^[A-Z0-9]+$ ]]; then
             echo "Only alphanumeric characters (A-Z, 0-9) allowed"
             echo "Examples: AB ✓, A1C ✓, XYZ99 ✓, AB-1 ✗, A_BC ✗"
             continue
         fi
-        
+
         echo "✓ Valid node ID: $NODE_ID"
         break
     done
-    
+
     echo ""
     echo "Scan Mode:"
     echo "  0 - WiFi only"
@@ -157,7 +157,7 @@ collect_configuration() {
     echo "  2 - Both WiFi and BLE"
     read -p "Select scan mode (0-2) [default: 2]: " SCAN_MODE
     SCAN_MODE=${SCAN_MODE:-2}
-    
+
     echo ""
     local ch_default="1..11"
     [ "$IS_C5" = true ] && ch_default="1,6,11"
@@ -175,14 +175,14 @@ collect_configuration() {
             *) echo "Invalid band, using firmware default."; BAND_JSON="" ;;
         esac
     fi
-    
+
     echo ""
     read -p "Mesh send interval in milliseconds [default: 3000]: " MESH_INTERVAL
     MESH_INTERVAL=${MESH_INTERVAL:-3000}
-    
+
     echo ""
     read -p "Target MAC addresses (comma-separated, leave empty for none): " TARGETS
-    
+
     echo ""
     echo "RF Preset:"
     echo "  0 - Balanced"
@@ -190,30 +190,30 @@ collect_configuration() {
     echo "  2 - Deep scan"
     read -p "Select RF preset (0-2) [default: 0]: " RF_PRESET
     RF_PRESET=${RF_PRESET:-0}
-    
+
     echo ""
     read -p "Baseline RAM cache size [default: 400]: " BASELINE_RAM
     BASELINE_RAM=${BASELINE_RAM:-400}
-    
+
     read -p "Baseline SD max devices [default: 50000]: " BASELINE_SD
     BASELINE_SD=${BASELINE_SD:-50000}
-    
+
     if [ "$IS_HEADLESS" = false ]; then
         echo ""
         echo "WiFi Access Point Configuration:"
         read -p "WiFi SSID [default: Antihunter]: " AP_SSID
         AP_SSID=${AP_SSID:-"Antihunter"}
-        
+
         read -p "WiFi Password (min 8 chars, empty for default): " AP_PASS
         if [ -z "$AP_PASS" ]; then
             AP_PASS="antihunter"
         fi
-        
+
         AP_SSID_JSON=",\"apSsid\":\"$AP_SSID\",\"apPass\":\"$AP_PASS\""
     else
         AP_SSID_JSON=""
     fi
-    
+
     echo ""
     echo "Auto-Erase Configuration:"
     read -p "Enable auto-erase? (y/N): " AUTO_ERASE_ENABLED
@@ -221,16 +221,16 @@ collect_configuration() {
         AUTO_ERASE_ENABLED="true"
         read -p "Auto-erase delay in seconds [default: 300]: " AUTO_ERASE_DELAY
         AUTO_ERASE_DELAY=${AUTO_ERASE_DELAY:-300}
-        
+
         read -p "Auto-erase cooldown in seconds [default: 600]: " AUTO_ERASE_COOLDOWN
         AUTO_ERASE_COOLDOWN=${AUTO_ERASE_COOLDOWN:-600}
-        
+
         read -p "Vibrations required [default: 3]: " VIBRATIONS_REQUIRED
         VIBRATIONS_REQUIRED=${VIBRATIONS_REQUIRED:-3}
-        
+
         read -p "Detection window in seconds [default: 10]: " DETECTION_WINDOW
         DETECTION_WINDOW=${DETECTION_WINDOW:-10}
-        
+
         read -p "Setup delay in seconds [default: 60]: " SETUP_DELAY
         SETUP_DELAY=${SETUP_DELAY:-60}
     else
@@ -241,11 +241,11 @@ collect_configuration() {
         DETECTION_WINDOW=10
         SETUP_DELAY=60
     fi
-    
+
     cat > /tmp/antihunter_config.json <<EOF
 {"nodeId":"$NODE_ID","scanMode":$SCAN_MODE,"channels":"$CHANNELS"${BAND_JSON},"meshInterval":$MESH_INTERVAL,"targets":"$TARGETS","rfPreset":$RF_PRESET,"wifiChannelTime":120,"wifiScanInterval":4000,"bleScanInterval":2000,"bleScanDuration":2000,"baselineRamSize":$BASELINE_RAM,"baselineSdMax":$BASELINE_SD${AP_SSID_JSON},"autoEraseEnabled":$AUTO_ERASE_ENABLED,"autoEraseDelay":$AUTO_ERASE_DELAY,"autoEraseCooldown":$AUTO_ERASE_COOLDOWN,"vibrationsRequired":$VIBRATIONS_REQUIRED,"detectionWindow":$DETECTION_WINDOW,"setupDelay":$SETUP_DELAY}
 EOF
-    
+
     echo ""
     echo "Configuration prepared"
 }
@@ -302,17 +302,33 @@ if ! command -v python3 &> /dev/null; then
     fi
 fi
 
-if command -v esptool &>/dev/null; then
-    ESPTOOL_CMD="esptool"
-elif command -v esptool.py &>/dev/null; then
-    ESPTOOL_CMD="esptool.py"
-else
-    if [ ! -f "$ESPTOOL_DIR/esptool.py" ]; then
-        echo "Cloning esptool repository..."
-        git clone "$ESPTOOL_REPO" "$ESPTOOL_DIR"
+install_hint() {
+    echo "ERROR: esptool and pyserial are required."
+    echo ""
+    if command -v apt &>/dev/null; then
+        echo "  sudo apt install esptool python3-serial"
+    elif command -v dnf &>/dev/null; then
+        echo "  sudo dnf install esptool python3-pyserial"
+    elif command -v pacman &>/dev/null; then
+        echo "  sudo pacman -S esptool python-pyserial"
+    elif command -v brew &>/dev/null; then
+        echo "  brew install esptool"
+    else
+        echo "  Install esptool and pyserial with your package manager."
     fi
-    ESPTOOL_CMD="$PYTHON_CMD $ESPTOOL_DIR/esptool.py"
-fi
+    exit 1
+}
+
+ESPTOOL_CMD=""
+for candidate in esptool esptool.py; do
+    if command -v "$candidate" &>/dev/null; then
+        ESPTOOL_CMD="$candidate"
+        break
+    fi
+done
+[ -z "$ESPTOOL_CMD" ] && install_hint
+
+$PYTHON_CMD -c "import serial" &>/dev/null || install_hint
 
 echo ""
 echo "====================================="
@@ -326,11 +342,11 @@ if [ -n "$CUSTOM_BIN" ]; then
     fi
     FIRMWARE_FILE="$CUSTOM_BIN"
     firmware_choice="Custom firmware: $(basename "$CUSTOM_BIN")"
-    
+
     if [[ "$CUSTOM_BIN" == *"headless"* ]]; then
         IS_HEADLESS=true
     fi
-    
+
     if [[ "$CUSTOM_BIN" == *.factory.bin ]]; then
         FACTORY_MODE=true
     else
@@ -359,7 +375,7 @@ else
         if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le $((${#FIRMWARE_OPTIONS[@]}+1)) ]; then
             if [ "$choice" -le "${#FIRMWARE_OPTIONS[@]}" ]; then
                 firmware_choice="${options_array[$((choice-1))]}"
-                
+
                 if [[ "$firmware_choice" == *"Headless"* ]]; then
                     IS_HEADLESS=true
                 fi
@@ -392,7 +408,7 @@ else
 
                 echo "Downloading bootloader..."
                 curl -fLo "$BOOTLOADER_FILE" "$BOOTLOADER_URL" || { echo "ERROR: Failed to download bootloader.bin"; exit 1; }
-                
+
                 echo "Downloading partitions..."
                 curl -fLo "$PARTITIONS_FILE" "$PARTITIONS_URL" || { echo "ERROR: Failed to download partitions.bin"; exit 1; }
                 fi
@@ -405,11 +421,11 @@ else
                 fi
                 FIRMWARE_FILE="$custom_file"
                 firmware_choice="Custom firmware: $(basename "$custom_file")"
-                
+
                 if [[ "$custom_file" == *"headless"* ]]; then
                     IS_HEADLESS=true
                 fi
-                
+
                 if [[ "$custom_file" == *.factory.bin ]]; then
                     FACTORY_MODE=true
                 else
@@ -474,16 +490,19 @@ if [ "$CONFIG_MODE" = true ]; then
     collect_configuration
 fi
 
+CHIP_ARG="auto"
+[ "$IS_C5" = true ] && CHIP_ARG="esp32c5"
+
 if [ "$ERASE_FLASH" = true ]; then
     echo ""
     echo "==================================================="
     echo "Erasing flash memory..."
     echo "==================================================="
     $ESPTOOL_CMD \
-        --chip auto \
+        --chip "$CHIP_ARG" \
         --port "$ESP32_PORT" \
         --baud "$UPLOAD_SPEED" \
-        erase-flash
+        erase_flash
     echo "Flash erase complete."
 fi
 
@@ -491,23 +510,23 @@ echo ""
 if [ "$FACTORY_MODE" = true ]; then
     echo "Flashing factory image (bootloader + partitions + app) at 0x0..."
     $ESPTOOL_CMD \
-        --chip auto \
+        --chip "$CHIP_ARG" \
         --port "$ESP32_PORT" \
         --baud "$UPLOAD_SPEED" \
-        --before default-reset \
-        --after hard-reset \
-        write-flash -z \
+        --before default_reset \
+        --after hard_reset \
+        write_flash -z \
         --flash-size detect \
         0x0 "$FIRMWARE_FILE"
 else
     echo "Flashing complete firmware (bootloader + partitions + app)..."
     $ESPTOOL_CMD \
-        --chip auto \
+        --chip "$CHIP_ARG" \
         --port "$ESP32_PORT" \
         --baud "$UPLOAD_SPEED" \
-        --before default-reset \
-        --after hard-reset \
-        write-flash -z \
+        --before default_reset \
+        --after hard_reset \
+        write_flash -z \
         --flash-size detect \
         0x0 "$BOOTLOADER_FILE" \
         0x8000 "$PARTITIONS_FILE" \
@@ -526,9 +545,9 @@ sleep 3
 if [ "$CONFIG_MODE" = true ]; then
     echo ""
     echo "Sending configuration to device..."
-    
+
     CONFIG_JSON_COMPACT=$(cat /tmp/antihunter_config.json | tr -d '\n' | tr -d ' ')
-    
+
     $PYTHON_CMD -c "
 import serial
 import time
@@ -537,15 +556,15 @@ import sys
 try:
     ser = serial.Serial('$ESP32_PORT', 115200, timeout=5)
     time.sleep(3)
-    
+
     ser.write(b'RECONFIG\n')
     ser.flush()
     time.sleep(0.5)
-    
+
     print('[CONFIG] Waiting for device ready...')
     start = time.time()
     ready = False
-    
+
     while time.time() - start < 35:
         if ser.in_waiting:
             line = ser.readline().decode('utf-8', errors='ignore').strip()
@@ -554,33 +573,33 @@ try:
                 ready = True
                 break
         time.sleep(0.1)
-    
+
     if not ready:
         print('[CONFIG] Device not in config mode - may already be configured')
         ser.close()
         sys.exit(0)
-    
+
     time.sleep(0.5)
     config_cmd = 'CONFIG:$CONFIG_JSON_COMPACT\n'
     ser.write(config_cmd.encode())
     ser.flush()
     print('[CONFIG] Configuration sent')
-    
+
     time.sleep(1)
     while ser.in_waiting:
         line = ser.readline().decode('utf-8', errors='ignore').strip()
         print('[DEVICE]', line)
-    
+
     ser.close()
     print('[CONFIG] Configuration complete')
-    
+
 except Exception as e:
     print('[CONFIG] Error:', e)
     sys.exit(1)
 " || echo "[CONFIG] Warning: Config send may have failed"
 
     rm -f /tmp/antihunter_config.json
-    
+
     echo ""
     echo "Waiting for device reboot..."
     sleep 8
@@ -617,19 +636,19 @@ import time
 try:
   ser = serial.Serial('$ESP32_PORT', 115200, timeout=2)
   time.sleep(1)
-  
+
   ser.reset_input_buffer()
-  
+
   ser.write(b'SETTIME:$EPOCH\n')
   ser.flush()
   time.sleep(0.5)
-  
+
   while ser.in_waiting:
     line = ser.readline().decode('utf-8', errors='ignore').strip()
     if 'RTC' in line or 'OK' in line:
       print(line)
       break
-  
+
   ser.close()
   print('[RTC] Time command sent')
 except Exception as e:
