@@ -631,7 +631,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
 
-### Sentinel
+### Sentinel (Beta version only)
 
 | Command | Parameters | Example |
 |---------|------------|---------|
