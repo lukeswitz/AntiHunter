@@ -21,6 +21,7 @@ Beta channel · Previous release v1.0.1-beta2 (2026-08-07)
 
 ### Headless FW
 
+- Sentinel runs on Headless. It was not starting and not accepting commands.
 - Sentinel booted pinned to one channel whatever the mode. Boot overwrote the saved scan/pin setting, discarding the NVS value and any `sentinel_scan` from the setup config. The rationale for that overwrite — hopping breaking the node's own AP — is Full-only; Headless has no AP. On hardware: an evil-twin on channel 2 is now caught after a cold boot with no commands sent.
 - Device Scan, Target Scan and Baseline sweep all channels again. Passive capture replaced the sweep on 2026-07-31 and was never restored here, leaving `WiFi APs=0` over a full minute. After the fix: 53 APs.
 - Target Scan in WiFi+BLE started BLE before the WiFi mode switch landed on top of it, so BLE was skipped.
