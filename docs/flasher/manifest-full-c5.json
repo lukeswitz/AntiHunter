@@ -1,6 +1,6 @@
 {
-  "name": "AntiHunter Full - Experimental C5 (v1.0.1-c5exp3)",
-  "version": "v1.0.1-c5exp3",
+  "name": "AntiHunter Full - Experimental C5 (v1.0.2-c5exp1)",
+  "version": "v1.0.2-c5exp1",
   "channel": "c5",
   "variant": "full",
   "new_install_prompt_erase": true,
@@ -9,7 +9,7 @@
       "chipFamily": "ESP32-C5",
       "parts": [
         {
-          "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/antihunter-c5-full-v1.0.1-c5exp3.factory.bin",
+          "path": "https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/antihunter-c5-full-v1.0.2-c5exp1.factory.bin",
           "offset": 0
         }
       ]
