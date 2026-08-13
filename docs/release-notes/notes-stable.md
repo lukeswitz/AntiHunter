@@ -11,6 +11,14 @@ Stable channel · Previous release v1.0.1 (2026-08-07)
 - Mesh send interval default is 3000 ms, was 5000 ms. Applies to the NVS seed, the no-SD fallback, and the web field.
 - Device Scan and Probe Scan no longer drop BLE for a whole run when the BLE radio finishes coming up after the scan starts.
 - A slow BLE bring-up is no longer recorded as a permanent failure. Randomization in BLE-only mode used to abort every scan until reboot.
+- Target Scan swept one channel per pass instead of all of them, so it reported roughly a third of the devices a Device Scan found in the same spot. Measured on hardware: Unique 24 before, 70 after, against 75 for a Device Scan.
+- Baseline learns WiFi client stations, not just APs. It ran with promiscuous capture off, so anything that was not an AP never entered the baseline.
+
+### Headless FW
+
+- Device Scan, Target Scan and Baseline run an active all-channel sweep again. It was removed on 2026-07-31 in favour of passive capture and never restored on Headless, leaving Device Scan reporting `WiFi APs=0` over a full minute. Hardware after the fix: 53 APs.
+- Target Scan in WiFi+BLE mode started BLE before the WiFi mode switch landed on top of it, so BLE was skipped.
+- BLE devices advertising Apple continuity are marked `APPLE` in sniffer results, matching Full.
 
 ### Full FW
 
@@ -23,6 +31,8 @@ Stable channel · Previous release v1.0.1 (2026-08-07)
 
 ### Docs
 
+- README: Full vs Headless — what each build can do, and which result fields are data both builds emit versus rendering only the web UI does
+- README: `GROUP` membership, `DETECT_CFG` coverage, and that group changes persist to NVS
 - README: deployment steps by tier
 - README: mesh radio setup with `scripts/meshtastic_config.py`
 - README: images served from the repo, capped at 1200px wide

@@ -931,6 +931,7 @@ static void handleSentinelMode(const String &command)
   v.trim();
   bool scan = v.equalsIgnoreCase("scan");
   bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
+  if (ok) detect_persistTunables();
   sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
 }
 
@@ -1111,8 +1112,9 @@ static void handleVibScanStatus(const String &command)
 
 static void handleAttackerTrilat(const String &command)
 {
-  int v = command.substring(16).toInt();
-  bool en = (v != 0);
+  String a = command.substring(16);
+  a.trim();
+  bool en = (a.toInt() != 0) || a.equalsIgnoreCase("on") || a.equalsIgnoreCase("true");
   detect_setAttackerTrilat(en);
   sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:" + (en ? "ON" : "OFF"), true);
 }

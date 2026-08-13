@@ -758,10 +758,10 @@ uint8_t nextActiveScanChannel()
 static uint8_t triScanChannel() {
     if (triangulationActive.load()) {
         uint8_t ch = triTargetChannel.load();
-        if (ch >= 1 && ch <= 14) return ch;
+        if (ch) return ch;
         return 0;
     }
-    return nextActiveScanChannel();
+    return 0;
 }
 
 
