@@ -7,7 +7,7 @@ BETA_BRANCH="beta"
 BETA_VERSION="v1.0.2-beta1"
 # Experimental ESP32-C5 builds. Served from main/Dist until the C5 branches are published.
 C5_BRANCH="main"
-C5_VERSION="v1.0.1-c5exp3"
+C5_VERSION="v1.0.2-c5exp1"
 RADAR_BRANCH="main"
 RADAR_VERSION="v0.1.0-radarexp2"
 
