@@ -114,8 +114,9 @@
     .exp-gate{border:2px solid var(--warn);background:rgba(160,120,48,0.06);border-radius:10px;padding:16px 18px;margin-bottom:16px}
     .exp-gate h4{font-size:13px;font-weight:700;color:var(--warn);margin-bottom:8px;letter-spacing:0.02em}
     .exp-gate p{font-size:12.5px;color:var(--mut);line-height:1.65;margin-bottom:12px}
-    .exp-gate label.ack{display:flex;align-items:flex-start;gap:10px;margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--txt);cursor:pointer}
-    .exp-gate label.ack input{width:16px;height:16px;flex:0 0 auto;margin-top:2px;padding:0;accent-color:var(--warn);cursor:pointer;box-shadow:none;border-radius:4px}
+    .exp-gate label.ack,.legal-gate label.ack{display:flex;align-items:flex-start;gap:10px;margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--txt);cursor:pointer}
+    .exp-gate label.ack input,.legal-gate label.ack input{width:16px;height:16px;flex:0 0 auto;margin-top:2px;padding:0;accent-color:var(--warn);cursor:pointer;box-shadow:none;border-radius:4px}
+    .legal-gate label.ack span{font-weight:500;line-height:1.5}
 
     .disclaimer-overlay{position:fixed;inset:0;background:rgba(10,14,22,0.95);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
     .disclaimer-overlay.hidden{display:none}
@@ -299,6 +300,18 @@
         <label class="ack">
           <input type="checkbox" id="expAck" onchange="updateManifest()">
           <span>I understand this is experimental firmware and I'm flashing it at my own risk.</span>
+        </label>
+      </div>
+
+      <div class="banner warn legal-gate" style="text-align:left">
+        <label class="ack">
+          <input type="checkbox" id="legalAgree" onchange="updateManifest()">
+          <span>I have read and accept the
+            <a href="https://github.com/lukeswitz/AntiHunter#legal-disclaimer" target="_blank" rel="noopener">Legal Disclaimer</a>.
+            I alone am responsible for how this device is built, flashed, configured, deployed and operated, and for
+            complying with the radio, interception, privacy and computer-misuse laws that apply to me. The authors,
+            maintainers and contributors accept no liability for anything arising from its use, including units they
+            assembled or supplied and builds made by following their instructions.</span>
         </label>
       </div>
 
@@ -656,6 +669,11 @@ chmod +x flashAntihunter.sh
 
       btn.removeAttribute('manifest');
       setBuildInfo(`Resolving ${label} ${variant} build…`, 'info', false);
+
+      if (!document.getElementById('legalAgree').checked) {
+        setBuildInfo('Accept the terms above to enable flashing.', 'warn', false);
+        return;
+      }
 
       // Experimental builds stay disarmed until the risk acknowledgement is ticked.
       if (channel === 'c5' && !document.getElementById('expAck').checked) {
