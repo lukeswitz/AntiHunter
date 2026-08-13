@@ -68,6 +68,11 @@ extern volatile uint32_t apScanSuppressUntilMs;
 #ifndef AP_INACTIVE_TIME_SEC
 #define AP_INACTIVE_TIME_SEC 3600
 #endif
+#ifdef ARDUINO_XIAO_ESP32C5
+#define DEFAULT_CHANNELS {1,2,3,4,5,6,7,8,9,10,11, 36, 40, 44, 48, 149, 153, 157, 161, 165}
+#else
+#define DEFAULT_CHANNELS {1,2,3,4,5,6,7,8,9,10,11}
+#endif
 
 // Network and Web Server functions
 void initializeNetwork();

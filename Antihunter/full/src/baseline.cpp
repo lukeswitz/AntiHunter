@@ -375,6 +375,27 @@ uint32_t calculateOptimalCacheSize() {
     return 400;
 }
 
+static void baselineHarvestWifiPassive() {
+    if (!apInfoQueue) return;
+    ApInfoEvent ae;
+    int drained = 0;
+    while (xQueueReceive(apInfoQueue, &ae, 0) == pdTRUE && drained < 50) {
+        drained++;
+        String ssid = ae.ssid[0] ? String(ae.ssid) : String("[Hidden]");
+
+        Hit wh;
+        memcpy(wh.mac, ae.bssid, 6);
+        wh.rssi = ae.rssi;
+        wh.ch = ae.channel;
+        strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+        wh.name[sizeof(wh.name) - 1] = '\0';
+        wh.isBLE = false;
+
+        if (macQueue) xQueueSend(macQueue, &wh, 0);
+        framesSeen = framesSeen + 1;
+    }
+}
+
 static void baselineHarvestWifiAsync(uint32_t &lastWiFiScan) {
     int wifiScan = WiFi.scanComplete();
     if (wifiScan == WIFI_SCAN_FAILED) {
@@ -480,7 +501,15 @@ void baselineDetectionTask(void *pv) {
         baselineStats.totalDuration = baselineDuration;
     }
 
-    radioStartListScan();
+    if (apInfoQueue == nullptr) {
+        apInfoQueue = xQueueCreateWithCaps(128, sizeof(ApInfoEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+    if (apInfoQueue) xQueueReset(apInfoQueue);
+    apCaptureEnabled = true;
+    ScanMode savedBaselineMode = currentScanMode;
+    currentScanMode = SCAN_WIFI;
+    radioStartSTA();
+    currentScanMode = savedBaselineMode;
     vTaskDelay(pdMS_TO_TICKS(200));
 
     if (!pBLEScan) {
@@ -581,7 +610,9 @@ void baselineDetectionTask(void *pv) {
             break;
         }
         
-        baselineHarvestWifiAsync(lastWiFiScan);
+        baselineHarvestWifiPassive();
+        if (apScanSuppressUntilMs == 0 || (int32_t)(millis() - apScanSuppressUntilMs) >= 0)
+            baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;
@@ -662,6 +693,7 @@ void baselineDetectionTask(void *pv) {
         scanning = false;
         updateBaselineStats();
 
+        apCaptureEnabled = false;
         radioStopListScan();
         vTaskDelay(pdMS_TO_TICKS(200));
 
@@ -725,7 +757,9 @@ void baselineDetectionTask(void *pv) {
             break;
         }
 
-        baselineHarvestWifiAsync(lastWiFiScan);
+        baselineHarvestWifiPassive();
+        if (apScanSuppressUntilMs == 0 || (int32_t)(millis() - apScanSuppressUntilMs) >= 0)
+            baselineHarvestWifiAsync(lastWiFiScan);
 
         if (stopRequested) {
             break;

@@ -928,6 +928,7 @@ static void handleSentinelMode(const String &command)
   v.trim();
   bool scan = v.equalsIgnoreCase("scan");
   bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
+  if (ok) detect_persistTunables();
   sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
 }
 
@@ -940,7 +941,21 @@ static void handleSentinelBoot(const String &command)
   if (p.begin("antihunter", false)) { p.putBool("sentBoot", on); p.end(); }
   sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
 }
-#endif
+
+static void handleAttackerTrilat(const String &command)
+{
+  String a = command.substring(16);
+  a.trim();
+  bool en = (a.toInt() != 0) || a.equalsIgnoreCase("on") || a.equalsIgnoreCase("true");
+  detect_setAttackerTrilat(en);
+  sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:" + (en ? "ON" : "OFF"), true);
+}
+
+static void handleAttackerTrilatStatus(const String &command)
+{
+  (void)command;
+  sendToSerial1(nodeId + ": ATTACKER_TRILAT_STATUS: " + (detect_getAttackerTrilat() ? "ON" : "OFF"), true);
+}
 
 // Threat-scenario detector groups — keys mirror the full webui DET_GROUPS.
 // deauth/beacon/auth detectors are unconditional (no toggle) and not grouped.
@@ -1023,6 +1038,7 @@ static void handleIncidentsClear(const String &command)
   detect_clearIncidents();
   sendToSerial1(nodeId + ": INCIDENTS_CLEAR_ACK:OK", true);
 }
+#endif
 
 static void handleVibrationStatus(const String &command)
 {
@@ -1823,11 +1839,16 @@ static bool meshIsResponse(const String &payload)
     "RANDOMIZATION_ACK", "PROBE_ACK", "CONFIG_ACK", "DEDUP_CLEAR_ACK", "TRI_ACK",
     "TRI_START_ACK", "TRIANGULATE_STOP_ACK", "TRIANGULATE_RESULTS_START",
     "TRIANGULATE_RESULTS_END", "TRIANGULATE_RESULTS:NO_DATA", "ERASE_ACK", "ERASE_TOKEN:",
-    "FACTORY_RESET_ACK", "AUTOERASE_ACK", "BATTERY_SAVER_ACK", "HB_ACK", "SENTINEL_ACK",
-    "SENTINEL_MODE_ACK", "SENTINEL_BOOT_ACK", "GROUP_ACK", "DETECT_CFG_ACK", "DETECT_CFG_LEN:",
-    "INCIDENTS_LEN:", "INCIDENTS_CLEAR_ACK", "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
+    "FACTORY_RESET_ACK", "AUTOERASE_ACK", "BATTERY_SAVER_ACK", "HB_ACK",
+#if AH_SENTINEL
+    "SENTINEL_ACK", "SENTINEL_MODE_ACK", "SENTINEL_BOOT_ACK", "SENTINEL_STATUS: ",
+    "ATTACKER_TRILAT_ACK", "ATTACKER_TRILAT_STATUS: ",
+    "GROUP_ACK", "DETECT_CFG_ACK", "DETECT_CFG_LEN:",
+    "INCIDENTS_LEN:", "INCIDENTS_CLEAR_ACK",
+#endif
+    "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
     "STATUS: ", "BASELINE_STATUS: ", "VIBRATION_STATUS: ", "AUTOERASE_STATUS: ",
-    "BATTERY_SAVER_STATUS: ", "SENTINEL_STATUS: "
+    "BATTERY_SAVER_STATUS: "
   };
   for (const char *p : kResponses) {
     if (payload.startsWith(p)) return true;
@@ -1870,12 +1891,14 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "SENTINEL_STATUS")              handleSentinelStatus(command);
   else if (command.startsWith("SENTINEL_MODE:"))      handleSentinelMode(command);
   else if (command.startsWith("SENTINEL_BOOT:"))      handleSentinelBoot(command);
-#endif
+  else if (command == "ATTACKER_TRILAT_STATUS")       handleAttackerTrilatStatus(command);
+  else if (command.startsWith("ATTACKER_TRILAT:"))    handleAttackerTrilat(command);
   else if (command.startsWith("GROUP:"))              handleGroup(command);
-  else if (command == "DETECT_CFG_GET")               handleDetectCfgGet(command);
+  else if (command.startsWith("DETECT_CFG_GET"))      handleDetectCfgGet(command);
   else if (command.startsWith("DETECT_CFG:"))         handleDetectCfg(command);
-  else if (command == "INCIDENTS_CLEAR")              handleIncidentsClear(command);
-  else if (command == "INCIDENTS")                    handleIncidents(command);
+  else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
+  else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
+#endif
   else if (command == "STATUS")                       handleStatus(command);
   else if (command == "VIBRATION_STATUS")             handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);

@@ -265,6 +265,37 @@ uint32_t calculateOptimalCacheSize() {
     return 400;
 }
 
+static void baselineHarvestWifiActive() {
+    static uint32_t lastWiFiScan = 0;
+    int wifiScan = WiFi.scanComplete();
+    if (wifiScan == WIFI_SCAN_FAILED) {
+        if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
+            lastWiFiScan = millis();
+            WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
+        }
+        return;
+    }
+    if (wifiScan < 0) return;
+    for (int i = 0; i < wifiScan && !stopRequested; i++) {
+        const uint8_t *bssidBytes = WiFi.BSSID(i);
+        if (!bssidBytes) continue;
+        String ssid = WiFi.SSID(i);
+        if (ssid.length() == 0) ssid = "[Hidden]";
+
+        Hit wh;
+        memcpy(wh.mac, bssidBytes, 6);
+        wh.rssi = WiFi.RSSI(i);
+        wh.ch = WiFi.channel(i);
+        strncpy(wh.name, ssid.c_str(), sizeof(wh.name) - 1);
+        wh.name[sizeof(wh.name) - 1] = '\0';
+        wh.isBLE = false;
+
+        if (macQueue) xQueueSend(macQueue, &wh, 0);
+        framesSeen = framesSeen + 1;
+    }
+    WiFi.scanDelete();
+}
+
 static void baselineHarvestWifiPassive() {
     if (!apInfoQueue) return;
     ApInfoEvent ae;
@@ -453,6 +484,7 @@ void baselineDetectionTask(void *pv) {
         }
         
         baselineHarvestWifiPassive();
+        baselineHarvestWifiActive();
 
         if (stopRequested) {
             break;
@@ -602,6 +634,7 @@ void baselineDetectionTask(void *pv) {
         }
 
         baselineHarvestWifiPassive();
+        baselineHarvestWifiActive();
 
         if (stopRequested) {
             break;
