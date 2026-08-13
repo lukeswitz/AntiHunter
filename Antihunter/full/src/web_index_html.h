@@ -1573,7 +1573,7 @@ R"HTML(
 )HTML"
 #endif
 R"HTML(
-      <div align="center" class="footer">v1.0.1 Stable | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v1.0.2 Stable | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
