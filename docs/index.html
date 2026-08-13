@@ -66,8 +66,9 @@
 
     .flash-area{text-align:center;padding:8px 0}
     .flash-area.locked{pointer-events:none;opacity:0.45}
-    .legal-check{display:flex;gap:10px;align-items:flex-start;margin:0;text-transform:none;font-size:13px;font-weight:500;color:inherit;cursor:pointer}
-    .legal-check input{width:18px;height:18px;flex:0 0 auto;margin-top:2px;box-shadow:none}
+    .legal-gate{display:flex;align-items:flex-start;gap:10px;max-width:520px;margin:0 auto 16px;padding:11px 14px;border:1px solid var(--bord);border-radius:8px;background:var(--surf);text-transform:none;letter-spacing:0;font-size:12px;font-weight:400;line-height:1.5;color:var(--mut);text-align:left;cursor:pointer}
+    .legal-gate input{width:16px;height:16px;flex:0 0 auto;margin-top:1px;padding:0;accent-color:var(--acc);cursor:pointer;box-shadow:none;border-radius:4px}
+    .legal-gate a{color:var(--acc)}
     .flash-area esp-web-install-button{display:inline-block}
     .flash-area esp-web-install-button::part(invoke-button){
       display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -263,17 +264,14 @@
         </select>
       </div>
 
-      <div class="banner warn" style="text-align:left">
-        <label class="legal-check" for="legalAgree">
-          <input type="checkbox" id="legalAgree" onchange="setLegalAgreed(this.checked)">
-          <span>I have read and accept the
-            <a href="https://github.com/lukeswitz/AntiHunter#legal-disclaimer" target="_blank" rel="noopener">Legal Disclaimer</a>.
-            I alone am responsible for how this device is built, flashed, configured, deployed and operated, and for
-            complying with the radio, interception, privacy and computer-misuse laws that apply to me. The authors,
-            maintainers and contributors accept no liability for anything arising from its use, including units they
-            assembled or supplied and builds made by following their instructions.</span>
-        </label>
-      </div>
+      <label class="legal-gate">
+        <input type="checkbox" id="legalAgree" onchange="setLegalAgreed(this.checked)">
+        <span>I accept the
+          <a href="https://github.com/lukeswitz/AntiHunter#legal-disclaimer" target="_blank" rel="noopener">Legal Disclaimer</a>.
+          How this device is built, flashed, configured and used is my responsibility, as is complying with the laws
+          that apply to me. The authors, maintainers and contributors accept no liability for its use, including for
+          units they assembled or supplied.</span>
+      </label>
 
       <div class="flash-area locked" id="flashArea">
         <esp-web-install-button id="flashBtn">
