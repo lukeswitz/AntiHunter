@@ -1186,7 +1186,7 @@ static void handleBeacon(const DetectFrameEvent &e) {
                 quorum_addReport("EVILTWIN", String(bb), getNodeId(), e.rssi);
                 attacker_kick(bssid, "EVILTWIN");
                 if (meshEnabled && sentinel_isRunning() && g_meshEviltwin.load() && meshRateGate(String("ETW_SELF_") + bb, 30000))
-                    sendToSerial1(getNodeId() + ": EVILTWIN:" + bb + ":" + rsn + ":" + String((int)e.rssi), true);
+                    sendToSerial1(getNodeId() + ": EVILTWIN:" + bb + ":" + rsn + ":" + String((int)e.rssi) + ":" + ssidSelf, true);
             }
         }
 
@@ -1364,8 +1364,10 @@ static void handleBeacon(const DetectFrameEvent &e) {
 
     struct SsidWatch {
         uint32_t winStartMs{};
+        uint32_t firstSeenMs{};
         uint8_t streak{};
         PsramSet<uint32_t> ouis;
+        PsramSet<uint32_t> baseOuis;
         PsramSet<uint64_t> bssids;
         uint32_t lastFiredMs{};
     };
@@ -1375,6 +1377,8 @@ static void handleBeacon(const DetectFrameEvent &e) {
     static constexpr uint32_t SSID_FIRE_COOLDOWN_MS = 600000;
     static constexpr uint8_t  SSID_PERSIST_STREAK = 2;
     static constexpr size_t   MAX_TWIN_BSSIDS = 4;
+    static constexpr uint32_t SSID_LEARN_MS = 300000;
+    static constexpr size_t   MAX_BASE_OUIS = 8;
 
     bool ssidCollision = false;
     uint32_t collisionOuiCount = 0;
@@ -1400,9 +1404,11 @@ static void handleBeacon(const DetectFrameEvent &e) {
             }
             SsidWatch sw{};
             sw.winStartMs = now;
+            sw.firstSeenMs = now;
             sw.streak = 0;
             sw.lastFiredMs = 0;
             sw.ouis.insert(bssidOui);
+            sw.baseOuis.insert(bssidOui);
             sw.bssids.insert(k);
             g_ssidWatch[ssidHash] = sw;
         } else {
@@ -1415,17 +1421,24 @@ static void handleBeacon(const DetectFrameEvent &e) {
             sw.ouis.insert(bssidOui);
             sw.bssids.insert(k);
             collisionOuiCount = sw.ouis.size();
-            bool ouiMismatch = collisionOuiCount >= 2 && sw.bssids.size() <= MAX_TWIN_BSSIDS;
-            bool cooldownPassed = (sw.lastFiredMs == 0) || ((now - sw.lastFiredMs) >= SSID_FIRE_COOLDOWN_MS);
-            if (ouiMismatch && cooldownPassed) {
-                if (sw.streak < 255) sw.streak++;
-                if (sw.streak >= SSID_PERSIST_STREAK) {
-                    ssidCollision = true;
-                    sw.lastFiredMs = now;
+            if ((now - sw.firstSeenMs) < SSID_LEARN_MS) {
+                if (sw.baseOuis.size() < MAX_BASE_OUIS) sw.baseOuis.insert(bssidOui);
+                sw.streak = 0;
+            } else {
+                bool newVendor = sw.baseOuis.find(bssidOui) == sw.baseOuis.end();
+                bool ouiMismatch = newVendor && collisionOuiCount >= 2 && sw.bssids.size() <= MAX_TWIN_BSSIDS;
+                bool cooldownPassed = (sw.lastFiredMs == 0) || ((now - sw.lastFiredMs) >= SSID_FIRE_COOLDOWN_MS);
+                if (ouiMismatch && cooldownPassed) {
+                    if (sw.streak < 255) sw.streak++;
+                    if (sw.streak >= SSID_PERSIST_STREAK) {
+                        ssidCollision = true;
+                        sw.lastFiredMs = now;
+                        sw.streak = 0;
+                        if (sw.baseOuis.size() < MAX_BASE_OUIS) sw.baseOuis.insert(bssidOui);
+                    }
+                } else if (!ouiMismatch) {
                     sw.streak = 0;
                 }
-            } else if (!ouiMismatch) {
-                sw.streak = 0;
             }
         }
     }
@@ -1475,9 +1488,9 @@ static void handleBeacon(const DetectFrameEvent &e) {
             bool isTsfReason = tsfNonMono && !ssidCollision;
             bool meshFlag = isTsfReason ? g_meshTsf.load() : g_meshEviltwin.load();
             if (meshEnabled && sentinel_isRunning() && meshFlag && meshRateGate(String("EVILTWIN_") + bsStr, 10000)) {
-                char meshMsg[80];
-                snprintf(meshMsg, sizeof(meshMsg), "%s: EVILTWIN:%s:%s:%d",
-                         getNodeId().c_str(), bs, ev.reason, (int)ev.rssi);
+                char meshMsg[128];
+                snprintf(meshMsg, sizeof(meshMsg), "%s: EVILTWIN:%s:%s:%d:%s",
+                         getNodeId().c_str(), bs, ev.reason, (int)ev.rssi, ev.ssid);
                 sendToSerial1(String(meshMsg), true);
             }
             ::detect_logIncident(String("EVILTWIN:") + bsStr + ":" + ev.reason, nullptr);

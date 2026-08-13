@@ -201,7 +201,7 @@ void setup() {
     // Silence VFS error spam for known-absent optional files (e.g. /littlefs/oui_cat.bin)/gpio
     // esp_log_level_set("vfs_api", ESP_LOG_NONE);
     // esp_log_level_set("gpio", ESP_LOG_NONE);
-    Serial.println("\n=== AntiHunter v1.0.1-c5exp3 C5 [HEADLESS] Boot ===");
+    Serial.println("\n=== AntiHunter v1.0.2-c5exp1 C5 [HEADLESS] Boot ===");
     recordBootReason();
 
 #ifdef ARDUINO_XIAO_ESP32C5
@@ -272,7 +272,7 @@ void setup() {
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE v1.0.1 C5 BETA HEADLESS BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE v1.0.2 C5 BETA HEADLESS BOOT COMPLETE =====");
     String currentNodeId = getNodeId();
     Serial.printf("NODE ID: %s\n", currentNodeId.c_str());
     Serial.println("RANDOMIZED MAC: (assigned when WiFi starts — sentinel/scan)");

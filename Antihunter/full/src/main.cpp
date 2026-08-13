@@ -258,7 +258,7 @@ void setup() {
     Serial.begin(115200);
     delay(300);
 
-    Serial.println("\n=== AntiHunter v1.0.1-c5exp3 C5 [FULL] Boot ===");
+    Serial.println("\n=== AntiHunter v1.0.2-c5exp1 C5 [FULL] Boot ===");
     recordBootReason();
 
 
@@ -347,7 +347,7 @@ void setup() {
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
-    Serial.println("===== ANTIHUNTER DIGINODE C5 v1.0.1 BETA BOOT COMPLETE =====");
+    Serial.println("===== ANTIHUNTER DIGINODE C5 v1.0.2 BETA BOOT COMPLETE =====");
 
     String currentSsid = prefsGetString("apSsid", AP_SSID);
     String currentPass = prefsGetString("apPass", AP_PASS);
