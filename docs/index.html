@@ -65,6 +65,9 @@
     .fw-option.selected .fw-check::after{content:'';display:block;width:6px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin:3px auto 0}
 
     .flash-area{text-align:center;padding:8px 0}
+    .flash-area.locked{pointer-events:none;opacity:0.45}
+    .legal-check{display:flex;gap:10px;align-items:flex-start;margin:0;text-transform:none;font-size:13px;font-weight:500;color:inherit;cursor:pointer}
+    .legal-check input{width:18px;height:18px;flex:0 0 auto;margin-top:2px;box-shadow:none}
     .flash-area esp-web-install-button{display:inline-block}
     .flash-area esp-web-install-button::part(invoke-button){
       display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -260,9 +263,21 @@
         </select>
       </div>
 
-      <div class="flash-area">
+      <div class="banner warn" style="text-align:left">
+        <label class="legal-check" for="legalAgree">
+          <input type="checkbox" id="legalAgree" onchange="setLegalAgreed(this.checked)">
+          <span>I have read and accept the
+            <a href="https://github.com/lukeswitz/AntiHunter#legal-disclaimer" target="_blank" rel="noopener">Legal Disclaimer</a>.
+            I alone am responsible for how this device is built, flashed, configured, deployed and operated, and for
+            complying with the radio, interception, privacy and computer-misuse laws that apply to me. The authors,
+            maintainers and contributors accept no liability for anything arising from its use, including units they
+            assembled or supplied and builds made by following their instructions.</span>
+        </label>
+      </div>
+
+      <div class="flash-area locked" id="flashArea">
         <esp-web-install-button id="flashBtn">
-          <button class="btn primary" slot="activate" style="font-size:16px;padding:16px 40px">
+          <button class="btn primary" slot="activate" style="font-size:16px;padding:16px 40px" disabled>
             Connect & Flash
           </button>
           <span slot="unsupported">
@@ -563,6 +578,11 @@ chmod +x flashAntihunter.sh
     function selectChannel(c) {
       selectedChannel = (c === 'beta') ? 'beta' : 'stable';
       updateManifest();
+    }
+
+    function setLegalAgreed(agreed) {
+      document.getElementById('flashArea').classList.toggle('locked', !agreed);
+      document.querySelector('#flashBtn button[slot="activate"]').disabled = !agreed;
     }
 
     function updateManifest() {
