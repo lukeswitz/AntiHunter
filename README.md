@@ -62,16 +62,16 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 2. [What It Detects](#what-it-detects)
 3. [Use Cases](#use-cases)
 4. [Hardware](#hardware)
-5. [Build & Flash](#build--flash) — [deployment steps by tier](#deployment-steps-by-tier)
+5. [Build & Flash](#build--flash)
+   - [Deployment steps by tier](#deployment-steps-by-tier)
 6. [Configuration & Operations](#configuration--operations)
-7. [System Architecture](#system-architecture) — [full vs headless](#full-vs-headless)
+7. [System Architecture](#system-architecture)
+   - [Firmware: full vs headless](#full-vs-headless)
 8. [Mesh Networking](#mesh-networking)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
-11. [ESP32-C5](docs/ESP32-C5.md)
-12. [RadarNode](docs/RADARNODE.md)
-12. [Acknowledgments](#acknowledgments)
-13. [Legal](#legal-disclaimer)
+11. [Acknowledgments](#acknowledgments)
+12. [Legal](#legal-disclaimer)
 
 ---
 
