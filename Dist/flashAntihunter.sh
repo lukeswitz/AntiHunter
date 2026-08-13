@@ -2,9 +2,9 @@
 set -e
 
 STABLE_BRANCH="main"
-STABLE_VERSION="v1.0.1"
+STABLE_VERSION="v1.0.2"
 BETA_BRANCH="beta"
-BETA_VERSION="v1.0.1-beta2"
+BETA_VERSION="v1.0.2-beta1"
 # Experimental ESP32-C5 builds. Served from main/Dist until the C5 branches are published.
 C5_BRANCH="main"
 C5_VERSION="v1.0.1-c5exp3"
