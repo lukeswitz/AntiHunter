@@ -980,8 +980,9 @@ static void handleVibScanStatus(const String &command)
 
 static void handleAttackerTrilat(const String &command)
 {
-  int v = command.substring(16).toInt();
-  bool en = (v != 0);
+  String a = command.substring(16);
+  a.trim();
+  bool en = (a.toInt() != 0) || a.equalsIgnoreCase("on") || a.equalsIgnoreCase("true");
   detect_setAttackerTrilat(en);
   sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:" + (en ? "ON" : "OFF"), true);
 }
@@ -1769,6 +1770,7 @@ static void handleSentinelMode(const String &command)
   v.trim();
   bool scan = v.equalsIgnoreCase("scan");
   bool ok = detect_setConfigFromJson(String("{\"sentinel_scan\":") + (scan ? "true" : "false") + "}");
+  if (ok) detect_persistTunables();
   sendToSerial1(nodeId + ": SENTINEL_MODE_ACK:" + (ok ? (scan ? "scan" : "defend") : "FAIL"), true);
 }
 
@@ -1782,6 +1784,86 @@ static void handleSentinelBoot(const String &command)
   sendToSerial1(nodeId + ": SENTINEL_BOOT_ACK:" + (on ? "on" : "off"), true);
 }
 
+static const char *groupMembers(const String &name)
+{
+  if (name == "dos")                         return "eviltwin,sae,assoc_sleep";
+  if (name == "rogue" || name == "rogue_ap") return "eviltwin,owe,karma";
+  if (name == "recon")                       return "pmkid,probe_flood,hshk";
+  if (name == "physical" || name == "phys")  return "frag,tsf,jam";
+  if (name == "mesh")                        return "mesh_guard";
+#if AH_CS_BLE
+  if (name == "ble")                         return "ble_attack,ble_malformed,tracker,airtag";
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard,ble_attack,ble_malformed,tracker,airtag";
+#else
+  if (name == "all")                         return "eviltwin,sae,assoc_sleep,owe,karma,pmkid,probe_flood,hshk,frag,tsf,jam,mesh_guard";
+#endif
+  return nullptr;
+}
+
+static void handleGroup(const String &command)
+{
+  int c1 = command.indexOf(':');
+  int c2 = command.indexOf(':', c1 + 1);
+  if (c1 < 0 || c2 < 0) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:syntax", true); return; }
+  String name = command.substring(c1 + 1, c2); name.trim(); name.toLowerCase();
+  String act = command.substring(c2 + 1); act.trim(); act.toLowerCase();
+  bool on = (act == "on" || act == "1" || act == "true");
+  bool off = (act == "off" || act == "0" || act == "false");
+  if (!on && !off) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:onoff", true); return; }
+  const char *members = groupMembers(name);
+  if (!members) { sendToSerial1(nodeId + ": GROUP_ACK:FAIL:unknown_group", true); return; }
+
+  String json = "{"; bool first = true;
+  String m = members; int start = 0;
+  while (start <= (int)m.length()) {
+    int comma = m.indexOf(',', start);
+    String key = (comma < 0) ? m.substring(start) : m.substring(start, comma);
+    key.trim();
+    if (key.length()) { if (!first) json += ","; json += "\"" + key + "\":" + (on ? "true" : "false"); first = false; }
+    if (comma < 0) break;
+    start = comma + 1;
+  }
+  json += "}";
+
+  bool ok = detect_setConfigFromJson(json);
+  if (ok) detect_persistTunables();
+  sendToSerial1(nodeId + ": GROUP_ACK:" + (ok ? "OK:" : "FAIL:") + name + ":" + (on ? "on" : "off"), true);
+}
+
+static void handleDetectCfg(const String &command)
+{
+  String json = command.substring(strlen("DETECT_CFG:"));
+  json.trim();
+  bool ok = detect_setConfigFromJson(json);
+  if (ok) detect_persistTunables();
+  sendToSerial1(nodeId + ": DETECT_CFG_ACK:" + (ok ? "OK" : "FAIL"), true);
+}
+
+static void handleDetectCfgGet(const String &command)
+{
+  (void)command;
+  String cfg = detect_getConfigJson();
+  Serial.println("[DETECT] config: " + cfg);
+  sendToSerial1(nodeId + ": DETECT_CFG_LEN:" + String(cfg.length()) + " (see serial)", true);
+}
+
+static void handleIncidents(const String &command)
+{
+  size_t n = 20;
+  int c = command.indexOf(':');
+  if (c >= 0) { long v = command.substring(c + 1).toInt(); if (v > 0 && v <= 200) n = (size_t)v; }
+  String inc = detect_getIncidentsJson(n);
+  Serial.println("[DETECT] incidents: " + inc);
+  sendToSerial1(nodeId + ": INCIDENTS_LEN:" + String(inc.length()) + " (see serial)", true);
+}
+
+static void handleIncidentsClear(const String &command)
+{
+  (void)command;
+  detect_clearIncidents();
+  sendToSerial1(nodeId + ": INCIDENTS_CLEAR_ACK:OK", true);
+}
+
 // Handler replies; must never re-enter the dispatcher as commands.
 static bool meshIsResponse(const String &payload)
 {
@@ -1791,7 +1873,8 @@ static bool meshIsResponse(const String &payload)
     "TRI_START_ACK", "TRIANGULATE_STOP_ACK", "TRIANGULATE_RESULTS_START",
     "TRIANGULATE_RESULTS_END", "TRIANGULATE_RESULTS:NO_DATA", "ERASE_ACK", "ERASE_TOKEN:",
     "FACTORY_RESET_ACK", "AUTOERASE_ACK", "BATTERY_SAVER_ACK", "HB_ACK", "SENTINEL_ACK",
-    "SENTINEL_MODE_ACK", "SENTINEL_BOOT_ACK", "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
+    "SENTINEL_MODE_ACK", "SENTINEL_BOOT_ACK", "GROUP_ACK", "DETECT_CFG_ACK", "DETECT_CFG_LEN:",
+    "INCIDENTS_LEN:", "INCIDENTS_CLEAR_ACK", "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
     "STATUS: ", "BASELINE_STATUS: ", "VIBRATION_STATUS: ", "AUTOERASE_STATUS: ",
     "BATTERY_SAVER_STATUS: ", "SENTINEL_STATUS: ", "VIBSCAN_ACK", "VIBSCAN_STATUS: ",
     "ATTACKER_TRILAT_ACK", "ATTACKER_TRILAT_STATUS: "
@@ -1847,6 +1930,11 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "SENTINEL_STATUS")                handleSentinelStatus(command);
   else if (command.startsWith("SENTINEL_MODE:"))        handleSentinelMode(command);
   else if (command.startsWith("SENTINEL_BOOT:"))        handleSentinelBoot(command);
+  else if (command.startsWith("GROUP:"))                handleGroup(command);
+  else if (command.startsWith("DETECT_CFG_GET"))        handleDetectCfgGet(command);
+  else if (command.startsWith("DETECT_CFG:"))           handleDetectCfg(command);
+  else if (command.startsWith("INCIDENTS_CLEAR"))       handleIncidentsClear(command);
+  else if (command.startsWith("INCIDENTS"))             handleIncidents(command);
   else if (command == "STATUS")                         handleStatus(command);
   else if (command == "VIBRATION_STATUS")               handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                   handleVibrationOn(command);

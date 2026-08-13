@@ -338,6 +338,20 @@ A second C5 firmware, [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/b
 
 **[AntiHunter Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO):** Aggregates data from all nodes with real-time mapping and visualization.
 
+### Full vs Headless
+
+Same firmware, same detectors, same [mesh commands](#mesh-commands), same scan engine. Full adds a WiFi AP hosting the web UI and [API](#api-reference).
+
+| | Full | Headless |
+|---|---|---|
+| Control | Web UI and API over its own AP, plus serial and mesh | Serial and mesh |
+| WiFi discovery | Active all-channel sweep plus promiscuous capture on Device Scan, Target Scan, Baseline and Triangulation | Identical |
+| Results | `/results`, rendered as cards in the browser | Same text at `/last_results.txt` on SD |
+| Device database | `/devicedb.jsonl` | Not written |
+| RF footprint | AP beacons continuously | Never beacons |
+
+Karma bait is the only detector that transmits, a probe request every 8s. Off by default, enable with `GROUP:rogue:on`. Sentinel `defend` has no AP to pin to on Headless, so use `scan`.
+
 ---
 
 ## Hardware
@@ -599,15 +613,21 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 |---------|------------|---------|
 | `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
 | `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
-| `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
+| `SENTINEL_MODE` | `defend` (pin one channel) or `scan` (hop the channels set by `CONFIG_CHANNELS`). Persisted to NVS `sclScan` and restored on boot. ACK: `SENTINEL_MODE_ACK:scan`/`:defend`/`:FAIL` | `@ALL SENTINEL_MODE:scan` |
 | `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
-| `ATTACKER_TRILAT` | `1`/`0` — auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
+| `ATTACKER_TRILAT` | `1`/`0`/`on`/`off` — auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | None. Reply: `ATTACKER_TRILAT_STATUS: ON`/`OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 | `GROUP` | `<name>:<on\|off>` — toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
 | `DETECT_CFG` | `<json>` — apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
 | `DETECT_CFG_GET` | None — dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
 | `INCIDENTS` | `[:<1-200>]` — dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
 | `INCIDENTS_CLEAR` | None — clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
+
+`GROUP` members: `dos` = eviltwin, sae, assoc_sleep · `rogue` = eviltwin, owe, karma · `recon` = pmkid, probe_flood, hshk · `physical` = frag, tsf, jam · `mesh` = mesh_guard · `all` = every member listed here.
+
+`DETECT_CFG` sets the rest: `ssid_confusion`, `pwna`, `csa_quiet`, `rid_spoof`, `bloom_gossip`, `ble_malformed`, the 15 `mesh_*` emit toggles and the numeric thresholds. `DETECT_CFG_GET` prints every key to serial. `GROUP` and `DETECT_CFG` write to NVS. Deauth, beacon and auth detection have no toggle.
+
+Headless has no SoftAP, so `defend` pins to whatever channel the radio last used. Use `scan` on headless.
 
 <details>
 <summary>Triangulation Commands</summary>

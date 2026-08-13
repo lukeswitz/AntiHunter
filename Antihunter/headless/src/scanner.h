@@ -51,6 +51,7 @@ struct Hit {
    uint8_t ch;
    char name[32];
    bool isBLE;
+   bool isApple = false;
 };
 
 using UniqueMacsSet = std::set<String, std::less<String>, PsramAllocator<String>>;
@@ -190,6 +191,15 @@ extern std::atomic<bool> g_dronePinChannel;
 extern std::atomic<bool> g_channelsAmended;
 void applyBandMode();
 uint8_t nextActiveScanChannel();
+#ifndef AH_SCAN_ACTIVE_MIN_MS
+#define AH_SCAN_ACTIVE_MIN_MS 40
+#endif
+#ifndef AH_SCAN_ACTIVE_MIN_DEFAULT_MS
+#define AH_SCAN_ACTIVE_MIN_DEFAULT_MS 100
+#endif
+#ifndef AH_SCAN_TIMEOUT_MS
+#define AH_SCAN_TIMEOUT_MS 8000
+#endif
 extern std::atomic<bool> g_dronePinChannel;
 
 #ifndef AH_AP_BEACON_TIMEOUT_MS

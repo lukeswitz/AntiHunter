@@ -2982,7 +2982,7 @@ void initializeDetect() {
             ah_detect::g_eviltwinEnabled.store(p.getBool("etwOn", true));
             ah_detect::g_ssidConfusionEnabled.store(p.getBool("scnOn", true));
             ah_detect::g_saeEnabled.store(p.getBool("saeOn", true));
-            ah_detect::g_sentinelScanMode.store(false);   // always boot in pin; scan is runtime-only (hopping breaks own AP -> lockout)
+            ah_detect::g_sentinelScanMode.store(p.getBool("sclScan", true));
             ah_detect::g_oweEnabled.store(p.getBool("oweOn", false));
             ah_detect::g_fragEnabled.store(p.getBool("fragOn", false));
             ah_detect::g_jamEnabled.store(p.getBool("jamOn", true));
