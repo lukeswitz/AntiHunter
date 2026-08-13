@@ -6,38 +6,27 @@ Stable channel · Previous release v1.0.1 (2026-08-07)
 
 ### Both FW
 
-- Randomized Device Tracer: a MAC could be linked into a second identity, so a track listed MACs belonging to other tracks and its badges showed their T- ids. A MAC is now attributed to the identity that already owns it.
-- Randomized Device Tracer: identity files already written to SD are repaired on load — MACs held by more than one identity are dropped from every identity but their owner.
-- Mesh send interval default is 3000 ms, was 5000 ms. Applies to the NVS seed, the no-SD fallback, and the web field.
-- Device Scan and Probe Scan no longer drop BLE for a whole run when the BLE radio finishes coming up after the scan starts.
-- A slow BLE bring-up is no longer recorded as a permanent failure. Randomization in BLE-only mode used to abort every scan until reboot.
-- Target Scan swept one channel per pass instead of all of them, so it reported roughly a third of the devices a Device Scan found in the same spot. Measured on hardware: Unique 24 before, 70 after, against 75 for a Device Scan.
-- Baseline learns WiFi client stations, not just APs. It ran with promiscuous capture off, so anything that was not an AP never entered the baseline.
+- Randomized Device Tracer: a MAC could be linked into a second identity, so tracks listed other tracks' MACs and T- ids. A MAC now stays with the identity that owns it.
+- Randomized Device Tracer: identity files on SD are repaired on load — a MAC held by several identities is dropped from all but its owner.
+- Mesh send interval default 3000 ms, was 5000 ms. NVS seed, no-SD fallback and web field.
+- Device Scan and Probe Scan no longer drop BLE for the whole run when the BLE radio comes up after the scan starts.
+- A slow BLE bring-up is no longer a permanent failure. It used to abort every BLE-only randomization scan until reboot.
+- Target Scan swept one channel per pass, not all of them, reporting a third of what a Device Scan saw. On hardware: Unique 24 before, 70 after, against 75 for a Device Scan.
+- Baseline learns WiFi client stations, not just APs. It ran with promiscuous capture off, so non-APs never entered the baseline.
 
 ### Headless FW
 
-- Device Scan, Target Scan and Baseline run an active all-channel sweep again. It was removed on 2026-07-31 in favour of passive capture and never restored on Headless, leaving Device Scan reporting `WiFi APs=0` over a full minute. Hardware after the fix: 53 APs.
-- Target Scan in WiFi+BLE mode started BLE before the WiFi mode switch landed on top of it, so BLE was skipped.
-- BLE devices advertising Apple continuity are marked `APPLE` in sniffer results, matching Full.
-
-### Headless FW
-
-- BLE devices advertising Apple continuity are marked `APPLE` in sniffer results, matching Full.
+- Device Scan, Target Scan and Baseline sweep all channels again. Passive capture replaced the sweep on 2026-07-31 and was never restored here, leaving `WiFi APs=0` over a full minute. After the fix: 53 APs.
+- Target Scan in WiFi+BLE started BLE before the WiFi mode switch landed on top of it, so BLE was skipped.
+- BLE devices advertising Apple continuity are marked `APPLE`, matching Full.
 
 ### Full FW
 
 - Randomization results: each MAC row and the track header carry that track's own Track ID.
-- Randomization results: Live sessions starts collapsed, stays open once you open it, and sits below the Track ID cards.
+- Randomization results: Live sessions starts collapsed, stays open once opened, and sits below the Track ID cards.
 
 ### Flasher
 
-- Sentinel & Detectors config panel is hidden on the Stable channel. Stable firmware builds with `AH_SENTINEL=0` and silently dropped those keys.
-
-### Docs
-
-- README: Full vs Headless — what each build can do, and which result fields are data both builds emit versus rendering only the web UI does
-- README: `GROUP` membership, `DETECT_CFG` coverage, and that group changes persist to NVS
-- README: deployment steps by tier
-- README: mesh radio setup with `scripts/meshtastic_config.py`
-- README: images served from the repo, capped at 1200px wide
-- BOM: image attribution disclaimer
+- Sentinel & Detectors panel is hidden on Stable. Stable builds with `AH_SENTINEL=0` and silently dropped those keys.
+- `flashAntihunter.sh` no longer clones a third-party esptool. It uses `esptool` or `esptool.py` from your PATH, or prints the apt/dnf/pacman/brew install command and stops.
+- Flashing requires accepting the Legal Disclaimer; the flash button stays disarmed until the box is ticked.
