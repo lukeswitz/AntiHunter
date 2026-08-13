@@ -266,9 +266,9 @@ uint32_t calculateOptimalCacheSize() {
 }
 
 static void baselineHarvestWifiActive() {
-    static uint32_t lastWiFiScan = 0;
     int wifiScan = WiFi.scanComplete();
     if (wifiScan == WIFI_SCAN_FAILED) {
+        static uint32_t lastWiFiScan = 0;
         if (millis() - lastWiFiScan >= WIFI_SCAN_INTERVAL) {
             lastWiFiScan = millis();
             WiFi.scanNetworks(true, false, false, rfConfig.wifiChannelTime, nextActiveScanChannel());
