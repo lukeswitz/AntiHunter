@@ -16,6 +16,8 @@ Beta channel · Previous release v1.0.1-beta2 (2026-08-07)
 - Target Scan swept one channel per pass instead of all of them, so it reported roughly a third of the devices a Device Scan found in the same spot. Measured on hardware: Unique 24 before, 70 after, against 75 for a Device Scan.
 - Baseline learns WiFi client stations, not just APs. It ran with promiscuous capture off, so anything that was not an AP never entered the baseline.
 - Triangulation no longer refuses to pin above channel 14, which blocked every 5 GHz target on C5.
+- Sentinel evil-twin `SSID_COLLISION` alerted on ordinary neighbour networks. Two vendors sharing one SSID — a router plus a third-party extender, a mixed-generation mesh kit — was the whole test, and at scan start every AP is new. Sentinel now learns an SSID's vendor OUIs for five minutes and alerts only on an OUI that turns up outside that baseline. A twin already transmitting when the node boots is inside the baseline and will not raise this reason; `TWIN_MULTICH`, `TSF_RESTART` and `SELF_CLONE` are unchanged.
+- Mesh `EVILTWIN` carries the SSID: `EVILTWIN:<bssid>:<reason>:<rssi>:<ssid>`. The SSID is the last field and may itself contain `:`, so read it as the rest of the line.
 
 ### Headless FW
 
@@ -34,6 +36,7 @@ Beta channel · Previous release v1.0.1-beta2 (2026-08-07)
 ### Flasher
 
 - Sentinel & Detectors config panel is hidden on the Stable channel. Stable firmware builds with `AH_SENTINEL=0` and silently dropped those keys.
+- `flashAntihunter.sh` no longer clones a third-party esptool fork when esptool is missing. It uses the `esptool` or `esptool.py` on your PATH and, when neither is there, prints the install command for apt, dnf, pacman or brew and stops.
 
 ### Experimental
 

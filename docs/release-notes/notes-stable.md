@@ -28,6 +28,7 @@ Stable channel · Previous release v1.0.1 (2026-08-07)
 ### Flasher
 
 - Sentinel & Detectors config panel is hidden on the Stable channel. Stable firmware builds with `AH_SENTINEL=0` and silently dropped those keys.
+- `flashAntihunter.sh` no longer clones a third-party esptool fork when esptool is missing. It uses the `esptool` or `esptool.py` on your PATH and, when neither is there, prints the install command for apt, dnf, pacman or brew and stops.
 
 ### Docs
 
@@ -36,4 +37,5 @@ Stable channel · Previous release v1.0.1 (2026-08-07)
 - README: deployment steps by tier
 - README: mesh radio setup with `scripts/meshtastic_config.py`
 - README: images served from the repo, capped at 1200px wide
+- README: the Sentinel command section is marked Beta only — Stable ships with `AH_SENTINEL=0`
 - BOM: image attribution disclaimer
