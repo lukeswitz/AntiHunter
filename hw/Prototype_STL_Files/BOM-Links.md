@@ -30,7 +30,6 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
 | 3× | JST Power Male Cables (switch, power & thermal) |
 | 1× | KSD9700 Thermal Switch — Normally Open, 30–40°C |
-| 1× | 2A Fast-Blow Fuse + holder — battery line |
 | 2× | 18650 Cells — protected, flat-top (not supplied with any tier) |
 | 1× | Weatherproof Enclosure |
 | 1× | TPU Seal Kit — housing, USB-C, GPS antenna |
@@ -79,7 +78,6 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 1× | **30mm 5V JST Fan** | <img width="110" src="../../docs/img/bom-fan.jpg" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="../../docs/img/bom-switch.jpg" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
 | 3× | **JST Power Male Cables**<br>*Switch, thermal sensor, power board·  Includes female 2.54 JST socket* | <img width="110" src="../../docs/img/bom-jst-cables.jpg" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
-| 1× | **2A Fast-Blow Fuse + holder**<br>*In series with the battery line, per the assembly manual* | — | — | [Search](https://www.amazon.com/s?k=inline+fuse+holder+2A+fast+blow) | [Search](https://www.aliexpress.com/w/wholesale-inline-fuse-holder-2A.html) |
 | 2× | **18650 Cells**<br>*Protected, flat-top, ~3000 mAh · not supplied with any tier* | — | — | [Search](https://www.amazon.com/s?k=protected+18650+flat+top) | [Search](https://www.aliexpress.com/w/wholesale-protected-18650.html) |
 | 1× | **Weatherproof Enclosure**<br>*3D-printed* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
 | 1× | **TPU Seal Kit**<br>*Housing, USB-C, GPS antenna — grease before fitting* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
