@@ -57,6 +57,8 @@
 - Drop-in replacement for the ESP32-S3 on the same PCB — same pads, same peripherals, adds 5 GHz.
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
 
+> Built or bought a node/kit? The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** takes you from unboxing to deployment: antennas, flashing, mesh setup, every detector, the vibration sensor, Command Center install and a printable quick-reference card.
+
 <p align="center">
 <img width="1200" alt="AntiHunter node" src="docs/img/node-photo.jpg" />
 
@@ -361,6 +363,7 @@ Karma bait is the only detector that transmits, a probe request every 8s. Off by
 
 ### Assembling the PCB
  
+- [Operator's Guide](https://github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf) — unboxing, antennas, flashing, mesh setup, deployment
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ### Core Components

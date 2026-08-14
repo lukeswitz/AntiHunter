@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AntiHunter DIGI NODE Operator's Guide</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 14mm 15mm; }
+  @page :first { margin: 0; }
+
+  :root {
+    --ink: #14161a;
+    --mut: #5b6068;
+    --line: #d8dbe0;
+    --accent: #a6004e;
+    --accent-soft: #fdeef4;
+    --warn: #b3261e;
+    --warn-soft: #fdeceb;
+    --ok: #1c6b3f;
+    --ok-soft: #ecf6f0;
+    --panel: #f4f5f7;
+  }
+
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    margin: 0;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9.6pt;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+
+  h1, h2, h3, h4 { line-height: 1.2; margin: 0; }
+
+  .cover { height: 297mm; display: flex; flex-direction: column; break-after: page; }
+  .cover-img { height: 132mm; overflow: hidden; background: #eceded; border-bottom: 1px solid var(--line); }
+  .cover-img img { width: 100%; height: 100%; object-fit: cover; object-position: center 44%; }
+  .cover-body { flex: 1; padding: 18mm 18mm 14mm; display: flex; flex-direction: column; }
+  .cover-rule { width: 46mm; height: 4px; background: var(--accent); margin-bottom: 9mm; }
+  .cover h1 { font-size: 34pt; letter-spacing: -.5px; font-weight: 800; }
+  .cover h1 span { display: block; color: var(--accent); }
+  .cover .sub { font-size: 13pt; color: var(--mut); margin-top: 5mm; font-weight: 500; }
+  .cover .tiers { margin-top: 9mm; font-size: 10pt; color: var(--ink); }
+  .cover .tiers b { color: var(--accent); }
+  .cover .foot { margin-top: auto; font-size: 8.5pt; color: var(--mut); border-top: 1px solid var(--line); padding-top: 4mm; }
+
+  .sec { margin-top: 9mm; }
+  .sec:first-of-type { margin-top: 0; }
+  h2 {
+    font-size: 17pt; font-weight: 800; letter-spacing: -.3px;
+    padding-bottom: 3mm; margin-bottom: 5mm;
+    border-bottom: 3px solid var(--accent);
+    break-after: avoid; break-before: auto;
+  }
+  h2 .num { color: var(--accent); margin-right: 3mm; }
+  h3 { font-size: 11.5pt; font-weight: 700; margin: 7mm 0 2.5mm; break-after: avoid; }
+  h4 { font-size: 9.8pt; font-weight: 700; margin: 5mm 0 1.5mm; color: #2c3037; break-after: avoid; }
+  p { margin: 0 0 2.5mm; orphans: 2; widows: 2; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; }
+  li { margin-bottom: 1.2mm; orphans: 2; widows: 2; }
+  a { color: var(--accent); text-decoration: none; word-break: break-all; }
+  code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.6pt; }
+  code { background: var(--panel); padding: .4mm 1.2mm; border-radius: 2px; }
+  pre {
+    background: #1b1e24; color: #e8eaed; padding: 3mm 4mm; border-radius: 3px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.2pt; line-height: 1.5;
+    overflow-wrap: break-word; white-space: pre-wrap; margin: 0 0 3mm; break-inside: avoid;
+  }
+  pre .c { color: #8e97a6; }
+
+  table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 8.7pt; }
+  th { background: var(--accent); color: #fff; text-align: left; font-weight: 700; padding: 1.8mm 2.2mm; font-size: 8.4pt; }
+  td { border-bottom: 1px solid var(--line); padding: 1.8mm 2.2mm; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafbfc; }
+  table.tight td, table.tight th { padding: 1.3mm 2mm; }
+
+  .box { padding: 3mm 4mm; margin: 0 0 4mm; border-left: 3px solid var(--line); background: var(--panel); }
+  tr { break-inside: avoid; }
+  .box.long { font-size: 9pt; line-height: 1.35; }
+  .box.long li { margin-bottom: .4mm; }
+  .box p:last-child { margin-bottom: 0; }
+  .box .t { font-weight: 800; text-transform: uppercase; letter-spacing: .06em; font-size: 8pt; display: block; margin-bottom: 1.5mm; }
+  .warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .warn .t { color: var(--warn); }
+  .tip { border-left-color: var(--ok); background: var(--ok-soft); }
+  .tip .t { color: var(--ok); }
+  .tier { border-left-color: var(--accent); background: var(--accent-soft); }
+  .tier .t { color: var(--accent); }
+
+  figure { margin: 0 0 4mm; break-inside: avoid; }
+  figure img { width: 100%; display: block; border: 1px solid var(--line); border-radius: 2px; }
+  figcaption { font-size: 8pt; color: var(--mut); margin-top: 1.2mm; }
+  .row { display: flex; gap: 3mm; margin-bottom: 4mm; break-inside: avoid; }
+  .row figure { flex: 1; margin-bottom: 0; }
+  .half { width: 52%; }
+  .third { width: 45%; }
+  .port { width: 38%; }
+
+  .lead { font-size: 10.4pt; color: var(--mut); margin-bottom: 5mm; }
+  .check { list-style: none; padding-left: 0; }
+  .check li { padding-left: 6mm; text-indent: -6mm; }
+  .check li::before { content: "☐  "; color: var(--accent); font-weight: 700; }
+  .toc { column-count: 2; column-gap: 10mm; font-size: 9.2pt; }
+  .toc div { break-inside: avoid; margin-bottom: 1.6mm; }
+  .toc .n { color: var(--accent); font-weight: 700; display: inline-block; width: 8mm; }
+  .toc .s { color: var(--mut); font-size: 8.4pt; padding-left: 8mm; display: block; }
+  .qref { border: 2px solid var(--accent); border-radius: 4px; padding: 4mm 5mm; }
+  .small { font-size: 8.2pt; color: var(--mut); }
+  .legal { font-size: 7.6pt; line-height: 1.4; color: #3a3f47; }
+  .legal p { margin-bottom: 2mm; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-img"><img src="img/cover-box.jpg" alt=""></div>
+  <div class="cover-body">
+    <div class="cover-rule"></div>
+    <h1>ANTIHUNTER<span>DIGI NODE</span></h1>
+    <div class="sub">Operator's Guide: from the box to the field</div>
+    <div class="tiers">
+      Covers all four tiers: <b>Fully Assembled Unit</b> · <b>Complete Parts Kit</b> · <b>Populated PCB</b> · <b>Bare PCB</b>
+    </div>
+    <div class="foot">
+      Guide revision 1.0 · 14 August 2026 · Written for the current Stable and Beta firmware channels<br>
+      github.com/lukeswitz/AntiHunter · Web flasher: lukeswitz.github.io/AntiHunter
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <h2>Hello, operator</h2>
+  <p class="lead">Welcome to AntiHunter. This node is a self-contained WiFi, Bluetooth and LoRa mesh sensor. It runs everything on the device: no cloud, no account, no server needed. It is fully open source. Read the firmware, write your own mesh commands, wire it into your own IDS. Make it yours.</p>
+
+  <p>This guide takes you from opening the box to a tuned node in the field, whichever tier you bought. Sections that only apply to one tier are marked. Everything else applies to every node.</p>
+
+  <div class="box warn">
+    <span class="t">Read before applying power: three rules</span>
+    <p><b>1. Regulated 5 V only.</b> Power the PCB from USB, a bench supply set to 5 V, a proper DC-DC regulator, or the UPS board. Never connect 18650 cells, a battery pack, or a vehicle supply directly to the board. Unregulated input permanently damages the modules. Voltages under 4.5 V cause instability.</p>
+    <p><b>2. Never power the LoRa radio without its antenna.</b> Transmitting into an open port can destroy the radio's PA. Fit the LoRa antenna, or the U.FL pigtail plus antenna, before the node is energised.</p>
+    <p><b>3. One USB cable at a time.</b> The ESP32 and the Meshtastic radio share the PCB's power rails. With both USB ports plugged in, one board back-feeds the other. Plug in one board, do your work, unplug it, then plug in the other.</p>
+  </div>
+
+  <h3>What you are holding</h3>
+  <table>
+    <tr><th style="width:26%">Tier</th><th>What is in the box</th><th style="width:32%">What you still have to do</th></tr>
+    <tr><td><b>1 · Fully Assembled Unit</b></td><td>Built, soldered, tested and ready to deploy. 8 GB SD card fitted. Active GPS helix antenna. SMA antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Fit two 18650 cells, screw on the antennas (§2), flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
+    <tr><td><b>2 · Complete Parts Kit</b></td><td>Every part on the bill of materials, unassembled, as it comes from the supplier. Passive GPS antenna. Nothing is soldered and nothing is flashed.</td><td>Solder and assemble it (§3), flash Meshtastic on the radio (§7.1), then flash AntiHunter (§5) and configure.</td></tr>
+    <tr><td><b>3 · Populated PCB</b></td><td>A fully assembled PCB. Core modules soldered, bench-tested, 8 GB SD card fitted. Factory U.FL antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Attach the antennas (§2), supply power over USB or 18650s, build the housing if you want one, flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
+    <tr><td><b>4 · Bare PCB</b></td><td>One 82 mm board, unpopulated.</td><td>Source the BOM, solder the modules, flash Meshtastic on the radio, fit an SD card, then follow this guide from §3.</td></tr>
+  </table>
+
+  <div class="box tier">
+    <span class="t">Tiers 1 and 3: the radio is already done</span>
+    <p>On the Fully Assembled Unit and the Populated PCB, the Meshtastic radio ships flashed with the latest stable firmware and the serial link to the node already configured: TEXTMSG mode, 115200 baud, on the correct pins for the board. You do <i>not</i> need to redo that. You <i>do</i> still need to set your LoRa region and create your own encrypted channel. See §7.</p>
+    <p>On the Complete Parts Kit and the Bare PCB you flash the radio yourself first. §7.1 has the settings. The ESP32 ships empty on <i>every</i> tier, so you always flash AntiHunter yourself and know exactly what is on it.</p>
+  </div>
+
+  <h3>Contents</h3>
+  <div class="toc">
+    <div><span class="n">1</span> Unboxing and inventory<span class="s">Tier checklists, tools you supply, power and thermal</span></div>
+    <div><span class="n">2</span> Antennas<span class="s">U.FL seating, SMA fitting, which port is which</span></div>
+    <div><span class="n">3</span> Assembly<span class="s">Tiers 2 and 4: where the assembly manual takes over</span></div>
+    <div><span class="n">4</span> First power-on<span class="s">Boot signs, SD card, GPS, real-time clock</span></div>
+    <div><span class="n">5</span> Flashing the firmware<span class="s">Full vs Headless, three flashing methods</span></div>
+    <div><span class="n">6</span> Staying up to date<span class="s">Release channels, GitHub notifications, rollback</span></div>
+    <div><span class="n">7</span> Mesh radio setup<span class="s">Region, encrypted channel, quiet-ops settings</span></div>
+    <div><span class="n">8</span> First configuration<span class="s">Credentials, node ID, scan presets, privacy</span></div>
+    <div><span class="n">9</span> Using the node<span class="s">Every detector, what it finds, how to run it</span></div>
+    <div><span class="n">10</span> Vibration sensor and tamper<span class="s">How it works, tuning the trimpot, auto-erase</span></div>
+    <div><span class="n">11</span> Mesh command reference<span class="s">Everything you can send from a phone</span></div>
+    <div><span class="n">12</span> Command Center (C2)<span class="s">Quick install, first login, connecting a radio</span></div>
+    <div><span class="n">13</span> Deployment<span class="s">Siting, sealing, mounting, power budget</span></div>
+    <div><span class="n">14</span> Maintenance and troubleshooting<span class="s">Symptom tables, factory reset, getting help</span></div>
+    <div><span class="n">15</span> Legal and safety<span class="s">Authorisation, radio law, privacy, disclaimer</span></div>
+    <div><span class="n">A–E</span> Appendices<span class="s">Pinout, BOM, defaults, glossary, quick-reference card</span></div>
+  </div>
+</div>
+
+<div class="sec">
+  <h2><span class="num">1</span>Unboxing and inventory</h2>
+  <p class="lead">Open the box on a clean, static-safe surface. Check what arrived against your tier before you power anything.</p>
+
+  <h3>1.1 Tier checklists</h3>
+
+  <div class="box tier"><span class="t">Tier 1: Fully Assembled Unit</span>
+  <ul class="check" style="margin-bottom:0">
+    <li>Node built, soldered and bench-tested</li>
+    <li>8 GB SD card fitted</li>
+    <li>Active GPS helix antenna</li>
+    <li>2.4 GHz WiFi/BLE SMA antenna</li>
+    <li>LoRa SMA antenna for your region</li>
+    <li>Meshtastic flashed on the radio, serial link configured</li>
+  </ul>
+  </div>
+
+  <div class="box tier long"><span class="t">Tier 2: Complete Parts Kit</span>
+  <p style="margin-bottom:2mm">Every part needed to build a finished node. Nothing is soldered and nothing is flashed. The two 18650 cells are the only thing you supply.</p>
+  <ul class="check" style="margin-bottom:0">
+    <li>Bare 82 mm PCB</li>
+    <li>XIAO ESP32-S3</li>
+    <li>Heltec V3.2 LoRa radio (or T114)</li>
+    <li>ATGM336H GPS module</li>
+    <li>DS3231 RTC module</li>
+    <li>SW-420 vibration sensor</li>
+    <li>Micro SD reader module</li>
+    <li>8 GB SD card</li>
+    <li>Pin headers for every module</li>
+    <li>3D-printed enclosure: main PCB housing, battery housing, front cover, back cover</li>
+    <li>TPU seals for the housing, GPS and USB-C port</li>
+    <li>3× U.FL-to-SMA pigtail cables</li>
+    <li>SMA bulkheads</li>
+    <li>2.4 GHz WiFi/BLE antenna, 6 dBi</li>
+    <li>LoRa antenna for your region</li>
+    <li>Passive ceramic GPS antenna, the one supplied with the GPS module</li>
+    <li>30 mm 5 V fan with JST lead</li>
+    <li>KSD9700 normally-open thermal switch, 40 °C</li>
+    <li>3-pin mini on/off switch with rubber cover</li>
+    <li>Type-C 15 W 3 A 5 V UPS charger board, dual 18650</li>
+    <li>6× JST 2.54 2-pin terminals</li>
+    <li>3× JST power male cables for the switch, thermal switch and power board</li>
+    <li>M3 heat-set inserts</li>
+    <li>M3 hex head screws for the PCB, power board and enclosure</li>
+    <li>2× M2.5 screws, supplied with the fan</li>
+    <li>2× 15 mm brass standoffs</li>
+    <li>¼"-20 tripod insert</li>
+  </ul>
+  </div>
+
+  <div class="box tier"><span class="t">Tier 3: Populated PCB</span>
+  <p style="margin-bottom:2mm">A fully assembled PCB, bench-tested, on its factory antennas. No enclosure and no power source.</p>
+  <ul class="check" style="margin-bottom:0">
+    <li>PCB with XIAO ESP32-S3, Heltec V3.2 LoRa radio (or T114), ATGM336H GPS, DS3231 RTC, SW-420 vibration sensor and SD reader soldered</li>
+    <li>8 GB SD card fitted</li>
+    <li>Factory U.FL antennas: flat 2.4 GHz film, coiled LoRa whip, ceramic GPS patch</li>
+    <li>Meshtastic flashed on the radio, serial link configured</li>
+  </ul>
+  </div>
+
+  <div class="box tier"><span class="t">Tier 4: Bare PCB</span>
+  <ul class="check" style="margin-bottom:0">
+    <li>One 82 mm AntiHunter DIGI NODE PCB, unpopulated</li>
+  </ul>
+  <p class="small" style="margin:2mm 0 0">Everything else comes from the bill of materials in Appendix B, including the Meshtastic radio, which you flash yourself.</p>
+  </div>
+
+  <h3>1.2 What you supply</h3>
+  <ul>
+    <li><b>Power.</b> Tiers 1 and 2 take two 18650 cells in the UPS board. Tier 3 runs from USB or from your own regulated 5 V supply. Cells are never supplied on any tier.</li>
+    <li><b>18650 cells.</b> Brand new, same brand, same capacity, never mixed old with new. Sourcing, charging, storage and disposal are your responsibility.</li>
+    <li><b>A micro SD card</b>, only on the Bare PCB tier. Every other tier ships with an 8 GB card. A replacement must be FAT32, and 32 GB or larger is not recommended.</li>
+    <li><b>A USB-C data cable.</b> Charge-only cables will not flash the board.</li>
+    <li><b>A computer running Chrome or Edge</b> for the web flasher, or a terminal for the CLI installer.</li>
+    <li><b>Soldering tools</b> on tiers 2 and 4: temperature-controlled iron, fine solder, flux, tweezers, small Phillips and hex drivers, heat-resistant surface.</li>
+  </ul>
+
+  <div class="row">
+    <figure><img src="../img/bom-pcb.jpg" alt=""><figcaption>The bare 82 mm board.</figcaption></figure>
+    <figure><img src="../img/bom-xiao-s3.jpg" alt=""><figcaption>XIAO ESP32-S3.</figcaption></figure>
+    <figure><img src="../img/bom-heltec.jpg" alt=""><figcaption>Heltec V3.2 LoRa radio.</figcaption></figure>
+  </div>
+  <div class="row">
+    <figure><img src="../img/bom-gps.jpg" alt=""><figcaption>ATGM336H GPS module.</figcaption></figure>
+    <figure><img src="../img/bom-rtc.jpg" alt=""><figcaption>DS3231 real-time clock.</figcaption></figure>
+    <figure><img src="../img/bom-vibration.jpg" alt=""><figcaption>SW-420 vibration sensor. Note the trimpot.</figcaption></figure>
+  </div>
+  <div class="row">
+    <figure><img src="../img/bom-sd-reader.jpg" alt=""><figcaption>Micro SD reader module.</figcaption></figure>
+    <figure><img src="../img/bom-ufl-pigtail.jpg" alt=""><figcaption>U.FL-to-SMA pigtail.</figcaption></figure>
+    <figure><img src="../img/bom-ups.jpg" alt=""><figcaption>5 V UPS charger board.</figcaption></figure>
+  </div>
+
+  <h3>1.3 Power</h3>
+  <p>The node draws roughly 160 mA idle and 600 mA while actively scanning. Inside the enclosure the UPS board provides the regulated 5 V and the cells are never connected to the PCB directly. Outside the enclosure, use a USB-C adapter, a bench supply set to 5.0 V on the 5 V input, or a proper DC-DC regulator.</p>
+
+  <div class="box warn">
+    <span class="t">Power rules</span>
+    <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources. A fuse in the battery line is recommended, a 2 A fast-blow in series with the switch wiring, but one is not supplied with any tier.</p>
+  </div>
+
+  <h3>1.4 Thermal</h3>
+  <p>The ESP32 runs warm under load and the GPS module gets noticeably hot while it searches for satellites. Both are normal. Neither the fan nor the thermal switch is required for the node to work.</p>
+  <ul>
+    <li>The 30 mm fan plugs into the FAN JST output.</li>
+    <li>The KSD9700 normally-open thermal switch, 40 °C, wires to the THERMO JST and switches the fan on when the enclosure heats up.</li>
+    <li>To run the fan continuously instead, jump the THERMO input or supply 5 V straight to the fan port.</li>
+  </ul>
+</div>
+
+<div class="sec">
+  <h2><span class="num">2</span>Antennas</h2>
+  <p class="lead">More nodes are damaged fitting antennas than in any other step. The U.FL connectors are small, fragile and unforgiving of a crooked press. Take your time here.</p>
+
+  <h3>2.1 Which antenna goes where</h3>
+  <table>
+    <tr><th>Antenna</th><th>U.FL set (tiers 2 and 3)</th><th>SMA set (tiers 1 and 2)</th><th>Connects to</th></tr>
+    <tr><td><b>2.4 GHz WiFi / BLE</b></td><td>Flat black film antenna, printed <span class="mono">2.4G</span></td><td>Shorter of the two rubber ducks, 6 dBi</td><td>The U.FL socket on the XIAO ESP32-S3, or its SMA bulkhead</td></tr>
+    <tr><td><b>LoRa</b> (region specific)</td><td>Coiled black whip</td><td>Longer duck, marked 868 MHz (EU), 915 MHz (US) or 923 MHz (Asia)</td><td>The U.FL socket on the Heltec / T114 radio, or its SMA bulkhead</td></tr>
+    <tr><td><b>GPS</b></td><td>Passive ceramic patch, supplied with the GPS module</td><td>Active helix, Fully Assembled Unit only</td><td>The U.FL socket on the GPS module, or the SMA bulkhead in the battery housing</td></tr>
+  </table>
+
+  <figure><img src="img/antenna-map.jpg" alt=""><figcaption>The factory U.FL antenna set beside the sockets each one belongs to: ceramic GPS patch, coiled LoRa whip (915 MHz shown, yours matches your region), flat 2.4 GHz film antenna. The GPS module carries the GPS socket, the Heltec carries LoRa, the XIAO carries 2.4 GHz WiFi and BLE.</figcaption></figure>
+
+  <div class="box"><span class="t">Pick an orientation and keep it</span>
+    <p>On an enclosed build, decide which bulkhead carries LoRa and which carries WiFi, then wire every node you build the same way. It does not matter which you choose. It matters that a spare antenna always fits the port you expect in the field.</p>
+  </div>
+
+  <figure class="half"><img src="img/sma-orientation.jpg" alt=""><figcaption>The two SMA bulkheads with the power switch centred between them.</figcaption></figure>
+
+  <div class="box warn">
+    <span class="t">Match your antennas across nodes</span>
+    <p>When you build more than one node, use the same antenna type and the same cable length on all of them. Triangulation and any other multi-node distance estimate assumes the nodes hear the world the same way. Mismatched antennas skew the result.</p>
+  </div>
+
+  <h3>2.2 Fitting a U.FL / IPX pigtail (tiers 2 and 3)</h3>
+  <p>The pigtail's tiny snap connector mates with the socket on each module. It seats with an audible, tactile click.</p>
+  <ol>
+    <li>Identify each pigtail and the socket it belongs to. Route the cable before you connect it, not after.</li>
+    <li>Hold the connector <b>parallel to the board</b> and align its rim concentrically over the socket. Look at it from the side: the two rims must be perfectly stacked.</li>
+    <li>Press <b>straight down</b> with a fingertip or the flat of a plastic tool until it clicks.</li>
+    <li>Tug the cable gently to confirm it is home. If it lifts off, it never seated.</li>
+  </ol>
+
+  <div class="row">
+    <figure><img src="img/ufl-gps.jpg" alt=""><figcaption>GPS module, connector facing up.</figcaption></figure>
+    <figure><img src="img/ufl-lora.jpg" alt=""><figcaption>LoRa radio, socket circled.</figcaption></figure>
+    <figure><img src="img/ufl-wifi.jpg" alt=""><figcaption>XIAO ESP32-S3, WiFi/BLE socket.</figcaption></figure>
+  </div>
+
+  <div class="box warn">
+    <span class="t">U.FL: do not</span>
+    <ul style="margin-bottom:0">
+      <li>Do not press at an angle.</li>
+      <li>Do not force a connector that will not click.</li>
+      <li>Do not pull the cable to remove one. Lift the connector body straight up, or use a U.FL removal tool.</li>
+      <li>Do not reseat one repeatedly. The contacts wear out.</li>
+      <li><b>Misalignment damage is permanent.</b> A crushed socket means a new module.</li>
+    </ul>
+  </div>
+
+  <h3>2.3 Fitting SMA antennas (tiers 1 and 2)</h3>
+  <ol>
+    <li>Check the bulkhead is tight in the shell. The nut and washer go on the outside, and the bulkhead should not rotate when you turn an antenna onto it.</li>
+    <li>Start the thread by hand, straight on. Never cross-thread it.</li>
+    <li>Turn until finger-tight, then no more than an eighth of a turn. Do not use pliers.</li>
+    <li>Fold the duck upright once fitted. Antennas work best vertical.</li>
+  </ol>
+  <div class="row">
+    <figure><img src="img/sma-gps-housing.jpg" alt=""><figcaption>GPS SMA female fitted into the battery housing, secured from outside with washer and nut.</figcaption></figure>
+    <figure><img src="img/sma-mainhousing.jpg" alt=""><figcaption>WiFi SMA (female, left) and LoRa SMA (male, right) in the main housing.</figcaption></figure>
+  </div>
+
+  <div class="box tip"><span class="t">Wet conditions</span>
+    <p>A smear of silicone grease on the SMA threads and on the TPU seals keeps water out and makes the antennas easier to remove later.</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2><span class="num">3</span>Assembly <span class="small">(tiers 2 and 4)</span></h2>
+  <p class="lead">Tiers 1 and 3 arrive soldered. Skip to §4.</p>
+
+  <div class="box tier"><span class="t">Build from the assembly manual, not from here</span>
+    <p>The Complete Parts Kit and the Bare PCB are built with the illustrated assembly manual, which covers soldering, connectors, the enclosure, the SD card and the power wiring in photographed steps. This guide does not repeat it.</p>
+    <p><span class="mono">hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf</span><br>
+    <span class="mono">github.com/lukeswitz/AntiHunter</span>, in the <span class="mono">hw</span> folder</p>
+    <p>Work through it end to end, then come back here at §4 to power the node up for the first time.</p>
+  </div>
+
+</div>
+
+<div class="sec">
+  <h2><span class="num">4</span>First power-on</h2>
+
+  <h3>4.1 What a healthy boot looks like</h3>
+  <p>Connect a USB-C cable to the <b>ESP32</b> only, remembering one USB at a time, and open a serial monitor at 115200 baud. On boot the firmware prints its banner and version, then the results of its hardware checks: SD card, GPS, RTC, vibration sensor. Any module that failed to initialise says so by name.</p>
+  <p>If you flashed the <b>Full</b> firmware, a WiFi access point named <span class="mono">Antihunter</span> also appears within a few seconds.</p>
+
+  <h3>4.2 Confirming the hardware</h3>
+  <p>Every subsystem reports into the diagnostics text, visible in the web UI's System tab, over serial, and in the reply to a mesh <span class="mono">STATUS</span> command. Check for:</p>
+  <ul>
+    <li><b>SD card.</b> Mounted and writable. If it is missing, the node still scans but nothing is logged.</li>
+    <li><b>GPS.</b> Reports a fix once it has one. Give it a clear view of the sky; indoors it may never lock. Detections carry coordinates only when the fix is valid.</li>
+    <li><b>RTC.</b> Supplies the timestamps on every log line and export.</li>
+    <li><b>Vibration sensor.</b> Shows <span class="mono">Standby</span>, or <span class="mono">Active</span> with the time of the last movement.</li>
+  </ul>
+
+  <h3>4.3 The clock</h3>
+  <p>Nothing to do. The DS3231 is set when you flash the firmware, and GPS disciplines it again on every fix. Its coin cell keeps it running across power cycles. All timestamps in this system are UTC.</p>
+
+  <div class="box tip"><span class="t">Order of operations</span>
+    <p>Flash the firmware first (§5), then set the clock and configure the radio. A fresh flash with "Erase Device" ticked clears saved settings, so do it before you spend time configuring.</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2><span class="num">5</span>Flashing the firmware</h2>
+  <p class="lead">The ESP32 ships empty on every tier. You choose the build and put it on yourself.</p>
+
+  <h3>5.1 Full or Headless?</h3>
+  <p>Same firmware, same detectors, same mesh commands, same scan engine. The difference is whether the node hosts a WiFi access point.</p>
+  <table>
+    <tr><th style="width:22%"></th><th>Full</th><th>Headless</th></tr>
+    <tr><td><b>Control</b></td><td>Web UI and HTTP API over its own AP, plus serial and mesh</td><td>Serial and mesh only</td></tr>
+    <tr><td><b>RF footprint</b></td><td>The AP beacons continuously, so the node is discoverable as a WiFi network</td><td>Never beacons</td></tr>
+    <tr><td><b>Results</b></td><td>Rendered as cards in the web UI's Results tab, and served plain over the API like every other endpoint. Written to the SD card as well</td><td>Written to <span class="mono">/last_results.txt</span> on the SD card</td></tr>
+    <tr><td><b>Logging</b></td><td colspan="2">Identical. Both builds write results, the probe database, vibration events, sentinel incidents and scan logs to the SD card</td></tr>
+    <tr><td><b>Device database</b></td><td><span class="mono">/devicedb.jsonl</span>, which is what the Data Explorer browses</td><td>Not written</td></tr>
+    <tr><td><b>Best for</b></td><td>Bench work, first setup, anything where you want the UI</td><td>Covert and long-term field deployments</td></tr>
+  </table>
+  <p>Start with Full while you learn the device. Reflash to Headless before a quiet deployment. It takes two minutes and your settings live on the SD card.</p>
+
+  <h3>5.2 Release channels</h3>
+  <table class="tight">
+    <tr><th>Channel</th><th>Source</th><th>Use it when</th></tr>
+    <tr><td><b>Stable</b></td><td><span class="mono">main</span> branch</td><td>Default. Field deployments.</td></tr>
+    <tr><td><b>Beta</b></td><td><span class="mono">beta</span> branch</td><td>New features first, with the risk that implies.</td></tr>
+    <tr><td><b>Experimental</b></td><td>ESP32-C5 builds (2.4 + 5 GHz) and RadarNode</td><td>Only on C5 hardware. The flasher asks you to acknowledge these are test builds.</td></tr>
+  </table>
+
+  <h3>5.3 Method A: web flasher (recommended)</h3>
+  <ol>
+    <li>Open <b>lukeswitz.github.io/AntiHunter</b> in Chrome or Edge on a desktop. Other browsers cannot talk to serial ports.</li>
+    <li>Choose <b>Full</b> or <b>Headless</b>, and a release channel.</li>
+    <li>Plug the ESP32 in with a data cable, nothing else connected to the board.</li>
+    <li>Click <b>Connect &amp; Flash</b> and pick the port.</li>
+    <li>Optionally set your device parameters before flashing. The <b>Sentinel &amp; Detectors</b> panel configures the whole detection engine: start-on-boot, radio mode, every detector toggle, mesh flags, thresholds. Anything left on <i>Default</i> keeps the firmware's own setting.</li>
+  </ol>
+  <div class="box"><span class="t">Erase Device</span>
+    <p>Tick it when upgrading from firmware older than v0.9.2, or when you want to clear saved settings. Otherwise leave it off. Settings persist in NVS and are mirrored to the SD card, and self-heal if they are corrupted.</p>
+  </div>
+
+  <h3>5.4 Method B: command line</h3>
+  <pre>curl -fsSL -o flashAntihunter.sh \
+  https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
+chmod +x flashAntihunter.sh
+./flashAntihunter.sh</pre>
+  <p>The script asks for a release channel, then Full or Headless. Flags: <span class="mono">-c</span> configure device parameters during the flash, <span class="mono">-e</span> erase flash first, <span class="mono">-l</span> list available firmware.</p>
+
+  <h3>5.5 Method C: build from source</h3>
+  <pre>git clone https://github.com/lukeswitz/AntiHunter.git
+cd AntiHunter
+pio device list                                <span class="c"># find the port</span>
+pio run -e AntiHunter-full -t upload           <span class="c"># web UI build</span>
+pio run -e AntiHunter-headless -t upload       <span class="c"># serial + mesh build</span>
+pio device monitor -e AntiHunter-full          <span class="c"># watch it boot</span>
+pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</span></pre>
+  <p>Environments: <span class="mono">AntiHunter-full</span> and <span class="mono">AntiHunter-headless</span> for the ESP32-S3; <span class="mono">AntiHunter-c5-full</span> and <span class="mono">AntiHunter-c5-headless</span> for the ESP32-C5 on the <span class="mono">feat/c5</span> branch; <span class="mono">RadarNode-c5</span> for the 24 GHz radar node.</p>
+
+  <h3>5.6 Verifying the flash</h3>
+  <ul>
+    <li>The serial monitor prints the banner and firmware version at boot.</li>
+    <li>Full build: the <span class="mono">Antihunter</span> access point appears.</li>
+    <li>Connect to it, password <span class="mono">antihunt3r123</span>, and open <b>http://192.168.4.1</b>. Note <span class="mono">http</span>, not https.</li>
+  </ul>
+
+  <div class="box warn"><span class="t">Do this before anything else</span>
+    <p>The default AP name and password are published in the documentation. Until you change them in <b>RF Settings</b>, treat the node as an open door. §8.1.</p>
+  </div>
+
+  <h3>5.7 Board variants</h3>
+  <p>The XIAO ESP32-C5 is a drop-in replacement for the S3 on the same board, with the same pads and peripherals, and it adds 5 GHz scanning. Those builds are in testing and live under the flasher's Experimental channel. The RadarNode variant pairs a 24 GHz radar with the same mesh: it detects a moving target, then sweeps WiFi and BLE to record which devices were present at that moment.</p>
+</div>
+
+<div class="sec">
+  <h2><span class="num">6</span>Staying up to date</h2>
+
+  <h3>6.1 Where updates come from</h3>
+  <p>Firmware is built and published by CI when a release is tagged. The web flasher always serves the current build for the channel you pick, so re-running the flasher is the update. Nothing on the node phones home or updates itself.</p>
+
+  <h3>6.2 Getting notified</h3>
+  <ol>
+    <li>Open <b>github.com/lukeswitz/AntiHunter</b> and sign in.</li>
+    <li>Click <b>Watch</b> → <b>Custom</b> → tick <b>Releases</b> → Apply. You now get an email or notification for every release, without the noise of every commit.</li>
+    <li>Read the release notes before flashing: <span class="mono">docs/release-notes/notes-stable.md</span> and <span class="mono">notes-beta.md</span> in the repository, and on each release page.</li>
+  </ol>
+  <p>Discussions and issues on the same repository are where behaviour changes, hardware alternatives and field reports get talked through.</p>
+
+  <h3>6.3 Updating a deployed node</h3>
+  <ol>
+    <li>Bring it in, or reach it over USB in place.</li>
+    <li>Re-run the web flasher or the CLI script on the same channel. Leave <b>Erase Device</b> unticked to keep your settings.</li>
+    <li>Reconnect and check the version, then confirm your targets, node ID and detector settings survived.</li>
+  </ol>
+  <p>Settings live in NVS and are mirrored to the SD card, so they normally survive an update. Watchlists, results and databases live on the SD card and are untouched by flashing.</p>
+
+  <h3>6.4 Rolling back</h3>
+  <p>Flash the other channel, or check out an earlier tag and build from source with PlatformIO. If a downgrade behaves strangely, erase and flash clean, then reconfigure.</p>
+
+  <div class="box tip"><span class="t">Fleet discipline</span>
+    <p>Run one firmware version across a mesh. Mixed versions can differ in the mesh message formats they emit and what your Command Center is able to parse.</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2><span class="num">7</span>Mesh radio setup</h2>
+  <p class="lead">The LoRa mesh gives you long-range control and alerting with no infrastructure. It is entirely optional, since a single node works standalone, but it is what turns several nodes into a system.</p>
+
+  <figure><img src="../img/mesh-screenshot.jpg" alt=""><figcaption>A device scan sending its results over the mesh. The header badge tracks the transmit queue draining at the LoRa airtime cap, 32 of 55 rows sent, and Privacy Mode has blanked the addresses.</figcaption></figure>
+
+  <h3>7.1 Flashing and linking the radio</h3>
+  <p><b>Tiers 1 and 3: already done.</b> On the Fully Assembled Unit and the Populated PCB the radio arrives on the latest stable Meshtastic with the serial link to the node set: <b>TEXTMSG</b> mode, <b>115200</b> baud, on the right pins for the board (19 RX / 20 TX on Heltec V3, 10 RX / 9 TX on T114). The screen is set to blank after 1 s and the status LED is off. Verify it if you like; do not redo it.</p>
+  <p><b>Tiers 2 and 4: you flash it.</b> The Complete Parts Kit and the Bare PCB include no flashed firmware at all. Connect the Heltec V3.2 (preferred) or T114 on its own USB and flash the latest stable Meshtastic from <b>flasher.meshtastic.org</b>. Then set the serial module, either in the Meshtastic app or web client, or with the script in §7.2:</p>
+  <table class="tight">
+    <tr><th style="width:26%">Setting</th><th>Value</th></tr>
+    <tr><td>Serial module</td><td>Enabled</td></tr>
+    <tr><td>Mode</td><td><span class="mono">TEXTMSG</span></td></tr>
+    <tr><td>Baud</td><td><span class="mono">115200</span></td></tr>
+    <tr><td>Pins, Heltec V3</td><td>19 RX / 20 TX</td></tr>
+    <tr><td>Pins, T114</td><td>10 RX / 9 TX</td></tr>
+  </table>
+  <p>Without this the node and the radio cannot talk, and no mesh command will ever reach the node.</p>
+
+  <div class="box warn"><span class="t">Three things every radio needs, whatever tier you bought</span>
+    <ul style="margin-bottom:0">
+      <li><b>LoRa region.</b> Ships <span class="mono">UNSET</span>. The radio receives but will not transmit until you set it (§7.2).</li>
+      <li><b>Bluetooth pairing PIN.</b> Every unit ships with the same pin. Change it, or turn BLE off.</li>
+      <li><b>Channel.</b> Ships on the public default. Make your own encrypted channel primary and turn the public one off (§7.3).</li>
+    </ul>
+  </div>
+
+  <h3>7.2 What you must set: region</h3>
+  <p>The LoRa region is not set at the factory, and an <span class="mono">UNSET</span> region makes the radio receive-only: it hears the mesh but never transmits. Set the region for the country you are in. It determines the frequency band and the legal power and duty-cycle limits.</p>
+  <p>Plug the <b>radio</b> in on its own USB, not the ESP32, and run:</p>
+  <pre>pip3 install 'meshtastic[cli]' pyserial
+python3 scripts/meshtastic_config.py</pre>
+  <p>With no arguments it prints the current settings and opens an interactive menu. Non-interactive equivalent:</p>
+  <pre>python3 scripts/meshtastic_config.py --serial on --board heltec-v3 \
+    --screen off --led off --ble off --region US</pre>
+  <table class="tight">
+    <tr><th>Option</th><th>What it does</th></tr>
+    <tr><td><span class="mono">--port</span></td><td>Serial port, auto-detected if omitted</td></tr>
+    <tr><td><span class="mono">--board heltec-v3 | t114</span></td><td>Sets the serial-module pins for your board</td></tr>
+    <tr><td><span class="mono">--region</span></td><td>LoRa region, e.g. <span class="mono">US</span>. <span class="mono">UNSET</span> means receive only</td></tr>
+    <tr><td><span class="mono">--serial on | off</span></td><td>The node link: TEXTMSG at 115200 on the board's pins</td></tr>
+    <tr><td><span class="mono">--screen on | off | SECS</span></td><td><span class="mono">off</span> blanks after 1 s, or give a timeout in seconds</td></tr>
+    <tr><td><span class="mono">--led on | off</span></td><td>Status LED heartbeat</td></tr>
+    <tr><td><span class="mono">--ble on | off</span></td><td>Bluetooth radio</td></tr>
+    <tr><td><span class="mono">--pin NNNNNN | none | random</span></td><td>BLE pairing: fixed 6-digit PIN, none, or random</td></tr>
+  </table>
+  <p>The same settings can be applied from the Meshtastic phone app or web client if you prefer.</p>
+
+  <h3>7.3 Your own encrypted channel</h3>
+  <p>Meshtastic ships with a public default channel whose key is published. Anything you send on it, commands, detections and coordinates alike, is readable by anyone in radio range running stock firmware. Before you deploy:</p>
+  <ol>
+    <li>In the Meshtastic app, create a <b>new channel</b> with a generated key and give it a name of your own.</li>
+    <li>Make it the <b>primary</b> channel.</li>
+    <li><b>Turn the public default channel off.</b></li>
+    <li>Share the channel to your other nodes and to your phone by QR code or channel URL. Every node in your mesh must carry the same channel.</li>
+  </ol>
+
+  <div class="box warn"><span class="t">The factory preset is not private</span>
+    <p>A node left on the default channel broadcasts its detections, its position and its command traffic to anyone listening. Changing the channel is the single most important mesh setting you will touch.</p>
+  </div>
+
+  <h3>7.4 Quiet-ops settings</h3>
+  <ul>
+    <li><b>Screen off</b> and <b>LED off</b> removes the visual signature and saves power. Physically removing the Heltec screen saves more.</li>
+    <li><b>BLE off</b> on the radio removes its Bluetooth signature. Set a pairing PIN first if you intend to turn it back on later.</li>
+    <li><b>Headless firmware</b> on the node gives no WiFi AP at all.</li>
+  </ul>
+
+  <h3>7.5 Addressing and node IDs</h3>
+  <ul>
+    <li>Node IDs are 2 to 5 alphanumeric characters, A-Z and 0-9, no spaces. Give every node a distinct one.</li>
+    <li><span class="mono">@ALL COMMAND</span> broadcasts to every node. <span class="mono">@AH01 COMMAND</span> targets one.</li>
+    <li>Outbound messages are rate-limited to protect airtime: roughly 167 bytes per second sustained, with device rows packed into frames of up to 230 bytes.</li>
+  </ul>
+
+  <h3>7.6 Reaching the mesh from a phone, TAK or MQTT</h3>
+  <p>Commands and detections are ordinary Meshtastic text messages, so anything that talks to the mesh talks to your nodes:</p>
+  <ul>
+    <li><b>Phone.</b> Pair the radio to the Meshtastic app over Bluetooth or WiFi and send <span class="mono">@node COMMAND</span> messages from anywhere in mesh range. No AP, no server.</li>
+    <li><b>TAK / ATAK.</b> The Meshtastic ATAK plugin and TAK server integration bridge the whole mesh, node traffic included.</li>
+    <li><b>MQTT.</b> A Meshtastic MQTT gateway node forwards mesh traffic to a broker for logging, Home Assistant or Node-RED.</li>
+  </ul>
+  <p>These are Meshtastic features. Nothing AntiHunter-specific is needed on the receiving end.</p>
+</div>
+
+<div class="sec">
+  <h2><span class="num">8</span>First configuration</h2>
+  <p class="lead">Ten minutes on the bench before the node ever leaves the building.</p>
+
+  <h3>8.1 Change the credentials</h3>
+  <ul>
+    <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under <b>RF Settings</b>.</li>
+    <li><b>Erase PSK.</b> The pre-shared key that authorises remote erase and factory reset. Set it if you plan to use secure data destruction (§10.4). Mesh: <span class="mono">@AH01 CONFIG_ERASE_PSK:yourkey</span>.</li>
+    <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
+  </ul>
+
+  <h3>8.2 Identity</h3>
+  <ul>
+    <li><b>Node ID.</b> Set it in the web UI or with <span class="mono">@AH01 CONFIG_NODEID:AH02</span>. It prefixes every mesh message the node sends, so make it meaningful.</li>
+    <li><b>Clock.</b> See §4.3. Everything is timestamped UTC.</li>
+  </ul>
+
+  <h3>8.3 Scan presets</h3>
+  <p>Presets set the whole timing profile in one click. Start on Balanced.</p>
+  <table class="tight">
+    <tr><th>Preset</th><th>WiFi chan time</th><th>WiFi scan int</th><th>BLE scan int</th><th>BLE scan dur</th><th>RSSI</th><th>Use case</th></tr>
+    <tr><td>Relaxed</td><td>300 ms</td><td>5000 ms</td><td>6000 ms</td><td>3000 ms</td><td>−80 dBm</td><td>Low power</td></tr>
+    <tr><td>Balanced</td><td>160 ms</td><td>3000 ms</td><td>4000 ms</td><td>2000 ms</td><td>−95 dBm</td><td>General use (default)</td></tr>
+    <tr><td>Aggressive</td><td>110 ms</td><td>1500 ms</td><td>2000 ms</td><td>1000 ms</td><td>−100 dBm</td><td>Fast detection, high coverage</td></tr>
+    <tr><td>Custom</td><td colspan="5">User-defined</td><td>Fine-tuned</td></tr>
+  </table>
+
+  <h4>What each parameter does</h4>
+  <ul>
+    <li><b>WiFi channel time</b>, 50 to 300 ms. Dwell per channel. It must clear the ~100 ms beacon interval to catch every AP on a channel. Shorter covers the band faster but risks missing beacons.</li>
+    <li><b>WiFi scan interval</b>, 1000 to 10000 ms. How often the all-channel AP discovery scan runs. Between scans the node captures frames passively while hopping.</li>
+    <li><b>BLE scan interval</b>, 1000 to 10000 ms. Time between BLE cycles.</li>
+    <li><b>BLE scan duration</b>, 1000 to 5000 ms. Active BLE scanning per cycle.</li>
+    <li><b>RSSI threshold</b>, −100 to −10 dBm. Global signal filter. Triangulation ignores it.</li>
+    <li><b>WiFi channels.</b> Comma-separated, <span class="mono">1,6,11</span>, or a range, <span class="mono">1..14</span>. Default is 1 to 11.</li>
+  </ul>
+
+  <div class="box"><span class="t">One radio, two jobs</span>
+    <p>WiFi and BLE share a single 2.4 GHz radio and the scan loop is single-threaded. A BLE scan holds the radio for its full duration, and WiFi capture is off-air for that time. BLE scan duration is literally the fraction of each cycle WiFi is dark. The presets split it evenly by setting BLE duration to half the BLE interval.</p>
+  </div>
+
+  <h3>8.4 Field controls worth knowing now</h3>
+  <ul>
+    <li><b>Privacy Mode.</b> One click blanks MACs, SSIDs and GPS in the web UI for screenshots and demos. <b>Exports and SD data are not redacted.</b> Scrub those separately.</li>
+    <li><b>Allowlist.</b> A global list of devices to ignore across every scan mode. Put your own kit on it.</li>
+    <li><b>Battery Saver.</b> Stops WiFi and BLE scanning, drops the CPU to 80 MHz, enables light sleep and polls GPS once a minute. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
+    <li><b>Mesh dedup TTL.</b> Suppresses re-broadcasting a MAC already sent within the window, default 300 s, max 3600. Saves airtime on repeated scans of the same environment. Never applied to alerts, drone events or triangulation.</li>
+  </ul>
+
+  <h3>8.5 Where settings live</h3>
+  <p>Configuration is written to NVS on the ESP32 and mirrored to the SD card, so it survives reboots and normal reflashes, and self-heals if a copy is corrupted. Ticking <b>Erase Device</b> at flash time wipes NVS deliberately.</p>
+</div>
+
+<div class="sec">
+  <h2><span class="num">9</span>Using the node</h2>
+  <p class="lead">Every capability runs on the node itself and reports to the web UI, the mesh and the Command Center alike. One scan mode runs at a time.</p>
+
+  <figure><img src="../img/node-photo.jpg" alt=""><figcaption>The Scan tab on the Full firmware: watchlist and scan mode on the left, detection method on the right. Every one of these runs from a mesh command too.</figcaption></figure>
+
+  <h3>9.1 Target Scan</h3>
+  <p>A watchlist scan. Load MAC addresses, OUI prefixes, the first three bytes of a MAC so a whole vendor, or SSIDs, and get an instant mesh alert when one is seen.</p>
+  <pre>@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF|11:22:33|MyNetwork
+@ALL SCAN_START:2:300:1..11     <span class="c"># mode 0=WiFi 1=BLE 2=both : seconds : channels</span></pre>
+  <p>Alert: <span class="mono">NODE: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]</span></p>
+  <figure class="third"><img src="../img/target-scan.jpg" alt=""><figcaption>Target scan results.</figcaption></figure>
+
+  <h3>9.2 Device Scanner</h3>
+  <p>Captures everything nearby, WiFi and BLE, with RSSI, channel and names. This is your baseline survey tool. Run it first at any new site to see what normal looks like.</p>
+  <pre>@ALL DEVICE_SCAN_START:2:300:+PROBE   <span class="c"># +PROBE also fills the probe database</span></pre>
+
+  <h3>9.3 Probe Request Scanner</h3>
+  <p>Passive sniffing of the probe requests devices emit while looking for networks they know. It reveals the SSIDs a device is searching for, which is often more identifying than the device itself.</p>
+  <pre>@ALL PROBE_START:2:300:+ALL     <span class="c"># +ALL broadcasts every probe, not just watchlist hits</span></pre>
+  <p>Hits: <span class="mono">NODE: PROBE_HIT MAC [Randomized|Vendor] RSSI=dBm CH=N [SSID="net" [GHOST]]</span></p>
+  <p><b>Ghost SSID detection</b> flags a probed SSID with no matching AP responding nearby: a network the device remembers but that is not here.</p>
+  <figure class="half"><img src="../img/probe-scanner.jpg" alt=""><figcaption>Probe detection: devices seen, probe requests captured, distinct SSIDs, and saved records.</figcaption></figure>
+
+  <h3>9.4 Baseline Anomaly Detection</h3>
+  <p>Learn, then alert. The node observes a site for a set period and records what belongs there. Afterwards it reports what is new, what has gone, and what has changed signal.</p>
+  <pre>@ALL BASELINE_START:300        <span class="c"># minimum 60s; add :FOREVER to run indefinitely</span>
+@ALL BASELINE_STATUS</pre>
+  <p>Alerts: <span class="mono">ANOMALY-NEW</span>, <span class="mono">ANOMALY-RETURN</span>, <span class="mono">ANOMALY-RSSI</span>, <span class="mono">DEVICE_DISAPPEARED</span>.</p>
+  <figure class="half"><img src="../img/baseline.jpg" alt=""><figcaption>Baseline in its learning phase: WiFi and BLE device counts, frames seen, and the running anomaly total.</figcaption></figure>
+
+  <h3>9.5 MAC Randomization Correlation</h3>
+  <p>Modern phones rotate their MAC address to defeat tracking. This mode links rotating MACs back to one persistent identity using behavioural signatures, and reports the identity rather than the address.</p>
+  <pre>@ALL RANDOMIZATION_START:2:300</pre>
+  <p>Emits <span class="mono">IDENTITY:</span> messages. Treat the output as an investigative lead, not proof. This is an experimental mode.</p>
+
+  <h3>9.6 Deauth Attack Detection</h3>
+  <p>Real-time detection of deauthentication and disassociation frames, with the source tracked.</p>
+  <pre>@ALL DEAUTH_START:300</pre>
+  <p>Alert: <span class="mono">NODE: ATTACK: DEAUTH|DISASSOC [BROADCAST|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason</span>. The IEEE reason code is reported as context only: codes 1, 2, 6 and 7 all occur in normal traffic, so the firmware does not use the code to decide whether a frame is an attack.</p>
+
+  <h3>9.7 Sentinel counter-intelligence</h3>
+  <p>Passive detection of attacker <i>tooling</i>, not just attacks: deauth, beacon, auth and association floods, SAE denial of service, karma and evil-twin access points, probe floods, and handshake or PMKID capture attempts. Where a frame carries a recognisable template, Sentinel names the tool behind it.</p>
+  <pre>@ALL SENTINEL_ON
+@ALL SENTINEL_MODE:scan        <span class="c"># hop the configured channels</span>
+@ALL SENTINEL_BOOT:1           <span class="c"># start automatically on boot</span>
+@ALL GROUP:dos:on              <span class="c"># enable a detector group</span>
+@AH01 SENTINEL_STATUS
+@AH01 INCIDENTS:50             <span class="c"># dump the incident log to serial</span></pre>
+  <table class="tight">
+    <tr><th>Group</th><th>Detectors</th></tr>
+    <tr><td><span class="mono">dos</span></td><td>eviltwin, sae, assoc_sleep</td></tr>
+    <tr><td><span class="mono">rogue</span></td><td>eviltwin, owe, karma</td></tr>
+    <tr><td><span class="mono">recon</span></td><td>pmkid, probe_flood, hshk</td></tr>
+    <tr><td><span class="mono">physical</span></td><td>frag, tsf, jam</td></tr>
+    <tr><td><span class="mono">mesh</span></td><td>mesh_guard</td></tr>
+    <tr><td><span class="mono">all</span></td><td>every member above</td></tr>
+  </table>
+  <p>Deauth, beacon and auth detection are always on and have no toggle. <span class="mono">SENTINEL_MODE:defend</span> pins one channel. On Headless there is no AP to pin to, so use <span class="mono">scan</span>. Sentinel is WiFi only. BLE and drone detection are separate modes.</p>
+  <div class="box"><span class="t">Karma bait</span>
+    <p>Karma bait is the only part of the firmware that transmits: a probe request every 8 seconds to bait a karma AP into responding. It is off by default. Enable it deliberately with <span class="mono">GROUP:rogue:on</span> and only where transmitting is appropriate.</p>
+  </div>
+  <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the associated AP clients it has seen, and the session incident log.</figcaption></figure>
+
+  <h3>9.8 Drone Remote ID</h3>
+  <p>Identifies drones broadcasting Remote ID (ODID / ASTM F3411, and French ID) over both WiFi beacon/NAN and BLE. Reports the serial or CAA registration, position, altitude and speed, and the operator's location when the aircraft broadcasts it.</p>
+  <pre>@ALL DRONE_START:300</pre>
+  <p><span class="mono">DRONE:</span> is sent once per appearance. A drone that stays in range is not re-announced. <span class="mono">DRONE_LOST:</span> follows 120 s after the last beacon.</p>
+
+  <h3>9.9 Triangulation</h3>
+  <p>Several nodes each report RSSI for one target MAC, and the coordinator fits a position from the set. Needs at least three nodes with valid GPS fixes and matched antennas.</p>
+  <pre>@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0
+@AH01 TRIANGULATE_RESULTS
+@ALL TRIANGULATE_STOP</pre>
+  <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
+
+  <h3>9.10 Reading the results</h3>
+  <ul>
+    <li><b>SD card, both builds.</b> Scan results in <span class="mono">/last_results.txt</span>, the probe database, vibration events in <span class="mono">/vibrations.jsonl</span>, sentinel incidents and the scan logs. Logging does not depend on which firmware you flashed.</li>
+    <li><b>Web UI, Full only.</b> The Results tab renders each scan as cards, and the API serves the same content as plain text.</li>
+    <li><b>Device database, Full only.</b> <span class="mono">/devicedb.jsonl</span> is what the Data Explorer browses. Headless does not write it.</li>
+    <li><b>Mesh.</b> Every alert above, plus <span class="mono">SCAN_DONE:</span> summaries carrying <span class="mono">TX=</span> broadcast and <span class="mono">DUP=</span> deduplicated counts.</li>
+  </ul>
+  <div class="box warn"><span class="t">Exports carry location</span>
+    <p>SD logs, exports and mesh alerts can all contain GPS coordinates. Review any file before you post it publicly or attach it to a report. Privacy Mode only redacts the live web UI.</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2><span class="num">10</span>Vibration sensor and tamper response</h2>
+
+  <h3>10.1 How it works</h3>
+  <p>The SW-420 is a mechanical vibration switch with a comparator and a trimpot on board. It has one job: pull its digital output high when movement exceeds the threshold the trimpot sets. That output goes to GPIO 2 on the ESP32, configured as a pull-down input with a rising-edge interrupt.</p>
+  <p>When it fires, the firmware:</p>
+  <ul>
+    <li>Sends a mesh alert if vibration alerts are enabled: <span class="mono">NODE: VIBRATION: Movement detected at TIME [GPS:lat,lon]</span></li>
+    <li>Writes a structured event to <span class="mono">/vibrations.jsonl</span> on the SD card</li>
+    <li>Optionally starts a scan (§10.3)</li>
+    <li>Counts toward the tamper auto-erase trigger if that is armed (§10.4)</li>
+  </ul>
+  <p>Alerts are rate-limited to one every 3 seconds, so continuous shaking produces a steady trickle rather than a flood. The System diagnostics show <span class="mono">Vibration sensor: Standby</span> or <span class="mono">Vibration sensor: Active - Last: TIME (Ns ago)</span>.</p>
+  <p>Turn alerts on and off with <span class="mono">@AH01 VIBRATION_ON</span> and <span class="mono">VIBRATION_OFF</span>, or the toggle in the web UI's Sensor Alerts card. <span class="mono">VIBRATION_STATUS</span> reports the current state.</p>
+
+  <h3>10.2 Tuning the trimpot</h3>
+  <p>The trimpot is the small brass screw on the sensor module. It sets the sensitivity threshold, and the correct setting depends entirely on where the node is mounted. A pole in the wind is not a shelf indoors. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
+  <ol>
+    <li>Power the node and watch the sensor's own indicator LED, or open a serial monitor and watch for <span class="mono">[VIBRATION]</span> lines.</li>
+    <li>Leave the node completely still. If it is triggering by itself, turn the screw an eighth of a turn at a time in the direction that stops it. Wait several seconds between adjustments. The module reacts slowly.</li>
+    <li>When it is silent at rest, back off slightly further so ambient movement does not set it off.</li>
+    <li>Now tap the enclosure the way a person handling it would. It should fire.</li>
+    <li>If it does not, turn back the other way a fraction at a time until a deliberate tap triggers it but the node at rest does not.</li>
+    <li>Confirm the events actually reached the firmware: the diagnostics timestamp updates, and each event is appended to <span class="mono">/vibrations.jsonl</span>.</li>
+  </ol>
+
+  <div class="box tip"><span class="t">Tuning by symptom</span>
+    <ul style="margin-bottom:0">
+      <li><b>Constant false alerts.</b> Too sensitive, or mounted on something resonant. Reduce sensitivity, and consider a foam pad or a stiffer mount.</li>
+      <li><b>Nothing fires even when you shake it.</b> Too insensitive, or the sensor is not seeing GPIO 2. Check the diagnostics line and the solder joints on the sensor header.</li>
+      <li><b>Fires only sometimes.</b> You are on the edge of the threshold. Back it off a fraction toward sensitive.</li>
+    </ul>
+  </div>
+
+  <h3>10.3 Vibration auto-scan</h3>
+  <p>Movement can start a scan automatically. This suits a node used as a trip sensor rather than a continuous monitor.</p>
+  <pre>@AH01 VIBSCAN_SET:1:2:60:60    <span class="c"># enable : mode : duration s : cooldown s</span>
+@AH01 VIBSCAN_STATUS</pre>
+  <table class="tight">
+    <tr><th>Mode</th><th>Scan started</th><th>Mode</th><th>Scan started</th></tr>
+    <tr><td>0</td><td>None</td><td>4</td><td>List scan (targets)</td></tr>
+    <tr><td>1</td><td>All-device scan</td><td>5</td><td>Drone / Remote ID</td></tr>
+    <tr><td>2</td><td>Probe-request detect</td><td>6</td><td>Deauth (blue team)</td></tr>
+    <tr><td>3</td><td>Randomized-MAC detect</td><td>7</td><td>Baseline anomaly</td></tr>
+  </table>
+  <p>Duration 0 means run until stopped. The trigger is skipped if a scan is already running or the node is in battery saver.</p>
+
+  <h3>10.4 Tamper auto-erase</h3>
+  <p>The node can destroy its own data when it is moved. This is <b>off by default</b>, and it is permanent and irreversible.</p>
+  <table class="tight">
+    <tr><th>Parameter</th><th>Range</th><th>What it does</th></tr>
+    <tr><td>Setup delay</td><td>30 s to 10 min</td><td>Grace period after arming, so installing the node does not wipe it</td></tr>
+    <tr><td>Vibrations required</td><td>2 to 5, default 3</td><td>How many movement events count as tampering</td></tr>
+    <tr><td>Detection window</td><td>10 to 60 s</td><td>The period those events must fall within</td></tr>
+    <tr><td>Erase delay</td><td>10 to 300 s</td><td>Countdown before destruction, your window to cancel</td></tr>
+    <tr><td>Cooldown</td><td>5 to 60 min</td><td>Minimum time between tamper attempts, to blunt false triggers</td></tr>
+  </table>
+  <pre>@AH01 AUTOERASE_ENABLE:60:30:3:30:300   <span class="c"># setup:erase:vibs:window:cooldown</span>
+@AH01 AUTOERASE_STATUS
+@AH01 AUTOERASE_DISABLE
+@AH01 ERASE_CANCEL                       <span class="c"># abort a running countdown</span></pre>
+  <p>During the setup period the node still reports movement, so you can watch the arming from a distance: <span class="mono">VIBRATION: Movement in setup mode (active in Ns)</span>. When it triggers you get <span class="mono">TAMPER_DETECTED: Auto-erase in Xs</span>.</p>
+
+  <h4>Remote erase</h4>
+  <p>Two steps, so a single stray message cannot wipe a node. Request a token, then use it. The token expires in five minutes and is specific to that device.</p>
+  <pre>@AH01 ERASE_REQUEST
+@AH01 ERASE_FORCE:AH_12345678_87654321_00001234</pre>
+  <p>After a wipe the node plants a dummy IoT weather configuration in place of its own, so a recovered device does not obviously read as a sensor.</p>
+
+  <h4>Factory reset</h4>
+  <pre>@AH01 FACTORY_RESET:FULL:yourEraseKey    <span class="c"># FULL | CONFIG | DATA</span></pre>
+  <p>Single node only, and it requires the erase PSK you set in §8.1. Without a PSK set, there is no credential to authorise it.</p>
+
+  <div class="box warn"><span class="t">Data destruction is irreversible</span>
+    <p>Test your settings with a node that holds nothing you care about. A wipe cannot be undone, and the countdown is short by design.</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2><span class="num">11</span>Mesh command reference</h2>
+  <p class="lead">Send these as ordinary text messages from the Meshtastic app, a Command Center, or any client on your channel. <span class="mono">@ALL</span> broadcasts. A node ID targets one node. All times UTC.</p>
+
+  <h3>Core</h3>
+  <table class="tight">
+    <tr><th style="width:34%">Command</th><th>Description</th></tr>
+    <tr><td><span class="mono">STATUS</span></td><td>Mode, scan state, hits, temperature, uptime, GPS</td></tr>
+    <tr><td><span class="mono">STOP</span></td><td>Stop all operations, flush pending mesh transmissions</td></tr>
+  </table>
+
+  <h3>Configuration</h3>
+  <table class="tight">
+    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">CONFIG_TARGETS</span></td><td>Pipe-delimited MACs, OUI prefixes or SSIDs</td></tr>
+    <tr><td><span class="mono">CONFIG_NODEID</span></td><td>2 to 5 alphanumeric characters</td></tr>
+    <tr><td><span class="mono">CONFIG_RSSI</span></td><td>Threshold, −128 to −10</td></tr>
+    <tr><td><span class="mono">CONFIG_CHANNELS</span></td><td>Comma-separated list or range, e.g. <span class="mono">1..11</span></td></tr>
+    <tr><td><span class="mono">CONFIG_BAND</span></td><td>C5 only: 0 = 2.4 GHz, 1 = 5 GHz, 2 = both</td></tr>
+    <tr><td><span class="mono">CONFIG_DEDUP_TTL</span></td><td>0 to 3600 s. 0 disables cross-scan MAC dedup</td></tr>
+    <tr><td><span class="mono">CONFIG_SESSION_DEDUP</span></td><td>0 or 1, per-session dedup</td></tr>
+    <tr><td><span class="mono">MESH_DEDUP_CLEAR</span></td><td>Clear the dedup cache</td></tr>
+    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>1 to 64 characters, authorises erase and factory reset</td></tr>
+  </table>
+
+  <h3>Scanning</h3>
+  <table class="tight">
+    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">SCAN_START</span></td><td><span class="mono">mode:secs:channels[:FOREVER]</span>, mode 0 WiFi, 1 BLE, 2 both</td></tr>
+    <tr><td><span class="mono">DEVICE_SCAN_START</span></td><td><span class="mono">mode:secs[:FOREVER[:+PROBE]]</span></td></tr>
+    <tr><td><span class="mono">PROBE_START</span> and <span class="mono">PROBE_STOP</span></td><td><span class="mono">mode:secs[:FOREVER][:+ALL]</span></td></tr>
+    <tr><td><span class="mono">BASELINE_START</span> and <span class="mono">BASELINE_STATUS</span></td><td><span class="mono">duration[:FOREVER]</span>, minimum 60 s</td></tr>
+    <tr><td><span class="mono">DRONE_START</span></td><td><span class="mono">secs[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">DEAUTH_START</span></td><td><span class="mono">secs[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">RANDOMIZATION_START</span></td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">TRIANGULATE_START</span></td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
+    <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>None</td></tr>
+  </table>
+
+  <h3>Sentinel</h3>
+  <table class="tight">
+    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">SENTINEL_ON</span>, <span class="mono">SENTINEL_OFF</span>, <span class="mono">SENTINEL_STATUS</span></td><td>None</td></tr>
+    <tr><td><span class="mono">SENTINEL_MODE</span></td><td><span class="mono">defend</span> to pin a channel, or <span class="mono">scan</span> to hop. Persisted</td></tr>
+    <tr><td><span class="mono">SENTINEL_BOOT</span></td><td>1 or 0, auto-start on boot</td></tr>
+    <tr><td><span class="mono">GROUP</span></td><td><span class="mono">&lt;dos|rogue|recon|physical|mesh|all&gt;:&lt;on|off&gt;</span></td></tr>
+    <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>JSON tunables, 180 characters or fewer. GET dumps to serial</td></tr>
+    <tr><td><span class="mono">INCIDENTS</span> and <span class="mono">INCIDENTS_CLEAR</span></td><td><span class="mono">[:1-200]</span>, dump to serial or clear the log</td></tr>
+    <tr><td><span class="mono">ATTACKER_TRILAT</span></td><td>1 or 0, auto-triangulate a confirmed attacker's MAC. Off by default</td></tr>
+  </table>
+
+  <h3>Security, power and heartbeat</h3>
+  <table class="tight">
+    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Token flow, §10.4</td></tr>
+    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td><span class="mono">setup:erase:vibs:window:cooldown</span></td></tr>
+    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>None</td></tr>
+    <tr><td><span class="mono">VIBRATION_ON</span>, <span class="mono">VIBRATION_OFF</span>, <span class="mono">VIBRATION_STATUS</span></td><td>None</td></tr>
+    <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td><span class="mono">en:mode:dur[:cooldown]</span></td></tr>
+    <tr><td><span class="mono">FACTORY_RESET</span></td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;erase PSK&gt;</span></td></tr>
+    <tr><td><span class="mono">BATTERY_SAVER_START</span></td><td>Interval in minutes, 1 to 30, default 5</td></tr>
+    <tr><td><span class="mono">BATTERY_SAVER_STOP</span> and <span class="mono">BATTERY_SAVER_STATUS</span></td><td>None</td></tr>
+    <tr><td><span class="mono">HB_ON</span>, <span class="mono">HB_OFF</span>, <span class="mono">HB_INTERVAL</span></td><td>Periodic status broadcast, off by default. Interval 1 to 60 min</td></tr>
+  </table>
+
+  <h3>Ten commands to learn first</h3>
+  <pre>@ALL STATUS                          <span class="c"># who is alive, and what are they doing</span>
+@ALL STOP                            <span class="c"># stop everything, everywhere</span>
+@AH01 CONFIG_NODEID:GATE1            <span class="c"># name a node</span>
+@ALL CONFIG_TARGETS:AA:BB:CC|MyWiFi  <span class="c"># set the watchlist</span>
+@ALL SCAN_START:2:600:1..11          <span class="c"># 10 min watchlist scan, WiFi + BLE</span>
+@ALL DEVICE_SCAN_START:2:300         <span class="c"># survey everything nearby</span>
+@ALL BASELINE_START:900              <span class="c"># learn the site for 15 min</span>
+@ALL SENTINEL_ON                     <span class="c"># attacker-tool detection</span>
+@ALL DRONE_START:0                   <span class="c"># drone watch until stopped</span>
+@AH01 BATTERY_SAVER_START:10         <span class="c"># idle a node without losing the mesh</span></pre>
+</div>
+
+<div class="sec">
+  <h2><span class="num">12</span>Command Center</h2>
+  <p class="lead">One node needs no server. A fleet benefits from one: AntiHunter Command &amp; Control PRO aggregates every node's detections onto a live map, with TAK, MQTT and ADS-B integration and a Sentinel console.</p>
+
+  <figure><img src="../img/architecture.png" alt=""><figcaption>Nodes operate independently and coordinate over the mesh. The Command Center aggregates.</figcaption></figure>
+
+  <h3>12.1 What you need</h3>
+  <ul>
+    <li>A computer to run it on: Linux, macOS or Windows 10/11. It can be the same machine you flash from.</li>
+    <li>A Meshtastic radio on USB, joined to <b>your</b> channel, to receive the mesh.</li>
+    <li>Node.js 20 or newer and PostgreSQL. The installer puts both in place for you.</li>
+  </ul>
+
+  <h3>12.2 Quick install: Linux and macOS</h3>
+  <pre>curl -o setup-local.sh \
+  https://raw.githubusercontent.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO/main/scripts/setup-local.sh
+chmod +x setup-local.sh
+./setup-local.sh</pre>
+  <p>Run it as a normal user, <b>not</b> with sudo. It asks for sudo itself when it needs it. It installs the prerequisites, clones the project, sets up the database, runs the migrations and seeds an admin login. When it finishes, open <b>http://localhost:5173</b> and log in with the credentials it printed.</p>
+
+  <h3>12.3 Quick install: Windows 10/11</h3>
+  <ol>
+    <li>Install Git in any PowerShell window, then close it so Git lands on your PATH:
+      <pre>winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements</pre></li>
+    <li>Open PowerShell <b>as Administrator</b>. The installer needs it to install system software.</li>
+    <li>Clone and run the installer:
+      <pre>cd $HOME
+git clone https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO.git
+cd AntiHunter-Command-Control-PRO
+powershell -ExecutionPolicy Bypass -File scripts\setup-windows.ps1</pre></li>
+    <li>Press Enter to accept the defaults. The first run takes a few minutes. <b>Write down the admin email and password it shows you.</b></li>
+    <li>Start it with <b>Start-AntiHunter.cmd</b> in the project folder, or <span class="mono">pnpm AHCC</span>.</li>
+    <li>Open <b>http://localhost:5173</b> and log in.</li>
+  </ol>
+  <div class="box"><span class="t">Windows notes</span>
+    <ul style="margin-bottom:0">
+      <li>The firewall prompt on first start: click <b>Cancel</b> if you only use it on this PC, since localhost works either way. To reach it from other devices, click Allow and tick <b>Private</b> only.</li>
+      <li>For serial hardware, put <span class="mono">SERIAL_DEVICE=COM3</span>, your port from Device Manager → Ports, in <span class="mono">apps\backend\.env</span> and restart.</li>
+      <li>Do not use WSL. COM ports do not pass through cleanly.</li>
+    </ul>
+  </div>
+
+  <h3>12.4 Docker</h3>
+  <p>Needs Docker 25 or newer. If you have no serial adapter at <span class="mono">/dev/ttyUSB0</span>, which is every macOS and Windows host, comment out the <span class="mono">devices:</span> and <span class="mono">group_add:</span> lines under the <span class="mono">backend</span> service first, or the container will not start.</p>
+  <pre>git clone https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO.git
+cd AntiHunter-Command-Control-PRO
+docker compose up -d --build</pre>
+  <p>Three containers come up: Postgres, the backend on port 3000, and the frontend on <b>http://localhost:8080</b>. The seeded admin defaults to <span class="mono">admin@example.com</span> and <span class="mono">admin</span>. Logs: <span class="mono">docker compose logs -f backend</span>. Stop: <span class="mono">docker compose down</span>, adding <span class="mono">--volumes</span> to delete the database too.</p>
+
+  <div class="box warn"><span class="t">Change the admin password immediately</span>
+    <p>The seeded credentials are published in the documentation. Change them at first login, before the server is reachable by anything but you. Enable two-factor authentication and HTTPS if the instance will be reached across a network, and work through the hardening checklist in the project README.</p>
+  </div>
+
+  <h3>12.5 Updating</h3>
+  <p>Use the in-app update page, or <span class="mono">git pull</span> in the project folder. Docker: <span class="mono">git pull &amp;&amp; docker compose up -d --build</span>. The backend re-applies migrations on boot.</p>
+</div>
+
+<div class="sec">
+  <h2><span class="num">13</span>Deployment</h2>
+
+  <h3>13.1 Siting</h3>
+  <ul>
+    <li><b>Height helps more than power.</b> Get the node above metal, vehicles and crowds. A few metres of elevation beats any antenna change.</li>
+    <li><b>Antennas vertical</b>, and clear of the enclosure's own metalwork and of each other.</li>
+    <li><b>GPS wants sky.</b> The helix or patch needs a clear upward view. Indoors it may never lock, and without a fix your detections carry no coordinates and triangulation cannot run.</li>
+    <li><b>Keep LoRa and WiFi antennas apart</b> as far as the enclosure allows.</li>
+    <li>For multi-node triangulation, spread nodes around the area rather than in a line, and give each one a clear GPS fix. Matched antennas on every node.</li>
+  </ul>
+  <figure class="half"><img src="../img/hw-stl-wiring.jpg" alt=""><figcaption>Mast, tripod, can and puck builds. The enclosure changes. The node does not.</figcaption></figure>
+
+  <h3>13.2 Sealing and mounting</h3>
+  <ul>
+    <li>Fit the TPU seals for the housing, GPS and USB-C port. Silicone grease on the seals and SMA threads helps in persistent wet.</li>
+    <li>No IP rating is claimed for the printed enclosure. Treat it as weather-resistant, not waterproof, and site it accordingly.</li>
+    <li>The base takes a ¼"-20 insert for tripods and the universal bracket. STL files for brackets, solar mounts and radar extensions are in the <span class="mono">hw/</span> folder.</li>
+    <li>Point the vented lid and fan opening downward or shielded so water does not sit in them.</li>
+  </ul>
+  <div class="row">
+    <figure><img src="../img/hw-enclosure-top.jpg" alt=""><figcaption>An enclosed build with the antennas vertical and the switch centred.</figcaption></figure>
+    <figure><img src="../img/hw-enclosure-side.jpg" alt=""><figcaption>Vented lid, SMA bulkheads on top, battery housing below.</figcaption></figure>
+  </div>
+
+  <h3>13.3 Power planning</h3>
+  <ul>
+    <li>Roughly 160 mA idle, 600 mA scanning. Aggressive presets and continuous promiscuous capture sit at the top of that range.</li>
+    <li>Battery Saver stops scanning, drops the CPU to 80 MHz and polls GPS once a minute while keeping the mesh alive. That is the right state for a node that only needs to be reachable.</li>
+    <li>Solar mount frames are in the STL folder. Feed solar through the UPS board, never directly to the PCB.</li>
+    <li>Never use the chassis USB input and the UPS fast-charge input at the same time.</li>
+  </ul>
+
+  <h3>13.4 Before you walk away</h3>
+  <ul class="check">
+    <li>AP credentials changed, or Headless firmware flashed</li>
+    <li>LoRa region set and your own encrypted channel primary, public channel off</li>
+    <li>Node ID set and recorded</li>
+    <li>Clock set, GPS has a fix</li>
+    <li>SD card mounted and writable</li>
+    <li>Vibration sensor tuned in its final position</li>
+    <li>Auto-erase parameters understood if you armed it, and the erase PSK recorded somewhere safe</li>
+    <li>The node answers <span class="mono">@NODEID STATUS</span> over the mesh from where you will be standing</li>
+    <li>Antennas tight, seals seated, lid closed</li>
+  </ul>
+</div>
+
+<div class="sec">
+  <h2><span class="num">14</span>Maintenance and troubleshooting</h2>
+
+  <h3>14.1 Symptom table</h3>
+  <table>
+    <tr><th style="width:26%">Symptom</th><th>Likely cause</th><th>What to do</th></tr>
+    <tr><td>No <span class="mono">Antihunter</span> WiFi network</td><td>Headless firmware flashed, or the AP name and password were changed</td><td>Check over serial which build is running. Reflash Full if you need the UI.</td></tr>
+    <tr><td>Web UI will not load</td><td>Not connected to the node's own AP, or using https</td><td>Join the node's AP, then open <b>http://192.168.4.1</b> exactly.</td></tr>
+    <tr><td>Flashing fails or the port never appears</td><td>Charge-only USB cable, a serial monitor still holding the port, both USB ports connected, or the wrong browser</td><td>Use a data cable, close other serial tools, unplug the radio, use Chrome or Edge.</td></tr>
+    <tr><td>SD card not detected</td><td>Not FAT32, a 32 GB or larger card, or not seated</td><td>Reformat FAT32 on a card under 32 GB. Reseating means opening the enclosure.</td></tr>
+    <tr><td>No GPS fix</td><td>Antenna not connected, or no view of the sky</td><td>Check the U.FL or SMA connection, move outdoors, give it time. The module runs hot while searching, which is normal.</td></tr>
+    <tr><td>Nothing arrives over the mesh</td><td>Region <span class="mono">UNSET</span> so the radio is receive-only, serial module off, wrong pins for the board, or nodes on different channels or keys</td><td>Re-run <span class="mono">meshtastic_config.py</span> and print the settings. Confirm every node carries the same channel.</td></tr>
+    <tr><td>Node hears commands but never answers</td><td>Region unset on <i>that</i> node, so it cannot transmit</td><td>Set its region.</td></tr>
+    <tr><td>Constant vibration alerts</td><td>Trimpot too sensitive, or a resonant mount</td><td>Retune in place (§10.2), pad the mount.</td></tr>
+    <tr><td>Vibration never fires</td><td>Trimpot too insensitive, or a bad joint on the sensor header</td><td>Retune, check the diagnostics line and the solder joints.</td></tr>
+    <tr><td>Node scans forever</td><td>A scan was started with <span class="mono">:FOREVER</span> or duration 0</td><td><span class="mono">@ALL STOP</span>, or the Stop button in the UI.</td></tr>
+    <tr><td>Settings gone after flashing</td><td>Erase Device was ticked</td><td>Reconfigure. Settings mirror to the SD card and self-heal, but a deliberate erase clears NVS.</td></tr>
+    <tr><td>Node hot to the touch</td><td>Normal under sustained scanning</td><td>Fit the fan and thermal switch, ventilate the enclosure, consider a relaxed preset.</td></tr>
+    <tr><td>Detections with no coordinates</td><td>No valid GPS fix at the time</td><td>Expected behaviour. Position is only attached when the fix is valid.</td></tr>
+  </table>
+
+  <h3>14.2 Routine maintenance</h3>
+  <ul>
+    <li>Pull the SD card periodically and archive the logs, then clear them, so a lost node carries less.</li>
+    <li>Check the cells. A swollen or damaged 18650 is retired immediately, never recharged.</li>
+    <li>Re-check antenna tightness and seal condition after any period in the field.</li>
+    <li>Reflash on the same channel to pick up fixes. Read the release notes first.</li>
+  </ul>
+
+  <h3>14.3 Getting help</h3>
+  <p>Issues and Discussions at <b>github.com/lukeswitz/AntiHunter</b>. A useful report includes: firmware build and channel, Full or Headless, board type, what you did, what you expected, what happened, and the serial output around the failure. Scrub coordinates and MAC addresses from anything you paste. See §15.</p>
+</div>
+
+<div class="sec">
+  <h2><span class="num">15</span>Legal and safety</h2>
+
+  <h3>15.1 Authorisation</h3>
+  <p>AntiHunter is distributed for lawful, authorised defensive use only: security research, blue-team training, compliant monitoring, event security and network auditing. Operate it only on infrastructure, networks, devices, spectrum and datasets you own or have explicit written permission to assess. The detection, correlation and triangulation features exist to characterise an environment you are authorised to assess, not to identify, follow or profile people. Targeted surveillance, stalking, harassment and tracking individuals without informed consent are prohibited.</p>
+
+  <h3>15.2 Radio compliance</h3>
+  <p>You are responsible for every rule governing radio use where you operate: FCC Part 15 and Part 97, CE/RED, Ofcom and their national equivalents; ISM band allocations, power limits and duty cycles; and any licensing conditions for your class of operation. LoRa is region-locked, 868 MHz EU, 915 MHz US, 923 MHz Asia, and running a region outside the one you are in may be unlawful. Never use the node to cause harmful interference.</p>
+
+  <h3>15.3 Interception and privacy</h3>
+  <p>Passive reception of radio emissions is regulated separately from network access in most jurisdictions. Capturing, storing, decoding or disclosing frame contents and identifiers may engage the US Wiretap Act and ECPA, state two-party-consent statutes, the UK Investigatory Powers Act or equivalents. Determine the lawfulness of each capture mode where you are before enabling it.</p>
+  <p>MAC addresses, probe request contents, BLE advertisements and Remote ID broadcasts may be personal data under GDPR, UK GDPR, CCPA/CPRA and similar regimes. Collect only with a lawful basis, minimise what you keep, set a retention and destruction schedule, and honour data-subject rights. The maintainers never receive, process or host your data.</p>
+
+  <h3>15.4 Drone Remote ID</h3>
+  <p>Receiving broadcast Remote ID is permitted in most places. Using that data to locate, approach, confront or interfere with an aircraft or its operator may violate aviation, harassment or anti-stalking law, including 18 U.S.C. § 32. Reception is not authorisation to act.</p>
+
+  <h3>15.5 Hardware and battery safety</h3>
+  <p>Kits, bare boards and assembled units are supplied for people competent in electronics assembly and operation. Correct assembly, ESD control, antenna selection and attachment, and supply of regulated 5 V power are your responsibility. Operating the transceiver without a properly matched antenna can damage the hardware. Lithium cells are never supplied. Sourcing, protection, charging, storage, transport and disposal are yours, and carry fire and injury risk. The hardware is not certified for and must not be used in life-safety, medical, aviation, automotive or industrial-control applications. It is not a substitute for a certified security or alarm system, and its output is advisory only, subject to false positives and false negatives.</p>
+
+  <h3>15.6 Experimental features</h3>
+  <p>Modes marked beta or experimental, including Sentinel, Triangulation and MAC Randomization Correlation, are unvalidated, may produce inaccurate or misleading output, and must not be relied on for operational, evidentiary, investigative or safety decisions.</p>
+
+  <div class="box warn" style="margin-top:8mm">
+    <span class="t">Disclaimer</span>
+    <div class="legal">
+      <p>THE PROJECT, INCLUDING SOFTWARE, FIRMWARE, HARDWARE DESIGNS AND DOCUMENTATION, IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, DETECTION EFFICACY OR UNINTERRUPTED OPERATION. This supplements and does not limit the warranty disclaimer and liability limitation in sections 15 to 17 of the GNU Affero General Public License v3.0.</p>
+      <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE AUTHORS, DEVELOPERS, MAINTAINERS AND CONTRIBUTORS SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE OR CONSEQUENTIAL DAMAGES, including loss of data, profits, goodwill, equipment or business interruption, or damages arising from failure to detect, false detection, or regulatory enforcement action, ARISING FROM OR RELATED TO YOUR USE OF THE PROJECT, EVEN IF ADVISED OF THE POSSIBILITY. Where liability cannot be fully disclaimed, total aggregate liability shall not exceed the greater of the amount paid for the unit giving rise to the claim, or USD $0.</p>
+      <p>Assembly, sale or instruction by the maintainers creates no warranty, no certification, no fitness-for-purpose representation and no responsibility for how a unit is later configured, deployed or used. Once the unit is in your hands, operation and compliance are yours alone. Flashing the firmware, by web flasher, shell script or any other means, is acceptance of these terms.</p>
+      <p>Nothing here excludes liability that cannot lawfully be excluded, including for death or personal injury caused by negligence, for fraud, or non-excludable statutory consumer rights. Some jurisdictions do not allow the exclusion of implied warranties or the limitation of incidental or consequential damages, so parts of the above may not apply to you.</p>
+      <p>You alone are responsible for ensuring your build, deployment and operation comply with all applicable laws, regulations, licences, permits, equipment authorisations, organisational policies and third-party rights. <b>If you do not agree to these terms, do not build, flash, assemble, deploy or operate AntiHunter.</b></p>
+      <p class="small">Full text: <span class="mono">Legal Disclaimer</span> in the project README. Firmware is licensed under the GNU AGPL v3.0. Hardware and documentation are licensed as stated in their own files.</p>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <h2>Appendix A · Pinout</h2>
+  <p>XIAO ESP32-S3 on the DIGI NODE board. Pin assignments may change with board revisions. Verify against your revision.</p>
+  <table class="tight">
+    <tr><th>Function</th><th>GPIO</th><th>Notes</th></tr>
+    <tr><td>Vibration sensor</td><td>2</td><td>SW-420 tamper detection, rising-edge interrupt, input pull-down</td></tr>
+    <tr><td>RTC SDA</td><td>3</td><td>DS3231 I²C data</td></tr>
+    <tr><td>RTC SCL</td><td>6</td><td>DS3231 I²C clock</td></tr>
+    <tr><td>GPS RX</td><td>44</td><td>NMEA in</td></tr>
+    <tr><td>GPS TX</td><td>43</td><td>Unused</td></tr>
+    <tr><td>SD CS</td><td>1</td><td>Chip select</td></tr>
+    <tr><td>SD SCK</td><td>7</td><td>SPI clock</td></tr>
+    <tr><td>SD MISO</td><td>8</td><td>SPI MISO</td></tr>
+    <tr><td>SD MOSI</td><td>9</td><td>SPI MOSI</td></tr>
+    <tr><td>Mesh RX</td><td>4</td><td>From the Meshtastic radio</td></tr>
+    <tr><td>Mesh TX</td><td>5</td><td>To the Meshtastic radio</td></tr>
+  </table>
+  <p class="small">Radio side: serial module in TEXTMSG mode at 115200 baud, pins 19 RX / 20 TX on Heltec V3, 10 RX / 9 TX on T114.</p>
+
+  <h2 style="margin-top:10mm">Appendix B · Bill of materials</h2>
+  <h4>Core</h4>
+  <ul class="small">
+    <li>1× AntiHunter DIGI PCB, 82 mm, 2-layer</li>
+    <li>1× Seeed XIAO ESP32-S3, 8 MB flash minimum, or XIAO ESP32-C5 for 2.4 and 5 GHz</li>
+    <li>1× Heltec WiFi LoRa 32 V3.2, T114 also compatible</li>
+    <li>1× ATGM336H GPS module</li>
+    <li>1× DS3231 RTC module</li>
+    <li>1× SW-420 vibration sensor</li>
+    <li>1× micro SD reader module</li>
+    <li>1× SD card, 8 GB supplied on every tier but the Bare PCB. FAT32, 32 GB and larger not recommended</li>
+    <li>1× KSD9700 normally-open thermal switch, 40 °C</li>
+  </ul>
+  <h4>Connectors and fasteners</h4>
+  <ul class="small">
+    <li>6× JST 2.54 2-pin terminals</li>
+    <li>3× JST power male cables for the switch, thermal switch and power board</li>
+    <li>10× M3 heat-set inserts</li>
+    <li>2× M3 15 mm brass standoffs</li>
+    <li>M3 hex head screws for the PCB, power board and enclosure</li>
+    <li>2× M2.5 screws, supplied with the fan</li>
+    <li>1× ¼"-20 tripod insert</li>
+  </ul>
+  <h4>Antenna and cabling</h4>
+  <ul class="small">
+    <li>3× U.FL to SMA pigtail, 10 to 20 cm</li>
+    <li>SMA bulkheads</li>
+    <li>1× 6 dBi 2.4 GHz antenna</li>
+    <li>1× 6 dBi LoRa antenna for your region</li>
+    <li>1× GPS antenna. Passive ceramic patch on the kit and populated PCB, active helix on the assembled unit</li>
+  </ul>
+  <h4>Power and thermal</h4>
+  <ul class="small">
+    <li>1× 30 mm 5 V fan with JST lead</li>
+    <li>1× 3-pin mini on/off switch</li>
+    <li>1× Type-C 15 W 3 A 5 V UPS board, dual 18650</li>
+    <li>1× 2 A fast-blow fuse, recommended, not supplied</li>
+    <li>2× 18650 cells, protected flat-top, never supplied with any tier</li>
+  </ul>
+  <h4>Enclosure</h4>
+  <ul class="small">
+    <li>3D-printed weatherproof enclosure. STLs, seals, brackets and solar mounts in <span class="mono">hw/Prototype_STL_Files/</span></li>
+  </ul>
+  <p class="small">Part links and photographs: <span class="mono">hw/Prototype_STL_Files/BOM-Links.md</span></p>
+</div>
+
+<div class="sec">
+  <h2>Appendix C · Defaults, addresses and files</h2>
+  <table class="tight">
+    <tr><th>Item</th><th>Default</th><th></th></tr>
+    <tr><td>WiFi AP name</td><td><span class="mono">Antihunter</span></td><td><b>change it</b></td></tr>
+    <tr><td>WiFi AP password</td><td><span class="mono">antihunt3r123</span></td><td><b>change it</b></td></tr>
+    <tr><td>Web UI</td><td><span class="mono">http://192.168.4.1</span></td><td>Full firmware only</td></tr>
+    <tr><td>Erase PSK</td><td>not set</td><td><b>set it</b> if using erase or factory reset</td></tr>
+    <tr><td>Meshtastic serial</td><td>TEXTMSG, 115200</td><td>pre-configured on tiers 1 and 3, you set it on 2 and 4</td></tr>
+    <tr><td>LoRa region</td><td><span class="mono">UNSET</span>, receive only</td><td><b>set it</b></td></tr>
+    <tr><td>Meshtastic channel</td><td>public default</td><td><b>replace with your own encrypted channel</b></td></tr>
+    <tr><td>Scan preset</td><td>Balanced</td><td></td></tr>
+    <tr><td>WiFi channels</td><td>1 to 11</td><td></td></tr>
+    <tr><td>Mesh dedup TTL</td><td>300 s</td><td>0 disables</td></tr>
+    <tr><td>Vibration alerts</td><td>enabled</td><td>rate-limited to one per 3 s</td></tr>
+    <tr><td>Vibrations required for tamper</td><td>3</td><td>range 2 to 5</td></tr>
+    <tr><td>Auto-erase</td><td>disabled</td><td></td></tr>
+    <tr><td>Heartbeat</td><td>disabled</td><td></td></tr>
+    <tr><td>Karma bait</td><td>off</td><td>the only transmitting detector</td></tr>
+    <tr><td>Attacker auto-triangulation</td><td>off</td><td></td></tr>
+    <tr><td>C2 frontend</td><td><span class="mono">http://localhost:5173</span>, Docker 8080</td><td></td></tr>
+    <tr><td>C2 seeded admin</td><td><span class="mono">admin@example.com</span> and <span class="mono">admin</span></td><td><b>change at first login</b></td></tr>
+  </table>
+
+  <h4>Files on the SD card</h4>
+  <table class="tight">
+    <tr><th>Path</th><th>Contents</th></tr>
+    <tr><td><span class="mono">/last_results.txt</span></td><td>Most recent scan results as text. Written by both builds</td></tr>
+    <tr><td><span class="mono">/devicedb.jsonl</span></td><td>Device database. Full firmware only, browsed by the Data Explorer</td></tr>
+    <tr><td><span class="mono">/vibrations.jsonl</span></td><td>Structured vibration events</td></tr>
+  </table>
+
+  <h2 style="margin-top:10mm">Appendix D · Glossary</h2>
+  <table class="tight">
+    <tr><td style="width:26%"><b>BSSID</b></td><td>The MAC address of an access point.</td></tr>
+    <tr><td><b>OUI</b></td><td>The first three bytes of a MAC address, identifying the manufacturer. Watchlisting an OUI matches a whole vendor.</td></tr>
+    <tr><td><b>Probe request</b></td><td>A frame a device sends looking for networks it knows. Reveals remembered SSIDs.</td></tr>
+    <tr><td><b>Ghost SSID</b></td><td>A probed network with no matching AP responding nearby.</td></tr>
+    <tr><td><b>Evil twin</b></td><td>A rogue AP impersonating a legitimate network to capture clients.</td></tr>
+    <tr><td><b>Karma</b></td><td>An AP that answers every probe request, claiming to be whatever a client asks for.</td></tr>
+    <tr><td><b>Deauth</b></td><td>A management frame that disconnects a client. Used to force reconnections and capture handshakes.</td></tr>
+    <tr><td><b>PMKID</b></td><td>A value in the first EAPOL message that can be captured and cracked offline without a full handshake.</td></tr>
+    <tr><td><b>Remote ID</b></td><td>The broadcast identification a drone emits under ASTM F3411 and equivalent rules.</td></tr>
+    <tr><td><b>RSSI</b></td><td>Received signal strength, in dBm. Less negative is stronger.</td></tr>
+    <tr><td><b>NVS</b></td><td>Non-volatile storage on the ESP32 where settings persist across reboots.</td></tr>
+    <tr><td><b>SoftAP</b></td><td>The WiFi access point the Full firmware hosts for its web UI.</td></tr>
+    <tr><td><b>U.FL / IPX</b></td><td>The miniature snap-on RF connector on each module.</td></tr>
+  </table>
+</div>
+
+<div class="sec">
+  <h2>Appendix E · Quick reference</h2>
+  <p class="small">Print this page and keep it with the node.</p>
+
+  <div class="qref">
+    <h3 style="margin-top:0">Never</h3>
+    <ul style="margin-bottom:4mm">
+      <li>Power from anything but a regulated 5 V source</li>
+      <li>Power the radio with no LoRa antenna fitted</li>
+      <li>Connect both USB ports at once</li>
+      <li>Press a U.FL connector at an angle</li>
+      <li>Leave the default AP password or the public mesh channel in place</li>
+    </ul>
+
+    <h3>Addresses</h3>
+    <table class="tight" style="margin-bottom:4mm">
+      <tr><td style="width:40%">Web UI</td><td><span class="mono">http://192.168.4.1</span>, AP <span class="mono">Antihunter</span></td></tr>
+      <tr><td>Web flasher</td><td><span class="mono">lukeswitz.github.io/AntiHunter</span></td></tr>
+      <tr><td>Firmware, docs, issues</td><td><span class="mono">github.com/lukeswitz/AntiHunter</span></td></tr>
+      <tr><td>Command Center</td><td><span class="mono">github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO</span></td></tr>
+      <tr><td>Meshtastic flasher</td><td><span class="mono">flasher.meshtastic.org</span></td></tr>
+    </table>
+
+    <h3>Ten commands</h3>
+    <pre style="margin-bottom:4mm">@ALL STATUS                          who is alive
+@ALL STOP                            stop everything
+@AH01 CONFIG_NODEID:GATE1            name a node
+@ALL CONFIG_TARGETS:AA:BB:CC|MyWiFi  set the watchlist
+@ALL SCAN_START:2:600:1..11          watchlist scan, 10 min
+@ALL DEVICE_SCAN_START:2:300         survey everything
+@ALL BASELINE_START:900              learn the site
+@ALL SENTINEL_ON                     attacker-tool detection
+@ALL DRONE_START:0                   drone watch until stopped
+@AH01 BATTERY_SAVER_START:10         idle, mesh stays up</pre>
+
+    <h3>Setup order for a new node</h3>
+    <ol style="margin-bottom:0">
+      <li>Fit the antennas</li>
+      <li>Flash AntiHunter, Full to start with</li>
+      <li>Change the AP credentials</li>
+      <li>Set the radio region</li>
+      <li>Create your encrypted channel and disable the public one</li>
+      <li>Set the node ID and the clock</li>
+      <li>Confirm the SD card and GPS</li>
+      <li>Tune the vibration trimpot in place</li>
+      <li>Verify <span class="mono">@NODEID STATUS</span> answers over the mesh</li>
+      <li>Seal and deploy</li>
+    </ol>
+  </div>
+
+  <p class="small" style="margin-top:8mm; text-align:center; color:var(--mut)">
+    AntiHunter DIGI NODE Operator's Guide · revision 1.0 · 14 August 2026<br>
+    Open source under the GNU AGPL v3.0 · github.com/lukeswitz/AntiHunter
+  </p>
+</div>
+
+</body>
+</html>
