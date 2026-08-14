@@ -54,6 +54,8 @@
                                                 [03]  FLASH ANTIHUNTER
 ========================================================================================================================
 
+    The ESP32 ships with its flash erased on every tier -- you flash it yourself and know what is on it.
+
     1. Flash the ESP32-S3 on the AntiHunter PCB. Two variants:
 
       >> FULL ......... WiFi AP for the web UI, plus mesh command control
@@ -87,6 +89,8 @@
                                                 [05]  TIPS AND REFERENCE
 ========================================================================================================================
 
+     > Leave the SD card in while it runs -- config, logs and the device database live on it
+       (8GB FAT32 ships fitted; 32GB and larger are not recommended)
      > Turn off the public mesh channel; use your own encrypted channel as the primary
      > Disable Bluetooth on the radio for quieter field ops
      > Pull the screen on the Heltec V3 to save power
