@@ -817,22 +817,6 @@ void selftestRelease() {
 #endif
 #endif
 
-#if AH_C5_RF_TRACE
-// cppcheck-suppress unusedFunction
-static void rfTrace(const char *tag, uint8_t reqCh, int rc, uint32_t ms)
-{
-    uint8_t prim = 0;
-    wifi_second_chan_t sec;
-    esp_wifi_get_channel(&prim, &sec);
-    Serial.printf("[RF] %s req=%u rc=%d %ums radio=%u sta=%u apgap=%ums\n", tag, (unsigned)reqCh,
-                  rc, (unsigned)ms, (unsigned)prim, (unsigned)WiFi.softAPgetStationNum(),
-                  (unsigned)apServiceGapMs());
-}
-#else
-// cppcheck-suppress unusedFunction
-static void rfTrace(const char *, uint8_t, int, uint32_t) {}
-#endif
-
 // A station drops the SoftAP after AH_AP_BEACON_TIMEOUT_MS without a beacon (ESP-IDF default 6s),
 // so every off-channel excursion is charged against that budget and the AP is serviced before it.
 static volatile uint32_t g_apLastServedMs = 0;
