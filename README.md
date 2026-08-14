@@ -296,7 +296,7 @@ CONNECTORS & FASTENERS
 - 10x M3 Mounting Inserts
 - 2x M3x15mm Brass Standoffs
 - 1x 1/4" Tripod Insert
-- 1x JST Power Male Cable (for switch to board connection)
+- 3x JST Power Male Cable (for switch, therm and power)
 - 8x M3 Flat Top Screws (for enclosure)
 - 6x M3 Screws (for PCB and power board)
 
@@ -307,7 +307,7 @@ ANTENNA & CABLING
 - 1x Active GPS Antenna (L1, SMA)
 
 POWER & THERMAL
-- 1x 30mm 5V Fan - JST (2.0mm JST also fits)
+- 1x 30mm 5V Fan (7-10mm) - JST 2.54 
 - 1x 3-Pin Mini On/Off Switch
 - 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply
   (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88x41x22mm)
