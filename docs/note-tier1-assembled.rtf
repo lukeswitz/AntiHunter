@@ -1,0 +1,59 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Bold;}
+{\colortbl;\red0\green0\blue0;\red164\green6\blue62;}
+\margl1080\margr1080\margt1080\margb1080\vieww12000\viewh15000\viewkind0
+\pard\tx720\pardeftab720\partightenfactor0
+
+\f1\b\fs36 \cf2 ANTIHUNTER DIGI NODE\
+\fs28 TIER 1 \'96 FULLY ASSEMBLED UNIT
+\f0\b0\fs22 \cf1 \
+\
+Built, soldered and bench-tested. Meshtastic is flashed on the radio with the serial link to the node already configured.\
+\
+\
+\f1\b IN THE BOX
+\f0\b0 \
+\
+Assembled node, 8 GB microSD fitted\
+Active GPS helix antenna\
+2.4 GHz WiFi/BLE SMA antenna\
+LoRa SMA antenna for your region\
+\
+You supply: two 18650 cells.\
+\
+\
+\f1\b SET IT UP
+\f0\b0 \
+\
+1. Screw on the antennas. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing.\
+\
+2. Fit two 18650 cells, correct orientation, same brand and capacity.\
+\
+3. Flash AntiHunter on the ESP32 over USB. Web flasher: lukeswitz.github.io/AntiHunter. Pick Full for the web UI, or Headless for quiet field ops.\
+\
+4. Set the LoRa region on the radio. It ships UNSET, which means receive only, and the node will not answer over mesh until you set it.\
+\
+5. Change the Bluetooth pairing pin on the radio. Every unit ships with the same one.\
+\
+6. Make your own encrypted Meshtastic channel primary and turn the public default channel off.\
+\
+7. Full firmware: join the \f1\b Antihunter\f0\b0  WiFi AP, password \f1\b antihunt3r123\f0\b0 , open http://192.168.4.1 and change those credentials first.\
+\
+\
+\f1\b POWER
+\f0\b0 \
+\
+Regulated 5 V only, from USB or the UPS board. Never wire cells or an unregulated supply to the PCB. One USB cable at a time: the ESP32 and the radio share the power rails.\
+\
+\
+\f1\b THE FULL GUIDE
+\f0\b0 \
+\
+Every step above, in detail, plus antennas, all the detectors, the vibration sensor, mesh commands and Command Center:\
+\
+\f1\b github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
+\f0\b0 \
+\
+Firmware, docs, issues: github.com/lukeswitz/AntiHunter\
+Command Center: github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO\
+}

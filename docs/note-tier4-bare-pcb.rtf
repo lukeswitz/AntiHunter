@@ -1,0 +1,85 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica-Bold;\f1\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;\red164\green6\blue62;}
+{\*\expandedcolortbl;;\csgenericrgb\c64314\c2353\c24314;}
+\margl1080\margr1080\margb1080\margt1080\vieww12000\viewh15000\viewkind0
+\deftab720
+\pard\tx720\pardeftab720\partightenfactor0
+
+\f0\b\fs36 \cf2 ANTIHUNTER DIGI NODE\
+
+\fs28 TIER 4 \'96 BARE PCB
+\f1\b0\fs22 \cf0 \
+\
+\
+
+\f0\b IN THE BOX
+\f1\b0 \
+\
+Bare AntiHunter DIGI NODE PCB\
+\
+\
+
+\f0\b SOURCE THE PARTS
+\f1\b0 \
+\
+Full bill of materials with part links and photographs:\
+\
+
+\f0\b github.com/lukeswitz/AntiHunter \'96 hw folder, BOM-Links.md
+\f1\b0 \
+\
+Core: XIAO ESP32-S3, Heltec V3.2 LoRa radio or T114, ATGM336H GPS, DS3231 RTC, SW-420 vibration sensor, micro SD reader, SD card in FAT32 up to 16 GB, KSD9700 thermal switch at 40 C.\
+\
+\
+
+\f0\b BUILD IT
+\f1\b0 \
+\
+1. Work through the assembly manual end to end:\
+\
+
+\f0\b github.com/lukeswitz/AntiHunter \'96 hw folder, Antihunter-DIGINODE-AssemblyManual.pdf
+\f1\b0 \
+\
+2. Two modules need a header modification first, covered on page 6: the RTC ships with female headers, and some tamper sensors ship with inverted 90 degree headers.\
+\
+3. Fit the SD card before you close the case. The slot is not reachable once the PCB is mounted.\
+\
+\
+
+\f0\b FLASH IT
+\f1\b0 \
+\
+4. Flash the Heltec V3.2 or T114 with the latest stable Meshtastic from flasher.meshtastic.org, then set the serial module: Enabled, mode TEXTMSG, baud 115200, pins 19 RX / 20 TX on Heltec V3 or 10 RX / 9 TX on T114. Without this the node and the radio cannot talk.\
+\
+5. Flash AntiHunter on the ESP32 over USB. Web flasher: lukeswitz.github.io/AntiHunter. Pick Full for the web UI, or Headless for quiet field ops.\
+\
+6. Set the LoRa region, change the Bluetooth pairing pin, and make your own encrypted channel primary with the public default off.\
+\
+7. Full firmware: join the 
+\f0\b Antihunter
+\f1\b0  WiFi AP, password 
+\f0\b antihunt3r123
+\f1\b0 , open http://192.168.4.1 and change those credentials first.\
+\
+\
+
+\f0\b POWER
+\f1\b0 \
+\
+Regulated 5 V only, from USB, a bench supply set to 5 V, a proper DC-DC regulator or a UPS board. Never wire 18650 cells or an unregulated supply to the PCB. Never power the node with the LoRa antenna missing. One USB cable at a time: the ESP32 and the radio share the power rails.\
+\
+\
+
+\f0\b THE FULL GUIDE
+\f1\b0 \
+\
+Unboxing to deployment, antennas, all the detectors, the vibration sensor, mesh commands and Command Center:\
+\
+
+\f0\b github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
+\f1\b0 \
+\
+Firmware, docs, issues: github.com/lukeswitz/AntiHunter\
+Command Center: github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO}
