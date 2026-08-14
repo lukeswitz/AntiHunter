@@ -106,6 +106,8 @@ Your node is now operational. Deploy and tune to taste.
 
 ALWAYS power from a regulated 5V source — USB or the included UPS board.
 Unregulated input can damage the board components.
+Optional: a 2A fast-blow inline fuse between the cells and the UPS board adds
+protection.
 
 
 ================================================================================

@@ -357,7 +357,7 @@ Karma bait is the only detector that transmits, a probe request every 8s. Off by
 ## Hardware
 
 > [!IMPORTANT]
-> Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
+> Requires regulated 5V power supply. Unregulated battery sources cause voltage instability. A 2A fast-blow inline fuse on the battery line is optional added protection.
 
 ### Assembling the PCB
  

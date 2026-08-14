@@ -114,6 +114,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 2. **SMA gender chain.** GPS/LoRa/WiFi antennas are SMA male; modules are U.FL. Your U.FL→SMA pigtails must be SMA female (jack) bulkheads or the antennas won't thread. Most common ordering mistake on this build.
 3. **SD card = FAT32.** Built tiers ship with an 8 GB card. 32 GB and larger are not recommended; 64 GB+ ships exFAT and needs reformatting (untested).
 4. **LoRa band must match your region and Heltec board variant** (EU868 / US915 / AS923). Mismatched antenna/board band degrades range.
+5. **Fusing the battery line is optional.** A 2A fast-blow inline fuse between the cells and the UPS board adds protection against a cell fault. Not required and not supplied.
 
 > [!IMPORTANT]
 >  **RTC and SW modules require a minor pin mod** to seat them in the PCB:
