@@ -394,20 +394,20 @@ The [Web Flasher](#quick-start) is the simplest path. Use the options below to f
 
 ### Deployment Steps by Tier
 
-The ESP32 ships with its flash fully erased, verified empty on the bench. No firmware is shipped on it: you flash AntiHunter yourself, from a published release or your own build, so the code on your node is code you chose and can audit.
+No firmware is shipped on it: you flash AntiHunter yourself, for integrity and regulatory purposes.
 
-Soldered Core PCB and Assembled tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with a shipped pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it is on the public default channel - set the region, the pin and your own channel on every tier. Bare PCB and Parts Kit builds flash and configure the radio themselves.
+**Soldered Core PCB and Assembled** tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with a shipped pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it is on the public default channel - set the region, the pin and your own channel on every tier. **Bare PCB and Parts Kit** builds flash and configure the radio themselves.
 
 | Tier | What ships | What you supply |
 |---|---|---|
 | **Bare PCB** ([note](docs/note-tier4-bare-pcb.rtf)) | One unpopulated 82mm board | Everything: source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
-| **Soldered Core PCB** ([note](docs/note-tier3-populated-pcb.rtf)) | The core of the node - a fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Enclosure, regulated 5V power, external antennas |
+| **Soldered Core PCB** ([note](docs/note-tier3-populated-pcb.rtf)) | The core of the node - a fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Optional: Enclosure, regulated 5V power, external antennas |
 | **Parts Kit** ([note](docs/note-tier2-parts-kit.rtf)) | Every part on the BOM as loose components - PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
 | **Assembled** ([note](docs/note-tier1-assembled.rtf)) | Built, sealed and bench-tested. 8GB card fitted, GPS helix antenna, radio flashed and serial-configured | 2x 18650 cells |
 
 Then, on every tier:
 
-1. **Attach all three antennas before powering on** - ceramic is GPS, the labelled 2.4GHz one is the ESP32, the third is LoRa on the Heltec.
+1. **Attach all three antennas before powering on** - on soldered PCB tier: ceramic is GPS, the labelled 2.4GHz one is the ESP32, the third is LoRa on the Heltec. All other tiers use SMA antennas.
 2. **Flash AntiHunter** - [web flasher](https://lukeswitz.github.io/AntiHunter/) (Chrome or Edge), the CLI installer, or PlatformIO. See below.
 3. **Finish the radio** - set your LoRa region, change the pairing pin, make your own encrypted channel primary and turn the public one off: [Radio Setup](#radio-setup). Bare PCB and Parts Kit builds flash Meshtastic and set the serial module here too.
 4. **Set your node ID and AP password** - web UI at `http://192.168.4.1`, or over mesh.
