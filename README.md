@@ -37,7 +37,7 @@
 5. [RF Configuration](#rf-configuration)
 6. [System Architecture](#system-architecture)
 7. [Hardware](#hardware)
-8. [Getting Started](#getting-started) — [deployment steps by tier](#deployment-steps-by-tier)
+8. [Getting Started](#getting-started) - [deployment steps by tier](#deployment-steps-by-tier)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
 11. [ESP32-C5](docs/ESP32-C5.md)
@@ -50,11 +50,11 @@
 ## Overview
 
 > [!WARNING]
-> **This branch is the ESP32-C5 build, in testing.** Breadboard the C5 and test it before you solder anything — a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. It ships through the web flasher's **Experimental** channel; for stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
+> **This branch is the ESP32-C5 build, in testing.** Breadboard the C5 and test it before you solder anything - a C5 soldered into a PCB can only be put back on stable firmware by desoldering it and fitting an ESP32-S3 in its place. It ships through the web flasher's **Experimental** channel; for stable firmware use [main](https://github.com/lukeswitz/AntiHunter/tree/main) (ESP32-S3). What differs from the S3 node is collected on the [ESP32-C5 page](docs/ESP32-C5.md).
 
 - Open-source wireless sensor node for perimeter defense and spectrum awareness. 
 - ESP32-C5 with dual-band 2.4 + 5 GHz WiFi and BLE scanning, GPS, SD logging, vibration sensing and LoRa mesh networking. 
-- Drop-in replacement for the ESP32-S3 on the same PCB — same pads, same peripherals, adds 5 GHz.
+- Drop-in replacement for the ESP32-S3 on the same PCB - same pads, same peripherals, adds 5 GHz.
 - Deploy one node or a distributed network- each scans independently and coordinates over mesh. 
 
 > Built or bought a node/kit? The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** takes you from unboxing to deployment: antennas, flashing, mesh setup, every detector, the vibration sensor, Command Center install and a printable quick-reference card.
@@ -216,7 +216,7 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
-### G. Sentinel — Counterintel Engine
+### G. Sentinel - Counterintel Engine
 
 <p align="center">
   <img width="1200" alt="Sentinel" src="docs/img/c5-sentinel.jpg" />
@@ -235,7 +235,7 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 | **Rogue AP** | Evil-twin, OWE abuse, Karma / MANA | Clone of our own AP (SSID/BSSID collision); OWE-transition downgrade; bait-probe answered by an AP that never beacons that SSID |
 | **Recon** | PMKID harvest, probe flood, handshake capture | Orphaned-M1 / KDE PMKID solicitation; fixed-seq + behavioral probe spam (≥15 MACs/SSID/5s); forced & passive EAPOL M1–M4 capture |
 | **Physical** | FragAttacks, TSF / multi-channel twin, WiFi interference | A-MSDU PN reuse / mixed-key frags; same BSSID on ≥2 channels within 5s; per-channel PDR-vs-RSSI collapse (CRC-fail flood) |
-| **Mesh disruption** | Self-spoof, channel flood, command audit | Own node-id seen inbound; inbound rate DoS; every privileged mesh command logged with the radio id that issued it — a provenance **audit trail**, not an alert (injection is indistinguishable from legit ops on a shared channel, so we record the source instead of guessing) |
+| **Mesh disruption** | Self-spoof, channel flood, command audit | Own node-id seen inbound; inbound rate DoS; every privileged mesh command logged with the radio id that issued it - a provenance **audit trail**, not an alert (injection is indistinguishable from legit ops on a shared channel, so we record the source instead of guessing) |
 
 - **Field-verified on hardware** (confirmed firing against the live tools above): deauth (flood/forge/AP-targeted), beacon flood, auth flood, assoc-sleep, SAE DoS, karma, evil-twin, probe flood, handshake capture.
 
@@ -247,9 +247,9 @@ Goes beyond probe request capture: correlates all three 802.11 address fields to
 
 - **Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
 
-- **Mesh command audit:** every privileged command received on the mesh is logged with the radio id that issued it. It shows up in the **Sentinel UI** (the *Mesh Commands* panel, below AP Clients — full build) and via the **API** (`GET /api/mesh_cmd.jsonl`), and is persisted to SD (`/mesh_cmd.jsonl`). This is a provenance audit trail, not an alert — so it never false-positives.
+- **Mesh command audit:** every privileged command received on the mesh is logged with the radio id that issued it. It shows up in the **Sentinel UI** (the *Mesh Commands* panel, below AP Clients - full build) and via the **API** (`GET /api/mesh_cmd.jsonl`), and is persisted to SD (`/mesh_cmd.jsonl`). This is a provenance audit trail, not an alert - so it never false-positives.
 
-- **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command — when enabled it auto-starts at power-on and survives reboot.
+- **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command - when enabled it auto-starts at power-on and survives reboot.
 
 ---
 
@@ -316,7 +316,7 @@ Configure via web interface at `http://192.168.4.1` or API. All settings persist
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
 - **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves BLE discovery but keeps the shared radio on BLE longer, pausing WiFi channel-hopping.
 
-> WiFi and BLE share one radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi promiscuous capture is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval — an even 50/50 radio split.
+> WiFi and BLE share one radio and the scan loop is single-threaded: a BLE scan holds the radio for its full duration, during which WiFi promiscuous capture is off-air. So BLE Scan Duration is the fraction of each cycle WiFi is dark. The presets set BLE Scan Duration to half the BLE Scan Interval - an even 50/50 radio split.
 - **RSSI Threshold**: Global signal filter (-100 to -10 dBm). Triangulation is exempt.
 - **WiFi Channels**: Comma-separated (1,6,11) or range (1..14). Default: 1..11.
 
@@ -363,12 +363,12 @@ Karma bait is the only detector that transmits, a probe request every 8s. Off by
 
 ### Assembling the PCB
  
-- [Operator's Guide](https://github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf) — unboxing, antennas, flashing, mesh setup, deployment
+- [Operator's Guide](https://github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf) - unboxing, antennas, flashing, mesh setup, deployment
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 
 ### Core Components
 
-- **Seeed XIAO ESP32-C5** — see the [ESP32-C5 page](docs/ESP32-C5.md) for pinout and band configuration
+- **Seeed XIAO ESP32-C5** - see the [ESP32-C5 page](docs/ESP32-C5.md) for pinout and band configuration
 - **Meshtastic board**: Heltec v3.2 (recommended) or T114. Alternatives in [discussions](https://github.com/lukeswitz/AntiHunter/discussions).
 - **GPS, SDHC, vibration, and RTC modules**
 
@@ -437,7 +437,7 @@ ENCLOSURE
 | Mesh RX | D3 | 7 | Meshtastic UART receive |
 | Mesh TX | D4 | 23 | Meshtastic UART transmit |
 
-Same pads as the S3 node — see the [ESP32-C5 page](docs/ESP32-C5.md) for the side-by-side GPIO mapping.
+Same pads as the S3 node - see the [ESP32-C5 page](docs/ESP32-C5.md) for the side-by-side GPIO mapping.
 
 </details>
 
@@ -454,25 +454,25 @@ Same pads as the S3 node — see the [ESP32-C5 page](docs/ESP32-C5.md) for the s
 
 The ESP32 ships with its flash fully erased, verified empty on the bench. No firmware is shipped on it: you flash AntiHunter yourself, from a published release or your own build, so the code on your node is code you chose and can audit.
 
-Soldered Core PCB and Assembled tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with a shipped pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it is on the public default channel — set the region, the pin and your own channel on every tier. Bare PCB and Parts Kit builds flash and configure the radio themselves.
+Soldered Core PCB and Assembled tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with a shipped pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it is on the public default channel - set the region, the pin and your own channel on every tier. Bare PCB and Parts Kit builds flash and configure the radio themselves.
 
 | Tier | What ships | What you supply |
 |---|---|---|
 | **Bare PCB** ([note](docs/note-tier4-bare-pcb.rtf)) | One unpopulated 82mm board | Everything: source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
-| **Soldered Core PCB** ([note](docs/note-tier3-populated-pcb.rtf)) | The core of the node — a fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Enclosure, regulated 5V power, external antennas |
-| **Parts Kit** ([note](docs/note-tier2-parts-kit.rtf)) | Every part on the BOM as loose components — PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
+| **Soldered Core PCB** ([note](docs/note-tier3-populated-pcb.rtf)) | The core of the node - a fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Enclosure, regulated 5V power, external antennas |
+| **Parts Kit** ([note](docs/note-tier2-parts-kit.rtf)) | Every part on the BOM as loose components - PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
 | **Assembled** ([note](docs/note-tier1-assembled.rtf)) | Built, sealed and bench-tested. 8GB card fitted, GPS helix antenna, radio flashed and serial-configured | 2x 18650 cells |
 
 Then, on every tier:
 
-1. **Attach all three antennas before powering on** — ceramic is GPS, the labelled 2.4GHz one is the ESP32, the third is LoRa on the Heltec.
-2. **Flash AntiHunter** — [web flasher](https://lukeswitz.github.io/AntiHunter/) (Chrome or Edge), the CLI installer, or PlatformIO. See below.
-3. **Finish the radio** — set your LoRa region, change the pairing pin, make your own encrypted channel primary and turn the public one off: [Radio Setup](#radio-setup). Bare PCB and Parts Kit builds flash Meshtastic and set the serial module here too.
-4. **Set your node ID and AP password** — web UI at `http://192.168.4.1`, or over mesh.
+1. **Attach all three antennas before powering on** - ceramic is GPS, the labelled 2.4GHz one is the ESP32, the third is LoRa on the Heltec.
+2. **Flash AntiHunter** - [web flasher](https://lukeswitz.github.io/AntiHunter/) (Chrome or Edge), the CLI installer, or PlatformIO. See below.
+3. **Finish the radio** - set your LoRa region, change the pairing pin, make your own encrypted channel primary and turn the public one off: [Radio Setup](#radio-setup). Bare PCB and Parts Kit builds flash Meshtastic and set the serial module here too.
+4. **Set your node ID and AP password** - web UI at `http://192.168.4.1`, or over mesh.
 
 ### Web Flash
 
-[Open the flasher](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental — XIAO ESP32-C5** channel, pick Full or Headless, tick the acknowledgement, then Connect & Flash. Requires Chrome or Edge on desktop.
+[Open the flasher](https://lukeswitz.github.io/AntiHunter/), choose the **Experimental - XIAO ESP32-C5** channel, pick Full or Headless, tick the acknowledgement, then Connect & Flash. Requires Chrome or Edge on desktop.
 
 ### Build from Source
 
@@ -515,7 +515,7 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing.
 
 ### Radio Setup
 
-Soldered Core PCB and Assembled tiers ship this already applied — serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with a shipped pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
+Soldered Core PCB and Assembled tiers ship this already applied - serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with a shipped pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
 
 Flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
 
@@ -543,7 +543,7 @@ python3 scripts/meshtastic_config.py --board t114 --serial on --ble off
 
 No flags on a terminal gives an interactive menu.
 
-The same settings can be applied from the Meshtastic app or web client — Serial: enabled, TEXTMSG, 115200, pins per board.
+The same settings can be applied from the Meshtastic app or web client - Serial: enabled, TEXTMSG, 115200, pins per board.
 
 Before deployment: set the region, change the BLE pairing pin, make your own encrypted channel primary and turn the public channel off in the Meshtastic app.
 
@@ -600,8 +600,8 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1,6,11` |
 | `CONFIG_BAND` | `0` 2.4GHz, `1` 5GHz, `2` both. ACK: `CONFIG_ACK:BAND:<0\|1\|2>`, or `CONFIG_ACK:BAND:INVALID` above 2 | `@ALL CONFIG_BAND:2` |
 | `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
-| `CONFIG_SESSION_DEDUP` | `0`/`1` — toggle per-session dedup. ACK: `CONFIG_ACK:SESSION_DEDUP:<0\|1>` | `@ALL CONFIG_SESSION_DEDUP:1` |
-| `MESH_DEDUP_CLEAR` | None — clear mesh dedup cache. ACK: `DEDUP_CLEAR_ACK:OK` | `@ALL MESH_DEDUP_CLEAR` |
+| `CONFIG_SESSION_DEDUP` | `0`/`1` - toggle per-session dedup. ACK: `CONFIG_ACK:SESSION_DEDUP:<0\|1>` | `@ALL CONFIG_SESSION_DEDUP:1` |
+| `MESH_DEDUP_CLEAR` | None - clear mesh dedup cache. ACK: `DEDUP_CLEAR_ACK:OK` | `@ALL MESH_DEDUP_CLEAR` |
 
 ### Scanning
 
@@ -626,14 +626,14 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 | `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
 | `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
 | `SENTINEL_MODE` | `defend` (pin one channel) or `scan` (hop the channels set by `CONFIG_CHANNELS`). Persisted to NVS `sclScan` and restored on boot. ACK: `SENTINEL_MODE_ACK:scan`/`:defend`/`:FAIL` | `@ALL SENTINEL_MODE:scan` |
-| `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
-| `ATTACKER_TRILAT` | `1`/`0`/`on`/`off` — auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
+| `SENTINEL_BOOT` | `1`/`0` - persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
+| `ATTACKER_TRILAT` | `1`/`0`/`on`/`off` - auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
 | `ATTACKER_TRILAT_STATUS` | None. Reply: `ATTACKER_TRILAT_STATUS: ON`/`OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
-| `GROUP` | `<name>:<on\|off>` — toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
-| `DETECT_CFG` | `<json>` — apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
-| `DETECT_CFG_GET` | None — dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
-| `INCIDENTS` | `[:<1-200>]` — dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
-| `INCIDENTS_CLEAR` | None — clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
+| `GROUP` | `<name>:<on\|off>` - toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
+| `DETECT_CFG` | `<json>` - apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
+| `DETECT_CFG_GET` | None - dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
+| `INCIDENTS` | `[:<1-200>]` - dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
+| `INCIDENTS_CLEAR` | None - clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
 
 `GROUP` members: `dos` = eviltwin, sae, assoc_sleep · `rogue` = eviltwin, owe, karma · `recon` = pmkid, probe_flood, hshk · `physical` = frag, tsf, jam · `mesh` = mesh_guard · `all` = every member listed here.
 
@@ -666,10 +666,10 @@ Headless has no SoftAP, so `defend` pins to whatever channel the radio last used
 | `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
 | `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
 | `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
-| `VIBSCAN_SET` | `en:mode:dur[:cooldownSecs]` — auto-start a scan when the vibration sensor fires. en 0/1; mode 0=off, 1=all-device, 2=probe-req, 3=rand-MAC, 4=list, 5=drone, 6=deauth, 7=baseline; dur seconds (0=forever). Skipped if a scan is already running or during battery-saver. ACK: `VIBSCAN_ACK:OK En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_SET:1:2:60:60` |
+| `VIBSCAN_SET` | `en:mode:dur[:cooldownSecs]` - auto-start a scan when the vibration sensor fires. en 0/1; mode 0=off, 1=all-device, 2=probe-req, 3=rand-MAC, 4=list, 5=drone, 6=deauth, 7=baseline; dur seconds (0=forever). Skipped if a scan is already running or during battery-saver. ACK: `VIBSCAN_ACK:OK En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_SET:1:2:60:60` |
 | `VIBSCAN_STATUS` | None. Reply: `VIBSCAN_STATUS: En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_STATUS` |
-| `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) — set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
-| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` — factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
+| `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) - set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
+| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` - factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 
 </details>
 
@@ -721,14 +721,14 @@ from `detect.cpp`; anything not listed here is not emitted.
 
 | Mesh prefix | Payload | Enumerated values |
 |---|---|---|
-| `DEAUTH_FORGE:<src>:<tool>:<rssi>` | tool tag | **static:** `MARAUDER` (reason=2 + seq=0xFFF0 + dur=0x013A — the template shared by ESP32Marauder, Bruce and Evil-M5Project), `MICHAEL_TKIP` (reason=14). **behavioral:** `MDK4`, `ESP_DEAUTHER`, `AIREPLAY`, `BETTERCAP` |
-| `DEAUTH_FLOOD:<src>:<count>:<rssi>` | frame count | — |
+| `DEAUTH_FORGE:<src>:<tool>:<rssi>` | tool tag | **static:** `MARAUDER` (reason=2 + seq=0xFFF0 + dur=0x013A - the template shared by ESP32Marauder, Bruce and Evil-M5Project), `MICHAEL_TKIP` (reason=14). **behavioral:** `MDK4`, `ESP_DEAUTHER`, `AIREPLAY`, `BETTERCAP` |
+| `DEAUTH_FLOOD:<src>:<count>:<rssi>` | frame count | - |
 | `DEAUTH_AP_TARGETED:<client>:<reason>:<count>` | client + reason code | reason is context only, see the table above |
 | `BEACON_FORGE:<bssid>:<reason>:<rssi>` | forgery reason | `FORGE_TSF_STATIC`, `FORGE_BI_1000`, `FORGE_SRC_MCAST`, `FORGE_CSA_FF`, `FORGE_QUIET_ELEM`, `FORGE_SSID_ROTATE`, `FORGE_EVIL_PORTAL`, `FORGE_EVIL_PORTAL_ESP`, `FORGE_KARMA_BRUCE` |
-| `BEACON_FLOOD:<rssi>` | — | serial line also carries `tool=<reason>` or `tool=-` |
+| `BEACON_FLOOD:<rssi>` | - | serial line also carries `tool=<reason>` or `tool=-` |
 | `EVILTWIN:<bssid>:<reason>:<rssi>:<ssid>` | twin reason | `SELF_CLONE`, `SELF_CLONE_OPEN`, `SSID_COLLISION`, `TWIN_MULTICH`, `TSF_RESTART` |
 | `PROBE_FLOOD:<kind>:<what>:<rssi>` | flood kind | `RANDOMIZED`, `SINGLE_MAC`, `MARAUDER` (probe-request template seq=0x0001, fires on one frame) |
-| `PROBE_FLOOD_BEHAVE:<ssid>:src=<n>:<rssi>` / `PROBE_FLOOD_AP:...` | — | — |
+| `PROBE_FLOOD_BEHAVE:<ssid>:src=<n>:<rssi>` / `PROBE_FLOOD_AP:...` | - | - |
 | `FRAG:<src>:<reason>` | CVE shape | `PN_GAP` (CVE-2020-26146), `MIXED_PLAIN` (CVE-2020-26147) |
 | `HSHK:<bssid>:<sta>:<msg>:<replay>:<rssi>` | usable pair | `M1M2` (challenge), `M1M4`, `M2M3`, `M3M4` (authorized) |
 | `PMKID_HARVEST:<src>:<bssid>:<rssi>` | tool | serial adds `tool=HCXDUMPTOOL` when the M1 replay counter is in `[0xF000,0xFFFE]` |
@@ -736,13 +736,13 @@ from `detect.cpp`; anything not listed here is not emitted.
 | `EAPOL_BAIT:<src>:<sta>:<count>:<rssi>:<confidence>` | confidence | `high` (deauth carried a `DEAUTH_FORGE` tool fingerprint **and** EAPOL followed ≤2 s), `medium` (fingerprinted deauth >2 s, or unfingerprinted deauth with EAPOL ≤1 s). An unfingerprinted deauth followed by EAPOL after >1 s is a normal reassociation and does **not** alert |
 | `CSA_SPOOF:<bssid>:<switch_count>` | count | fires at `switch_count ≥ 50`; Marauder hardcodes 255 |
 | `QUIET_ABUSE:<bssid>:<duration_tu>` | duration | fires at `≥ 1000` TU; Marauder uses 0xFFFF |
-| `KARMA_CAND:<bssid>:<distinct_ssids>` / `KARMA_CONFIRMED:<bssid>:<rssi>` | — | candidate at ≥2 distinct SSIDs on one BSSID / 60 s |
-| `AUTH_FLOOD:<bssid>:<distinct_src>:<frames>` | — | open-system (algo 0) only; SAE is `SAE_DOS` |
-| `SAE_DOS:<bssid>:<unmatched_commits>` | — | — |
-| `ASSOC_SLEEP`, `SSID_CONFUSION`, `OWE_ABUSE`, `JAMMING`, `PWNAGOTCHI`, `RECON`, `ATTACKER_HUNT` | — | single-reason detectors |
+| `KARMA_CAND:<bssid>:<distinct_ssids>` / `KARMA_CONFIRMED:<bssid>:<rssi>` | - | candidate at ≥2 distinct SSIDs on one BSSID / 60 s |
+| `AUTH_FLOOD:<bssid>:<distinct_src>:<frames>` | - | open-system (algo 0) only; SAE is `SAE_DOS` |
+| `SAE_DOS:<bssid>:<unmatched_commits>` | - | - |
+| `ASSOC_SLEEP`, `SSID_CONFUSION`, `OWE_ABUSE`, `JAMMING`, `PWNAGOTCHI`, `RECON`, `ATTACKER_HUNT` | - | single-reason detectors |
 
 **`R:` deauth/disassoc reason codes** (IEEE 802.11-2020 Table 9-49). The value is reported
-as context only — since `c0d710d` the reason code is **not** used to decide whether a frame
+as context only - since `c0d710d` the reason code is **not** used to decide whether a frame
 is an attack, because 1/2/6/7 are all normal causes. Codes seen in practice:
 
 | Code | Meaning | Typical source |
@@ -758,9 +758,9 @@ is an attack, because 1/2/6/7 are all normal causes. Codes seen in practice:
 | 14 | Michael MIC failure (TKIP) | `MICHAEL_TKIP` forge tag |
 
 Any other value is passed through verbatim as `Reason code N`.
-| Drone Detected | `NODE_ID: DRONE: MAC ID:uavId R-dBm [GPS:lat,lon] [ALT:m] [SPD:m/s] [OP:lat,lon]` — sent once per appearance, WiFi and BLE alike. Telemetry fields are dropped if the line would exceed the mesh MTU. A drone that stays in range is never re-announced; one that returns after going stale is re-announced at most once per 120s |
-| Drone Lost | `NODE_ID: DRONE_LOST: MAC [ID:uavId] AGE:secs` — sent once, 120s after the last Remote ID beacon. Not repeated while the aircraft stays away, and the Web UI keeps the detection, marked stale |
-| Triangulation Data | `NODE_ID: T_D: MAC Hits=N RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` — one per participating node per reporting cycle, coordinator included. Slots are assigned by node-ID order, so every node derives the same rotation |
+| Drone Detected | `NODE_ID: DRONE: MAC ID:uavId R-dBm [GPS:lat,lon] [ALT:m] [SPD:m/s] [OP:lat,lon]` - sent once per appearance, WiFi and BLE alike. Telemetry fields are dropped if the line would exceed the mesh MTU. A drone that stays in range is never re-announced; one that returns after going stale is re-announced at most once per 120s |
+| Drone Lost | `NODE_ID: DRONE_LOST: MAC [ID:uavId] AGE:secs` - sent once, 120s after the last Remote ID beacon. Not repeated while the aircraft stays away, and the Web UI keeps the detection, marked stale |
+| Triangulation Data | `NODE_ID: T_D: MAC Hits=N RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` - one per participating node per reporting cycle, coordinator included. Slots are assigned by node-ID order, so every node derives the same rotation |
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GHOST] [GPS=lat,lon]` |
@@ -867,7 +867,7 @@ Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/detect/config` | GET | Current detector config (JSON: every detector enable, mesh-broadcast flag, threshold) |
-| `/api/detect/config` | POST | Set detector config. JSON body of `{key:bool/int}` — same keys returned by GET (e.g. `pmkid`, `eviltwin`, `sae`, `karma`, `probe_flood`, `assoc_sleep`, `mesh_*` flags, thresholds). The Web Flasher/Configurator sends these under a nested `detectors` object at flash time. |
+| `/api/detect/config` | POST | Set detector config. JSON body of `{key:bool/int}` - same keys returned by GET (e.g. `pmkid`, `eviltwin`, `sae`, `karma`, `probe_flood`, `assoc_sleep`, `mesh_*` flags, thresholds). The Web Flasher/Configurator sends these under a nested `detectors` object at flash time. |
 | `/api/detect/health` | GET | Detector runtime health (heap, queue depth, drops, per-detector counts) |
 | `/api/sentinel/status` | GET | Sentinel running state |
 | `/api/sentinel/start` / `/api/sentinel/stop` | POST | Start/stop the Sentinel engine |
@@ -877,9 +877,9 @@ Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth 
 | `/api/mesh_cmd.jsonl` | GET | Mesh command provenance audit from SD (JSONL: `ts`, `epoch`, `src` radio id, `cmd`) |
 | `/api/mesh_cmd` | DELETE | Clear the mesh command audit log |
 
-Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds — `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
+Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds - `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
 
-Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pref `sentBoot` — auto-starts the Sentinel at power-on when true.
+Persistent boot setting: `sentinelBoot` (bool) in the configurator JSON / NVS pref `sentBoot` - auto-starts the Sentinel at power-on when true.
 
 </details>
 
