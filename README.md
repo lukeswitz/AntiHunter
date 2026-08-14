@@ -259,7 +259,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ## Hardware
 
-Buy an assembled node or a bare PCB from the [store](https://lectronz.com/stores/antihunter), or build your own from the parts below.
+Buy a node from the [store](https://lectronz.com/stores/antihunter) — bare PCB, soldered core, parts kit or assembled ([what each tier ships](#deployment-steps-by-tier)) — or build your own from the parts below.
 
 > [!IMPORTANT]
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
@@ -282,23 +282,24 @@ Buy an assembled node or a bare PCB from the [store](https://lectronz.com/stores
 - [Links & Images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
 
 CORE COMPONENTS
+- 1x DIGI PCB (82mm, 2-layer)
 - 1x Seeed Studio XIAO ESP32-S3
 - 1x Heltec WiFi LoRa 32 V3.2 (T114 also compatible, V3.2 preferred)
 - 1x ATGM336H GPS Module
 - 1x Micro SD SDHC TF Card Adapter Reader Module
-- 1x SD Card (FAT32, 16GB recommended)
+- 1x SD Card (FAT32, 8GB shipped with every built tier; 32GB+ not recommended)
 - 1x SW-420 Vibration Sensor
 - 1x DS3231 Real Time Clock Module
-- 1x KSD9700 Normally Open Thermal Wire Sensor (30-40C)
 
 CONNECTORS & FASTENERS
 - 6x JST 2.54 2-Pin Terminals (2.0mm JST also fits)
 - 10x M3 Mounting Inserts
 - 2x M3x15mm Brass Standoffs
 - 1x 1/4" Tripod Insert
-- 1x JST Power Male Cable (for switch to board connection)
-- 8x M3 Flat Top Screws (for enclosure)
+- 3x JST Power Male Cable (switch, thermal switch, power board)
+- 8x M3 Flat Top Screws (for enclosure, max 6mm heads)
 - 6x M3 Screws (for PCB and power board)
+- 2-4x M3 13-15mm Screws (for fan)
 
 ANTENNA & CABLING
 - 3x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm)
@@ -309,12 +310,16 @@ ANTENNA & CABLING
 POWER & THERMAL
 - 1x 30mm 5V Fan - JST (2.0mm JST also fits)
 - 1x 3-Pin Mini On/Off Switch
+- 1x KSD9700 Normally Open Thermal Wire Sensor (30-40C)
+- 1x 2A Fast-Blow Fuse + holder (battery line)
 - 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply
   (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88x41x22mm)
+- 2x 18650 cells, protected flat-top (not supplied with any tier)
 
 ENCLOSURE
 - 1x Weatherproof Enclosure (3D printable)
   - STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
+- 1x TPU Seal Kit (housing, USB-C, GPS antenna)
 
 </details>
 
@@ -349,20 +354,23 @@ The [Web Flasher](#quick-start) is the simplest path. Use the options below to f
 
 ### Deployment Steps by Tier
 
-The Heltec V3 arrives on the latest stable Meshtastic. The ESP32 ships empty — you flash AntiHunter, so you know what is on it.
+The ESP32 ships with its flash fully erased, verified empty on the bench. No firmware is shipped on it: you flash AntiHunter yourself, from a published release or your own build, so the code on your node is code you chose and can audit.
 
-| Tier | Included | Setup required |
+Soldered Core PCB and Assembled tiers ship the Heltec radio on the latest stable Meshtastic, already configured for the node: serial module on, TEXTMSG at 115200 on the board's pins, screen blanks after 1s, status LED off, Bluetooth on with a shipped pairing pin. LoRa region is UNSET, so the radio receives but does not transmit until you set it, and it is on the public default channel — set the region, the pin and your own channel on every tier. Bare PCB and Parts Kit builds flash and configure the radio themselves.
+
+| Tier | What ships | What you supply |
 |---|---|---|
-| **Bare PCB** | One 82mm board, unpopulated | Source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash Meshtastic on the radio, fit an SD card, then the steps below |
-| **Soldered Core PCB** | Board with S3, Heltec LoRa, GPS, RTC, vibration, U.FL antennas. SD card fitted, Meshtastic on the radio | Attach the antennas, then the steps below |
-| **Parts Kit** | Core PCB plus enclosure, seals, SMA antennas and pigtails, fan, switch, UPS board. Meshtastic on the radio | Assemble per the manual, fit an SD card (8 or 16GB FAT32), then the steps below |
-| **Assembled** | Built, sealed and bench-tested. SD card fitted, GPS helix antenna, Meshtastic on the radio | Add 2x 18650, then the steps below |
+| **Bare PCB** | One unpopulated 82mm board | Everything: source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
+| **Soldered Core PCB** | The core of the node — a fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Enclosure, regulated 5V power, external antennas |
+| **Parts Kit** | Every part on the BOM as loose components — PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, fuse, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
+| **Assembled** | Built, sealed and bench-tested. 8GB card fitted, GPS helix antenna, radio flashed and serial-configured | 2x 18650 cells |
 
 Then, on every tier:
 
-1. **Flash AntiHunter** — [web flasher](https://lukeswitz.github.io/AntiHunter/) (Chrome or Edge), the CLI installer, or PlatformIO. See below.
-2. **Set up the radio** — serial link, region, pairing pin, your own channel: [Radio Setup](#radio-setup).
-3. **Set your node ID and AP password** — web UI at `http://192.168.4.1`, or over mesh.
+1. **Attach all three antennas before powering on** — ceramic is GPS, the labelled 2.4GHz one is the ESP32, the third is LoRa on the Heltec.
+2. **Flash AntiHunter** — [web flasher](https://lukeswitz.github.io/AntiHunter/) (Chrome or Edge), the CLI installer, or PlatformIO. See below.
+3. **Finish the radio** — set your LoRa region, change the pairing pin, make your own encrypted channel primary and turn the public one off: [Radio Setup](#radio-setup). Bare PCB and Parts Kit builds flash Meshtastic and set the serial module here too.
+4. **Set your node ID and AP password** — web UI at `http://192.168.4.1`, or over mesh.
 
 ### CLI Flash
 
@@ -527,6 +535,8 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing. Optional — a
 - **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
 
 ### Radio Setup
+
+Soldered Core PCB and Assembled tiers ship this already applied — serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with a shipped pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
 
 Flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
 

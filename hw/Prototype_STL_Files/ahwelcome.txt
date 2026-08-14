@@ -35,11 +35,20 @@
                                               [02]  FLASH THE MESH RADIO
 ========================================================================================================================
 
-    Flash your Heltec V3.2 (preferred) or T114 with the latest stable Meshtastic firmware: https://flasher.meshtastic.org 
-    Then open the Meshtastic app or web config and set:
+    Soldered Core and Assembled tiers ship on the latest stable Meshtastic with this already applied,
+    plus screen blanking after 1s and the status LED off. Skip to the region and channel lines below.
+
+    Bare PCB and Parts Kit builds: flash your Heltec V3.2 (preferred) or T114 with the latest stable Meshtastic firmware:
+    https://flasher.meshtastic.org  Then open the Meshtastic app or web config and set:
 
         - SERIAL ........ Enabled         - PINS .......... 19 RX / 20 TX (Heltec V3), 10 RX / 9 TX (T114)
         - MODE .......... TEXTMSG         - BAUD .......... 115200
+
+    On every radio, set these yourself before deploying:
+
+        - LORA REGION ... ships UNSET; the radio receives but will not transmit until you set it (US / EU / Asia)
+        - PAIRING PIN ... every unit ships with the same Bluetooth pin; change it
+        - CHANNEL ....... ships on the public default; make your own encrypted channel primary, turn the public one off
 
 ========================================================================================================================
                                                 [03]  FLASH ANTIHUNTER
