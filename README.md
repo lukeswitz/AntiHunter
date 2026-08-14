@@ -311,7 +311,7 @@ ANTENNA & CABLING
 - 1x Active GPS Antenna (L1, SMA)
 
 POWER & THERMAL
-- 1x 30mm 5V Fan - JST (2.0mm JST also fits)
+- 1x 30mm 5V Fan (7-10mm) - JST 2.54 
 - 1x 3-Pin Mini On/Off Switch
 - 1x KSD9700 Normally Open Thermal Wire Sensor (30-40C)
 - 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply
