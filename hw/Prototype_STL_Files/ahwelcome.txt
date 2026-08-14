@@ -1,117 +1,59 @@
-========================================================================================================================
-                     █████╗ ███╗   ██╗████████╗██╗██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗
-                    ██╔══██╗████╗  ██║╚══██╔══╝██║██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
-                    ███████║██╔██╗ ██║   ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
-                    ██╔══██║██║╚██╗██║   ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
-                    ██║  ██║██║ ╚██╗█║   ██║   ██║██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
-                    ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+ █████╗ ███╗   ██╗████████╗██╗██╗  ██╗██╗   ██╗███╗   ██╗████████╗███████╗██████╗
+██╔══██╗████╗  ██║╚══██╔══╝██║██║  ██║██║   ██║████╗  ██║╚══██╔══╝██╔════╝██╔══██╗
+███████║██╔██╗ ██║   ██║   ██║███████║██║   ██║██╔██╗ ██║   ██║   █████╗  ██████╔╝
+██╔══██║██║╚██╗██║   ██║   ██║██╔══██║██║   ██║██║╚██╗██║   ██║   ██╔══╝  ██╔══██╗
+██║  ██║██║ ╚██╗█║   ██║   ██║██║  ██║╚██████╔╝██║ ╚████║   ██║   ███████╗██║  ██║
+╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
-                                                    D I G I   N O D E
-========================================================================================================================
+                                D I G I   N O D E
+==================================================================================
+                                 HELLO, OPERATOR
 
-                                                     HELLO, OPERATOR
+   Thank you for being part of the project. Fully open source: write your own mesh
+   commands, wire in your IDS, make it yours.
 
-    Welcome to AntiHunter, thank you for being part of the project. We genuinely want you to enjoy and use it to
-    its fullest potential. This node is your gateway to the complete perimeter defense ecosystem. Fully open source.
-    Write your own mesh commands, wire in your IDS. Make it yours.
+   OPERATOR'S GUIDE -- unboxing to deployment, every detector, tuning, C2:
+   github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
+==================================================================================
+                                  [01]  ANTENNAS
 
-    OPERATOR'S GUIDE -- unboxing to deployment, every detector, mesh, tuning, Command Center. Read this one:
-    github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
+   Never power the node with the LoRa antenna missing. It can destroy the radio.
 
-========================================================================================================================
-                                                    [01]  BUILD IT
-========================================================================================================================
+      2.4 GHz film antenna or short duck  ->  XIAO ESP32-S3
+      LoRa coiled whip or long duck       ->  Heltec / T114
+      GPS ceramic patch or active helix   ->  GPS module
 
-    Bare PCB and Parts Kit builds only. The assembly manual is the full walkthrough, on GitHub in the hw folder.
+   U.FL: parallel to the board, rims aligned, press STRAIGHT DOWN until it clicks.
+   Never at an angle, never forced. SMA: finger tight plus an eighth of a turn.
+==================================================================================
+                                 [02]  MESH RADIO
 
-    Most components are drop-in and solder. Two need a header mod first, covered on page 6 of that manual:
-    the RTC ships with female headers, and some vibration sensors ship with inverted 90 degree headers.
-    Fit the SD card before you close the case -- the slot is unreachable once the PCB is mounted.
+   Soldered Core and Assembled ship flashed and serial-configured. Bare PCB and
+   Parts Kit: flash stable Meshtastic at flasher.meshtastic.org, then set
+   SERIAL Enabled, TEXTMSG, 115200, pins 19RX/20TX (V3) or 10RX/9TX (T114).
 
-========================================================================================================================
-                                                   [02]  ANTENNAS
-========================================================================================================================
+   On every radio, before you deploy:
+      REGION ships UNSET, it receives but never transmits until you set it
+      PAIRING PIN is the same on every unit, change it
+      CHANNEL is the public default, make your own encrypted one primary
+==================================================================================
+                              [03]  FLASH ANTIHUNTER
 
-    Never power the node with the LoRa antenna missing -- transmitting into an open port can destroy the radio.
+   The ESP32 ships erased on every tier. You flash it, so you know what is on it.
+   FULL = WiFi AP and web UI, plus mesh.  HEADLESS = serial and mesh, no AP.
 
-        - 2.4 GHz WiFi/BLE ... flat film antenna, or the shorter duck .... XIAO ESP32-S3 socket
-        - LORA (your region) . coiled whip, or the longer marked duck .... Heltec or T114 socket
-        - GPS ................ ceramic patch, or the active helix ........ GPS module socket
+   WEB FLASHER:  lukeswitz.github.io/AntiHunter
 
-    U.FL: hold the connector parallel to the board, align the rims, press STRAIGHT DOWN until it clicks.
-    Never at an angle, never force it. A crushed socket means a new module. SMA: finger tight plus an eighth turn.
-    On an enclosed build, pick which bulkhead carries which antenna and wire every node you build the same way.
+   FIRST BOOT: join the AP "Antihunter" (antihunt3r123), open 192.168.4.1, and
+   change those credentials under RF Settings first. They are published.
+==================================================================================
+                                   !  POWER  !
 
-========================================================================================================================
-                                              [03]  FLASH THE MESH RADIO
-========================================================================================================================
-
-    Soldered Core and Assembled tiers ship on the latest stable Meshtastic with this already applied,
-    plus screen blanking after 1s and the status LED off. Skip to the region and channel lines below.
-
-    Bare PCB and Parts Kit builds: flash your Heltec V3.2 (preferred) or T114 with the latest stable Meshtastic firmware:
-    https://flasher.meshtastic.org  Then open the Meshtastic app or web config and set:
-
-        - SERIAL ........ Enabled         - PINS .......... 19 RX / 20 TX (Heltec V3), 10 RX / 9 TX (T114)
-        - MODE .......... TEXTMSG         - BAUD .......... 115200
-
-    On every radio, set these yourself before deploying:
-
-        - LORA REGION ... ships UNSET; the radio receives but will not transmit until you set it (US / EU / Asia)
-        - PAIRING PIN ... every unit ships with the same Bluetooth pin; change it
-        - CHANNEL ....... ships on the public default; make your own encrypted channel primary, turn the public one off
-
-========================================================================================================================
-                                                [04]  FLASH ANTIHUNTER
-========================================================================================================================
-
-    The ESP32 ships with its flash erased on every tier -- you flash it yourself and know what is on it.
-
-      >> FULL ......... WiFi AP for the web UI, plus mesh command control
-      >> HEADLESS ..... No AP, quieter field ops, mesh commands only
-
-     Pick a method:
-
-       [A] WEB FLASHER: https://lukeswitz.github.io/AntiHunter
-
-       [B] COMMAND LINE FLASH
-           curl -fsSL -o flashAntihunter.sh https://raw.githubusercontent.com/lukeswitz/AntiHunter/main/Dist/flashAntihunter.sh
-           chmod +x flashAntihunter.sh
-           ./flashAntihunter.sh
-
-    FIRST BOOT -- FULL: join the WiFi AP "Antihunter" (password antihunt3r123), open http://192.168.4.1, and change
-    those credentials under RF Settings before anything else; they are published. Set your node ID there too.
-    HEADLESS: drive it over serial or mesh commands. Settings can also be batch-applied during flashing.
-
-========================================================================================================================
-                                                       !  POWER  !
-========================================================================================================================
-
-    ALWAYS power from a regulated 5V source -- USB or the included UPS board.
-	> Unregulated input can damage the components.
-	> Optional: a 2A fast-blow inline fuse between the cells and the UPS board adds protection. Not supplied.
-	> One USB cable at a time -- the ESP32 and the radio share the PCB power rails.
-
-========================================================================================================================
-                                                [06]  TIPS AND REFERENCE
-========================================================================================================================
-
-     > Leave the SD card in while it runs -- config, logs and the device database live on it
-       (8GB FAT32 ships fitted; 32GB and larger are not recommended)
-     > Tune the vibration sensor trimpot after mounting, not on the bench -- the mount changes what triggers it
-     > The 40C thermal switch drives the fan; jump THERMO or feed 5V to the fan port to run it constantly
-     > Turn off the public mesh channel; use your own encrypted channel as the primary
-     > Disable Bluetooth on the radio for quieter field ops
-     > Pull the screen on the Heltec V3 to save power
-     > Use grease on the housing TPU seals and straight antennas if in very wet conditions
-
-      - DOCS / MESH COMMANDS / API / FEATURES
-        https://github.com/lukeswitz/AntiHunter
-
-      - COMMAND CENTER PRO: Multi-site federation with TAK, MQTT, ADSB integration:
-          github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO
-
-
-========================================================================================================================
-                                                    -- END OF FILE --
-========================================================================================================================
+   Regulated 5V only, from USB or the UPS board. Unregulated input kills parts.
+   One USB cable at a time: the ESP32 and the radio share the power rails.
+   A 2A fast-blow fuse on the battery line is recommended. Not supplied.
+==================================================================================
+   DOCS, MESH COMMANDS, API:  github.com/lukeswitz/AntiHunter
+   COMMAND CENTER PRO, multi-site with TAK, MQTT and ADSB:
+   github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO
+==================================================================================
