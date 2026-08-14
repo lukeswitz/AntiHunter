@@ -1,0 +1,66 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Bold;}
+{\colortbl;\red0\green0\blue0;\red164\green6\blue62;}
+\margl1080\margr1080\margt1080\margb1080\vieww12000\viewh15000\viewkind0
+\pard\tx720\pardeftab720\partightenfactor0
+
+\f1\b\fs36 \cf2 ANTIHUNTER DIGI NODE\
+\fs28 TIER 2 \'96 COMPLETE PARTS KIT
+\f0\b0\fs22 \cf1 \
+\
+Every part needed to build a finished node, as it comes from the supplier. Nothing is soldered and nothing is flashed.\
+\
+\
+\f1\b IN THE BOX
+\f0\b0 \
+\
+Bare 82 mm PCB, all modules and headers, 8 GB microSD\
+Printed enclosure, TPU seals, all M3 hardware and standoffs\
+SMA antennas, U.FL pigtails and bulkheads, passive ceramic GPS antenna\
+Fan, thermal switch, power switch, UPS charger board, JST terminals and cables\
+\
+You supply: two 18650 cells, soldering tools.\
+\
+\
+\f1\b BUILD IT
+\f0\b0 \
+\
+1. Work through the assembly manual end to end. It has photographed steps for the soldering, the connectors, the enclosure, the SD card and the power wiring:\
+\
+\f1\b github.com/lukeswitz/AntiHunter \'96 hw folder, Antihunter-DIGINODE-AssemblyManual.pdf
+\f0\b0 \
+\
+2. Two modules need a header modification first, covered on page 6 of that manual: the RTC ships with female headers, and some tamper sensors ship with inverted 90 degree headers.\
+\
+3. Fit the SD card before you close the case. The slot is not reachable once the PCB is mounted.\
+\
+\
+\f1\b FLASH IT
+\f0\b0 \
+\
+4. Flash the Heltec V3.2 or T114 with the latest stable Meshtastic from flasher.meshtastic.org, then set the serial module: Enabled, mode TEXTMSG, baud 115200, pins 19 RX / 20 TX on Heltec V3 or 10 RX / 9 TX on T114. Without this the node and the radio cannot talk.\
+\
+5. Flash AntiHunter on the ESP32 over USB. Web flasher: lukeswitz.github.io/AntiHunter. Pick Full for the web UI, or Headless for quiet field ops.\
+\
+6. Set the LoRa region, change the Bluetooth pairing pin, and make your own encrypted channel primary with the public default off.\
+\
+7. Full firmware: join the \f1\b Antihunter\f0\b0  WiFi AP, password \f1\b antihunt3r123\f0\b0 , open http://192.168.4.1 and change those credentials first.\
+\
+\
+\f1\b POWER
+\f0\b0 \
+\
+Regulated 5 V only, from USB or the UPS board. Never wire cells or an unregulated supply to the PCB. A 2 A fast-blow fuse in the battery line is recommended and is not supplied. One USB cable at a time: the ESP32 and the radio share the power rails.\
+\
+\
+\f1\b THE FULL GUIDE
+\f0\b0 \
+\
+Unboxing to deployment, antennas, all the detectors, the vibration sensor, mesh commands and Command Center:\
+\
+\f1\b github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf
+\f0\b0 \
+\
+Firmware, docs, issues: github.com/lukeswitz/AntiHunter\
+Command Center: github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO\
+}
