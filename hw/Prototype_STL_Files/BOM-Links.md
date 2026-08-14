@@ -28,7 +28,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 1× | Type-C 15W 3A 5V UPS (2S 18650) |
 | 1× | 30mm 5V JST Fan (7-10mm)|
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
-| 3× | JST Power Male Cables (switch, power & thermal) |
+| 2× | JST Power Male Cables (switch, power board) |
 | 1× | KSD9700 Thermal Switch — Normally Open, 30–40°C |
 | 2× | 18650 Cells — protected, flat-top (not supplied with any tier) |
 | 1× | Weatherproof Enclosure |
@@ -49,7 +49,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 2× | M3×15mm Brass Standoffs |
 | 8× + 6× | M3 Flat-Top Screws (enclosure) + M3 Screws (PCB / power board) |
 | 2–4× | M2.5 13–15mm Screws (fan) |
-| 6× | JST 2.54 2-Pin Terminals |
+| 5× | JST 2.54 2-Pin Terminals |
 | 1× | 1/4" Tripod Insert |
 
 ---
@@ -77,7 +77,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 1× | **KSD9700 Normally Open Thermal Switch** 30–40°C close temp| <img width="110"  alt="Screenshot 2026-07-25 at 8 31 01 AM" src="../../docs/img/bom-thermal.jpg"/> | — | [Search](https://www.amazon.com/s?k=KSD9700+40C+normally+open+thermal+switch) | [Search](https://www.aliexpress.com/w/wholesale-KSD9700-40C-NO.html) |
 | 1× | **30mm 5V JST Fan** | <img width="110" src="../../docs/img/bom-fan.jpg" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="../../docs/img/bom-switch.jpg" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
-| 3× | **JST Power Male Cables**<br>*Switch, thermal sensor, power board·  Includes female 2.54 JST socket* | <img width="110" src="../../docs/img/bom-jst-cables.jpg" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
+| 2× | **JST Power Male Cables**<br>*Switch, power board·  Includes female 2.54 JST socket* | <img width="110" src="../../docs/img/bom-jst-cables.jpg" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
 | 2× | **18650 Cells**<br>*Protected, flat-top, ~3000 mAh · not supplied with any tier* | — | — | [Search](https://www.amazon.com/s?k=protected+18650+flat+top) | [Search](https://www.aliexpress.com/w/wholesale-protected-18650.html) |
 | 1× | **Weatherproof Enclosure**<br>*3D-printed* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
 | 1× | **TPU Seal Kit**<br>*Housing, USB-C, GPS antenna — grease before fitting* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
@@ -103,7 +103,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 2× | **M3×15mm Brass Standoffs**<br>*Male-to-female* | <img width="110" src="../../docs/img/bom-standoffs.jpg" /> | [View](https://amazon.com/dp/B07WR5ZD8G) | [Search](https://www.aliexpress.com/w/wholesale-M3-brass-standoff.html) |
 | 8× + 6× | **M3 Flat-Top Screws** (enclosure, max 6mm heads)<br>**+ M3 Screws** (PCB / power board) | — | [Search](https://www.amazon.com/s?k=M3+screw+kit) | [Search](https://www.aliexpress.com/w/wholesale-M3-screw-assortment-kit.html) |
 | 2–4× | **M2.5 13–15mm Screws** (fan) | — | [Search](https://www.amazon.com/s?k=M2.5+15mm+screw) | [Search](https://www.aliexpress.com/w/wholesale-M2.5-15mm-screw.html) |
-| 6× | **JST 2.54 2-Pin Terminals**<br>*2.0mm JST also fits | <img width="110" src="../../docs/img/bom-jst-terminals.jpg" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
+| 5× | **JST 2.54 2-Pin Terminals** | <img width="110" src="../../docs/img/bom-jst-terminals.jpg" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
 | 1× | **1/4" Tripod Insert**<br>*1/4-20 threaded* | — | [Search](https://www.amazon.com/s?k=1%2F4-20+threaded+insert+brass) | [Search](https://www.aliexpress.com/w/wholesale-1-4-20-threaded-insert.html) |
 
 ---
