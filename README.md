@@ -388,11 +388,11 @@ CORE COMPONENTS
 - 1x DS3231 Real Time Clock Module
 
 CONNECTORS & FASTENERS
-- 6x JST 2.54 2-Pin Terminals (2.0mm JST also fits)
+- 5x JST 2.54 2-Pin Terminals
 - 10x M3 Mounting Inserts
 - 2x M3x15mm Brass Standoffs
 - 1x 1/4" Tripod Insert
-- 3x JST Power Male Cable (switch, thermal switch, power board)
+- 2x JST Power Male Cable (switch, power board)
 - 8x M3 Flat Top Screws (for enclosure, max 6mm heads)
 - 6x M3 Screws (for PCB and power board)
 - 2-4x M2.5 13-15mm Screws (for fan)
