@@ -300,7 +300,7 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 Buy a node from the [store](https://lectronz.com/stores/antihunter) — bare PCB, soldered core, parts kit or assembled ([what each tier ships](#deployment-steps-by-tier)) — or build your own from the parts below.
 
 > [!IMPORTANT]
-> Requires regulated 5V power supply. Unregulated battery sources cause voltage instability.
+> Requires regulated 5V power supply. Unregulated battery sources cause voltage instability. A 2A fast-blow inline fuse on the battery line is optional added protection.
 
 ### Core Components
 

@@ -79,8 +79,9 @@
                                                        !  POWER  !
 ========================================================================================================================
 
-    ALWAYS power from a regulated 5V source -- USB or the included UPS board. 
+    ALWAYS power from a regulated 5V source -- USB or the included UPS board.
 	> Unregulated input can damage the components.
+	> Optional: a 2A fast-blow inline fuse between the cells and the UPS board adds protection.
 
 ========================================================================================================================
                                                 [05]  TIPS AND REFERENCE
