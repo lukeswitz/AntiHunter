@@ -154,7 +154,6 @@ Make it yours.
     1x  30mm 5V JST fan
     1x  3-pin mini on/off switch
     1x  KSD9700 normally-open thermal switch  (30-40C)
-    1x  2A fast-blow fuse + holder  (battery line)
     3x  JST power male cable  (switch, thermal switch, power board)
     1x  Weatherproof enclosure + TPU seal kit
         STLs: https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files
