@@ -43,14 +43,26 @@ what shipped to you:
   [02]  FLASH THE MESH RADIO
 ================================================================================
 
-Flash your Heltec V3.2 (preferred) or T114 with the latest stable Meshtastic
-firmware. Then open the Meshtastic app or web config and set:
+Soldered Core and Assembled tiers ship on the latest stable Meshtastic with this
+already applied, plus screen blanking after 1s and the status LED off. Skip to
+the region and channel lines below.
+
+Bare PCB and Parts Kit builds: flash your Heltec V3.2 (preferred) or T114 with
+the latest stable Meshtastic firmware. Then open the Meshtastic app or web
+config and set:
 
     SERIAL ........ Enabled
     MODE .......... TEXTMSG
     BAUD .......... 115200
     PINS .......... 10 RX / 9 TX   (T114)
                     19 RX / 20 TX  (Heltec V3)
+
+On every radio, set these yourself before deploying:
+
+    LORA REGION ... ships UNSET; receives but will not transmit until you set it
+    PAIRING PIN ... every unit ships with the same Bluetooth pin; change it
+    CHANNEL ....... ships on the public default; make your own encrypted channel
+                    primary and turn the public one off
 
 Disconnect when done.
 
@@ -127,20 +139,24 @@ Make it yours.
 
   ---- CORE (minimum for a functional node) -------------------------------------
 
+    1x  DIGI PCB  (82mm, 2-layer)
     1x  Seeed XIAO ESP32-S3
     1x  Heltec WiFi LoRa 32 V3.2  (or T114 — V3.2 preferred)
     1x  ATGM336H GPS module
-    1x  MicroSD SPI reader + 16GB FAT32 card
+    1x  MicroSD SPI reader + 8GB FAT32 card  (32GB+ not recommended)
     1x  SW-420 vibration sensor
     1x  DS3231 RTC module
 
   ---- FULL BUILD :: POWER & ENCLOSURE ------------------------------------------
 
     1x  Type-C 15W 3A 5V UPS  (2S 18650, 88x41x22mm)
+    2x  18650 cells, protected flat-top  (never supplied with any tier)
     1x  30mm 5V JST fan
     1x  3-pin mini on/off switch
-    1x  JST power male cable  (switch to board)
-    1x  Weatherproof enclosure
+    1x  KSD9700 normally-open thermal switch  (30-40C)
+    1x  2A fast-blow fuse + holder  (battery line)
+    3x  JST power male cable  (switch, thermal switch, power board)
+    1x  Weatherproof enclosure + TPU seal kit
         STLs: https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files
 
   ---- FULL BUILD :: ANTENNAS & CABLES ------------------------------------------
@@ -156,8 +172,9 @@ Make it yours.
     10x  M3 inserts
     2x   M3x15mm brass standoffs
     1x   1/4" tripod insert
-    8x   M3 flat-top screws  (enclosure)
+    8x   M3 flat-top screws  (enclosure, max 6mm heads)
     6x   M3 screws           (PCB and power board)
+    2-4x M3 13-15mm screws   (fan)
 
 
 ================================================================================

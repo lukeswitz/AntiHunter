@@ -8,6 +8,8 @@
 
 ## AntiHunter DIGI Node — Bill of Materials
 
+Full parts list for a complete node. Which of these come in a bought tier: [Deployment Steps by Tier](https://github.com/lukeswitz/AntiHunter/blob/beta/README.md#deployment-steps-by-tier).
+
 ### Core Electronics
 | Qty | Part |
 |-----|------|
@@ -18,7 +20,7 @@
 | 1× | DS3231 RTC Module |
 | 1× | SW-420 Vibration Sensor |
 | 1× | MicroSD SPI Reader Module |
-| 1× | MicroSD Card — 8 or 16 GB, FAT32 (32GB+ not recommended)|
+| 1× | MicroSD Card — 8 GB, FAT32 (32 GB+ not recommended) |
 
 ### Power & Enclosure
 | Qty | Part |
@@ -28,7 +30,10 @@
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
 | 3× | JST Power Male Cables (switch, power & thermal) |
 | 1× | KSD9700 Thermal Switch — Normally Open, 30–40°C |
+| 1× | 2A Fast-Blow Fuse + holder — battery line |
+| 2× | 18650 Cells — protected, flat-top (not supplied with any tier) |
 | 1× | Weatherproof Enclosure |
+| 1× | TPU Seal Kit — housing, USB-C, GPS antenna |
 
 ### Antennas & Cables
 | Qty | Part |
@@ -43,7 +48,8 @@
 |-----|------|
 | 10× | M3 Heat-Set Inserts |
 | 2× | M3×15mm Brass Standoffs |
-| 8× + 6× | M3 Flat-Top Screws + M3 Screws (PCB / power board) |
+| 8× + 6× | M3 Flat-Top Screws (enclosure) + M3 Screws (PCB / power board) |
+| 2–4× | M3 13–15mm Screws (fan) |
 | 6× | JST 2.54 2-Pin Terminals |
 | 1× | 1/4" Tripod Insert |
 
@@ -60,7 +66,7 @@
 | 1× | **DS3231 RTC Module** | <img width="110" src="../../docs/img/bom-rtc.jpg" /> | Analog Devices DS3231 | [View](https://amazon.com/dp/B08X4H3NBR) | [View](https://www.aliexpress.us/item/2251832129568616.html) |
 | 1× | **SW-420 Vibration Sensor** | <img width="110" src="../../docs/img/bom-vibration.jpg" /> | Commodity | [Search](https://www.amazon.com/s?k=SW-420+vibration+sensor+module) | [Search](https://www.aliexpress.us/w/wholesale-SW%2525252d420.html?spm=a2g0o.productlist.search.0) |
 | 1× | **MicroSD SPI Reader Module** | <img width="110" src="../../docs/img/bom-sd-reader.jpg" /> | Commodity | *SD Card Module* | [Search](https://www.aliexpress.com/w/wholesale-micro-sd-card-module-spi.html) |
-| 1× | **MicroSD Card — 8 or 16 GB, FAT32**<br>*SDHC, formats clean to FAT32* | — | [Micro Center](https://www.microcenter.com/product/665428/micro-center-32gb-microsdhc-class-10-u1-flash-memory-card-with-adapter-(5-pack))<br>*5pk `16GBU1 MICRO 5P` · 10pk `16GB SDHC 10PK`* | [5-Pack](https://www.amazon.com/dp/B08HD83TFJ) · [10-Pack](https://www.amazon.com/dp/B0B8G6GK4W) · [20-Pack](https://www.amazon.com/dp/B0D1KSBXXB) | [Search](https://www.aliexpress.com/w/wholesale-16GB-micro-sd-card.html) |
+| 1× | **MicroSD Card — 8 GB, FAT32**<br>*SDHC, formats clean to FAT32 · 32 GB+ not recommended* | — | [Micro Center](https://www.microcenter.com/search/search_results.aspx?Ntt=8GB+microSDHC) | [Search](https://www.amazon.com/s?k=8GB+microSDHC+card+multipack) | [Search](https://www.aliexpress.com/w/wholesale-8GB-micro-sd-card.html) |
 
 ---
 
@@ -73,7 +79,10 @@
 | 1× | **30mm 5V JST Fan** | <img width="110" src="../../docs/img/bom-fan.jpg" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="../../docs/img/bom-switch.jpg" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
 | 3× | **JST Power Male Cables**<br>*Switch, thermal sensor, power board·  Includes female 2.54 JST socket* | <img width="110" src="../../docs/img/bom-jst-cables.jpg" /> | — | [View](https://amazon.com/dp/B0D6KSMK1Q) | [View](https://www.aliexpress.us/item/3256809537971085.html) |
-| 1× | **Weatherproof Enclosure**<br>*3D-printed, greased TPU seals* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
+| 1× | **2A Fast-Blow Fuse + holder**<br>*In series with the battery line, per the assembly manual* | — | — | [Search](https://www.amazon.com/s?k=inline+fuse+holder+2A+fast+blow) | [Search](https://www.aliexpress.com/w/wholesale-inline-fuse-holder-2A.html) |
+| 2× | **18650 Cells**<br>*Protected, flat-top, ~3000 mAh · not supplied with any tier* | — | — | [Search](https://www.amazon.com/s?k=protected+18650+flat+top) | [Search](https://www.aliexpress.com/w/wholesale-protected-18650.html) |
+| 1× | **Weatherproof Enclosure**<br>*3D-printed* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
+| 1× | **TPU Seal Kit**<br>*Housing, USB-C, GPS antenna — grease before fitting* | — | — | [STLs (Repo)](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files) | — |
 
 ---
 
@@ -95,6 +104,7 @@
 | 10× | **M3 Heat-Set Inserts** | <img width="110" src="../../docs/img/bom-heat-inserts.jpg" /> | [Search](https://www.amazon.com/s?k=M3+heat+set+inserts) | [Search](https://www.aliexpress.com/w/wholesale-M3-heat-set-insert.html) |
 | 2× | **M3×15mm Brass Standoffs**<br>*Male-to-female* | <img width="110" src="../../docs/img/bom-standoffs.jpg" /> | [View](https://amazon.com/dp/B07WR5ZD8G) | [Search](https://www.aliexpress.com/w/wholesale-M3-brass-standoff.html) |
 | 8× + 6× | **M3 Flat-Top Screws** (enclosure, max 6mm heads)<br>**+ M3 Screws** (PCB / power board) | — | [Search](https://www.amazon.com/s?k=M3+screw+kit) | [Search](https://www.aliexpress.com/w/wholesale-M3-screw-assortment-kit.html) |
+| 2–4× | **M3 13–15mm Screws** (fan) | — | [Search](https://www.amazon.com/s?k=M3+15mm+screw) | [Search](https://www.aliexpress.com/w/wholesale-M3-15mm-screw.html) |
 | 6× | **JST 2.54 2-Pin Terminals**<br>*2.0mm JST also fits | <img width="110" src="../../docs/img/bom-jst-terminals.jpg" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
 | 1× | **1/4" Tripod Insert**<br>*1/4-20 threaded* | — | [Search](https://www.amazon.com/s?k=1%2F4-20+threaded+insert+brass) | [Search](https://www.aliexpress.com/w/wholesale-1-4-20-threaded-insert.html) |
 
@@ -102,9 +112,9 @@
 
 ## Builder Notes — read before ordering
 
-1. **2× 18650 cells not listed.** The HW-465A UPS holds two 18650s; cells aren't in the original BOM. Add 2× protected 18650 (flat-top, ~3000 mAh) if you don't have them. Not included with the UPS board.
+1. **2× 18650 cells are never supplied.** The HW-465A UPS holds two; they do not come with the UPS board or with any tier. Use protected flat-top cells, ~3000 mAh.
 2. **SMA gender chain.** GPS/LoRa/WiFi antennas are SMA male; modules are U.FL. Your U.FL→SMA pigtails must be SMA female (jack) bulkheads or the antennas won't thread. Most common ordering mistake on this build.
-3. **SD card = FAT32.** 16 GB SDHC formats cleanly to FAT32 (32 GB is the FAT32 ceiling). 64 GB+ ships exFAT and needs reformatting (untested).
+3. **SD card = FAT32.** Built tiers ship with an 8 GB card. 32 GB and larger are not recommended; 64 GB+ ships exFAT and needs reformatting (untested).
 4. **LoRa band must match your region and Heltec board variant** (EU868 / US915 / AS923). Mismatched antenna/board band degrades range.
 
 > [!IMPORTANT]
