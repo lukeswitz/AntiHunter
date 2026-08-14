@@ -349,7 +349,6 @@ POWER & THERMAL
 - 1x 30mm 5V Fan - JST (2.0mm JST also fits)
 - 1x 3-Pin Mini On/Off Switch
 - 1x KSD9700 Normally Open Thermal Wire Sensor (30-40C)
-- 1x 2A Fast-Blow Fuse + holder (battery line)
 - 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply
   (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88x41x22mm)
 - 2x 18650 cells, protected flat-top (not supplied with any tier)
@@ -400,7 +399,7 @@ Soldered Core PCB and Assembled tiers ship the Heltec radio on the latest stable
 |---|---|---|
 | **Bare PCB** | One unpopulated 82mm board | Everything: source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
 | **Soldered Core PCB** | The core of the node — a fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Enclosure, regulated 5V power, external antennas |
-| **Parts Kit** | Every part on the BOM as loose components — PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, fuse, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
+| **Parts Kit** | Every part on the BOM as loose components — PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
 | **Assembled** | Built, sealed and bench-tested. 8GB card fitted, GPS helix antenna, radio flashed and serial-configured | 2x 18650 cells |
 
 Then, on every tier:
