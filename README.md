@@ -337,7 +337,7 @@ CONNECTORS & FASTENERS
 - 3x JST Power Male Cable (switch, thermal switch, power board)
 - 8x M3 Flat Top Screws (for enclosure, max 6mm heads)
 - 6x M3 Screws (for PCB and power board)
-- 2-4x M3 13-15mm Screws (for fan)
+- 2-4x M2.5 13-15mm Screws (for fan)
 
 ANTENNA & CABLING
 - 3x U.FL to SMA Pigtail Cable (SMA bulkhead, 10-20cm)
