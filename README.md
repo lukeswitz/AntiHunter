@@ -79,6 +79,8 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 
 One node, no server. Flash it from your browser — nothing to install.
 
+> Built or bought a node/kit? The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** takes you from unboxing to deployment: antennas, flashing, mesh setup, every detector, the vibration sensor, Command Center install and a printable quick-reference card.
+
 1. **[Open the Web Flasher](https://lukeswitz.github.io/AntiHunter/)** in Chrome or Edge, on desktop.
    - Pick **Full** (web UI) or **Headless** (serial + mesh)
    - Choose a **Release Channel** (Stable or Beta)
@@ -310,6 +312,7 @@ Buy a node from the [store](https://lectronz.com/stores/antihunter) — bare PCB
 
 ### Assembling the PCB
 
+- [Operator's Guide](https://github.com/lukeswitz/AntiHunter/blob/main/docs/AntiHunter-Operators-Guide.pdf) — unboxing, antennas, flashing, mesh setup, deployment
 - Illustrated [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)
 - PCB [welcome letter](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/ahwelcome.txt)
 - BOM parts [links & images](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md)
