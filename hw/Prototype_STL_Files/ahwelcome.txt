@@ -180,7 +180,7 @@ Make it yours.
     1x   1/4" tripod insert
     8x   M3 flat-top screws  (enclosure, max 6mm heads)
     6x   M3 screws           (PCB and power board)
-    2-4x M3 13-15mm screws   (fan)
+    2-4x M2.5 13-15mm screws (fan)
 
 
 ================================================================================

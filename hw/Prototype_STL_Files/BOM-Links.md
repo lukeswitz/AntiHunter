@@ -48,7 +48,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 10× | M3 Heat-Set Inserts |
 | 2× | M3×15mm Brass Standoffs |
 | 8× + 6× | M3 Flat-Top Screws (enclosure) + M3 Screws (PCB / power board) |
-| 2–4× | M3 13–15mm Screws (fan) |
+| 2–4× | M2.5 13–15mm Screws (fan) |
 | 6× | JST 2.54 2-Pin Terminals |
 | 1× | 1/4" Tripod Insert |
 
@@ -102,7 +102,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | 10× | **M3 Heat-Set Inserts** | <img width="110" src="../../docs/img/bom-heat-inserts.jpg" /> | [Search](https://www.amazon.com/s?k=M3+heat+set+inserts) | [Search](https://www.aliexpress.com/w/wholesale-M3-heat-set-insert.html) |
 | 2× | **M3×15mm Brass Standoffs**<br>*Male-to-female* | <img width="110" src="../../docs/img/bom-standoffs.jpg" /> | [View](https://amazon.com/dp/B07WR5ZD8G) | [Search](https://www.aliexpress.com/w/wholesale-M3-brass-standoff.html) |
 | 8× + 6× | **M3 Flat-Top Screws** (enclosure, max 6mm heads)<br>**+ M3 Screws** (PCB / power board) | — | [Search](https://www.amazon.com/s?k=M3+screw+kit) | [Search](https://www.aliexpress.com/w/wholesale-M3-screw-assortment-kit.html) |
-| 2–4× | **M3 13–15mm Screws** (fan) | — | [Search](https://www.amazon.com/s?k=M3+15mm+screw) | [Search](https://www.aliexpress.com/w/wholesale-M3-15mm-screw.html) |
+| 2–4× | **M2.5 13–15mm Screws** (fan) | — | [Search](https://www.amazon.com/s?k=M2.5+15mm+screw) | [Search](https://www.aliexpress.com/w/wholesale-M2.5-15mm-screw.html) |
 | 6× | **JST 2.54 2-Pin Terminals**<br>*2.0mm JST also fits | <img width="110" src="../../docs/img/bom-jst-terminals.jpg" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
 | 1× | **1/4" Tripod Insert**<br>*1/4-20 threaded* | — | [Search](https://www.amazon.com/s?k=1%2F4-20+threaded+insert+brass) | [Search](https://www.aliexpress.com/w/wholesale-1-4-20-threaded-insert.html) |
 
