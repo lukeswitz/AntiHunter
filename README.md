@@ -535,6 +535,7 @@ Meshtastic LoRa mesh via UART for long-range distributed sensing. Optional - a s
 - **Protocol**: Standard Meshtastic serial, public and encrypted channels
 - **Rate limiting**: 3s intervals (configurable)
 - **Addressing**: `@ALL COMMAND` for broadcast, `@AH01 COMMAND` for a specific node. Node IDs: 2-5 alphanumeric chars.
+- **Sender names**: emoji/non-ASCII short names are stripped and still dispatch. A radio short-named the same as a node's own ID is dropped as a self-echo — keep them distinct.
 
 ### Radio Setup
 
