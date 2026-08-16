@@ -2033,7 +2033,8 @@ void meshSplitSender(const String &line, String &sender, String &payload) {
     sender = "";
     payload = line;
     int p = payload.indexOf(": ");
-    if (p <= 0) return;
+    if (p < 0) return;
+    if (p == 0) { payload = payload.substring(2); return; }
     String first = payload.substring(0, p);
     String rest = payload.substring(p + 2);
     if (meshIsNodeIdToken(first)) {
