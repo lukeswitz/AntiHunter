@@ -390,11 +390,13 @@ CORE COMPONENTS
 CONNECTORS & FASTENERS
 - 5x JST 2.54 2-Pin Terminals
 - 10x M3 Mounting Inserts
+- 4x M2 Mounting Inserts (power board)
 - 2x M3x15mm Brass Standoffs
 - 1x 1/4" Tripod Insert
 - 2x JST Power Male Cable (switch, power board)
-- 8x M3 Flat Top Screws (for enclosure, max 6mm heads)
-- 6x M3 Screws (for PCB and power board)
+- 8x M3x4-6mm Flat Top Screws (for enclosure lids, max 6mm heads)
+- 6x M3x4-6mm Screws (for PCB and front/rear covers)
+- 4x M2x4-6mm Screws (for power board; or M3x4-6mm straight into the plastic without inserts)
 - 2-4x M2.5 13-15mm Screws (for fan)
 
 ANTENNA & CABLING
@@ -407,6 +409,7 @@ POWER & THERMAL
 - 1x 30mm 5V Fan - JST (2.0mm JST also fits)
 - 1x 3-Pin Mini On/Off Switch
 - 1x KSD9700 Normally Open Thermal Wire Sensor (30-40C)
+- 1x Type-C Female Chassis Jack, waterproof (2-pin, 22 AWG leads, 14mm panel nut, dust cap)
 - 1x Type-C 15W 3A 5V Fast Charge UPS Power Supply
   (2S 18650 Charger Module DC-DC Step Up Booster Converter, 88x41x22mm)
 - 2x 18650 cells, protected flat-top (not supplied with any tier)
@@ -415,6 +418,10 @@ ENCLOSURE
 - 1x Weatherproof Enclosure (3D printable)
   - STL files: [hw folder](https://github.com/lukeswitz/AntiHunter/tree/main/hw/Prototype_STL_Files)
 - 1x TPU Seal Kit (housing, USB-C, GPS antenna)
+
+FAN NOTES
+- The sticker side is not always the exhaust side. Run the fan for a second and feel which way it blows before you screw it down. Assembled units ship with the fan set to exhaust.
+- Shorting the two THERMO pins bypasses the thermal switch and runs the fan whenever the node is powered.
 
 </details>
 
@@ -460,7 +467,7 @@ No firmware is shipped on it: you flash AntiHunter yourself, for integrity and r
 |---|---|---|
 | **Bare PCB** ([note](docs/note-tier4-bare-pcb.rtf)) | One unpopulated 82mm board | Everything: source the [BOM](https://github.com/lukeswitz/AntiHunter/blob/beta/hw/Prototype_STL_Files/BOM-Links.md), solder per the [assembly manual](https://github.com/lukeswitz/AntiHunter/blob/main/hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf), flash and configure Meshtastic on the radio, fit a FAT32 SD card |
 | **Soldered Core PCB** ([note](docs/note-tier3-populated-pcb.rtf)) | The core of the node - a fully populated PCB: XIAO ESP32-S3, Heltec LoRa radio, GPS, RTC, vibration sensor, SD reader, 8GB card fitted, radio flashed and serial-configured. Factory U.FL whip antennas only | Optional: Enclosure, regulated 5V power, external antennas |
-| **Parts Kit** ([note](docs/note-tier2-parts-kit.rtf)) | Every part on the BOM as loose components - PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
+| **Parts Kit** ([note](docs/note-tier2-parts-kit.rtf)) | Every part on the BOM as loose components - PCB, modules, 8GB card, enclosure and TPU seals, 6dBi 2.4GHz and 6dBi LoRa antennas, U.FL→SMA pigtails and bulkheads, fan, thermal switch, power switch, waterproof USB-C panel jack, UPS board, fasteners. Nothing soldered, nothing flashed. No GPS antenna | Soldering and assembly per the manual, Meshtastic on the radio, 2x 18650 cells, active GPS antenna |
 | **Assembled** ([note](docs/note-tier1-assembled.rtf)) | Built, sealed and bench-tested. 8GB card fitted, GPS helix antenna, radio flashed and serial-configured | 2x 18650 cells |
 
 Then, on every tier:
