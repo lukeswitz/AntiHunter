@@ -26,6 +26,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | Qty | Part |
 |-----|------|
 | 1× | Type-C 15W 3A 5V UPS (2S 18650) |
+| 1× | Type-C Female Chassis Jack — waterproof, 2-pin 22 AWG |
 | 1× | 30mm 5V JST Fan (7-10mm)|
 | 1× | 3-Pin Mini On/Off Switch (6mm) |
 | 2× | JST Power Male Cables (switch, power board) |
@@ -47,7 +48,9 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 |-----|------|
 | 10× | M3 Heat-Set Inserts |
 | 2× | M3×15mm Brass Standoffs |
-| 8× + 6× | M3 Flat-Top Screws (enclosure) + M3 Screws (PCB / power board) |
+| 8× + 6× | M3×4-6mm Flat-Top Screws (enclosure lids) + M3×4-6mm Screws (PCB / front-rear covers) |
+| 4× | M2 Heat-Set Inserts (power board) |
+| 4× | M2×4-6mm Screws (power board) |
 | 2–4× | M2.5 13–15mm Screws (fan) |
 | 5× | JST 2.54 2-Pin Terminals |
 | 1× | 1/4" Tripod Insert |
@@ -74,6 +77,7 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | Qty | Part | Image | MFR | AMZN | ALI |
 |:---:|------|:---:|------|------|-----|
 | 1× | **Type-C 15W 3A 5V UPS** (2S 18650)<br>*Board ID HW-465A · 88×41×22 mm* | <img width="110" src="../../docs/img/bom-ups.jpg" /> | Commodity (HW-465A) | [DWEII](https://www.amazon.com/dp/B0DCVRXTW8) · [JUZITAO 2-Pack](https://www.amazon.com/dp/B0DNMVSD65) | [Search](https://www.aliexpress.com/w/wholesale-HW-465A-UPS-18650.html) |
+| 1× | **Type-C Female Chassis Jack**<br>*Waterproof, 2-pin 22 AWG leads · 14mm panel nut · dust cap · external 5V input* | <img width="110" src="../../docs/img/bom-usbc-jack.jpg" /> | Commodity | [View](https://www.amazon.com/dp/B0CXLZBD2V) | [Search](https://www.aliexpress.com/w/wholesale-type-c-female-panel-mount-2-pin-waterproof.html) |
 | 1× | **KSD9700 Normally Open Thermal Switch** 30–40°C close temp| <img width="110"  alt="Screenshot 2026-07-25 at 8 31 01 AM" src="../../docs/img/bom-thermal.jpg"/> | — | [Search](https://www.amazon.com/s?k=KSD9700+40C+normally+open+thermal+switch) | [Search](https://www.aliexpress.com/w/wholesale-KSD9700-40C-NO.html) |
 | 1× | **30mm 5V JST Fan** | <img width="110" src="../../docs/img/bom-fan.jpg" /> | — | [10mm](https://amazon.com/dp/B08R9HFXTN) · [7mm](https://amazon.com/dp/B0CWD6BY6G) | [Search](https://www.aliexpress.com/w/wholesale-30mm-5V-fan.html) |
 | 1× | **3-Pin Mini On/Off Switch** (6mm) | <img width="110" src="../../docs/img/bom-switch.jpg" /> | — | [View](https://www.amazon.com/dp/B07LBNWD52?th=1) | [Search](https://www.aliexpress.com/w/wholesale-mini-switch--waterproof-cap.html) |
@@ -100,8 +104,10 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 | Qty | Part | Image | AMZN | ALI |
 |:---:|------|:---:|------|-----|
 | 10× | **M3 Heat-Set Inserts** | <img width="110" src="../../docs/img/bom-heat-inserts.jpg" /> | [Search](https://www.amazon.com/s?k=M3+heat+set+inserts) | [Search](https://www.aliexpress.com/w/wholesale-M3-heat-set-insert.html) |
+| 4× | **M2 Heat-Set Inserts**<br>*Power board, see Note 7* | — | [Search](https://www.amazon.com/s?k=M2+heat+set+inserts) | [Search](https://www.aliexpress.com/w/wholesale-M2-heat-set-insert.html) |
 | 2× | **M3×15mm Brass Standoffs**<br>*Male-to-female* | <img width="110" src="../../docs/img/bom-standoffs.jpg" /> | [View](https://amazon.com/dp/B07WR5ZD8G) | [Search](https://www.aliexpress.com/w/wholesale-M3-brass-standoff.html) |
-| 8× + 6× | **M3 Flat-Top Screws** (enclosure, max 6mm heads)<br>**+ M3 Screws** (PCB / power board) | — | [Search](https://www.amazon.com/s?k=M3+screw+kit) | [Search](https://www.aliexpress.com/w/wholesale-M3-screw-assortment-kit.html) |
+| 8× + 6× | **M3×4-6mm Flat-Top Screws** (enclosure lids, max 6mm heads)<br>**+ M3×4-6mm Screws** (PCB / front-rear covers) | — | [Search](https://www.amazon.com/s?k=M3+screw+kit) | [Search](https://www.aliexpress.com/w/wholesale-M3-screw-assortment-kit.html) |
+| 4× | **M2×4-6mm Screws** (power board) | — | [Search](https://www.amazon.com/s?k=M2+screw+kit) | [Search](https://www.aliexpress.com/w/wholesale-M2-screw-assortment-kit.html) |
 | 2–4× | **M2.5 13–15mm Screws** (fan) | — | [Search](https://www.amazon.com/s?k=M2.5+15mm+screw) | [Search](https://www.aliexpress.com/w/wholesale-M2.5-15mm-screw.html) |
 | 5× | **JST 2.54 2-Pin Terminals** | <img width="110" src="../../docs/img/bom-jst-terminals.jpg" /> | [View](https://amazon.com/dp/B0D6KSMK1Q) | [Search](https://www.aliexpress.com/w/wholesale-JST-XH-2.54-2pin.html) |
 | 1× | **1/4" Tripod Insert**<br>*1/4-20 threaded* | — | [Search](https://www.amazon.com/s?k=1%2F4-20+threaded+insert+brass) | [Search](https://www.aliexpress.com/w/wholesale-1-4-20-threaded-insert.html) |
@@ -114,7 +120,10 @@ Full parts list for a complete node. Which of these come in a bought tier: [Depl
 2. **SMA gender chain.** GPS/LoRa/WiFi antennas are SMA male; modules are U.FL. Your U.FL→SMA pigtails must be SMA female (jack) bulkheads or the antennas won't thread. Most common ordering mistake on this build.
 3. **SD card = FAT32.** Built tiers ship with an 8 GB card. 32 GB and larger are not recommended; 64 GB+ ships exFAT and needs reformatting (untested).
 4. **LoRa band must match your region and Heltec board variant** (EU868 / US915 / AS923). Mismatched antenna/board band degrades range.
-5. **Fusing the battery line is optional.** A 2A fast-blow inline fuse between the cells and the UPS board adds protection against a cell fault. Not required and not supplied.
+5. **Check which way the fan blows.** The sticker side is not always the exhaust side. Feel the airflow before you screw it down. Assembled units ship set to exhaust.
+6. **Fan full time.** Short the two THERMO pins to bypass the KSD9700.
+7. **Power board.** M3 threads straight into the plastic posts. To use inserts instead, melt M2 inserts into those posts and switch to M2 screws.
+8. **Fusing the battery line is optional.** A 2A fast-blow inline fuse between the cells and the UPS board adds protection against a cell fault. Not required and not supplied.
 
 > [!IMPORTANT]
 >  **RTC and SW modules require a minor pin mod** to seat them in the PCB:
