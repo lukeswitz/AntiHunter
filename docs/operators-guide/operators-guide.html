@@ -216,11 +216,12 @@
     <li>30 mm 5 V fan with JST lead</li>
     <li>KSD9700 normally-open thermal switch, 40 °C</li>
     <li>3-pin mini on/off switch with rubber cover</li>
+    <li>Waterproof Type-C female chassis jack, 2-pin 22 AWG leads, panel nut and dust cap</li>
     <li>Type-C 15 W 3 A 5 V UPS charger board, dual 18650</li>
     <li>6× JST 2.54 2-pin terminals</li>
     <li>3× JST power male cables for the switch, thermal switch and power board</li>
-    <li>M3 heat-set inserts</li>
-    <li>M3 hex head screws for the PCB, power board and enclosure</li>
+    <li>M3 heat-set inserts, plus 4× M2 for the power board</li>
+    <li>M3×4-6mm screws for the PCB and enclosure lids, M2×4-6mm for the power board</li>
     <li>2× M2.5 screws, supplied with the fan</li>
     <li>2× 15 mm brass standoffs</li>
     <li>¼"-20 tripod insert</li>
@@ -282,6 +283,7 @@
   <p>The ESP32 runs warm under load and the GPS module gets noticeably hot while it searches for satellites. Both are normal. Neither the fan nor the thermal switch is required for the node to work.</p>
   <ul>
     <li>The 30 mm fan plugs into the FAN JST output.</li>
+    <li>The sticker side is not always the exhaust side. Run the fan for a second and feel which way it blows before you screw it down. The Fully Assembled Unit ships with the fan set to exhaust.</li>
     <li>The KSD9700 normally-open thermal switch, 40 °C, wires to the THERMO JST and switches the fan on when the enclosure heats up.</li>
     <li>To run the fan continuously instead, jump the THERMO input or supply 5 V straight to the fan port.</li>
   </ul>
@@ -1082,8 +1084,9 @@ docker compose up -d --build</pre>
     <li>6× JST 2.54 2-pin terminals</li>
     <li>3× JST power male cables for the switch, thermal switch and power board</li>
     <li>10× M3 heat-set inserts</li>
+    <li>4× M2 heat-set inserts for the power board</li>
     <li>2× M3 15 mm brass standoffs</li>
-    <li>M3 hex head screws for the PCB, power board and enclosure</li>
+    <li>M3×4-6mm screws for the PCB and enclosure lids, M2×4-6mm for the power board</li>
     <li>2× M2.5 screws, supplied with the fan</li>
     <li>1× ¼"-20 tripod insert</li>
   </ul>
@@ -1099,6 +1102,7 @@ docker compose up -d --build</pre>
   <ul class="small">
     <li>1× 30 mm 5 V fan with JST lead</li>
     <li>1× 3-pin mini on/off switch</li>
+    <li>1× waterproof Type-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
     <li>1× Type-C 15 W 3 A 5 V UPS board, dual 18650</li>
     <li>1× 2 A fast-blow fuse, recommended, not supplied</li>
     <li>2× 18650 cells, protected flat-top, never supplied with any tier</li>
