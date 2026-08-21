@@ -38,6 +38,18 @@
 
 *Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).*
 
+Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs on the device, and you drive one node two ways with no extra infrastructure:
+  - **Web UI** - the node hosts its own WiFi access point. Connect a phone or laptop, run scans and read results in the browser.
+  - **Meshtastic radio** - send commands and receive detections over LoRa from a paired Meshtastic radio, with no WiFi AP. The Headless firmware runs this way with no web UI at all.
+  - To cover a larger area, add nodes. They share detections over the same mesh and can report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
+
+**At a glance**
+
+- ESP32-S3 · WiFi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
+- Drop-in [ESP32-C5](docs/ESP32-C5.md) build adds 5 GHz alongside 2.4 GHz (testing)
+- **Full** firmware: standalone web UI over the node's own AP · **Headless** firmware: serial + mesh only, for silent deployments
+- Sentinel counterintel engine (Beta branch only)
+- Vibration & attack triggered actions for set and forget operation
 
 ---
 
