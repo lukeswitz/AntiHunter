@@ -1937,6 +1937,197 @@ void meshSplitSender(const String &line, String &sender, String &payload) {
     payload = rest;
 }
 
+struct MeshFleetEntry {
+    String   label;
+    String   type;
+    String   mode;
+    String   scan;
+    String   lastMsg;
+    bool     isNode  = false;
+    bool     ctrl    = false;
+    bool     hasPos  = false;
+    float    temperature = 0.0f;
+    float    hdop    = 0.0f;
+    double   lat     = 0.0;
+    double   lon     = 0.0;
+    uint32_t hits    = 0;
+    uint32_t alarms  = 0;
+    uint32_t uptime  = 0;
+    uint32_t msgs    = 0;
+    uint32_t firstHeard = 0;
+    uint32_t lastHeard  = 0;
+};
+
+static std::map<String, MeshFleetEntry> meshFleet;
+static SemaphoreHandle_t meshFleetMutex = nullptr;
+static const uint32_t MESH_FLEET_TIMEOUT_MS = 900000;
+static const uint32_t MESH_FLEET_ALIVE_MS   = 120000;
+static const size_t   MESH_FLEET_MAX        = 48;
+
+static void meshFleetPruneLocked() {
+    uint32_t now = millis();
+    for (auto it = meshFleet.begin(); it != meshFleet.end(); ) {
+        if ((now - it->second.lastHeard) > MESH_FLEET_TIMEOUT_MS) it = meshFleet.erase(it);
+        else ++it;
+    }
+    while (meshFleet.size() > MESH_FLEET_MAX) {
+        auto oldest = std::min_element(meshFleet.begin(), meshFleet.end(),
+            [](const std::pair<const String, MeshFleetEntry> &a,
+               const std::pair<const String, MeshFleetEntry> &b) {
+                return a.second.lastHeard < b.second.lastHeard;
+            });
+        if (oldest == meshFleet.end()) break;
+        meshFleet.erase(oldest);
+    }
+}
+
+static String meshFleetField(const String &payload, const char *key) {
+    int idx = payload.indexOf(key);
+    if (idx < 0) return "";
+    int start = idx + strlen(key);
+    int end = payload.indexOf(' ', start);
+    if (end < 0) end = payload.length();
+    return payload.substring(start, end);
+}
+
+static String meshFleetSanitize(const String &in, size_t maxLen) {
+    String out;
+    for (size_t i = 0; i < in.length() && out.length() < maxLen; i++) {
+        char c = in[i];
+        if (c == '"' || c == '\\') continue;
+        if (c >= 32 && c <= 126) out += c;
+    }
+    return out;
+}
+
+void meshFleetObserve(const String &sender, const String &payload) {
+    if (sender.length() == 0) return;
+    if (sender == getNodeId()) return;
+    String label = meshFleetSanitize(sender, 24);
+    if (label.length() == 0) return;
+    if (meshFleetMutex == nullptr) meshFleetMutex = xSemaphoreCreateMutex();
+    if (!meshFleetMutex || xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(20)) != pdTRUE) return;
+
+    MeshFleetEntry &e = meshFleet[label];
+    uint32_t now = millis();
+    if (e.label.length() == 0) {
+        e.label = label;
+        e.isNode = meshIsNodeIdToken(label);
+        e.firstHeard = now;
+    }
+    e.lastHeard = now;
+    e.msgs++;
+    e.lastMsg = meshFleetSanitize(payload, 96);
+    if (payload.startsWith("@")) e.ctrl = true;
+
+    String v = meshFleetField(payload, "TYPE:");
+    if (v.length()) e.type = meshFleetSanitize(v, 12);
+    else if (payload.indexOf("RADAR:") >= 0) e.type = "RADAR";
+    else if (e.type.length() == 0 && e.isNode) e.type = "DIGI";
+
+    v = meshFleetField(payload, "Mode:");
+    if (v.length()) e.mode = meshFleetSanitize(v, 12);
+    v = meshFleetField(payload, "RADAR:");
+    if (v.length()) e.mode = meshFleetSanitize(v, 12);
+    v = meshFleetField(payload, "Scan:");
+    if (!v.length()) v = meshFleetField(payload, "SCAN:");
+    if (v.length()) e.scan = meshFleetSanitize(v, 8);
+    v = meshFleetField(payload, "Hits:");
+    if (!v.length()) v = meshFleetField(payload, "DETS:");
+    if (v.length()) e.hits = (uint32_t)v.toInt();
+    v = meshFleetField(payload, "ALMS:");
+    if (v.length()) e.alarms = (uint32_t)v.toInt();
+
+    v = meshFleetField(payload, "Temp:");
+    if (v.length()) {
+        v.replace("C", "");
+        float t = v.toFloat();
+        if (t != 0.0f) e.temperature = t;
+    }
+
+    v = meshFleetField(payload, "Up:");
+    if (v.length()) {
+        int h = 0, m = 0, s = 0;
+        if (sscanf(v.c_str(), "%d:%d:%d", &h, &m, &s) == 3) e.uptime = h * 3600 + m * 60 + s;
+        else e.uptime = (uint32_t)v.toInt();
+    }
+
+    v = meshFleetField(payload, "HDOP=");
+    if (!v.length()) v = meshFleetField(payload, "HDOP:");
+    if (v.length()) e.hdop = v.toFloat();
+
+    v = meshFleetField(payload, "GPS:");
+    if (!v.length()) v = meshFleetField(payload, "GPS=");
+    int comma = v.indexOf(',');
+    if (comma > 0) {
+        double plat = v.substring(0, comma).toDouble();
+        double plon = v.substring(comma + 1).toDouble();
+        if (plat != 0.0 || plon != 0.0) {
+            e.lat = plat;
+            e.lon = plon;
+            e.hasPos = true;
+        }
+    }
+
+    meshFleetPruneLocked();
+    xSemaphoreGive(meshFleetMutex);
+}
+
+String meshFleetJson() {
+    std::vector<MeshFleetEntry> snapshot;
+    uint32_t now = millis();
+    if (meshFleetMutex && xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        meshFleetPruneLocked();
+        snapshot.reserve(meshFleet.size());
+        for (const auto &kv : meshFleet) snapshot.push_back(kv.second);
+        xSemaphoreGive(meshFleetMutex);
+    }
+
+    String peers = "";
+    String radios = "";
+    for (const auto &e : snapshot) {
+        uint32_t age = now - e.lastHeard;
+        String row = "{\"id\":\"" + e.label + "\"";
+        row += ",\"age_ms\":" + String(age);
+        row += ",\"alive\":" + String(age < MESH_FLEET_ALIVE_MS ? "true" : "false");
+        row += ",\"msgs\":" + String(e.msgs);
+        row += ",\"first_ms\":" + String(now - e.firstHeard);
+        row += ",\"last\":\"" + e.lastMsg + "\"";
+        if (e.isNode) {
+            row += ",\"type\":\"" + (e.type.length() ? e.type : String("DIGI")) + "\"";
+            row += ",\"mode\":\"" + e.mode + "\"";
+            row += ",\"scan\":\"" + e.scan + "\"";
+            row += ",\"hits\":" + String(e.hits);
+            if (e.alarms) row += ",\"alms\":" + String(e.alarms);
+            row += ",\"uptime\":" + String(e.uptime);
+            row += ",\"temp\":" + String(e.temperature, 1);
+            row += ",\"gps\":" + String(e.hasPos ? "true" : "false");
+            if (e.hasPos) {
+                row += ",\"lat\":" + String(e.lat, 6);
+                row += ",\"lon\":" + String(e.lon, 6);
+                row += ",\"hdop\":" + String(e.hdop, 1);
+            }
+        } else {
+            row += ",\"ctrl\":" + String(e.ctrl ? "true" : "false");
+        }
+        row += "}";
+        if (e.isNode) {
+            if (peers.length()) peers += ",";
+            peers += row;
+        } else {
+            if (radios.length()) radios += ",";
+            radios += row;
+        }
+    }
+    return "{\"node\":\"" + getNodeId() + "\",\"peers\":[" + peers + "],\"radios\":[" + radios + "]}";
+}
+
+void meshFleetClear() {
+    if (!meshFleetMutex || xSemaphoreTake(meshFleetMutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    meshFleet.clear();
+    xSemaphoreGive(meshFleetMutex);
+}
+
 void processMeshMessage(const String &message) {
     if (message.length() == 0 || message.length() > MAX_MESH_SIZE) return;
 

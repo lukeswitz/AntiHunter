@@ -68,7 +68,7 @@ Vibration based scans and self-destruct option. Defensive by design. Knows the d
 
 ## Quick Start
 
-Flash it from your browser - nothing to install.
+Flash it from your browser.
 
 > Built or bought a node/kit? The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** takes you from unboxing to deployment: antennas, flashing, mesh setup, every detector, the vibration sensor, Command Center install and a printable quick-reference card.
 
@@ -164,7 +164,7 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
   <img width="796" height="986" alt="Sentinel" src="docs/img/sentinel.jpg" />
 </p>
 
-Enable and it runs in the background whenever you aren't scanning. Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks. Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling, so detection isn't tied to one tool's byte templates.
+Enable and it runs in the background whenever you aren't scanning. Passive WiFi monitoring that flags attacker-tool activity by frame signatures plus behavioral fallbacks. Tuned and tested against both popular consumer ESP32 attack firmware and professional Linux tooling.
 
 - **Verified against:** airgeddon, aireplay-ng, bettercap, wifite, mdk4, angryoxide, eaphammer, hostapd-mana, wifipumpkin3, hcxdumptool, purpose-built test scripts, and common consumer ESP32 attack firmware.
 - Detectors are organized into toggleable groups. Each detection logs to serial + SD and broadcasts to mesh peers.
@@ -182,7 +182,8 @@ Enable and it runs in the background whenever you aren't scanning. Passive WiFi 
 - **Behavioral fallbacks** (survive template changes): SSID-rotate forge, behavioral probe-flood, EAPOL-capture bait, broadcast-deauth-while-beaconing.
 - **Hotspot false-positive suppression**: the crypto/handshake detectors (PMKID, KRACK, handshake capture, SAE-DoS) and all beacon-based detectors (evil-twin, OWE, SSID-confusion, TSF, beacon-flood) skip **locally-administered / randomized BSSIDs**. Phone hotspots and MAC-randomizing devices produce normal handshakes, SAE retries and M3 retransmits that would otherwise trip these detectors as attacks. Volume-based DoS detectors (deauth/auth/assoc floods, probe-flood) intentionally do **not** skip them, since real floods commonly spoof randomized sources.
 - **Outputs:** `[DETECT]` serial lines + per-detector SD `.jsonl` + mesh broadcast to peer nodes for quorum confirmation.
-- **Mesh command audit:** every privileged command received on the mesh is logged with the radio id that issued it. It shows up in the **Sentinel UI** (the *Mesh Commands* panel, below AP Clients - full build) and via the **API** (`GET /api/mesh_cmd.jsonl`), and is persisted to SD (`/mesh_cmd.jsonl`). This is a provenance audit trail, not an alert - so it never false-positives.
+- **AP clients:** stations that associate to the node's own AP, with MAC, association count and first/last-seen age. *AP Clients* panel, `GET /api/apclients.json`.
+- **Mesh command audit:** every inbound mesh line beginning `@`, `TRIANGULATE` or `TRI_`, logged with the sender id, truncated to 96 characters. Captured before addressing is resolved, so commands aimed at other nodes are included. *Mesh Commands* panel, `GET /api/mesh_cmd.jsonl`, SD `/mesh_cmd.jsonl`.
 - **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command - when enabled it auto-starts at power-on and survives reboot.
 
 The mesh labels Sentinel emits, for log parsers and C2, are listed under [Mesh Commands](#mesh-commands) → *Sentinel label reference*.
@@ -204,7 +205,7 @@ The mesh labels Sentinel emits, for log parsers and C2, are listed under [Mesh C
 Two-phase scan: establish a baseline of known devices, then monitor for anomalies -- new devices, disappearances, reappearances, and significant RSSI changes. Persistent storage survives reboots.
 
 - RAM cache: 200-500 devices, SD overflow: 1K-100K device db
-- Automatic tiering between RAM and SD with quick lookups
+- Automatic tiering between RAM and SD
 
 > [!IMPORTANT]
 > A longer initial scan produces a more reliable baseline.
@@ -528,6 +529,7 @@ Same firmware, same detectors, same [mesh commands](#mesh-commands), same scan e
 | WiFi discovery | Active all-channel sweep plus promiscuous capture on Device Scan, Target Scan, Baseline and Triangulation | Identical |
 | Results | `/results`, rendered as cards in the browser | Same text at `/last_results.txt` on SD |
 | Device database | `/devicedb.jsonl` | Not written |
+| Fleet roster | Fleet tab and `/api/mesh` | Not tracked |
 | RF footprint | AP beacons continuously | Never beacons |
 
 Karma bait is the only detector that transmits, a probe request every 8s. Off by default, enable with `GROUP:rogue:on`. Sentinel `defend` has no AP to pin to on Headless, so use `scan`.
@@ -578,20 +580,24 @@ The same settings can be applied from the Meshtastic app or web client - Serial:
 
 Before deployment: set the region, change the BLE pairing pin, make your own encrypted channel primary and turn the public channel off in the Meshtastic app.
 
-### Control from your phone, TAK, and MQTT
+### Reaching a node you cannot hear
+
+You do not need line of sight to every node. Nodes in between relay for you - [3 hops by default, 7 max](https://meshtastic.org/docs/configuration/radio/lora/).
+
+A Meshtastic radio on its own, in the `ROUTER` or `REPEATER` [role](https://meshtastic.org/docs/configuration/radio/device/), extends the line further. AntiHunter radios stay on the default `CLIENT` role.
+
+### Control from a Meshtastic client
 
 Node commands and detections travel as standard Meshtastic text messages on public or encrypted channels. Any Meshtastic client or integration that reaches the radio reaches the node:
 
-- **Phone** - pair the Meshtastic radio to the [Meshtastic app](https://meshtastic.org/) (Android, iOS, or web) over Bluetooth or WiFi. Send `@node COMMAND` messages to run scans and read detections from anywhere in mesh range - no WiFi AP, no Command Center.
-- **TAK / ATAK** - Meshtastic's [ATAK plugin](https://meshtastic.org/docs/software/integrations/integrations-atak-plugin/) and [TAK server integration](https://meshtastic.org/docs/software/integrations/) bridge the mesh to the Team Awareness Kit, so node traffic reaches a TAK server with the rest of the mesh.
+- **Meshtastic client** - pair the radio to [any client](https://meshtastic.org/docs/software/) - Android, iOS, macOS, or the web client - over Bluetooth, WiFi, or USB. Send `@node COMMAND` messages to run scans and read detections from anywhere in mesh range - no WiFi AP, no Command Center. Clients with [quick chat](https://meshtastic.org/docs/software/android/user/messages-and-channels/) put the commands you use most on a button.
+- **TAK / ATAK** - set the radio's role to `TAK`, install the [Meshtastic ATAK plugin](https://meshtastic.org/docs/software/integrations/integrations-atak-plugin/) matching your ATAK version, and leave the Meshtastic app running in the background. Outgoing ATAK CoT then also goes over the mesh. The `TAK_TRACKER` role sends the radio's own position to ATAK without ATAK running. The plugin handles CoT only - node alerts arrive as text in the Meshtastic app.
 - **MQTT** - a Meshtastic [MQTT gateway node](https://meshtastic.org/docs/software/integrations/mqtt/) forwards mesh traffic to a broker for logging, Home Assistant, or Node-RED.
-
-These are Meshtastic features. AntiHunter speaks the standard protocol, so they work without any AntiHunter-specific setup on the receiving end.
 
 <details>
 <summary>Mesh TX Architecture</summary>
 
-Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap) so a scan's devices fit in the fewest LoRa packets.
+Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap).
 
 **Consequences**:
 - Starting a new scan never waits on prior scan's mesh TX. Drain happens in background.
@@ -859,6 +865,25 @@ Any other value is passed through verbatim as `Reason code N`.
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
 
+### Fleet
+
+The **Fleet** tab lists senders heard on the mesh.
+
+**Nodes** - ids matching the node-id rule (2-5 chars, `A-Z0-9`), with mode, scan state, hits, uptime, temp
+and GPS from their `STATUS` and heartbeat lines. `type` is `RADAR` on `TYPE:RADAR`, else `DIGI`. Online =
+heard within 2 minutes.
+
+**Other Mesh Radios** - every other sender id, including your own paired radio. Tagged `Control` once an
+`@` line is seen from it, `Unknown` otherwise. Also shown in the Sentinel tab.
+
+Rosters hold 48 entries in RAM, dropped after 15 minutes unheard. **Ping Nodes** broadcasts `@ALL STATUS`.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/mesh` | GET | Fleet roster (JSON: `node`, `peers`, `radios`) |
+| `/api/mesh/ping` | POST | Broadcast `@ALL STATUS` |
+| `/api/mesh/clear` | POST | Clear both rosters |
+
 ### Probe Database
 
 | Endpoint | Method | Description |
@@ -928,6 +953,7 @@ Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth 
 | `/api/incidents` | DELETE | Clear all incidents (RAM + SD) |
 | `/api/mesh_cmd.jsonl` | GET | Mesh command provenance audit from SD (JSONL: `ts`, `epoch`, `src` radio id, `cmd`) |
 | `/api/mesh_cmd` | DELETE | Clear the mesh command audit log |
+| `/api/apclients.json` | GET | Stations associated to this node's AP |
 
 Each incident record carries: `ts` (device uptime ms), **`epoch`** (RTC Unix seconds - `0` if RTC unset; used by the Analysis tab to show real timestamps), `node`, `src`, `type`, `raw`.
 
