@@ -815,6 +815,25 @@ Any other value is passed through verbatim as `Reason code N`.
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
 
+### Fleet
+
+The **Fleet** tab lists senders heard on the mesh.
+
+**Nodes** - ids matching the node-id rule (2-5 chars, `A-Z0-9`), with mode, scan state, hits, uptime, temp
+and GPS from their `STATUS` and heartbeat lines. `type` is `RADAR` on `TYPE:RADAR`, else `DIGI`. Online =
+heard within 2 minutes.
+
+**Other Mesh Radios** - every other sender id, including your own paired radio. Tagged `Control` once an
+`@` line is seen from it, `Unknown` otherwise. Also shown in the Sentinel tab.
+
+Rosters hold 48 entries in RAM, dropped after 15 minutes unheard. **Ping Nodes** broadcasts `@ALL STATUS`.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/mesh` | GET | Fleet roster (JSON: `node`, `peers`, `radios`) |
+| `/api/mesh/ping` | POST | Broadcast `@ALL STATUS` |
+| `/api/mesh/clear` | POST | Clear both rosters |
+
 ### Probe Database
 
 | Endpoint | Method | Description |
