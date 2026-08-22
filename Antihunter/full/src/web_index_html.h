@@ -246,6 +246,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-state.move .csi-act{color:var(--csi-hit)}
       .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
+      .res-card.csi-hit::before{background:var(--csi-hit)}
       .csi-tech{font-size:12.5px;color:var(--mut);line-height:1.55;margin:0 0 12px;max-width:70ch}
       .csi-det{margin-top:4px}
       .csi-det summary{cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);padding:9px 0;list-style:none}
@@ -4303,7 +4304,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const k = l.mac;
           (csiHist[k] = csiHist[k] || []).push(l.score);
           if (csiHist[k].length > 60) csiHist[k].shift();
-          h += '<div class="res-card ' + (l.motion ? 'alert' : 'acc') + '"><div class="res-row-main">' +
+          h += '<div class="res-card ' + (l.motion ? 'csi-hit' : 'acc') + '"><div class="res-row-main">' +
             '<span class="res-id"><span class="res-mac"' +
             (l.motion ? ' style="color:var(--csi-hit)"' : '') + '>' + l.mac + '</span>' +
             (l.bssids > 1 ? '<span class="res-badge">' + l.bssids + ' ssids</span>' : '') + '</span>' +
