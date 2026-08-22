@@ -739,7 +739,7 @@ static void handleCsiMotionStart(const String &command)
 {
   String params = command.substring(17);
   int secs = 0;
-  bool forever = false, telem = false, raw = false;
+  bool forever = false, telem = false, raw = false, train = false;
   uint8_t ch = 0;
   int idx = 0;
 
@@ -750,6 +750,7 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "FOREVER") forever = true;
     else if (tok == "TELEM") telem = true;
     else if (tok == "RAW") raw = true;
+    else if (tok == "TRAIN") train = true;
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
     if (colon < 0) break;
     params = params.substring(colon + 1);
@@ -767,7 +768,7 @@ static void handleCsiMotionStart(const String &command)
   }
 
   setCsiConfig(ch, (float)csiThresholdMilli.load() / 1000.0f, csiHoldMs.load(),
-               csiConsecNeeded.load(), raw, telem, true);
+               csiConsecNeeded.load(), raw, telem, train);
 
   stopRequested = false;
   scanning = true;

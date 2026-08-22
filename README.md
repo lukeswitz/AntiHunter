@@ -621,7 +621,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
-| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
+| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. `TRAIN` spends the first 20s learning the trigger from this location instead of using the default - only needed if a location reads wrong, since the score is normalised to each link's own quiet level. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
 | `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 1.2-20 (multiple of the learned still-state floor), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:1.5:5000:3:0` |
 | `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial, including `"calibrated"`. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |

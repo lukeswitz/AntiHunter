@@ -21,9 +21,9 @@ extern std::vector<uint8_t> CHANNELS;
 
 std::atomic<bool> csiRawDump{false};
 std::atomic<bool> csiTelemetry{false};
-std::atomic<bool> csiAutoTrigger{true};
+std::atomic<bool> csiAutoTrigger{false};
 std::atomic<uint8_t> csiPinnedChannel{0};
-std::atomic<uint32_t> csiThresholdMilli{2500};
+std::atomic<uint32_t> csiThresholdMilli{1500};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
 
@@ -513,15 +513,13 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     prefs.putUInt("csiThr", csiThresholdMilli.load());
     prefs.putUInt("csiHold", csiHoldMs.load());
     prefs.putUInt("csiCons", csiConsecNeeded.load());
-    prefs.putBool("csiAuto", csiAutoTrigger.load());
 }
 
 void loadCsiConfigFromPrefs() {
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
-    csiThresholdMilli.store(prefs.getUInt("csiThr", 2500));
+    csiThresholdMilli.store(prefs.getUInt("csiThr", 1500));
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
-    csiAutoTrigger.store(prefs.getBool("csiAuto", true));
 }
 
 static bool csiRadioStart(uint8_t ch) {
@@ -698,11 +696,11 @@ void csiMotionTask(void *pv) {
 
     Serial.printf("[CSI] Pinned to ch%u - web UI reachable only while ch%u is the SoftAP channel\n", ch, ch);
 
-    if (csiAutoTrigger.load() && !prefs.getBool("csiCalDone", false)) {
+    if (csiAutoTrigger.load()) {
         g_calActive = true;
-        Serial.printf("[CSI] Calibrating baseline for %us - keep the area empty\n", CSI_CAL_MS / 1000);
+        Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
-        Serial.printf("[CSI] Using saved trigger %.2fx (send CSI_CFG or tick Re-calibrate to relearn)\n",
+        Serial.printf("[CSI] Trigger %.2fx (self-normalising, no setup needed)\n",
                       (float)csiThresholdMilli.load() / 1000.0f);
     }
 

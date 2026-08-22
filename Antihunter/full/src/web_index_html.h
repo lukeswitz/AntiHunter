@@ -623,11 +623,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
               <div id="csiControls" style="display:none;margin-top:10px;">
                 <div style="font-size:12px;opacity:.8;line-height:1.55;margin-bottom:10px;">
-                  Detects movement in the area. It picks the channel and learns its own trigger &mdash; just start it and keep the area quiet for the first 20 seconds.
+                  Detects movement in the area. It picks the channel itself and needs no setup &mdash; just start it.
                   The radio pins to one channel while running, so the web UI stays reachable only if that is the SoftAP channel; alerts still reach mesh, serial and SD.
                 </div>
                 <input type="hidden" name="csiChannel" id="csiChannel" value="0">
-                <input type="hidden" name="csiAuto" id="csiAuto" value="1">
                 <details style="margin-top:4px;">
                   <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.7;">Advanced</summary>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px;">
@@ -649,8 +648,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       <input type="number" name="csiConsec" id="csiConsec" min="1" max="50" value="3">
                     </div>
                   </div>
-                  <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRecal" name="csiRecal" value="1">Re-learn the baseline on this run (20s)</label>
-                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Baseline not learned yet &mdash; the first run learns it automatically.</div>
+                  <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiAuto" name="csiAuto" value="1">Learn the trigger from this area instead (20s, keep it empty)</label>
+                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Sensitivity is self-normalising, so the default works anywhere. Only tick this if a location reads wrong.</div>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>
@@ -4243,18 +4242,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       async function refreshCsiCalState() {
         const el = document.getElementById('csiCalState');
-        const box = document.getElementById('csiRecal');
         if (!el) return;
         try {
           const j = await (await fetch('/csi-json')).json();
-          if (j.calibrated) {
-            el.innerHTML = 'Baseline learned. Trigger <strong>' + (j.threshold || 0).toFixed(2) +
-                           'x</strong>. Tick above to re-learn it, otherwise this run reuses it.';
-            if (box) box.disabled = false;
-          } else {
-            el.textContent = 'Baseline not learned yet - the first run learns it automatically over 20 seconds.';
-            if (box) { box.checked = false; box.disabled = true; }
-          }
+          const t = (j.threshold || 0).toFixed(2);
+          el.innerHTML = j.calibrated
+            ? 'Using a trigger learned here: <strong>' + t + 'x</strong>. Untick to go back to the default.'
+            : 'Sensitivity is self-normalising, so the default <strong>' + t +
+              'x</strong> works anywhere. Only tick this if a location reads wrong.';
         } catch (e) {
           console.warn('refreshCsiCalState: /csi-json fetch failed', e);
           el.textContent = 'Baseline state unavailable.';
