@@ -655,7 +655,6 @@ void csiMotionTask(void *pv) {
                     "CSI Motion Detection\n\nNo CSI-eligible traffic found on any surveyed channel.\n"
                     "CSI only exists when a frame is decoded - nothing was transmitting.\n";
             }
-            if (meshEnabled) meshEnqueuePrio(getNodeId() + ": CSI_ABORT: NO_TRAFFIC", PRIO_EVENT);
             scanning = false;
             csiRadioStop();
             vQueueDeleteWithCaps(csiQueue);
@@ -691,12 +690,6 @@ void csiMotionTask(void *pv) {
         std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
         antihunter::lastResults = "CSI Motion Detection - ch" + std::to_string(ch) +
                                   " (IN PROGRESS)\nLearning still-state baseline...\n";
-    }
-
-    if (meshEnabled) {
-        meshEnqueuePrio(getNodeId() + ": CSI_START: CH=" + String(ch) +
-                        " T=" + String((float)csiThresholdMilli.load() / 1000.0f, 2),
-                        PRIO_EVENT);
     }
 
     const uint32_t startMs = millis();
@@ -809,12 +802,12 @@ void csiMotionTask(void *pv) {
         antihunter::lastResults = std::string(finalResults.c_str());
     }
 
-    if (meshEnabled && !stopRequested) {
+    {
         const uint32_t span = millis() - startMs;
-        meshEnqueue(getNodeId() + ": CSI_DONE: CH=" + String(g_csiActiveChannel) +
-                    " N=" + String(g_csiSeen.load()) +
-                    " R=" + String((float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1), 1) +
-                    " E=" + String(g_csiMotionEvents.load()));
+        Serial.printf("[CSI] Done: CH=%u N=%u R=%.1f/s E=%u\n",
+                      g_csiActiveChannel, g_csiSeen.load(),
+                      (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
+                      g_csiMotionEvents.load());
     }
 
     scanning = false;
