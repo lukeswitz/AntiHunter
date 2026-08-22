@@ -40,6 +40,11 @@ static std::atomic<uint32_t> g_surveyTx{0};
 static uint8_t g_surveyMacs[16][6];
 static uint8_t g_surveyMacCount = 0;
 
+static const uint32_t CSI_AREA_MIN_GAP_MS = 30000;
+static bool g_areaMotion = false;
+static uint32_t g_areaSinceMs = 0;
+static uint32_t g_areaLastTxMs = 0;
+
 static bool g_calActive = false;
 static float g_calSum = 0.0f;
 static uint32_t g_calSamples = 0;
@@ -279,7 +284,6 @@ static void csiEmitAlert(const CsiAlert &al) {
     }
 
     logToSD(line);
-    if (meshEnabled) meshEnqueuePrio(line, PRIO_EVENT);
 }
 
 static void csiProcess(const CsiEvent &ev) {
@@ -334,7 +338,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.consec = 0;
         }
 
-        if (g_calActive) return;
+        if (g_calActive || !l.sc.settled()) return;
 
         if (!l.motion && l.consec >= consecNeeded) {
             l.motion = true;
@@ -627,6 +631,9 @@ void csiMotionTask(void *pv) {
     g_calSum = 0.0f;
     g_calSamples = 0;
     g_calTrigger = 0.0f;
+    g_areaMotion = false;
+    g_areaSinceMs = 0;
+    g_areaLastTxMs = 0;
     g_csiStartMs = millis();
 
     if (csiQueue == nullptr) {
@@ -755,6 +762,38 @@ void csiMotionTask(void *pv) {
         if (now - lastExpireMs >= 2000) {
             lastExpireMs = now;
             csiExpireLinks();
+
+            int movingLinks = 0;
+            float peak = 0.0f;
+            {
+                std::lock_guard<std::mutex> lock(g_csiMutex);
+                for (int i = 0; i < CSI_MAX_LINKS; i++) {
+                    if (!g_links[i].used || !g_links[i].motion) continue;
+                    movingLinks++;
+                    if (g_links[i].sc.score > peak) peak = g_links[i].sc.score;
+                }
+            }
+
+            const bool areaNow = (movingLinks > 0);
+            if (areaNow != g_areaMotion) {
+                if (areaNow) {
+                    g_areaMotion = true;
+                    g_areaSinceMs = now;
+                    if (meshEnabled && (g_areaLastTxMs == 0 || now - g_areaLastTxMs >= CSI_AREA_MIN_GAP_MS)) {
+                        meshEnqueuePrio(getNodeId() + ": CSI_MOTION: CH=" + String(g_csiActiveChannel) +
+                                        " N=" + String(movingLinks) +
+                                        " S=" + String(peak, 2), PRIO_EVENT);
+                        g_areaLastTxMs = now;
+                    }
+                } else {
+                    g_areaMotion = false;
+                    if (meshEnabled) {
+                        meshEnqueuePrio(getNodeId() + ": CSI_CLEAR: CH=" + String(g_csiActiveChannel) +
+                                        " D=" + String((now - g_areaSinceMs) / 1000) + "s", PRIO_EVENT);
+                        g_areaLastTxMs = now;
+                    }
+                }
+            }
         }
 
         if (now - lastResultsMs >= 1000) {
