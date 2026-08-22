@@ -1388,6 +1388,7 @@ void registerRemainingRoutes() {
                          req->hasParam("csiRaw", true),
                          req->hasParam("csiTelem", true),
                          req->hasParam("csiAuto", true));
+            if (req->hasParam("csiRecal", true)) csiClearCalibration();
 
             stopRequested = false;
             req->send(200, "text/plain",

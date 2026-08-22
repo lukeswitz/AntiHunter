@@ -803,6 +803,61 @@ static void handleCsiMotionStart(const String &command)
   sendToSerial1(nodeId + ": CSI_ACK:STARTED", true);
 }
 
+static void handleCsiStatus()
+{
+  String r = getCsiResults();
+  Serial.println(r);
+  sendToSerial1(nodeId + ": CSI_STATUS_LEN:" + String(r.length()), true);
+}
+
+static void handleCsiJson()
+{
+  String j = getCsiJson();
+  Serial.println(j);
+  sendToSerial1(nodeId + ": CSI_JSON_LEN:" + String(j.length()), true);
+}
+
+static void handleCsiRecal()
+{
+  csiClearCalibration();
+  sendToSerial1(nodeId + ": CSI_RECAL_ACK:OK", true);
+}
+
+static void handleCsiCfg(const String &command)
+{
+  String params = command.substring(8);
+  float thr = (float)csiThresholdMilli.load() / 1000.0f;
+  uint32_t hold = csiHoldMs.load();
+  uint32_t consec = csiConsecNeeded.load();
+  uint8_t ch = csiPinnedChannel.load();
+  int idx = 0;
+
+  while (params.length() > 0) {
+    int colon = params.indexOf(':');
+    String tok = (colon < 0) ? params : params.substring(0, colon);
+    if (tok.length() > 0) {
+      if (idx == 0) thr = tok.toFloat();
+      else if (idx == 1) hold = (uint32_t)tok.toInt();
+      else if (idx == 2) consec = (uint32_t)tok.toInt();
+      else if (idx == 3) ch = (uint8_t)tok.toInt();
+    }
+    if (colon < 0) break;
+    params = params.substring(colon + 1);
+    idx++;
+  }
+
+  if (thr < 1.2f || thr > 20.0f || hold < 500 || hold > 120000 ||
+      consec < 1 || consec > 50 || ch > 14) {
+    sendToSerial1(nodeId + ": CSI_CFG_ACK:INVALID", true);
+    return;
+  }
+
+  setCsiConfig(ch, thr, hold, consec, csiRawDump.load(), csiTelemetry.load(), csiAutoTrigger.load());
+  sendToSerial1(nodeId + ": CSI_CFG_ACK:T=" + String(thr, 2) +
+                " HOLD=" + String(hold) + " CONSEC=" + String(consec) +
+                " CH=" + String(ch), true);
+}
+
 static void handleRandomizationStart(const String &command)
 {
   String params = command.substring(20);
@@ -1974,6 +2029,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))         handleDeauthStart(command);
   else if (command.startsWith("CSI_MOTION_START:"))     handleCsiMotionStart(command);
+  else if (command.startsWith("CSI_CFG:"))              handleCsiCfg(command);
+  else if (command == "CSI_STATUS")                     handleCsiStatus();
+  else if (command == "CSI_JSON")                       handleCsiJson();
+  else if (command == "CSI_RECAL")                      handleCsiRecal();
   else if (command.startsWith("RANDOMIZATION_START:"))  handleRandomizationStart(command);
   else if (command.startsWith("PROBE_START:"))          handleProbeStart(command);
   else if (command == "PROBE_STOP")                     handleProbeStop(command);

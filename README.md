@@ -624,6 +624,8 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
 | `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 1.2-20 (multiple of the learned still-state floor), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:1.5:5000:3:0` |
 | `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
+| `CSI_JSON` | None - dumps CSI state as JSON to serial, including `"calibrated"`. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
+| `CSI_RECAL` | None - clears the saved baseline so the next CSI start re-learns the trigger over 20s. ACK: `CSI_RECAL_ACK:OK` | `@ALL CSI_RECAL` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |

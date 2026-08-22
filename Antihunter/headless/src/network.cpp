@@ -792,6 +792,12 @@ static void handleCsiStatus()
   sendToSerial1(getNodeId() + ": CSI_STATUS_LEN:" + String(r.length()), true);
 }
 
+static void handleCsiRecal()
+{
+  csiClearCalibration();
+  sendToSerial1(getNodeId() + ": CSI_RECAL_ACK:OK", true);
+}
+
 static void handleCsiJson()
 {
   String j = getCsiJson();
@@ -2043,6 +2049,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("CSI_CFG:"))            handleCsiCfg(command);
   else if (command == "CSI_STATUS")                   handleCsiStatus();
   else if (command == "CSI_JSON")                     handleCsiJson();
+  else if (command == "CSI_RECAL")                    handleCsiRecal();
   else if (command.startsWith("RANDOMIZATION_START:")) handleRandomizationStart(command);
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
   else if (command == "PROBE_STOP")                   handleProbeStop(command);
