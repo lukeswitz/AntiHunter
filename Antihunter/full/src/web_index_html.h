@@ -247,6 +247,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
       .res-card.csi-hit::before{background:var(--csi-hit)}
+      .csi-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+      .csi-stats .res-stat{padding:11px 12px;min-width:0}
+      .csi-stats .res-stat-lab{font-size:9.5px;letter-spacing:.04em;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .csi-stats .res-stat-val{font-size:20px;white-space:nowrap}
+      @media(max-width:560px){.csi-stats{gap:7px}.csi-stats .res-stat{padding:9px 9px}.csi-stats .res-stat-val{font-size:15px}.csi-stats .res-stat-lab{font-size:8.5px}}
       .csi-tech{font-size:12.5px;color:var(--mut);line-height:1.55;margin:0 0 12px;max-width:70ch}
       .csi-det{margin-top:4px}
       .csi-det summary{cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);padding:9px 0;list-style:none}
@@ -4285,11 +4290,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
              '<div class="csi-room-lab"><span>movement over the last ' + csiAgo(csiRoom.length * 1000) + '</span>' +
              '<span>alert line</span></div></div>';
 
-        h += '<div class="res-stats" style="margin-bottom:14px">' +
-          '<div class="res-stat' + (d.events ? ' warn' : '') + '"><div class="res-stat-lab">Times triggered</div><div class="res-stat-val">' + (d.events || 0) + '</div></div>' +
+        h += '<div class="csi-stats">' +
+          '<div class="res-stat"><div class="res-stat-lab">Triggered</div><div class="res-stat-val"' +
+            (d.events ? ' style="color:var(--csi-hit)"' : '') + '>' + (d.events || 0) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Last movement</div><div class="res-stat-val">' +
-            (csiLastMotion ? csiAgo(now - csiLastMotion) : '&mdash;') + '</div></div>' +
-          '<div class="res-stat"><div class="res-stat-lab">Running for</div><div class="res-stat-val">' + csiAgo(now - csiStarted) + '</div></div>' +
+            (csiLastMotion ? csiAgo(now - csiLastMotion) : 'none yet') + '</div></div>' +
+          '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(now - csiStarted) + '</div></div>' +
           '</div>';
 
         if (!links.length) return h + _resEmpty('Listening. No usable signals in range yet.');
