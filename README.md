@@ -710,6 +710,9 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
+| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
+| `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 1.2-20 (multiple of the learned still-state floor), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:1.5:5000:3:0` |
+| `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
@@ -816,6 +819,11 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="network" [GHOST]] [DST]` - vendor token omitted entirely when unknown |
+| CSI Motion Start | `NODE_ID: CSI_START: CH=N T=x.xx` - sent once when CSI motion detection starts, after the channel survey has picked `CH`. `T` is the trigger multiple of the learned still-state floor |
+| CSI Motion Abort | `NODE_ID: CSI_ABORT: NO_TRAFFIC` - the survey found no CSI-eligible traffic on any configured channel, so nothing was pinned |
+| CSI Motion | `NODE_ID: CSI_MOTION: MAC S=score R=dBm CH=N P=packets` - the channel response of the link from `MAC` to this node moved. `S` is the deviation as a multiple of that link's own learned floor. One line per rising edge, per transmitter |
+| CSI Motion Clear | `NODE_ID: CSI_CLEAR: MAC D=Ns CH=N` - the link settled for the configured hold time. `D` is how long motion persisted |
+| CSI Motion Done | `NODE_ID: CSI_DONE: CH=N N=records R=rate/s E=events` - end of a timed capture. `R` is CSI records per second, which is set by how much traffic that channel carried |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 
@@ -891,7 +899,7 @@ Any other value is passed through verbatim as `Reason code N`.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/scan` | POST | Start target scan (`mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`). With `triangulate=1`, returns `400` and the reason if triangulation cannot start (bad/empty `targetMac`, debounce, busy task) |
-| `/sniffer` | POST | Start detection scan (`detection`, `secs`, `forever`, `randomizationMode`, `probeScanMode`, `captureProbes`) |
+| `/sniffer` | POST | Start detection scan (`detection`, `secs`, `forever`, `randomizationMode`, `probeScanMode`, `captureProbes`). `detection=csi-motion` additionally takes `csiChannel` 0-14 (**0 = survey every configured channel and pin the busiest**), `csiThreshold` 1.2-20, `csiHold` 500-120000 ms, `csiConsec` 1-50, `csiAuto` (calibrate the trigger from 20s of this room), `csiTelem` (per-packet `CSIT` line to serial), `csiRaw` |
 | `/drone` | POST | Start drone RID detection (`secs`, `forever`) |
 
 ### Results
@@ -906,6 +914,8 @@ Any other value is passed through verbatim as `Reason code N`.
 | `/baseline-results` | GET | Baseline anomaly results |
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
+| `/csi-results` | GET | CSI motion detection results, one block per tracked transmitter |
+| `/csi-json` | GET | CSI motion state (JSON): channel, record rate, per-link score, floor and motion flag |
 
 ### Fleet
 

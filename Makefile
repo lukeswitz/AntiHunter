@@ -11,7 +11,11 @@ HEADLESS_SRC := Antihunter/headless/src
 EXCLUDE := -i Antihunter/full/src/wifi.c -i Antihunter/full/src/opendroneid.c \
 	-i Antihunter/headless/src/wifi.c -i Antihunter/headless/src/opendroneid.c
 
-.PHONY: lint lint-full lint-headless build build-full build-headless clean
+.PHONY: lint lint-full lint-headless build build-full build-headless test-csi clean
+
+test-csi:
+	c++ -std=c++17 -O1 -I$(FULL_SRC) scripts/test_csi_metric.cpp -o /tmp/test_csi_metric
+	/tmp/test_csi_metric
 
 lint: lint-full lint-headless
 
