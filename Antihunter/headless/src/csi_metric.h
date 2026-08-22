@@ -18,6 +18,7 @@ static const float CSI_WARM_ALPHA = 0.2f;
 static const float CSI_FLOOR_ALPHA = 0.01f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
+static const uint16_t CSI_FLOOR_SETTLE_PKTS = 450;
 
 static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     float sum = 0.0f;
@@ -42,6 +43,9 @@ struct CsiScorer {
     float mad;
     float score;
     uint16_t warm;
+    uint16_t scored;
+
+    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS; }
 
     void reset() {
         for (int k = 0; k < CSI_NSUB; k++) { fast[k] = 0.0f; slow[k] = 0.0f; }
@@ -49,6 +53,7 @@ struct CsiScorer {
         mad = 0.0f;
         score = 0.0f;
         warm = 0;
+        scored = 0;
     }
 
     bool update(const float *a, bool holdFloor) {
@@ -85,6 +90,7 @@ struct CsiScorer {
         if (floorMad < CSI_FLOOR_MIN) floorMad = CSI_FLOOR_MIN;
 
         score = mad / floorMad;
+        if (scored < 0xFFFF) scored++;
         return true;
     }
 };

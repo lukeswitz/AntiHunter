@@ -823,8 +823,8 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="network" [GHOST]] [DST]` - vendor token omitted entirely when unknown |
 | CSI Motion Start | `NODE_ID: CSI_START: CH=N T=x.xx` - sent once when CSI motion detection starts, after the channel survey has picked `CH`. `T` is the trigger multiple of the learned still-state floor |
 | CSI Motion Abort | `NODE_ID: CSI_ABORT: NO_TRAFFIC` - the survey found no CSI-eligible traffic on any configured channel, so nothing was pinned |
-| CSI Motion | `NODE_ID: CSI_MOTION: MAC S=score R=dBm CH=N P=packets` - the channel response of the link from `MAC` to this node moved. `S` is the deviation as a multiple of that link's own learned floor. One line per rising edge, per transmitter |
-| CSI Motion Clear | `NODE_ID: CSI_CLEAR: MAC D=Ns CH=N` - the link settled for the configured hold time. `D` is how long motion persisted |
+| CSI Motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. Rate limited to one per 30s |
+| CSI Motion Clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving |
 | CSI Motion Done | `NODE_ID: CSI_DONE: CH=N N=records R=rate/s E=events` - end of a timed capture. `R` is CSI records per second, which is set by how much traffic that channel carried |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |

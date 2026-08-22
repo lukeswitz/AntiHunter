@@ -246,6 +246,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-state.move .csi-act{color:var(--csi-hit)}
       .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
+      .det-desc{font-size:12px;color:var(--mut);line-height:1.5;margin-top:8px;padding-left:11px;border-left:2px solid var(--acc);max-width:70ch}
       .res-card.csi-hit::before{background:var(--csi-hit)}
       .csi-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
       .csi-stats .res-stat{padding:11px 12px;min-width:0}
@@ -620,12 +621,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="probe-scan">Probe Request Scanner</option>
                 <option value="csi-motion">CSI Motion Detection</option>
               </select>
+              <div id="detectionDesc" class="det-desc"></div>
 
               <div id="csiControls" style="display:none;margin-top:10px;">
-                <div style="font-size:12px;opacity:.8;line-height:1.55;margin-bottom:10px;">
-                  Detects movement in the area. It picks the channel itself and needs no setup &mdash; just start it.
-                  The radio pins to one channel while running, so the web UI stays reachable only if that is the SoftAP channel; alerts still reach mesh, serial and SD.
-                </div>
                 <input type="hidden" name="csiChannel" id="csiChannel" value="0">
                 <details style="margin-top:4px;">
                   <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.7;">Advanced</summary>
@@ -4217,6 +4215,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return { groups, broadcast };
       }
 
+      const DETECTION_DESC = {
+        'device-scan': 'Lists every WiFi and BLE device in range, with signal strength and vendor.',
+        'baseline': 'Learns which devices belong here, then alerts on anything new, returning, or moving.',
+        'randomization-detection': 'Links rotating MAC addresses back to one device so randomisation stops hiding it.',
+        'deauth': 'Watches for deauth and disassoc attacks and fingerprints the tool behind them.',
+        'drone-detection': 'Decodes drone Remote ID beacons over WiFi and BLE, including operator position.',
+        'probe-scan': 'Captures the networks devices are searching for, which reveals where they have been.',
+        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals.'
+      };
+      function setDetectionDesc(mode) {
+        const el = document.getElementById('detectionDesc');
+        if (el) el.textContent = DETECTION_DESC[mode] || '';
+      }
       async function refreshCsiCalState() {
         const el = document.getElementById('csiCalState');
         if (!el) return;
@@ -5329,6 +5340,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       document.getElementById('detectionMode').addEventListener('change', function() {
         const selectedMethod = this.value;
+        setDetectionDesc(selectedMethod);
         const standardControls = document.getElementById('standardDurationControls');
         const baselineControls = document.getElementById('baselineConfigControls');
         const randomizationModeControls = document.getElementById('randomizationModeControls');
