@@ -463,6 +463,7 @@ String getCsiJson() {
     j += ",\"events\":" + String(g_csiMotionEvents.load());
     j += ",\"motion\":" + String(anyMotion ? "true" : "false");
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
+    j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
     j += ",\"links\":[";
 
     for (int i = 0; i < n; i++) {
@@ -483,6 +484,11 @@ String getCsiJson() {
 
     j += "]}";
     return j;
+}
+
+void csiClearCalibration() {
+    prefs.putBool("csiCalDone", false);
+    Serial.println("[CSI] Saved baseline cleared - next start will re-learn the trigger");
 }
 
 void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t consec,
@@ -668,10 +674,12 @@ void csiMotionTask(void *pv) {
 
     Serial.printf("[CSI] Pinned to ch%u - web UI reachable only while ch%u is the SoftAP channel\n", ch, ch);
 
-    if (csiAutoTrigger.load()) {
+    if (csiAutoTrigger.load() && !prefs.getBool("csiCalDone", false)) {
         g_calActive = true;
-        Serial.printf("[CSI] Calibrating still-state trigger for %us - keep the area as it should read 'no motion'\n",
-                      CSI_CAL_MS / 1000);
+        Serial.printf("[CSI] Calibrating baseline for %us - keep the area empty\n", CSI_CAL_MS / 1000);
+    } else {
+        Serial.printf("[CSI] Using saved trigger %.2fx (send CSI_CFG or tick Re-calibrate to relearn)\n",
+                      (float)csiThresholdMilli.load() / 1000.0f);
     }
 
     {
@@ -711,7 +719,9 @@ void csiMotionTask(void *pv) {
                 if (t > CSI_TRIG_MAX) t = CSI_TRIG_MAX;
                 g_calTrigger = t;
                 csiThresholdMilli.store((uint32_t)(t * 1000.0f));
-                Serial.printf("[CSI] Calibrated: still mean %.2fx over %u samples -> trigger %.2fx\n",
+                prefs.putUInt("csiThr", csiThresholdMilli.load());
+                prefs.putBool("csiCalDone", true);
+                Serial.printf("[CSI] Calibrated: baseline mean %.2fx over %u samples -> trigger %.2fx (saved)\n",
                               stillMean, g_calSamples, t);
             } else {
                 Serial.printf("[CSI] Calibration skipped: only %u scored samples in %us, keeping trigger %.2fx\n",

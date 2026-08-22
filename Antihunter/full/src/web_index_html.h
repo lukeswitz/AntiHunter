@@ -649,8 +649,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       <input type="number" name="csiConsec" id="csiConsec" min="1" max="50" value="3">
                     </div>
                   </div>
-                  <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiAutoAdv" value="1" checked
-                    onchange="document.getElementById('csiAuto').value=this.checked?'1':''">Auto-calibrate trigger (20s)</label>
+                  <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRecal" name="csiRecal" value="1">Re-learn the baseline on this run (20s)</label>
+                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Baseline not learned yet &mdash; the first run learns it automatically.</div>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>
@@ -4218,6 +4218,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         return { groups, broadcast };
       }
 
+      async function refreshCsiCalState() {
+        const el = document.getElementById('csiCalState');
+        const box = document.getElementById('csiRecal');
+        if (!el) return;
+        try {
+          const j = await (await fetch('/csi-json')).json();
+          if (j.calibrated) {
+            el.innerHTML = 'Baseline learned. Trigger <strong>' + (j.threshold || 0).toFixed(2) +
+                           'x</strong>. Tick above to re-learn it, otherwise this run reuses it.';
+            if (box) box.disabled = false;
+          } else {
+            el.textContent = 'Baseline not learned yet - the first run learns it automatically over 20 seconds.';
+            if (box) { box.checked = false; box.disabled = true; }
+          }
+        } catch (e) {
+          console.warn('refreshCsiCalState: /csi-json fetch failed', e);
+          el.textContent = 'Baseline state unavailable.';
+        }
+      }
       const csiHist = {};
       let csiRoom = [];
       let csiDetOpen = false;
@@ -5379,6 +5398,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           csiControls.style.display = 'block';
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
+          refreshCsiCalState();
 
         } else {
           standardControls.style.display = 'block';

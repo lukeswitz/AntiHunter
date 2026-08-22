@@ -33,3 +33,4 @@ String getCsiJson();
 void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t consec,
                   bool rawDump, bool telemetry, bool autoTrigger);
 void loadCsiConfigFromPrefs();
+void csiClearCalibration();

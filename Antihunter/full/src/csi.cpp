@@ -463,6 +463,7 @@ String getCsiJson() {
     j += ",\"events\":" + String(g_csiMotionEvents.load());
     j += ",\"motion\":" + String(anyMotion ? "true" : "false");
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
+    j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
     j += ",\"links\":[";
 
     for (int i = 0; i < n; i++) {
@@ -483,6 +484,11 @@ String getCsiJson() {
 
     j += "]}";
     return j;
+}
+
+void csiClearCalibration() {
+    prefs.putBool("csiCalDone", false);
+    Serial.println("[CSI] Saved baseline cleared - next start will re-learn the trigger");
 }
 
 void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t consec,
