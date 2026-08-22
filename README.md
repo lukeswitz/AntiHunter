@@ -715,6 +715,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial, including `"calibrated"`. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
 | `CSI_RECAL` | None - clears the saved baseline so the next CSI start re-learns the trigger over 20s. ACK: `CSI_RECAL_ACK:OK` | `@ALL CSI_RECAL` |
+| `MESH_TX_CANCEL` | None - drops queued EVENT and BULK mesh traffic without stopping the running scan. CONTROL (triangulation) is kept. ACK: `MESH_TX_CANCEL_ACK:EMPTY` when nothing was queued | `@ALL MESH_TX_CANCEL` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
