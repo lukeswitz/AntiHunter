@@ -626,6 +626,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial, including `"calibrated"`. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
 | `CSI_RECAL` | None - clears the saved baseline so the next CSI start re-learns the trigger over 20s. ACK: `CSI_RECAL_ACK:OK` | `@ALL CSI_RECAL` |
+| `MESH_TX_CANCEL` | None - drops queued EVENT and BULK mesh traffic without stopping the running scan. ACK: `MESH_TX_CANCEL_ACK:EMPTY` when nothing was queued | `@ALL MESH_TX_CANCEL` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
@@ -778,10 +779,7 @@ Any other value is passed through verbatim as `Reason code N`.
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GHOST] [GPS=lat,lon]` |
-| CSI Motion Start | `NODE_ID: CSI_START: CH=N T=x.xx` - sent once when CSI motion detection starts, after the channel survey has picked `CH`. `T` is the trigger multiple of the learned still-state floor |
-| CSI Motion Abort | `NODE_ID: CSI_ABORT: NO_TRAFFIC` - the survey found no CSI-eligible traffic on any configured channel, so nothing was pinned |
-| CSI Motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. Rate limited to one per 30s | CSI Motion Clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving | CSI Motion Done | `NODE_ID: CSI_DONE: CH=N N=records R=rate/s E=events` - end of a timed capture. `R` is CSI records per second, which is set by how much traffic that channel carried |
-| Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
+| CSI Motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. Rate limited to one per 30s | CSI Motion Clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 
 </details>

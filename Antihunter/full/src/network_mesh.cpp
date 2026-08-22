@@ -552,7 +552,7 @@ static void handleScanStart(const String &command)
 
     if (mode >= 0 && mode <= 2)
     {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
         Serial.println("[MESH] Radio busy, rejecting SCAN_START");
         sendToSerial1(nodeId + ": SCAN_ACK:BUSY", true);
       } else {
@@ -587,7 +587,7 @@ static void handleBaselineStart(const String &command)
     secs = 60;
   }
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting BASELINE_START");
     sendToSerial1(nodeId + ": BASELINE_ACK:BUSY", true);
   } else {
@@ -663,7 +663,7 @@ static void handleDeviceScanStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting DEVICE_SCAN_START");
       sendToSerial1(nodeId + ": DEVICE_SCAN_ACK:BUSY", true);
     } else {
@@ -703,7 +703,7 @@ static void handleDroneStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DRONE_START");
     sendToSerial1(nodeId + ": DRONE_ACK:BUSY", true);
   } else {
@@ -737,7 +737,7 @@ static void handleDeauthStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting DEAUTH_START");
     sendToSerial1(nodeId + ": DEAUTH_ACK:BUSY", true);
   } else {
@@ -780,7 +780,7 @@ static void handleCsiMotionStart(const String &command)
   if (secs > 86400) secs = 86400;
   if (ch > 14) ch = 0;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting CSI_MOTION_START");
     sendToSerial1(nodeId + ": CSI_ACK:BUSY", true);
     return;
@@ -817,6 +817,16 @@ static void handleCsiJson()
   String j = getCsiJson();
   Serial.println(j);
   sendToSerial1(nodeId + ": CSI_JSON_LEN:" + String(j.length()), true);
+}
+
+static void handleMeshTxCancel()
+{
+  if (!meshTxPending()) {
+    sendToSerial1(nodeId + ": MESH_TX_CANCEL_ACK:EMPTY", true);
+    return;
+  }
+  stopMeshDrain.store(true);
+  Serial.println("[MESH] TX queue cancel requested, scan left running");
 }
 
 static void handleCsiRecal()
@@ -883,7 +893,7 @@ static void handleRandomizationStart(const String &command)
 
   if (mode >= 0 && mode <= 2)
   {
-    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+    if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
       Serial.println("[MESH] Radio busy, rejecting RANDOMIZATION_START");
       sendToSerial1(nodeId + ": RANDOMIZATION_ACK:BUSY", true);
     } else {
@@ -936,7 +946,7 @@ static void handleProbeStart(const String &command)
 
   if (mode < 0 || mode > 2) return;
 
-  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting PROBE_START");
     sendToSerial1(nodeId + ": PROBE_ACK:BUSY", true);
   } else {
@@ -2035,6 +2045,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "CSI_STATUS")                     handleCsiStatus();
   else if (command == "CSI_JSON")                       handleCsiJson();
   else if (command == "CSI_RECAL")                      handleCsiRecal();
+  else if (command == "MESH_TX_CANCEL")                 handleMeshTxCancel();
   else if (command.startsWith("RANDOMIZATION_START:"))  handleRandomizationStart(command);
   else if (command.startsWith("PROBE_START:"))          handleProbeStart(command);
   else if (command == "PROBE_STOP")                     handleProbeStop(command);
