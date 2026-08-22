@@ -621,6 +621,10 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
+| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
+| `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 1.2-20 (multiple of the learned still-state floor), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:1.5:5000:3:0` |
+| `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
+| `CSI_JSON` | None - dumps CSI state as JSON to serial. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
@@ -772,6 +776,11 @@ Any other value is passed through verbatim as `Reason code N`.
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GHOST] [GPS=lat,lon]` |
+| CSI Motion Start | `NODE_ID: CSI_START: CH=N T=x.xx` - sent once when CSI motion detection starts, after the channel survey has picked `CH`. `T` is the trigger multiple of the learned still-state floor |
+| CSI Motion Abort | `NODE_ID: CSI_ABORT: NO_TRAFFIC` - the survey found no CSI-eligible traffic on any configured channel, so nothing was pinned |
+| CSI Motion | `NODE_ID: CSI_MOTION: MAC S=score R=dBm CH=N P=packets` - the channel response of the link from `MAC` to this node moved. `S` is the deviation as a multiple of that link's own learned floor. One line per rising edge, per transmitter |
+| CSI Motion Clear | `NODE_ID: CSI_CLEAR: MAC D=Ns CH=N` - the link settled for the configured hold time. `D` is how long motion persisted |
+| CSI Motion Done | `NODE_ID: CSI_DONE: CH=N N=records R=rate/s E=events` - end of a timed capture. `R` is CSI records per second, which is set by how much traffic that channel carried |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 

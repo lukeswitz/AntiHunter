@@ -16,6 +16,7 @@
 #include "scanner.h"
 #include "main.h"
 #include "detect.h"
+#include "csi.h"
 #include <AsyncTCP.h>
 #include <RTClib.h>
 #include <esp_timer.h>
@@ -748,6 +749,58 @@ static void handleDeauthStart(const String &command)
     Serial.printf("[MESH] Started deauth detection via mesh command (%ds)\n", secs);
     sendToSerial1(nodeId + ": DEAUTH_ACK:STARTED", true);
   }
+}
+
+static void handleCsiMotionStart(const String &command)
+{
+  String params = command.substring(17);
+  int secs = 0;
+  bool forever = false;
+  uint8_t ch = 0;
+  bool telem = false;
+  bool raw = false;
+
+  int idx = 0;
+  while (params.length() > 0) {
+    int colon = params.indexOf(':');
+    String tok = (colon < 0) ? params : params.substring(0, colon);
+    if (idx == 0) secs = tok.toInt();
+    else if (tok == "FOREVER") forever = true;
+    else if (tok == "TELEM") telem = true;
+    else if (tok == "RAW") raw = true;
+    else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
+    if (colon < 0) break;
+    params = params.substring(colon + 1);
+    idx++;
+  }
+
+  if (secs < 0) secs = 0;
+  if (secs > 86400) secs = 86400;
+  if (ch > 14) ch = 0;
+
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+    Serial.println("[MESH] Radio busy, rejecting CSI_MOTION_START");
+    sendToSerial1(nodeId + ": CSI_ACK:BUSY", true);
+    return;
+  }
+
+  setCsiConfig(ch, (float)csiThresholdMilli.load() / 1000.0f, csiHoldMs.load(),
+               csiConsecNeeded.load(), raw, telem, true);
+
+  stopRequested = false;
+  scanning = true;
+  if (ahCreateTask(csiMotionTask, "csi", 12288,
+                   reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+    scanning = false;
+    workerTaskHandle = nullptr;
+    scanSetCountdown(0, false);
+    Serial.println("[SCAN] task create failed: csi");
+    sendToSerial1(nodeId + ": CSI_ACK:FAILED", true);
+    return;
+  }
+  Serial.printf("[MESH] Started CSI motion detection via mesh command (%ds, ch%u, telem=%d raw=%d)\n",
+                secs, ch, telem ? 1 : 0, raw ? 1 : 0);
+  sendToSerial1(nodeId + ": CSI_ACK:STARTED", true);
 }
 
 static void handleRandomizationStart(const String &command)
@@ -1920,6 +1973,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DEVICE_SCAN_START:"))    handleDeviceScanStart(command);
   else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))         handleDeauthStart(command);
+  else if (command.startsWith("CSI_MOTION_START:"))     handleCsiMotionStart(command);
   else if (command.startsWith("RANDOMIZATION_START:"))  handleRandomizationStart(command);
   else if (command.startsWith("PROBE_START:"))          handleProbeStart(command);
   else if (command == "PROBE_STOP")                     handleProbeStop(command);

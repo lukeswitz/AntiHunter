@@ -5,6 +5,7 @@
 #include "scanner.h"
 #include "main.h"
 #include "detect.h"
+#include "csi.h"
 #include <AsyncTCP.h>
 #include <RTClib.h>
 #include <esp_timer.h>
@@ -1359,10 +1360,65 @@ void registerRemainingRoutes() {
                 }
             }
             
+        } else if (detection == "csi-motion") {
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+
+            uint8_t csiCh = csiPinnedChannel.load();
+            if (req->hasParam("csiChannel", true)) {
+                int c = req->getParam("csiChannel", true)->value().toInt();
+                if (c >= 0 && c <= 14) csiCh = (uint8_t)c;
+            }
+            float csiThr = (float)csiThresholdMilli.load() / 1000.0f;
+            if (req->hasParam("csiThreshold", true)) {
+                float t = req->getParam("csiThreshold", true)->value().toFloat();
+                if (t >= 1.2f && t <= 20.0f) csiThr = t;
+            }
+            uint32_t csiHold = csiHoldMs.load();
+            if (req->hasParam("csiHold", true)) {
+                uint32_t h = (uint32_t)req->getParam("csiHold", true)->value().toInt();
+                if (h >= 500 && h <= 120000) csiHold = h;
+            }
+            uint32_t csiCons = csiConsecNeeded.load();
+            if (req->hasParam("csiConsec", true)) {
+                uint32_t c = (uint32_t)req->getParam("csiConsec", true)->value().toInt();
+                if (c >= 1 && c <= 50) csiCons = c;
+            }
+            setCsiConfig(csiCh, csiThr, csiHold, csiCons,
+                         req->hasParam("csiRaw", true),
+                         req->hasParam("csiTelem", true),
+                         req->hasParam("csiAuto", true));
+
+            stopRequested = false;
+            req->send(200, "text/plain",
+                    String("CSI motion detection starting") +
+                    (forever ? " (forever)" : (" for " + String(secs) + "s")) +
+                    (csiCh == 0 ? " - surveying for the busiest channel first"
+                                : (" on ch" + String(csiCh))) +
+                    " - radio pins to one channel, web UI drops unless it is the AP channel");
+
+            if (!workerTaskHandle) {
+                scanning = true;
+                if (ahCreateTask(csiMotionTask, "csi", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    workerTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: csi");
+                }
+            }
+
         } else {
             req->send(400, "text/plain", "Unknown detection mode");
         }
     });
+
+  server->on("/csi-results", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "text/plain", getCsiResults());
+  });
+
+  server->on("/csi-json", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", getCsiJson());
+  });
 
   server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {
       std::lock_guard<std::mutex> lock(deauthLogMutex);

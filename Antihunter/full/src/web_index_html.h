@@ -10,8 +10,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <title>AntiHunter</title>
     <style>
       :root{--t:0.2s;--blur:12px}
-      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#d0685a;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--csi-hit:#bf4a3c;--csi-hit-bg:rgba(191,74,60,0.06)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#d0685a;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06);--csi-hit:#e0705c;--csi-hit-bg:rgba(224,112,92,0.09)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:16px 18px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;flex-direction:column;gap:13px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
@@ -222,6 +222,43 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #r .res-mac,#r .res-ident:not(.name),#r .res-row>span:first-child{cursor:copy;border-radius:5px;transition:background .12s,box-shadow .12s}
       #r .res-mac:hover,#r .res-ident:not(.name):hover,#r .res-row>span:first-child:hover{background:var(--accbg);box-shadow:0 0 0 4px var(--accbg)}
       #r .res-copied{background:var(--accbg);box-shadow:0 0 0 4px var(--accbg);color:var(--acc)}
+      .csi-spark{flex:1 1 120px;min-width:0;max-width:200px;height:30px;overflow:visible}
+      .csi-spark.big{flex:none;width:100%;max-width:none;height:96px;display:block}
+      .csi-spark polyline{fill:none;stroke:var(--acc);stroke-width:1.6;vector-effect:non-scaling-stroke}
+      .csi-spark .csi-fill{fill:var(--accbg);stroke:none}
+      .csi-spark .csi-dot{fill:var(--acc)}
+      .csi-spark .csi-trig{stroke:var(--csi-hit);stroke-width:1;stroke-dasharray:3 3;opacity:.7;vector-effect:non-scaling-stroke}
+      .csi-state{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--surf);border:1px solid var(--bord);border-left:5px solid var(--mut);border-radius:12px;padding:20px 22px;margin-bottom:14px;transition:border-color .25s,background .25s}
+      .csi-state.still{border-left-color:var(--acc)}
+      .csi-state.move{border-left-color:var(--csi-hit);background:var(--csi-hit-bg)}
+      .csi-state.cal{border-left-color:var(--mut)}
+      .csi-state-l{flex:1 1 260px;min-width:0}
+      .csi-state-word{font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;color:var(--txt)}
+      .csi-state.move .csi-state-word{color:var(--csi-hit)}
+      .csi-state-sub{font-size:13.5px;color:var(--mut);margin-top:4px;line-height:1.45}
+      .csi-bar{position:relative;height:7px;border-radius:99px;background:var(--accbg);margin-top:14px;overflow:hidden}
+      .csi-bar i{display:block;height:100%;border-radius:99px;background:var(--acc);transition:width .35s ease}
+      .csi-state.move .csi-bar i{background:var(--csi-hit)}
+      .csi-bar b{position:absolute;top:-3px;width:2px;height:13px;background:var(--csi-hit);opacity:.8}
+      .csi-state-r{text-align:right;flex-shrink:0;margin-left:auto}
+      .csi-act{font-size:38px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.03em;line-height:1;color:var(--txt)}
+      .csi-act small{font-size:17px;color:var(--mut);font-weight:500}
+      .csi-state.move .csi-act{color:var(--csi-hit)}
+      .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
+      .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
+      .res-card.csi-hit::before{background:var(--csi-hit)}
+      .csi-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+      .csi-stats .res-stat{padding:11px 12px;min-width:0}
+      .csi-stats .res-stat-lab{font-size:9.5px;letter-spacing:.04em;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .csi-stats .res-stat-val{font-size:20px;white-space:nowrap}
+      @media(max-width:560px){.csi-stats{gap:7px}.csi-stats .res-stat{padding:9px 9px}.csi-stats .res-stat-val{font-size:15px}.csi-stats .res-stat-lab{font-size:8.5px}}
+      .csi-tech{font-size:12.5px;color:var(--mut);line-height:1.55;margin:0 0 12px;max-width:70ch}
+      .csi-det{margin-top:4px}
+      .csi-det summary{cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);padding:9px 0;list-style:none}
+      .csi-det summary::-webkit-details-marker{display:none}
+      .csi-det summary::before{content:"\25B8";color:var(--acc);margin-right:6px;display:inline-block}
+      .csi-det[open] summary::before{content:"\25BE"}
+      .csi-det summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:5px}
       .res-line{font-size:14px;color:var(--mut);line-height:1.5}
       .res-line strong{color:var(--txt);font-weight:600}
       .res-metric{text-align:right;flex-shrink:0;display:flex;flex-direction:column;gap:2px;margin-left:auto}
@@ -581,7 +618,43 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <option value="deauth">Deauthentication Attack Detection</option>
                 <option value="drone-detection">Drone RID Detection</option>
                 <option value="probe-scan">Probe Request Scanner</option>
+                <option value="csi-motion">CSI Motion Detection</option>
               </select>
+
+              <div id="csiControls" style="display:none;margin-top:10px;">
+                <div style="font-size:12px;opacity:.8;line-height:1.55;margin-bottom:10px;">
+                  Detects movement in the area. It picks the channel and learns its own trigger &mdash; just start it and keep the area quiet for the first 20 seconds.
+                  The radio pins to one channel while running, so the web UI stays reachable only if that is the SoftAP channel; alerts still reach mesh, serial and SD.
+                </div>
+                <input type="hidden" name="csiChannel" id="csiChannel" value="0">
+                <input type="hidden" name="csiAuto" id="csiAuto" value="1">
+                <details style="margin-top:4px;">
+                  <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.7;">Advanced</summary>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px;">
+                    <div>
+                      <label style="font-size:11px;">Channel (0 = auto)</label>
+                      <input type="number" id="csiChannelAdv" min="0" max="14" value="0"
+                             oninput="document.getElementById('csiChannel').value=this.value">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;">Sensitivity (x quiet)</label>
+                      <input type="number" name="csiThreshold" id="csiThreshold" min="1.2" max="20" step="0.1" value="1.5">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;">Clear after (ms)</label>
+                      <input type="number" name="csiHold" id="csiHold" min="500" max="120000" step="500" value="5000">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;">Consecutive packets</label>
+                      <input type="number" name="csiConsec" id="csiConsec" min="1" max="50" value="3">
+                    </div>
+                  </div>
+                  <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiAutoAdv" value="1" checked
+                    onchange="document.getElementById('csiAuto').value=this.checked?'1':''">Auto-calibrate trigger (20s)</label>
+                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
+                  <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
+                </details>
+              </div>
 
               <div id="probeScanModeControls" style="display:none;margin-top:10px;">
                 <label style="font-size:11px;">Scan Mode</label>
@@ -1921,7 +1994,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           resultsSynced = true;
           const placeholder = !txt || txt.trim() === '' || txt.includes('None yet') || txt.includes('No scan data');
           if (radioBusy && placeholder) return;
-          if (txt === lastResultsText) return;
+          const isCsi = txt.includes('CSI Motion Detection');
+          if (isCsi) {
+            try {
+              window._csiJson = await (await fetch('/csi-json')).json();
+            } catch (e) {
+              console.warn('resultsPoll: /csi-json fetch failed', e);
+              window._csiJson = null;
+            }
+          } else if (window._csiJson) {
+            window._csiJson = null;
+          }
+          if (txt === lastResultsText && !isCsi) return;
           lastResultsText = txt;
           renderResults(txt);
         } catch (e) {
@@ -3115,7 +3199,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const scanTaskLabels = {
         scan: 'List Scan', sniffer: 'Device Scan', drone: 'Drone Detect',
         blueteam: 'Blue Team', baseline: 'Baseline', randdetect: 'Rand Detect',
-        probedet: 'Probe Detect', triangulate: 'Triangulate'
+        probedet: 'Probe Detect', triangulate: 'Triangulate', csi: 'CSI Motion'
       };
       let _scanBaseLabel = '', _scanEndTs = 0, _scanForever = false;
       function _fmtCountdown(sec) { sec = Math.max(0, Math.floor(sec)); const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
@@ -3523,6 +3607,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           html = parseBaselineResults(text);
         } else if (text.includes('Deauth Detection Results') || text.includes('Deauth Attack Detection Results')) {
           html = parseDeauthResults(text);
+        } else if (text.includes('CSI Motion Detection')) {
+          html = parseCsiResults(text);
         } else if (text.includes('Drone Detection Results')) {
           html = parseDroneResults(text);
         } else if (text.includes('Probes:') && text.includes('SSIDs:')) {
@@ -4153,6 +4239,114 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           if (!placed) broadcast.push(d);
         }
         return { groups, broadcast };
+      }
+
+      const csiHist = {};
+      let csiRoom = [];
+      let csiDetOpen = false;
+      let csiLastMotion = 0;
+      let csiStarted = 0;
+      function csiAgo(ms) {
+        if (!ms) return '';
+        const s = Math.round(ms / 1000);
+        if (s < 60) return s + ' sec';
+        const m = Math.round(s / 60);
+        if (m < 60) return m + ' min';
+        return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+      }
+      function csiSpark(vals, trig, w, h, cls) {
+        if (!vals || vals.length < 2) return '';
+        const n = vals.length;
+        const hi = Math.max(trig * 1.35, ...vals, 1.6);
+        const pt = (i, v) => (i * w / (n - 1)).toFixed(1) + ',' + (h - (v / hi) * h).toFixed(1);
+        const line = vals.map((v, i) => pt(i, v)).join(' ');
+        const ty = (h - (trig / hi) * h).toFixed(1);
+        const last = vals[n - 1];
+        return '<svg class="csi-spark ' + (cls || '') + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+          '<polygon class="csi-fill" points="0,' + h + ' ' + line + ' ' + w + ',' + h + '"/>' +
+          '<line x1="0" y1="' + ty + '" x2="' + w + '" y2="' + ty + '" class="csi-trig"/>' +
+          '<polyline points="' + line + '"/>' +
+          '<circle class="csi-dot" cx="' + (w - 1) + '" cy="' + (h - (last / hi) * h).toFixed(1) + '" r="2.6"/>' +
+          '</svg>';
+      }
+      function parseCsiResults(text) {
+        const d = window._csiJson;
+        if (!d) return '<div class="res-card"><pre style="margin:0;background:transparent;border:none;padding:0;white-space:pre-wrap;font-size:15px;line-height:1.6;">' + text + '</pre></div>';
+
+        const cal = /Calibrating still-state|Calibrating baseline/.test(text);
+        const raw = d.links || [];
+        const byRadio = {};
+        raw.forEach(l => {
+          const r = (l.mac || '').slice(0, 14);
+          const cur = byRadio[r];
+          if (!cur || (l.score || 0) > (cur.score || 0)) {
+            byRadio[r] = Object.assign({}, l, { bssids: (cur ? cur.bssids : 0) + 1 });
+          } else { cur.bssids++; }
+        });
+        const links = Object.values(byRadio);
+        const trig = d.threshold || 1.5;
+        const act = links.length ? Math.max(...links.map(l => l.score || 0)) : 0;
+        const moving = !!d.motion;
+        const now = Date.now();
+        if (!csiStarted) csiStarted = now;
+        if (moving) csiLastMotion = now;
+        if (!cal) { csiRoom.push(act); if (csiRoom.length > 120) csiRoom.shift(); }
+        const pct = Math.min(100, Math.round((act / (trig * 2)) * 100));
+
+        let sub;
+        if (cal) sub = 'Learning the empty baseline. Keep the area clear.';
+        else if (moving) sub = 'Something is moving in range right now';
+        else if (csiLastMotion) sub = 'Last movement ' + csiAgo(now - csiLastMotion) + ' ago';
+        else sub = 'Nothing has moved since this started';
+
+        let h = '<div class="csi-state ' + (cal ? 'cal' : (moving ? 'move' : 'still')) + '">' +
+          '<div class="csi-state-l">' +
+          '<div class="csi-state-word">' + (cal ? 'Setting up' : (moving ? 'Movement' : 'All quiet')) + '</div>' +
+          '<div class="csi-state-sub">' + sub + '</div>' +
+          '<div class="csi-bar"><i style="width:' + pct + '%"></i><b style="left:50%"></b></div>' +
+          '</div>' +
+          '<div class="csi-state-r"><div class="csi-act">' + act.toFixed(1) + '<small>x</small></div>' +
+          '<div class="res-metric-lab">movement</div></div>' +
+          '</div>';
+
+        h += '<div class="csi-room">' + csiSpark(csiRoom, trig, 600, 96, 'big') +
+             '<div class="csi-room-lab"><span>movement over the last ' + csiAgo(csiRoom.length * 1000) + '</span>' +
+             '<span>alert line</span></div></div>';
+
+        h += '<div class="csi-stats">' +
+          '<div class="res-stat"><div class="res-stat-lab">Triggered</div><div class="res-stat-val"' +
+            (d.events ? ' style="color:var(--csi-hit)"' : '') + '>' + (d.events || 0) + '</div></div>' +
+          '<div class="res-stat"><div class="res-stat-lab">Last movement</div><div class="res-stat-val">' +
+            (csiLastMotion ? csiAgo(now - csiLastMotion) : 'none yet') + '</div></div>' +
+          '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(now - csiStarted) + '</div></div>' +
+          '</div>';
+
+        if (!links.length) return h + _resEmpty('Listening. No usable signals in range yet.');
+
+        h += '<details class="csi-det" id="csiDet"' + (csiDetOpen ? ' open' : '') +
+             ' ontoggle="csiDetOpen=this.open"><summary>Technical detail</summary>' +
+             '<div class="csi-tech">Watching ' + links.length + ' nearby transmitter' + (links.length > 1 ? 's' : '') +
+             ' on channel ' + d.channel + ', ' + (d.rate || 0).toFixed(0) + ' samples/sec. ' +
+             'Movement is measured against each one&rsquo;s own quiet level; anything over ' + trig.toFixed(2) + 'x counts.</div>' +
+             '<div class="res-list">';
+        links.slice().sort((a, b) => b.score - a.score).forEach(l => {
+          const k = l.mac;
+          (csiHist[k] = csiHist[k] || []).push(l.score);
+          if (csiHist[k].length > 60) csiHist[k].shift();
+          h += '<div class="res-card ' + (l.motion ? 'csi-hit' : 'acc') + '"><div class="res-row-main">' +
+            '<span class="res-id"><span class="res-mac"' +
+            (l.motion ? ' style="color:var(--csi-hit)"' : '') + '>' + l.mac + '</span>' +
+            (l.bssids > 1 ? '<span class="res-badge">' + l.bssids + ' ssids</span>' : '') + '</span>' +
+            '<span class="res-meta">' + csiSpark(csiHist[k], trig, 200, 30) +
+            '<span><strong>' + l.rssi + '</strong> dBm</span>' +
+            '<span><strong>' + (l.rate || 0).toFixed(1) + '</strong> pkt/s</span>' +
+            '</span>' +
+            '<span class="res-metric"><span class="res-metric-val" style="color:' +
+            (l.motion ? 'var(--csi-hit)' : 'var(--txt)') + '">' + (l.score || 0).toFixed(2) + '<small>x</small></span>' +
+            '<span class="res-metric-lab">movement</span></span>' +
+            '</div></div>';
+        });
+        return h + '</div></details>';
       }
 
       function renderProbeClientCard(d) {
@@ -5150,6 +5344,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const deviceScanModeControls = document.getElementById('deviceScanModeControls');
         const probeScanModeControls = document.getElementById('probeScanModeControls');
         const droneScanModeControls = document.getElementById('droneScanModeControls');
+        const csiControls = document.getElementById('csiControls');
         const cacheBtn = document.getElementById('cacheBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
@@ -5165,6 +5360,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         deviceScanModeControls.style.display = 'none';
         probeScanModeControls.style.display = 'none';
         droneScanModeControls.style.display = 'none';
+        csiControls.style.display = 'none';
         document.getElementById('baselineStatus').style.display = 'none';
 
         if (selectedMethod === 'baseline') {
@@ -5198,6 +5394,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         } else if (selectedMethod === 'probe-scan') {
           standardControls.style.display = 'block';
           probeScanModeControls.style.display = 'block';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+
+        } else if (selectedMethod === 'csi-motion') {
+          standardControls.style.display = 'block';
+          csiControls.style.display = 'block';
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
 
@@ -5242,7 +5444,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const detMethodLabels = {
           'device-scan': 'Device Scan', 'drone-detection': 'Drone Detect',
           'blue-team': 'Blue Team', 'baseline': 'Baseline',
-          'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect'
+          'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect',
+          'csi-motion': 'CSI Motion'
         };
         setScanStatus(detMethodLabels[detectionMethod] || 'Scanning', 'active');
 

@@ -2,6 +2,7 @@
 #include "network.h"
 #include "baseline.h"
 #include "detect.h"
+#include "csi.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -378,7 +379,8 @@ void initializeHardware()
     
     randomSeed(esp_random());
     loadRFConfigFromPrefs();
-    
+    loadCsiConfigFromPrefs();
+
     meshSendInterval = prefs.getULong("meshInterval", 3000);
     if (meshSendInterval < 1500 || meshSendInterval > 60000) {
         meshSendInterval = 3000;
