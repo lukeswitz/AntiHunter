@@ -245,6 +245,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-act small{font-size:17px;color:var(--mut);font-weight:500}
       .csi-state.move .csi-act{color:var(--csi-hit)}
       .csi-room{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px 10px;margin-bottom:14px}
+      .csi-heat{display:flex;gap:1px;height:22px;margin-top:12px;border-radius:4px;overflow:hidden}
+      .csi-heat i{flex:1 1 0;min-width:0;background:var(--acc);display:block}
       .csi-room-lab{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-top:6px}
       .det-desc{font-size:12px;color:var(--mut);line-height:1.5;margin-top:8px;padding-left:11px;border-left:2px solid var(--acc);max-width:70ch}
       .res-card.csi-hit::before{background:var(--csi-hit)}
@@ -4243,11 +4245,24 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           el.textContent = 'Baseline state unavailable.';
         }
       }
+      function csiHeatRender(d, trig) {
+        const heat = d.heat || [];
+        if (!heat.length) return '';
+        let cells = '';
+        for (let i = 0; i < heat.length; i++) {
+          const v = heat[i] / 50;
+          const hot = v >= trig;
+          const f = Math.max(0.10, Math.min(1, v / (trig * 1.6)));
+          cells += '<i style="opacity:' + f.toFixed(2) + (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
+        }
+        const sec = d.heatSec || 5;
+        return '<div class="csi-heat">' + cells + '</div>' +
+               '<div class="csi-room-lab"><span>whole session &middot; ' + csiAgo(heat.length * sec * 1000) +
+               '</span><span>' + sec + 's per cell</span></div>';
+      }
       const csiHist = {};
       let csiRoom = [];
       let csiDetOpen = false;
-      let csiLastMotion = 0;
-      let csiStarted = 0;
       function csiAgo(ms) {
         if (!ms) return '';
         const s = Math.round(ms / 1000);
@@ -4290,15 +4305,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const act = links.length ? Math.max(...links.map(l => l.score || 0)) : 0;
         const moving = !!d.motion;
         const now = Date.now();
-        if (!csiStarted) csiStarted = now;
-        if (moving) csiLastMotion = now;
-        if (!cal) { csiRoom.push(act); if (csiRoom.length > 120) csiRoom.shift(); }
+        const sinceMotion = (typeof d.sinceMotion === 'number') ? d.sinceMotion : -1;
+        const upSec = d.uptime || 0;
+        if (!cal) {
+          csiRoom.push(act);
+          if (csiRoom.length > 120) csiRoom.shift();
+        }
         const pct = Math.min(100, Math.round((act / (trig * 2)) * 100));
 
         let sub;
         if (cal) sub = 'Learning the empty baseline. Keep the area clear.';
         else if (moving) sub = 'Something is moving in range right now';
-        else if (csiLastMotion) sub = 'Last movement ' + csiAgo(now - csiLastMotion) + ' ago';
+        else if (sinceMotion >= 0) sub = 'Last movement ' + csiAgo(sinceMotion * 1000) + ' ago';
         else sub = 'Nothing has moved since this started';
 
         let h = '<div class="csi-state ' + (cal ? 'cal' : (moving ? 'move' : 'still')) + '">' +
@@ -4313,14 +4331,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         h += '<div class="csi-room">' + csiSpark(csiRoom, trig, 600, 96, 'big') +
              '<div class="csi-room-lab"><span>movement over the last ' + csiAgo(csiRoom.length * 1000) + '</span>' +
-             '<span>alert line</span></div></div>';
+             '<span>alert line</span></div>' + csiHeatRender(d, trig) + '</div>';
 
         h += '<div class="csi-stats">' +
           '<div class="res-stat"><div class="res-stat-lab">Triggered</div><div class="res-stat-val"' +
             (d.events ? ' style="color:var(--csi-hit)"' : '') + '>' + (d.events || 0) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Last movement</div><div class="res-stat-val">' +
-            (csiLastMotion ? csiAgo(now - csiLastMotion) : 'none yet') + '</div></div>' +
-          '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(now - csiStarted) + '</div></div>' +
+            (sinceMotion >= 0 ? csiAgo(sinceMotion * 1000) : 'none yet') + '</div></div>' +
+          '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(upSec * 1000) + '</div></div>' +
           '</div>';
 
         if (!links.length) return h + _resEmpty('Listening. No usable signals in range yet.');
