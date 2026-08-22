@@ -393,8 +393,8 @@ void startWebServer()
     r->send(200, "application/json", j); });
 
   server->on("/scan", HTTP_POST, [](AsyncWebServerRequest *req) {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
-          req->send(409, "text/plain", "Radio busy or mesh still sending - wait");
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          req->send(409, "text/plain", "Radio busy - stop the running scan first");
           return;
       }
 
@@ -621,6 +621,15 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
     }
     r->send(200, "text/plain", status); });
 
+  server->on("/mesh-tx/cancel", HTTP_POST, [](AsyncWebServerRequest *req) {
+      if (!meshTxPending()) {
+          req->send(200, "text/plain", "Mesh TX queue already empty");
+          return;
+      }
+      stopMeshDrain.store(true);
+      req->send(200, "text/plain", "Mesh TX queue cleared, scan left running");
+  });
+
   server->on("/stop", HTTP_GET, [](AsyncWebServerRequest *req) {
       stopAllScans();
       req->send(200, "text/plain", scanBusy() ? "Stopping all scans" : "Scan stopped");
@@ -792,8 +801,8 @@ void registerRemainingRoutes() {
   server->on("/drone", HTTP_POST, [](AsyncWebServerRequest *req)
              {
         // Radio-busy guard: reject if any scan task is already running
-        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
-            req->send(409, "text/plain", "Radio busy or mesh still sending - wait");
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+            req->send(409, "text/plain", "Radio busy - stop the running scan first");
             return;
         }
 
@@ -1193,8 +1202,8 @@ void registerRemainingRoutes() {
 
   server->on("/sniffer", HTTP_POST, [](AsyncWebServerRequest *req) {
         // Radio-busy guard: reject if any scan task is already running
-        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
-            req->send(409, "text/plain", "Radio busy or mesh still sending - wait");
+        if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+            req->send(409, "text/plain", "Radio busy - stop the running scan first");
             return;
         }
 
@@ -1655,8 +1664,8 @@ void registerRemainingRoutes() {
         req->send(200, "text/plain", "Allowlist saved"); });
 
   server->on("/triangulate/start", HTTP_POST, [](AsyncWebServerRequest *req) {
-      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
-          req->send(409, "text/plain", "Radio busy or mesh still sending - wait");
+      if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+          req->send(409, "text/plain", "Radio busy - stop the running scan first");
           return;
       }
 

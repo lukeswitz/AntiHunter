@@ -3403,8 +3403,8 @@ R"HTML(
       }
       async function cancelMeshDrain() {
         try {
-          const r = await fetch('/stop');
-          if (r.ok) toast('Mesh TX drain cancelled', 'info');
+          const r = await fetch('/mesh-tx/cancel', { method: 'POST' });
+          if (r.ok) toast('Mesh TX queue cleared, scan still running', 'info');
           else toast('Cancel failed (' + r.status + ')', 'error');
         } catch (e) { toast('Cancel failed: ' + e, 'error'); }
         setTimeout(tick, 200);

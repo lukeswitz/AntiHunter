@@ -14,6 +14,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 |---------|------|------------|---------|
 | `STATUS` | Report mode, scan state, hits, temp, uptime, GPS | None | `@ALL STATUS` |
 | `STOP` | Stop everything running | None | `@ALL STOP` |
+| `MESH_TX_CANCEL` | Drop queued mesh event and bulk traffic; the running scan and triangulation control traffic continue. ACK `MESH_TX_CANCEL_ACK:EMPTY` when nothing was queued | None | `@ALL MESH_TX_CANCEL` |
 
 ### Configuration
 
