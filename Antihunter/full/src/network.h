@@ -38,7 +38,7 @@ enum MeshPriority : uint8_t {
 bool sendToSerial1(const String &message, bool canDelay = true);
 bool meshEnqueue(const String &msg, bool priority = false);
 bool meshEnqueuePrio(const String &msg, MeshPriority prio);
-void meshTxFlushQueue();
+void meshTxFlushQueue(bool includeControl = false);
 uint32_t meshTxQueueDepth();
 bool meshTxPending();
 uint32_t meshMsgUnits(const String &msg);

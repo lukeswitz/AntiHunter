@@ -225,6 +225,7 @@ uint32_t meshMsgUnits(const String &msg) {
 }
 
 bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
+    if (!meshEnabled) return false;
     if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
     if (meshQ[prio] == nullptr) {
         return sendToSerial1(msg, false);
@@ -280,15 +281,16 @@ uint32_t meshTxDroppedCount() {
     return meshTxDroppedFull.load();
 }
 
-void meshTxFlushQueue() {
+void meshTxFlushQueue(bool includeControl) {
     uint32_t dropped = 0;
     for (int i = 0; i < 3; i++) {
-        if (i == PRIO_CONTROL || meshQ[i] == nullptr) continue;
+        if ((i == PRIO_CONTROL && !includeControl) || meshQ[i] == nullptr) continue;
         dropped += uxQueueMessagesWaiting(meshQ[i]);
         xQueueReset(meshQ[i]);
     }
 
-    uint32_t remaining = meshQ[PRIO_CONTROL] ? uxQueueMessagesWaiting(meshQ[PRIO_CONTROL]) : 0;
+    uint32_t remaining = (meshQ[PRIO_CONTROL] && !includeControl)
+                             ? uxQueueMessagesWaiting(meshQ[PRIO_CONTROL]) : 0;
 
     meshTxDepthHigh.store(remaining);
     meshDrainSent.store(0);

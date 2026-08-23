@@ -81,6 +81,7 @@ bool scanBusy() {
 }
 
 bool scanStopping() {
+    if (scanStopPending.load() && !scanBusy()) scanStopPending.store(false);
     return scanStopPending.load() && scanBusy();
 }
 

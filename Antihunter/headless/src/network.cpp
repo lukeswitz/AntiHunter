@@ -90,6 +90,9 @@ void SerialRateLimiter::flush() {
 }
 
 bool sendToSerial1(const String &message, bool canDelay) {
+    if (!meshEnabled) {
+        return false;
+    }
     if (serial1Mutex == nullptr) {
         return false;
     }
@@ -253,6 +256,7 @@ uint32_t meshMsgUnits(const String &msg) {
 }
 
 bool meshEnqueuePrio(const String &msg, MeshPriority prio) {
+    if (!meshEnabled) return false;
     if (msg.length() == 0 || msg.length() > MAX_MESH_SIZE) return false;
     if (meshQ[prio] == nullptr) {
         return sendToSerial1(msg, false);
