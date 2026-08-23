@@ -838,6 +838,7 @@ void registerRemainingRoutes() {
              {
         if (req->hasParam("enabled", true)) {
             meshEnabled = req->getParam("enabled", true)->value() == "true";
+            prefs.putBool("meshEnabled", meshEnabled);
             if (!meshEnabled) meshTxFlushQueue(true);
             Serial.printf("[MESH] %s\n", meshEnabled ? "Enabled" : "Disabled");
             req->send(200, "text/plain", meshEnabled ? "Mesh enabled" : "Mesh disabled");
