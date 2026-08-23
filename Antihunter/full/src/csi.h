@@ -14,6 +14,7 @@ struct CsiLinkView {
     float rate;
     float mad;
     float floorMad;
+    float spread;
     float score;
     float peakScore;
     bool motion;

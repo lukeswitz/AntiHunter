@@ -90,6 +90,9 @@ void SerialRateLimiter::flush() {
 
 
 bool sendToSerial1(const String &message, bool canDelay) {
+    if (!meshEnabled) {
+        return false;
+    }
     if (serial1Mutex == nullptr) {
         return false;
     }
@@ -826,6 +829,7 @@ void registerRemainingRoutes() {
              {
         if (req->hasParam("enabled", true)) {
             meshEnabled = req->getParam("enabled", true)->value() == "true";
+            if (!meshEnabled) meshTxFlushQueue(true);
             Serial.printf("[MESH] %s\n", meshEnabled ? "Enabled" : "Disabled");
             req->send(200, "text/plain", meshEnabled ? "Mesh enabled" : "Mesh disabled");
         } else {

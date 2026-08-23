@@ -44,31 +44,34 @@ static const uint8_t CSI_HEAT_CELLS = 120;
 static uint8_t g_heat[CSI_HEAT_CELLS];
 static uint8_t g_heatLen = 0;
 static uint16_t g_heatSec = 5;
-static uint8_t g_heatCur = 0;
+static uint32_t g_heatSum = 0;
 static uint16_t g_heatCurSec = 0;
 
 static void csiHeatPush(float act) {
     uint16_t q = (uint16_t)(act * 50.0f);
     if (q > 255) q = 255;
-    if ((uint8_t)q > g_heatCur) g_heatCur = (uint8_t)q;
-    if (++g_heatCurSec < g_heatSec) return;
+    g_heatSum += q;
+    g_heatCurSec++;
+    if (g_heatCurSec < g_heatSec) return;
 
+    const uint8_t cell = (uint8_t)(g_heatSum / g_heatCurSec);
+    g_heatSum = 0;
     g_heatCurSec = 0;
+
     if (g_heatLen < CSI_HEAT_CELLS) {
-        g_heat[g_heatLen++] = g_heatCur;
+        g_heat[g_heatLen++] = cell;
     } else {
         for (uint8_t i = 0; i < CSI_HEAT_CELLS / 2; i++) {
-            const uint8_t a = g_heat[i * 2];
-            const uint8_t b = g_heat[i * 2 + 1];
-            g_heat[i] = (a > b) ? a : b;
+            g_heat[i] = (uint8_t)(((uint16_t)g_heat[i * 2] + (uint16_t)g_heat[i * 2 + 1]) / 2);
         }
         g_heatLen = CSI_HEAT_CELLS / 2;
         g_heatSec *= 2;
-        g_heat[g_heatLen++] = g_heatCur;
+        g_heat[g_heatLen++] = cell;
     }
-    g_heatCur = 0;
 }
 
+static const uint16_t CSI_DRAIN_BURST = 64;
+static const uint32_t CSI_MOTION_MIN_MS = 2000;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 15000;
 static bool g_areaMotion = false;
 static bool g_areaCand = false;
@@ -101,6 +104,7 @@ struct CsiLink {
     uint8_t consec;
     bool motion;
     uint32_t lastAboveMs;
+    uint32_t aboveSinceMs;
     uint32_t motionStartMs;
     uint32_t events;
 };
@@ -227,6 +231,7 @@ static void csiLinkReset(CsiLink &l) {
     l.consec = 0;
     l.motion = false;
     l.lastAboveMs = 0;
+    l.aboveSinceMs = 0;
     l.motionStartMs = 0;
     l.events = 0;
 }
@@ -249,6 +254,7 @@ static CsiLink *csiFindLink(const uint8_t *mac) {
     if (!slot) {
         if (!oldest) return nullptr;
         if (oldest->motion) return nullptr;
+        if (oldest->packets >= CSI_LINK_MIN_PKTS) return nullptr;
         slot = oldest;
     }
 
@@ -307,7 +313,6 @@ static void csiEmitAlert(const CsiAlert &al) {
         Serial.printf("[CSI] CLEAR %s dwell=%us\n", mac.c_str(), al.dwell);
     }
 
-    logToSD(line);
 }
 
 static void csiProcess(const CsiEvent &ev) {
@@ -356,15 +361,21 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t hold = csiHoldMs.load();
 
         if (l.sc.score >= thresh) {
+            if (l.consec == 0) l.aboveSinceMs = now;
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
         } else {
             l.consec = 0;
+            l.aboveSinceMs = 0;
         }
 
         if (g_calActive || !l.sc.settled()) return;
 
-        if (!l.motion && l.consec >= consecNeeded) {
+        if (l.packets < CSI_LINK_MIN_PKTS) return;
+
+        const bool heldLongEnough = l.aboveSinceMs && (now - l.aboveSinceMs) >= CSI_MOTION_MIN_MS;
+
+        if (!l.motion && l.consec >= consecNeeded && heldLongEnough) {
             l.motion = true;
             l.motionStartMs = now;
             l.events++;
@@ -390,7 +401,15 @@ static void csiExpireLinks() {
         for (int i = 0; i < CSI_MAX_LINKS; i++) {
             CsiLink &l = g_links[i];
             if (!l.used) continue;
-            if (now - l.lastMs < CSI_LINK_STALE_MS) continue;
+
+            const bool stale = (now - l.lastMs) >= CSI_LINK_STALE_MS;
+            const bool flat = l.sc.settled() && l.sc.spread() < CSI_LINK_MIN_SPREAD;
+            if (!stale && !flat) continue;
+
+            if (flat && !stale) {
+                Serial.printf("[CSI] DROP %s flat (spread %.3f over %u pkts)\n",
+                              macFmt6(l.mac).c_str(), l.sc.spread(), l.packets);
+            }
             if (l.motion) {
                 l.motion = false;
                 csiStageAlert(alerts[i], l, false);
@@ -424,6 +443,7 @@ static void csiSnapshot(CsiLinkView *out, int &count) {
         v.rate = (float)l.packets * 1000.0f / (float)span;
         v.mad = l.sc.mad;
         v.floorMad = l.sc.floorMad;
+        v.spread = l.sc.spread();
         v.score = l.sc.score;
         v.peakScore = l.peakScore;
         v.motion = l.motion;
@@ -522,6 +542,7 @@ String getCsiJson() {
         j += ",\"peak\":" + String(v.peakScore, 3);
         j += ",\"mad\":" + String(v.mad, 5);
         j += ",\"floor\":" + String(v.floorMad, 5);
+        j += ",\"spread\":" + String(v.spread, 3);
         j += ",\"events\":" + String(v.events);
         j += ",\"age\":" + String(v.ageMs / 1000);
         j += ",\"motion\":" + String(v.motion ? "true" : "false") + "}";
@@ -655,7 +676,7 @@ void csiMotionTask(void *pv) {
     g_areaLastMotionMs = 0;
     g_heatLen = 0;
     g_heatSec = 5;
-    g_heatCur = 0;
+    g_heatSum = 0;
     g_heatCurSec = 0;
     g_csiStartMs = millis();
     g_csiEndMs = 0;
@@ -691,6 +712,7 @@ void csiMotionTask(void *pv) {
 
     scanning = true;
     stopRequested = false;
+    scanStopPending.store(false);
     scanSetCountdown(duration, forever);
 
     if (autoChannel) {
@@ -745,6 +767,7 @@ void csiMotionTask(void *pv) {
     uint32_t lastResultsMs = 0;
     uint32_t lastExpireMs = millis();
     uint32_t lastStatMs = millis();
+    uint32_t lastRollMs = millis();
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - startMs) < duration * 1000 && !stopRequested)) {
@@ -752,6 +775,10 @@ void csiMotionTask(void *pv) {
         CsiEvent ev;
         if (xQueueReceive(csiQueue, &ev, pdMS_TO_TICKS(100)) == pdTRUE) {
             csiProcess(ev);
+            for (uint16_t burst = 0; burst < CSI_DRAIN_BURST; burst++) {
+                if (xQueueReceive(csiQueue, &ev, 0) != pdTRUE) break;
+                csiProcess(ev);
+            }
         }
 
         const uint32_t now = millis();
@@ -828,15 +855,36 @@ void csiMotionTask(void *pv) {
                 {
                     std::lock_guard<std::mutex> lock(g_csiMutex);
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
-                        if (g_links[i].used && g_links[i].sc.settled() && g_links[i].sc.score > peakNow)
+                        if (g_links[i].used && g_links[i].sc.settled() &&
+                            g_links[i].packets >= CSI_LINK_MIN_PKTS &&
+                            g_links[i].sc.score > peakNow)
                             peakNow = g_links[i].sc.score;
                     }
                 }
                 csiHeatPush(peakNow);
             }
-            String snap = getCsiResults();
-            std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-            antihunter::lastResults = std::string(snap.c_str());
+            if (uxQueueMessagesWaiting(csiQueue) == 0) {
+                String snap = getCsiResults();
+                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                antihunter::lastResults = std::string(snap.c_str());
+            }
+        }
+
+        if (now - lastRollMs >= 60000) {
+            lastRollMs = now;
+            float peakRoll = 0.0f;
+            int movingRoll = 0;
+            {
+                std::lock_guard<std::mutex> lock(g_csiMutex);
+                for (int i = 0; i < CSI_MAX_LINKS; i++) {
+                    if (!g_links[i].used || !g_links[i].sc.settled()) continue;
+                    if (g_links[i].motion) movingRoll++;
+                    if (g_links[i].sc.score > peakRoll) peakRoll = g_links[i].sc.score;
+                }
+            }
+            Serial.printf("[CSI] STATE %s peak=%.2f links=%d events=%u up=%us\n",
+                          g_areaMotion ? "MOVE" : "quiet", peakRoll, movingRoll,
+                          g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
         }
 
         if (now - lastStatMs >= 15000) {
