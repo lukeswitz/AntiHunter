@@ -69,10 +69,11 @@ static void csiHeatPush(float act) {
     g_heatCur = 0;
 }
 
-static const uint32_t CSI_AREA_MIN_GAP_MS = 30000;
+static const uint32_t CSI_AREA_DEBOUNCE_MS = 15000;
 static bool g_areaMotion = false;
+static bool g_areaCand = false;
+static uint32_t g_areaCandSince = 0;
 static uint32_t g_areaSinceMs = 0;
-static uint32_t g_areaLastTxMs = 0;
 static uint32_t g_areaLastMotionMs = 0;
 
 static bool g_calActive = false;
@@ -113,6 +114,7 @@ static std::atomic<uint32_t> g_csiDropped{0};
 static std::atomic<uint32_t> g_csiRejected{0};
 static std::atomic<uint32_t> g_csiMotionEvents{0};
 static uint32_t g_csiStartMs = 0;
+static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
 // cppcheck-suppress constParameterCallback // wifi_csi_cb_t signature is fixed by esp_wifi_set_csi_rx_cb
@@ -498,7 +500,7 @@ String getCsiJson() {
     j += ",\"motion\":" + String(anyMotion ? "true" : "false");
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
     j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
-    j += ",\"uptime\":" + String(g_csiStartMs ? (millis() - g_csiStartMs) / 1000 : 0);
+    j += ",\"uptime\":" + String(g_csiStartMs ? ((g_csiEndMs ? g_csiEndMs : millis()) - g_csiStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
     j += ",\"heatSec\":" + String(g_heatSec);
     j += ",\"heat\":[";
@@ -647,14 +649,16 @@ void csiMotionTask(void *pv) {
     g_calSamples = 0;
     g_calTrigger = 0.0f;
     g_areaMotion = false;
+    g_areaCand = false;
+    g_areaCandSince = 0;
     g_areaSinceMs = 0;
-    g_areaLastTxMs = 0;
     g_areaLastMotionMs = 0;
     g_heatLen = 0;
     g_heatSec = 5;
     g_heatCur = 0;
     g_heatCurSec = 0;
     g_csiStartMs = millis();
+    g_csiEndMs = 0;
 
     if (csiQueue == nullptr) {
         csiQueue = xQueueCreateWithCaps(48, sizeof(CsiEvent), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -719,6 +723,7 @@ void csiMotionTask(void *pv) {
     g_csiRejected.store(0);
     g_csiDropped.store(0);
     g_csiStartMs = millis();
+    g_csiEndMs = 0;
 
     Serial.printf("[CSI] Pinned to ch%u - web UI reachable only while ch%u is the SoftAP channel\n", ch, ch);
 
@@ -788,24 +793,30 @@ void csiMotionTask(void *pv) {
             }
 
             const bool areaNow = (movingLinks > 0);
-            if (areaNow != g_areaMotion) {
-                if (areaNow) {
-                    g_areaMotion = true;
-                    g_areaSinceMs = now;
-                    g_areaLastMotionMs = now;
-                    if (meshEnabled && (g_areaLastTxMs == 0 || now - g_areaLastTxMs >= CSI_AREA_MIN_GAP_MS)) {
+            if (areaNow) g_areaLastMotionMs = now;
+
+            if (areaNow != g_areaCand) {
+                g_areaCand = areaNow;
+                g_areaCandSince = now;
+            }
+
+            if (g_areaCand != g_areaMotion && (now - g_areaCandSince) >= CSI_AREA_DEBOUNCE_MS) {
+                g_areaMotion = g_areaCand;
+                if (g_areaMotion) {
+                    g_areaSinceMs = g_areaCandSince;
+                    if (meshEnabled) {
                         meshEnqueuePrio(getNodeId() + ": CSI_MOTION: CH=" + String(g_csiActiveChannel) +
                                         " N=" + String(movingLinks) +
                                         " S=" + String(peak, 2), PRIO_EVENT);
-                        g_areaLastTxMs = now;
                     }
+                    Serial.printf("[CSI] AREA MOTION (held %us)\n", CSI_AREA_DEBOUNCE_MS / 1000);
                 } else {
-                    g_areaMotion = false;
+                    const uint32_t dwell = (g_areaCandSince - g_areaSinceMs) / 1000;
                     if (meshEnabled) {
                         meshEnqueuePrio(getNodeId() + ": CSI_CLEAR: CH=" + String(g_csiActiveChannel) +
-                                        " D=" + String((now - g_areaSinceMs) / 1000) + "s", PRIO_EVENT);
-                        g_areaLastTxMs = now;
+                                        " D=" + String(dwell) + "s", PRIO_EVENT);
                     }
+                    Serial.printf("[CSI] AREA CLEAR (moved %us)\n", dwell);
                 }
             }
         }
@@ -867,6 +878,7 @@ void csiMotionTask(void *pv) {
     }
 
     scanning = false;
+    g_csiEndMs = millis();
     csiRadioStop();
 
     if (csiQueue) {
