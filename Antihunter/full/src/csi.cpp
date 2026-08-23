@@ -72,6 +72,9 @@ static void csiHeatPush(float act) {
 
 static const uint16_t CSI_DRAIN_BURST = 64;
 static const uint32_t CSI_MOTION_MIN_MS = 2000;
+static const uint8_t CSI_RADIO_KEY_LEN = 5;
+static const uint32_t CSI_ELEV_CAP_MS = 6000;
+static const uint32_t CSI_ELEV_DECAY = 2;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 15000;
 static bool g_areaMotion = false;
 static bool g_areaCand = false;
@@ -104,7 +107,8 @@ struct CsiLink {
     uint8_t consec;
     bool motion;
     uint32_t lastAboveMs;
-    uint32_t aboveSinceMs;
+    uint32_t lastTickMs;
+    uint32_t elevMs;
     uint32_t motionStartMs;
     uint32_t events;
 };
@@ -116,6 +120,10 @@ static QueueHandle_t csiQueue = nullptr;
 static std::atomic<uint32_t> g_csiSeen{0};
 static std::atomic<uint32_t> g_csiDropped{0};
 static std::atomic<uint32_t> g_csiRejected{0};
+static std::atomic<uint32_t> g_rejFcs{0};
+static std::atomic<uint32_t> g_rejWidth{0};
+static std::atomic<uint32_t> g_rejShort{0};
+static std::atomic<uint32_t> g_rejMac{0};
 static std::atomic<uint32_t> g_csiMotionEvents{0};
 static uint32_t g_csiStartMs = 0;
 static uint32_t g_csiEndMs = 0;
@@ -128,6 +136,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     const wifi_pkt_rx_ctrl_t &rx = info->rx_ctrl;
     if (rx.rx_state != 0) {
         g_csiRejected.fetch_add(1);
+        g_rejFcs.fetch_add(1);
         return;
     }
 #if CONFIG_SOC_WIFI_HE_SUPPORT
@@ -139,17 +148,20 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
 #else
     if (rx.cwb != 0 || rx.secondary_channel != 0) {
         g_csiRejected.fetch_add(1);
+        g_rejWidth.fetch_add(1);
         return;
     }
 #endif
     if (info->len < 128) {
         g_csiRejected.fetch_add(1);
+        g_rejShort.fetch_add(1);
         return;
     }
 
     const uint8_t *m = info->mac;
     if ((m[0] | m[1] | m[2] | m[3] | m[4] | m[5]) == 0) {
         g_csiRejected.fetch_add(1);
+        g_rejMac.fetch_add(1);
         return;
     }
 
@@ -239,7 +251,8 @@ static void csiLinkReset(CsiLink &l) {
     l.consec = 0;
     l.motion = false;
     l.lastAboveMs = 0;
-    l.aboveSinceMs = 0;
+    l.lastTickMs = 0;
+    l.elevMs = 0;
     l.motionStartMs = 0;
     l.events = 0;
 }
@@ -250,7 +263,7 @@ static CsiLink *csiFindLink(const uint8_t *mac) {
 
     for (int i = 0; i < CSI_MAX_LINKS; i++) {
         CsiLink &l = g_links[i];
-        if (l.used && memcmp(l.mac, mac, 6) == 0) return &l;
+        if (l.used && memcmp(l.mac, mac, CSI_RADIO_KEY_LEN) == 0) return &l;
         if (!l.used) {
             if (!freeSlot) freeSlot = &l;
             continue;
@@ -368,22 +381,27 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t consecNeeded = csiConsecNeeded.load();
         const uint32_t hold = csiHoldMs.load();
 
+        const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
+        l.lastTickMs = now;
+
         if (l.sc.score >= thresh) {
-            if (l.consec == 0) l.aboveSinceMs = now;
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
+            l.elevMs += dt;
+            if (l.elevMs > CSI_ELEV_CAP_MS) l.elevMs = CSI_ELEV_CAP_MS;
         } else {
             l.consec = 0;
-            l.aboveSinceMs = 0;
+            const uint32_t decay = dt * CSI_ELEV_DECAY;
+            l.elevMs = (l.elevMs > decay) ? (l.elevMs - decay) : 0;
         }
 
         if (g_calActive || !l.sc.settled()) return;
 
         if (l.packets < CSI_LINK_MIN_PKTS) return;
 
-        const bool heldLongEnough = l.aboveSinceMs && (now - l.aboveSinceMs) >= CSI_MOTION_MIN_MS;
+        const bool heldLongEnough = l.elevMs >= CSI_MOTION_MIN_MS;
 
-        if (!l.motion && l.consec >= consecNeeded && heldLongEnough) {
+        if (!l.motion && heldLongEnough && l.consec >= consecNeeded) {
             l.motion = true;
             l.motionStartMs = now;
             l.events++;
@@ -392,6 +410,7 @@ static void csiProcess(const CsiEvent &ev) {
         } else if (l.motion && l.sc.score < thresh && (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
+            l.elevMs = 0;
             csiStageAlert(alert, l, false);
         }
     }
@@ -521,6 +540,10 @@ String getCsiJson() {
 
     String j = "{\"channel\":" + String(g_csiActiveChannel);
     j += ",\"records\":" + String(g_csiSeen.load());
+    j += ",\"rejFcs\":" + String(g_rejFcs.load());
+    j += ",\"rejWidth\":" + String(g_rejWidth.load());
+    j += ",\"rejShort\":" + String(g_rejShort.load());
+    j += ",\"rejMac\":" + String(g_rejMac.load());
     j += ",\"rate\":" + String(rate, 2);
     j += ",\"rejected\":" + String(g_csiRejected.load());
     j += ",\"drops\":" + String(g_csiDropped.load());
@@ -586,6 +609,24 @@ void loadCsiConfigFromPrefs() {
     csiThresholdMilli.store(prefs.getUInt("csiThr", 1500));
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
+}
+
+static bool csiArmCsi(uint8_t ch) {
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+
+    wifi_csi_config_t cfg = {};
+    cfg.lltf_en = true;
+    cfg.htltf_en = false;
+    cfg.stbc_htltf2_en = false;
+    cfg.ltf_merge_en = false;
+    cfg.channel_filter_en = false;
+    cfg.manu_scale = false;
+    cfg.shift = 0;
+    cfg.dump_ack_en = false;
+
+    if (esp_wifi_set_csi_config(&cfg) != ESP_OK) return false;
+    if (esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr) != ESP_OK) return false;
+    return esp_wifi_set_csi(true) == ESP_OK;
 }
 
 static bool csiRadioStart(uint8_t ch) {
@@ -792,6 +833,9 @@ void csiMotionTask(void *pv) {
     uint32_t lastExpireMs = millis();
     uint32_t lastStatMs = millis();
     uint32_t lastRollMs = millis();
+    uint32_t lastStallMs = millis();
+    uint32_t lastSeenSnap = 0;
+    uint32_t lastRejSnap = 0;
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - startMs) < duration * 1000 && !stopRequested)) {
@@ -892,6 +936,20 @@ void csiMotionTask(void *pv) {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
                 antihunter::lastResults = std::string(snap.c_str());
             }
+        }
+
+        if (now - lastStallMs >= 5000) {
+            lastStallMs = now;
+            const uint32_t seenNow = g_csiSeen.load();
+            const uint32_t rejNow = g_csiRejected.load();
+            if (seenNow == lastSeenSnap && rejNow > lastRejSnap) {
+                Serial.printf("[CSI] STALL: 0 accepted, +%u rejected (fcs=%u width=%u short=%u mac=%u) - re-arming ch%u\n",
+                              rejNow - lastRejSnap, g_rejFcs.load(), g_rejWidth.load(),
+                              g_rejShort.load(), g_rejMac.load(), g_csiActiveChannel);
+                if (!csiArmCsi(g_csiActiveChannel)) Serial.println("[CSI] re-arm failed");
+            }
+            lastSeenSnap = seenNow;
+            lastRejSnap = rejNow;
         }
 
         if (now - lastRollMs >= 60000) {
