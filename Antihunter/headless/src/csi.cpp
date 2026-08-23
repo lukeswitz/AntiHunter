@@ -615,6 +615,21 @@ static bool csiArmCsi(uint8_t ch) {
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
 
     wifi_csi_config_t cfg = {};
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+    cfg.enable = 1;
+    cfg.acquire_csi_legacy = 1;
+    cfg.acquire_csi_force_lltf = 1;
+    cfg.acquire_csi_ht20 = 0;
+    cfg.acquire_csi_ht40 = 0;
+    cfg.acquire_csi_vht = 0;
+    cfg.acquire_csi_su = 0;
+    cfg.acquire_csi_mu = 0;
+    cfg.acquire_csi_dcm = 0;
+    cfg.acquire_csi_beamformed = 0;
+    cfg.acquire_csi_he_stbc_mode = 0;
+    cfg.val_scale_cfg = 0;
+    cfg.dump_ack_en = 0;
+#else
     cfg.lltf_en = true;
     cfg.htltf_en = false;
     cfg.stbc_htltf2_en = false;
@@ -623,6 +638,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.manu_scale = false;
     cfg.shift = 0;
     cfg.dump_ack_en = false;
+#endif
 
     if (esp_wifi_set_csi_config(&cfg) != ESP_OK) return false;
     if (esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr) != ESP_OK) return false;
