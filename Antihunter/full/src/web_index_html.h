@@ -3101,7 +3101,7 @@ R"HTML(
       function updateMeshTxIndicator(diagText) {
         const el = document.getElementById('meshTxStatus');
         if (!el) return;
-        const m = diagText.match(/Mesh TX: draining (\d+)\/(\d+)/);
+        const m = diagText.includes('Mesh: Enabled') ? diagText.match(/Mesh TX: draining (\d+)\/(\d+)/) : null;
         if (m) {
           el.innerText = 'Mesh TX ' + m[1] + '/' + m[2] + ' (cancel)';
           el.style.display = '';

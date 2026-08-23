@@ -333,7 +333,7 @@ static void meshTxTask(void *pv) {
             meshTxDraining.store(false);
             uint32_t sent = meshDrainSent.load();
             uint32_t total = meshDrainTotal.load();
-            if (sent >= total && total > 0 && !scanning.load()) {
+            if (sent >= total && total > 0) {
                 meshTxDepthHigh.store(0);
                 meshDrainSent.store(0);
                 meshDrainTotal.store(0);

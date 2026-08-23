@@ -374,6 +374,8 @@ void initializeHardware()
         Serial.printf("[CONFIG] Mesh dedup TTL: %us (0=disabled)\n", (unsigned)ttl);
     }
     setMeshSessionDedup(prefs.getBool("meshSessDedup", false));
+    meshEnabled = prefs.getBool("meshEnabled", true);
+    Serial.printf("[CONFIG] Mesh: %s\n", meshEnabled ? "Enabled" : "Disabled");
     
     baselineRamCacheSize = prefs.getUInt("baselineRamSize", 400);
     baselineSdMaxDevices = prefs.getUInt("baselineSdMax", 50000);
