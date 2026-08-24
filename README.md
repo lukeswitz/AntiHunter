@@ -258,6 +258,36 @@ Two-phase scan: establish a baseline of known devices, then monitor for anomalie
 > [!TIP]
 > Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
 
+**CSI Motion Detection** - the node watches the WiFi already flying around your house and notices when a body walks through it. It transmits nothing, joins nothing, and needs no setup.
+
+**The idea in one paragraph.** WiFi does not travel in a straight line from router to node. It bounces - off walls, floors, furniture - and all those copies arrive together and add up. Move a body into the room and you change the length of some of those paths by a few centimetres, which at WiFi's 12.5 cm wavelength is enough to change how the copies add. The node sees that as the signal changing shape. Stand still and it stops changing. That is the whole detector.
+
+**Why not just watch signal strength?** Because the bounces partly cancel out, so total power barely moves. Every WiFi frame carries something better: a measurement of the channel at 64 separate frequencies. Each frequency sees the bounces add up differently, so instead of one number you get a 47-point fingerprint of the room. A person walking changes the *shape* of that fingerprint even when the loudness stays flat.
+
+**The trick that makes it reliable.** The hard part is telling a real body apart from radio noise, and at these signal levels there is more noise than signal. The answer is not to ask *how big* a change is, but *whether it is smooth*. A person moves continuously, so each measurement resembles the one just before it. Noise is random, so it does not. The detector measures that resemblance - technically the lag-1 autocorrelation of the signal power, averaged across the 47 frequencies:
+
+```
+G(t,f) = |H(t,f)|^2                   signal power, per frequency
+phi(f) = gamma(1,f) / gamma(0,f)      how much each sample resembles the last
+psi    = mean of phi(f) over f        motion when psi >= eta
+```
+
+An empty room scores near zero. A person walking pushes it toward one. This is why it still works on a -91 dBm link where the noise is larger than the signal: noise is loud but never smooth.
+
+**Nothing to calibrate, and that is provable.** With no motion the score follows `psi ~ N(-1/T, 1/(FT))` - a distribution that depends only on how many samples `T` and how many frequencies `F` the node uses. It does not depend on noise level, room size, wall material, or which chip you run it on. So the alarm threshold is calculated from `P_fa = Q(sqrt(FT)(eta + 1/T))` rather than tuned by hand, and the same number is correct in every building. There is no learning phase, no empty-room baseline, and nothing that drifts out of tune over hours. Method and proof: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf), which reports 99.68% detection at ~0% false alarms over a five-week whole-home deployment on a single link.
+
+**Two votes before it cries wolf.** Any one transmitter can glitch. So a link only counts as moving when most of its 47 frequencies agree, following [Origin Wireless US10291460B2](https://patents.google.com/patent/US10291460B2/en), and an area alert needs two separate transmitters to agree whenever two are available. One noisy radio cannot raise an alarm by itself.
+
+Individual links cross the threshold on their own fairly often, even in an empty room. The two-link rule is what keeps those off the alert layer.
+
+Range indoors runs from reliable in the same room to intermittent at roughly 30 ft through an interior wall. Signal strength is not the limiting factor: links from -76 to -91 dBm all carry detection, because the ACF is a ratio and path loss divides out.
+
+> [!IMPORTANT]
+> It detects **movement**, not presence. A person who stops moving is absorbed into the baseline within a few seconds and reads as quiet. That is the design, not a fault.
+
+> [!NOTE]
+> Coverage indoors is the whole room because multipath is rich. Outdoors there are few reflectors, so the sensitive region collapses to a narrow zone along the line between the node and the transmitter - a tripwire rather than area cover. The threshold does not change; the coverage shape does. Untested outdoors.
+
 ### Locating
 
 **Triangulation** (experimental) - multiple nodes scan for a target simultaneously. Each records RSSI and GPS coordinates. Data is aggregated over mesh for weighted trilateration with Kalman filtering.
@@ -710,11 +740,11 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
-| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. `TRAIN` spends the first 20s learning the trigger from this location instead of using the default - only needed if a location reads wrong. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
-| `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 1.2-20 (multiple of the learned still-state floor), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:1.5:5000:3:0` |
+| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. `TRAIN` is accepted but ignored - the ACF threshold is derived, not learned. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
+| `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 0.02-0.60 (the ACF threshold `eta`; 0.10 is derived and correct everywhere, leave it alone), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:0.10:5000:3:0` |
 | `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial, including `"calibrated"`. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
-| `CSI_RECAL` | None - clears the saved baseline so the next CSI start re-learns the trigger over 20s. ACK: `CSI_RECAL_ACK:OK` | `@ALL CSI_RECAL` |
+| `CSI_RECAL` | None - clears any saved trigger and returns to the derived default. Kept for older nodes; the ACF needs no recalibration. ACK: `CSI_RECAL_ACK:OK` | `@ALL CSI_RECAL` |
 | `MESH_TX_CANCEL` | None - drops queued EVENT and BULK mesh traffic without stopping the running scan. CONTROL (triangulation) is kept. ACK: `MESH_TX_CANCEL_ACK:EMPTY` when nothing was queued | `@ALL MESH_TX_CANCEL` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
@@ -899,7 +929,7 @@ Any other value is passed through verbatim as `Reason code N`.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/scan` | POST | Start target scan (`mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`). With `triangulate=1`, returns `400` and the reason if triangulation cannot start (bad/empty `targetMac`, debounce, busy task) |
-| `/sniffer` | POST | Start detection scan (`detection`, `secs`, `forever`, `randomizationMode`, `probeScanMode`, `captureProbes`). `detection=csi-motion` additionally takes `csiChannel` 0-14 (**0 = survey every configured channel and pin the busiest**), `csiThreshold` 1.2-20, `csiHold` 500-120000 ms, `csiConsec` 1-50, `csiAuto` (calibrate the trigger from 20s of this room), `csiTelem` (per-packet `CSIT` line to serial), `csiRaw` |
+| `/sniffer` | POST | Start detection scan (`detection`, `secs`, `forever`, `randomizationMode`, `probeScanMode`, `captureProbes`). `detection=csi-motion` additionally takes `csiChannel` 0-14 (**0 = survey every configured channel and pin the busiest**), `csiThreshold` 0.02-0.60 (ACF `eta`, default 0.10, no reason to change it), `csiHold` 500-120000 ms, `csiConsec` 1-50, `csiAuto` (accepted, ignored), `csiTelem` (per-packet `CSIT` line to serial), `csiRaw` |
 | `/drone` | POST | Start drone RID detection (`secs`, `forever`) |
 
 ### Results
@@ -915,7 +945,7 @@ Any other value is passed through verbatim as `Reason code N`.
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
 | `/csi-results` | GET | CSI motion detection results, one block per tracked transmitter |
-| `/csi-json` | GET | CSI motion state (JSON): channel, record rate, per-link score, floor and motion flag |
+| `/csi-json` | GET | CSI motion state (JSON): channel, record rate, `usable` link count, and per link `acf` (lag-1 ACF), `vote` (fraction of subcarriers over threshold), `rssi`, `packets` and motion flag |
 
 ### Fleet
 
