@@ -61,6 +61,7 @@ struct CsiScorer {
     float mGG[CSI_NSUB];
     float acf;
     float vote;
+    float floorCache;
     float floorMad;
     float mad;
     float score;
@@ -83,6 +84,7 @@ struct CsiScorer {
         }
         acf = 0.0f;
         vote = 0.0f;
+        floorCache = 0.0f;
         floorMad = 0.0f;
         mad = 0.0f;
         score = 0.0f;
@@ -173,8 +175,9 @@ struct CsiScorer {
             hist[hpos] = (uint16_t)q;
             hpos = (uint8_t)((hpos + 1) % CSI_FLOOR_HIST);
             if (hlen < CSI_FLOOR_HIST) hlen++;
+            floorCache = histMedian();
         }
-        floorMad = (hlen > 0) ? histMedian() : d;
+        floorMad = (hlen > 0) ? floorCache : d;
         if (floorMad < CSI_FLOOR_MIN) floorMad = CSI_FLOOR_MIN;
 
         score = mad / floorMad;
