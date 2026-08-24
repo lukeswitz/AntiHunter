@@ -636,10 +636,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                              oninput="document.getElementById('csiChannel').value=this.value">
                     </div>
                     <div>
-                      <label style="font-size:11px;">Sensitivity (x quiet)</label>
-                      <input type="number" name="csiThreshold" id="csiThreshold" min="1.2" max="20" step="0.1" value="1.5">
-                    </div>
-                    <div>
                       <label style="font-size:11px;">Clear after (ms)</label>
                       <input type="number" name="csiHold" id="csiHold" min="500" max="120000" step="500" value="5000">
                     </div>
@@ -3200,7 +3196,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function updateMeshTxIndicator(diagText) {
         const el = document.getElementById('meshTxStatus');
         if (!el) return;
-        const m = diagText.match(/Mesh TX: draining (\d+)\/(\d+)/);
+        const m = diagText.includes('Mesh: Enabled') ? diagText.match(/Mesh TX: draining (\d+)\/(\d+)/) : null;
         if (m) {
           el.innerText = 'Mesh TX ' + m[1] + '/' + m[2] + ' (cancel)';
           el.style.display = '';
