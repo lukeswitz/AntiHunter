@@ -16,6 +16,8 @@ struct CsiLinkView {
     float floorMad;
     float spread;
     float score;
+    float acf;
+    float vote;
     float peakScore;
     bool motion;
 };
