@@ -1,9 +1,7 @@
 # Start Here
-
+- **[Read the Documentation](https://github.com/lukeswitz/AntiHunter/tree/main)** - everything there is to know about this project
 - **[Operator's Guide](https://lukeswitz.github.io/AntiHunter/operators-guide/operators-guide.html)** — the node, from the box to the field. [PDF](AntiHunter-Operators-Guide.pdf)
 - **[Assembly Manual](../hw/Prototype_STL_Files/Antihunter-DIGINODE-AssemblyManual.pdf)** — soldering, SD card prep, connectors, printed enclosure
-
-Every `§` below opens the Operator's Guide at that section.
 
 ---
 
@@ -40,6 +38,8 @@ Nothing is soldered, nothing is flashed.
 5. Flash Meshtastic on the radio at [flasher.meshtastic.org](https://flasher.meshtastic.org), then set SERIAL enabled, TEXTMSG, 115200, pins 19RX/20TX on Heltec V3 or 10RX/9TX on T114. [`meshtastic_config.py`](../scripts/meshtastic_config.py) does all of it
 6. Carry on at [Setup order](#setup-order-for-a-new-node)
 
+---
+
 ### Bare XIAO ESP32-S3, no PCB
 
 The firmware expects the full module set: LoRa radio, GPS, RTC, SD reader, vibration sensor. Breadboard them to the same pins if you are not using the PCB.
@@ -49,6 +49,8 @@ Pinout: [Appendix A](https://lukeswitz.github.io/AntiHunter/operators-guide/oper
 ### Building from source
 
 PlatformIO environments: [Build & Flash](../README.md#build-from-source). Read [CONTRIBUTING](../CONTRIBUTING.md) and the [CLA](../CLA.md) before a PR.
+
+---
 
 ### Several nodes
 
