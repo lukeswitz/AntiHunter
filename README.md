@@ -70,6 +70,8 @@ Vibration based scans and self-destruct option. Defensive by design. Knows the d
 
 Flash it from your browser - nothing to install.
 
+**Visit the [docs](https://github.com/lukeswitz/AntiHunter/tree/main/docs) folder for additional user resources and troubleshooting.**
+
 > Built or bought a node/kit? The **[Operator's Guide](docs/AntiHunter-Operators-Guide.pdf)** takes you from unboxing to deployment: antennas, flashing, mesh setup, every detector, the vibration sensor, Command Center install and a printable quick-reference card.
 
 1. **[Open the Web Flasher](https://lukeswitz.github.io/AntiHunter/)** in Chrome or Edge, on desktop.
