@@ -336,7 +336,7 @@ static void meshTxTask(void *pv) {
             meshTxDraining.store(false);
             uint32_t sent = meshDrainSent.load();
             uint32_t total = meshDrainTotal.load();
-            if (sent >= total && total > 0 && !scanning.load()) {
+            if (sent >= total && total > 0) {
                 meshTxDepthHigh.store(0);
                 meshDrainSent.store(0);
                 meshDrainTotal.store(0);
@@ -822,6 +822,26 @@ static void handleCsiRecal()
 {
   csiClearCalibration();
   sendToSerial1(nodeId + ": CSI_RECAL_ACK:OK", true);
+}
+
+static void handleCsiExclude(const String &command)
+{
+  String p = command.substring(12);
+  p.trim();
+  if (p.equalsIgnoreCase("NONE") || p.length() == 0) {
+    csiExcludeMac.store(0);
+    sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:NONE", true);
+    return;
+  }
+  uint8_t m[6];
+  if (!parseMac6(p, m)) {
+    sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:INVALID", true);
+    return;
+  }
+  uint64_t v = 0;
+  for (int i = 0; i < 6; i++) v = (v << 8) | m[i];
+  csiExcludeMac.store(v);
+  sendToSerial1(nodeId + ": CSI_EXCLUDE_ACK:" + p, true);
 }
 
 static void handleCsiCfg(const String &command)
@@ -2031,6 +2051,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("DRONE_START:"))          handleDroneStart(command);
   else if (command.startsWith("DEAUTH_START:"))         handleDeauthStart(command);
   else if (command.startsWith("CSI_MOTION_START:"))     handleCsiMotionStart(command);
+  else if (command.startsWith("CSI_EXCLUDE:"))          handleCsiExclude(command);
   else if (command.startsWith("CSI_CFG:"))              handleCsiCfg(command);
   else if (command == "CSI_STATUS")                     handleCsiStatus();
   else if (command == "CSI_JSON")                       handleCsiJson();
