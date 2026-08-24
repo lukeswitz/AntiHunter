@@ -136,7 +136,7 @@
 
   <div class="box warn">
     <span class="t">Read before applying power: three rules</span>
-    <p><b>1. Regulated 5 V only.</b> Power the PCB from USB, a bench supply set to 5 V, a proper DC-DC regulator, or the UPS board. Never connect 18650 cells, a battery pack, or a vehicle supply directly to the board. Unregulated input permanently damages the modules. Voltages under 4.5 V cause instability.</p>
+    <p><b>1. Regulated 5 V only.</b> Power the PCB from USB, a bench supply set to 5 V, a proper DC-DC regulator, or the UPS board. Never connect 18650 batteries, a battery pack, or a vehicle supply directly to the PCB. Unregulated input permanently damages the modules. Voltages under 4.5 V cause instability.</p>
     <p><b>2. Never power the LoRa radio without its antenna.</b> Transmitting into an open port can destroy the radio's PA. Fit the LoRa antenna, or the U.FL pigtail plus antenna, before the node is energised.</p>
     <p><b>3. One USB cable at a time.</b> The ESP32 and the Meshtastic radio share the PCB's power rails. With both USB ports plugged in, one board back-feeds the other. Plug in one board, do your work, unplug it, then plug in the other.</p>
   </div>
@@ -144,7 +144,7 @@
   <h3>What you are holding</h3>
   <table>
     <tr><th style="width:26%">Tier</th><th>What is in the box</th><th style="width:32%">What you still have to do</th></tr>
-    <tr><td><b>1 · Fully Assembled Unit</b></td><td>Built, soldered, tested and ready to deploy. 8 GB SD card fitted. Active GPS helix antenna. SMA antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Fit two 18650 cells, screw on the antennas (§2), flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
+    <tr><td><b>1 · Fully Assembled Unit</b></td><td>Built, soldered, tested and ready to deploy. 8 GB SD card fitted. Active GPS helix antenna. SMA antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Fit two flat-top 18650 batteries, screw on the antennas (§2), flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
     <tr><td><b>2 · Complete Parts Kit</b></td><td>Every part on the bill of materials, unassembled, as it comes from the supplier. Passive GPS antenna. Nothing is soldered and nothing is flashed.</td><td>Solder and assemble it (§3), flash Meshtastic on the radio (§7.1), then flash AntiHunter (§5) and configure.</td></tr>
     <tr><td><b>3 · Populated PCB</b></td><td>A fully assembled PCB. Core modules soldered, bench-tested, 8 GB SD card fitted. Factory U.FL antennas. Meshtastic flashed on the radio with the serial link configured.</td><td>Attach the antennas (§2), supply power over USB or 18650s, build the housing if you want one, flash AntiHunter (§5), set the radio region and channel (§7).</td></tr>
     <tr><td><b>4 · Bare PCB</b></td><td>One 82 mm board, unpopulated.</td><td>Source the BOM, solder the modules, flash Meshtastic on the radio, fit an SD card, then follow this guide from §3.</td></tr>
@@ -152,13 +152,13 @@
 
   <div class="box tier">
     <span class="t">Tiers 1 and 3: the radio is already done</span>
-    <p>On the Fully Assembled Unit and the Populated PCB, the Meshtastic radio ships flashed with the latest stable firmware and the serial link to the node already configured: TEXTMSG mode, 115200 baud, on the correct pins for the board. You do <i>not</i> need to redo that. You <i>do</i> still need to set your LoRa region and create your own encrypted channel. See §7.</p>
+    <p>On the Fully Assembled Unit and the Populated PCB, the Meshtastic radio ships flashed with the latest stable firmware and the serial link to the node already configured: TEXTMSG mode, 115200 baud, on the correct pins for the board. The screen is also set to blank after one second and the status LED is off, so a dark radio on first power-up is expected, not a fault. You do <i>not</i> need to redo that. You <i>do</i> still need to set your LoRa region and create your own encrypted channel. See §7.</p>
     <p>On the Complete Parts Kit and the Bare PCB you flash the radio yourself first. §7.1 has the settings. The ESP32 ships empty on <i>every</i> tier, so you always flash AntiHunter yourself and know exactly what is on it.</p>
   </div>
 
   <h3>Contents</h3>
   <div class="toc">
-    <div><span class="n">1</span> Unboxing and inventory<span class="s">Tier checklists, tools you supply, power and thermal</span></div>
+    <div><span class="n">1</span> Unboxing and inventory<span class="s">Tier checklists, what you supply, power and thermal, first steps by tier</span></div>
     <div><span class="n">2</span> Antennas<span class="s">U.FL seating, SMA fitting, which port is which</span></div>
     <div><span class="n">3</span> Assembly<span class="s">Tiers 2 and 4: where the assembly manual takes over</span></div>
     <div><span class="n">4</span> First power-on<span class="s">Boot signs, SD card, GPS, real-time clock</span></div>
@@ -195,36 +195,35 @@
   </div>
 
   <div class="box tier long"><span class="t">Tier 2: Complete Parts Kit</span>
-  <p style="margin-bottom:2mm">Every part needed to build a finished node. Nothing is soldered and nothing is flashed. The two 18650 cells are the only thing you supply.</p>
+  <p style="margin-bottom:2mm">Every part needed to build a finished node. Nothing is soldered and nothing is flashed. You supply two flat-top 18650 batteries, an active SMA GPS antenna and soldering tools.</p>
   <ul class="check" style="margin-bottom:0">
-    <li>Bare 82 mm PCB</li>
-    <li>XIAO ESP32-S3</li>
-    <li>Heltec V3.2 LoRa radio (or T114)</li>
-    <li>ATGM336H GPS module</li>
-    <li>DS3231 RTC module</li>
-    <li>SW-420 vibration sensor</li>
-    <li>Micro SD reader module</li>
-    <li>8 GB SD card</li>
-    <li>Pin headers for every module</li>
-    <li>3D-printed enclosure: main PCB housing, battery housing, front cover, back cover</li>
-    <li>TPU seals for the housing, GPS and USB-C port</li>
-    <li>3× U.FL-to-SMA pigtail cables</li>
-    <li>SMA bulkheads</li>
-    <li>2.4 GHz WiFi/BLE antenna, 6 dBi</li>
-    <li>LoRa antenna for your region</li>
-    <li>Passive ceramic GPS antenna, the one supplied with the GPS module</li>
-    <li>30 mm 5 V fan with JST lead</li>
-    <li>KSD9700 normally-open thermal switch, 40 °C</li>
-    <li>3-pin mini on/off switch with rubber cover</li>
-    <li>Waterproof Type-C female chassis jack, 2-pin 22 AWG leads, panel nut and dust cap</li>
-    <li>Type-C 15 W 3 A 5 V UPS charger board, dual 18650</li>
-    <li>6× JST 2.54 2-pin terminals</li>
-    <li>3× JST power male cables for the switch, thermal switch and power board</li>
-    <li>M3 heat-set inserts, plus 4× M2 for the power board</li>
-    <li>M3×4-6mm screws for the PCB and enclosure lids, M2×4-6mm for the power board</li>
+    <li>1× DIGI NODE PCB, 82 mm, 2-layer</li>
+    <li>1× Seeed XIAO ESP32-S3, with its U.FL antenna</li>
+    <li>1× Heltec WiFi LoRa 32 V3.2, with its U.FL antenna</li>
+    <li>1× ATGM336H GPS module, with its U.FL ceramic antenna</li>
+    <li>1× DS3231 RTC module</li>
+    <li>1× SW-420 vibration sensor</li>
+    <li>1× micro SD reader module</li>
+    <li>1× 8 GB micro SD card, FAT32</li>
+    <li>1× 6 dBi 2.4 GHz SMA antenna</li>
+    <li>1× 6 dBi LoRa SMA antenna for your region</li>
+    <li>3× U.FL-to-SMA bulkhead pigtail</li>
+    <li>1× 2S 18650 UPS power board</li>
+    <li>5× JST 2.54 2-pin female terminals, 3 used in the build</li>
+    <li>2× JST 2.54 male power cables, for the switch and the UPS board</li>
+    <li>1× KSD9700 normally-open on-wire thermal switch, 40 °C</li>
+    <li>1× toggle switch with waterproof cap</li>
+    <li>1× waterproof USB-C input connector, with mounting nut and cap</li>
+    <li>1× 30 × 7 mm dual-bearing fan, prewired with a JST 2.54 male lead</li>
+    <li>1× 3D-printed enclosure, unassembled</li>
+    <li>1× TPU seal set: housing, USB, GPS base</li>
+    <li>1× ¼"-20 tripod insert</li>
+    <li>2× M3 15 mm brass standoffs, PCB underside to case lid</li>
+    <li>14× M3×4-6 mm hex head screws</li>
     <li>2× M2.5 screws, supplied with the fan</li>
-    <li>2× 15 mm brass standoffs</li>
-    <li>¼"-20 tripod insert</li>
+    <li>10× M3 melt-in inserts for the lid and PCB</li>
+    <li>4× M2×4-6 mm hex head screws for the power board, optional, bare M3 works instead</li>
+    <li>4× M2 melt-in inserts for the power board, optional, bare M3 works instead</li>
   </ul>
   </div>
 
@@ -247,8 +246,9 @@
 
   <h3>1.2 What you supply</h3>
   <ul>
-    <li><b>Power.</b> Tiers 1 and 2 take two 18650 cells in the UPS board. Tier 3 runs from USB or from your own regulated 5 V supply. Cells are never supplied on any tier.</li>
-    <li><b>18650 cells.</b> Brand new, same brand, same capacity, never mixed old with new. Sourcing, charging, storage and disposal are your responsibility.</li>
+    <li><b>Power.</b> Tiers 1 and 2 take two 18650 batteries in the UPS board. Tier 3 runs from USB or from your own regulated 5 V supply. Batteries are never supplied on any tier.</li>
+    <li><b>18650 batteries.</b> Flat top. Brand new, same brand, same capacity, never mixed old with new. Do not connect batteries directly to the PCB, they go in the UPS board only. Sourcing, charging, storage and disposal are your responsibility.</li>
+    <li><b>An active GPS antenna</b> on the Complete Parts Kit, the Populated PCB and the Bare PCB. The kit does not include an external GPS helix. Supply your own active SMA GPS antenna with L1 coverage. The ceramic patch that ships with the GPS module works for bench testing and is not a deployment antenna.</li>
     <li><b>A micro SD card</b>, only on the Bare PCB tier. Every other tier ships with an 8 GB card. A replacement must be FAT32, and 32 GB or larger is not recommended.</li>
     <li><b>A USB-C data cable.</b> Charge-only cables will not flash the board.</li>
     <li><b>A computer running Chrome or Edge</b> for the web flasher, or a terminal for the CLI installer.</li>
@@ -272,25 +272,82 @@
   </div>
 
   <h3>1.3 Power</h3>
-  <p>The node draws roughly 160 mA idle and 600 mA while actively scanning. Inside the enclosure the UPS board provides the regulated 5 V and the cells are never connected to the PCB directly. Outside the enclosure, use a USB-C adapter, a bench supply set to 5.0 V on the 5 V input, or a proper DC-DC regulator.</p>
+  <p>The node draws roughly 160 mA idle and 600 mA while actively scanning. Inside the enclosure the UPS board provides the regulated 5 V and the batteries are never connected to the PCB directly. Outside the enclosure, use a USB-C adapter, a bench supply set to 5.0 V on the 5 V input, or a proper DC-DC regulator.</p>
 
   <div class="box warn">
     <span class="t">Power rules</span>
-    <p>Do not connect batteries directly. Do not exceed 5 V. Do not use unregulated sources. A fuse in the battery line is recommended, a 2 A fast-blow in series with the switch wiring, but one is not supplied with any tier.</p>
+    <p>Do not connect batteries directly to the PCB. Do not exceed 5 V. Do not use unregulated sources. A fuse in the battery line is recommended, a 2 A fast-blow in series with the switch wiring, but one is not supplied with any tier.</p>
   </div>
 
   <h3>1.4 Thermal</h3>
   <p>The ESP32 runs warm under load and the GPS module gets noticeably hot while it searches for satellites. Both are normal. Neither the fan nor the thermal switch is required for the node to work.</p>
   <ul>
-    <li>The 30 mm fan plugs into the FAN JST output.</li>
+    <li>The 30 × 7 mm dual-bearing fan plugs into the FAN JST output on its prewired JST 2.54 male lead.</li>
     <li>The sticker side is not always the exhaust side. Run the fan for a second and feel which way it blows before you screw it down. The Fully Assembled Unit ships with the fan set to exhaust.</li>
     <li>The KSD9700 normally-open thermal switch, 40 °C, wires to the THERMO JST and switches the fan on when the enclosure heats up.</li>
     <li>To run the fan continuously instead, jump the THERMO input or supply 5 V straight to the fan port.</li>
   </ul>
+
+  <h3>1.5 First steps, by tier</h3>
+  <p>The short version of the whole guide. Each step names the section that covers it in full.</p>
+
+  <div class="box tier"><span class="t">Tier 1: Fully Assembled Unit</span>
+  <ol style="margin-bottom:0">
+    <li>Remove the back cover and fit two flat-top 18650 batteries the right way round. A small red LED on the UPS board lights when batteries are present.</li>
+    <li>Screw on the antennas: WiFi left, LoRa right, GPS centre. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing. §2.3</li>
+    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
+    <li>Set the LoRa region on the radio. It ships UNSET, which is receive only, and the node will not answer over mesh until you set it. §7.2</li>
+    <li>Change the Bluetooth pairing pin on the radio. Every unit ships with the same one. §7.4</li>
+    <li>Make your own encrypted Meshtastic channel primary and turn the public default off. §7.3</li>
+    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
+    <li>Watch the serial log on the first boot. Hardware faults always show up there, and shipping can unseat the SD card. §4</li>
+    <li>Fit the USB seal before outdoor use. The supplied GPS antenna has its own rubber seal. §13</li>
+  </ol>
+  </div>
+
+  <div class="box tier"><span class="t">Tier 2: Complete Parts Kit</span>
+  <ol style="margin-bottom:0">
+    <li>Inventory the kit against §1.1 before you heat the iron.</li>
+    <li>Modify two modules first: the RTC ships with female headers, and some vibration sensors ship with inverted 90° headers. Assembly manual, page 6.</li>
+    <li>Solder and assemble it with the illustrated assembly manual, end to end. §3</li>
+    <li>Fit the SD card before you close the case. The slot is unreachable once the PCB is mounted. §3</li>
+    <li>Fit the U.FL pigtails and the SMA bulkheads, then the antennas. §2.2, §2.3</li>
+    <li>Flash Meshtastic on the Heltec, then set the serial module: Enabled, TEXTMSG, 115200, pins 19 RX / 20 TX. §7.1</li>
+    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
+    <li>Set the LoRa region, change the Bluetooth pairing pin, make your own encrypted channel primary. §7</li>
+    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
+    <li>Fit two flat-top 18650 batteries in the UPS board, and your own active SMA GPS antenna. §1.2</li>
+  </ol>
+  </div>
+
+  <div class="box tier"><span class="t">Tier 3: Populated PCB</span>
+  <ol style="margin-bottom:0">
+    <li>Fit the three U.FL antennas: ceramic patch to the GPS module, coiled whip to the LoRa radio, film antenna to the XIAO. Press straight down until it clicks, never at an angle. §2.2</li>
+    <li>Never power the node with the LoRa antenna missing.</li>
+    <li>Power it from USB or your own regulated 5 V. §1.3</li>
+    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
+    <li>Set the LoRa region, change the Bluetooth pairing pin, make your own encrypted channel primary. §7</li>
+    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
+    <li>Build a housing if you want one. STLs are in <span class="mono">hw/Prototype_STL_Files/</span>. §13</li>
+  </ol>
+  </div>
+
+  <div class="box tier"><span class="t">Tier 4: Bare PCB</span>
+  <ol style="margin-bottom:0">
+    <li>Source the parts from the bill of materials in Appendix B, including an SD card and an active SMA GPS antenna.</li>
+    <li>Modify two modules first: the RTC ships with female headers, and some vibration sensors ship with inverted 90° headers. Assembly manual, page 6.</li>
+    <li>Solder and assemble it with the illustrated assembly manual. §3</li>
+    <li>Fit the SD card before you close the case. §3</li>
+    <li>Flash Meshtastic on the Heltec V3.2 or T114, then set the serial module: Enabled, TEXTMSG, 115200, pins 19 RX / 20 TX on Heltec, 10 RX / 9 TX on T114. §7.1</li>
+    <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
+    <li>Set the LoRa region, change the Bluetooth pairing pin, make your own encrypted channel primary. §7</li>
+    <li>Full firmware: join the <span class="mono">Antihunter</span> AP, open <span class="mono">http://192.168.4.1</span> and change the AP name and password first. §8</li>
+  </ol>
+  </div>
 </div>
 
 <div class="sec">
-  <h2><span class="num">2</span>Antennas</h2>
+  <h2 id="s2"><span class="num">2</span>Antennas</h2>
   <p class="lead">More nodes are damaged fitting antennas than in any other step. The U.FL connectors are small, fragile and unforgiving of a crooked press. Take your time here.</p>
 
   <h3>2.1 Which antenna goes where</h3>
@@ -368,10 +425,16 @@
     <p>Work through it end to end, then come back here at §4 to power the node up for the first time.</p>
   </div>
 
+  <div class="box warn"><span class="t">Two modules need a header modification first</span>
+    <p>Covered on page 6 of the assembly manual. Do both before anything is soldered to the board.</p>
+    <p><b>RTC module.</b> Ships with female headers. Trim and reuse the existing pins, or desolder them and fit males.</p>
+    <p><b>Vibration sensor.</b> Some units ship with inverted 90° headers. Bend them straight, reheat the joints, push through and trim the excess, or desolder and replace with standard pins.</p>
+  </div>
+
 </div>
 
 <div class="sec">
-  <h2><span class="num">4</span>First power-on</h2>
+  <h2 id="s4"><span class="num">4</span>First power-on</h2>
 
   <h3>4.1 What a healthy boot looks like</h3>
   <p>Connect a USB-C cable to the <b>ESP32</b> only, remembering one USB at a time, and open a serial monitor at 115200 baud. On boot the firmware prints its banner and version, then the results of its hardware checks: SD card, GPS, RTC, vibration sensor. Any module that failed to initialise says so by name.</p>
@@ -589,7 +652,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
 
-  <h3>8.2 Identity</h3>
+  <h3 id="s8-2">8.2 Identity</h3>
   <ul>
     <li><b>Node ID.</b> Set it in the web UI or with <span class="mono">@AH01 CONFIG_NODEID:AH02</span>. It prefixes every mesh message the node sends, so make it meaningful.</li>
     <li><b>Clock.</b> See §4.3. Everything is timestamped UTC.</li>
@@ -734,7 +797,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>Alerts are rate-limited to one every 3 seconds, so continuous shaking produces a steady trickle rather than a flood. The System diagnostics show <span class="mono">Vibration sensor: Standby</span> or <span class="mono">Vibration sensor: Active - Last: TIME (Ns ago)</span>.</p>
   <p>Turn alerts on and off with <span class="mono">@AH01 VIBRATION_ON</span> and <span class="mono">VIBRATION_OFF</span>, or the toggle in the web UI's Sensor Alerts card. <span class="mono">VIBRATION_STATUS</span> reports the current state.</p>
 
-  <h3>10.2 Tuning the trimpot</h3>
+  <h3 id="s10-2">10.2 Tuning the trimpot</h3>
   <p>The trimpot is the small brass screw on the sensor module. It sets the sensitivity threshold, and the correct setting depends entirely on where the node is mounted. A pole in the wind is not a shelf indoors. Tune it <b>after</b> the node is in its final position, not on the bench.</p>
   <ol>
     <li>Power the node and watch the sensor's own indicator LED, or open a serial monitor and watch for <span class="mono">[VIBRATION]</span> lines.</li>
@@ -876,7 +939,7 @@ python3 scripts/meshtastic_config.py</pre>
 </div>
 
 <div class="sec">
-  <h2><span class="num">12</span>Command Center</h2>
+  <h2 id="s12"><span class="num">12</span>Command Center</h2>
   <p class="lead">One node needs no server. A fleet benefits from one: AntiHunter Command &amp; Control PRO aggregates every node's detections onto a live map, with TAK, MQTT and ADS-B integration and a Sentinel console.</p>
 
   <figure><img src="../img/architecture.png" alt=""><figcaption>Nodes operate independently and coordinate over the mesh. The Command Center aggregates.</figcaption></figure>
@@ -933,7 +996,7 @@ docker compose up -d --build</pre>
 </div>
 
 <div class="sec">
-  <h2><span class="num">13</span>Deployment</h2>
+  <h2 id="s13"><span class="num">13</span>Deployment</h2>
 
   <h3>13.1 Siting</h3>
   <ul>
@@ -980,7 +1043,7 @@ docker compose up -d --build</pre>
 </div>
 
 <div class="sec">
-  <h2><span class="num">14</span>Maintenance and troubleshooting</h2>
+  <h2 id="s14"><span class="num">14</span>Maintenance and troubleshooting</h2>
 
   <h3>14.1 Symptom table</h3>
   <table>
@@ -998,12 +1061,13 @@ docker compose up -d --build</pre>
     <tr><td>Settings gone after flashing</td><td>Erase Device was ticked</td><td>Reconfigure. Settings mirror to the SD card and self-heal, but a deliberate erase clears NVS.</td></tr>
     <tr><td>Node hot to the touch</td><td>Normal under sustained scanning</td><td>Fit the fan and thermal switch, ventilate the enclosure, consider a relaxed preset.</td></tr>
     <tr><td>Detections with no coordinates</td><td>No valid GPS fix at the time</td><td>Expected behaviour. Position is only attached when the fix is valid.</td></tr>
+    <tr><td>Weak GPS, LoRa or WiFi signal</td><td>The SMA joint on the pigtail is loose. Some pigtails are two-piece and the connector screws onto the bulkhead, and they ship loose from the factory</td><td>Hold the bulkhead and tighten the pigtail's SMA joint, then re-check the U.FL end and the antenna. Check every pigtail, not only the one that looks wrong.</td></tr>
   </table>
 
   <h3>14.2 Routine maintenance</h3>
   <ul>
     <li>Pull the SD card periodically and archive the logs, then clear them, so a lost node carries less.</li>
-    <li>Check the cells. A swollen or damaged 18650 is retired immediately, never recharged.</li>
+    <li>Check the batteries. A swollen or damaged 18650 is retired immediately, never recharged.</li>
     <li>Re-check antenna tightness and seal condition after any period in the field.</li>
     <li>Reflash on the same channel to pick up fixes. Read the release notes first.</li>
   </ul>
@@ -1048,7 +1112,7 @@ docker compose up -d --build</pre>
 </div>
 
 <div class="sec">
-  <h2>Appendix A · Pinout</h2>
+  <h2 id="appendix-a">Appendix A · Pinout</h2>
   <p>XIAO ESP32-S3 on the DIGI NODE board. Pin assignments may change with board revisions. Verify against your revision.</p>
   <table class="tight">
     <tr><th>Function</th><th>GPIO</th><th>Notes</th></tr>
@@ -1081,31 +1145,32 @@ docker compose up -d --build</pre>
   </ul>
   <h4>Connectors and fasteners</h4>
   <ul class="small">
-    <li>6× JST 2.54 2-pin terminals</li>
-    <li>3× JST power male cables for the switch, thermal switch and power board</li>
-    <li>10× M3 heat-set inserts</li>
-    <li>4× M2 heat-set inserts for the power board</li>
+    <li>5× JST 2.54 2-pin female terminals, 3 used in the build</li>
+    <li>2× JST 2.54 male power cables, for the switch and the UPS board</li>
+    <li>10× M3 melt-in inserts for the lid and PCB</li>
+    <li>4× M2 melt-in inserts for the power board, optional, bare M3 works instead</li>
     <li>2× M3 15 mm brass standoffs</li>
-    <li>M3×4-6mm screws for the PCB and enclosure lids, M2×4-6mm for the power board</li>
+    <li>14× M3×4-6 mm hex head screws for the PCB and enclosure lids</li>
     <li>2× M2.5 screws, supplied with the fan</li>
+    <li>4× M2×4-6 mm hex head screws for the power board, optional, bare M3 works instead</li>
     <li>1× ¼"-20 tripod insert</li>
   </ul>
   <h4>Antenna and cabling</h4>
   <ul class="small">
-    <li>3× U.FL to SMA pigtail, 10 to 20 cm</li>
-    <li>SMA bulkheads</li>
+    <li>3× U.FL to SMA bulkhead pigtail, 10 to 20 cm</li>
     <li>1× 6 dBi 2.4 GHz antenna</li>
     <li>1× 6 dBi LoRa antenna for your region</li>
     <li>1× GPS antenna. Passive ceramic patch on the kit and populated PCB, active helix on the assembled unit</li>
+    <li>1× active SMA GPS antenna with L1 coverage, never supplied with the kit, populated PCB or bare PCB</li>
   </ul>
   <h4>Power and thermal</h4>
   <ul class="small">
-    <li>1× 30 mm 5 V fan with JST lead</li>
-    <li>1× 3-pin mini on/off switch</li>
-    <li>1× waterproof Type-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
-    <li>1× Type-C 15 W 3 A 5 V UPS board, dual 18650</li>
+    <li>1× 30 × 7 mm dual-bearing 5 V fan, prewired with a JST 2.54 male lead</li>
+    <li>1× toggle switch with waterproof cap</li>
+    <li>1× waterproof USB-C female chassis jack, 2-pin 22 AWG leads, 14 mm panel nut, dust cap</li>
+    <li>1× 2S 18650 UPS power board, Type-C 15 W 3 A 5 V</li>
     <li>1× 2 A fast-blow fuse, recommended, not supplied</li>
-    <li>2× 18650 cells, protected flat-top, never supplied with any tier</li>
+    <li>2× 18650 batteries, flat top, never supplied with any tier</li>
   </ul>
   <h4>Enclosure</h4>
   <ul class="small">

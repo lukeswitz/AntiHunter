@@ -19,7 +19,7 @@
 
 <div align="center">
   <h3 align="center">DIGI Detection Node Firmware</h3>
-  <h4><a href="#quick-start">Quick Start</a> • <a href="#what-it-detects">What It Detects</a> • <a href="#hardware">DIY</a></h3>
+  <h4><a href="#quick-start">Quick Start</a> • <a href="#what-it-detects">What It Detects</a> • <a href="#hardware">DIY</a> • <a href="docs/README.md">Start Here</a></h3>
   
   <h5><strong>Companion C2: <a href="https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO">Command Center</h5></strong>
 
@@ -54,6 +54,8 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 ---
 
 ## Table of Contents
+
+**[Start Here](docs/README.md)** - setup order, decisions, symptom table, and every guide, manual and script.
 
 1. [Quick Start](#quick-start)
 2. [What It Detects](#what-it-detects)
