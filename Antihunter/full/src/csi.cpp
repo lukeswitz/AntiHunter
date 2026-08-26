@@ -50,7 +50,7 @@ static uint32_t g_heatSum = 0;
 static uint16_t g_heatCurSec = 0;
 
 static void csiHeatPush(float act) {
-    uint16_t q = (uint16_t)(act * 50.0f);
+    uint16_t q = (act > 0.0f) ? (uint16_t)(act * 100.0f) : 0;
     if (q > 255) q = 255;
     g_heatSum += q;
     g_heatCurSec++;
@@ -271,6 +271,7 @@ bool csiClearResults() {
         g_areaMotion = false;
         g_areaCand = false;
         g_areaCandSince = 0;
+        g_areaLastMotionMs = 0;
     }
     g_csiMotionEvents.store(0);
     g_csiSeen.store(0);
@@ -294,6 +295,12 @@ static bool csiLinkUsable(const CsiLink &l) {
         if ((m >> 8) == (ex >> 8)) return false;
     }
     return l.rssi >= CSI_LINK_MIN_RSSI;
+}
+
+static float csiTriggerRatio(float acf, float vote, float eta) {
+    const float a = (eta > 0.0f) ? (acf / eta) : 0.0f;
+    const float v = vote / CSI_VOTE_FRAC;
+    return (a < v) ? a : v;
 }
 
 static uint8_t csiUsableCount() {
@@ -593,9 +600,6 @@ String getCsiJson() {
     const uint32_t span = (g_csiStartMs && millis() > g_csiStartMs) ? (millis() - g_csiStartMs) : 1;
     const float rate = (float)g_csiSeen.load() * 1000.0f / (float)span;
 
-    bool anyMotion = false;
-    for (int i = 0; i < n; i++) if (views[i].motion) anyMotion = true;
-
     String j = "{\"channel\":" + String(g_csiActiveChannel);
     j += ",\"usable\":" + String(csiUsableCount());
     j += ",\"records\":" + String(g_csiSeen.load());
@@ -607,8 +611,9 @@ String getCsiJson() {
     j += ",\"rejected\":" + String(g_csiRejected.load());
     j += ",\"drops\":" + String(g_csiDropped.load());
     j += ",\"events\":" + String(g_csiMotionEvents.load());
-    j += ",\"motion\":" + String(anyMotion ? "true" : "false");
+    j += ",\"motion\":" + String(g_areaMotion ? "true" : "false");
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
+    j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
     j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
     j += ",\"uptime\":" + String(g_csiStartMs ? ((g_csiEndMs ? g_csiEndMs : millis()) - g_csiStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
@@ -859,7 +864,8 @@ void csiMotionTask(void *pv) {
     g_csiStartMs = millis();
     g_csiEndMs = 0;
 
-    Serial.printf("[CSI] Pinned to ch%u - web UI reachable only while ch%u is the SoftAP channel\n", ch, ch);
+    Serial.printf("[CSI] Radio locked to ch%u for the run - SoftAP moves to ch%u with it, rejoin there; returns to ch%u when the scan ends\n",
+                  ch, ch, (unsigned)AP_CHANNEL);
 
     if (csiAutoTrigger.load()) {
         g_calActive = true;
@@ -956,12 +962,14 @@ void csiMotionTask(void *pv) {
             if (!g_calActive) {
                 float peakNow = 0.0f;
                 {
+                    const float eta = (float)csiThresholdMilli.load() / 1000.0f;
                     std::lock_guard<std::mutex> lock(g_csiMutex);
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
-                        if (g_links[i].used && g_links[i].sc.settled() &&
-                            g_links[i].packets >= CSI_LINK_MIN_PKTS &&
-                            g_links[i].sc.score > peakNow)
-                            peakNow = g_links[i].sc.score;
+                        const CsiLink &l = g_links[i];
+                        if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
+                        if (!csiLinkUsable(l)) continue;
+                        const float r = csiTriggerRatio(l.sc.acf, l.sc.vote, eta);
+                        if (r > peakNow) peakNow = r;
                     }
                 }
                 csiHeatPush(peakNow);
@@ -1014,10 +1022,29 @@ void csiMotionTask(void *pv) {
         if (now - lastStatMs >= 15000) {
             lastStatMs = now;
             const uint32_t span = now - startMs;
-            Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u\n",
+            float statAcfMax = 0.0f, statAcfMin = 1.0f, statVoteMax = 0.0f;
+            uint8_t statLinks = 0, statPassEta = 0, statPassVote = 0;
+            {
+                const float eta = (float)csiThresholdMilli.load() / 1000.0f;
+                std::lock_guard<std::mutex> lock(g_csiMutex);
+                for (int i = 0; i < CSI_MAX_LINKS; i++) {
+                    const CsiLink &l = g_links[i];
+                    if (!l.used || !l.sc.settled() || !csiLinkUsable(l)) continue;
+                    statLinks++;
+                    if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
+                    if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
+                    if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
+                    if (l.sc.acf >= eta) statPassEta++;
+                    if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
+                }
+            }
+            Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
+                          "links=%u acf=%.3f..%.3f vote=%.2f pass-eta=%u pass-vote=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
-                          g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load());
+                          g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
+                          statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
+                          statPassEta, statPassVote);
         }
     }
 
@@ -1025,6 +1052,8 @@ void csiMotionTask(void *pv) {
         CsiAlert finalAlerts[CSI_MAX_LINKS] = {};
         {
             std::lock_guard<std::mutex> lock(g_csiMutex);
+            g_areaMotion = false;
+            g_areaCand = false;
             for (int i = 0; i < CSI_MAX_LINKS; i++) {
                 if (g_links[i].used && g_links[i].motion) {
                     g_links[i].motion = false;

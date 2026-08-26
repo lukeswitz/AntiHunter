@@ -1859,6 +1859,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
+      function resIsEditing(el) {
+        const ae = document.activeElement;
+        if (!ae || !el.contains(ae)) return false;
+        return ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName || '');
+      }
+
       function resHasSelection(el) {
         const sel = window.getSelection && window.getSelection();
         if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
@@ -1974,7 +1980,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (resultsPolling) return;
         if (!force && !radioBusy && stopResultsRefresh <= 0 && resultsSynced) return;
         const el = document.getElementById('r');
-        if (el && el.contains(document.activeElement)) return;
+        if (el && resIsEditing(el)) return;
         if (el && resHasSelection(el)) return;
         resultsPolling = true;
         try {
@@ -4249,7 +4255,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (!heat.length) return '';
         let cells = '';
         for (let i = 0; i < heat.length; i++) {
-          const v = heat[i] / 50;
+          const v = heat[i] / 100;
           const hot = v >= trig;
           const f = Math.max(0.10, Math.min(1, v / (trig * 1.6)));
           cells += '<i style="opacity:' + f.toFixed(2) + (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
@@ -4273,7 +4279,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function csiSpark(vals, trig, w, h, cls) {
         if (!vals || vals.length < 2) return '';
         const n = vals.length;
-        const hi = Math.max(trig * 1.35, ...vals, 1.6);
+        const hi = Math.max(trig * 1.35, ...vals, trig * 2);
         const pt = (i, v) => (i * w / (n - 1)).toFixed(1) + ',' + (h - (v / hi) * h).toFixed(1);
         const line = vals.map((v, i) => pt(i, v)).join(' ');
         const ty = (h - (trig / hi) * h).toFixed(1);
@@ -4291,17 +4297,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         const cal = /Calibrating still-state|Calibrating baseline/.test(text);
         const raw = d.links || [];
+        const eta = d.threshold || 0.1;
+        const voteFrac = d.voteFrac || 0.5;
+        const csiRatio = l => Math.min((l.acf || 0) / eta, (l.vote || 0) / voteFrac);
         const byRadio = {};
         raw.forEach(l => {
           const r = (l.mac || '').slice(0, 14);
           const cur = byRadio[r];
-          if (!cur || (l.score || 0) > (cur.score || 0)) {
+          if (!cur || csiRatio(l) > csiRatio(cur)) {
             byRadio[r] = Object.assign({}, l, { bssids: (cur ? cur.bssids : 0) + 1 });
           } else { cur.bssids++; }
         });
         const links = Object.values(byRadio);
-        const trig = d.threshold || 1.5;
-        const act = links.length ? Math.max(...links.map(l => l.score || 0)) : 0;
+        const trig = 1;
+        const act = links.length ? Math.max(...links.map(csiRatio)) : 0;
         const moving = !!d.motion;
         const now = Date.now();
         const sinceMotion = (typeof d.sinceMotion === 'number') ? d.sinceMotion : -1;
@@ -4315,7 +4324,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let sub;
         if (cal) sub = 'Learning the empty baseline. Keep the area clear.';
         else if (moving) sub = 'Something is moving in range right now';
-        else if (sinceMotion >= 0) sub = 'Last movement ' + csiAgo(sinceMotion * 1000) + ' ago';
+        else if (sinceMotion >= 0) sub = sinceMotion < 60 ? 'Last movement just now'
+                                                          : 'Last movement ' + csiAgo(sinceMotion * 1000) + ' ago';
         else sub = 'Nothing has moved since this started';
 
         let h = '<div class="csi-state ' + (cal ? 'cal' : (moving ? 'move' : 'still')) + '">' +
@@ -4324,7 +4334,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           '<div class="csi-state-sub">' + sub + '</div>' +
           '<div class="csi-bar"><i style="width:' + pct + '%"></i><b style="left:50%"></b></div>' +
           '</div>' +
-          '<div class="csi-state-r"><div class="csi-act">' + act.toFixed(1) + '<small>x</small></div>' +
+          '<div class="csi-state-r"><div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(1) + '<small>x</small></div>' +
           '<div class="res-metric-lab">movement</div></div>' +
           '</div>';
 
@@ -4336,7 +4346,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           '<div class="res-stat"><div class="res-stat-lab">Triggered</div><div class="res-stat-val"' +
             (d.events ? ' style="color:var(--csi-hit)"' : '') + '>' + (d.events || 0) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Last movement</div><div class="res-stat-val">' +
-            (sinceMotion >= 0 ? csiAgo(sinceMotion * 1000) : 'none yet') + '</div></div>' +
+            (sinceMotion < 0 ? 'none yet' : (sinceMotion < 60 ? 'now' : csiAgo(sinceMotion * 1000))) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(upSec * 1000) + '</div></div>' +
           '</div>';
 
@@ -4346,11 +4356,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
              ' ontoggle="csiDetOpen=this.open"><summary>Technical detail</summary>' +
              '<div class="csi-tech">Watching ' + links.length + ' nearby transmitter' + (links.length > 1 ? 's' : '') +
              ' on channel ' + d.channel + ', ' + (d.rate || 0).toFixed(0) + ' samples/sec. ' +
-             'Movement is measured against each one&rsquo;s own quiet level; anything over ' + trig.toFixed(2) + 'x counts.</div>' +
+             'Movement is shown as a multiple of the alert line, so 1.0x is the trigger point.</div>' +
              '<div class="res-list">';
-        links.slice().sort((a, b) => b.score - a.score).forEach(l => {
+        links.slice().sort((a, b) => csiRatio(b) - csiRatio(a)).forEach(l => {
           const k = l.mac;
-          (csiHist[k] = csiHist[k] || []).push(l.score);
+          (csiHist[k] = csiHist[k] || []).push(csiRatio(l));
           if (csiHist[k].length > 60) csiHist[k].shift();
           h += '<div class="res-card ' + (l.motion ? 'csi-hit' : 'acc') + '"><div class="res-row-main">' +
             '<span class="res-id"><span class="res-mac"' +
@@ -4361,7 +4371,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             '<span><strong>' + (l.rate || 0).toFixed(1) + '</strong> pkt/s</span>' +
             '</span>' +
             '<span class="res-metric"><span class="res-metric-val" style="color:' +
-            (l.motion ? 'var(--csi-hit)' : 'var(--txt)') + '">' + (l.score || 0).toFixed(2) + '<small>x</small></span>' +
+            (l.motion ? 'var(--csi-hit)' : 'var(--txt)') + '">' + csiRatio(l).toFixed(2) + '<small>x</small></span>' +
             '<span class="res-metric-lab">movement</span></span>' +
             '</div></div>';
         });
