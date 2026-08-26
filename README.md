@@ -258,7 +258,9 @@ Two-phase scan: establish a baseline of known devices, then monitor for anomalie
 > [!TIP]
 > Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
 
-**CSI Motion Detection** - the node watches the WiFi already flying around your house and notices when a body walks through it. It transmits nothing, joins nothing, and needs no setup.
+**CSI Motion Detection** - the node watches the WiFi already flying around your house and notices when a body walks through it. It transmits nothing, joins nothing, and needs no setup. Indoor only - it works off signals bouncing between walls and furniture, and open ground has nothing to bounce off.
+
+- Use case: leave a node in a room you are not in - a hotel room, a closed-up office, the hallway behind you - and get a mesh alert when a body moves through it, with no camera and nothing that has to see the room.
 
 **The idea in one paragraph.** WiFi does not travel in a straight line from router to node. It bounces - off walls, floors, furniture - and all those copies arrive together and add up. Move a body into the room and you change the length of some of those paths by a few centimetres, which at WiFi's 12.5 cm wavelength is enough to change how the copies add. The node sees that as the signal changing shape. Stand still and it stops changing. That is the whole detector.
 
@@ -286,7 +288,7 @@ Range indoors runs from reliable in the same room to intermittent at roughly 30 
 > It detects **movement**, not presence. A person who stops moving is absorbed into the baseline within a few seconds and reads as quiet. That is the design, not a fault.
 
 > [!NOTE]
-> Coverage indoors is the whole room because multipath is rich. Outdoors there are few reflectors, so the sensitive region collapses to a narrow zone along the line between the node and the transmitter - a tripwire rather than area cover. The threshold does not change; the coverage shape does. Untested outdoors.
+> Coverage indoors is the whole room because multipath is rich. Outdoors there are few reflectors, so the sensitive region collapses to a narrow zone along the line between the node and the transmitter - a tripwire rather than area cover. The threshold does not change; the coverage shape does. Indoor only - outdoors it misses and false-alarms too much for perimeter use. Outdoor detection needs the RadarNode (in development).
 
 ### Locating
 

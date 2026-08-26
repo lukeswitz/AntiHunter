@@ -227,7 +227,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-spark polyline{fill:none;stroke:var(--acc);stroke-width:1.6;vector-effect:non-scaling-stroke}
       .csi-spark .csi-fill{fill:var(--accbg);stroke:none}
       .csi-spark .csi-dot{fill:var(--acc)}
-      .csi-spark .csi-trig{stroke:var(--csi-hit);stroke-width:1;stroke-dasharray:3 3;opacity:.7;vector-effect:non-scaling-stroke}
+      .csi-spark .csi-trig{stroke:var(--mut);stroke-width:1;stroke-dasharray:3 3;opacity:.55;vector-effect:non-scaling-stroke}
       .csi-state{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--surf);border:1px solid var(--bord);border-left:5px solid var(--mut);border-radius:12px;padding:20px 22px;margin-bottom:14px;transition:border-color .25s,background .25s}
       .csi-state.still{border-left-color:var(--acc)}
       .csi-state.move{border-left-color:var(--csi-hit);background:var(--csi-hit-bg)}
@@ -239,7 +239,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-bar{position:relative;height:7px;border-radius:99px;background:var(--accbg);margin-top:14px;overflow:hidden}
       .csi-bar i{display:block;height:100%;border-radius:99px;background:var(--acc);transition:width .35s ease}
       .csi-state.move .csi-bar i{background:var(--csi-hit)}
-      .csi-bar b{position:absolute;top:-3px;width:2px;height:13px;background:var(--csi-hit);opacity:.8}
+      .csi-bar b{position:absolute;top:-3px;width:2px;height:13px;background:var(--mut);opacity:.6}
       .csi-state-r{text-align:right;flex-shrink:0;margin-left:auto}
       .csi-act{font-size:38px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.03em;line-height:1;color:var(--txt)}
       .csi-act small{font-size:17px;color:var(--mut);font-weight:500}
@@ -4229,7 +4229,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'deauth': 'Watches for deauth and disassoc attacks and fingerprints the tool behind them.',
         'drone-detection': 'Decodes drone Remote ID beacons over WiFi and BLE, including operator position.',
         'probe-scan': 'Captures the networks devices are searching for, which reveals where they have been.',
-        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals.'
+        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals. Indoor only - outdoors needs the RadarNode (in development).'
       };
       function setDetectionDesc(mode) {
         const el = document.getElementById('detectionDesc');
@@ -4346,7 +4346,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         h += '<div class="csi-stats">' +
           '<div class="res-stat"><div class="res-stat-lab">Triggered</div><div class="res-stat-val"' +
-            (d.events ? ' style="color:var(--csi-hit)"' : '') + '>' + (d.events || 0) + '</div></div>' +
+            '>' + (d.events || 0) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Last movement</div><div class="res-stat-val">' +
             (sinceMotion < 0 ? 'none yet' : (sinceMotion < 60 ? 'now' : csiAgo(sinceMotion * 1000))) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(upSec * 1000) + '</div></div>' +

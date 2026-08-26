@@ -867,7 +867,7 @@ static void handleCsiCfg(const String &command)
     idx++;
   }
 
-  if (thr < 1.2f || thr > 20.0f || hold < 500 || hold > 120000 ||
+  if (thr < 0.02f || thr > 0.60f || hold < 500 || hold > 120000 ||
       consec < 1 || consec > 50 || ch > 14) {
     sendToSerial1(nodeId + ": CSI_CFG_ACK:INVALID", true);
     return;
