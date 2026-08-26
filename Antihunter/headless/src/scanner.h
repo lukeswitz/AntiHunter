@@ -22,7 +22,14 @@ static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint3
 #ifdef CONFIG_FREERTOS_UNICORE
     core = 0;
 #endif
-    return xTaskCreatePinnedToCore(fn, name, stack, arg, prio, handle, core);
+    BaseType_t rc = xTaskCreatePinnedToCore(fn, name, stack, arg, prio, handle, core);
+    if (rc != pdPASS) {
+        Serial.printf("[TASK] create %s failed: stack=%u free-int=%u largest-int-block=%u\n",
+                      name, (unsigned)stack,
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    }
+    return rc;
 }
 
 struct Hit {

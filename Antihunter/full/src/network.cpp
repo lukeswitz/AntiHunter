@@ -1396,13 +1396,8 @@ void registerRemainingRoutes() {
             if (req->hasParam("csiAuto", true) || req->hasParam("csiRecal", true)) csiClearCalibration();
 
             stopRequested = false;
-            req->send(200, "text/plain",
-                    String("CSI motion detection starting") +
-                    (forever ? " (forever)" : (" for " + String(secs) + "s")) +
-                    (csiCh == 0 ? " - surveying for the busiest channel first"
-                                : (" on ch" + String(csiCh))) +
-                    " - radio pins to one channel, web UI drops unless it is the AP channel");
 
+            bool csiStarted = false;
             if (!workerTaskHandle) {
                 scanning = true;
                 if (ahCreateTask(csiMotionTask, "csi", 12288, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
@@ -1410,7 +1405,19 @@ void registerRemainingRoutes() {
                     workerTaskHandle = nullptr;
                     scanSetCountdown(0, false);
                     Serial.println("[SCAN] task create failed: csi");
+                } else {
+                    csiStarted = true;
                 }
+            }
+
+            if (!csiStarted) {
+                req->send(409, "text/plain",
+                          workerTaskHandle ? "Radio busy - stop the running scan"
+                                           : "CSI failed - out of internal memory");
+            } else {
+                req->send(200, "text/plain",
+                        csiCh == 0 ? String("CSI starting - picking a channel")
+                                   : String("CSI starting on ch") + String(csiCh));
             }
 
         } else {
