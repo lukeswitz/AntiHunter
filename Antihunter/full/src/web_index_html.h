@@ -10,8 +10,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <title>AntiHunter</title>
     <style>
       :root{--t:0.2s;--blur:12px}
-      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#9a7a2e;--dang:#c0392f;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--csi-hit:#0d9b76;--csi-hit-bg:rgba(13,155,118,0.07)}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#e0524a;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06);--csi-hit:#3ad9ab;--csi-hit-bg:rgba(58,217,171,0.10)}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#9a7a2e;--dang:#c0392f;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--csi-hit:#7a45cf;--csi-hit-bg:rgba(122,69,207,0.07)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#e0524a;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06);--csi-hit:#b98cf5;--csi-hit-bg:rgba(185,140,245,0.12)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:16px 18px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;flex-direction:column;gap:13px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
@@ -144,7 +144,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @media(max-width:600px){.header{padding:14px 16px;gap:12px}.header h1{font-size:17px}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}#scanStatus{min-width:0}.status-item{font-size:10.5px;padding:5px 11px;gap:6px}.status-item::before{width:6px;height:6px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
       @media(max-width:820px){.page-tabs{width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#e0604a;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
+      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#e0604a;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1);--csi-hit:#b98cf5;--csi-hit-bg:rgba(185,140,245,0.12)}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
       .theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
       [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
@@ -4255,7 +4255,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (!heat.length) return '';
         let cells = '';
         for (let i = 0; i < heat.length; i++) {
-          const v = heat[i] / 100;
+          const v = heat[i] / 25;
           const hot = v >= trig;
           const f = Math.max(0.10, Math.min(1, v / (trig * 1.6)));
           cells += '<i style="opacity:' + f.toFixed(2) + (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
@@ -4299,7 +4299,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const raw = d.links || [];
         const eta = d.threshold || 0.1;
         const voteFrac = d.voteFrac || 0.5;
-        const csiRatio = l => Math.min((l.acf || 0) / eta, (l.vote || 0) / voteFrac);
+        const csiRatio = l => ((l.vote || 0) < voteFrac ? 0 : (l.acf || 0) / eta);
         const byRadio = {};
         raw.forEach(l => {
           const r = (l.mac || '').slice(0, 14);
@@ -4310,7 +4310,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
         const links = Object.values(byRadio);
         const trig = 1;
-        const act = links.length ? Math.max(...links.map(csiRatio)) : 0;
+        const csiNeed = (d.usable || 0) >= 2 ? 2 : 1;
+        const csiRanked = links.map(csiRatio).sort((a, b) => b - a);
+        const act = csiRanked.length >= csiNeed ? csiRanked[csiNeed - 1] : 0;
         const moving = !!d.motion;
         const now = Date.now();
         const sinceMotion = (typeof d.sinceMotion === 'number') ? d.sinceMotion : -1;
@@ -4354,9 +4356,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         h += '<details class="csi-det" id="csiDet"' + (csiDetOpen ? ' open' : '') +
              ' ontoggle="csiDetOpen=this.open"><summary>Technical detail</summary>' +
-             '<div class="csi-tech">Watching ' + links.length + ' nearby transmitter' + (links.length > 1 ? 's' : '') +
-             ' on channel ' + d.channel + ', ' + (d.rate || 0).toFixed(0) + ' samples/sec. ' +
-             'Movement is shown as a multiple of the alert line, so 1.0x is the trigger point.</div>' +
+             '<div class="csi-tech">' + links.length + ' transmitter' + (links.length > 1 ? 's' : '') +
+             ' on ch' + d.channel + ' &middot; ' + (d.rate || 0).toFixed(0) + ' samples/sec &middot; 1.0x is the trigger point</div>' +
              '<div class="res-list">';
         links.slice().sort((a, b) => csiRatio(b) - csiRatio(a)).forEach(l => {
           const k = l.mac;

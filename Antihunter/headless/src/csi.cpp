@@ -49,7 +49,7 @@ static uint32_t g_heatSum = 0;
 static uint16_t g_heatCurSec = 0;
 
 static void csiHeatPush(float act) {
-    uint16_t q = (act > 0.0f) ? (uint16_t)(act * 100.0f) : 0;
+    uint16_t q = (act > 0.0f) ? (uint16_t)(act * 25.0f) : 0;
     if (q > 255) q = 255;
     g_heatSum += q;
     g_heatCurSec++;
@@ -264,9 +264,8 @@ static bool csiLinkUsable(const CsiLink &l) {
 }
 
 static float csiTriggerRatio(float acf, float vote, float eta) {
-    const float a = (eta > 0.0f) ? (acf / eta) : 0.0f;
-    const float v = vote / CSI_VOTE_FRAC;
-    return (a < v) ? a : v;
+    if (vote < CSI_VOTE_FRAC) return 0.0f;
+    return (eta > 0.0f) ? (acf / eta) : 0.0f;
 }
 
 static uint8_t csiUsableCount() {
@@ -930,13 +929,16 @@ void csiMotionTask(void *pv) {
                 {
                     const float eta = (float)csiThresholdMilli.load() / 1000.0f;
                     std::lock_guard<std::mutex> lock(g_csiMutex);
+                    float r1 = 0.0f, r2 = 0.0f;
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
                         const float r = csiTriggerRatio(l.sc.acf, l.sc.vote, eta);
-                        if (r > peakNow) peakNow = r;
+                        if (r > r1) { r2 = r1; r1 = r; }
+                        else if (r > r2) { r2 = r; }
                     }
+                    peakNow = (csiUsableCount() >= 2) ? r2 : r1;
                 }
                 csiHeatPush(peakNow);
             }
