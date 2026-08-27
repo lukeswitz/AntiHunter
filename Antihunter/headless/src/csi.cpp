@@ -29,6 +29,10 @@ std::atomic<uint32_t> csiConsecNeeded{3};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
+static const uint32_t CSI_BLIND_REHOP_MS = 180000;
+static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
+static const uint32_t CSI_REHOP_DWELL_MS = 150;
+static const uint32_t CSI_SOLICIT_FLOOR = 15;
 static const uint32_t CSI_CAL_MS = 20000;
 static const float CSI_CAL_MARGIN = 1.50f;
 static const float CSI_TRIG_MIN = 1.15f;
@@ -197,6 +201,14 @@ static uint32_t g_csiStartMs = 0;
 static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
+static std::atomic<uint32_t> g_promFrames{0};
+
+static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
+    (void)buf;
+    (void)type;
+    g_promFrames.fetch_add(1);
+}
+
 // cppcheck-suppress constParameterCallback // wifi_csi_cb_t signature is fixed by esp_wifi_set_csi_rx_cb
 static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     if (!info || !info->buf || !csiQueue) return;
@@ -314,6 +326,78 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
                   bestStrongCh, bestStrong,
                   (float)bestStrong * 1000.0f / (float)dwellMs, bestStrongTx);
     return bestStrongCh;
+}
+
+static bool csiChannelAllowed(uint8_t ch) {
+    if (ch < 1 || ch > 14) return false;
+    if (CHANNELS.empty()) return true;
+    for (uint8_t c : CHANNELS) {
+        if (c == ch) return true;
+    }
+    return false;
+}
+
+static uint8_t csiRehopPickChannel() {
+    wifi_scan_config_t sc = {};
+    sc.show_hidden = true;
+    sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
+    sc.scan_time.passive = CSI_REHOP_DWELL_MS;
+    sc.home_chan_dwell_time = 30;
+
+    g_surveyMode.store(true);
+    const esp_err_t r = esp_wifi_scan_start(&sc, true);
+    g_surveyMode.store(false);
+    if (r != ESP_OK) {
+        Serial.printf("[CSI] rehop scan failed: %s\n", esp_err_to_name(r));
+        return 0;
+    }
+
+    wifi_ap_record_t rec;
+    uint8_t bestCh = 0;
+    int bestRssi = -127;
+    uint16_t seen = 0;
+    while (esp_wifi_scan_get_ap_record(&rec) == ESP_OK) {
+        seen++;
+        if (!csiChannelAllowed(rec.primary)) continue;
+        if (rec.rssi > bestRssi) {
+            bestRssi = rec.rssi;
+            bestCh = rec.primary;
+        }
+    }
+    esp_wifi_clear_ap_list();
+
+    if (bestCh == 0 || bestRssi < CSI_SURVEY_MIN_RSSI) {
+        Serial.printf("[CSI] rehop: %u APs seen, none stronger than %ddBm - staying on ch%u\n",
+                      seen, (int)CSI_SURVEY_MIN_RSSI, g_csiActiveChannel);
+        return 0;
+    }
+    Serial.printf("[CSI] rehop: best ch%u at %ddBm (%u APs seen)\n", bestCh, bestRssi, seen);
+    return bestCh;
+}
+
+static const uint8_t kCsiProbeHdr[24] = {
+    0x40, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x02, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x00, 0x00
+};
+static const uint8_t kCsiProbeRates[10] = {
+    0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24
+};
+
+static void csiSolicit() {
+    uint8_t frame[24 + 2 + sizeof(kCsiProbeRates)];
+    memcpy(frame, kCsiProbeHdr, 24);
+    frame[24] = 0x00;
+    frame[25] = 0x00;
+    memcpy(frame + 26, kCsiProbeRates, sizeof(kCsiProbeRates));
+    const size_t total = 26 + sizeof(kCsiProbeRates);
+
+    wifi_mode_t wmode = WIFI_MODE_NULL;
+    wifi_interface_t txif =
+        (esp_wifi_get_mode(&wmode) == ESP_OK && wmode == WIFI_MODE_STA) ? WIFI_IF_STA : WIFI_IF_AP;
+    esp_wifi_80211_tx(txif, frame, total, true);
 }
 
 static void csiLinkReset(CsiLink &l) {
@@ -790,7 +874,7 @@ static bool csiRadioStart(uint8_t ch) {
     wifi_promiscuous_filter_t filter = {};
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
     esp_wifi_set_promiscuous_filter(&filter);
-    esp_wifi_set_promiscuous_rx_cb(NULL);
+    esp_wifi_set_promiscuous_rx_cb(&csi_prom_cb);
 
     esp_err_t rp = esp_wifi_set_promiscuous(true);
     if (rp != ESP_OK) {
@@ -879,6 +963,7 @@ void csiMotionTask(void *pv) {
     g_csiDropped.store(0);
     g_csiRejected.store(0);
     g_csiMotionEvents.store(0);
+    g_promFrames.store(0);
     g_calActive = false;
     g_calSum = 0.0f;
     g_calSamples = 0;
@@ -989,6 +1074,10 @@ void csiMotionTask(void *pv) {
     uint32_t lastStallMs = millis();
     uint32_t lastSeenSnap = 0;
     uint32_t lastRejSnap = 0;
+    uint32_t blindSinceMs = 0;
+    uint32_t lastRehopMs = 0;
+    uint32_t lastSolicitMs = millis();
+    uint32_t lastSolicitSeen = 0;
 
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - startMs) < duration * 1000 && !stopRequested)) {
@@ -1087,6 +1176,15 @@ void csiMotionTask(void *pv) {
             }
         }
 
+        if (now - lastSolicitMs >= 1000) {
+            const uint32_t seenNow = g_csiSeen.load();
+            if ((seenNow - lastSolicitSeen) < CSI_SOLICIT_FLOOR) {
+                csiSolicit();
+            }
+            lastSolicitSeen = seenNow;
+            lastSolicitMs = now;
+        }
+
         if (now - lastStallMs >= 5000) {
             lastStallMs = now;
             const uint32_t seenNow = g_csiSeen.load();
@@ -1122,6 +1220,37 @@ void csiMotionTask(void *pv) {
             if (usableRoll == 0) {
                 Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
                               (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
+                if (blindSinceMs == 0) blindSinceMs = now;
+                if (autoChannel && (now - blindSinceMs) >= CSI_BLIND_REHOP_MS &&
+                    (lastRehopMs == 0 || (now - lastRehopMs) >= CSI_REHOP_COOLDOWN_MS)) {
+                    if (WiFi.softAPgetStationNum() > 0) {
+                        Serial.println("[CSI] blind but a client is on the AP - holding this channel");
+                        blindSinceMs = now;
+                        continue;
+                    }
+                    const uint32_t blindFor = (now - blindSinceMs) / 1000;
+                    lastRehopMs = now;
+                    blindSinceMs = 0;
+                    const uint8_t next = csiRehopPickChannel();
+                    if (next != 0 && next != g_csiActiveChannel) {
+                        Serial.printf("[CSI] blind %us on ch%u - moving to ch%u, SoftAP moves with it\n",
+                                      blindFor, g_csiActiveChannel, next);
+                        {
+                            std::lock_guard<std::mutex> lock(g_csiMutex);
+                            for (int i = 0; i < CSI_MAX_LINKS; i++) csiLinkReset(g_links[i]);
+                        }
+                        g_csiActiveChannel = next;
+                        xQueueReset(csiQueue);
+                        if (!csiArmCsi(next)) Serial.println("[CSI] re-arm after channel move failed");
+                    }
+                    const uint32_t after = millis();
+                    lastExpireMs = lastResultsMs = lastStallMs = lastStatMs = lastRollMs = after;
+                    lastSeenSnap = g_csiSeen.load();
+                    lastRejSnap = g_csiRejected.load();
+                    continue;
+                }
+            } else {
+                blindSinceMs = 0;
             }
         }
 
@@ -1145,12 +1274,12 @@ void csiMotionTask(void *pv) {
                 }
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
-                          "links=%u acf=%.3f..%.3f vote=%.2f pass-eta=%u pass-vote=%u\n",
+                          "links=%u acf=%.3f..%.3f vote=%.2f pass-eta=%u pass-vote=%u frames=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
-                          statPassEta, statPassVote);
+                          statPassEta, statPassVote, g_promFrames.load());
         }
     }
 
