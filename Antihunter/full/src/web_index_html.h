@@ -4250,6 +4250,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           el.textContent = 'Baseline state unavailable.';
         }
       }
+      function csiCellLabel(sec) {
+        if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + ' min';
+        return Math.round(sec / 360) / 10 + ' hr';
+      }
       function csiHeatRender(d, trig) {
         const heat = d.heat || [];
         if (!heat.length) return '';
@@ -4264,7 +4268,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const sec = d.heatSec || 5;
         return '<div class="csi-heat">' + cells + '</div>' +
                '<div class="csi-room-lab"><span>whole session &middot; ' + csiAgo(heat.length * sec * 1000) +
-               '</span><span>' + sec + 's per cell</span></div>';
+               '</span><span>' + csiCellLabel(sec) + ' per block</span></div>';
       }
       const csiHist = {};
       let csiRoom = [];

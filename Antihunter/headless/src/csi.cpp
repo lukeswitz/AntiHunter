@@ -42,11 +42,14 @@ static uint8_t g_surveyMacs[16][6];
 static uint8_t g_surveyMacCount = 0;
 
 static const uint8_t CSI_HEAT_CELLS = 120;
+static const uint16_t CSI_HEAT_STEPS[] = {60, 300, 900, 1800, 3600, 7200, 21600, 43200};
+static const uint8_t CSI_HEAT_NSTEPS = sizeof(CSI_HEAT_STEPS) / sizeof(CSI_HEAT_STEPS[0]);
+static uint8_t g_heatStep = 0;
 static uint8_t g_heat[CSI_HEAT_CELLS];
 static uint8_t g_heatHot[CSI_HEAT_CELLS];
 static uint8_t g_heatHotCur = 0;
 static uint8_t g_heatLen = 0;
-static uint16_t g_heatSec = 5;
+static uint16_t g_heatSec = 60;
 static uint32_t g_heatSum = 0;
 static uint16_t g_heatCurSec = 0;
 
@@ -68,12 +71,26 @@ static void csiHeatPush(float act, bool alerting) {
         g_heatHot[g_heatLen] = hot;
         g_heat[g_heatLen++] = cell;
     } else {
-        for (uint8_t i = 0; i < CSI_HEAT_CELLS / 2; i++) {
-            g_heat[i] = (g_heat[i * 2] > g_heat[i * 2 + 1]) ? g_heat[i * 2] : g_heat[i * 2 + 1];
-            g_heatHot[i] = g_heatHot[i * 2] | g_heatHot[i * 2 + 1];
+        uint16_t factor = 2;
+        if (g_heatStep + 1 < CSI_HEAT_NSTEPS) {
+            factor = CSI_HEAT_STEPS[g_heatStep + 1] / CSI_HEAT_STEPS[g_heatStep];
+            g_heatStep++;
+            g_heatSec = CSI_HEAT_STEPS[g_heatStep];
+        } else {
+            g_heatSec *= 2;
         }
-        g_heatLen = CSI_HEAT_CELLS / 2;
-        g_heatSec *= 2;
+        uint8_t out = 0;
+        for (uint8_t i = 0; i < CSI_HEAT_CELLS; i += factor) {
+            uint8_t mx = 0, mhot = 0;
+            for (uint8_t k = i; k < i + factor && k < CSI_HEAT_CELLS; k++) {
+                if (g_heat[k] > mx) mx = g_heat[k];
+                mhot |= g_heatHot[k];
+            }
+            g_heat[out] = mx;
+            g_heatHot[out] = mhot;
+            out++;
+        }
+        g_heatLen = out;
         g_heatHot[g_heatLen] = hot;
         g_heat[g_heatLen++] = cell;
     }
@@ -832,7 +849,8 @@ void csiMotionTask(void *pv) {
     g_areaLastMotionMs = 0;
     csiEpisodesReset();
     g_heatLen = 0;
-    g_heatSec = 5;
+    g_heatSec = 60;
+    g_heatStep = 0;
     g_heatSum = 0;
     g_heatHotCur = 0;
     g_heatCurSec = 0;
