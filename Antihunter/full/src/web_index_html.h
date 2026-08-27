@@ -4256,7 +4256,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let cells = '';
         for (let i = 0; i < heat.length; i++) {
           const v = heat[i] / 25;
-          const hot = v >= trig;
+          const hotArr = d.hot || [];
+          const hot = hotArr.length > i ? !!hotArr[i] : (v >= trig);
           const f = Math.max(0.10, Math.min(1, v / (trig * 1.6)));
           cells += '<i style="opacity:' + f.toFixed(2) + (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
         }
@@ -4369,7 +4370,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         h += '<div class="csi-stats">' +
           '<div class="res-stat"><div class="res-stat-lab">Triggered</div><div class="res-stat-val"' +
-            '>' + (d.events || 0) + '</div></div>' +
+            '>' + (d.areaEvents || 0) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Last movement</div><div class="res-stat-val">' +
             (sinceMotion < 0 ? 'none yet' : (sinceMotion < 60 ? 'now' : csiAgo(sinceMotion * 1000))) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(upSec * 1000) + '</div></div>' +
@@ -4385,7 +4386,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         h += '<details class="csi-det" id="csiDet"' + (csiDetOpen ? ' open' : '') +
              ' ontoggle="csiDetOpen=this.open"><summary>Technical detail</summary>' +
              '<div class="csi-tech">' + links.length + ' transmitter' + (links.length > 1 ? 's' : '') +
-             ' on ch' + d.channel + ' &middot; ' + (d.rate || 0).toFixed(0) + ' samples/sec &middot; 1.0x is the trigger point</div>' +
+             ' on ch' + d.channel + ' &middot; ' + (d.rate || 0).toFixed(0) + ' samples/sec</div>' +
              '<div class="res-list">';
         links.slice().sort((a, b) => csiRatio(b) - csiRatio(a)).forEach(l => {
           const k = l.mac;
@@ -4398,6 +4399,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             '<span class="res-meta">' + csiSpark(csiHist[k], trig, 200, 30) +
             '<span><strong>' + l.rssi + '</strong> dBm</span>' +
             '<span><strong>' + (l.rate || 0).toFixed(1) + '</strong> pkt/s</span>' +
+            '<span><strong>' + (l.events || 0) + '</strong> hits</span>' +
             '</span>' +
             '<span class="res-metric"><span class="res-metric-val" style="color:' +
             (l.motion ? 'var(--csi-hit)' : 'var(--txt)') + '">' + csiRatio(l).toFixed(2) + '<small>x</small></span>' +

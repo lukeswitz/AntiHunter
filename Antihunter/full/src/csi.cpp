@@ -44,30 +44,38 @@ static uint8_t g_surveyMacCount = 0;
 
 static const uint8_t CSI_HEAT_CELLS = 120;
 static uint8_t g_heat[CSI_HEAT_CELLS];
+static uint8_t g_heatHot[CSI_HEAT_CELLS];
+static uint8_t g_heatHotCur = 0;
 static uint8_t g_heatLen = 0;
 static uint16_t g_heatSec = 5;
 static uint32_t g_heatSum = 0;
 static uint16_t g_heatCurSec = 0;
 
-static void csiHeatPush(float act) {
+static void csiHeatPush(float act, bool alerting) {
     uint16_t q = (act > 0.0f) ? (uint16_t)(act * 25.0f) : 0;
     if (q > 255) q = 255;
     if (q > g_heatSum) g_heatSum = q;
+    if (alerting) g_heatHotCur = 1;
     g_heatCurSec++;
     if (g_heatCurSec < g_heatSec) return;
 
     const uint8_t cell = (uint8_t)g_heatSum;
+    const uint8_t hot = g_heatHotCur;
     g_heatSum = 0;
+    g_heatHotCur = 0;
     g_heatCurSec = 0;
 
     if (g_heatLen < CSI_HEAT_CELLS) {
+        g_heatHot[g_heatLen] = hot;
         g_heat[g_heatLen++] = cell;
     } else {
         for (uint8_t i = 0; i < CSI_HEAT_CELLS / 2; i++) {
             g_heat[i] = (g_heat[i * 2] > g_heat[i * 2 + 1]) ? g_heat[i * 2] : g_heat[i * 2 + 1];
+            g_heatHot[i] = g_heatHot[i * 2] | g_heatHot[i * 2 + 1];
         }
         g_heatLen = CSI_HEAT_CELLS / 2;
         g_heatSec *= 2;
+        g_heatHot[g_heatLen] = hot;
         g_heat[g_heatLen++] = cell;
     }
 }
@@ -94,12 +102,14 @@ struct CsiEpisode {
 static CsiEpisode g_eps[CSI_EPISODES];
 static uint8_t g_epCount = 0;
 static uint8_t g_epHead = 0;
+static uint32_t g_epTotal = 0;
 static float g_epPeak = 0.0f;
 
 static void csiEpisodesReset() {
     memset(g_eps, 0, sizeof(g_eps));
     g_epCount = 0;
     g_epHead = 0;
+    g_epTotal = 0;
     g_epPeak = 0.0f;
 }
 
@@ -112,6 +122,7 @@ static void csiEpisodeOpen(const String &at) {
     e.open = true;
     g_epHead = (uint8_t)((g_epHead + 1) % CSI_EPISODES);
     if (g_epCount < CSI_EPISODES) g_epCount++;
+    g_epTotal++;
     g_epPeak = 0.0f;
 }
 
@@ -306,6 +317,7 @@ bool csiClearResults() {
         g_heatLen = 0;
         g_heatSec = 5;
         g_heatSum = 0;
+        g_heatHotCur = 0;
         g_heatCurSec = 0;
         g_areaMotion = false;
         g_areaCand = false;
@@ -656,6 +668,7 @@ String getCsiJson() {
     j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
     j += ",\"uptime\":" + String(g_csiStartMs ? ((g_csiEndMs ? g_csiEndMs : millis()) - g_csiStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
+    j += ",\"areaEvents\":" + String(g_epTotal);
     j += ",\"episodes\":[";
     for (uint8_t i = 0; i < g_epCount; i++) {
         const CsiEpisode &e = g_eps[(uint8_t)((g_epHead + CSI_EPISODES - 1 - i) % CSI_EPISODES)];
@@ -674,6 +687,16 @@ String getCsiJson() {
     if (g_heatCurSec > 0) {
         if (g_heatLen) j += ",";
         j += String((uint8_t)g_heatSum);
+    }
+    j += "]";
+    j += ",\"hot\":[";
+    for (uint8_t i = 0; i < g_heatLen; i++) {
+        if (i) j += ",";
+        j += String(g_heatHot[i]);
+    }
+    if (g_heatCurSec > 0) {
+        if (g_heatLen) j += ",";
+        j += String(g_heatHotCur);
     }
     j += "]";
     j += ",\"links\":[";
@@ -847,6 +870,7 @@ void csiMotionTask(void *pv) {
     g_heatLen = 0;
     g_heatSec = 5;
     g_heatSum = 0;
+    g_heatHotCur = 0;
     g_heatCurSec = 0;
     g_csiStartMs = millis();
     g_csiEndMs = 0;
@@ -1031,7 +1055,7 @@ void csiMotionTask(void *pv) {
                     peakNow = (csiUsableCount() >= 2) ? r2 : r1;
                 }
                 if (g_areaMotion && peakNow > g_epPeak) g_epPeak = peakNow;
-                csiHeatPush(peakNow);
+                csiHeatPush(peakNow, g_areaMotion);
             }
             if (uxQueueMessagesWaiting(csiQueue) == 0) {
                 String snap = getCsiResults();
