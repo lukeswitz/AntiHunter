@@ -52,11 +52,11 @@ static uint16_t g_heatCurSec = 0;
 static void csiHeatPush(float act) {
     uint16_t q = (act > 0.0f) ? (uint16_t)(act * 25.0f) : 0;
     if (q > 255) q = 255;
-    g_heatSum += q;
+    if (q > g_heatSum) g_heatSum = q;
     g_heatCurSec++;
     if (g_heatCurSec < g_heatSec) return;
 
-    const uint8_t cell = (uint8_t)(g_heatSum / g_heatCurSec);
+    const uint8_t cell = (uint8_t)g_heatSum;
     g_heatSum = 0;
     g_heatCurSec = 0;
 
@@ -64,7 +64,7 @@ static void csiHeatPush(float act) {
         g_heat[g_heatLen++] = cell;
     } else {
         for (uint8_t i = 0; i < CSI_HEAT_CELLS / 2; i++) {
-            g_heat[i] = (uint8_t)(((uint16_t)g_heat[i * 2] + (uint16_t)g_heat[i * 2 + 1]) / 2);
+            g_heat[i] = (g_heat[i * 2] > g_heat[i * 2 + 1]) ? g_heat[i * 2] : g_heat[i * 2 + 1];
         }
         g_heatLen = CSI_HEAT_CELLS / 2;
         g_heatSec *= 2;
@@ -83,6 +83,45 @@ static bool g_areaCand = false;
 static uint32_t g_areaCandSince = 0;
 static uint32_t g_areaSinceMs = 0;
 static uint32_t g_areaLastMotionMs = 0;
+
+static const uint8_t CSI_EPISODES = 24;
+struct CsiEpisode {
+    char at[24];
+    uint32_t dwellSec;
+    float peak;
+    bool open;
+};
+static CsiEpisode g_eps[CSI_EPISODES];
+static uint8_t g_epCount = 0;
+static uint8_t g_epHead = 0;
+static float g_epPeak = 0.0f;
+
+static void csiEpisodesReset() {
+    memset(g_eps, 0, sizeof(g_eps));
+    g_epCount = 0;
+    g_epHead = 0;
+    g_epPeak = 0.0f;
+}
+
+static void csiEpisodeOpen(const String &at) {
+    CsiEpisode &e = g_eps[g_epHead];
+    strncpy(e.at, at.c_str(), sizeof(e.at) - 1);
+    e.at[sizeof(e.at) - 1] = '\0';
+    e.dwellSec = 0;
+    e.peak = 0.0f;
+    e.open = true;
+    g_epHead = (uint8_t)((g_epHead + 1) % CSI_EPISODES);
+    if (g_epCount < CSI_EPISODES) g_epCount++;
+    g_epPeak = 0.0f;
+}
+
+static void csiEpisodeClose(uint32_t dwellSec) {
+    if (g_epCount == 0) return;
+    CsiEpisode &e = g_eps[(uint8_t)((g_epHead + CSI_EPISODES - 1) % CSI_EPISODES)];
+    e.dwellSec = dwellSec;
+    e.peak = g_epPeak;
+    e.open = false;
+}
 
 static bool g_calActive = false;
 static float g_calSum = 0.0f;
@@ -272,6 +311,7 @@ bool csiClearResults() {
         g_areaCand = false;
         g_areaCandSince = 0;
         g_areaLastMotionMs = 0;
+        csiEpisodesReset();
     }
     g_csiMotionEvents.store(0);
     g_csiSeen.store(0);
@@ -616,11 +656,24 @@ String getCsiJson() {
     j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
     j += ",\"uptime\":" + String(g_csiStartMs ? ((g_csiEndMs ? g_csiEndMs : millis()) - g_csiStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
+    j += ",\"episodes\":[";
+    for (uint8_t i = 0; i < g_epCount; i++) {
+        const CsiEpisode &e = g_eps[(uint8_t)((g_epHead + CSI_EPISODES - 1 - i) % CSI_EPISODES)];
+        if (i) j += ",";
+        j += "{\"at\":\"" + String(e.at) + "\",\"dwell\":" + String(e.dwellSec) +
+             ",\"peak\":" + String(e.peak, 2) +
+             ",\"open\":" + String(e.open ? "true" : "false") + "}";
+    }
+    j += "]";
     j += ",\"heatSec\":" + String(g_heatSec);
     j += ",\"heat\":[";
     for (uint8_t i = 0; i < g_heatLen; i++) {
         if (i) j += ",";
         j += String(g_heat[i]);
+    }
+    if (g_heatCurSec > 0) {
+        if (g_heatLen) j += ",";
+        j += String((uint8_t)g_heatSum);
     }
     j += "]";
     j += ",\"links\":[";
@@ -790,6 +843,7 @@ void csiMotionTask(void *pv) {
     g_areaCandSince = 0;
     g_areaSinceMs = 0;
     g_areaLastMotionMs = 0;
+    csiEpisodesReset();
     g_heatLen = 0;
     g_heatSec = 5;
     g_heatSum = 0;
@@ -939,6 +993,7 @@ void csiMotionTask(void *pv) {
                 g_areaMotion = g_areaCand;
                 if (g_areaMotion) {
                     g_areaSinceMs = g_areaCandSince;
+                    csiEpisodeOpen(getFormattedTimestamp());
                     if (meshEnabled) {
                         meshEnqueuePrio(getNodeId() + ": CSI_MOTION: CH=" + String(g_csiActiveChannel) +
                                         " N=" + String(movingLinks) +
@@ -947,6 +1002,7 @@ void csiMotionTask(void *pv) {
                     Serial.printf("[CSI] AREA MOTION (held %us)\n", CSI_AREA_DEBOUNCE_MS / 1000);
                 } else {
                     const uint32_t dwell = (g_areaCandSince - g_areaSinceMs) / 1000;
+                    csiEpisodeClose(dwell);
                     if (meshEnabled) {
                         meshEnqueuePrio(getNodeId() + ": CSI_CLEAR: CH=" + String(g_csiActiveChannel) +
                                         " D=" + String(dwell) + "s", PRIO_EVENT);
@@ -974,6 +1030,7 @@ void csiMotionTask(void *pv) {
                     }
                     peakNow = (csiUsableCount() >= 2) ? r2 : r1;
                 }
+                if (g_areaMotion && peakNow > g_epPeak) g_epPeak = peakNow;
                 csiHeatPush(peakNow);
             }
             if (uxQueueMessagesWaiting(csiQueue) == 0) {

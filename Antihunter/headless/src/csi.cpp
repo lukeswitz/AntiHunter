@@ -51,11 +51,11 @@ static uint16_t g_heatCurSec = 0;
 static void csiHeatPush(float act) {
     uint16_t q = (act > 0.0f) ? (uint16_t)(act * 25.0f) : 0;
     if (q > 255) q = 255;
-    g_heatSum += q;
+    if (q > g_heatSum) g_heatSum = q;
     g_heatCurSec++;
     if (g_heatCurSec < g_heatSec) return;
 
-    const uint8_t cell = (uint8_t)(g_heatSum / g_heatCurSec);
+    const uint8_t cell = (uint8_t)g_heatSum;
     g_heatSum = 0;
     g_heatCurSec = 0;
 
@@ -63,7 +63,7 @@ static void csiHeatPush(float act) {
         g_heat[g_heatLen++] = cell;
     } else {
         for (uint8_t i = 0; i < CSI_HEAT_CELLS / 2; i++) {
-            g_heat[i] = (uint8_t)(((uint16_t)g_heat[i * 2] + (uint16_t)g_heat[i * 2 + 1]) / 2);
+            g_heat[i] = (g_heat[i * 2] > g_heat[i * 2 + 1]) ? g_heat[i * 2] : g_heat[i * 2 + 1];
         }
         g_heatLen = CSI_HEAT_CELLS / 2;
         g_heatSec *= 2;
@@ -587,6 +587,10 @@ String getCsiJson() {
     for (uint8_t i = 0; i < g_heatLen; i++) {
         if (i) j += ",";
         j += String(g_heat[i]);
+    }
+    if (g_heatCurSec > 0) {
+        if (g_heatLen) j += ",";
+        j += String((uint8_t)g_heatSum);
     }
     j += "]";
     j += ",\"links\":[";

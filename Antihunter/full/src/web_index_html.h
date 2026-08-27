@@ -4268,6 +4268,29 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       const csiHist = {};
       let csiRoom = [];
       let csiDetOpen = false;
+      let csiLogOpen = false;
+      function csiEpisodeRows(d) {
+        const eps = d.episodes || [];
+        if (!eps.length) return _resEmpty('No movement recorded yet.');
+        let h = '<div class="res-list">';
+        eps.forEach(e => {
+          const parts = String(e.at || '').split(' ');
+          const time = parts.length > 1 ? parts[1] : parts[0];
+          const date = parts.length > 1 ? parts[0] : '';
+          h += '<div class="res-card ' + (e.open ? 'csi-hit' : 'acc') + '"><div class="res-row-main">' +
+            '<span class="res-id"><span class="res-mac"' + (e.open ? ' style="color:var(--csi-hit)"' : '') +
+              '>' + time + '</span>' +
+            (date ? '<span class="res-badge">' + date + '</span>' : '') +
+            (e.open ? '<span class="res-badge acc">ongoing</span>' : '') + '</span>' +
+            '<span class="res-meta"><span>' +
+              (e.open ? 'still moving' : '<strong>' + csiAgo(e.dwell * 1000) + '</strong> of movement') +
+            '</span></span>' +
+            '<span class="res-metric"><span class="res-metric-val">' + (e.peak || 0).toFixed(1) +
+              '<small>x</small></span><span class="res-metric-lab">peak</span></span>' +
+            '</div></div>';
+        });
+        return h + '</div>';
+      }
       function csiAgo(ms) {
         if (!ms) return '';
         const s = Math.round(ms / 1000);
@@ -4351,6 +4374,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             (sinceMotion < 0 ? 'none yet' : (sinceMotion < 60 ? 'now' : csiAgo(sinceMotion * 1000))) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(upSec * 1000) + '</div></div>' +
           '</div>';
+
+        h += '<details class="csi-det" id="csiLog"' + (csiLogOpen ? ' open' : '') +
+             ' ontoggle="csiLogOpen=this.open"><summary>Movement log' +
+             ((d.episodes && d.episodes.length) ? ' (' + d.episodes.length + ')' : '') +
+             '</summary>' + csiEpisodeRows(d) + '</details>';
 
         if (!links.length) return h + _resEmpty('Listening. No usable signals in range yet.');
 
