@@ -16,6 +16,8 @@ struct CsiLinkView {
     float floorMad;
     float spread;
     float score;
+    float acf;
+    float vote;
     float peakScore;
     bool motion;
 };
@@ -25,6 +27,7 @@ extern std::atomic<bool> csiTelemetry;
 extern std::atomic<bool> csiAutoTrigger;
 extern std::atomic<uint8_t> csiPinnedChannel;
 extern std::atomic<uint32_t> csiThresholdMilli;
+extern std::atomic<uint64_t> csiExcludeMac;
 extern std::atomic<uint32_t> csiHoldMs;
 extern std::atomic<uint32_t> csiConsecNeeded;
 
@@ -35,3 +38,4 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
                   bool rawDump, bool telemetry, bool autoTrigger);
 void loadCsiConfigFromPrefs();
 void csiClearCalibration();
+bool csiClearResults();

@@ -621,11 +621,11 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
 | `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
-| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. `TRAIN` spends the first 20s learning the trigger from this location instead of using the default - only needed if a location reads wrong, since the score is normalised to each link's own quiet level. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
-| `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 1.2-20 (multiple of the learned still-state floor), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:1.5:5000:3:0` |
+| `CSI_MOTION_START` | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]`. `CH0` or omitted surveys every configured channel and pins the busiest. `TELEM` adds a per-packet `CSIT` line to serial, `RAW` adds a 64-subcarrier `CSIR` line. `TRAIN` is accepted but ignored - the ACF threshold is derived, not learned. ACK: `CSI_ACK:STARTED`/`:BUSY`/`:FAILED` | `@ALL CSI_MOTION_START:300:CH11:TELEM` |
+| `CSI_CFG` | `trigger:hold_ms:consec:channel` - trigger 0.02-0.60 (the ACF threshold `eta`; 0.10 is derived and correct everywhere, leave it alone), hold 500-120000 ms, consec 1-50, channel 0-14. ACK: `CSI_CFG_ACK:T=.. HOLD=.. CONSEC=.. CH=..` or `:INVALID` | `@ALL CSI_CFG:0.10:5000:3:0` |
 | `CSI_STATUS` | None - dumps the CSI results block to serial. ACK: `CSI_STATUS_LEN:<n>` | `@AH01 CSI_STATUS` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial, including `"calibrated"`. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
-| `CSI_RECAL` | None - clears the saved baseline so the next CSI start re-learns the trigger over 20s. ACK: `CSI_RECAL_ACK:OK` | `@ALL CSI_RECAL` |
+| `CSI_RECAL` | None - clears any saved trigger and returns to the derived default. Kept for older nodes; the ACF needs no recalibration. ACK: `CSI_RECAL_ACK:OK` | `@ALL CSI_RECAL` |
 | `MESH_TX_CANCEL` | None - drops queued EVENT and BULK mesh traffic without stopping the running scan. ACK: `MESH_TX_CANCEL_ACK:EMPTY` when nothing was queued | `@ALL MESH_TX_CANCEL` |
 | `CSI_JSON` | None - dumps CSI state as JSON to serial. ACK: `CSI_JSON_LEN:<n>` | `@AH01 CSI_JSON` |
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |

@@ -10,8 +10,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <title>AntiHunter</title>
     <style>
       :root{--t:0.2s;--blur:12px}
-      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--csi-hit:#bf4a3c;--csi-hit-bg:rgba(191,74,60,0.06)}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#d0685a;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06);--csi-hit:#e0705c;--csi-hit-bg:rgba(224,112,92,0.09)}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#9a7a2e;--dang:#c0392f;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--csi-hit:#7a45cf;--csi-hit-bg:rgba(122,69,207,0.07)}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#e0524a;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06);--csi-hit:#b98cf5;--csi-hit-bg:rgba(185,140,245,0.12)}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:16px 18px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;flex-direction:column;gap:13px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
@@ -144,7 +144,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @media(max-width:600px){.header{padding:14px 16px;gap:12px}.header h1{font-size:17px}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}#scanStatus{min-width:0}.status-item{font-size:10.5px;padding:5px 11px;gap:6px}.status-item::before{width:6px;height:6px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
       @media(max-width:820px){.page-tabs{width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#e0604a;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
+      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#e0604a;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1);--csi-hit:#b98cf5;--csi-hit-bg:rgba(185,140,245,0.12)}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
       .theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
       [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
@@ -227,7 +227,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-spark polyline{fill:none;stroke:var(--acc);stroke-width:1.6;vector-effect:non-scaling-stroke}
       .csi-spark .csi-fill{fill:var(--accbg);stroke:none}
       .csi-spark .csi-dot{fill:var(--acc)}
-      .csi-spark .csi-trig{stroke:var(--csi-hit);stroke-width:1;stroke-dasharray:3 3;opacity:.7;vector-effect:non-scaling-stroke}
+      .csi-spark .csi-trig{stroke:var(--mut);stroke-width:1;stroke-dasharray:3 3;opacity:.55;vector-effect:non-scaling-stroke}
       .csi-state{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--surf);border:1px solid var(--bord);border-left:5px solid var(--mut);border-radius:12px;padding:20px 22px;margin-bottom:14px;transition:border-color .25s,background .25s}
       .csi-state.still{border-left-color:var(--acc)}
       .csi-state.move{border-left-color:var(--csi-hit);background:var(--csi-hit-bg)}
@@ -239,7 +239,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .csi-bar{position:relative;height:7px;border-radius:99px;background:var(--accbg);margin-top:14px;overflow:hidden}
       .csi-bar i{display:block;height:100%;border-radius:99px;background:var(--acc);transition:width .35s ease}
       .csi-state.move .csi-bar i{background:var(--csi-hit)}
-      .csi-bar b{position:absolute;top:-3px;width:2px;height:13px;background:var(--csi-hit);opacity:.8}
+      .csi-bar b{position:absolute;top:-3px;width:2px;height:13px;background:var(--mut);opacity:.6}
       .csi-state-r{text-align:right;flex-shrink:0;margin-left:auto}
       .csi-act{font-size:38px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.03em;line-height:1;color:var(--txt)}
       .csi-act small{font-size:17px;color:var(--mut);font-weight:500}
@@ -636,10 +636,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                              oninput="document.getElementById('csiChannel').value=this.value">
                     </div>
                     <div>
-                      <label style="font-size:11px;">Sensitivity (x quiet)</label>
-                      <input type="number" name="csiThreshold" id="csiThreshold" min="1.2" max="20" step="0.1" value="1.5">
-                    </div>
-                    <div>
                       <label style="font-size:11px;">Clear after (ms)</label>
                       <input type="number" name="csiHold" id="csiHold" min="500" max="120000" step="500" value="5000">
                     </div>
@@ -887,17 +883,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <option value="2">Aggressive (Fast)</option>
             <option value="3">Custom</option>
           </select>
-
-          <div id="bandModeRow" style="margin-top:10px;margin-bottom:8px;display:none;">
-            <label style="font-size:10px;color:var(--mut);">Band</label>
-            <select id="wifiBandMode" style="padding:4px;font-size:11px;">
-              <option value="0">2.4 GHz</option>
-              <option value="1">5 GHz</option>
-              <option value="2">2.4 + 5 GHz</option>
-            </select>
-            <p style="font-size:10px;color:var(--mut);margin-top:6px;">One radio, one band at a time: 5 GHz channels are scanned in short dwells between AP beacons</p>
-          </div>
-
+          
           <div id="customRFSettings" style="display:block;margin-top:10px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
               <div>
@@ -922,6 +908,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             <div style="margin-bottom:8px;">
               <label style="font-size:10px;color:var(--mut);">WiFi Channels</label>
               <input type="text" id="wifiChannels" placeholder="1..11" value="1..11" style="padding:4px;font-size:11px;">
+            </div>
+
+            <div id="bandModeRow" style="margin-top:10px;margin-bottom:8px;display:none;">
+              <label style="font-size:10px;color:var(--mut);">Band</label>
+              <select id="wifiBandMode" style="padding:4px;font-size:11px;">
+                <option value="0">2.4 GHz</option>
+                <option value="1">5 GHz</option>
+                <option value="2">2.4 + 5 GHz</option>
+              </select>
+              <p style="font-size:10px;color:var(--mut);margin-top:6px;">One radio, one band at a time: 5 GHz channels are scanned in short dwells between AP beacons</p>
             </div>
           </div>
         </div>
@@ -1873,6 +1869,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         }
       }
 
+      function resIsEditing(el) {
+        const ae = document.activeElement;
+        if (!ae || !el.contains(ae)) return false;
+        return ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName || '');
+      }
+
       function resHasSelection(el) {
         const sel = window.getSelection && window.getSelection();
         if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
@@ -1967,7 +1969,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const openDetails = new Set();
         el.querySelectorAll('details[open]').forEach(d => { const k = dkeyOf(d); if (k) openDetails.add(k); });
 
-        el.innerHTML = parseAndStyleResults(text);
+        const nextHtml = parseAndStyleResults(text);
+        if (nextHtml === window._resLastHtml) return;
+        window._resLastHtml = nextHtml;
+        el.innerHTML = nextHtml;
 
         openCards.forEach(id => {
           const c = document.getElementById(id);
@@ -1985,7 +1990,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (resultsPolling) return;
         if (!force && !radioBusy && stopResultsRefresh <= 0 && resultsSynced) return;
         const el = document.getElementById('r');
-        if (el && el.contains(document.activeElement)) return;
+        if (el && resIsEditing(el)) return;
         if (el && resHasSelection(el)) return;
         resultsPolling = true;
         try {
@@ -2249,7 +2254,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             if (bandRow) bandRow.style.display = cfg.dualBand ? 'block' : 'none';
             if (bandSel && typeof cfg.bandMode !== 'undefined') bandSel.value = cfg.bandMode;
             document.getElementById('wifiChannels').placeholder = cfg.dualBand ? '1..11,36,149' : '1..11';
-
             if (cfg.rfEnv !== undefined) document.getElementById('rfEnv').value = cfg.rfEnv;
             
             // If custom not preset
@@ -2577,7 +2581,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (bandRow && bandRow.style.display !== 'none') {
           fd.append('bandMode', document.getElementById('wifiBandMode').value);
         }
-
+        
         if (preset === 3) {
           fd.append('wifiChannelTime', document.getElementById('wifiChannelTime').value);
           fd.append('wifiScanInterval', document.getElementById('wifiScanInterval').value);
@@ -2952,7 +2956,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         });
 
         el.querySelectorAll('[data-priv]').forEach(elem => {
-          if (elem.tagName === 'A') { elem.removeAttribute('href'); elem.removeAttribute('target'); }
           elem.textContent = 'REDACTED';
           elem.title = 'REDACTED';
         });
@@ -4247,7 +4250,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'deauth': 'Watches for deauth and disassoc attacks and fingerprints the tool behind them.',
         'drone-detection': 'Decodes drone Remote ID beacons over WiFi and BLE, including operator position.',
         'probe-scan': 'Captures the networks devices are searching for, which reveals where they have been.',
-        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals.'
+        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals. Indoor only - outdoors needs the RadarNode (in development).'
       };
       function setDetectionDesc(mode) {
         const el = document.getElementById('detectionDesc');
@@ -4268,24 +4271,52 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           el.textContent = 'Baseline state unavailable.';
         }
       }
+      function csiCellLabel(sec) {
+        if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + ' min';
+        return Math.round(sec / 360) / 10 + ' hr';
+      }
       function csiHeatRender(d, trig) {
         const heat = d.heat || [];
         if (!heat.length) return '';
         let cells = '';
         for (let i = 0; i < heat.length; i++) {
-          const v = heat[i] / 50;
-          const hot = v >= trig;
+          const v = heat[i] / 25;
+          const hotArr = d.hot || [];
+          const hot = hotArr.length > i ? !!hotArr[i] : (v >= trig);
           const f = Math.max(0.10, Math.min(1, v / (trig * 1.6)));
           cells += '<i style="opacity:' + f.toFixed(2) + (hot ? ';background:var(--csi-hit)' : '') + '"></i>';
         }
         const sec = d.heatSec || 5;
         return '<div class="csi-heat">' + cells + '</div>' +
                '<div class="csi-room-lab"><span>whole session &middot; ' + csiAgo(heat.length * sec * 1000) +
-               '</span><span>' + sec + 's per cell</span></div>';
+               '</span><span>' + csiCellLabel(sec) + ' per block</span></div>';
       }
       const csiHist = {};
       let csiRoom = [];
       let csiDetOpen = false;
+      let csiLogOpen = false;
+      function csiEpisodeRows(d) {
+        const eps = d.episodes || [];
+        if (!eps.length) return _resEmpty('No movement recorded yet.');
+        let h = '<div class="res-list">';
+        eps.forEach(e => {
+          const parts = String(e.at || '').split(' ');
+          const time = parts.length > 1 ? parts[1] : parts[0];
+          const date = parts.length > 1 ? parts[0] : '';
+          h += '<div class="res-card ' + (e.open ? 'csi-hit' : 'acc') + '"><div class="res-row-main">' +
+            '<span class="res-id"><span class="res-mac"' + (e.open ? ' style="color:var(--csi-hit)"' : '') +
+              '>' + time + '</span>' +
+            (date ? '<span class="res-badge">' + date + '</span>' : '') +
+            (e.open ? '<span class="res-badge acc">ongoing</span>' : '') + '</span>' +
+            '<span class="res-meta"><span>' +
+              (e.open ? 'still moving' : '<strong>' + csiAgo(e.dwell * 1000) + '</strong> of movement') +
+            '</span></span>' +
+            '<span class="res-metric"><span class="res-metric-val">' + (e.peak || 0).toFixed(1) +
+              '<small>x</small></span><span class="res-metric-lab">peak</span></span>' +
+            '</div></div>';
+        });
+        return h + '</div>';
+      }
       function csiAgo(ms) {
         if (!ms) return '';
         const s = Math.round(ms / 1000);
@@ -4297,7 +4328,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       function csiSpark(vals, trig, w, h, cls) {
         if (!vals || vals.length < 2) return '';
         const n = vals.length;
-        const hi = Math.max(trig * 1.35, ...vals, 1.6);
+        const hi = Math.max(trig * 1.35, ...vals, trig * 2);
         const pt = (i, v) => (i * w / (n - 1)).toFixed(1) + ',' + (h - (v / hi) * h).toFixed(1);
         const line = vals.map((v, i) => pt(i, v)).join(' ');
         const ty = (h - (trig / hi) * h).toFixed(1);
@@ -4315,17 +4346,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         const cal = /Calibrating still-state|Calibrating baseline/.test(text);
         const raw = d.links || [];
+        const eta = d.threshold || 0.1;
+        const voteFrac = d.voteFrac || 0.5;
+        const csiRatio = l => ((l.vote || 0) < voteFrac ? 0 : (l.acf || 0) / eta);
         const byRadio = {};
         raw.forEach(l => {
           const r = (l.mac || '').slice(0, 14);
           const cur = byRadio[r];
-          if (!cur || (l.score || 0) > (cur.score || 0)) {
+          if (!cur || csiRatio(l) > csiRatio(cur)) {
             byRadio[r] = Object.assign({}, l, { bssids: (cur ? cur.bssids : 0) + 1 });
           } else { cur.bssids++; }
         });
         const links = Object.values(byRadio);
-        const trig = d.threshold || 1.5;
-        const act = links.length ? Math.max(...links.map(l => l.score || 0)) : 0;
+        const trig = 1;
+        const csiNeed = (d.usable || 0) >= 2 ? 2 : 1;
+        const csiRanked = links.map(csiRatio).sort((a, b) => b - a);
+        const act = csiRanked.length >= csiNeed ? csiRanked[csiNeed - 1] : 0;
         const moving = !!d.motion;
         const now = Date.now();
         const sinceMotion = (typeof d.sinceMotion === 'number') ? d.sinceMotion : -1;
@@ -4339,7 +4375,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         let sub;
         if (cal) sub = 'Learning the empty baseline. Keep the area clear.';
         else if (moving) sub = 'Something is moving in range right now';
-        else if (sinceMotion >= 0) sub = 'Last movement ' + csiAgo(sinceMotion * 1000) + ' ago';
+        else if (sinceMotion >= 0) sub = sinceMotion < 60 ? 'Last movement just now'
+                                                          : 'Last movement ' + csiAgo(sinceMotion * 1000) + ' ago';
         else sub = 'Nothing has moved since this started';
 
         let h = '<div class="csi-state ' + (cal ? 'cal' : (moving ? 'move' : 'still')) + '">' +
@@ -4348,7 +4385,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           '<div class="csi-state-sub">' + sub + '</div>' +
           '<div class="csi-bar"><i style="width:' + pct + '%"></i><b style="left:50%"></b></div>' +
           '</div>' +
-          '<div class="csi-state-r"><div class="csi-act">' + act.toFixed(1) + '<small>x</small></div>' +
+          '<div class="csi-state-r"><div class="csi-act">' + (trig > 0 ? act / trig : 0).toFixed(1) + '<small>x</small></div>' +
           '<div class="res-metric-lab">movement</div></div>' +
           '</div>';
 
@@ -4358,23 +4395,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
         h += '<div class="csi-stats">' +
           '<div class="res-stat"><div class="res-stat-lab">Triggered</div><div class="res-stat-val"' +
-            (d.events ? ' style="color:var(--csi-hit)"' : '') + '>' + (d.events || 0) + '</div></div>' +
+            '>' + (d.areaEvents || 0) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Last movement</div><div class="res-stat-val">' +
-            (sinceMotion >= 0 ? csiAgo(sinceMotion * 1000) : 'none yet') + '</div></div>' +
+            (sinceMotion < 0 ? 'none yet' : (sinceMotion < 60 ? 'now' : csiAgo(sinceMotion * 1000))) + '</div></div>' +
           '<div class="res-stat"><div class="res-stat-lab">Running</div><div class="res-stat-val">' + csiAgo(upSec * 1000) + '</div></div>' +
           '</div>';
+
+        h += '<details class="csi-det" id="csiLog"' + (csiLogOpen ? ' open' : '') +
+             ' ontoggle="csiLogOpen=this.open"><summary>Movement log' +
+             ((d.episodes && d.episodes.length) ? ' (' + d.episodes.length + ')' : '') +
+             '</summary>' + csiEpisodeRows(d) + '</details>';
 
         if (!links.length) return h + _resEmpty('Listening. No usable signals in range yet.');
 
         h += '<details class="csi-det" id="csiDet"' + (csiDetOpen ? ' open' : '') +
              ' ontoggle="csiDetOpen=this.open"><summary>Technical detail</summary>' +
-             '<div class="csi-tech">Watching ' + links.length + ' nearby transmitter' + (links.length > 1 ? 's' : '') +
-             ' on channel ' + d.channel + ', ' + (d.rate || 0).toFixed(0) + ' samples/sec. ' +
-             'Movement is measured against each one&rsquo;s own quiet level; anything over ' + trig.toFixed(2) + 'x counts.</div>' +
+             '<div class="csi-tech">' + links.length + ' transmitter' + (links.length > 1 ? 's' : '') +
+             ' on ch' + d.channel + ' &middot; ' + (d.rate || 0).toFixed(0) + ' samples/sec</div>' +
              '<div class="res-list">';
-        links.slice().sort((a, b) => b.score - a.score).forEach(l => {
+        links.slice().sort((a, b) => csiRatio(b) - csiRatio(a)).forEach(l => {
           const k = l.mac;
-          (csiHist[k] = csiHist[k] || []).push(l.score);
+          (csiHist[k] = csiHist[k] || []).push(csiRatio(l));
           if (csiHist[k].length > 60) csiHist[k].shift();
           h += '<div class="res-card ' + (l.motion ? 'csi-hit' : 'acc') + '"><div class="res-row-main">' +
             '<span class="res-id"><span class="res-mac"' +
@@ -4383,9 +4424,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             '<span class="res-meta">' + csiSpark(csiHist[k], trig, 200, 30) +
             '<span><strong>' + l.rssi + '</strong> dBm</span>' +
             '<span><strong>' + (l.rate || 0).toFixed(1) + '</strong> pkt/s</span>' +
+            '<span><strong>' + (l.events || 0) + '</strong> hits</span>' +
             '</span>' +
             '<span class="res-metric"><span class="res-metric-val" style="color:' +
-            (l.motion ? 'var(--csi-hit)' : 'var(--txt)') + '">' + (l.score || 0).toFixed(2) + '<small>x</small></span>' +
+            (l.motion ? 'var(--csi-hit)' : 'var(--txt)') + '">' + csiRatio(l).toFixed(2) + '<small>x</small></span>' +
             '<span class="res-metric-lab">movement</span></span>' +
             '</div></div>';
         });
