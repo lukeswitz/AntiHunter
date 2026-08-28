@@ -103,7 +103,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .statx-ticker::-webkit-scrollbar{display:none}
       .statx-track{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
       @keyframes statxScroll{from{transform:translateX(30%)}to{transform:translateX(-100%)}}
-      @media(max-width:760px){.header-bar:has(#scanStatus.active) .theme-toggle{display:none}.header-bar:has(#scanStatus.active) .statx-ticker{overflow:hidden}.header-bar:has(#scanStatus.active) .statx-track{animation:statxScroll 14s linear infinite;will-change:transform}.header-bar:has(#scanStatus.active) .statx-ticker:active .statx-track{animation-play-state:paused}}
+      @media(max-width:760px){.header-bar:has(#scanStatus.active){gap:8px}.header-bar:has(#scanStatus.active) .wm{display:none}.header-bar:has(#scanStatus.active) .statx-ticker{overflow:hidden}.header-bar:has(#scanStatus.active) .statx-track{animation:statxScroll 14s linear infinite;will-change:transform}.header-bar:has(#scanStatus.active) .statx-ticker:active .statx-track{animation-play-state:paused}}
       @media(prefers-reduced-motion:reduce){.header-bar:has(#scanStatus.active) .statx-track{animation:none}}
       #gpsStatus{min-width:66px;justify-content:flex-start}
       #gpsStatus .gps-acc{text-transform:none;letter-spacing:0;font-size:12px;font-weight:700;margin-left:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
