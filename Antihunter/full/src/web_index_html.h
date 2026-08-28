@@ -1239,6 +1239,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
           <a class="btn alt" id="dataExport" download style="padding:8px 14px;font-size:12px;">Export</a>
           <button class="btn danger" id="dataClear" onclick="clearDataSet()" style="padding:8px 14px;font-size:12px;">Clear</button>
+          <button class="btn privacy-toggle" type="button" onclick="togglePrivacy()" style="padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0;"></button>
         </div>
         <div id="dataArea" style="overflow-x:auto;">
           <div class="data-empty">Select a dataset to view.</div>
