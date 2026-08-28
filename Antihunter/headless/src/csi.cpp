@@ -126,7 +126,7 @@ static uint32_t g_epTotal = 0;
 static float g_epPeak = 0.0f;
 
 static void csiEpisodesReset() {
-    memset(g_eps, 0, sizeof(g_eps));
+    for (uint8_t i = 0; i < CSI_EPISODES; i++) g_eps[i] = CsiEpisode{};
     g_epCount = 0;
     g_epHead = 0;
     g_epTotal = 0;
