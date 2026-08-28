@@ -2,7 +2,17 @@
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
+#if defined(__has_include)
+#if __has_include("sdkconfig.h")
+#include "sdkconfig.h"
+#endif
+#endif
 
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+#define CSI_BUF_BYTES 106
+#define CSI_NSUB 26
+#else
+#define CSI_BUF_BYTES 128
 #define CSI_NSUB 47
 
 static const uint8_t CSI_SUB_IDX[CSI_NSUB] = {
@@ -11,6 +21,7 @@ static const uint8_t CSI_SUB_IDX[CSI_NSUB] = {
     38, 39, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
     54, 55, 56, 58, 59, 60, 61, 62, 63
 };
+#endif
 
 static const float CSI_FAST_ALPHA = 0.25f;
 static const float CSI_SLOW_ALPHA = 0.01f;
@@ -35,6 +46,28 @@ static const uint32_t CSI_LINK_MIN_PKTS = 60;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
 static const int8_t CSI_SURVEY_MIN_RSSI = -85;
 
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+static inline int csiWord12(const uint8_t *u) {
+    int v = (int)u[0] | ((int)u[1] << 8);
+    return (v >= 2048) ? (v - 4096) : v;
+}
+
+static inline bool csiAmplitudes(const int8_t *buf, float *out) {
+    const uint8_t *u = (const uint8_t *)buf;
+    float sum = 0.0f;
+    for (int k = 0; k < CSI_NSUB; k++) {
+        const float im = (float)csiWord12(u + k * 4);
+        const float re = (float)csiWord12(u + k * 4 + 2);
+        const float mag = sqrtf(im * im + re * re);
+        out[k] = mag;
+        sum += mag;
+    }
+    if (sum <= 0.0f) return false;
+    const float norm = (float)CSI_NSUB / sum;
+    for (int k = 0; k < CSI_NSUB; k++) out[k] *= norm;
+    return true;
+}
+#else
 static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     float sum = 0.0f;
     for (int k = 0; k < CSI_NSUB; k++) {
@@ -50,6 +83,7 @@ static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     for (int k = 0; k < CSI_NSUB; k++) out[k] *= norm;
     return true;
 }
+#endif
 
 struct CsiScorer {
     float fast[CSI_NSUB];

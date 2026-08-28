@@ -165,7 +165,7 @@ struct CsiEvent {
     int8_t rssi;
     uint8_t ch;
     uint32_t ts;
-    int8_t buf[128];
+    int8_t buf[CSI_BUF_BYTES];
 };
 
 struct CsiLink {
@@ -234,7 +234,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         return;
     }
 #endif
-    if (info->len < 128) {
+    if (info->len < CSI_BUF_BYTES) {
         g_csiRejected.fetch_add(1);
         g_rejShort.fetch_add(1);
         return;
@@ -267,13 +267,19 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     ev.rssi = rx.rssi;
     ev.ch = rx.channel;
     ev.ts = rx.timestamp;
-    memcpy(ev.buf, info->buf, 128);
+    memcpy(ev.buf, info->buf, CSI_BUF_BYTES);
 
     g_csiSeen.fetch_add(1);
     if (xQueueSend(csiQueue, &ev, 0) != pdTRUE) g_csiDropped.fetch_add(1);
 }
 
 static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
+    if (WiFi.softAPgetStationNum() > 0) {
+        const uint8_t home = apHomeChannel();
+        Serial.printf("[CSI] a client is on the AP - skipping the survey, staying on ch%u\n", home);
+        return home;
+    }
+
     std::vector<uint8_t> chans;
     for (uint8_t c : CHANNELS) {
         if (c >= 1 && c <= 14) chans.push_back(c);
@@ -882,6 +888,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.acquire_csi_beamformed = 0;
     cfg.acquire_csi_he_stbc_mode = 0;
     cfg.val_scale_cfg = 0;
+    cfg.lltf_bit_mode = 0;
     cfg.dump_ack_en = 0;
 #else
     cfg.lltf_en = true;
@@ -894,8 +901,11 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.dump_ack_en = false;
 #endif
 
-    if (esp_wifi_set_csi_config(&cfg) != ESP_OK) return false;
     if (esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr) != ESP_OK) return false;
+    if (esp_wifi_set_csi_config(&cfg) != ESP_OK) {
+        esp_wifi_set_csi_rx_cb(NULL, nullptr);
+        return false;
+    }
     return esp_wifi_set_csi(true) == ESP_OK;
 }
 
@@ -936,6 +946,7 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.acquire_csi_beamformed = 0;
     cfg.acquire_csi_he_stbc_mode = 0;
     cfg.val_scale_cfg = 0;
+    cfg.lltf_bit_mode = 0;
     cfg.dump_ack_en = 0;
 #else
     cfg.lltf_en = true;
@@ -948,16 +959,17 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.dump_ack_en = false;
 #endif
 
-    esp_err_t rc = esp_wifi_set_csi_config(&cfg);
-    if (rc != ESP_OK) {
-        Serial.printf("[CSI] set_csi_config failed: %s\n", esp_err_to_name(rc));
+    esp_err_t rb = esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr);
+    if (rb != ESP_OK) {
+        Serial.printf("[CSI] set_csi_rx_cb failed: %s\n", esp_err_to_name(rb));
         esp_wifi_set_promiscuous(false);
         return false;
     }
 
-    esp_err_t rb = esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr);
-    if (rb != ESP_OK) {
-        Serial.printf("[CSI] set_csi_rx_cb failed: %s\n", esp_err_to_name(rb));
+    esp_err_t rc = esp_wifi_set_csi_config(&cfg);
+    if (rc != ESP_OK) {
+        Serial.printf("[CSI] set_csi_config failed: %s\n", esp_err_to_name(rc));
+        esp_wifi_set_csi_rx_cb(NULL, nullptr);
         esp_wifi_set_promiscuous(false);
         return false;
     }
@@ -981,7 +993,7 @@ static void csiRadioStop() {
 }
 
 void csiMotionTask(void *pv) {
-    sentinel_kill();
+    sentinel_yieldAndWait(1500);
 
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int *>(pv)));
     bool forever = (duration <= 0);
