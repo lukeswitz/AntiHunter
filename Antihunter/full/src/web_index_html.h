@@ -733,7 +733,7 @@ R"HTML(
             </select>
             <button class="btn alt" type="button" onclick="toggleSortOrder()" title="Reverse sort"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><path d="M5 0L10 5H0Z"/><path d="M5 14L0 9H10Z"/></svg></button>
             <button class="btn alt" type="button" onclick="clearResults()">Clear</button>
-            <button class="btn" id="privacyBtn" type="button" onclick="togglePrivacy()" style="white-space:nowrap;flex-shrink:0;"></button>
+            <button class="btn privacy-toggle" id="privacyBtn" type="button" onclick="togglePrivacy()" style="white-space:nowrap;flex-shrink:0;"></button>
           </div>
         </div>
         <div id="baselineStatus" style="display:none;padding:12px;background:var(--surf);border:2px solid var(--acc);border-radius:8px;font-size:12px;margin-bottom:12px;">
@@ -1167,6 +1167,7 @@ R"HTML(
           <button class="btn alt" onclick="loadDataSet()" style="padding:8px 14px;font-size:12px;" title="Refresh">Refresh</button>
           <a class="btn alt" id="dataExport" download style="padding:8px 14px;font-size:12px;">Export</a>
           <button class="btn danger" id="dataClear" onclick="clearDataSet()" style="padding:8px 14px;font-size:12px;">Clear</button>
+          <button class="btn privacy-toggle" type="button" onclick="togglePrivacy()" style="padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0;"></button>
         </div>
         <div id="dataArea" style="overflow-x:auto;">
           <div class="data-empty">Select a dataset to view.</div>
@@ -2316,20 +2317,20 @@ R"HTML(
       }
 
       function updatePrivacyBtn() {
-        const btn = document.getElementById('privacyBtn');
-        if (!btn) return;
-        btn.textContent = 'Privacy';
-        btn.classList.remove('danger');
-        btn.style.background = '';
-        btn.style.borderColor = '';
-        btn.style.color = '';
-        if (privacyMode) {
-          btn.classList.add('primary');
-          btn.classList.remove('alt');
-        } else {
-          btn.classList.add('alt');
-          btn.classList.remove('primary');
-        }
+        document.querySelectorAll('.privacy-toggle').forEach(btn => {
+          btn.textContent = 'Privacy';
+          btn.classList.remove('danger');
+          btn.style.background = '';
+          btn.style.borderColor = '';
+          btn.style.color = '';
+          if (privacyMode) {
+            btn.classList.add('primary');
+            btn.classList.remove('alt');
+          } else {
+            btn.classList.add('alt');
+            btn.classList.remove('primary');
+          }
+        });
       }
 
       async function toggleMesh() {
