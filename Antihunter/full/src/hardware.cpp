@@ -604,7 +604,8 @@ void saveConfiguration() {
     configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
     configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
     configFile.printf(" \"apPass\":\"%s\",\n", jsonEscape(prefsGetString("apPass", AP_PASS)).c_str());
-    configFile.printf(" \"apAuth\":%u\n", prefs.getUChar("apAuth", 0));
+    configFile.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
+    configFile.printf(" \"apHidden\":%s\n", prefs.getBool("apHidden", false) ? "true" : "false");
     configFile.println("}");
 
     configFile.flush();
@@ -807,6 +808,10 @@ void loadConfiguration() {
 
     if (doc.containsKey("apAuth")) {
         prefs.putUChar("apAuth", doc["apAuth"].as<uint8_t>() == 1 ? 1 : 0);
+    }
+
+    if (doc.containsKey("apHidden")) {
+        prefs.putBool("apHidden", doc["apHidden"].as<bool>());
     }
 
     if (doc.containsKey("autoEraseEnabled")) {

@@ -523,6 +523,15 @@
               <input type="text" id="cfgApPass" placeholder="antihunt3r123" minlength="8" maxlength="63">
               <div class="cfg-note">Min 8 characters</div>
             </div>
+            <div>
+              <label>Hidden Network</label>
+              <select id="cfgApHidden">
+                <option value="" selected>Off (default)</option>
+                <option value="1">On</option>
+                <option value="0">Off</option>
+              </select>
+              <div class="cfg-note">Stops the SSID beacon. Clients enter the SSID manually and probe for it by name, so the name travels with them. The passphrase is still the access control.</div>
+            </div>
           </div>
         </div>
 
@@ -785,6 +794,7 @@ chmod +x flashAntihunter.sh
         str('cfgApSsid', 'apSsid');
         const apPass = document.getElementById('cfgApPass').value.trim();
         if (apPass && apPass.length >= 8) cfg.apPass = apPass;
+        bool('cfgApHidden', 'apHidden');
       }
 
       if (selectedChannel !== 'stable') {

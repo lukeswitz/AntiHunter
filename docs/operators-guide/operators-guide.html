@@ -648,6 +648,7 @@ python3 scripts/meshtastic_config.py</pre>
   <h3>8.1 Change the credentials</h3>
   <ul>
     <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under <b>RF Settings</b>.</li>
+    <li><b>Hidden network.</b> Off by default. Turn it on under <b>RF Settings</b> and the node stops beaconing its SSID, so the AP does not appear in a scan of the area. It is not access control. A hidden SSID forces the client to send directed probe requests carrying the network name, so the phone or laptop you connect with advertises that name everywhere it goes afterwards. The WPA2/WPA3 passphrase is still what keeps people out. The node reboots on save and you type the SSID by hand to reconnect.</li>
     <li><b>Erase PSK.</b> The pre-shared key that authorises remote erase and factory reset. Set it if you plan to use secure data destruction (§10.4). Mesh: <span class="mono">@AH01 CONFIG_ERASE_PSK:yourkey</span>.</li>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
@@ -1185,6 +1186,7 @@ docker compose up -d --build</pre>
     <tr><th>Item</th><th>Default</th><th></th></tr>
     <tr><td>WiFi AP name</td><td><span class="mono">Antihunter</span></td><td><b>change it</b></td></tr>
     <tr><td>WiFi AP password</td><td><span class="mono">antihunt3r123</span></td><td><b>change it</b></td></tr>
+    <tr><td>WiFi AP hidden</td><td>off, SSID beacons</td><td>optional, see §8.1 before turning it on</td></tr>
     <tr><td>Web UI</td><td><span class="mono">http://192.168.4.1</span></td><td>Full firmware only</td></tr>
     <tr><td>Erase PSK</td><td>not set</td><td><b>set it</b> if using erase or factory reset</td></tr>
     <tr><td>Meshtastic serial</td><td>TEXTMSG, 115200</td><td>pre-configured on tiers 1 and 3, you set it on 2 and 4</td></tr>

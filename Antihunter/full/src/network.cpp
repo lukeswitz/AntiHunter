@@ -212,9 +212,10 @@ void initializeNetwork()
   
   wifi_auth_mode_t apAuth = prefs.getUChar("apAuth", 0) == 1 ? WIFI_AUTH_WPA2_PSK
                                                              : WIFI_AUTH_WPA2_WPA3_PSK;
+  bool apHidden = prefs.getBool("apHidden", false);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   bool apOk = WiFi.softAP(customApSsid.c_str(), customApPass.c_str(),
-                          AP_CHANNEL, 0, 4, false,
+                          AP_CHANNEL, apHidden ? 1 : 0, 4, false,
                           apAuth);
   {
     wifi_config_t apCfg = {};
@@ -224,8 +225,9 @@ void initializeNetwork()
       esp_wifi_set_config(WIFI_IF_AP, &apCfg);
     }
   }
-  Serial.printf("[WIFI] AP %s start (PMF capable): %s\n",
+  Serial.printf("[WIFI] AP %s %s start (PMF capable): %s\n",
                 apAuth == WIFI_AUTH_WPA2_PSK ? "WPA2-PSK" : "WPA2/WPA3-PSK mixed",
+                apHidden ? "hidden" : "broadcast",
                 apOk ? "OK" : "FAIL");
   // SoftAP force-deauths an idle STA after inactive time (IDF default 300s). A sleeping
   // browser stops polling and gets kicked mid-scan. Not stored in flash - re-applied each boot.
@@ -1768,7 +1770,8 @@ void registerRemainingRoutes() {
     String json = "{";
     json += "\"ssid\":\"" + ssid + "\",";
     json += "\"pass\":\"" + pass + "\",";
-    json += "\"auth\":" + String(prefs.getUChar("apAuth", 0));
+    json += "\"auth\":" + String(prefs.getUChar("apAuth", 0)) + ",";
+    json += "\"hidden\":" + String(prefs.getBool("apHidden", false) ? "true" : "false");
     json += "}";
     req->send(200, "application/json", json);
   });
@@ -1936,6 +1939,9 @@ void registerRemainingRoutes() {
       if (req->hasParam("auth", true)) {
           uint8_t auth = req->getParam("auth", true)->value().toInt() == 1 ? 1 : 0;
           prefs.putUChar("apAuth", auth);
+      }
+      if (req->hasParam("hidden", true)) {
+          prefs.putBool("apHidden", req->getParam("hidden", true)->value().toInt() == 1);
       }
 
       saveConfiguration();

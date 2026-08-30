@@ -878,6 +878,9 @@ R"HTML(
               <option value="1">WPA2 only (more stable)</option>
             </select>
 
+            <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="apHidden" value="1">Hidden network (no SSID beacon)</label>
+            <p class="card-sub" style="margin:6px 0 0;">Clients must enter the SSID manually and will probe for it by name.</p>
+
             <button class="btn primary" type="button" onclick="saveWiFiConfig()" style="width:100%;margin-top:8px;">Save WiFi Settings</button>
           </div>
         </div>
@@ -2495,6 +2498,7 @@ R"HTML(
         fd.append('ssid', ssid);
         fd.append('pass', pass);
         fd.append('auth', document.getElementById('apAuth').value);
+        fd.append('hidden', document.getElementById('apHidden').checked ? '1' : '0');
 
         try {
           const r = await fetch('/wifi-config', {method: 'POST', body: fd});
@@ -2512,6 +2516,7 @@ R"HTML(
           document.getElementById('apSsid').value = cfg.ssid;
           document.getElementById('apPass').value = cfg.pass;
           if (cfg.auth !== undefined) document.getElementById('apAuth').value = cfg.auth;
+          if (cfg.hidden !== undefined) document.getElementById('apHidden').checked = !!cfg.hidden;
         } catch(e) {}
       }
       
