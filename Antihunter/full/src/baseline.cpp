@@ -45,6 +45,10 @@ static inline uint64_t blKey(const uint8_t *m) {
     return v;
 }
 
+static inline void blUnkey(uint64_t v, uint8_t *m) {
+    for (int i = 5; i >= 0; i--) { m[i] = (uint8_t)(v & 0xFF); v >>= 8; }
+}
+
 // RAM SD Cache
 PsramMap<uint64_t, bool> sdLookupCache;
 std::list<uint64_t, PsramAllocator<uint64_t>> sdLookupLRU;
@@ -527,6 +531,7 @@ void baselineDetectionTask(void *pv) {
         pBLEScan->setInterval(160);
         pBLEScan->setWindow(48);
         pBLEScan->setDuplicateFilter(false);
+        pBLEScan->setMaxResults(150);
         pBLEScan->start(0, false);
     }
 
@@ -972,25 +977,25 @@ void cleanupBaselineMemory() {
         if (hist.wasPresent && (now - hist.lastSeen > deviceAbsenceThreshold)) {
             if (hist.disappearedAt == 0) {
                 hist.disappearedAt = now;
+                uint8_t dmac[6]; blUnkey(entry.first, dmac);
+                String dmacStr = macFmt6(dmac);
                 Serial.printf("[BASELINE] Device disappeared: %s (absent %us)\n",
-                            entry.first.c_str(), (now - hist.lastSeen) / 1000);
+                            dmacStr.c_str(), (now - hist.lastSeen) / 1000);
                 if (meshEnabled) {
-                    sendToSerial1(getNodeId() + ": DEVICE_DISAPPEARED: " + entry.first +
+                    sendToSerial1(getNodeId() + ": DEVICE_DISAPPEARED: " + dmacStr +
                                   " absent:" + String((now - hist.lastSeen) / 1000) + "s", true);
                 }
             }
         }
     }
     
-    // Bound deviceHistory by free internal heap, not a fixed count: each String key
-    // holds an internal-heap buffer, so the cap must tighten as internal RAM drops.
     uint32_t histFreeInt = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     size_t histCap = histFreeInt > 100000 ? 1000 :
                      histFreeInt > 60000  ? 500  :
                      histFreeInt > 35000  ? 250  :
                      histFreeInt > 20000  ? 100  : 50;
     if (deviceHistory.size() > histCap) {
-        std::vector<String> toRemove;
+        std::vector<uint64_t> toRemove;
         for (const auto& entry : deviceHistory) {
             if (entry.second.disappearedAt > 0 &&
                 (now - entry.second.disappearedAt > reappearanceAlertWindow)) {
@@ -1001,7 +1006,7 @@ void cleanupBaselineMemory() {
             deviceHistory.erase(key);
         }
         if (deviceHistory.size() > histCap) {
-            std::vector<std::pair<uint32_t, String>> ages;
+            std::vector<std::pair<uint32_t, uint64_t>> ages;
             ages.reserve(deviceHistory.size());
             std::transform(deviceHistory.begin(), deviceHistory.end(), std::back_inserter(ages),
                 [](const auto& entry) { return std::make_pair(entry.second.lastSeen, entry.first); });
@@ -1584,14 +1589,15 @@ void checkForAnomalies(const uint8_t *mac, int8_t rssi, const char *name, bool i
     }
     
     String macStr = macFmt6(mac);
+    uint64_t hk = blKey(mac);
     uint32_t now = millis();
-    
-    if (deviceHistory.find(macStr) == deviceHistory.end()) {
+
+    if (deviceHistory.find(hk) == deviceHistory.end()) {
         bool inBaseline = isDeviceInBaseline(mac);
-        deviceHistory[macStr] = {rssi, now, 0, inBaseline, 0, now, 0};
+        deviceHistory[hk] = {rssi, now, 0, inBaseline, 0, now, 0};
     }
-    
-    DeviceHistory &history = deviceHistory[macStr];
+
+    DeviceHistory &history = deviceHistory[hk];
     
     if (!history.wasPresent) {
         if (now - history.firstSeenAt > 60000) {

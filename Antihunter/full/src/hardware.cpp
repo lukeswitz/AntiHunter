@@ -132,7 +132,6 @@ fs::File SafeSD::open(const char* path, const char* mode) {
         return File();
     }
 
-    // fopen allocates a FILE struct + recursive lock from internal heap; under exhaustion newlib aborts (panic) instead of returning null. Fail soft so callers drop the write.
     if (!hasHeapForOpen()) {
         static uint32_t s_lastWarnMs = 0;
         uint32_t nowMs = millis();
