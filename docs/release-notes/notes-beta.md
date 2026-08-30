@@ -30,6 +30,9 @@ Baseline was measured on hardware with a second ESP32 flooding the node with rot
 
 ### Full FW
 
+- Scan Results could stop updating mid-scan while the status card above it kept counting, leaving the two disagreeing on device and anomaly counts. Three silent failure paths removed: `/results` streams the body in chunks from a single PSRAM copy instead of making three internal-heap copies, the results poll aborts a request after 5 s so a hung fetch cannot wedge it for the life of the page, and fetched text is marked as seen only after it renders.
+- Baseline monitoring rebuilt the results body on every received packet and printed a serial line each time. It now rebuilds on its 2 s timer, and only when something changed.
+- Results panel no longer flickers. The card list is rewritten only when the rendered output changes.
 - Movement view for CSI: plain-language state, a movement log, and a whole-session heat strip rendered on the device.
 - Hidden SoftAP. RF Settings checkbox, `apHidden` in NVS, default off, carried in config export and import and on `/wifi-config`. The boot banner reports hidden or broadcast. Hidden stops the beacon; it is not access control.
 - Fleet roster in the web UI.
