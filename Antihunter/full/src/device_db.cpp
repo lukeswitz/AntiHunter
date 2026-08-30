@@ -28,7 +28,7 @@ void loadDeviceDB()
         return;
     }
 
-    File f = SD.open(DEVICE_DB_PATH, FILE_READ);
+    File f = SafeSD::open(DEVICE_DB_PATH, FILE_READ);
     if (!f) {
         Serial.println("[DEVDB] Failed to open database");
         return;
@@ -81,7 +81,7 @@ void saveDeviceDB()
 {
     std::lock_guard<std::mutex> lock(deviceDBMutex);
 
-    File f = SD.open(DEVICE_DB_PATH, FILE_WRITE);
+    File f = SafeSD::open(DEVICE_DB_PATH, FILE_WRITE);
     if (!f) {
         Serial.println("[DEVDB] Failed to write database");
         return;

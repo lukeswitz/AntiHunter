@@ -46,10 +46,13 @@ private:
     static uint32_t lastCheckTime;
     static bool lastCheckResult;
     static const uint32_t CHECK_INTERVAL_MS = 1000;
+    static const uint32_t SD_OPEN_HEAP_FLOOR = 12288;
+    static const uint32_t SD_OPEN_BLOCK_FLOOR = 4096;
     static bool checkAvailability();
 
 public:
     static bool isAvailable();
+    static bool hasHeapForOpen();
     static fs::File open(const char* path, const char* mode = FILE_READ);
     static bool exists(const char* path);
     static bool remove(const char* path);

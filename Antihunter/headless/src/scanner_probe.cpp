@@ -503,7 +503,7 @@ void probeDetectionTask(void *pv)
 
     // Log probe events to /probes.jsonl on SD
     {
-        File logFile = SD.open("/probes.jsonl", FILE_APPEND);
+        File logFile = SafeSD::open("/probes.jsonl", FILE_APPEND);
         if (logFile) {
             uint32_t now = getEventTimestamp();
             std::lock_guard<std::mutex> lock(probeMutex);
@@ -533,7 +533,7 @@ void probeDetectionTask(void *pv)
             logFile.close();
 
             // Rotate if over 1MB
-            File check = SD.open("/probes.jsonl", FILE_READ);
+            File check = SafeSD::open("/probes.jsonl", FILE_READ);
             if (check && check.size() > 1048576) {
                 check.close();
                 SD.remove("/probes_old.jsonl");
@@ -720,7 +720,7 @@ void loadProbeDB()
         return;
     }
 
-    File f = SD.open(PROBE_DB_PATH, FILE_READ);
+    File f = SafeSD::open(PROBE_DB_PATH, FILE_READ);
     if (!f) {
         Serial.println("[PROBEDB] Failed to open database");
         return;
@@ -790,7 +790,7 @@ void saveProbeDB()
 {
     std::lock_guard<std::mutex> lock(probeDBMutex);
 
-    File f = SD.open(PROBE_DB_PATH, FILE_WRITE);
+    File f = SafeSD::open(PROBE_DB_PATH, FILE_WRITE);
     if (!f) {
         Serial.println("[PROBEDB] Failed to write database");
         return;

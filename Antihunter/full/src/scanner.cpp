@@ -716,6 +716,8 @@ static void hopTimerCb(void *)
 
     if (WiFi.softAPgetStationNum() > 0) {
         if (hopScanBusy()) return;
+        extern bool baselineDetectionEnabled;
+        if (baselineDetectionEnabled) return;
         idx = (idx + 1) % CHANNELS.size();
         uint8_t ch = CHANNELS[idx];
         if (ch == (uint8_t)AP_CHANNEL) {

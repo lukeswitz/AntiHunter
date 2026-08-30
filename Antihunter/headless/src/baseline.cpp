@@ -277,8 +277,10 @@ static void baselineHarvestWifiActive() {
     }
     if (wifiScan < 0) return;
     for (int i = 0; i < wifiScan && !stopRequested; i++) {
-        const uint8_t *bssidBytes = WiFi.BSSID(i);
-        if (!bssidBytes) continue;
+        uint8_t bssidBytes[6];
+        WiFi.BSSID(i, bssidBytes);
+        if (!(bssidBytes[0] | bssidBytes[1] | bssidBytes[2] |
+              bssidBytes[3] | bssidBytes[4] | bssidBytes[5])) continue;
         String ssid = WiFi.SSID(i);
         if (ssid.length() == 0) ssid = "[Hidden]";
 
@@ -502,7 +504,8 @@ void baselineDetectionTask(void *pv) {
                 break;
             }
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(0, true);
+            bool bleStopped = pBLEScan->stop();
+            NimBLEScanResults scanResults = bleStopped ? pBLEScan->getResults() : NimBLEScanResults();
             
             for (int i = 0; i < scanResults.getCount() && !stopRequested; i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
@@ -529,7 +532,10 @@ void baselineDetectionTask(void *pv) {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
                 }
             }
-            pBLEScan->clearResults();
+            if (bleStopped) {
+                pBLEScan->clearResults();
+                pBLEScan->start(0, false);
+            }
         }
         
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
@@ -652,7 +658,8 @@ void baselineDetectionTask(void *pv) {
                 break;
             }
             
-            NimBLEScanResults scanResults = pBLEScan->getResults(0, true);
+            bool bleStopped = pBLEScan->stop();
+            NimBLEScanResults scanResults = bleStopped ? pBLEScan->getResults() : NimBLEScanResults();
             
             for (int i = 0; i < scanResults.getCount() && !stopRequested; i++) {
                 const NimBLEAdvertisedDevice* device = scanResults.getDevice(i);
@@ -679,7 +686,10 @@ void baselineDetectionTask(void *pv) {
                     Serial.printf("[BASELINE] Failed to parse BLE MAC: %s\n", macStr.c_str());
                 }
             }
-            pBLEScan->clearResults();
+            if (bleStopped) {
+                pBLEScan->clearResults();
+                pBLEScan->start(0, false);
+            }
         }
         
         while (xQueueReceive(macQueue, &h, 0) == pdTRUE && !stopRequested) {
@@ -828,11 +838,17 @@ void cleanupBaselineMemory() {
         }
     }
     
-    // Clean old disappeared devices (beyond reappearance window)
-    if (deviceHistory.size() > 500) {
+    // Bound deviceHistory by free internal heap, not a fixed count: each String key
+    // holds an internal-heap buffer, so the cap must tighten as internal RAM drops.
+    uint32_t histFreeInt = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    size_t histCap = histFreeInt > 100000 ? 1000 :
+                     histFreeInt > 60000  ? 500  :
+                     histFreeInt > 35000  ? 250  :
+                     histFreeInt > 20000  ? 100  : 50;
+    if (deviceHistory.size() > histCap) {
         std::vector<String> toRemove;
         for (const auto& entry : deviceHistory) {
-            if (entry.second.disappearedAt > 0 && 
+            if (entry.second.disappearedAt > 0 &&
                 (now - entry.second.disappearedAt > reappearanceAlertWindow)) {
                 toRemove.push_back(entry.first);
             }
@@ -840,13 +856,13 @@ void cleanupBaselineMemory() {
         for (const auto& key : toRemove) {
             deviceHistory.erase(key);
         }
-        if (deviceHistory.size() > 1000) {
+        if (deviceHistory.size() > histCap) {
             std::vector<std::pair<uint32_t, String>> ages;
             ages.reserve(deviceHistory.size());
             std::transform(deviceHistory.begin(), deviceHistory.end(), std::back_inserter(ages),
                 [](const auto& entry) { return std::make_pair(entry.second.lastSeen, entry.first); });
             std::sort(ages.begin(), ages.end());
-            size_t toCut = deviceHistory.size() - 1000;
+            size_t toCut = deviceHistory.size() - histCap;
             for (size_t i = 0; i < toCut; ++i) deviceHistory.erase(ages[i].second);
         }
     }

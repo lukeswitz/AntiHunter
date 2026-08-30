@@ -119,11 +119,29 @@ bool SafeSD::isAvailable() {
     return checkAvailability();
 }
 
+bool SafeSD::hasHeapForOpen() {
+    return heap_caps_get_free_size(MALLOC_CAP_INTERNAL) >= SD_OPEN_HEAP_FLOOR &&
+           heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) >= SD_OPEN_BLOCK_FLOOR;
+}
+
 fs::File SafeSD::open(const char* path, const char* mode) {
     if (!checkAvailability()) {
         return File();
     }
-    
+
+    // fopen allocates a FILE struct + recursive lock from internal heap; under exhaustion newlib aborts (panic) instead of returning null. Fail soft so callers drop the write.
+    if (!hasHeapForOpen()) {
+        static uint32_t s_lastWarnMs = 0;
+        uint32_t nowMs = millis();
+        if (nowMs - s_lastWarnMs > 5000) {
+            s_lastWarnMs = nowMs;
+            Serial.printf("[SAFE_SD] Low internal heap (%u free, %u max block) - skipping open: %s\n",
+                          (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                          (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), path);
+        }
+        return File();
+    }
+
     fs::File f = SD.open(path, mode);
     if (!f) {
         Serial.printf("[SAFE_SD] Failed to open: %s\n", path);
