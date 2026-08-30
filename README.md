@@ -148,6 +148,7 @@ Every capability runs on the node and reports to the web UI, mesh, and Command C
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
+| **Accent Colors** | Recolor the destructive controls, Sentinel banners and movement hits | Web UI, System tab |
 
 ### Targets & watchlists
 
@@ -564,6 +565,7 @@ Tamper detection and emergency data wiping.
 - **Privacy Mode** - one-click redaction of MACs, GPS, and SSIDs for screenshots (web UI button).
 - **Battery Saver** - stops WiFi/BLE scanning, drops CPU to 80MHz, enables light sleep, polls GPS once per minute; mesh UART stays active. Started via [mesh command](#mesh-commands).
 - **Allowlist** - global device allowlist, ignored across all scan modes (web UI / API).
+- **Accent Colors** - sets the color of the destructive controls (STOP, the wipe buttons, Clear, error toasts, danger badges), of the Sentinel banners and of the movement hit color; five choices each, across all three themes (web UI, System tab). Stored in the browser, not on the node.
 
 ---
 
