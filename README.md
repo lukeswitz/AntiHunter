@@ -547,7 +547,6 @@ Same firmware, same detectors, same [mesh commands](#mesh-commands), same scan e
 | WiFi discovery | Active all-channel sweep plus promiscuous capture on Device Scan, Target Scan, Baseline and Triangulation | Identical |
 | Results | `/results`, rendered as cards in the browser | Same text at `/last_results.txt` on SD |
 | Device database | `/devicedb.jsonl` | Not written |
-| Fleet roster | Fleet tab and `/api/mesh` | Not tracked |
 | RF footprint | AP beacons continuously | Never beacons |
 
 Karma bait is the only detector that transmits, a probe request every 8s. Off by default, enable with `GROUP:rogue:on`. Sentinel `defend` has no AP to pin to on Headless, so use `scan`.
@@ -882,25 +881,6 @@ Any other value is passed through verbatim as `Reason code N`.
 | `/baseline-results` | GET | Baseline anomaly results |
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
-
-### Fleet
-
-The **Fleet** tab lists senders heard on the mesh.
-
-**Nodes** - ids matching the node-id rule (2-5 chars, `A-Z0-9`), with mode, scan state, hits, uptime, temp
-and GPS from their `STATUS` and heartbeat lines. `type` is `RADAR` on `TYPE:RADAR`, else `DIGI`. Online =
-heard within 2 minutes.
-
-**Other Mesh Radios** - every other sender id, including your own paired radio. Tagged `Control` once an
-`@` line is seen from it, `Unknown` otherwise. Also shown in the Sentinel tab.
-
-Rosters hold 48 entries in RAM, dropped after 15 minutes unheard. **Ping Nodes** broadcasts `@ALL STATUS`.
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/mesh` | GET | Fleet roster (JSON: `node`, `peers`, `radios`) |
-| `/api/mesh/ping` | POST | Broadcast `@ALL STATUS` |
-| `/api/mesh/clear` | POST | Clear both rosters |
 
 ### Probe Database
 

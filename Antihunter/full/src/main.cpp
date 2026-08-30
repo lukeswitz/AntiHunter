@@ -59,7 +59,6 @@ void uartForwardTask(void *parameter) {
           meshSplitSender(meshBuffer, senderId, toProcess);
 
           mesh_observeInbound(senderId, toProcess);
-          meshFleetObserve(senderId, toProcess);
 
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);

@@ -483,7 +483,6 @@ R"HTML(
       <div class="page-tabs">
         <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
         <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
-        <div class="page-tab-btn" onclick="switchPage('fleet')">Fleet</div>
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
         <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
 )HTML"
@@ -783,36 +782,6 @@ R"HTML(
           <div style="color:var(--mut);">No baseline data</div>
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
-      </div>
-      </div>
-
-      <div class="page-tab" id="page-fleet">
-      <style>
-        .fl-stats{display:flex;gap:10px 26px;flex-wrap:wrap;flex:1 1 320px;min-width:0}
-        .fl-s{display:flex;flex-direction:column;gap:1px;min-width:0}
-        .fl-s-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);white-space:nowrap}
-        .fl-s-v{font-size:14.5px;color:var(--txt);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .fl-s.wide{flex:1 1 200px;max-width:340px}
-        .fl-s.mono .fl-s-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--mut)}
-        .fl-empty{color:var(--mut);font-size:13px;padding:14px 2px}
-      </style>
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
-          <h3 style="margin:0;">Fleet</h3>
-          <div class="res-toolbar">
-            <span class="res-toolbar-lab" id="fleetCount">--</span>
-            <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
-            <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
-          </div>
-        </div>
-        <div id="fleetList" class="res-list"></div>
-      </div>
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
-          <h3 style="margin:0;">Other Mesh Radios</h3>
-          <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
-        </div>
-        <div id="fleetRadios" class="res-list"></div>
       </div>
       </div>
 
@@ -1494,23 +1463,6 @@ R"HTML(
           </div>
         </div>
 
-        <div class="card" data-key="meshradios">
-          <div class="card-header" onclick="toggleCollapse('meshRadiosCard')">
-            <h3><span class="sev" style="background:#1e3a5f;color:#bfdbfe;">audit</span>Other Mesh Radios <span style="font-size:11px;color:var(--mut);">(senders on this channel that are not AntiHunter nodes)</span></h3>
-            <span class="collapse-icon open" id="meshRadiosCardIcon">&#9654;</span>
-          </div>
-          <div class="card-body" id="meshRadiosCardBody">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-              <span style="font-size:12px;color:var(--mut);">Heard:</span>
-              <span class="num" id="detRadioCount">0</span>
-              <button class="btn alt" onclick="fleetPing()" style="padding:6px 12px;font-size:12px;">Ping Nodes</button>
-              <button class="btn alt" onclick="fleetClear()" style="padding:6px 12px;font-size:12px;">Clear Roster</button>
-            </div>
-            <div id="detRadios" class="res-list"></div>
-            <div style="font-size:11px;color:var(--mut);margin-top:8px;">Serial-attached radio carries text only — no LoRa RSSI, SNR or hop count is available to the node.</div>
-          </div>
-        </div>
-
         <div style="margin:4px 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" data-dtab-target="detectors">
           <input id="det-filter" placeholder="Filter (e.g. deauth, karma, frag)" oninput="detApplyFilters()" style="max-width:240px;">
           <div class="det-chips" id="det-chips">
@@ -2028,121 +1980,11 @@ R"HTML(
 #endif
 R"HTML(
         if (pageName === 'system' && typeof updateBatterySaverStatus === 'function') updateBatterySaverStatus();
-        if ((pageName === 'fleet' || pageName === 'detect') && typeof fleetPoll === 'function') fleetPoll();
       }
       function pageActive(name) {
         var p = document.getElementById('page-' + name);
         return !!(p && p.classList.contains('active'));
       }
-
-      function fleetEsc(s) {
-        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      }
-      function fleetAge(ms) {
-        ms = ms || 0;
-        if (ms < 60000) return Math.round(ms / 1000) + 's';
-        if (ms < 3600000) return Math.round(ms / 60000) + 'm';
-        return Math.round(ms / 3600000) + 'h';
-      }
-      function fleetUptime(sec) {
-        sec = sec || 0;
-        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
-        return h ? (h + 'h ' + m + 'm') : (m + 'm');
-      }
-      function fleetStat(label, value, cls) {
-        return '<div class="fl-s' + (cls ? ' ' + cls : '') + '"><span class="fl-s-l">' + label +
-               '</span><span class="fl-s-v">' + value + '</span></div>';
-      }
-      function fleetNodeCard(p) {
-        var h = '<div class="res-card ' + (p.alive ? 'ok' : '') + '"><div class="res-row-main">';
-        h += '<span class="res-id"><span class="res-mac">' + fleetEsc(p.id) + '</span>';
-        h += '<span class="res-badge ' + (p.type === 'RADAR' ? 'alert' : 'acc') + '">' + fleetEsc(p.type || 'NODE') + '</span>';
-        h += '<span class="res-badge ' + (p.alive ? 'ok' : '') + '">' + (p.alive ? 'Online' : 'Stale') + '</span></span>';
-        h += '<div class="fl-stats">';
-        if (p.mode) h += fleetStat('Mode', fleetEsc(p.mode));
-        if (p.uptime) h += fleetStat('Uptime', fleetUptime(p.uptime));
-        if (p.temp) h += fleetStat('Temp', p.temp + '&deg;C');
-        h += fleetStat(p.type === 'RADAR' ? 'Detections' : 'Hits', p.hits || 0);
-        if (p.alms) h += fleetStat('Alarms', p.alms);
-        if (p.gps) h += fleetStat('Position', p.lat.toFixed(5) + ', ' + p.lon.toFixed(5), 'wide');
-        h += '</div>';
-        h += '<div class="res-metric"><span class="res-metric-val">' + fleetAge(p.age_ms) + '</span><span class="res-metric-lab">Last heard</span></div>';
-        h += '</div></div>';
-        return h;
-      }
-      function fleetRadioCard(r) {
-        var h = '<div class="res-card ' + (r.alive ? 'alert' : '') + '"><div class="res-row-main">';
-        h += '<span class="res-id"><span class="res-mac">' + fleetEsc(r.id) + '</span>';
-        h += '<span class="res-badge ' + (r.ctrl ? 'acc' : '') + '">' + (r.ctrl ? 'Control' : 'Unknown') + '</span></span>';
-        h += '<div class="fl-stats">';
-        h += fleetStat('Msgs', r.msgs);
-        h += fleetStat('First heard', fleetAge(r.first_ms) + ' ago');
-        if (r.last) h += fleetStat('Last line', fleetEsc(r.last), 'wide mono');
-        h += '</div>';
-        h += '<div class="res-metric"><span class="res-metric-val">' + fleetAge(r.age_ms) + '</span><span class="res-metric-lab">Last heard</span></div>';
-        h += '</div></div>';
-        return h;
-      }
-      function fleetFill(el, rows, render, emptyMsg) {
-        if (!el) return;
-        el.innerHTML = rows.length
-          ? rows.map(render).join('')
-          : '<div class="fl-empty">' + emptyMsg + '</div>';
-        if (rows.length && typeof privacyMode !== 'undefined' && privacyMode
-            && typeof applyPrivacyToElement === 'function') applyPrivacyToElement(el);
-      }
-      function fleetRender(d) {
-        var peers = (d && d.peers) || [];
-        var radios = (d && d.radios) || [];
-        var bySeen = function(a, b) { return (b.alive ? 1 : 0) - (a.alive ? 1 : 0) || (a.age_ms - b.age_ms); };
-        peers.sort(bySeen);
-        radios.sort(bySeen);
-        var up = peers.filter(function(p) { return p.alive; }).length;
-        var cnt = document.getElementById('fleetCount');
-        if (cnt) cnt.textContent = peers.length ? (up + '/' + peers.length + ' up') : 'no nodes';
-        var rc = document.getElementById('fleetRadioCount');
-        if (rc) rc.textContent = radios.length ? (radios.length + ' heard') : 'none';
-        var drc = document.getElementById('detRadioCount');
-        if (drc) drc.textContent = radios.length;
-        fleetFill(document.getElementById('fleetList'), peers, fleetNodeCard,
-                  'No other nodes heard on the mesh yet. Press Ping Nodes to broadcast @ALL STATUS.');
-        fleetFill(document.getElementById('fleetRadios'), radios, fleetRadioCard,
-                  'No non-node senders heard.');
-        fleetFill(document.getElementById('detRadios'), radios, fleetRadioCard,
-                  'No non-node senders heard.');
-      }
-      function fleetFetchFailed(e) {
-        console.warn('fleet: /api/mesh request failed', e);
-      }
-      function fleetPoll() {
-        return fetch('/api/mesh').then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        }).then(fleetRender).catch(fleetFetchFailed);
-      }
-      function fleetPing() {
-        var b = document.getElementById('fleetPingBtn');
-        if (b) { b.disabled = true; b.textContent = 'Pinging...'; }
-        fetch('/api/mesh/ping', { method: 'POST' }).then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-        }).catch(function(e) {
-          console.warn('fleet: ping failed', e);
-          toast('Mesh ping failed - is mesh enabled?', 'error');
-        }).then(function() {
-          setTimeout(function() {
-            fleetPoll();
-            if (b) { b.disabled = false; b.textContent = 'Ping Nodes'; }
-          }, 3000);
-        });
-      }
-      function fleetClear() {
-        fetch('/api/mesh/clear', { method: 'POST' }).then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-        }).catch(function(e) {
-          console.warn('fleet: clear failed', e);
-        }).then(fleetPoll);
-      }
-      setInterval(function() { if (pageActive('fleet') || pageActive('detect')) fleetPoll(); }, 5000);
 
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -6178,7 +6020,7 @@ R"HTML(
 
       const DETECTOR_TAB_MAP = {
         'events':'live','sentinel':'live','mesh':'config','config':'config',
-        'overview':'live','apclients':'live','meshcmd':'live','meshradios':'detectors',
+        'overview':'live','apclients':'live','meshcmd':'live',
         'dctl':'detectors','dos':'detectors','rogue':'detectors','recongrp':'detectors',
         'physical':'detectors','meshcfg':'detectors','mesh':'detectors',
         'analysis':'analysis'
