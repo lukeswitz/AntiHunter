@@ -84,6 +84,7 @@
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
 | **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
+| **Accent Colors** | Recolor the destructive controls, Sentinel banners and movement hits | Web UI, System tab |
 
 <p align="center">
 <img height="600" alt="AntiHunter overview" src="docs/img/c5-overview.jpg" />
