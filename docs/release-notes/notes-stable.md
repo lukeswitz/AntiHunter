@@ -32,6 +32,7 @@ The unfixed reboot point matches the field report of 790 devices. The fixed firm
 - Scan Results could stop updating mid-scan while the status card above it kept counting, leaving the two disagreeing on device and anomaly counts. Three silent failure paths removed: `/results` streams the body in chunks from a single PSRAM copy instead of making three internal-heap copies, the results poll aborts a request after 5 s so a hung fetch cannot wedge it for the life of the page, and fetched text is marked as seen only after it renders.
 - Baseline monitoring rebuilt the results body on every received packet and printed a serial line each time. It now rebuilds on its 2 s timer, and only when something changed.
 - Hidden SoftAP. RF Settings checkbox, `apHidden` in NVS, default off, carried in config export and import and on `/wifi-config`. The boot banner reports hidden or broadcast. Hidden stops the beacon; it is not access control.
+- Fleet roster in the web UI.
 - Data Explorer privacy toggle.
 - Accent Colors, in the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts, danger badges — and of the Sentinel banners. Five choices each, applied across all three themes. Held in the browser, not written to the node.
 - On the dark theme the destructive controls are acid lime, was brick red. Light and cyber are unchanged. Brick red is still available under Accent Colors.

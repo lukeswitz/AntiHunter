@@ -976,6 +976,24 @@ void registerRemainingRoutes() {
     req->send(200, "application/json", json);
   });
 
+  server->on("/api/mesh", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send(200, "application/json", meshFleetJson());
+  });
+
+  server->on("/api/mesh/ping", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!meshEnabled) {
+      req->send(409, "application/json", "{\"ok\":false,\"error\":\"mesh disabled\"}");
+      return;
+    }
+    sendMeshCommand("@ALL STATUS");
+    req->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server->on("/api/mesh/clear", HTTP_POST, [](AsyncWebServerRequest *req) {
+    meshFleetClear();
+    req->send(200, "application/json", "{\"ok\":true}");
+  });
+
   server->on("/diag", HTTP_GET, [](AsyncWebServerRequest *r)
              {
         String s = getDiagnostics();
