@@ -2085,7 +2085,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (el && resHasSelection(el)) return;
         resultsPolling = true;
         try {
-          const txt = await (await fetch('/results')).text();
+          const ctl = new AbortController();
+          const to = setTimeout(() => ctl.abort(), 5000);
+          let txt;
+          try { txt = await (await fetch('/results', {signal: ctl.signal})).text(); }
+          finally { clearTimeout(to); }
           resultsSynced = true;
           const placeholder = !txt || txt.trim() === '' || txt.includes('None yet') || txt.includes('No scan data');
           if (radioBusy && placeholder) return;
@@ -2101,8 +2105,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             window._csiJson = null;
           }
           if (txt === lastResultsText && !isCsi) return;
-          lastResultsText = txt;
           renderResults(txt);
+          lastResultsText = txt;
         } catch (e) {
           console.warn('resultsPoll: /results fetch failed', e);
         } finally {
