@@ -42,6 +42,7 @@ The unfixed reboot point (~700) matches the field report (790 devices). The fixe
 - Theme toggle kept in the mobile scan header.
 - Fleet roster in the full web UI.
 - Mesh sender-name handling; emoji sender no longer drops commands (#31).
+- DIGINODE v2 side-charge enclosure prints as one body. `SinglePrintSideChargeHousing.stl` replaces `Complete-Housing-SideCharge.stl`; the tripod inset is centred, geometry is otherwise unchanged.
 
 ## Upgrade notes
 

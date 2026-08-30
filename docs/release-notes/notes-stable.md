@@ -42,6 +42,10 @@ The unfixed reboot point matches the field report of 790 devices. The fixed firm
 
 - Hidden AP toggle for full firmware.
 
+### Hardware
+
+- DIGINODE v2 side-charge enclosure prints as one body. `SinglePrintSideChargeHousing.stl` replaces `Complete-Housing-SideCharge.stl`; the tripod inset is centred, geometry is otherwise unchanged.
+
 ## Upgrade notes
 
 - Flash as usual through the web flasher. S3 stable is on `main`; the C5 build ships through the Experimental channel.
