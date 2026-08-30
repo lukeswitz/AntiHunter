@@ -86,8 +86,8 @@ extern QueueHandle_t anomalyQueue;
 extern int8_t baselineRssiThreshold;
 extern uint32_t baselineRamCacheSize;
 extern uint32_t baselineSdMaxDevices;
-using DeviceHistoryMapPsram = std::map<String, DeviceHistory, std::less<String>,
-    PsramAllocator<std::pair<const String, DeviceHistory>>>;
+using DeviceHistoryMapPsram = std::map<uint64_t, DeviceHistory, std::less<uint64_t>,
+    PsramAllocator<std::pair<const uint64_t, DeviceHistory>>>;
 extern DeviceHistoryMapPsram deviceHistory;
 extern uint32_t deviceAbsenceThreshold;
 extern uint32_t reappearanceAlertWindow;
