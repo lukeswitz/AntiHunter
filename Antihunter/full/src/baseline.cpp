@@ -834,16 +834,16 @@ void baselineDetectionTask(void *pv) {
             updateBaselineDevice(h.mac, h.rssi, h.name, h.isBLE, h.ch);
         }
 
-        if ((int32_t)(millis() - nextResultsUpdate) >= 0 || baselineResultsDirty) {
+        if ((int32_t)(millis() - nextResultsUpdate) >= 0) {
             nextResultsUpdate = millis() + 2000;
-            String resultStr = getBaselineResults();
-            {
-                std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-                antihunter::lastResults = resultStr.c_str();
+            if (baselineResultsDirty) {
+                String resultStr = getBaselineResults();
+                {
+                    std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+                    antihunter::lastResults = resultStr.c_str();
+                }
+                baselineResultsDirty = false;
             }
-            Serial.printf("[BASELINE] Results updated: %d bytes, anomalies=%d, dirty=%s\n",
-                        resultStr.length(), anomalyCount, baselineResultsDirty ? "true" : "false");
-            baselineResultsDirty = false;
         }
 
         if (meshEnabled && millis() - lastMeshUpdate >= MESH_DEVICE_UPDATE_INTERVAL) {
