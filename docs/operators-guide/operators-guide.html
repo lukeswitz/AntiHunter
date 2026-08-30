@@ -688,6 +688,7 @@ python3 scripts/meshtastic_config.py</pre>
     <li><b>Privacy Mode.</b> One click blanks MACs, SSIDs and GPS in the web UI for screenshots and demos. <b>Exports and SD data are not redacted.</b> Scrub those separately.</li>
     <li><b>Allowlist.</b> A global list of devices to ignore across every scan mode. Put your own kit on it.</li>
     <li><b>Battery Saver.</b> Stops WiFi and BLE scanning, drops the CPU to 80 MHz, enables light sleep and polls GPS once a minute. Mesh stays up. Start it with <span class="mono">@AH01 BATTERY_SAVER_START:10</span>.</li>
+    <li><b>Accent Colors.</b> In the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts and danger badges — and of the Sentinel banners. The choice is held in the browser, so a second phone or laptop keeps its own, and the node is not written to.</li>
     <li><b>Mesh dedup TTL.</b> Suppresses re-broadcasting a MAC already sent within the window, default 300 s, max 3600. Saves airtime on repeated scans of the same environment. Never applied to alerts, drone events or triangulation.</li>
   </ul>
 

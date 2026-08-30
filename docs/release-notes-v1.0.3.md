@@ -33,6 +33,8 @@ The unfixed reboot point (~700) matches the field report (790 devices). The fixe
 
 ## Other changes
 
+- Accent Colors, in the System tab. Picks the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts, danger badges — and of the Sentinel banners. Five choices each, applied across all three themes. The choice is stored in the browser, not on the node.
+- On the dark theme, the destructive controls are acid lime instead of brick red. Light and cyber are unchanged. Pick brick red back under Accent Colors if you want it.
 - Data Explorer privacy toggle.
 - Mesh enable state persists across reboot.
 - Theme toggle kept in the mobile scan header.

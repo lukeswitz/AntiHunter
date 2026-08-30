@@ -14,8 +14,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
     <title>AntiHunter</title>
     <style>
       :root{--t:0.2s;--blur:12px}
-      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05)}
-      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#d0685a;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#b86050;--c-err-bg:rgba(184,96,80,0.06)}
+      [data-theme="light"]{--bg:linear-gradient(135deg,#edf1f6 0%,#e2e8ef 100%);--surf:rgba(255,255,255,0.9);--surf-hover:rgba(255,255,255,0.95);--bord:rgba(0,0,0,0.08);--bord-focus:rgba(72,136,204,0.35);--txt:#1a2030;--mut:#6878a0;--acc:#4080c8;--acch:#3068a8;--accbg:rgba(64,128,200,0.07);--succ:#4080c8;--warn:#a07830;--dang:#b0473a;--shad:0 8px 32px rgba(0,0,0,0.06);--shad-hover:0 12px 48px rgba(0,0,0,0.1);--glow:0 0 20px rgba(64,128,200,0.12);--backdrop:blur(12px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.1);--c-wifi:#4080c8;--c-wifi-bg:rgba(64,128,200,0.08);--c-rand:#6878a0;--c-known:#4080c8;--c-away:#a07830;--c-away-bg:rgba(160,120,48,0.07);--c-ap:#4080c8;--c-alert:#a07830;--c-alert-bg:rgba(160,120,48,0.05);--c-ok:#4080c8;--c-err:#a05848;--c-err-bg:rgba(160,88,72,0.05);--dang-glow:rgba(184,96,80,0.2);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
+      [data-theme="dark"]{--bg:linear-gradient(135deg,#0a0e16 0%,#0e1420 100%);--surf:#131a28;--surf-hover:#1a2333;--bord:#2a3550;--bord-focus:rgba(76,141,255,0.5);--txt:#eaf0fa;--mut:#8a97ad;--acc:#4c8dff;--acch:#6ba5ff;--accbg:rgba(76,141,255,0.1);--succ:#60a0e0;--warn:#c09040;--dang:#b9e83c;--shad:0 8px 28px rgba(0,0,0,0.55),0 0 0 1px rgba(76,141,255,0.14),inset 0 1px 0 rgba(255,255,255,0.05);--shad-hover:0 16px 48px rgba(0,0,0,0.7),0 0 0 1px rgba(76,141,255,0.35),inset 0 1px 0 rgba(255,255,255,0.08);--glow:0 0 24px rgba(76,141,255,0.18),0 0 48px rgba(76,141,255,0.06);--backdrop:blur(16px) saturate(180%);--c-ble:#7882a0;--c-ble-bg:rgba(120,130,160,0.12);--c-wifi:#60a0e0;--c-wifi-bg:rgba(96,160,224,0.1);--c-rand:#6878a0;--c-known:#60a0e0;--c-away:#c09040;--c-away-bg:rgba(192,144,64,0.08);--c-ap:#60a0e0;--c-alert:#c09040;--c-alert-bg:rgba(192,144,64,0.06);--c-ok:#60a0e0;--c-err:#a2c95a;--c-err-bg:rgba(162,201,90,0.08);--dang-glow:rgba(185,232,60,0.22);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
       *{box-sizing:border-box;margin:0;padding:0}
       body{background:var(--bg);background-attachment:scroll;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;transition:background var(--t),color var(--t);min-height:100vh}
       .header{padding:16px 18px;border-bottom:1px solid var(--bord);background:var(--surf);display:flex;flex-direction:column;gap:13px;box-shadow:var(--shad);position:sticky;top:0;z-index:100}
@@ -87,7 +87,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .toast{background:var(--surf);backdrop-filter:var(--backdrop);-webkit-backdrop-filter:var(--backdrop);border:2px solid var(--bord);padding:14px 18px;border-radius:8px;box-shadow:var(--shad-hover);opacity:0;transform:translateY(12px);transition:opacity 0.3s,transform 0.3s;font-size:14px;min-width:280px}
       .toast.show{opacity:1;transform:none}
       .toast.success{border-color:var(--succ);box-shadow:0 0 24px rgba(96,160,224,0.2)}
-      .toast.error{border-color:var(--dang);box-shadow:0 0 24px rgba(184,96,80,0.2)}
+      .toast.error{border-color:var(--dang);box-shadow:0 0 24px var(--dang-glow)}
       .toast.warning{border-color:var(--warn);box-shadow:0 0 24px rgba(192,144,64,0.2)}
       .status-bar{display:flex;gap:6px;align-items:center;flex-shrink:1;flex-wrap:wrap;justify-content:flex-end}
       .status-item{background:var(--surf);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--bord);padding:6px 13px;border-radius:999px;font-size:11.5px;font-weight:700;color:var(--mut);transition:border-color .2s,color .2s,background .2s;text-transform:uppercase;letter-spacing:0.03em;display:inline-flex;align-items:center;gap:7px;line-height:1.45;white-space:nowrap;font-variant-numeric:tabular-nums;flex-shrink:0}
@@ -148,7 +148,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       @media(max-width:600px){.header{padding:14px 16px;gap:12px}.header h1{font-size:17px}.page-tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;justify-content:flex-start}.page-tabs::-webkit-scrollbar{display:none}.page-tab-btn{padding:7px 12px;font-size:12px}#scanStatus{min-width:0}.status-item{font-size:10.5px;padding:5px 11px;gap:6px}.status-item::before{width:6px;height:6px}.theme-toggle{flex-shrink:0}.stat-grid,.diag-grid{grid-template-columns:1fr}input,select,textarea{font-size:16px;padding:10px 14px}.btn{padding:10px 16px;font-size:13px}.container{padding:12px}.card{padding:14px}.tab-btn{padding:8px 12px;font-size:12px}#toast{right:12px;bottom:12px;left:12px}.toast{min-width:0;font-size:13px}}
       @media(max-width:820px){.page-tabs{width:100%;justify-content:flex-start}}
       .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#e0604a;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1)}
+      [data-theme="cyber"]{--bg:#000;--surf:rgba(0,20,0,0.8);--surf-hover:rgba(0,30,0,0.9);--bord:#00cc66;--bord-focus:#00ff88;--txt:#00dd77;--mut:#008855;--acc:#00cc66;--acch:#00ff88;--accbg:rgba(0,204,102,0.1);--succ:#00cc66;--warn:#ffcc00;--dang:#e0604a;--shad:0 0 20px rgba(0,204,102,0.3);--shad-hover:0 0 30px rgba(0,204,102,0.5);--glow:0 0 20px rgba(0,204,102,0.4);--backdrop:none;--c-ble:#008855;--c-ble-bg:rgba(0,136,85,0.15);--c-wifi:#00cc66;--c-wifi-bg:rgba(0,204,102,0.1);--c-rand:#008855;--c-known:#00cc66;--c-away:#ffcc00;--c-away-bg:rgba(255,204,0,0.1);--c-ap:#00cc66;--c-alert:#ffcc00;--c-alert-bg:rgba(255,204,0,0.1);--c-ok:#00cc66;--c-err:#ff4444;--c-err-bg:rgba(255,68,68,0.1);--dang-glow:rgba(184,96,80,0.2);--sent-alert-bg:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));--sent-alert-bord:rgba(139,92,246,.45);--sent-head-bg:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08))}
       [data-theme="cyber"] body{font-family:'Courier New',monospace;text-shadow:0 0 2px rgba(0,255,0,0.7)}
       .theme-toggle .terminal{opacity:0;transform:scale(0);stroke:var(--acc);fill:none}
       [data-theme="cyber"] .theme-toggle .sun{opacity:0;transform:rotate(90deg) scale(0)}
@@ -325,10 +325,53 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .res-toolbar .btn svg{width:11px;height:15px}
       @media(max-width:600px){.res-stats{grid-template-columns:1fr 1fr}.res-kvs{grid-template-columns:1fr 1fr}.res-toolbar{width:100%}.res-toolbar select#sortBy{flex:1 1 auto}#deviceScanHeader .res-stats[data-n="3"]{grid-template-columns:repeat(3,1fr);gap:7px}#deviceScanHeader .res-stats[data-n="3"] .res-stat{padding:9px 8px}#deviceScanHeader .res-stats[data-n="3"] .res-stat-val{font-size:16px}}
     </style>
+    <style id="accentScheme"></style>
     <script>
+      const AH_SCHEMES={
+        dang:{
+          magenta:{light:['#b01f6e','#9c2e6d'],dark:['#e64fa6','#cc5f9c'],cyber:['#ff2fbf','#ff6fd0']},
+          orange:{light:['#b04a08','#a05a20'],dark:['#f08a3c','#d4813f'],cyber:['#ff9410','#ffb04a']},
+          cyan:{light:['#0b6f88','#2b7a90'],dark:['#2fd8e8','#5fc4d0'],cyber:['#00e5ff','#5cf0ff']},
+          lime:{light:['#5a7a08','#5f7a24'],dark:['#b9e83c','#a2c95a'],cyber:['#d9ff2e','#e6ff70']}
+        },
+        sent:{
+          teal:['#2dd4bf','#14b8a6'],
+          copper:['#e08a44','#c9903f'],
+          steel:['#94a3b8','#7a8aa3'],
+          ice:['#5fb0f0','#3d8fd6']
+        }
+      };
+      function ahRgba(h,a){const n=parseInt(h.slice(1),16);return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')';}
+      function ahPref(k){
+        try { return localStorage.getItem(k)||'default'; }
+        catch(storageErr){ console.warn('ahPref: localStorage read failed (private mode?)', storageErr); return 'default'; }
+      }
+      function ahSchemeCss(){
+        const d=AH_SCHEMES.dang[ahPref('dangScheme')],s=AH_SCHEMES.sent[ahPref('sentScheme')];
+        let css='';
+        if(d){const bgA={light:'0.06',dark:'0.08',cyber:'0.12'};
+          for(const t in bgA){const p=d[t];
+            css+='[data-theme="'+t+'"]{--dang:'+p[0]+';--c-err:'+p[1]+';--c-err-bg:'+ahRgba(p[1],bgA[t])+';--dang-glow:'+ahRgba(p[0],'0.22')+'}';}}
+        if(s){css+=':root{--sent-alert-bg:linear-gradient(90deg,'+ahRgba(s[0],'.20')+','+ahRgba(s[1],'.10')+');--sent-alert-bord:'+ahRgba(s[0],'.45')+';--sent-head-bg:linear-gradient(135deg,'+ahRgba(s[0],'.18')+','+ahRgba(s[1],'.08')+')}';}
+        return css;
+      }
+      function ahApplyScheme(){
+        const el=document.getElementById('accentScheme');
+        if(el)el.textContent=ahSchemeCss();
+        const ds=document.getElementById('dangSchemeSel'),ss=document.getElementById('sentSchemeSel');
+        if(ds)ds.value=ahPref('dangScheme');
+        if(ss)ss.value=ahPref('sentScheme');
+      }
+      function ahSetScheme(k,v){
+        try { localStorage.setItem(k,v); }
+        catch(storageErr){ console.warn('ahSetScheme: localStorage write failed (private mode?)', storageErr); }
+        ahApplyScheme();
+      }
       let toggleHistory=[];
       function toggleTheme(){const e=document.documentElement,t=e.getAttribute('data-theme'),now=Date.now();e.classList.add('theme-switching');requestAnimationFrame(function(){requestAnimationFrame(function(){e.classList.remove('theme-switching');});});toggleHistory.push(now);toggleHistory=toggleHistory.filter(time=>now-time<2000);if(t==='cyber'){const n=localStorage.getItem('prevTheme')||'light';e.setAttribute('data-theme',n);localStorage.setItem('theme',n);localStorage.removeItem('cyberMode');localStorage.removeItem('prevTheme');toggleHistory=[];return}if(toggleHistory.length>=4&&!localStorage.getItem('cyberMode')){localStorage.setItem('prevTheme',t);e.setAttribute('data-theme','cyber');localStorage.setItem('theme','cyber');localStorage.setItem('cyberMode','1');toggleHistory=[];return}const n='dark'===t?'light':'dark';e.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
       (function(){const e=localStorage.getItem('theme');e?document.documentElement.setAttribute('data-theme',e):document.documentElement.setAttribute('data-theme','light')})();
+      ahApplyScheme();
+      document.addEventListener('DOMContentLoaded',ahApplyScheme);
     </script>
   </head>
   <body>
@@ -1143,6 +1186,50 @@ R"HTML(
         </div>
       </div>
 
+      <!-- Accent Colors -->
+      <div class="card">
+        <div class="card-header" onclick="toggleCollapse('accentCard')">
+          <h3>Accent Colors</h3>
+          <span class="collapse-icon" id="accentCardIcon">&#9654;</span>
+        </div>
+        <div class="card-body collapsed" id="accentCardBody">
+          <p style="font-size:11px;color:var(--mut);margin-bottom:12px;">
+            Recolors the destructive controls and the Sentinel banners. Applies to all three themes. Saved in this browser only, not on the node, so another browser or another node keeps its own choice.
+          </p>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Destructive Controls</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">STOP, the wipe buttons, Clear, error toasts and danger badges. Default is acid lime on dark, brick red on light and cyber.</label>
+            <select id="dangSchemeSel" onchange="ahSetScheme('dangScheme',this.value)">
+              <option value="default">Default</option>
+              <option value="magenta">Magenta</option>
+              <option value="orange">Signal orange</option>
+              <option value="cyan">Electric cyan</option>
+              <option value="lime">Acid lime</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Sentinel Banners</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header and the active-alert strip. Default is violet.</label>
+            <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
+              <option value="default">Default</option>
+              <option value="teal">Teal</option>
+              <option value="copper">Copper</option>
+              <option value="steel">Steel</option>
+              <option value="ice">Ice blue</option>
+            </select>
+          </div>
+
+          <label style="font-size:11px;font-weight:bold;margin-bottom:6px;display:block;">Preview</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+            <span class="btn danger" style="padding:7px 14px;font-size:12px;">STOP</span>
+            <span class="res-badge danger">Deauth</span>
+          </div>
+          <div style="background:var(--sent-alert-bg);border:1px solid var(--sent-alert-bord);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--txt);">Sentinel alert strip</div>
+        </div>
+      </div>
+
       </div>
 
       <div class="page-tab" id="page-data">
@@ -1208,7 +1295,7 @@ R"HTML(
           #page-detect .log-pre{max-height:240px;overflow:auto;font-size:15px;background:var(--surf2,rgba(0,0,0,.15));color:var(--txt);padding:8px;border:1px solid var(--bord);border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
           #page-detect input[type=number],#page-detect input[type=text]{padding:4px 8px;font-size:12px}
           #det-filter{flex:1;min-width:180px;max-width:400px}
-          #det-banner{display:none;background:linear-gradient(90deg,rgba(139,92,246,.20),rgba(168,85,247,.10));border:1px solid rgba(139,92,246,.45);border-radius:6px;padding:8px 10px;margin-bottom:10px}
+          #det-banner{display:none;background:var(--sent-alert-bg);border:1px solid var(--sent-alert-bord);border-radius:6px;padding:8px 10px;margin-bottom:10px}
           #det-banner.show{display:block}
           #det-banner .bn-row{display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0;cursor:pointer}
           #det-banner .bn-row:hover{background:rgba(255,255,255,0.04)}
@@ -1237,7 +1324,7 @@ R"HTML(
           @media (max-width:720px){#det-grid{grid-template-columns:1fr}}
         </style>
 
-        <div style="margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(139,92,246,.18),rgba(168,85,247,.08));border:1px solid var(--bord);border-radius:10px;">
+        <div style="margin-bottom:12px;padding:14px 16px;background:var(--sent-head-bg);border:1px solid var(--bord);border-radius:10px;">
           <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
             <h2 style="margin:0;font-size:20px;letter-spacing:-0.01em;color:var(--txt);">Sentinel</h2>
             <span style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;font-weight:600;">Counterintel Engine</span>

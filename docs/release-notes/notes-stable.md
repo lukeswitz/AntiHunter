@@ -1,32 +1,46 @@
-# AntiHunter v1.0.2 (stable)
+# AntiHunter v1.0.3 (stable)
 
-Stable channel · Previous release v1.0.1 (2026-08-07)
+Stable channel · Previous release v1.0.2 (2026-08-13)
+
+Headline: Baseline Detection no longer reboots under dense RF or on long runs.
 
 ## What's Changed
 
 ### Both FW
 
-- Randomized Device Tracer: a MAC could be linked into a second identity, so tracks listed other tracks' MACs and T- ids. A MAC now stays with the identity that owns it.
-- Randomized Device Tracer: identity files on SD are repaired on load — a MAC held by several identities is dropped from all but its owner.
-- Mesh send interval default 3000 ms, was 5000 ms. NVS seed, no-SD fallback and web field.
-- Device Scan and Probe Scan no longer drop BLE for the whole run when the BLE radio comes up after the scan starts.
-- A slow BLE bring-up is no longer a permanent failure. It used to abort every BLE-only randomization scan until reboot.
-- Target Scan swept one channel per pass, not all of them, reporting a third of what a Device Scan saw. On hardware: Unique 24 before, 70 after, against 75 for a Device Scan.
-- Baseline learns WiFi client stations, not just APs. It ran with promiscuous capture off, so non-APs never entered the baseline.
+- Baseline Detection could reset the device with `[Recovered after reset: PANIC]`, most often in busy areas or after a long scan. Root cause was internal-RAM exhaustion: several baseline paths spent the small internal heap until an allocation failed and the firmware aborted.
+- SD writes fail soft under low heap. Opening a file allocates from internal RAM, and when that RAM is gone the underlying `fopen` aborts instead of returning an error. Every SD open now checks the internal-heap floor first and skips the write if it is too low. Applied to every SD path in the app, not only baseline.
+- BLE result buffer is bounded — 150 in baseline, 200 in the device, probe, triangulation and drone scans. It was unbounded and lived in internal RAM.
+- Device-history table lives in PSRAM. It no longer consumes internal heap as it grows, and is additionally bounded by free heap.
+- Two use-after-free windows closed. Baseline read the BLE result list while the radio task was still writing to it, and held a pointer into the WiFi scan buffer across an allocation that other tasks could free.
+- Radio teardown fixed. Ending a baseline run on Full left promiscuous mode and the channel-hop timer running, and baseline could start competing WiFi scans while active.
+- Mesh enable state persists across reboot.
+- An emoji in the Meshtastic sender name dropped the command (#31).
 
-### Headless FW
+Measured on hardware with a second ESP32 flooding the node with rotating BLE and WiFi devices. The failure point is the total distinct devices tracked when the node rebooted.
 
-- Device Scan, Target Scan and Baseline sweep all channels again. Passive capture replaced the sweep on 2026-07-31 and was never restored here, leaving `WiFi APs=0` over a full minute. After the fix: 53 APs.
-- Target Scan in WiFi+BLE started BLE before the WiFi mode switch landed on top of it, so BLE was skipped.
-- BLE devices advertising Apple continuity are marked `APPLE`, matching Full.
+| Build | Rebooted at | Lowest free internal heap |
+|---|---|---|
+| Unfixed | ~700 devices (`ESP_RST_PANIC`) | 508 bytes |
+| Fixed — ESP32-S3 | 9,200+, no reboot, test stopped | 33,528 bytes |
+| Fixed — ESP32-C5 | 11,375, no reboot, test stopped | 19,884 bytes |
+
+The unfixed reboot point matches the field report of 790 devices. The fixed firmware was pushed to 13–16× that load on both chips without a reboot; the ceiling was not reached.
 
 ### Full FW
 
-- Randomization results: each MAC row and the track header carry that track's own Track ID.
-- Randomization results: Live sessions starts collapsed, stays open once opened, and sits below the Track ID cards.
+- Hidden SoftAP. RF Settings checkbox, `apHidden` in NVS, default off, carried in config export and import and on `/wifi-config`. The boot banner reports hidden or broadcast. Hidden stops the beacon; it is not access control.
+- Fleet roster in the web UI.
+- Data Explorer privacy toggle.
+- Accent Colors, in the System tab. Sets the color of the destructive controls — STOP, the wipe buttons, Clear, error toasts, danger badges — and of the Sentinel banners. Five choices each, applied across all three themes. Held in the browser, not written to the node.
+- On the dark theme the destructive controls are acid lime, was brick red. Light and cyber are unchanged. Brick red is still available under Accent Colors.
+- Theme toggle stays in the mobile scan header.
 
 ### Flasher
 
-- Sentinel & Detectors panel is hidden on Stable. Stable builds with `AH_SENTINEL=0` and silently dropped those keys.
-- `flashAntihunter.sh` no longer clones a third-party esptool. It uses `esptool` or `esptool.py` from your PATH, or prints the apt/dnf/pacman/brew install command and stops.
-- Flashing requires accepting the Legal Disclaimer; the flash button stays disarmed until the box is ticked.
+- Hidden AP toggle for full firmware.
+
+## Upgrade notes
+
+- Flash as usual through the web flasher. S3 stable is on `main`; the C5 build ships through the Experimental channel.
+- No configuration changes are required. Existing baselines on SD are read as-is.
