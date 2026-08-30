@@ -802,6 +802,7 @@ R"HTML(
           <div class="res-toolbar">
             <span class="res-toolbar-lab" id="fleetCount">--</span>
             <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
+            <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
             <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
           </div>
         </div>
@@ -2055,7 +2056,7 @@ R"HTML(
       }
       function fleetNodeCard(p) {
         var h = '<div class="res-card ' + (p.alive ? 'ok' : '') + '"><div class="res-row-main">';
-        h += '<span class="res-id"><span class="res-mac">' + fleetEsc(p.id) + '</span>';
+        h += '<span class="res-id"><span class="res-mac" data-name="' + fleetEsc(p.id) + '">' + fleetEsc(p.id) + '</span>';
         h += '<span class="res-badge ' + (p.type === 'RADAR' ? 'alert' : 'acc') + '">' + fleetEsc(p.type || 'NODE') + '</span>';
         h += '<span class="res-badge ' + (p.alive ? 'ok' : '') + '">' + (p.alive ? 'Online' : 'Stale') + '</span>';
         if (p.self) h += '<span class="res-badge acc">This node</span>';
@@ -2074,7 +2075,7 @@ R"HTML(
       }
       function fleetRadioCard(r) {
         var h = '<div class="res-card ' + (r.alive ? 'alert' : '') + '"><div class="res-row-main">';
-        h += '<span class="res-id"><span class="res-mac">' + fleetEsc(r.id) + '</span>';
+        h += '<span class="res-id"><span class="res-mac" data-name="' + fleetEsc(r.id) + '">' + fleetEsc(r.id) + '</span>';
         h += '<span class="res-badge ' + (r.ctrl ? 'acc' : '') + '">' + (r.ctrl ? 'Control' : 'Unknown') + '</span></span>';
         h += '<div class="fl-stats">';
         h += fleetStat('Msgs', r.msgs);
