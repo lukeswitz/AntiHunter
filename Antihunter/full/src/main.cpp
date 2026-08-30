@@ -55,12 +55,11 @@ void uartForwardTask(void *parameter) {
         if (meshBuffer.length() > 0) {
           Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
 
-          String toProcess, senderId, transportId;
-          meshSplitSender(meshBuffer, senderId, toProcess, &transportId);
+          String toProcess, senderId;
+          meshSplitSender(meshBuffer, senderId, toProcess);
 
           mesh_observeInbound(senderId, toProcess);
           meshFleetObserve(senderId, toProcess);
-          if (transportId.length()) meshFleetObserve(transportId, toProcess);
 
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
