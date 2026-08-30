@@ -1,32 +1,48 @@
-# AntiHunter v1.0.2 (stable)
+# AntiHunter v1.0.3 (stable)
 
-Stable channel · Previous release v1.0.1 (2026-08-07)
+Stable channel · Previous release v1.0.2 (2026-08-13)
+
+**Headline:** Baseline Detection no longer reboots under dense RF or on long runs.
 
 ## What's Changed
 
 ### Both FW
 
-- Randomized Device Tracer: a MAC could be linked into a second identity, so tracks listed other tracks' MACs and T- ids. A MAC now stays with the identity that owns it.
-- Randomized Device Tracer: identity files on SD are repaired on load — a MAC held by several identities is dropped from all but its owner.
-- Mesh send interval default 3000 ms, was 5000 ms. NVS seed, no-SD fallback and web field.
-- Device Scan and Probe Scan no longer drop BLE for the whole run when the BLE radio comes up after the scan starts.
-- A slow BLE bring-up is no longer a permanent failure. It used to abort every BLE-only randomization scan until reboot.
-- Target Scan swept one channel per pass, not all of them, reporting a third of what a Device Scan saw. On hardware: Unique 24 before, 70 after, against 75 for a Device Scan.
-- Baseline learns WiFi client stations, not just APs. It ran with promiscuous capture off, so non-APs never entered the baseline.
+- **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
+- SD writes fail soft under low heap: every SD open checks the internal-heap floor instead of aborting in `fopen`.
+- BLE result buffer bounded — 150 in baseline, 200 in device/probe/triangulation/drone.
+- Device-history table moved to PSRAM and bounded by free heap.
+- Closed two use-after-free windows (baseline vs BLE radio task; WiFi scan-buffer pointer across an alloc).
+- Baseline radio teardown fixed — no leftover promiscuous mode or hop timer, no competing WiFi scans mid-run.
+- Mesh enable persists across reboot.
+- An emoji in the Meshtastic sender name no longer drops the command.
 
-### Headless FW
-
-- Device Scan, Target Scan and Baseline sweep all channels again. Passive capture replaced the sweep on 2026-07-31 and was never restored here, leaving `WiFi APs=0` over a full minute. After the fix: 53 APs.
-- Target Scan in WiFi+BLE started BLE before the WiFi mode switch landed on top of it, so BLE was skipped.
-- BLE devices advertising Apple continuity are marked `APPLE`, matching Full.
+| Build | Rebooted at | Lowest free internal heap |
+|---|---|---|
+| Unfixed | ~700 devices (`ESP_RST_PANIC`) | 508 B |
+| Fixed — ESP32-S3 | 9,200+, no reboot (test stopped) | 33,528 B |
+| Fixed — ESP32-C5 | 11,375, no reboot (test stopped) | 19,884 B |
 
 ### Full FW
 
-- Randomization results: each MAC row and the track header carry that track's own Track ID.
-- Randomization results: Live sessions starts collapsed, stays open once opened, and sits below the Track ID cards.
+- Scan Results no longer stalls mid-scan — `/results` streams from one PSRAM copy, the poll times out at 5 s, and text is marked seen only after it renders.
+- Baseline results rebuild on the 2 s timer and only when something changed (was every packet, with serial spam).
+- **Fleet roster** (System tab): live mesh node/radio roster, a card for this node, per-node mode/uptime/temp/hits/GPS, privacy redaction, collapsible.
+- **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS (default off), carried in config export/import and `/wifi-config`; stops the beacon, not access control.
+- Data Explorer privacy toggle.
+- **Accent Colours** (System tab): recolour the destructive controls and Sentinel banners, five choices across all three themes, held in the browser.
+- Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colours).
+- Theme toggle stays in the mobile scan header.
 
 ### Flasher
 
-- Sentinel & Detectors panel is hidden on Stable. Stable builds with `AH_SENTINEL=0` and silently dropped those keys.
-- `flashAntihunter.sh` no longer clones a third-party esptool. It uses `esptool` or `esptool.py` from your PATH, or prints the apt/dnf/pacman/brew install command and stops.
-- Flashing requires accepting the Legal Disclaimer; the flash button stays disarmed until the box is ticked.
+- Hidden AP toggle for full firmware.
+
+### Hardware
+
+- DIGINODE v2 side-charge enclosure prints as one body — `SinglePrintSideChargeHousing.stl` (tripod inset centred, geometry otherwise unchanged).
+
+## Upgrade notes
+
+- Flash through the web flasher. S3 stable is on `main`; the C5 build ships through the Experimental channel.
+- No configuration changes required. Existing SD baselines are read as-is.
