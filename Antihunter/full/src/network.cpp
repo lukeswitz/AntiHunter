@@ -311,8 +311,12 @@ void startWebServer()
 
   server->on("/results", HTTP_GET, [](AsyncWebServerRequest *r) {
 
-      std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
-      String results = antihunter::lastResults.empty() ? "None yet." : String(antihunter::lastResults.c_str());
+      auto body = std::make_shared<PsramJsonString>();
+      {
+          std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
+          if (antihunter::lastResults.empty()) body->assign("None yet.");
+          else body->assign(antihunter::lastResults.data(), antihunter::lastResults.size());
+      }
 
       if (triangulationActive) {
           static String cachedTriResults = "";
@@ -323,14 +327,24 @@ void startWebServer()
               lastTriCalc = millis();
           }
 
-          if (results.indexOf("=== Triangulation Results") >= 0) {
-              results = cachedTriResults;
+          if (body->find("=== Triangulation Results") != PsramJsonString::npos) {
+              body->assign(cachedTriResults.c_str(), cachedTriResults.length());
           } else {
-              results += "\n\n" + cachedTriResults;
+              body->append("\n\n");
+              body->append(cachedTriResults.c_str(), cachedTriResults.length());
           }
       }
 
-      r->send(200, "text/plain", results);
+      AsyncWebServerResponse *res = r->beginChunkedResponse("text/plain",
+          [body](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+              size_t total = body->size();
+              if (index >= total) return 0;
+              size_t n = total - index;
+              if (n > maxLen) n = maxLen;
+              memcpy(buffer, body->data() + index, n);
+              return n;
+          });
+      r->send(res);
   });
 
   server->on("/save", HTTP_POST, [](AsyncWebServerRequest *req)
