@@ -182,6 +182,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       /* block components self-space so they read right as direct children of #r (sorted result types) */
       .res-hero,.res-card,.res-section,.res-callout{margin-bottom:14px}
       .res-list{display:flex;flex-direction:column;gap:12px}
+      .fl-empty{color:var(--mut);font-size:13px;padding:14px 2px}
       .res-list>.res-card,.res-section-body>.res-card{margin-bottom:0}
       .res-hero{background:linear-gradient(180deg,var(--surf-hover),var(--surf));border:1px solid var(--bord);border-radius:12px;padding:18px 20px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 6px 18px -12px rgba(0,0,0,0.6);position:relative;overflow:hidden}
       .res-hero::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(180deg,var(--bord-focus),transparent 55%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0.5;pointer-events:none}
@@ -483,7 +484,6 @@ R"HTML(
       <div class="page-tabs">
         <div class="page-tab-btn active" onclick="switchPage('scan')">Scan</div>
         <div class="page-tab-btn" onclick="switchPage('results')">Results</div>
-        <div class="page-tab-btn" onclick="switchPage('fleet')">Fleet</div>
         <div class="page-tab-btn" onclick="switchPage('system')">System</div>
         <div class="page-tab-btn" onclick="switchPage('data')">Data</div>
 )HTML"
@@ -786,37 +786,6 @@ R"HTML(
       </div>
       </div>
 
-      <div class="page-tab" id="page-fleet">
-      <style>
-        .fl-stats{display:flex;gap:10px 26px;flex-wrap:wrap;flex:1 1 320px;min-width:0}
-        .fl-s{display:flex;flex-direction:column;gap:1px;min-width:0}
-        .fl-s-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);white-space:nowrap}
-        .fl-s-v{font-size:14.5px;color:var(--txt);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .fl-s.wide{flex:1 1 200px;max-width:340px}
-        .fl-s.mono .fl-s-v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--mut)}
-        .fl-empty{color:var(--mut);font-size:13px;padding:14px 2px}
-      </style>
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
-          <h3 style="margin:0;">Fleet</h3>
-          <div class="res-toolbar">
-            <span class="res-toolbar-lab" id="fleetCount">--</span>
-            <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
-            <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
-            <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
-          </div>
-        </div>
-        <div id="fleetList" class="res-list"></div>
-      </div>
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
-          <h3 style="margin:0;">Other Mesh Radios</h3>
-          <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
-        </div>
-        <div id="fleetRadios" class="res-list"></div>
-      </div>
-      </div>
-
       <div class="page-tab" id="page-system">
 
       <div class="card" style="margin-bottom:16px;">
@@ -839,6 +808,27 @@ R"HTML(
           </div>
           <div id="hardware" class="tab-content"><div id="hardwareDiag">Loading...</div></div>
           <div id="network" class="tab-content"><div id="networkDiag">Loading...</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div>
+            <h3 style="margin:0;">Fleet</h3>
+            <p class="card-sub" style="margin:4px 0 0;">Nodes and mesh radios heard on the mesh</p>
+          </div>
+          <div class="res-toolbar">
+            <span class="res-toolbar-lab" id="fleetCount">--</span>
+            <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
+            <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
+            <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
+          </div>
+        </div>
+        <div id="fleetList" class="res-list" style="margin-top:14px;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
+          <h4 style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Other Mesh Radios</h4>
+          <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
+        </div>
+        <div id="fleetRadios" class="res-list" style="margin-top:12px;"></div>
       </div>
 
     <div class="grid-2" style="margin-bottom:16px;">
@@ -2029,7 +2019,7 @@ R"HTML(
 #endif
 R"HTML(
         if (pageName === 'system' && typeof updateBatterySaverStatus === 'function') updateBatterySaverStatus();
-        if ((pageName === 'fleet' || pageName === 'detect') && typeof fleetPoll === 'function') fleetPoll();
+        if ((pageName === 'system' || pageName === 'detect') && typeof fleetPoll === 'function') fleetPoll();
       }
       function pageActive(name) {
         var p = document.getElementById('page-' + name);
@@ -2051,39 +2041,41 @@ R"HTML(
         return h ? (h + 'h ' + m + 'm') : (m + 'm');
       }
       function fleetStat(label, value, cls) {
-        return '<div class="fl-s' + (cls ? ' ' + cls : '') + '"><span class="fl-s-l">' + label +
-               '</span><span class="fl-s-v">' + value + '</span></div>';
+        return '<div class="res-kv' + (cls ? ' ' + cls : '') + '"><div class="res-kv-lab">' + label +
+               '</div><div class="res-kv-val sm">' + value + '</div></div>';
       }
       function fleetNodeCard(p) {
-        var h = '<div class="res-card ' + (p.alive ? 'ok' : '') + '"><div class="res-row-main">';
+        var h = '<div class="res-card ' + (p.alive ? 'ok' : '') + '"><div class="res-card-head">';
         h += '<span class="res-id"><span class="res-mac" data-name="' + fleetEsc(p.id) + '">' + fleetEsc(p.id) + '</span>';
         h += '<span class="res-badge ' + (p.type === 'RADAR' ? 'alert' : 'acc') + '">' + fleetEsc(p.type || 'NODE') + '</span>';
         h += '<span class="res-badge ' + (p.alive ? 'ok' : '') + '">' + (p.alive ? 'Online' : 'Stale') + '</span>';
         if (p.self) h += '<span class="res-badge acc">This node</span>';
         h += '</span>';
-        h += '<div class="fl-stats">';
+        h += '<div class="res-metric"><span class="res-metric-val">' + fleetAge(p.age_ms) + '</span><span class="res-metric-lab">Last heard</span></div>';
+        h += '</div>';
+        h += '<div class="res-kvs">';
         if (p.mode) h += fleetStat('Mode', fleetEsc(p.mode));
         if (p.uptime) h += fleetStat('Uptime', fleetUptime(p.uptime));
         if (p.temp) h += fleetStat('Temp', p.temp + '&deg;C');
         h += fleetStat(p.type === 'RADAR' ? 'Detections' : 'Hits', p.hits || 0);
         if (p.alms) h += fleetStat('Alarms', p.alms);
-        if (p.gps) h += fleetStat('Position', p.lat.toFixed(5) + ', ' + p.lon.toFixed(5), 'wide');
         h += '</div>';
-        h += '<div class="res-metric"><span class="res-metric-val">' + fleetAge(p.age_ms) + '</span><span class="res-metric-lab">Last heard</span></div>';
-        h += '</div></div>';
+        if (p.gps) h += '<div class="res-note"><span class="res-note-lab">Position</span><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--acc);">' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + '</span></div>';
+        h += '</div>';
         return h;
       }
       function fleetRadioCard(r) {
-        var h = '<div class="res-card ' + (r.alive ? 'alert' : '') + '"><div class="res-row-main">';
+        var h = '<div class="res-card ' + (r.alive ? 'alert' : '') + '"><div class="res-card-head">';
         h += '<span class="res-id"><span class="res-mac" data-name="' + fleetEsc(r.id) + '">' + fleetEsc(r.id) + '</span>';
         h += '<span class="res-badge ' + (r.ctrl ? 'acc' : '') + '">' + (r.ctrl ? 'Control' : 'Unknown') + '</span></span>';
-        h += '<div class="fl-stats">';
+        h += '<div class="res-metric"><span class="res-metric-val">' + fleetAge(r.age_ms) + '</span><span class="res-metric-lab">Last heard</span></div>';
+        h += '</div>';
+        h += '<div class="res-kvs">';
         h += fleetStat('Msgs', r.msgs);
         h += fleetStat('First heard', fleetAge(r.first_ms) + ' ago');
-        if (r.last) h += fleetStat('Last line', fleetEsc(r.last), 'wide mono');
         h += '</div>';
-        h += '<div class="res-metric"><span class="res-metric-val">' + fleetAge(r.age_ms) + '</span><span class="res-metric-lab">Last heard</span></div>';
-        h += '</div></div>';
+        if (r.last) h += '<div class="res-note"><span class="res-note-lab">Last line</span><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--mut);word-break:break-all;">' + fleetEsc(r.last) + '</span></div>';
+        h += '</div>';
         return h;
       }
       function fleetFill(el, rows, render, emptyMsg) {
@@ -2145,7 +2137,7 @@ R"HTML(
           console.warn('fleet: clear failed', e);
         }).then(fleetPoll);
       }
-      setInterval(function() { if (pageActive('fleet') || pageActive('detect')) fleetPoll(); }, 5000);
+      setInterval(function() { if (pageActive('system') || pageActive('detect')) fleetPoll(); }, 5000);
 
       function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
