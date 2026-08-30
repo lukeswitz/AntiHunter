@@ -1914,9 +1914,10 @@ static bool meshIsNodeIdToken(const String &t) {
     return true;
 }
 
-void meshSplitSender(const String &line, String &sender, String &payload) {
+void meshSplitSender(const String &line, String &sender, String &payload, String *transport) {
     sender = "";
     payload = line;
+    if (transport) *transport = "";
     int p = payload.indexOf(": ");
     if (p < 0) return;
     if (p == 0) { payload = payload.substring(2); return; }
@@ -1929,6 +1930,7 @@ void meshSplitSender(const String &line, String &sender, String &payload) {
     }
     int q = rest.indexOf(": ");
     if (q > 0 && meshIsNodeIdToken(rest.substring(0, q))) {
+        if (transport) *transport = first;
         sender = rest.substring(0, q);
         payload = rest.substring(q + 2);
         return;
@@ -2119,6 +2121,26 @@ String meshFleetJson() {
             radios += row;
         }
     }
+    String modeStr = (currentScanMode == SCAN_WIFI) ? "WiFi" : (currentScanMode == SCAN_BLE) ? "BLE" : "WiFi+BLE";
+    String self = "{\"id\":\"" + getNodeId() + "\",\"self\":true";
+    self += ",\"age_ms\":0,\"alive\":true";
+    self += ",\"msgs\":0,\"first_ms\":" + String(millis());
+    self += ",\"type\":\"DIGI\"";
+    self += ",\"mode\":\"" + modeStr + "\"";
+    self += ",\"scan\":\"" + String(scanning.load() ? "ACTIVE" : "IDLE") + "\"";
+    self += ",\"hits\":" + String(totalHits.load());
+    self += ",\"uptime\":" + String(millis() / 1000);
+    self += ",\"temp\":" + String(temperatureRead(), 1);
+    self += ",\"gps\":" + String(gpsValid ? "true" : "false");
+    if (gpsValid) {
+        self += ",\"lat\":" + String(gpsLat, 6);
+        self += ",\"lon\":" + String(gpsLon, 6);
+        self += ",\"hdop\":" + String(gps.hdop.isValid() ? gps.hdop.hdop() : 99.9, 1);
+    }
+    self += "}";
+    if (peers.length()) peers = self + "," + peers;
+    else peers = self;
+
     return "{\"node\":\"" + getNodeId() + "\",\"peers\":[" + peers + "],\"radios\":[" + radios + "]}";
 }
 

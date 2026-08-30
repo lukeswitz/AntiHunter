@@ -2057,7 +2057,9 @@ R"HTML(
         var h = '<div class="res-card ' + (p.alive ? 'ok' : '') + '"><div class="res-row-main">';
         h += '<span class="res-id"><span class="res-mac">' + fleetEsc(p.id) + '</span>';
         h += '<span class="res-badge ' + (p.type === 'RADAR' ? 'alert' : 'acc') + '">' + fleetEsc(p.type || 'NODE') + '</span>';
-        h += '<span class="res-badge ' + (p.alive ? 'ok' : '') + '">' + (p.alive ? 'Online' : 'Stale') + '</span></span>';
+        h += '<span class="res-badge ' + (p.alive ? 'ok' : '') + '">' + (p.alive ? 'Online' : 'Stale') + '</span>';
+        if (p.self) h += '<span class="res-badge acc">This node</span>';
+        h += '</span>';
         h += '<div class="fl-stats">';
         if (p.mode) h += fleetStat('Mode', fleetEsc(p.mode));
         if (p.uptime) h += fleetStat('Uptime', fleetUptime(p.uptime));

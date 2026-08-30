@@ -55,11 +55,12 @@ void uartForwardTask(void *parameter) {
         if (meshBuffer.length() > 0) {
           Serial.printf("[MESH RX] %s\n", meshBuffer.c_str());
 
-          String toProcess, senderId;
-          meshSplitSender(meshBuffer, senderId, toProcess);
+          String toProcess, senderId, transportId;
+          meshSplitSender(meshBuffer, senderId, toProcess, &transportId);
 
           mesh_observeInbound(senderId, toProcess);
           meshFleetObserve(senderId, toProcess);
+          if (transportId.length()) meshFleetObserve(transportId, toProcess);
 
           if (toProcess.startsWith("TIME_SYNC_REQ:")) {
             processMeshTimeSyncWithDelay(senderId, toProcess, lastRxMicros);
@@ -305,6 +306,8 @@ void loop() {
             if (epoch > 1609459200 && setRTCTimeFromEpoch(epoch)) {
                 Serial.println("OK: RTC set");
             }
+        } else if (cmd == "FLEET") {
+            Serial.println(meshFleetJson());
         } else if (cmd.length() > 0 && cmd.length() <= MAX_MESH_SIZE) {
             Serial.printf("[MESH RX] %s\n", cmd.c_str());
             processMeshMessage(cmd);
