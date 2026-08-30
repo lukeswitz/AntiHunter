@@ -2157,10 +2157,9 @@ static bool meshIsNodeIdToken(const String &t) {
     return true;
 }
 
-void meshSplitSender(const String &line, String &sender, String &payload, String *transport) {
+void meshSplitSender(const String &line, String &sender, String &payload) {
     sender = "";
     payload = line;
-    if (transport) *transport = "";
     int p = payload.indexOf(": ");
     if (p < 0) return;
     if (p == 0) { payload = payload.substring(2); return; }
@@ -2173,7 +2172,6 @@ void meshSplitSender(const String &line, String &sender, String &payload, String
     }
     int q = rest.indexOf(": ");
     if (q > 0 && meshIsNodeIdToken(rest.substring(0, q))) {
-        if (transport) *transport = first;
         sender = rest.substring(0, q);
         payload = rest.substring(q + 2);
         return;
