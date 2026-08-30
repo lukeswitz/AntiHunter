@@ -751,7 +751,7 @@ void persistSnapshot() {
     if (!SafeSD::isAvailable()) return;
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     const char *tmpPath = "/detect_state.tmp";
-    File f = SD.open(tmpPath, FILE_WRITE);
+    File f = SafeSD::open(tmpPath, FILE_WRITE);
     if (!f) return;
     SnapHeader h{};
     h.magic = SNAP_MAGIC;
@@ -790,7 +790,7 @@ void persistSnapshot() {
 void loadSnapshot() {
     if (!SafeSD::isAvailable()) return;
     if (!SD.exists(SNAP_PATH)) return;
-    File f = SD.open(SNAP_PATH, FILE_READ);
+    File f = SafeSD::open(SNAP_PATH, FILE_READ);
     if (!f) return;
     SnapHeader h{};
     if (f.read(reinterpret_cast<uint8_t*>(&h), sizeof(h)) != sizeof(h)) { f.close(); return; }
