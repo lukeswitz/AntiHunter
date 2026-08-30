@@ -811,24 +811,29 @@ R"HTML(
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div class="card-header" onclick="toggleCollapse('fleetCard')" style="align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <div>
             <h3 style="margin:0;">Fleet</h3>
             <p class="card-sub" style="margin:4px 0 0;">Nodes and mesh radios heard on the mesh</p>
           </div>
-          <div class="res-toolbar">
-            <span class="res-toolbar-lab" id="fleetCount">--</span>
-            <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
-            <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
-            <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
+          <div style="display:flex;align-items:center;gap:12px;margin-left:auto;">
+            <div class="res-toolbar" onclick="event.stopPropagation()">
+              <span class="res-toolbar-lab" id="fleetCount">--</span>
+              <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
+              <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
+              <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
+            </div>
+            <span class="collapse-icon open" id="fleetCardIcon">&#9654;</span>
           </div>
         </div>
-        <div id="fleetList" class="res-list" style="margin-top:14px;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
-          <h4 style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Other Mesh Radios</h4>
-          <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
+        <div class="card-body" id="fleetCardBody">
+          <div id="fleetList" class="res-list" style="margin-top:14px;"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
+            <h4 style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Other Mesh Radios</h4>
+            <span class="res-toolbar-lab" id="fleetRadioCount">--</span>
+          </div>
+          <div id="fleetRadios" class="res-list" style="margin-top:12px;"></div>
         </div>
-        <div id="fleetRadios" class="res-list" style="margin-top:12px;"></div>
       </div>
 
     <div class="grid-2" style="margin-bottom:16px;">
@@ -2105,6 +2110,8 @@ R"HTML(
                   'No non-node senders heard.');
         fleetFill(document.getElementById('detRadios'), radios, fleetRadioCard,
                   'No non-node senders heard.');
+        var fb = document.getElementById('fleetCardBody');
+        if (fb && !fb.classList.contains('collapsed')) fb.style.maxHeight = 'none';
       }
       function fleetFetchFailed(e) {
         console.warn('fleet: /api/mesh request failed', e);
