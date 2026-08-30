@@ -2651,6 +2651,7 @@ static void bleInitTask(void *pv) {
     pBLEScan->setScanCallbacks(new MyBLEScanCallbacks(), true);
     pBLEScan->setActiveScan(true);
     pBLEScan->setDuplicateFilter(false);
+    pBLEScan->setMaxResults(200);
     Serial.printf("[BLE_INIT] ready (heap=%u psram=%u)\n",
                   (unsigned)ESP.getFreeHeap(),
                   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
