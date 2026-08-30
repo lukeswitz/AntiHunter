@@ -814,19 +814,19 @@ R"HTML(
         <div class="card-header" onclick="toggleCollapse('fleetCard')" style="align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <div>
             <h3 style="margin:0;">Fleet</h3>
-            <p class="card-sub" style="margin:4px 0 0;">Nodes and mesh radios heard on the mesh</p>
+            <p class="card-sub" style="margin:4px 0 0;">Nodes and mesh radios heard on the mesh channel</p>
           </div>
           <div style="display:flex;align-items:center;gap:12px;margin-left:auto;">
-            <div class="res-toolbar" onclick="event.stopPropagation()">
-              <span class="res-toolbar-lab" id="fleetCount">--</span>
-              <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
-              <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
-              <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
-            </div>
+            <span class="res-toolbar-lab" id="fleetCount">--</span>
             <span class="collapse-icon open" id="fleetCardIcon">&#9654;</span>
           </div>
         </div>
         <div class="card-body" id="fleetCardBody">
+          <div class="res-toolbar" style="margin-top:14px;justify-content:flex-end;">
+            <button class="btn" type="button" id="fleetPingBtn" onclick="fleetPing()">Ping Nodes</button>
+            <button class="btn alt privacy-toggle" type="button" onclick="togglePrivacy()"></button>
+            <button class="btn alt" type="button" onclick="fleetClear()">Clear</button>
+          </div>
           <div id="fleetList" class="res-list" style="margin-top:14px;"></div>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 0;padding-top:16px;border-top:1px solid var(--bord);">
             <h4 style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);">Other Mesh Radios</h4>
@@ -1708,7 +1708,7 @@ R"HTML(
 )HTML"
 #endif
 R"HTML(
-      <div align="center" class="footer">v1.0.2 Stable | Node: <span id="footerNodeId">--</span></div>
+      <div align="center" class="footer">v1.0.3 Stable | Node: <span id="footerNodeId">--</span></div>
     
       <script>
       let tickRunning = false;
