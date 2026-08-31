@@ -2,8 +2,6 @@
 
 Stable channel · Previous release v1.0.2 (2026-08-13)
 
-**Headline:** Baseline Detection no longer reboots under dense RF or on long runs.
-
 ## What's Changed
 
 ### Both FW
