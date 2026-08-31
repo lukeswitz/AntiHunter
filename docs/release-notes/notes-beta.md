@@ -2,12 +2,14 @@
 
 Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
-**Headline:** CSI motion detection, and Baseline Detection no longer reboots under dense RF or on long runs.
+**Headline:** Packet capture to SD, CSI motion detection, and Baseline Detection no longer reboots under dense RF or on long runs.
 
 ## What's Changed
 
 ### Both FW
 
+- **Packet capture to SD** (full + headless): writes a standard pcap Wireshark opens. WiFi frames carry a full radiotap header with channel, data rate and RSSI; BLE advertisements are written as link-layer PDUs so they dissect as ADV_IND, ADV_DIRECT_IND and SCAN_RSP. Band select on C5 covers 2.4 GHz, 5 GHz or both. `PCAP_START:radio:secs:band[:FOREVER]` and `PCAP_STOP` over mesh, vibration auto-scan mode 8, or the Scan tab.
+- **Sentinel attack response**: pick which actions run on a confirmed attack with a source MAC — triangulate, packet capture, device discovery, probe sweep, drone RID — each with its own duration. Only one can hold the radio, so several selected run in that order one at a time as the radio frees up. Automatic captures are pruned against a size budget and a free-space floor.
 - **CSI motion detection** (full + headless): device-free WiFi motion sensing on the WiDetect ACF statistic, per-area strength, no calibration; `CSI_CFG` config, `CSI_MOTION:`/`CSI_CLEAR:` mesh debounced to two lines per episode.
 - **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
 - SD writes fail soft under low heap: every SD open checks the internal-heap floor instead of aborting in `fopen`.
@@ -36,8 +38,11 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 - Data Explorer privacy toggle.
 - **Accent Colours** (System tab): recolour the destructive controls, Sentinel banners and the movement hit colour, five choices across all three themes, held in the browser.
 - Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colours).
+- **Captures list** on the Scan tab: collapsible, one line per file with size, download and delete, delete-all behind a confirmation, and the file being recorded cannot be deleted.
+- Recon & Detection method list regrouped into Recon, Detection and Capture.
 - Clearing results clears the CSI history with it.
 - Theme toggle stays in the mobile scan header.
+- Fixed an unclosed container element in the web UI markup.
 
 ### Flasher
 

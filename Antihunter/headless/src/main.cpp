@@ -313,6 +313,7 @@ void loop() {
         sentinel_resumeAfterScan();
     }
     s_scanWasBusy = scanBusyNow;
+    attack_responsePump();
 
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {
         saveConfiguration();
