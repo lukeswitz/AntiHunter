@@ -862,6 +862,11 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">CSI_MOTION_START</span></td><td>Detect movement in the room</td><td><span class="mono">secs[:FOREVER][:CH&lt;n&gt;][:TELEM][:RAW]</span></td></tr>
+    <tr><td><span class="mono">CSI_CFG</span></td><td>Tune the motion trigger</td><td><span class="mono">trigger:hold_ms:consec:channel</span></td></tr>
+    <tr><td><span class="mono">CSI_STATUS</span> and <span class="mono">CSI_JSON</span></td><td>Dump motion state to serial</td><td>None</td></tr>
+    <tr><td><span class="mono">CSI_RECAL</span></td><td>Drop a saved trigger</td><td>None</td></tr>
+    <tr><td><span class="mono">CSI_EXCLUDE</span></td><td>Ignore one MAC for motion</td><td><span class="mono">&lt;MAC&gt;</span> or <span class="mono">NONE</span></td></tr>
+    <tr><td><span class="mono">MESH_TX_CANCEL</span></td><td>Drop queued mesh traffic, keep scanning</td><td>None</td></tr>
     <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
@@ -877,7 +882,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">GROUP</span></td><td>Toggle a detector group</td><td><span class="mono">&lt;dos|rogue|recon|physical|mesh|all&gt;:&lt;on|off&gt;</span></td></tr>
     <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>Set or dump detector tunables</td><td>JSON, 180 characters or fewer</td></tr>
     <tr><td><span class="mono">INCIDENTS</span> and <span class="mono">INCIDENTS_CLEAR</span></td><td>Dump or clear the incident log</td><td><span class="mono">[:1-200]</span></td></tr>
-    <tr><td><span class="mono">ATTACKER_TRILAT</span></td><td>Triangulate a confirmed attacker</td><td>1 or 0, off by default</td></tr>
+    <tr><td><span class="mono">ATTACKER_TRILAT</span> and <span class="mono">ATTACKER_TRILAT_STATUS</span></td><td>Triangulate a confirmed attacker, or report the setting</td><td>1 or 0, off by default</td></tr>
   </table>
 
   <h3>Security, power and heartbeat</h3>

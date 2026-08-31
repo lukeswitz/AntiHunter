@@ -639,6 +639,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CSI_CFG` | Tune the motion trigger | `trigger:hold_ms:consec:channel` | `@ALL CSI_CFG:0.10:5000:3:0` |
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
 | `CSI_RECAL` | Drop a saved trigger | None | `@ALL CSI_RECAL` |
+| `CSI_EXCLUDE` | Ignore one MAC for motion | `<MAC>` or `NONE` | `@ALL CSI_EXCLUDE:AA:BB:CC:DD:EE:FF` |
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
 | `MESH_TX_CANCEL` | Drop queued mesh traffic, keep scanning | None | `@ALL MESH_TX_CANCEL` |
 
