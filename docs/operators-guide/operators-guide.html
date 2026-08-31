@@ -779,16 +779,7 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL TRIANGULATE_STOP</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
-  <h3>9.10 CSI Motion Detection</h3>
-  <p>Detects a person moving through a room from how their body disturbs the WiFi already in the air. Transmits nothing, needs no calibration. Indoor only: it works off signals bouncing between walls and furniture.</p>
-  <pre>@ALL CSI_MOTION_START:300
-@ALL CSI_MOTION_START:300:CH11</pre>
-  <p>Leave the channel at 0 and the node pins the busiest one for the run; the web UI moves with it, so rejoin there. Two links must agree before it calls motion, so one glitching radio cannot raise an alert. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
-  <div class="box"><span class="t">Do not tune the trigger</span>
-    <p>It is derived, not learned, so the default is correct everywhere. A location that reads wrong is nearly always a channel with no traffic on it.</p>
-  </div>
-
-  <h3>9.11 Packet Capture</h3>
+  <h3>9.10 Packet Capture</h3>
   <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a full radiotap header with channel, rate and RSSI; BLE advertisements are written as link-layer PDUs, so Wireshark dissects them properly.</p>
   <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
   <pre>@ALL PCAP_START:0:300:0
@@ -798,7 +789,7 @@ python3 scripts/meshtastic_config.py</pre>
     <p>A busy channel fills megabytes per minute. Check free space before a long run, and treat the file as a raw intercept.</p>
   </div>
 
-  <h3>9.12 Reading the results</h3>
+  <h3>9.11 Reading the results</h3>
   <ul>
     <li><b>SD card, both builds.</b> Scan results in <span class="mono">/last_results.txt</span>, the probe database, vibration events in <span class="mono">/vibrations.jsonl</span>, packet captures in <span class="mono">/pcap</span>, sentinel incidents and the scan logs. Logging does not depend on which firmware you flashed.</li>
     <li><b>Web UI, Full only.</b> The Results tab renders each scan as cards, and the API serves the same content as plain text.</li>
@@ -924,12 +915,11 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DRONE_START</span></td><td>Watch for drone Remote ID</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
-    <tr><td><span class="mono">CSI_MOTION_START</span></td><td>Detect movement in the room</td><td><span class="mono">secs[:FOREVER][:CH&lt;n&gt;][:TELEM][:RAW]</span></td></tr>
     <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
-  <p>Mode is 0 WiFi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP radio 0 WiFi / 1 BLE, band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
+  <p>Mode is 0 WiFi, 1 BLE, 2 both. PCAP radio 0 WiFi / 1 BLE; band is 2.4 GHz on this build.</p>
 
   <h3>Sentinel</h3>
   <table class="tight">

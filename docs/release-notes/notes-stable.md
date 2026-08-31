@@ -8,7 +8,7 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
 
 ### Both FW
 
-- **Packet capture to SD** (full + headless): writes a standard pcap Wireshark opens. WiFi frames carry a full radiotap header with channel, data rate and RSSI; BLE advertisements are written as link-layer PDUs so they dissect as ADV_IND, ADV_DIRECT_IND and SCAN_RSP. Band select on C5 covers 2.4 GHz, 5 GHz or both. `PCAP_START:radio:secs:band[:FOREVER]` and `PCAP_STOP` over mesh, or the Scan tab.
+- **Packet capture to SD** (full + headless): writes a standard pcap Wireshark opens. WiFi frames carry a full radiotap header with channel, data rate and RSSI; BLE advertisements are written as link-layer PDUs so they dissect as ADV_IND, ADV_DIRECT_IND and SCAN_RSP. Start it from the Scan tab, or over mesh with `PCAP_START:radio:secs:band[:FOREVER]` and `PCAP_STOP`.
 - **Sentinel attack response**: pick which actions run on a confirmed attack with a source MAC — triangulate, packet capture, device discovery, probe sweep, drone RID — each with its own duration. Only one can hold the radio, so several selected run in that order one at a time as the radio frees up. Automatic captures are pruned against a size budget and a free-space floor.
 - **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
 - SD writes fail soft under low heap: every SD open checks the internal-heap floor instead of aborting in `fopen`.
@@ -34,7 +34,7 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
 - Data Explorer privacy toggle.
 - **Accent Colours** (System tab): recolour the destructive controls and Sentinel banners, five choices across all three themes, held in the browser.
 - Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colours).
-- **Captures list** on the Scan tab: collapsible, one line per file with size, download and delete, delete-all behind a confirmation, and the file being recorded cannot be deleted.
+- **Captures list** on the Scan tab: collapsible, one row per file with a WiFi or BLE icon, the capture time, size, and download and delete icons. Delete-all sits behind a confirmation, and the file being recorded cannot be deleted.
 - Recon & Detection method list regrouped into Recon, Detection and Capture.
 - Theme toggle stays in the mobile scan header.
 - Fixed an unclosed container element in the web UI markup.
