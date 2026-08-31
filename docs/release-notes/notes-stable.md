@@ -2,8 +2,6 @@
 
 Stable channel · Previous release v1.0.2 (2026-08-13)
 
-**Headline:** Packet capture to SD, and Baseline Detection no longer reboots under dense RF or on long runs.
-
 ## What's Changed
 
 ### Both FW
@@ -32,8 +30,8 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
 - **Fleet roster** (System tab): live mesh node/radio roster, a card for this node, per-node mode/uptime/temp/hits/GPS, privacy redaction, collapsible.
 - **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS (default off), carried in config export/import and `/wifi-config`; stops the beacon, not access control.
 - Data Explorer privacy toggle.
-- **Accent Colours** (System tab): recolour the destructive controls and Sentinel banners, five choices across all three themes, held in the browser.
-- Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colours).
+- **Accent Colors** (System tab): recolor the destructive controls and Sentinel banners, five choices across all three themes, held in the browser.
+- Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colors).
 - **Captures list** on the Scan tab: collapsible, one row per file with a WiFi or BLE icon, the capture time, size, and download and delete icons. Delete-all sits behind a confirmation, and the file being recorded cannot be deleted.
 - Recon & Detection method list regrouped into Recon, Detection and Capture.
 - Theme toggle stays in the mobile scan header.
@@ -45,7 +43,7 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
 
 ### Hardware
 
-- DIGINODE v2 side-charge enclosure prints as one body — `SinglePrintSideChargeHousing.stl` (tripod inset centred, geometry otherwise unchanged).
+- DIGINODE v2 side-charge enclosure prints as one body — `SinglePrintSideChargeHousing.stl` (tripod inset centered, geometry otherwise unchanged).
 
 ## Upgrade notes
 

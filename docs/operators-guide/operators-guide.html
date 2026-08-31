@@ -294,7 +294,7 @@
   <div class="box tier"><span class="t">Tier 1: Fully Assembled Unit</span>
   <ol style="margin-bottom:0">
     <li>Remove the back cover and fit two flat-top 18650 batteries the right way round. A small red LED on the UPS board lights when batteries are present.</li>
-    <li>Screw on the antennas: WiFi left, LoRa right, GPS centre. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing. §2.3</li>
+    <li>Screw on the antennas: WiFi left, LoRa right, GPS center. Finger tight, then an eighth of a turn. Never power the node with the LoRa antenna missing. §2.3</li>
     <li>Flash AntiHunter on the ESP32 over USB, Full or Headless. §5</li>
     <li>Set the LoRa region on the radio. It ships UNSET, which is receive only, and the node will not answer over mesh until you set it. §7.2</li>
     <li>Change the Bluetooth pairing pin on the radio. Every unit ships with the same one. §7.4</li>
@@ -364,7 +364,7 @@
     <p>On an enclosed build, decide which bulkhead carries LoRa and which carries WiFi, then wire every node you build the same way. It does not matter which you choose. It matters that a spare antenna always fits the port you expect in the field.</p>
   </div>
 
-  <figure class="half"><img src="img/sma-orientation.jpg" alt=""><figcaption>The two SMA bulkheads with the power switch centred between them.</figcaption></figure>
+  <figure class="half"><img src="img/sma-orientation.jpg" alt=""><figcaption>The two SMA bulkheads with the power switch centered between them.</figcaption></figure>
 
   <div class="box warn">
     <span class="t">Match your antennas across nodes</span>
@@ -437,7 +437,7 @@
   <h2 id="s4"><span class="num">4</span>First power-on</h2>
 
   <h3>4.1 What a healthy boot looks like</h3>
-  <p>Connect a USB-C cable to the <b>ESP32</b> only, remembering one USB at a time, and open a serial monitor at 115200 baud. On boot the firmware prints its banner and version, then the results of its hardware checks: SD card, GPS, RTC, vibration sensor. Any module that failed to initialise says so by name.</p>
+  <p>Connect a USB-C cable to the <b>ESP32</b> only, remembering one USB at a time, and open a serial monitor at 115200 baud. On boot the firmware prints its banner and version, then the results of its hardware checks: SD card, GPS, RTC, vibration sensor. Any module that failed to initialize says so by name.</p>
   <p>If you flashed the <b>Full</b> firmware, a WiFi access point named <span class="mono">Antihunter</span> also appears within a few seconds.</p>
 
   <h3>4.2 Confirming the hardware</h3>
@@ -538,7 +538,7 @@ pio run -e AntiHunter-full -t erase -t upload  <span class="c"># clean flash</sp
     <li>Click <b>Watch</b> → <b>Custom</b> → tick <b>Releases</b> → Apply. You now get an email or notification for every release, without the noise of every commit.</li>
     <li>Read the release notes before flashing: <span class="mono">docs/release-notes/notes-stable.md</span> and <span class="mono">notes-beta.md</span> in the repository, and on each release page.</li>
   </ol>
-  <p>Discussions and issues on the same repository are where behaviour changes, hardware alternatives and field reports get talked through.</p>
+  <p>Discussions and issues on the same repository are where behavior changes, hardware alternatives and field reports get talked through.</p>
 
   <h3>6.3 Updating a deployed node</h3>
   <ol>
@@ -649,7 +649,7 @@ python3 scripts/meshtastic_config.py</pre>
   <ul>
     <li><b>AP SSID and password.</b> The defaults <span class="mono">Antihunter</span> and <span class="mono">antihunt3r123</span> are published. Change both under <b>RF Settings</b>.</li>
     <li><b>Hidden network.</b> Off by default. Turn it on under <b>RF Settings</b> and the node stops beaconing its SSID, so the AP does not appear in a scan of the area. It is not access control. A hidden SSID forces the client to send directed probe requests carrying the network name, so the phone or laptop you connect with advertises that name everywhere it goes afterwards. The WPA2/WPA3 passphrase is still what keeps people out. The node reboots on save and you type the SSID by hand to reconnect.</li>
-    <li><b>Erase PSK.</b> The pre-shared key that authorises remote erase and factory reset. Set it if you plan to use secure data destruction (§10.4). Mesh: <span class="mono">@AH01 CONFIG_ERASE_PSK:yourkey</span>.</li>
+    <li><b>Erase PSK.</b> The pre-shared key that authorizes remote erase and factory reset. Set it if you plan to use secure data destruction (§10.4). Mesh: <span class="mono">@AH01 CONFIG_ERASE_PSK:yourkey</span>.</li>
     <li><b>Meshtastic BLE pairing PIN.</b> Set a fixed PIN or turn BLE off entirely.</li>
   </ul>
 
@@ -873,7 +873,7 @@ python3 scripts/meshtastic_config.py</pre>
 
   <h4>Factory reset</h4>
   <pre>@AH01 FACTORY_RESET:FULL:yourEraseKey    <span class="c"># FULL | CONFIG | DATA</span></pre>
-  <p>Single node only, and it requires the erase PSK you set in §8.1. Without a PSK set, there is no credential to authorise it.</p>
+  <p>Single node only, and it requires the erase PSK you set in §8.1. Without a PSK set, there is no credential to authorize it.</p>
 
   <div class="box warn"><span class="t">Data destruction is irreversible</span>
     <p>Test your settings with a node that holds nothing you care about. A wipe cannot be undone, and the countdown is short by design.</p>
@@ -902,7 +902,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">CONFIG_DEDUP_TTL</span></td><td>Set cross-scan MAC dedup</td><td>0 to 3600 s, 0 disables</td></tr>
     <tr><td><span class="mono">CONFIG_SESSION_DEDUP</span></td><td>Toggle per-session dedup</td><td>0 or 1</td></tr>
     <tr><td><span class="mono">MESH_DEDUP_CLEAR</span></td><td>Clear the dedup cache</td><td>None</td></tr>
-    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Set the key that authorises a wipe</td><td>1 to 64 characters</td></tr>
+    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Set the key that authorizes a wipe</td><td>1 to 64 characters</td></tr>
   </table>
 
   <h3>Scanning</h3>
@@ -1038,7 +1038,7 @@ docker compose up -d --build</pre>
     <li>Point the vented lid and fan opening downward or shielded so water does not sit in them.</li>
   </ul>
   <div class="row">
-    <figure><img src="../img/hw-enclosure-top.jpg" alt=""><figcaption>An enclosed build with the antennas vertical and the switch centred.</figcaption></figure>
+    <figure><img src="../img/hw-enclosure-top.jpg" alt=""><figcaption>An enclosed build with the antennas vertical and the switch centered.</figcaption></figure>
     <figure><img src="../img/hw-enclosure-side.jpg" alt=""><figcaption>Vented lid, SMA bulkheads on top, battery housing below.</figcaption></figure>
   </div>
 
@@ -1082,7 +1082,7 @@ docker compose up -d --build</pre>
     <tr><td>Node scans forever</td><td>A scan was started with <span class="mono">:FOREVER</span> or duration 0</td><td><span class="mono">@ALL STOP</span>, or the Stop button in the UI.</td></tr>
     <tr><td>Settings gone after flashing</td><td>Erase Device was ticked</td><td>Reconfigure. Settings mirror to the SD card and self-heal, but a deliberate erase clears NVS.</td></tr>
     <tr><td>Node hot to the touch</td><td>Normal under sustained scanning</td><td>Fit the fan and thermal switch, ventilate the enclosure, consider a relaxed preset.</td></tr>
-    <tr><td>Detections with no coordinates</td><td>No valid GPS fix at the time</td><td>Expected behaviour. Position is only attached when the fix is valid.</td></tr>
+    <tr><td>Detections with no coordinates</td><td>No valid GPS fix at the time</td><td>Expected behavior. Position is only attached when the fix is valid.</td></tr>
     <tr><td>Weak GPS, LoRa or WiFi signal</td><td>The SMA joint on the pigtail is loose. Some pigtails are two-piece and the connector screws onto the bulkhead, and they ship loose from the factory</td><td>Hold the bulkhead and tighten the pigtail's SMA joint, then re-check the U.FL end and the antenna. Check every pigtail, not only the one that looks wrong.</td></tr>
   </table>
 

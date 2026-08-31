@@ -34,8 +34,8 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 - **Fleet roster** (System tab): live mesh node/radio roster, a card for this node, per-node mode/uptime/temp/hits/GPS, privacy redaction, collapsible.
 - **Hidden SoftAP**: RF Settings toggle, `apHidden` in NVS (default off), carried in config export/import and `/wifi-config`; stops the beacon, not access control.
 - Data Explorer privacy toggle.
-- **Accent Colours** (System tab): recolour the destructive controls, Sentinel banners and the movement hit colour, five choices across all three themes, held in the browser.
-- Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colours).
+- **Accent Colors** (System tab): recolor the destructive controls, Sentinel banners and the movement hit color, five choices across all three themes, held in the browser.
+- Dark theme destructive controls are now acid lime (was brick red; still selectable under Accent Colors).
 - Clearing results clears the CSI history with it.
 - Theme toggle stays in the mobile scan header.
 
