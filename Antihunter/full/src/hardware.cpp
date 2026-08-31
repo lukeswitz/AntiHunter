@@ -3,6 +3,7 @@
 #include "baseline.h"
 #include "triangulation.h"
 #include "detect.h"
+#include "pcap.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -382,6 +383,7 @@ void initializeHardware()
     
     randomSeed(esp_random());
     loadRFConfigFromPrefs();
+    loadPcapPrefs();
     
     meshSendInterval = prefs.getULong("meshInterval", 3000);
     if (meshSendInterval < 1500 || meshSendInterval > 60000) {

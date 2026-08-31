@@ -230,6 +230,12 @@ std::atomic<bool> g_csaQuietEnabled{true};
 std::atomic<bool> g_ridSpoofEnabled{false};
 std::atomic<bool> g_bloomGossipEnabled{false};
 std::atomic<bool> g_attackerTrilatEnabled{false};
+std::atomic<uint8_t> g_attackRespMask{0};
+std::atomic<uint16_t> g_arSecsTrilat{60};
+std::atomic<uint16_t> g_arSecsPcap{120};
+std::atomic<uint16_t> g_arSecsDevice{60};
+std::atomic<uint16_t> g_arSecsProbe{60};
+std::atomic<uint16_t> g_arSecsDrone{60};
 
 // Per-feature mesh broadcast — 15 flags for 19 canonical events
 std::atomic<bool> g_meshDeauth{true};      // DEAUTH_FORGE, DEAUTH_FLOOD, DEAUTH_AP_TARGETED
@@ -2885,6 +2891,10 @@ void detect_setSelfApIdentity(const uint8_t mac[6], const char *ssid) { ah_detec
 bool detect_isSelfApMac(const uint8_t *mac)  { return ah_detect::detect_isSelfApMac(mac); }
 String attacker_getActiveHuntsJson()         { return ah_detect::attacker_getActiveHuntsJson(); }
 void attacker_clearHunts()                   { ah_detect::attacker_clearHunts(); }
+void attack_responseArm(const uint8_t *m, const char *t) { ah_detect::attack_responseArm(m, t); }
+void attack_responseCancel()                 { ah_detect::attack_responseCancel(); }
+void attack_responsePump()                   { ah_detect::attack_responsePump(); }
+uint8_t attack_responsePending()             { return ah_detect::attack_responsePending(); }
 size_t attacker_huntCount()                  { return ah_detect::attacker_huntCount(); }
 void attacker_setCooldown(uint32_t ms)       { ah_detect::attacker_setCooldown(ms); detect_persistTunables(); }
 String hshk_getReconJson()                   { return ah_detect::hshk_getReconJson(); }
@@ -2980,6 +2990,12 @@ void initializeDetect() {
             if ((v = p.getUShort("deauTgt", 0))) ah_detect::g_deauthTargetedThresh.store(v);
             if ((v = p.getUShort("pflRTot", 0))) ah_detect::g_probeRandTotalThresh.store(v);
             if ((v = p.getUShort("pflRDst", 0))) ah_detect::g_probeRandDistinctThresh.store(v);
+            ah_detect::g_attackRespMask.store(p.getUChar("arMask", 0));
+            if ((v = p.getUShort("arTri", 0))) ah_detect::g_arSecsTrilat.store(v);
+            if ((v = p.getUShort("arPcap", 0))) ah_detect::g_arSecsPcap.store(v);
+            if ((v = p.getUShort("arDev", 0))) ah_detect::g_arSecsDevice.store(v);
+            if ((v = p.getUShort("arProbe", 0))) ah_detect::g_arSecsProbe.store(v);
+            if ((v = p.getUShort("arDrone", 0))) ah_detect::g_arSecsDrone.store(v);
             ah_detect::g_karmaEnabled.store(p.getBool("karmaOn", false));
             uint32_t w;
             if ((w = p.getULong("huntCool", 0))) ah_detect::g_huntCooldown.store(w);
@@ -3311,6 +3327,12 @@ void detect_persistTunables() {
     p.putBool("ridOn", ah_detect::g_ridSpoofEnabled.load());
     p.putBool("blmgOn", ah_detect::g_bloomGossipEnabled.load());
     p.putBool("trlOn", ah_detect::g_attackerTrilatEnabled.load());
+    p.putUChar("arMask", ah_detect::g_attackRespMask.load());
+    p.putUShort("arTri", ah_detect::g_arSecsTrilat.load());
+    p.putUShort("arPcap", ah_detect::g_arSecsPcap.load());
+    p.putUShort("arDev", ah_detect::g_arSecsDevice.load());
+    p.putUShort("arProbe", ah_detect::g_arSecsProbe.load());
+    p.putUShort("arDrone", ah_detect::g_arSecsDrone.load());
     p.putBool("mDeauth", ah_detect::g_meshDeauth.load());
     p.putBool("mBeacon", ah_detect::g_meshBeacon.load());
     p.putBool("mAuth", ah_detect::g_meshAuth.load());
@@ -4553,6 +4575,12 @@ String detect_getConfigJson() {
     j += _ijson("probe_rand_total", g_probeRandTotalThresh.load());
     j += _ijson("probe_rand_distinct", g_probeRandDistinctThresh.load());
     j += _ijson("hunt_cooldown_ms", g_huntCooldown.load());
+    j += _ijson("attack_resp_mask", g_attackRespMask.load());
+    j += _ijson("ar_secs_trilat", g_arSecsTrilat.load());
+    j += _ijson("ar_secs_pcap", g_arSecsPcap.load());
+    j += _ijson("ar_secs_device", g_arSecsDevice.load());
+    j += _ijson("ar_secs_probe", g_arSecsProbe.load());
+    j += _ijson("ar_secs_drone", g_arSecsDrone.load());
     j += "}";
     return j;
 }
@@ -4635,6 +4663,12 @@ bool detect_setConfigFromJson(const String &b) {
     _seti(b, "probe_rand_total", g_probeRandTotalThresh);
     _seti(b, "probe_rand_distinct", g_probeRandDistinctThresh);
     _setu32(b, "hunt_cooldown_ms", g_huntCooldown);
+    _setu8(b, "attack_resp_mask", g_attackRespMask);
+    _seti(b, "ar_secs_trilat", g_arSecsTrilat);
+    _seti(b, "ar_secs_pcap", g_arSecsPcap);
+    _seti(b, "ar_secs_device", g_arSecsDevice);
+    _seti(b, "ar_secs_probe", g_arSecsProbe);
+    _seti(b, "ar_secs_drone", g_arSecsDrone);
     return true;
 }
 String detect_getHealthJson() {

@@ -700,7 +700,7 @@ static void handlePcapStop(const String &command)
   (void)command;
   stopAllScans();
   Serial.println("[MESH] Packet capture stop received via mesh");
-  sendToSerial1(nodeId + ": PCAP_ACK:STOPPED", true);
+  sendToSerial1(nodeId + ": PCAP_STOP_ACK:OK", true);
 }
 
 static void handleDeviceScanStart(const String &command)

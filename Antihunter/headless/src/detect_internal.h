@@ -73,6 +73,16 @@ extern PsramMap<String, ReconAlert> g_recon;
 
 // ---- Feature globals defined in detect_features.cpp ----
 extern std::atomic<uint32_t> g_huntCooldown;
+extern std::atomic<uint8_t> g_attackRespMask;
+void attack_responseArm(const uint8_t *mac, const char *attackType);
+void attack_responseCancel();
+void attack_responsePump();
+uint8_t attack_responsePending();
+extern std::atomic<uint16_t> g_arSecsTrilat;
+extern std::atomic<uint16_t> g_arSecsPcap;
+extern std::atomic<uint16_t> g_arSecsDevice;
+extern std::atomic<uint16_t> g_arSecsProbe;
+extern std::atomic<uint16_t> g_arSecsDrone;
 extern std::atomic<uint32_t> g_krackEvents;
 extern PsramVec<String> g_baitSsids;
 extern PsramMap<uint64_t, HandshakeReconstruction> g_hshk;

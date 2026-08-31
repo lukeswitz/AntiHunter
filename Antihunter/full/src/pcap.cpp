@@ -9,6 +9,7 @@
 #include <esp_wifi.h>
 #include <esp_heap_caps.h>
 #include <NimBLEDevice.h>
+#include <Preferences.h>
 #include <mutex>
 #include <vector>
 
@@ -57,6 +58,35 @@ static uint32_t g_baseEpoch = 0;
 static uint32_t g_baseMicros = 0;
 static String g_path;
 static std::mutex g_pathMutex;
+static bool g_autoTriggered = false;
+static std::atomic<uint32_t> g_autoBudgetMB{512};
+static std::atomic<uint32_t> g_freeFloorMB{256};
+
+void setPcapAutoTriggered(bool autoTriggered) { g_autoTriggered = autoTriggered; }
+uint32_t getPcapAutoBudgetMB() { return g_autoBudgetMB.load(); }
+uint32_t getPcapFreeFloorMB() { return g_freeFloorMB.load(); }
+
+void setPcapAutoLimits(uint32_t budgetMB, uint32_t freeFloorMB) {
+    if (budgetMB < 16) budgetMB = 16;
+    if (budgetMB > 262144) budgetMB = 262144;
+    if (freeFloorMB > 262144) freeFloorMB = 262144;
+    g_autoBudgetMB.store(budgetMB);
+    g_freeFloorMB.store(freeFloorMB);
+    Preferences p;
+    if (p.begin("ahpcap", false)) {
+        p.putUInt("budMB", budgetMB);
+        p.putUInt("floorMB", freeFloorMB);
+        p.end();
+    }
+}
+
+void loadPcapPrefs() {
+    Preferences p;
+    if (!p.begin("ahpcap", true)) return;
+    g_autoBudgetMB.store(p.getUInt("budMB", 512));
+    g_freeFloorMB.store(p.getUInt("floorMB", 256));
+    p.end();
+}
 
 bool pcapDualBandCapable() {
 #ifdef ARDUINO_XIAO_ESP32C5
@@ -352,6 +382,72 @@ static bool pcapRadioStartWifi() {
     return true;
 }
 
+static uint64_t pcapSdFreeBytes() {
+    const uint64_t total = SD.totalBytes();
+    const uint64_t used = SD.usedBytes();
+    return (total > used) ? (total - used) : 0ULL;
+}
+
+static uint32_t pcapPruneAuto() {
+    if (!SafeSD::isAvailable()) return 0;
+
+    std::vector<String> names;
+    std::vector<uint32_t> sizes;
+    uint64_t autoTotal = 0;
+
+    fs::File dir = SafeSD::open(PCAP_DIR);
+    if (!dir || !dir.isDirectory()) {
+        if (dir) dir.close();
+        return 0;
+    }
+    for (fs::File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+        if (!f.isDirectory()) {
+            String name = f.name();
+            const int slash = name.lastIndexOf('/');
+            if (slash >= 0) name = name.substring(slash + 1);
+            if (name.startsWith("auto_") && name.endsWith(".pcap")) {
+                names.push_back(name);
+                sizes.push_back((uint32_t)f.size());
+                autoTotal += (uint64_t)f.size();
+            }
+        }
+        f.close();
+    }
+    dir.close();
+
+    for (size_t i = 1; i < names.size(); i++) {
+        String kn = names[i];
+        uint32_t ks = sizes[i];
+        size_t j = i;
+        while (j > 0 && names[j - 1] > kn) {
+            names[j] = names[j - 1];
+            sizes[j] = sizes[j - 1];
+            j--;
+        }
+        names[j] = kn;
+        sizes[j] = ks;
+    }
+
+    const uint64_t budget = (uint64_t)g_autoBudgetMB.load() * 1024ULL * 1024ULL;
+    const uint64_t floor = (uint64_t)g_freeFloorMB.load() * 1024ULL * 1024ULL;
+    uint64_t freeNow = pcapSdFreeBytes();
+
+    uint32_t removed = 0;
+    for (size_t i = 0; i < names.size(); i++) {
+        if (autoTotal <= budget && freeNow >= floor) break;
+        if (!pcapDeleteFile(names[i])) continue;
+        autoTotal = (autoTotal > sizes[i]) ? (autoTotal - sizes[i]) : 0ULL;
+        freeNow += sizes[i];
+        removed++;
+    }
+    if (removed) {
+        Serial.printf("[PCAP] Pruned %u auto capture%s (budget %uMB, free floor %uMB)\n",
+                      removed, removed == 1 ? "" : "s",
+                      (unsigned)g_autoBudgetMB.load(), (unsigned)g_freeFloorMB.load());
+    }
+    return removed;
+}
+
 static String pcapMakePath() {
     String stamp = getFormattedTimestamp();
     String safe;
@@ -362,7 +458,7 @@ static String pcapMakePath() {
         else safe += c;
     }
     if (safe.length() == 0) safe = String(millis());
-    return String(PCAP_DIR) + "/ah_" + safe +
+    return String(PCAP_DIR) + "/" + (g_autoTriggered ? "auto_" : "ah_") + safe +
            (g_radio == PCAP_RADIO_BLE ? "_ble.pcap" : "_wifi.pcap");
 }
 
@@ -386,6 +482,81 @@ static bool pcapWriteGlobalHeader(fs::File &f) {
 String getPcapFilePath() {
     std::lock_guard<std::mutex> lock(g_pathMutex);
     return g_path;
+}
+
+bool pcapNameIsValid(const String &name) {
+    if (name.length() < 6 || name.length() > 64) return false;
+    if (!name.endsWith(".pcap")) return false;
+    for (size_t i = 0; i < name.length(); i++) {
+        const char c = name[i];
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                        (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+        if (!ok) return false;
+    }
+    return name.indexOf("..") < 0;
+}
+
+String getPcapListJson() {
+    String j = "[";
+    if (!SafeSD::isAvailable()) return j + "]";
+
+    fs::File dir = SafeSD::open(PCAP_DIR);
+    if (!dir || !dir.isDirectory()) {
+        if (dir) dir.close();
+        return j + "]";
+    }
+
+    const String activePath = g_active ? getPcapFilePath() : String("");
+    bool first = true;
+    for (fs::File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+        if (f.isDirectory()) { f.close(); continue; }
+        String name = f.name();
+        const int slash = name.lastIndexOf('/');
+        if (slash >= 0) name = name.substring(slash + 1);
+        if (!name.endsWith(".pcap")) { f.close(); continue; }
+        if (!first) j += ",";
+        first = false;
+        j += "{\"name\":\"" + jsonEscape(name) + "\",\"size\":" + String((uint32_t)f.size());
+        j += ",\"active\":" + String(activePath.endsWith(name) ? "true" : "false") + "}";
+        f.close();
+    }
+    dir.close();
+    return j + "]";
+}
+
+bool pcapDeleteFile(const String &name) {
+    if (!pcapNameIsValid(name) || !SafeSD::isAvailable()) return false;
+    const String path = String(PCAP_DIR) + "/" + name;
+    if (g_active && getPcapFilePath() == path) return false;
+    if (!SafeSD::exists(path.c_str())) return false;
+    return SafeSD::remove(path.c_str());
+}
+
+uint32_t pcapDeleteAll() {
+    if (!SafeSD::isAvailable()) return 0;
+
+    std::vector<String> names;
+    fs::File dir = SafeSD::open(PCAP_DIR);
+    if (!dir || !dir.isDirectory()) {
+        if (dir) dir.close();
+        return 0;
+    }
+    for (fs::File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+        if (!f.isDirectory()) {
+            String name = f.name();
+            const int slash = name.lastIndexOf('/');
+            if (slash >= 0) name = name.substring(slash + 1);
+            if (name.endsWith(".pcap")) names.push_back(name);
+        }
+        f.close();
+    }
+    dir.close();
+
+    uint32_t removed = 0;
+    for (const String &n : names) {
+        if (pcapDeleteFile(n)) removed++;
+    }
+    return removed;
 }
 
 static String pcapSummary(bool inProgress) {
@@ -421,6 +592,9 @@ String getPcapStatusJson() {
     j += ",\"elapsed\":" + String((((g_active ? millis() : g_endMs) - g_startMs) / 1000));
     j += ",\"file\":\"" + jsonEscape(getPcapFilePath()) + "\"";
     j += ",\"sd\":" + String(SafeSD::isAvailable() ? "true" : "false");
+    j += ",\"budgetMB\":" + String(g_autoBudgetMB.load());
+    j += ",\"floorMB\":" + String(g_freeFloorMB.load());
+    j += ",\"freeMB\":" + String(SafeSD::isAvailable() ? (uint32_t)(pcapSdFreeBytes() / (1024ULL * 1024ULL)) : 0);
     j += "}";
     return j;
 }
@@ -433,6 +607,7 @@ static void pcapAbort(const char *why) {
     }
     pcapBleEnabled.store(false);
     pcapFreeBuffers();
+    g_autoTriggered = false;
     scanning = false;
     scanSetCountdown(0, false);
     workerTaskHandle = nullptr;
@@ -440,7 +615,7 @@ static void pcapAbort(const char *why) {
 }
 
 void pcapCaptureTask(void *pv) {
-    sentinel_kill();
+    sentinel_yieldAndWait(1500);
 
     int duration = static_cast<int>(reinterpret_cast<intptr_t>(static_cast<int *>(pv)));
     bool forever = (duration <= 0);
@@ -452,6 +627,13 @@ void pcapCaptureTask(void *pv) {
     if (!SafeSD::exists(PCAP_DIR) && !SafeSD::mkdir(PCAP_DIR)) {
         pcapAbort("Could not create /pcap on SD");
         return;
+    }
+    if (g_autoTriggered) {
+        pcapPruneAuto();
+        if (pcapSdFreeBytes() < (uint64_t)g_freeFloorMB.load() * 1024ULL * 1024ULL) {
+            pcapAbort("SD below the free-space floor - auto capture skipped");
+            return;
+        }
     }
     if (!pcapAllocBuffers()) {
         pcapAbort("Capture buffer allocation failed");
@@ -588,6 +770,7 @@ void pcapCaptureTask(void *pv) {
     logToSD("PCAP: " + getPcapFilePath() + " frames=" + String(g_frames.load()) +
             " bytes=" + String(g_bytes.load()) + " dropped=" + String(g_dropped.load()));
 
+    g_autoTriggered = false;
     scanning = false;
     scanSetCountdown(0, false);
     workerTaskHandle = nullptr;

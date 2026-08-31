@@ -760,6 +760,13 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
   <figure class="third"><img src="../img/sentinel.jpg" alt=""><figcaption>The Sentinel tab: a live counter per detector, the associated AP clients it has seen, and the session incident log.</figcaption></figure>
 
+  <h4>Acting on a confirmed attack</h4>
+  <p>The <b>On confirmed attack</b> panel picks what runs when a detector confirms an attack with a source MAC: triangulate, packet capture, device discovery, probe sweep, drone RID, each with its own duration. Only one can hold the radio, so several ticked run in that order, one at a time, as it frees up. The queue is dropped after 15 minutes if the radio never frees.</p>
+  <p>Same panel sets the auto-capture budget. Captures made this way are <span class="mono">auto_</span> files, pruned oldest-first to stay inside the budget and keep the card's free-space floor. Manual captures are never touched.</p>
+  <div class="box warn"><span class="t">A response is a scan</span>
+    <p>Detection pauses for the duration of each action. On a site that trips often, keep the durations short.</p>
+  </div>
+
   <h3>9.8 Drone Remote ID</h3>
   <p>Identifies drones broadcasting Remote ID (ODID / ASTM F3411, and French ID) over both WiFi beacon/NAN and BLE. Reports the serial or CAA registration, position, altitude and speed, and the operator's location when the aircraft broadcasts it.</p>
   <pre>@ALL DRONE_START:300</pre>
@@ -772,9 +779,28 @@ python3 scripts/meshtastic_config.py</pre>
 @ALL TRIANGULATE_STOP</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
-  <h3>9.10 Reading the results</h3>
+  <h3>9.10 CSI Motion Detection</h3>
+  <p>Detects a person moving through a room from how their body disturbs the WiFi already in the air. Transmits nothing, needs no calibration. Indoor only: it works off signals bouncing between walls and furniture.</p>
+  <pre>@ALL CSI_MOTION_START:300
+@ALL CSI_MOTION_START:300:CH11</pre>
+  <p>Leave the channel at 0 and the node pins the busiest one for the run; the web UI moves with it, so rejoin there. Two links must agree before it calls motion, so one glitching radio cannot raise an alert. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
+  <div class="box"><span class="t">Do not tune the trigger</span>
+    <p>It is derived, not learned, so the default is correct everywhere. A location that reads wrong is nearly always a channel with no traffic on it.</p>
+  </div>
+
+  <h3>9.11 Packet Capture</h3>
+  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a full radiotap header with channel, rate and RSSI; BLE advertisements are written as link-layer PDUs, so Wireshark dissects them properly.</p>
+  <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
+  <pre>@ALL PCAP_START:0:300:0
+@ALL PCAP_STOP</pre>
+  <p>Arguments are radio, seconds, band. Radio 0 WiFi, 1 BLE. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, and a management-frames-only filter.</p>
+  <div class="box warn"><span class="t">Captures are large and carry everything</span>
+    <p>A busy channel fills megabytes per minute. Check free space before a long run, and treat the file as a raw intercept.</p>
+  </div>
+
+  <h3>9.12 Reading the results</h3>
   <ul>
-    <li><b>SD card, both builds.</b> Scan results in <span class="mono">/last_results.txt</span>, the probe database, vibration events in <span class="mono">/vibrations.jsonl</span>, sentinel incidents and the scan logs. Logging does not depend on which firmware you flashed.</li>
+    <li><b>SD card, both builds.</b> Scan results in <span class="mono">/last_results.txt</span>, the probe database, vibration events in <span class="mono">/vibrations.jsonl</span>, packet captures in <span class="mono">/pcap</span>, sentinel incidents and the scan logs. Logging does not depend on which firmware you flashed.</li>
     <li><b>Web UI, Full only.</b> The Results tab renders each scan as cards, and the API serves the same content as plain text.</li>
     <li><b>Device database, Full only.</b> <span class="mono">/devicedb.jsonl</span> is what the Data Explorer browses. Headless does not write it.</li>
     <li><b>Mesh.</b> Every alert above, plus <span class="mono">SCAN_DONE:</span> summaries carrying <span class="mono">TX=</span> broadcast and <span class="mono">DUP=</span> deduplicated counts.</li>
@@ -828,8 +854,9 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td>1</td><td>All-device scan</td><td>5</td><td>Drone / Remote ID</td></tr>
     <tr><td>2</td><td>Probe-request detect</td><td>6</td><td>Deauth (blue team)</td></tr>
     <tr><td>3</td><td>Randomized-MAC detect</td><td>7</td><td>Baseline anomaly</td></tr>
+    <tr><td></td><td></td><td>8</td><td>Packet capture to SD</td></tr>
   </table>
-  <p>Duration 0 means run until stopped. The trigger is skipped if a scan is already running or the node is in battery saver.</p>
+  <p>Duration 0 means run until stopped. The trigger is skipped if a scan is already running or the node is in battery saver. Mode 8 writes an <span class="mono">auto_</span> capture, which is subject to the auto-capture budget rather than kept forever.</p>
 
   <h3>10.4 Tamper auto-erase</h3>
   <p>The node can destroy its own data when it is moved. This is <b>off by default</b>, and it is permanent and irreversible.</p>
@@ -875,56 +902,59 @@ python3 scripts/meshtastic_config.py</pre>
 
   <h3>Configuration</h3>
   <table class="tight">
-    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
-    <tr><td><span class="mono">CONFIG_TARGETS</span></td><td>Pipe-delimited MACs, OUI prefixes or SSIDs</td></tr>
-    <tr><td><span class="mono">CONFIG_NODEID</span></td><td>2 to 5 alphanumeric characters</td></tr>
-    <tr><td><span class="mono">CONFIG_RSSI</span></td><td>Threshold, −128 to −10</td></tr>
-    <tr><td><span class="mono">CONFIG_CHANNELS</span></td><td>Comma-separated list or range, e.g. <span class="mono">1..11</span></td></tr>
-    <tr><td><span class="mono">CONFIG_BAND</span></td><td>C5 only: 0 = 2.4 GHz, 1 = 5 GHz, 2 = both</td></tr>
-    <tr><td><span class="mono">CONFIG_DEDUP_TTL</span></td><td>0 to 3600 s. 0 disables cross-scan MAC dedup</td></tr>
-    <tr><td><span class="mono">CONFIG_SESSION_DEDUP</span></td><td>0 or 1, per-session dedup</td></tr>
-    <tr><td><span class="mono">MESH_DEDUP_CLEAR</span></td><td>Clear the dedup cache</td></tr>
-    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>1 to 64 characters, authorises erase and factory reset</td></tr>
+    <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">CONFIG_TARGETS</span></td><td>Set the watchlist</td><td>Pipe-delimited MACs, OUIs or SSIDs</td></tr>
+    <tr><td><span class="mono">CONFIG_NODEID</span></td><td>Rename the node</td><td>2 to 5 alphanumeric characters</td></tr>
+    <tr><td><span class="mono">CONFIG_RSSI</span></td><td>Set the RSSI floor</td><td>−128 to −10</td></tr>
+    <tr><td><span class="mono">CONFIG_CHANNELS</span></td><td>Set the channels to sweep</td><td>List or range, e.g. <span class="mono">1..11</span></td></tr>
+    <tr><td><span class="mono">CONFIG_BAND</span></td><td>Pick the band, C5 only</td><td>0 = 2.4 GHz, 1 = 5 GHz, 2 = both</td></tr>
+    <tr><td><span class="mono">CONFIG_DEDUP_TTL</span></td><td>Set cross-scan MAC dedup</td><td>0 to 3600 s, 0 disables</td></tr>
+    <tr><td><span class="mono">CONFIG_SESSION_DEDUP</span></td><td>Toggle per-session dedup</td><td>0 or 1</td></tr>
+    <tr><td><span class="mono">MESH_DEDUP_CLEAR</span></td><td>Clear the dedup cache</td><td>None</td></tr>
+    <tr><td><span class="mono">CONFIG_ERASE_PSK</span></td><td>Set the key that authorises a wipe</td><td>1 to 64 characters</td></tr>
   </table>
 
   <h3>Scanning</h3>
   <table class="tight">
-    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
-    <tr><td><span class="mono">SCAN_START</span></td><td><span class="mono">mode:secs:channels[:FOREVER]</span>, mode 0 WiFi, 1 BLE, 2 both</td></tr>
-    <tr><td><span class="mono">DEVICE_SCAN_START</span></td><td><span class="mono">mode:secs[:FOREVER[:+PROBE]]</span></td></tr>
-    <tr><td><span class="mono">PROBE_START</span> and <span class="mono">PROBE_STOP</span></td><td><span class="mono">mode:secs[:FOREVER][:+ALL]</span></td></tr>
-    <tr><td><span class="mono">BASELINE_START</span> and <span class="mono">BASELINE_STATUS</span></td><td><span class="mono">duration[:FOREVER]</span>, minimum 60 s</td></tr>
-    <tr><td><span class="mono">DRONE_START</span></td><td><span class="mono">secs[:FOREVER]</span></td></tr>
-    <tr><td><span class="mono">DEAUTH_START</span></td><td><span class="mono">secs[:FOREVER]</span></td></tr>
-    <tr><td><span class="mono">RANDOMIZATION_START</span></td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
-    <tr><td><span class="mono">TRIANGULATE_START</span></td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
-    <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>None</td></tr>
+    <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">SCAN_START</span></td><td>Hunt the watchlist</td><td><span class="mono">mode:secs:channels[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">DEVICE_SCAN_START</span></td><td>List everything in range</td><td><span class="mono">mode:secs[:FOREVER[:+PROBE]]</span></td></tr>
+    <tr><td><span class="mono">PROBE_START</span> and <span class="mono">PROBE_STOP</span></td><td>Collect probe requests</td><td><span class="mono">mode:secs[:FOREVER][:+ALL]</span></td></tr>
+    <tr><td><span class="mono">BASELINE_START</span> and <span class="mono">BASELINE_STATUS</span></td><td>Learn the area, then flag changes</td><td><span class="mono">duration[:FOREVER]</span>, min 60 s</td></tr>
+    <tr><td><span class="mono">DRONE_START</span></td><td>Watch for drone Remote ID</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">CSI_MOTION_START</span></td><td>Detect movement in the room</td><td><span class="mono">secs[:FOREVER][:CH&lt;n&gt;][:TELEM][:RAW]</span></td></tr>
+    <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
+    <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
+  <p>Mode is 0 WiFi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP radio 0 WiFi / 1 BLE, band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
 
   <h3>Sentinel</h3>
   <table class="tight">
-    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
-    <tr><td><span class="mono">SENTINEL_ON</span>, <span class="mono">SENTINEL_OFF</span>, <span class="mono">SENTINEL_STATUS</span></td><td>None</td></tr>
-    <tr><td><span class="mono">SENTINEL_MODE</span></td><td><span class="mono">defend</span> to pin a channel, or <span class="mono">scan</span> to hop. Persisted</td></tr>
-    <tr><td><span class="mono">SENTINEL_BOOT</span></td><td>1 or 0, auto-start on boot</td></tr>
-    <tr><td><span class="mono">GROUP</span></td><td><span class="mono">&lt;dos|rogue|recon|physical|mesh|all&gt;:&lt;on|off&gt;</span></td></tr>
-    <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>JSON tunables, 180 characters or fewer. GET dumps to serial</td></tr>
-    <tr><td><span class="mono">INCIDENTS</span> and <span class="mono">INCIDENTS_CLEAR</span></td><td><span class="mono">[:1-200]</span>, dump to serial or clear the log</td></tr>
-    <tr><td><span class="mono">ATTACKER_TRILAT</span></td><td>1 or 0, auto-triangulate a confirmed attacker's MAC. Off by default</td></tr>
+    <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">SENTINEL_ON</span>, <span class="mono">SENTINEL_OFF</span>, <span class="mono">SENTINEL_STATUS</span></td><td>Start, stop, report</td><td>None</td></tr>
+    <tr><td><span class="mono">SENTINEL_MODE</span></td><td>Pin a channel or hop</td><td><span class="mono">defend</span> or <span class="mono">scan</span></td></tr>
+    <tr><td><span class="mono">SENTINEL_BOOT</span></td><td>Auto-start at power-on</td><td>1 or 0</td></tr>
+    <tr><td><span class="mono">GROUP</span></td><td>Toggle a detector group</td><td><span class="mono">&lt;dos|rogue|recon|physical|mesh|all&gt;:&lt;on|off&gt;</span></td></tr>
+    <tr><td><span class="mono">DETECT_CFG</span> and <span class="mono">DETECT_CFG_GET</span></td><td>Set or dump detector tunables</td><td>JSON, 180 characters or fewer</td></tr>
+    <tr><td><span class="mono">INCIDENTS</span> and <span class="mono">INCIDENTS_CLEAR</span></td><td>Dump or clear the incident log</td><td><span class="mono">[:1-200]</span></td></tr>
+    <tr><td><span class="mono">ATTACKER_TRILAT</span></td><td>Triangulate a confirmed attacker</td><td>1 or 0, off by default</td></tr>
   </table>
 
   <h3>Security, power and heartbeat</h3>
   <table class="tight">
-    <tr><th style="width:34%">Command</th><th>Parameters</th></tr>
-    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Token flow, §10.4</td></tr>
-    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td><span class="mono">setup:erase:vibs:window:cooldown</span></td></tr>
-    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>None</td></tr>
-    <tr><td><span class="mono">VIBRATION_ON</span>, <span class="mono">VIBRATION_OFF</span>, <span class="mono">VIBRATION_STATUS</span></td><td>None</td></tr>
-    <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td><span class="mono">en:mode:dur[:cooldown]</span></td></tr>
-    <tr><td><span class="mono">FACTORY_RESET</span></td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;erase PSK&gt;</span></td></tr>
-    <tr><td><span class="mono">BATTERY_SAVER_START</span></td><td>Interval in minutes, 1 to 30, default 5</td></tr>
-    <tr><td><span class="mono">BATTERY_SAVER_STOP</span> and <span class="mono">BATTERY_SAVER_STATUS</span></td><td>None</td></tr>
-    <tr><td><span class="mono">HB_ON</span>, <span class="mono">HB_OFF</span>, <span class="mono">HB_INTERVAL</span></td><td>Periodic status broadcast, off by default. Interval 1 to 60 min</td></tr>
+    <tr><th style="width:27%">Command</th><th style="width:29%">Does</th><th>Parameters</th></tr>
+    <tr><td><span class="mono">ERASE_REQUEST</span>, <span class="mono">ERASE_FORCE</span>, <span class="mono">ERASE_CANCEL</span></td><td>Wipe the node, challenge flow</td><td>Token flow, §10.4</td></tr>
+    <tr><td><span class="mono">AUTOERASE_ENABLE</span></td><td>Wipe if the node is moved</td><td><span class="mono">setup:erase:vibs:window:cooldown</span></td></tr>
+    <tr><td><span class="mono">AUTOERASE_DISABLE</span> and <span class="mono">AUTOERASE_STATUS</span></td><td>Turn that off, or report it</td><td>None</td></tr>
+    <tr><td><span class="mono">VIBRATION_ON</span>, <span class="mono">VIBRATION_OFF</span>, <span class="mono">VIBRATION_STATUS</span></td><td>Enable, disable, report the sensor</td><td>None</td></tr>
+    <tr><td><span class="mono">VIBSCAN_SET</span> and <span class="mono">VIBSCAN_STATUS</span></td><td>Start a scan when moved</td><td><span class="mono">en:mode:dur[:cooldown]</span></td></tr>
+    <tr><td><span class="mono">FACTORY_RESET</span></td><td>Reset one node, needs the key</td><td><span class="mono">&lt;FULL|CONFIG|DATA&gt;:&lt;erase PSK&gt;</span></td></tr>
+    <tr><td><span class="mono">BATTERY_SAVER_START</span></td><td>Drop to low power</td><td>Minutes, 1 to 30, default 5</td></tr>
+    <tr><td><span class="mono">BATTERY_SAVER_STOP</span> and <span class="mono">BATTERY_SAVER_STATUS</span></td><td>Return to normal, or report</td><td>None</td></tr>
+    <tr><td><span class="mono">HB_ON</span>, <span class="mono">HB_OFF</span>, <span class="mono">HB_INTERVAL</span></td><td>Periodic status broadcast, off by default</td><td>Interval 1 to 60 min</td></tr>
   </table>
 
   <h3>Ten commands to learn first</h3>
@@ -1212,6 +1242,8 @@ docker compose up -d --build</pre>
     <tr><td><span class="mono">/last_results.txt</span></td><td>Most recent scan results as text. Written by both builds</td></tr>
     <tr><td><span class="mono">/devicedb.jsonl</span></td><td>Device database. Full firmware only, browsed by the Data Explorer</td></tr>
     <tr><td><span class="mono">/vibrations.jsonl</span></td><td>Structured vibration events</td></tr>
+    <tr><td><span class="mono">/pcap/ah_*.pcap</span></td><td>Packet captures you started by hand. Never pruned automatically</td></tr>
+    <tr><td><span class="mono">/pcap/auto_*.pcap</span></td><td>Captures started by a vibration trigger or a Sentinel attack response. Oldest are deleted to stay inside the budget and keep the card's free-space floor</td></tr>
   </table>
 
   <h2 style="margin-top:10mm">Appendix D · Glossary</h2>

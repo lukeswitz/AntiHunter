@@ -453,6 +453,15 @@ void   detect_persistTunables();
 void   detect_setAttackerTrilat(bool enabled);
 bool   detect_getAttackerTrilat();
 
+#define AR_PCAP   0x02
+#define AR_DEVICE 0x04
+#define AR_PROBE  0x08
+#define AR_DRONE  0x10
+void    attack_responseArm(const uint8_t *mac, const char *attackType);
+void    attack_responseCancel();
+void    attack_responsePump();
+uint8_t attack_responsePending();
+
 // PPS (GPS pulse-per-second) time discipline
 void initializeGpsPps(int gpio);
 uint64_t getDisciplinedMicros();   // sub-µs epoch if PPS locked; else esp_timer_get_time + boot offset

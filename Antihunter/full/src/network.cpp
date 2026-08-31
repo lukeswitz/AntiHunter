@@ -1344,8 +1344,22 @@ void registerRemainingRoutes() {
       r->send(200, "application/json", getPcapStatusJson());
   });
 
+  server->on("/pcap/list", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", getPcapListJson());
+  });
+
   server->on("/pcap/download", HTTP_GET, [](AsyncWebServerRequest *r) {
-      String path = getPcapFilePath();
+      String path;
+      if (r->hasParam("f")) {
+          const String name = r->getParam("f")->value();
+          if (!pcapNameIsValid(name)) {
+              r->send(400, "text/plain", "Bad capture name");
+              return;
+          }
+          path = "/pcap/" + name;
+      } else {
+          path = getPcapFilePath();
+      }
       if (path.length() == 0 || !SafeSD::isAvailable() || !SafeSD::exists(path.c_str())) {
           r->send(404, "text/plain", "No capture file");
           return;
@@ -1354,6 +1368,38 @@ void registerRemainingRoutes() {
       AsyncWebServerResponse *res = r->beginResponse(SD, path, "application/vnd.tcpdump.pcap", true);
       res->addHeader("Content-Disposition", "attachment; filename=\"" + name + "\"");
       r->send(res);
+  });
+
+  server->on("/pcap/delete", HTTP_POST, [](AsyncWebServerRequest *r) {
+      if (!r->hasParam("f", true)) {
+          r->send(400, "text/plain", "Missing capture name");
+          return;
+      }
+      const String name = r->getParam("f", true)->value();
+      if (!pcapNameIsValid(name)) {
+          r->send(400, "text/plain", "Bad capture name");
+          return;
+      }
+      if (!pcapDeleteFile(name)) {
+          r->send(409, "text/plain", "Could not delete - capture missing or still recording");
+          return;
+      }
+      r->send(200, "text/plain", "Deleted " + name);
+  });
+
+  server->on("/pcap/limits", HTTP_POST, [](AsyncWebServerRequest *r) {
+      uint32_t budget = getPcapAutoBudgetMB();
+      uint32_t floor = getPcapFreeFloorMB();
+      if (r->hasParam("budgetMB", true)) budget = (uint32_t)r->getParam("budgetMB", true)->value().toInt();
+      if (r->hasParam("floorMB", true)) floor = (uint32_t)r->getParam("floorMB", true)->value().toInt();
+      setPcapAutoLimits(budget, floor);
+      r->send(200, "text/plain", "Auto-capture budget " + String(getPcapAutoBudgetMB()) +
+                                 " MB, keep " + String(getPcapFreeFloorMB()) + " MB free");
+  });
+
+  server->on("/pcap/delete-all", HTTP_POST, [](AsyncWebServerRequest *r) {
+      const uint32_t n = pcapDeleteAll();
+      r->send(200, "text/plain", "Deleted " + String(n) + " capture" + (n == 1 ? "" : "s"));
   });
 
   server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {

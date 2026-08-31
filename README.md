@@ -173,6 +173,14 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
 
+**Packet Capture** - records raw traffic to SD as a standard pcap.
+
+- WiFi: full radiotap header with channel, rate and RSSI. Both bands on C5
+- BLE: advertisements written as link-layer PDUs, so Wireshark dissects ADV_IND, ADV_DIRECT_IND and SCAN_RSP
+- Sweeps the RF Settings channels, or a channel list and dwell under Advanced. Management-frames-only filter
+- Captures list on the Scan tab: download, delete, delete-all. The recording file cannot be deleted
+- Started by hand or by a Sentinel attack response. `auto_` captures are pruned against a size budget and free-space floor; manual captures are not
+
 ### Attack detection & counter-intel
 
 **Sentinel - Counterintel Engine** - (Beta version only)
@@ -202,6 +210,7 @@ Enable and it runs in the background whenever you aren't scanning. Passive WiFi 
 - **AP clients:** stations that associate to the node's own AP, with MAC, association count and first/last-seen age. *AP Clients* panel, `GET /api/apclients.json`.
 - **Mesh command audit:** every inbound mesh line beginning `@`, `TRIANGULATE` or `TRI_`, logged with the sender id, truncated to 96 characters. Captured before addressing is resolved, so commands aimed at other nodes are included. *Mesh Commands* panel, `GET /api/mesh_cmd.jsonl`, SD `/mesh_cmd.jsonl`.
 - **Control & boot:** Start/stop from the Sentinel tab. Off at boot by default; opt into a persistent **Start-on-Boot** setting via the Web Flasher / Configurator / `SENTINEL_BOOT` mesh command - when enabled it auto-starts at power-on and survives reboot.
+- **Attack response:** pick what runs on a confirmed attack with a source MAC - triangulate, packet capture, device discovery, probe sweep, drone RID, each with its own duration. Only one can hold the radio, so several run in that order one at a time. Detection pauses while each runs.
 
 The mesh labels Sentinel emits, for log parsers and C2, are listed under [Mesh Commands](#mesh-commands) → *Sentinel label reference*.
 
@@ -658,57 +667,60 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 ### Core
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `STATUS` | System status (mode, scan state, hits, temp, uptime, GPS) | `@ALL STATUS` |
-| `STOP` | Stop all operations | `@ALL STOP` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `STATUS` | Report mode, scan state, hits, temp, uptime, GPS | None | `@ALL STATUS` |
+| `STOP` | Stop everything running | None | `@ALL STOP` |
 
 ### Configuration
 
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `CONFIG_TARGETS` | Pipe-delimited MACs, OUI prefixes, or SSIDs | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33\|MyNetwork` |
-| `CONFIG_NODEID` | 2-5 alphanumeric ID | `@AH01 CONFIG_NODEID:AH02` |
-| `CONFIG_RSSI` | Threshold (-128 to -10) | `@ALL CONFIG_RSSI:-80` |
-| `CONFIG_CHANNELS` | Comma-separated channels | `@ALL CONFIG_CHANNELS:1..11` |
-| `CONFIG_BAND` | **C5 only.** `0` 2.4GHz, `1` 5GHz, `2` both. ACK: `CONFIG_ACK:BAND:<0\|1\|2>`, or `CONFIG_ACK:BAND:INVALID` above 2 | `@ALL CONFIG_BAND:2` |
-| `CONFIG_DEDUP_TTL` | Seconds 0-3600 (0=disable cross-scan MAC dedup) | `@ALL CONFIG_DEDUP_TTL:300` |
-| `CONFIG_SESSION_DEDUP` | `0`/`1` - toggle per-session dedup. ACK: `CONFIG_ACK:SESSION_DEDUP:<0\|1>` | `@ALL CONFIG_SESSION_DEDUP:1` |
-| `MESH_DEDUP_CLEAR` | None - clear mesh dedup cache. ACK: `DEDUP_CLEAR_ACK:OK` | `@ALL MESH_DEDUP_CLEAR` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `CONFIG_TARGETS` | Set the watchlist | Pipe-delimited MACs, OUIs, SSIDs | `@ALL CONFIG_TARGETS:AA:BB:CC:DD:EE:FF\|11:22:33\|MyNetwork` |
+| `CONFIG_NODEID` | Rename the node | 2-5 alphanumeric | `@AH01 CONFIG_NODEID:AH02` |
+| `CONFIG_RSSI` | Set the RSSI floor | -128 to -10 | `@ALL CONFIG_RSSI:-80` |
+| `CONFIG_CHANNELS` | Set the channels to sweep | Comma-separated or a range | `@ALL CONFIG_CHANNELS:1..11` |
+| `CONFIG_BAND` | Pick the band, C5 only | `0` 2.4, `1` 5, `2` both | `@ALL CONFIG_BAND:2` |
+| `CONFIG_DEDUP_TTL` | Set cross-scan MAC dedup | Seconds 0-3600, 0 disables | `@ALL CONFIG_DEDUP_TTL:300` |
+| `CONFIG_SESSION_DEDUP` | Toggle per-session dedup | `0`/`1` | `@ALL CONFIG_SESSION_DEDUP:1` |
+| `MESH_DEDUP_CLEAR` | Clear the dedup cache | None | `@ALL MESH_DEDUP_CLEAR` |
 
 ### Scanning
 
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `SCAN_START` (Target scan)| `mode:secs:channels[:FOREVER]` (0=WiFi, 1=BLE, 2=Both) | `@ALL SCAN_START:2:300:1..11` 
-| `DEVICE_SCAN_START` | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
-| `BASELINE_START` | `duration[:FOREVER]` (min 60s) | `@ALL BASELINE_START:300` |
-| `BASELINE_STATUS` | None | `@ALL BASELINE_STATUS` |
-| `DRONE_START` | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
-| `DEAUTH_START` | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
-| `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
-| `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
-| `PROBE_STOP` | None | `@ALL PROBE_STOP` |
-| `PCAP_START` | `radio:secs:band[:FOREVER]` (radio 0=WiFi, 1=BLE; band 0=2.4 GHz, 1=5 GHz, 2=both, 5 GHz needs an ESP32-C5 and is forced to 0 on S3). Writes `/pcap/ah_<timestamp>_<radio>.pcap` to SD. ACK: `PCAP_ACK:STARTED`/`:BUSY`/`:NOSD`/`:FAILED` | `@ALL PCAP_START:0:300:0` |
-| `PCAP_STOP` | None - stops the running capture and closes the file. ACK: `PCAP_ACK:STOPPED` | `@ALL PCAP_STOP` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `SCAN_START` | Hunt the watchlist | `mode:secs:channels[:FOREVER]` | `@ALL SCAN_START:2:300:1..11` |
+| `DEVICE_SCAN_START` | List everything in range | `mode:secs[:FOREVER[:+PROBE]]` | `@ALL DEVICE_SCAN_START:2:300:+PROBE` |
+| `BASELINE_START` | Learn the area, then flag changes | `duration[:FOREVER]`, min 60s | `@ALL BASELINE_START:300` |
+| `BASELINE_STATUS` | Report baseline progress | None | `@ALL BASELINE_STATUS` |
+| `DRONE_START` | Watch for drone Remote ID | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
+| `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
+| `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
+| `PROBE_START` / `PROBE_STOP` | Collect probe requests | `mode:secs[:FOREVER][:+ALL]` | `@ALL PROBE_START:2:300:+ALL` |
+| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]` | `@ALL CSI_MOTION_START:300:CH11` |
+| `CSI_CFG` | Tune the motion trigger | `trigger:hold_ms:consec:channel` | `@ALL CSI_CFG:0.10:5000:3:0` |
+| `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
+| `CSI_RECAL` | Drop a saved trigger | None | `@ALL CSI_RECAL` |
+| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
+| `MESH_TX_CANCEL` | Drop queued mesh traffic, keep scanning | None | `@ALL MESH_TX_CANCEL` |
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
 
 ### Sentinel (Beta version only)
 
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
-| `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
-| `SENTINEL_MODE` | `defend` (pin one channel) or `scan` (hop the channels set by `CONFIG_CHANNELS`). Persisted to NVS `sclScan` and restored on boot. ACK: `SENTINEL_MODE_ACK:scan`/`:defend`/`:FAIL` | `@ALL SENTINEL_MODE:scan` |
-| `SENTINEL_BOOT` | `1`/`0` - persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
-| `GROUP` | `<name>:<on\|off>` - toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
-| `DETECT_CFG` | `<json>` - apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
-| `DETECT_CFG_GET` | None - dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
-| `INCIDENTS` | `[:<1-200>]` - dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
-| `INCIDENTS_CLEAR` | None - clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
-| `ATTACKER_TRILAT` | `1`/`0`/`on`/`off` - auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
-| `ATTACKER_TRILAT_STATUS` | None. Reply: `ATTACKER_TRILAT_STATUS: ON`/`OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `SENTINEL_ON` / `SENTINEL_OFF` | Start or stop Sentinel | None | `@ALL SENTINEL_ON` |
+| `SENTINEL_STATUS` | Report Sentinel state | None | `@AH01 SENTINEL_STATUS` |
+| `SENTINEL_MODE` | Pin a channel or hop | `defend` or `scan` | `@ALL SENTINEL_MODE:scan` |
+| `SENTINEL_BOOT` | Auto-start at power-on | `1`/`0` | `@ALL SENTINEL_BOOT:1` |
+| `GROUP` | Toggle a detector group | `<name>:<on\|off>` | `@ALL GROUP:dos:on` |
+| `DETECT_CFG` | Set detector tunables | `<json>`, ≤180 chars | `@AH01 DETECT_CFG:{"pmkid":true}` |
+| `DETECT_CFG_GET` | Dump the config to serial | None | `@AH01 DETECT_CFG_GET` |
+| `INCIDENTS` | Dump the incident log | `[:<1-200>]` | `@AH01 INCIDENTS:50` |
+| `INCIDENTS_CLEAR` | Clear the incident log | None | `@ALL INCIDENTS_CLEAR` |
+| `ATTACKER_TRILAT` | Triangulate a confirmed attacker | `1`/`0`/`on`/`off` | `@ALL ATTACKER_TRILAT:1` |
+| `ATTACKER_TRILAT_STATUS` | Report that setting | None | `@AH01 ATTACKER_TRILAT_STATUS` |
 
 `GROUP` members: `dos` = eviltwin, sae, assoc_sleep · `rogue` = eviltwin, owe, karma · `recon` = pmkid, probe_flood, hshk · `physical` = frag, tsf, jam · `mesh` = mesh_guard · `all` = every member listed here.
 
@@ -719,43 +731,42 @@ Headless has no SoftAP. `defend` pins to whatever channel the radio last used, s
 <details>
 <summary>Triangulation Commands</summary>
 
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `TRIANGULATE_START` | `target:duration[:rfEnv[:wifiPwr:blePwr]]` rfEnv: 0=OpenSky, 1=Suburban, 2=Indoor, 3=IndoorDense, 4=Industrial. wifiPwr/blePwr: 0.1-5.0 | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0` |
-| `TRIANGULATE_STOP` | None | `@ALL TRIANGULATE_STOP` |
-| `TRIANGULATE_RESULTS` | None | `@AH01 TRIANGULATE_RESULTS` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `TRIANGULATE_START` | Locate a MAC across nodes | `target:duration[:rfEnv[:wifiPwr:blePwr]]` | `@AH01 TRIANGULATE_START:AA:BB:CC:DD:EE:FF:60:2:1.0:1.0` |
+| `TRIANGULATE_STOP` | Stop it | None | `@ALL TRIANGULATE_STOP` |
+| `TRIANGULATE_RESULTS` | Report the fix | None | `@AH01 TRIANGULATE_RESULTS` |
 
 </details>
 
 <details>
 <summary>Security Commands</summary>
 
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `ERASE_REQUEST` | None | `@AH01 ERASE_REQUEST` |
-| `ERASE_FORCE` | Auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
-| `ERASE_CANCEL` | None | `@AH01 ERASE_CANCEL` |
-| `AUTOERASE_ENABLE` | `setup:erase:vibs:window:cooldown` (seconds, except vibs count) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
-| `AUTOERASE_DISABLE` | None | `@AH01 AUTOERASE_DISABLE` |
-| `AUTOERASE_STATUS` | None | `@AH01 AUTOERASE_STATUS` |
-| `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
-| `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
-| `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
-| `VIBSCAN_SET` | `en:mode:dur[:cooldownSecs]` - auto-start a scan when the vibration sensor fires. en 0/1; mode 0=off, 1=all-device, 2=probe-req, 3=rand-MAC, 4=list, 5=drone, 6=deauth, 7=baseline; dur seconds (0=forever). Skipped if a scan is already running or during battery-saver. ACK: `VIBSCAN_ACK:OK En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_SET:1:2:60:60` |
-| `VIBSCAN_STATUS` | None. Reply: `VIBSCAN_STATUS: En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_STATUS` |
-| `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) - set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
-| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` - factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `ERASE_REQUEST` | Ask to wipe, returns a challenge | None | `@AH01 ERASE_REQUEST` |
+| `ERASE_FORCE` | Wipe with the answered challenge | Auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
+| `ERASE_CANCEL` | Abort a pending wipe | None | `@AH01 ERASE_CANCEL` |
+| `AUTOERASE_ENABLE` | Wipe if the node is moved | `setup:erase:vibs:window:cooldown` | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
+| `AUTOERASE_DISABLE` | Turn that off | None | `@AH01 AUTOERASE_DISABLE` |
+| `AUTOERASE_STATUS` | Report auto-erase state | None | `@AH01 AUTOERASE_STATUS` |
+| `VIBRATION_ON` / `VIBRATION_OFF` | Enable the movement sensor | None | `@AH01 VIBRATION_ON` |
+| `VIBRATION_STATUS` | Report sensor state | None | `@AH01 VIBRATION_STATUS` |
+| `VIBSCAN_SET` | Start a scan when moved | `en:mode:dur[:cooldown]` | `@AH01 VIBSCAN_SET:1:2:60:60` |
+| `VIBSCAN_STATUS` | Report that setting | None | `@AH01 VIBSCAN_STATUS` |
+| `CONFIG_ERASE_PSK` | Set the key that authorises a wipe | `<key>`, 1-64 chars | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
+| `FACTORY_RESET` | Reset one node, needs the key | `<FULL\|CONFIG\|DATA>:<key>` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 
 </details>
 
 <details>
 <summary>Battery Saver Commands</summary>
 
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `BATTERY_SAVER_START` | `interval_minutes` (1-30, default 5) | `@AH01 BATTERY_SAVER_START:10` |
-| `BATTERY_SAVER_STOP` | None | `@AH01 BATTERY_SAVER_STOP` |
-| `BATTERY_SAVER_STATUS` | None | `@AH01 BATTERY_SAVER_STATUS` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `BATTERY_SAVER_START` | Drop to low power | `interval_minutes` 1-30 | `@AH01 BATTERY_SAVER_START:10` |
+| `BATTERY_SAVER_STOP` | Return to normal | None | `@AH01 BATTERY_SAVER_STOP` |
+| `BATTERY_SAVER_STATUS` | Report power state | None | `@AH01 BATTERY_SAVER_STATUS` |
 
 Stops WiFi/BLE scanning, reduces CPU to 80MHz, enables light sleep, GPS polled once per minute. Mesh UART stays active. Heartbeat format:
 
@@ -770,11 +781,10 @@ NODE_ID: HEARTBEAT: Temp:XXC GPS:lat,lon Battery:SAVER
 
 Periodic status broadcast over mesh. **Disabled by default.**
 
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `HB_ON` | None | `@AH01 HB_ON` |
-| `HB_OFF` | None | `@AH01 HB_OFF` |
-| `HB_INTERVAL` | `minutes` (1-60) | `@AH01 HB_INTERVAL:10` |
+| Command | Does | Parameters | Example |
+|---------|------|------------|---------|
+| `HB_ON` / `HB_OFF` | Toggle the heartbeat | None | `@AH01 HB_ON` |
+| `HB_INTERVAL` | Set how often it sends | `minutes` 1-60 | `@AH01 HB_INTERVAL:10` |
 
 Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 
@@ -873,6 +883,12 @@ Any other value is passed through verbatim as `Reason code N`.
 | `/scan` | POST | Start target scan (`mode`, `secs`, `forever`, `ch`, `triangulate`, `targetMac`). With `triangulate=1`, returns `400` and the reason if triangulation cannot start (bad/empty `targetMac`, debounce, busy task) |
 | `/sniffer` | POST | Start detection scan (`detection`, `secs`, `forever`, `randomizationMode`, `probeScanMode`, `captureProbes`) |
 | `/drone` | POST | Start drone RID detection (`secs`, `forever`) |
+| `/pcap/status` | GET | Capture state (JSON): active, radio, band, channel, frames, bytes, dropped, elapsed, current file, `dualBand`, SD budget/floor/free in MB |
+| `/pcap/list` | GET | Captures in `/pcap` (JSON): name, size, and whether that file is still being written |
+| `/pcap/download` | GET | Streams a capture. `f=<name>` selects one, omit it for the most recent |
+| `/pcap/delete` | POST | Deletes one capture (`f`). Refused while that file is recording |
+| `/pcap/delete-all` | POST | Deletes every capture in `/pcap` |
+| `/pcap/limits` | POST | Auto-capture pruning (`budgetMB`, `floorMB`), persisted |
 
 ### Results
 

@@ -180,6 +180,30 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
       /* ===== Results design system — continuity with System tab ===== */
       /* block components self-space so they read right as direct children of #r (sorted result types) */
+      .ar-box{border:1px solid var(--bord);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--accbg)}
+      .ar-head{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--txt);margin-bottom:2px}
+      .ar-sub{font-size:11px;color:var(--mut);margin-bottom:10px;line-height:1.5}
+      .ar-row{display:flex;align-items:center;gap:10px;padding:5px 0}
+      .ar-row .ar-name{font-size:12.5px;color:var(--txt);flex:1;min-width:0}
+      .ar-row input[type="number"]{width:76px;padding:5px 8px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+      .ar-row .ar-unit{font-size:11px;color:var(--mut);width:22px}
+      .ar-limits{border-top:1px solid var(--bord);margin-top:8px;padding-top:10px;flex-wrap:wrap}
+      .ar-limits .ar-name{flex:0 0 auto;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+      .ar-free{margin-left:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--mut)}
+      .pcap-files-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);padding:4px 0}
+      .pcap-files-head:hover{color:var(--acc)}
+      .pcap-files-head .collapse-icon{font-size:11px}
+      .pcap-count{background:var(--accbg);border:1px solid var(--bord);border-radius:20px;padding:1px 8px;font-size:10px;color:var(--txt);font-variant-numeric:tabular-nums}
+      .pcap-files-head .btn.danger{margin-left:auto;padding:4px 10px;font-size:11px;border-width:1px}
+      #pcapFilesBody{overflow:hidden;transition:max-height 0.3s cubic-bezier(0.4,0,0.2,1)}
+      #pcapFilesBody.collapsed{max-height:0!important}
+      .pcap-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:260px;overflow-y:auto}
+      .pcap-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;background:var(--accbg);border:1px solid var(--bord);border-radius:8px;padding:7px 10px}
+      .pcap-row-name{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+      .pcap-row-size{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:11px;color:var(--mut);white-space:nowrap}
+      .pcap-row .btn{padding:4px 10px;font-size:11px;border-width:1px}
+      .pcap-row.recording .pcap-row-name{color:var(--acc)}
+      .pcap-empty{font-size:12px;color:var(--mut);padding:6px 2px}
       .res-hero,.res-card,.res-section,.res-callout{margin-bottom:14px}
       .res-list{display:flex;flex-direction:column;gap:12px}
       .fl-empty{color:var(--mut);font-size:13px;padding:14px 2px}
@@ -792,9 +816,16 @@ R"HTML(
                 <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
               </div>
 
-              <div id="pcapFileRow" style="display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--accbg);border:1px solid var(--bord);border-radius:8px;padding:8px 12px;margin-top:10px;">
-                <div id="pcapFileInfo" style="min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;">No capture yet</div>
-                <a class="btn alt" href="/pcap/download" download data-ajax="false" style="padding:6px 12px;font-size:12px;">Download</a>
+              <div id="pcapFiles" style="display:none;margin-top:12px;">
+                <div class="pcap-files-head" onclick="pcapToggleList()">
+                  <span class="collapse-icon open" id="pcapFilesIcon">&#9654;</span>
+                  <span>Captures</span>
+                  <span class="pcap-count" id="pcapCount">0</span>
+                  <button type="button" class="btn danger" id="pcapDeleteAllBtn" onclick="event.stopPropagation();pcapDeleteAll()">Delete All</button>
+                </div>
+                <div id="pcapFilesBody">
+                  <div id="pcapFileList" class="pcap-list"></div>
+                </div>
               </div>
              
             </form>
@@ -1515,6 +1546,49 @@ R"HTML(
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
               <label class="dsw"><input type="checkbox" id="sentBootChk" onchange="sentinelSetBoot(this.checked)"><span class="dsw-s"></span></label>
               <span style="font-size:12px;color:var(--mut);">Start Sentinel on boot (persists across reboot)</span>
+            </div>
+            <div class="ar-box">
+              <div class="ar-head">On confirmed attack</div>
+              <div class="ar-sub">Runs top to bottom, one at a time, as the radio frees up. Needs a source MAC. One run per attacker per cooldown.</div>
+              <div class="ar-row">
+                <label class="dsw"><input type="checkbox" id="cfgAttackerTrilat" onchange="arSave()"><span class="dsw-s"></span></label>
+                <span class="ar-name">Triangulate attacker</span>
+                <input type="number" id="arSecTrilat" min="10" max="3600" value="60" onchange="arSave()">
+                <span class="ar-unit">s</span>
+              </div>
+              <div class="ar-row">
+                <label class="dsw"><input type="checkbox" id="arPcap" onchange="arSave()"><span class="dsw-s"></span></label>
+                <span class="ar-name">Packet capture to SD</span>
+                <input type="number" id="arSecPcap" min="10" max="3600" value="120" onchange="arSave()">
+                <span class="ar-unit">s</span>
+              </div>
+              <div class="ar-row">
+                <label class="dsw"><input type="checkbox" id="arDevice" onchange="arSave()"><span class="dsw-s"></span></label>
+                <span class="ar-name">Device discovery</span>
+                <input type="number" id="arSecDevice" min="10" max="3600" value="60" onchange="arSave()">
+                <span class="ar-unit">s</span>
+              </div>
+              <div class="ar-row">
+                <label class="dsw"><input type="checkbox" id="arProbe" onchange="arSave()"><span class="dsw-s"></span></label>
+                <span class="ar-name">Probe requests</span>
+                <input type="number" id="arSecProbe" min="10" max="3600" value="60" onchange="arSave()">
+                <span class="ar-unit">s</span>
+              </div>
+              <div class="ar-row">
+                <label class="dsw"><input type="checkbox" id="arDrone" onchange="arSave()"><span class="dsw-s"></span></label>
+                <span class="ar-name">Drone RID</span>
+                <input type="number" id="arSecDrone" min="10" max="3600" value="60" onchange="arSave()">
+                <span class="ar-unit">s</span>
+              </div>
+              <div class="ar-row ar-limits">
+                <span class="ar-name">Auto-capture budget</span>
+                <input type="number" id="arPcapBudget" min="16" max="262144" step="16" value="512" onchange="arSaveLimits()">
+                <span class="ar-unit">MB</span>
+                <span class="ar-name">Keep free</span>
+                <input type="number" id="arPcapFloor" min="0" max="262144" step="16" value="256" onchange="arSaveLimits()">
+                <span class="ar-unit">MB</span>
+                <span class="ar-free" id="arSdFree">--</span>
+              </div>
             </div>
             <div id="dos-mode-desc" style="font-size:11px;color:var(--mut);margin:-4px 0 10px;"></div>
             <div id="dctl-quick" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-bottom:10px;"></div>
@@ -5261,17 +5335,51 @@ R"HTML(
         const wifi = document.getElementById('pcapRadio').value === '0';
         wrap.style.display = (dualBand && wifi) ? '' : 'none';
       }
+      function pcapToggleList() {
+        document.getElementById('pcapFilesBody').classList.toggle('collapsed');
+        document.getElementById('pcapFilesIcon').classList.toggle('open');
+      }
+      async function pcapDeleteOne(name) {
+        if (!confirm('Delete ' + name + '?')) return;
+        const fd = new FormData();
+        fd.append('f', name);
+        const r = await fetch('/pcap/delete', { method: 'POST', body: fd });
+        toast(await r.text(), r.ok ? 'success' : 'error');
+        refreshPcapList();
+      }
+      async function pcapDeleteAll() {
+        const n = document.getElementById('pcapCount').textContent;
+        if (n === '0') { toast('No captures to delete', 'warning'); return; }
+        if (!confirm('Delete all ' + n + ' captures? This cannot be undone.')) return;
+        const r = await fetch('/pcap/delete-all', { method: 'POST' });
+        toast(await r.text(), r.ok ? 'success' : 'error');
+        refreshPcapList();
+      }
+      function refreshPcapList() {
+        fetch('/pcap/list').then(r => r.json()).then(list => {
+          const box = document.getElementById('pcapFileList');
+          document.getElementById('pcapCount').textContent = list.length;
+          if (!list.length) {
+            box.innerHTML = '<div class="pcap-empty">No captures on SD yet.</div>';
+            return;
+          }
+          list.sort((a, b) => a.name < b.name ? 1 : -1);
+          box.innerHTML = list.map(f =>
+            '<div class="pcap-row' + (f.active ? ' recording' : '') + '">' +
+              '<div class="pcap-row-name" title="' + f.name + '">' + f.name + '</div>' +
+              '<div class="pcap-row-size">' + fmtBytes(f.size) + '</div>' +
+              '<a class="btn alt" href="/pcap/download?f=' + encodeURIComponent(f.name) + '" download data-ajax="false">Get</a>' +
+              (f.active
+                ? '<button type="button" class="btn" disabled title="Still recording">Recording</button>'
+                : '<button type="button" class="btn danger" onclick="pcapDeleteOne(\'' + f.name + '\')">Delete</button>') +
+            '</div>').join('');
+        }).catch(() => {});
+      }
       function refreshPcapStatus() {
         if (pcapPollTimer) { clearTimeout(pcapPollTimer); pcapPollTimer = null; }
         fetch('/pcap/status').then(r => r.json()).then(d => {
           applyPcapBandVisibility(!!d.dualBand);
-          const info = document.getElementById('pcapFileInfo');
-          if (!d.file) {
-            info.textContent = d.sd ? 'No capture yet' : 'No SD card';
-          } else {
-            info.textContent = d.file + ' · ' + d.frames + ' frames · ' +
-                               fmtBytes(d.bytes) + (d.dropped ? ' · ' + d.dropped + ' dropped' : '');
-          }
+          refreshPcapList();
           if (d.active && document.getElementById('detectionMode').value === 'pcap') {
             pcapPollTimer = setTimeout(refreshPcapStatus, 2000);
           }
@@ -5291,7 +5399,7 @@ R"HTML(
         const probeScanModeControls = document.getElementById('probeScanModeControls');
         const droneScanModeControls = document.getElementById('droneScanModeControls');
         const pcapControls = document.getElementById('pcapControls');
-        const pcapFileRow = document.getElementById('pcapFileRow');
+        const pcapFiles = document.getElementById('pcapFiles');
         const startBtn = document.getElementById('startDetectionBtn');
         const cacheBtn = document.getElementById('cacheBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
@@ -5309,7 +5417,7 @@ R"HTML(
         probeScanModeControls.style.display = 'none';
         droneScanModeControls.style.display = 'none';
         pcapControls.style.display = 'none';
-        pcapFileRow.style.display = 'none';
+        pcapFiles.style.display = 'none';
         startBtn.textContent = (selectedMethod === 'pcap') ? 'Start Capture' : 'Start Scan';
         document.getElementById('baselineStatus').style.display = 'none';
 
@@ -5350,7 +5458,7 @@ R"HTML(
         } else if (selectedMethod === 'pcap') {
           standardControls.style.display = 'block';
           pcapControls.style.display = 'block';
-          pcapFileRow.style.display = 'flex';
+          pcapFiles.style.display = 'block';
           document.getElementById('detectionDuration').disabled = false;
           document.getElementById('baselineMonitorDuration').disabled = true;
           refreshPcapStatus();
@@ -6464,6 +6572,52 @@ R"HTML(
         document.querySelectorAll('#cfg-mesh input').forEach(el=>{
           el.addEventListener('change',()=>detPostCfg({[el.dataset.cfg]:el.checked}));
         });
+        const at=document.getElementById('cfgAttackerTrilat');
+        if(at)at.checked=_detCfg.attacker_trilat===true;
+        arLoad();
+      }
+      const AR_BITS={arPcap:0x02,arDevice:0x04,arProbe:0x08,arDrone:0x10};
+      function arLoad(){
+        const m=_detCfg.attack_resp_mask||0;
+        for(const id in AR_BITS){
+          const el=document.getElementById(id);
+          if(el)el.checked=(m&AR_BITS[id])!==0;
+        }
+        const set=(id,v)=>{const el=document.getElementById(id);if(el&&v)el.value=v;};
+        set('arSecTrilat',_detCfg.ar_secs_trilat);
+        set('arSecPcap',_detCfg.ar_secs_pcap);
+        set('arSecDevice',_detCfg.ar_secs_device);
+        set('arSecProbe',_detCfg.ar_secs_probe);
+        set('arSecDrone',_detCfg.ar_secs_drone);
+        fetch('/pcap/status').then(r=>r.json()).then(d=>{
+          document.getElementById('arPcapBudget').value=d.budgetMB;
+          document.getElementById('arPcapFloor').value=d.floorMB;
+          document.getElementById('arSdFree').textContent=d.sd?(d.freeMB+' MB free'):'no SD';
+        }).catch(()=>{});
+      }
+      function arSave(){
+        let m=0;
+        for(const id in AR_BITS){
+          const el=document.getElementById(id);
+          if(el&&el.checked)m|=AR_BITS[id];
+        }
+        const num=id=>parseInt(document.getElementById(id).value,10)||60;
+        detPostCfg({
+          attacker_trilat:document.getElementById('cfgAttackerTrilat').checked,
+          attack_resp_mask:m,
+          ar_secs_trilat:num('arSecTrilat'),
+          ar_secs_pcap:num('arSecPcap'),
+          ar_secs_device:num('arSecDevice'),
+          ar_secs_probe:num('arSecProbe'),
+          ar_secs_drone:num('arSecDrone')
+        });
+      }
+      async function arSaveLimits(){
+        const fd=new FormData();
+        fd.append('budgetMB',document.getElementById('arPcapBudget').value);
+        fd.append('floorMB',document.getElementById('arPcapFloor').value);
+        const r=await fetch('/pcap/limits',{method:'POST',body:fd});
+        toast(await r.text(),r.ok?'success':'error');
       }
       async function detPostCfg(patch){
         Object.assign(_detCfg||(_detCfg={}),patch);
