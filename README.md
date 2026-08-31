@@ -179,7 +179,6 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 - BLE: advertisements written as link-layer PDUs, so Wireshark dissects ADV_IND, ADV_DIRECT_IND and SCAN_RSP
 - Sweeps the RF Settings channels, or a channel list and dwell under Advanced. Management-frames-only filter
 - Captures list on the Scan tab: download, delete, delete-all. The recording file cannot be deleted
-- Files on SD are named `wifi_` or `ble_` first, with `auto_` on automatic ones. The list shows a WiFi or BLE icon and the capture time
 - Started by hand or by a Sentinel attack response. `auto_` captures are pruned against a size budget and free-space floor; manual captures are not
 
 ### Attack detection & counter-intel

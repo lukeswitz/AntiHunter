@@ -203,18 +203,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .pcap-radio svg{width:16px;height:16px}
       .pcap-radio.wifi{color:var(--c-wifi)}
       .pcap-radio.ble{color:var(--c-ble)}
-      .pcap-row-name{display:flex;align-items:center;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+      .pcap-row-name{display:flex;align-items:center;gap:6px;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt)}
+      .pcap-row-text{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pcap-auto{flex-shrink:0;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border:1px solid var(--bord);border-radius:4px;padding:0 4px}
       .pcap-row-size{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:11px;color:var(--mut);white-space:nowrap}
-      .pcap-row .btn{padding:4px 10px;font-size:11px;border-width:1px}
+      .pcap-act{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0;padding:0;border:1px solid var(--bord);border-radius:7px;background:var(--surf);color:var(--mut);cursor:pointer;transition:color .15s,border-color .15s}
+      .pcap-act svg{width:15px;height:15px}
+      .pcap-act:hover{color:var(--acc);border-color:var(--acc)}
+      .pcap-act.del:hover{color:var(--dang);border-color:var(--dang)}
+      .pcap-act.rec{color:var(--acc);border-color:transparent;background:transparent;cursor:default;animation:pulse 1.5s ease-in-out infinite}
       .pcap-row.recording .pcap-row-name{color:var(--acc)}
       .pcap-empty{font-size:12px;color:var(--mut);padding:6px 2px}
-      @media(max-width:520px){
-        .pcap-row{display:flex;flex-wrap:wrap;row-gap:8px}
-        .pcap-row-name{flex:1 1 auto}
-        .pcap-row-size{margin-left:auto}
-        .pcap-row .btn{flex:1 1 0;min-width:0}
-      }
       .res-hero,.res-card,.res-section,.res-callout{margin-bottom:14px}
       .res-list{display:flex;flex-direction:column;gap:12px}
       .fl-empty{color:var(--mut);font-size:13px;padding:14px 2px}
@@ -5336,6 +5335,9 @@ R"HTML(
       let pcapPollTimer = null;
       const PCAP_ICON_WIFI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor" stroke="none"/></svg>';
       const PCAP_ICON_BLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M8 7.5 16 16.5 12 20V4l4 3.5L8 16.5"/></svg>';
+      const PCAP_ICON_GET = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 20h16"/></svg>';
+      const PCAP_ICON_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>';
+      const PCAP_ICON_REC = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>';
       const PCAP_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       function pcapStampLabel(name) {
         const m = name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
@@ -5389,13 +5391,13 @@ R"HTML(
             return '<div class="pcap-row' + (f.active ? ' recording' : '') + '">' +
               '<span class="pcap-radio ' + (ble ? 'ble' : 'wifi') + '" title="' + (ble ? 'BLE' : 'WiFi') + '">' +
                 (ble ? PCAP_ICON_BLE : PCAP_ICON_WIFI) + '</span>' +
-              '<div class="pcap-row-name" title="' + f.name + '">' + label +
+              '<div class="pcap-row-name" title="' + f.name + '"><span class="pcap-row-text">' + label + '</span>' +
                 (auto ? '<span class="pcap-auto">auto</span>' : '') + '</div>' +
               '<div class="pcap-row-size">' + fmtBytes(f.size) + '</div>' +
-              '<a class="btn alt" href="/pcap/download?f=' + encodeURIComponent(f.name) + '" download data-ajax="false">Get</a>' +
+              '<a class="pcap-act" href="/pcap/download?f=' + encodeURIComponent(f.name) + '" download data-ajax="false" title="Download" aria-label="Download">' + PCAP_ICON_GET + '</a>' +
               (f.active
-                ? '<button type="button" class="btn" disabled title="Still recording">Rec</button>'
-                : '<button type="button" class="btn danger" onclick="pcapDeleteOne(\'' + f.name + '\')">Delete</button>') +
+                ? '<span class="pcap-act rec" title="Still recording" aria-label="Still recording">' + PCAP_ICON_REC + '</span>'
+                : '<button type="button" class="pcap-act del" onclick="pcapDeleteOne(\'' + f.name + '\')" title="Delete" aria-label="Delete">' + PCAP_ICON_DEL + '</button>') +
             '</div>';
           }).join('');
         }).catch(() => {});
