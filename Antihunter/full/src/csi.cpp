@@ -204,10 +204,13 @@ static uint8_t g_csiActiveChannel = 0;
 
 static std::atomic<uint32_t> g_promFrames{0};
 
+extern std::atomic<uint32_t> framesSeen;
+
 static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
-    (void)buf;
     (void)type;
     g_promFrames.fetch_add(1);
+    const wifi_promiscuous_pkt_t *ppkt = (const wifi_promiscuous_pkt_t *)buf;
+    if (ppkt && ppkt->rx_ctrl.sig_len >= 24) framesSeen = framesSeen + 1;
 }
 
 // cppcheck-suppress constParameterCallback // wifi_csi_cb_t signature is fixed by esp_wifi_set_csi_rx_cb
@@ -275,7 +278,9 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
                   (unsigned)chans.size(), dwellMs);
 
     uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
-    uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0;
+    uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
+    uint8_t bestCoreCh = 0;
+    uint32_t bestCoreScore = 0, bestCoreHits = 0, bestCoreStrong = 0, bestCoreTx = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -299,7 +304,20 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
                       ch, hits, rate, tx, strong);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
-        if (strong > bestStrong) { bestStrong = strong; bestStrongTx = tx; bestStrongCh = ch; }
+        const uint32_t chScore = hits * strong;
+        if (chScore > bestChScore) {
+            bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
+            bestStrongTx = tx; bestStrongCh = ch;
+        }
+        if ((ch == 1 || ch == 6 || ch == 11) && chScore > bestCoreScore) {
+            bestCoreScore = chScore; bestCoreHits = hits; bestCoreStrong = strong;
+            bestCoreTx = tx; bestCoreCh = ch;
+        }
+    }
+
+    if (bestCoreScore > 0) {
+        bestStrongCh = bestCoreCh; bestStrongHits = bestCoreHits;
+        bestStrong = bestCoreStrong; bestStrongTx = bestCoreTx;
     }
 
     if (bestTotal == 0) {
@@ -314,9 +332,9 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
         return bestTotalCh;
     }
 
-    Serial.printf("[CSI] Selected ch%u (%u strong records, %.1f/s, %u transmitters)\n",
-                  bestStrongCh, bestStrong,
-                  (float)bestStrong * 1000.0f / (float)dwellMs, bestStrongTx);
+    Serial.printf("[CSI] Selected ch%u (%.1f/s, %u strong, %u transmitters)\n",
+                  bestStrongCh,
+                  (float)bestStrongHits * 1000.0f / (float)dwellMs, bestStrong, bestStrongTx);
     return bestStrongCh;
 }
 
@@ -549,9 +567,9 @@ static void csiProcess(const CsiEvent &ev) {
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
-                     String(ev.rssi) + "," + String(ev.ch) + ",64";
-        for (int idx = 0; idx < 64; idx++) {
-            row += "," + String((int)ev.buf[idx * 2]) + "," + String((int)ev.buf[idx * 2 + 1]);
+                     String(ev.rssi) + "," + String(ev.ch) + "," + String((int)sizeof(ev.buf));
+        for (int i = 0; i < (int)sizeof(ev.buf); i++) {
+            row += "," + String((int)ev.buf[i]);
         }
         Serial.println(row);
     }
@@ -1047,6 +1065,20 @@ void csiMotionTask(void *pv) {
 
     Serial.printf("[CSI] Radio locked to ch%u for the run - SoftAP moves to ch%u with it, rejoin there; returns to ch%u when the scan ends\n",
                   ch, ch, (unsigned)AP_CHANNEL);
+
+    {
+        uint8_t priCh = 0;
+        wifi_second_chan_t secCh = WIFI_SECOND_CHAN_NONE;
+        if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK && priCh != ch) {
+            Serial.printf("[CSI] WARNING: radio reports ch%u, not the selected ch%u - "
+                          "re-applying\n", priCh, ch);
+            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+            vTaskDelay(pdMS_TO_TICKS(30));
+            if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK) {
+                Serial.printf("[CSI] radio channel after re-apply: ch%u\n", priCh);
+            }
+        }
+    }
 
     if (csiAutoTrigger.load()) {
         g_calActive = true;

@@ -25,6 +25,7 @@ static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
 static const float CSI_ACF_ETA = 0.10f;
 static const float CSI_ACF_ETA_SUB = 0.25f;
+static const float CSI_ACF_MIN_VAR = 1e-6f;
 static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
@@ -57,8 +58,8 @@ struct CsiScorer {
     float var[CSI_NSUB];
     float prevG[CSI_NSUB];
     float mG[CSI_NSUB];
-    float mG2[CSI_NSUB];
-    float mGG[CSI_NSUB];
+    float mVar[CSI_NSUB];
+    float mCov[CSI_NSUB];
     float acf;
     float vote;
     float floorCache;
@@ -80,7 +81,7 @@ struct CsiScorer {
     void reset() {
         for (int k = 0; k < CSI_NSUB; k++) {
             fast[k] = 0.0f; slow[k] = 0.0f; var[k] = 0.0f;
-            prevG[k] = 0.0f; mG[k] = 0.0f; mG2[k] = 0.0f; mGG[k] = 0.0f;
+            prevG[k] = 0.0f; mG[k] = 0.0f; mVar[k] = 0.0f; mCov[k] = 0.0f;
         }
         acf = 0.0f;
         vote = 0.0f;
@@ -148,14 +149,16 @@ struct CsiScorer {
         int nvote = 0;
         for (int k = 0; k < CSI_NSUB; k++) {
             const float G = a[k] * a[k];
-            if (scored > 0) {
-                mGG[k] += CSI_ACF_ALPHA * (G * prevG[k] - mGG[k]);
-                mG[k] += CSI_ACF_ALPHA * (G - mG[k]);
-                mG2[k] += CSI_ACF_ALPHA * (G * G - mG2[k]);
-                const float m2 = mG[k] * mG[k];
-                const float v = mG2[k] - m2;
-                if (v > 1e-12f) {
-                    float p = (mGG[k] - m2) / v;
+            if (scored == 0) {
+                mG[k] = G;
+            } else {
+                const float dG = G - mG[k];
+                const float dP = prevG[k] - mG[k];
+                mCov[k] += CSI_ACF_ALPHA * (dG * dP - mCov[k]);
+                mVar[k] += CSI_ACF_ALPHA * (dG * dG - mVar[k]);
+                mG[k] += CSI_ACF_ALPHA * dG;
+                if (mVar[k] > CSI_ACF_MIN_VAR * mG[k] * mG[k]) {
+                    float p = mCov[k] / mVar[k];
                     if (p > 1.0f) p = 1.0f;
                     if (p < -1.0f) p = -1.0f;
                     psi += p;
