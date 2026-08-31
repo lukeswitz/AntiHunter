@@ -695,16 +695,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <optgroup label="Recon">
                   <option value="device-scan" selected>Device Discovery</option>
                   <option value="probe-scan">Probe Request Scanner</option>
-                  <option value="randomization-detection">Randomized Device Tracer</option>
+                  <option value="randomization-detection">Randomized MAC Tracer</option>
                   <option value="drone-detection">Drone RID Detection</option>
                 </optgroup>
                 <optgroup label="Detection">
                   <option value="baseline">Baseline Anomaly Sniffer</option>
-                  <option value="deauth">Deauthentication Attack Detection</option>
+                  <option value="deauth">Deauth Detection</option>
                   <option value="csi-motion">CSI Motion Detection</option>
                 </optgroup>
                 <optgroup label="Capture">
-                  <option value="pcap">Packet Capture (PCAP to SD)</option>
+                  <option value="pcap">Packet Capture</option>
                 </optgroup>
               </select>
               <div id="detectionDesc" class="det-desc"></div>
