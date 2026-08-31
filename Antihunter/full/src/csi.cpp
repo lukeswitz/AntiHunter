@@ -1052,7 +1052,7 @@ void csiMotionTask(void *pv) {
         g_calActive = true;
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
-        Serial.printf("[CSI] Trigger %.2fx (self-normalising, no setup needed)\n",
+        Serial.printf("[CSI] Trigger %.2fx (self-normalizing, no setup needed)\n",
                       (float)csiThresholdMilli.load() / 1000.0f);
     }
 

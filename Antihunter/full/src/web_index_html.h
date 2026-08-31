@@ -729,7 +729,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                   </div>
                   <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiAuto" name="csiAuto" value="1">Learn the trigger from this area instead (20s, keep it empty)</label>
-                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Sensitivity is self-normalising, so the default works anywhere. Only tick this if a location reads wrong.</div>
+                  <div id="csiCalState" style="font-size:11px;opacity:.75;margin-top:6px;line-height:1.5;">Sensitivity is self-normalizing, so the default works anywhere. Only tick this if a location reads wrong.</div>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiTelem" name="csiTelem" value="1">Per-packet score to serial</label>
                   <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="csiRaw" name="csiRaw" value="1">Raw CSI to serial</label>
                 </details>
@@ -4504,7 +4504,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           const t = (j.threshold || 0).toFixed(2);
           el.innerHTML = j.calibrated
             ? 'Using a trigger learned here: <strong>' + t + 'x</strong>. Untick to go back to the default.'
-            : 'Sensitivity is self-normalising, so the default <strong>' + t +
+            : 'Sensitivity is self-normalizing, so the default <strong>' + t +
               'x</strong> works anywhere. Only tick this if a location reads wrong.';
         } catch (e) {
           console.warn('refreshCsiCalState: /csi-json fetch failed', e);

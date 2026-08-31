@@ -821,7 +821,7 @@ rfEnv: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. wifiPwr/b
 | `VIBRATION_STATUS` | Report sensor state | None | `@AH01 VIBRATION_STATUS` |
 | `VIBSCAN_SET` | Start a scan when moved | `en:mode:dur[:cooldown]` | `@AH01 VIBSCAN_SET:1:2:60:60` |
 | `VIBSCAN_STATUS` | Report that setting | None | `@AH01 VIBSCAN_STATUS` |
-| `CONFIG_ERASE_PSK` | Set the key that authorises a wipe | `<key>`, 1-64 chars | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
+| `CONFIG_ERASE_PSK` | Set the key that authorizes a wipe | `<key>`, 1-64 chars | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
 | `FACTORY_RESET` | Reset one node, needs the key | `<FULL\|CONFIG\|DATA>:<key>` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 
 `VIBSCAN_SET` modes: 0 off, 1 all-device, 2 probe-req, 3 rand-MAC, 4 list, 5 drone, 6 deauth, 7 baseline, 8 packet capture. Duration 0 runs until stopped. Skipped if a scan is already running or in battery saver.
@@ -922,7 +922,7 @@ is an attack, because 1/2/6/7 are all normal causes. Codes seen in practice:
 | 4 | Disassociated due to inactivity | normal AP housekeeping |
 | 5 | Disassociated, AP out of resources | normal AP under load |
 | 6 | Class 2 frame from non-authenticated STA | bettercap; also normal |
-| 7 | Class 3 frame from non-associated STA | aireplay-ng (with `dur=0x013A`), GhostESP; also normal AP behaviour |
+| 7 | Class 3 frame from non-associated STA | aireplay-ng (with `dur=0x013A`), GhostESP; also normal AP behavior |
 | 8 | STA leaving BSS | normal |
 | 14 | Michael MIC failure (TKIP) | `MICHAEL_TKIP` forge tag |
 
@@ -1003,7 +1003,7 @@ Rosters hold 48 entries in RAM, dropped after 15 minutes unheard. **Ping Nodes**
 | `/api/probedb/clear` | POST | Clear probe database |
 | `/api/probes.jsonl` | GET | Stream probe log from SD (JSONL) |
 
-`vendor` is the IEEE OUI-registered organisation, resolved from the first 24 bits of the MAC.
+`vendor` is the IEEE OUI-registered organization, resolved from the first 24 bits of the MAC.
 `name` is the device's advertised BLE name. Randomized (locally administered) MACs carry no OUI
 assignment and resolve to no vendor.
 
