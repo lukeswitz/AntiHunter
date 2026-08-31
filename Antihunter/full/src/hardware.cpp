@@ -59,6 +59,13 @@ unsigned long lastVibrationTime = 0;
 unsigned long lastVibrationAlert = 0;
 const unsigned long VIBRATION_ALERT_INTERVAL = 3000; 
 
+bool vibAutoScanEnabled = false;
+uint8_t vibAutoScanMode = 0;
+uint16_t vibAutoScanDuration = 60;
+uint32_t vibAutoScanCooldownMs = 60000;
+volatile bool vibAutoScanPending = false;
+unsigned long lastVibAutoScanFire = 0;
+
 // Diagnostics & Config
 extern std::atomic<bool> scanning;
 extern std::atomic<int> totalHits;
@@ -379,6 +386,10 @@ void initializeHardware()
         prefs.putUInt("wifiInterval", 3000);
         prefs.putUInt("bleInterval", 4000);
         prefs.putUInt("bleDuration", 2000);
+        prefs.putBool("vibScanEn", false);
+        prefs.putUChar("vibScanMode", 0);
+        prefs.putUShort("vibScanDur", 60);
+        prefs.putUInt("vibScanCd", 60000);
     }
     
     randomSeed(esp_random());
@@ -450,6 +461,10 @@ void syncSettingsToNVS() {
     prefs.putBool("hbEnabled", hbEnabled);
     prefs.putUInt("hbInterval", hbInterval);
     prefs.putBool("vibEnabled", vibrationEnabled);
+    prefs.putBool("vibScanEn", vibAutoScanEnabled);
+    prefs.putUChar("vibScanMode", vibAutoScanMode);
+    prefs.putUShort("vibScanDur", vibAutoScanDuration);
+    prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
 
     int offset = 0;
     for (size_t i = 0; i < CHANNELS.size() && offset < 120; i++) {
@@ -504,6 +519,10 @@ static uint32_t configSignature() {
     mix(&hbEnabled, 1);
     mix(&hbInterval, sizeof(hbInterval));
     mix(&vibrationEnabled, 1);
+    mix(&vibAutoScanEnabled, 1);
+    mix(&vibAutoScanMode, sizeof(vibAutoScanMode));
+    mix(&vibAutoScanDuration, sizeof(vibAutoScanDuration));
+    mix(&vibAutoScanCooldownMs, sizeof(vibAutoScanCooldownMs));
     mixStr(prefsGetString("apPass", AP_PASS));
     return h;
 }
@@ -605,6 +624,10 @@ void saveConfiguration() {
     configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
     configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
     configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
+    configFile.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
+    configFile.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
+    configFile.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
+    configFile.printf(" \"vibScanCooldown\":%u,\n", vibAutoScanCooldownMs);
     configFile.printf(" \"apPass\":\"%s\",\n", jsonEscape(prefsGetString("apPass", AP_PASS)).c_str());
     configFile.printf(" \"apAuth\":%u,\n", prefs.getUChar("apAuth", 0));
     configFile.printf(" \"apHidden\":%s\n", prefs.getBool("apHidden", false) ? "true" : "false");
@@ -642,6 +665,10 @@ void loadConfiguration() {
         hbEnabled = prefs.getBool("hbEnabled", false);
         hbInterval = prefs.getUInt("hbInterval", 600000);
         vibrationEnabled = prefs.getBool("vibEnabled", true);
+        vibAutoScanEnabled = prefs.getBool("vibScanEn", false);
+        vibAutoScanMode = prefs.getUChar("vibScanMode", 0);
+        vibAutoScanDuration = prefs.getUShort("vibScanDur", 60);
+        vibAutoScanCooldownMs = prefs.getUInt("vibScanCd", 60000);
         return;
     }
 
@@ -912,6 +939,26 @@ void loadConfiguration() {
     }
 
 #if AH_SENTINEL
+    if (doc.containsKey("vibScanEnabled")) {
+        vibAutoScanEnabled = doc["vibScanEnabled"].as<bool>();
+        prefs.putBool("vibScanEn", vibAutoScanEnabled);
+    }
+
+    if (doc.containsKey("vibScanMode")) {
+        vibAutoScanMode = doc["vibScanMode"].as<uint8_t>();
+        prefs.putUChar("vibScanMode", vibAutoScanMode);
+    }
+
+    if (doc.containsKey("vibScanDuration")) {
+        vibAutoScanDuration = doc["vibScanDuration"].as<uint16_t>();
+        prefs.putUShort("vibScanDur", vibAutoScanDuration);
+    }
+
+    if (doc.containsKey("vibScanCooldown")) {
+        vibAutoScanCooldownMs = doc["vibScanCooldown"].as<uint32_t>();
+        prefs.putUInt("vibScanCd", vibAutoScanCooldownMs);
+    }
+
     if (doc.containsKey("sentinelBoot")) {
         bool sb = doc["sentinelBoot"].as<bool>();
         prefs.putBool("sentBoot", sb);
@@ -1745,6 +1792,9 @@ void checkAndSendVibrationAlert() {
             Serial.printf("[VIBRATION] Sending mesh alert: %s\n", vibrationMsg);
             if (vibrationEnabled) {
                 sendToSerial1(String(vibrationMsg), true);
+            }
+            if (vibAutoScanEnabled && vibAutoScanMode != 0 && !batterySaverEnabled) {
+                vibAutoScanPending = true;
             }
             logVibrationEvent(sensorValue);
 

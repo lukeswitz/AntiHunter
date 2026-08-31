@@ -88,6 +88,7 @@ void meshFleetObserve(const String &sender, const String &payload);
 String meshFleetJson();
 void meshFleetClear();
 void processUSBToMesh();
+void serviceVibrationAutoScan();
 void setNodeId(const String &id);
 String getNodeId();
 extern unsigned long meshSendInterval;

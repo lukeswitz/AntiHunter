@@ -1138,6 +1138,67 @@ static void handleVibrationOff(const String &command)
   setVibrationEnabled(false);
 }
 
+static void handleVibScanSet(const String &command)
+{
+  String p = command.substring(12);
+  int d1 = p.indexOf(':');
+  int d2 = (d1 >= 0) ? p.indexOf(':', d1 + 1) : -1;
+  int d3 = (d2 >= 0) ? p.indexOf(':', d2 + 1) : -1;
+  if (d1 < 0 || d2 < 0) {
+    sendToSerial1(nodeId + ": VIBSCAN_ACK:INVALID", true);
+    return;
+  }
+  int en = p.substring(0, d1).toInt();
+  int mode = p.substring(d1 + 1, d2).toInt();
+  int dur = (d3 >= 0) ? p.substring(d2 + 1, d3).toInt() : p.substring(d2 + 1).toInt();
+  int cd = (d3 >= 0) ? p.substring(d3 + 1).toInt() : -1;
+  if (mode < 0 || mode > 8) {
+    sendToSerial1(nodeId + ": VIBSCAN_ACK:INVALID_MODE", true);
+    return;
+  }
+  if (dur < 0) dur = 0;
+  if (dur > 65535) dur = 65535;
+  vibAutoScanEnabled = (en != 0);
+  vibAutoScanMode = (uint8_t)mode;
+  vibAutoScanDuration = (uint16_t)dur;
+  if (cd >= 0) {
+    if (cd < 5) cd = 5;
+    if (cd > 86400) cd = 86400;
+    vibAutoScanCooldownMs = (uint32_t)cd * 1000UL;
+  }
+  lastSaveTime = 0;
+  saveConfiguration();
+  char buf[96];
+  snprintf(buf, sizeof(buf), ": VIBSCAN_ACK:OK En:%d Mode:%u Dur:%us Cd:%us",
+           vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration,
+           (unsigned)(vibAutoScanCooldownMs / 1000));
+  sendToSerial1(nodeId + String(buf), true);
+}
+
+static void handleVibScanStatus(const String &command)
+{
+  (void)command;
+  char buf[128];
+  snprintf(buf, sizeof(buf), ": VIBSCAN_STATUS: En:%d Mode:%u Dur:%us Cd:%us",
+           vibAutoScanEnabled ? 1 : 0, vibAutoScanMode, vibAutoScanDuration,
+           (unsigned)(vibAutoScanCooldownMs / 1000));
+  sendToSerial1(nodeId + String(buf), true);
+}
+
+static void handleAttackerTrilat(const String &command)
+{
+  int v = command.substring(16).toInt();
+  bool en = (v != 0);
+  detect_setAttackerTrilat(en);
+  sendToSerial1(nodeId + ": ATTACKER_TRILAT_ACK:" + (en ? "ON" : "OFF"), true);
+}
+
+static void handleAttackerTrilatStatus(const String &command)
+{
+  (void)command;
+  sendToSerial1(nodeId + ": ATTACKER_TRILAT_STATUS: " + (detect_getAttackerTrilat() ? "ON" : "OFF"), true);
+}
+
 static bool triPendingCycleStart = false;
 static uint32_t triPendingCycleStartMs = 0;
 static uint32_t triPendingCycleStartAt = 0;
@@ -1911,6 +1972,8 @@ static bool meshIsResponse(const String &payload)
     "SETUP_MODE:", "T_D:", "T_C:", "T_F:",
     "STATUS: ", "BASELINE_STATUS: ", "VIBRATION_STATUS: ", "AUTOERASE_STATUS: ",
     "BATTERY_SAVER_STATUS: "
+    "BATTERY_SAVER_STATUS: ", "SENTINEL_STATUS: ", "VIBSCAN_ACK", "VIBSCAN_STATUS: ",
+    "ATTACKER_TRILAT_ACK", "ATTACKER_TRILAT_STATUS: "
   };
   for (const char *p : kResponses) {
     if (payload.startsWith(p)) return true;
@@ -1967,6 +2030,10 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "VIBRATION_STATUS")             handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
   else if (command == "VIBRATION_OFF")                handleVibrationOff(command);
+  else if (command.startsWith("VIBSCAN_SET:"))        handleVibScanSet(command);
+  else if (command == "VIBSCAN_STATUS")               handleVibScanStatus(command);
+  else if (command == "ATTACKER_TRILAT_STATUS")       handleAttackerTrilatStatus(command);
+  else if (command.startsWith("ATTACKER_TRILAT:"))    handleAttackerTrilat(command);
   else if (command.startsWith("TRIANGULATE_START:"))  handleTriangulateStart(command, targetId);
   else if (command == "TRIANGULATE_STOP")             handleTriangulateStop(command);
   else if (command.startsWith("TRI_CYCLE_START:"))    handleTriCycleStart(command);
@@ -1984,6 +2051,44 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command == "HB_ON")                        handleHbOn(command);
   else if (command == "HB_OFF")                       handleHbOff(command);
   else if (command.startsWith("HB_INTERVAL:"))        handleHbInterval(command);
+}
+
+static String buildVibAutoScanCommand(uint8_t mode, uint16_t durSecs)
+{
+  String dur = (durSecs == 0) ? String("0:FOREVER") : String(durSecs);
+  switch (mode) {
+    case 1: return "DEVICE_SCAN_START:2:" + dur;
+    case 2: return "PROBE_START:2:" + dur;
+    case 3: return "RANDOMIZATION_START:2:" + dur;
+    case 4: return "SCAN_START:2:" + String(durSecs) + ":1,2,3,4,5,6,7,8,9,10,11" + (durSecs == 0 ? ":FOREVER" : "");
+    case 5: return "DRONE_START:" + dur;
+    case 6: return "DEAUTH_START:" + dur;
+    case 7: return "BASELINE_START:" + dur;
+    case 8: return "PCAP_START:0:" + String(durSecs) + ":0" + (durSecs == 0 ? ":FOREVER" : "");
+    default: return String();
+  }
+}
+
+void serviceVibrationAutoScan()
+{
+  if (!vibAutoScanPending) return;
+  vibAutoScanPending = false;
+  if (!vibAutoScanEnabled || vibAutoScanMode == 0) return;
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
+    Serial.println("[VIBSCAN] Auto-scan skipped: scan already running");
+    return;
+  }
+  unsigned long now = millis();
+  if (lastVibAutoScanFire != 0 && (now - lastVibAutoScanFire) < vibAutoScanCooldownMs) {
+    Serial.println("[VIBSCAN] Auto-scan skipped: cooldown");
+    return;
+  }
+  String cmd = buildVibAutoScanCommand(vibAutoScanMode, vibAutoScanDuration);
+  if (vibAutoScanMode == 8) setPcapAutoTriggered(true);
+  if (cmd.length() == 0) return;
+  lastVibAutoScanFire = now;
+  Serial.printf("[VIBSCAN] Vibration-triggered auto-scan (mode %u): %s\n", vibAutoScanMode, cmd.c_str());
+  processCommand(cmd, "");
 }
 
 void sendMeshCommand(const String &command) {

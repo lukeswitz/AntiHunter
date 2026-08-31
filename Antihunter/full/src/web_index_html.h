@@ -1062,7 +1062,11 @@ R"HTML(
             </div>
           </div>
 
-          <hr>
+        </div>
+
+      <div class="card">
+          <h3>Sensor Alerts</h3>
+          <p class="card-sub">Vibration sensor behavior</p>
 
           <div style="margin-top:12px;">
             <label>Vibration Sensor Alerts</label>
@@ -1071,7 +1075,43 @@ R"HTML(
             </div>
             <div style="font-size:10px;color:var(--mut);">Controls mesh broadcast alerts when vibration is detected</div>
           </div>
-        </div>
+
+          <hr>
+
+          <div style="margin-top:12px;">
+            <label>Vibration Auto-Scan</label>
+            <div style="font-size:10px;color:var(--mut);margin-bottom:6px;">Automatically start a scan when the vibration sensor fires</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <label class="dsw"><input type="checkbox" id="vibScanEn"><span class="dsw-s"></span></label>
+              <span style="font-size:12px;color:var(--mut);">Enable</span>
+            </div>
+            <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Scan to run</label>
+            <select id="vibScanMode" style="width:100%;margin-bottom:8px;">
+              <option value="0">None</option>
+              <option value="1">All-device scan</option>
+              <option value="2">Probe-request detect</option>
+              <option value="3">Randomized-MAC detect</option>
+              <option value="4">List scan (targets)</option>
+              <option value="5">Drone / RemoteID</option>
+              <option value="6">Deauth (blue-team)</option>
+              <option value="7">Baseline anomaly</option>
+              <option value="8">Packet capture to SD</option>
+              <option value="8">Packet capture to SD</option>
+            </select>
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;">
+                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Duration (s, 0=forever)</label>
+                <input type="number" id="vibScanDur" min="0" max="65535" value="60" style="width:100%;">
+              </div>
+              <div style="flex:1;">
+                <label class="field-name" style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Cooldown (s)</label>
+                <input type="number" id="vibScanCd" min="5" max="86400" value="60" style="width:100%;">
+              </div>
+            </div>
+            <button class="btn primary" type="button" onclick="saveVibScanConfig()" style="width:100%;margin-top:8px">Save Vibration Auto-Scan</button>
+            <div style="font-size:10px;color:var(--mut);margin-top:4px;">Skipped if a scan is already running or during battery-saver</div>
+          </div>
+      </div>
       </div>
 
       <!-- Secure Data Destruction -->
@@ -3510,6 +3550,28 @@ R"HTML(
           _matchAePresetFromValues();
         }
       });
+      async function loadVibScanConfig() {
+        try {
+          const r = await fetch('/vibration-scan', {cache:'no-store'});
+          if (!r.ok) return;
+          const d = await r.json();
+          document.getElementById('vibScanEn').checked = !!d.enabled;
+          document.getElementById('vibScanMode').value = d.mode;
+          document.getElementById('vibScanDur').value = d.duration;
+          document.getElementById('vibScanCd').value = d.cooldown;
+        } catch(e){ console.warn('vibscan load failed', e); }
+      }
+      async function saveVibScanConfig() {
+        const fd = new URLSearchParams();
+        fd.append('enabled', document.getElementById('vibScanEn').checked ? 1 : 0);
+        fd.append('mode', document.getElementById('vibScanMode').value);
+        fd.append('duration', document.getElementById('vibScanDur').value);
+        fd.append('cooldown', document.getElementById('vibScanCd').value);
+        try {
+          const r = await fetch('/vibration-scan', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: fd.toString()});
+          toast(r.ok ? 'Vibration auto-scan saved' : 'Save failed', r.ok ? 'ok' : 'err');
+        } catch(e){ toast('Save failed', 'err'); }
+      }
       async function saveAutoEraseConfig() {
       try {
         const enabled = document.getElementById('autoEraseEnabled').checked;
@@ -4191,13 +4253,6 @@ R"HTML(
         html += _resStat('Dropped', dropped, dropped === '0' ? 'ok' : 'warn');
         html += '</div></div>';
 
-        if (name) {
-          html += '<div class="res-card"><div class="pcap-row" style="background:transparent;border:none;padding:0">';
-          html += '<span class="pcap-radio ' + (radio === 'BLE' ? 'ble' : 'wifi') + '">' + icon + '</span>';
-          html += '<div class="pcap-row-name"><span class="pcap-row-text">' + name + '</span></div>';
-          html += '<a class="pcap-act" href="/pcap/download?f=' + encodeURIComponent(name) + '" download data-ajax="false" title="Download" aria-label="Download">' + PCAP_ICON_GET + '</a>';
-          html += '</div></div>';
-        }
         return html;
       }
 
@@ -5974,6 +6029,7 @@ R"HTML(
       loadMeshInterval();
       loadDedupTtl();
       updateAutoEraseStatus();
+      loadVibScanConfig();
       refreshPskStatus();
       pollSecureState();
       setInterval(tick, 5000);

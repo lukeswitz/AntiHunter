@@ -722,6 +722,19 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 `DETECT_CFG` sets the rest: `ssid_confusion`, `pwna`, `csa_quiet`, `rid_spoof`, `bloom_gossip`, `ble_malformed`, the 15 `mesh_*` emit toggles and the numeric thresholds. `DETECT_CFG_GET` prints every key to serial. `GROUP` and `DETECT_CFG` write to NVS. Deauth, beacon and auth detection have no toggle.
 
 Headless has no SoftAP. `defend` pins to whatever channel the radio last used, so use `scan`.
+| Command | Parameters | Example |
+|---------|------------|---------|
+| `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
+| `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
+| `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
+| `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
+| `GROUP` | `<name>:<on\|off>` — toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
+| `DETECT_CFG` | `<json>` — apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
+| `DETECT_CFG_GET` | None — dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
+| `INCIDENTS` | `[:<1-200>]` — dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
+| `INCIDENTS_CLEAR` | None — clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
+| `ATTACKER_TRILAT` | `1`/`0` — auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
+| `ATTACKER_TRILAT_STATUS` | None. Reply: `ATTACKER_TRILAT_STATUS: ON`/`OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -751,6 +764,21 @@ Headless has no SoftAP. `defend` pins to whatever channel the radio last used, s
 | `VIBSCAN_STATUS` | Report that setting | None | `@AH01 VIBSCAN_STATUS` |
 | `CONFIG_ERASE_PSK` | Set the key that authorises a wipe | `<key>`, 1-64 chars | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
 | `FACTORY_RESET` | Reset one node, needs the key | `<FULL\|CONFIG\|DATA>:<key>` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
+| Command | Parameters | Example |
+|---------|------------|---------|
+| `ERASE_REQUEST` | None | `@AH01 ERASE_REQUEST` |
+| `ERASE_FORCE` | Auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
+| `ERASE_CANCEL` | None | `@AH01 ERASE_CANCEL` |
+| `AUTOERASE_ENABLE` | `setup:erase:vibs:window:cooldown` (seconds, except vibs count) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
+| `AUTOERASE_DISABLE` | None | `@AH01 AUTOERASE_DISABLE` |
+| `AUTOERASE_STATUS` | None | `@AH01 AUTOERASE_STATUS` |
+| `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
+| `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
+| `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
+| `VIBSCAN_SET` | `en:mode:dur[:cooldownSecs]` — auto-start a scan when the vibration sensor fires. en 0/1; mode 0=off, 1=all-device, 2=probe-req, 3=rand-MAC, 4=list, 5=drone, 6=deauth, 7=baseline; dur seconds (0=forever). Skipped if a scan is already running or during battery-saver. ACK: `VIBSCAN_ACK:OK En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_SET:1:2:60:60` |
+| `VIBSCAN_STATUS` | None. Reply: `VIBSCAN_STATUS: En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_STATUS` |
+| `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) — set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
+| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` — factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
 
 </details>
 

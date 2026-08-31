@@ -68,6 +68,7 @@ void sendMeshCommand(const String &command);
 void processMeshMessage(const String &message);
 void meshSplitSender(const String &line, String &sender, String &payload);
 void processUSBToMesh();
+void serviceVibrationAutoScan();
 void setNodeId(const String &id);
 String getNodeId();
 extern unsigned long meshSendInterval;
