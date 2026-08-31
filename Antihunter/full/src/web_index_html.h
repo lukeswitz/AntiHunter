@@ -670,15 +670,15 @@ R"HTML(
                 <optgroup label="Recon">
                   <option value="device-scan" selected>Device Discovery</option>
                   <option value="probe-scan">Probe Request Scanner</option>
-                  <option value="randomization-detection">Randomized Device Tracer</option>
+                  <option value="randomization-detection">Randomized MAC Tracer</option>
                   <option value="drone-detection">Drone RID Detection</option>
                 </optgroup>
                 <optgroup label="Detection">
                   <option value="baseline">Baseline Anomaly Sniffer</option>
-                  <option value="deauth">Deauthentication Attack Detection</option>
+                  <option value="deauth">Deauth Detection</option>
                 </optgroup>
                 <optgroup label="Capture">
-                  <option value="pcap">Packet Capture (PCAP to SD)</option>
+                  <option value="pcap">Packet Capture</option>
                 </optgroup>
               </select>
 
@@ -3693,6 +3693,8 @@ R"HTML(
           html = parseBaselineResults(text);
         } else if (text.includes('Deauth Detection Results') || text.includes('Deauth Attack Detection Results')) {
           html = parseDeauthResults(text);
+        } else if (text.includes('Packet Capture -')) {
+          html = parsePcapResults(text);
         } else if (text.includes('Drone Detection Results')) {
           html = parseDroneResults(text);
         } else if (text.includes('Probes:') && text.includes('SSIDs:')) {
@@ -4165,6 +4167,37 @@ R"HTML(
         const finalMoreMatch = text.match(/\.\.\. \((\d+) more targets\)/);
         if (finalMoreMatch) html += '<div class="res-more" style="border:1px dashed var(--bord);border-radius:8px;padding:12px;">+ ' + finalMoreMatch[1] + ' more targets</div>';
 
+        return html;
+      }
+
+      function parsePcapResults(text) {
+        const radio = /Packet Capture - BLE/.test(text) ? 'BLE' : 'WiFi';
+        const ch = (text.match(/Packet Capture - WiFi ch(\d+)/) || [])[1];
+        const file = (text.match(/File: (\S+)/) || [])[1] || '';
+        const frames = (text.match(/Frames: (\d+)/) || [])[1] || '0';
+        const bytes = parseInt((text.match(/Bytes: (\d+)/) || [])[1] || '0', 10);
+        const dropped = (text.match(/Dropped: (\d+)/) || [])[1] || '0';
+        const elapsed = (text.match(/Elapsed: (\d+)s/) || [])[1] || '0';
+        const name = file.substring(file.lastIndexOf('/') + 1);
+        const icon = radio === 'BLE' ? PCAP_ICON_BLE : PCAP_ICON_WIFI;
+
+        let html = '<div class="res-hero"><div class="res-hero-top"><div class="res-hero-title">';
+        html += '<span class="pcap-radio ' + (radio === 'BLE' ? 'ble' : 'wifi') + '">' + icon + '</span>';
+        html += 'Packet Capture' + (ch ? ' &#183; channel ' + ch : '') + '</div>' + _resScanPill(text) + '</div>';
+        html += '<div class="res-stats">';
+        html += _resStat('Frames', Number(frames).toLocaleString());
+        html += _resStat('Written', fmtBytes(bytes));
+        html += _resStat('Elapsed', elapsed + '<small>s</small>');
+        html += _resStat('Dropped', dropped, dropped === '0' ? 'ok' : 'warn');
+        html += '</div></div>';
+
+        if (name) {
+          html += '<div class="res-card"><div class="pcap-row" style="background:transparent;border:none;padding:0">';
+          html += '<span class="pcap-radio ' + (radio === 'BLE' ? 'ble' : 'wifi') + '">' + icon + '</span>';
+          html += '<div class="pcap-row-name"><span class="pcap-row-text">' + name + '</span></div>';
+          html += '<a class="pcap-act" href="/pcap/download?f=' + encodeURIComponent(name) + '" download data-ajax="false" title="Download" aria-label="Download">' + PCAP_ICON_GET + '</a>';
+          html += '</div></div>';
+        }
         return html;
       }
 
@@ -5407,7 +5440,7 @@ R"HTML(
         fetch('/pcap/status').then(r => r.json()).then(d => {
           applyPcapBandVisibility(!!d.dualBand);
           refreshPcapList();
-          if (d.active && document.getElementById('detectionMode').value === 'pcap') {
+          if ((d.active || radioBusy) && document.getElementById('detectionMode').value === 'pcap') {
             pcapPollTimer = setTimeout(refreshPcapStatus, 2000);
           }
         }).catch(() => {});
@@ -5547,6 +5580,9 @@ R"HTML(
             submitBtn.onclick = stopScan;
         }
 
+        if (detectionMethod === 'pcap') {
+          setTimeout(refreshPcapStatus, 500);
+        }
         if (detectionMethod === 'randomization-detection') {
           const randMode = document.getElementById('randomizationMode').value;
           fd.append('randomizationMode', randMode);
