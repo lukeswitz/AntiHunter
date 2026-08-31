@@ -4315,13 +4315,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         html += _resStat('Dropped', dropped, dropped === '0' ? 'ok' : 'warn');
         html += '</div></div>';
 
-        if (name) {
-          html += '<div class="res-card"><div class="pcap-row" style="background:transparent;border:none;padding:0">';
-          html += '<span class="pcap-radio ' + (radio === 'BLE' ? 'ble' : 'wifi') + '">' + icon + '</span>';
-          html += '<div class="pcap-row-name"><span class="pcap-row-text">' + name + '</span></div>';
-          html += '<a class="pcap-act" href="/pcap/download?f=' + encodeURIComponent(name) + '" download data-ajax="false" title="Download" aria-label="Download">' + PCAP_ICON_GET + '</a>';
-          html += '</div></div>';
-        }
         return html;
       }
 
