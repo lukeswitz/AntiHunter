@@ -18,6 +18,7 @@
 #include "baseline.h"
 #include "detect.h"
 #include "main.h"
+#include "pcap.h"
 #include "scanner_internal.h"
 #include "oui_table.h"
 
@@ -833,6 +834,23 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
         bleFramesSeen = bleFramesSeen + 1;
 
         int8_t rssi = advertisedDevice->getRSSI();
+
+        if (pcapBleEnabled.load()) {
+            const std::vector<uint8_t>& pl = advertisedDevice->getPayload();
+            uint8_t advA[6];
+            memcpy(advA, advertisedDevice->getAddress().getVal(), 6);
+            uint8_t tgtA[6];
+            const uint8_t *tgtp = nullptr;
+            if (advertisedDevice->haveTargetAddress()) {
+                memcpy(tgtA, advertisedDevice->getTargetAddress(0).getVal(), 6);
+                tgtp = tgtA;
+            }
+            pcapOnBleAdv(advA, advertisedDevice->getAddressType(),
+                         advertisedDevice->getAdvType(),
+                         pl.data(), (uint16_t)pl.size(),
+                         advertisedDevice->getAdvLength(), tgtp, rssi);
+        }
+
         if (rssi > -10) return;
 
         uint8_t mac[6];

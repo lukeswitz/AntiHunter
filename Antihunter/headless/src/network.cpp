@@ -5,6 +5,7 @@
 #include "scanner.h"
 #include "main.h"
 #include "detect.h"
+#include "pcap.h"
 #include <RTClib.h>
 #include <algorithm>
 #include <esp_timer.h>
@@ -639,6 +640,67 @@ static void handleBaselineStatus(const String &command)
            snapAnomalyCount,
            phase1Status);
   sendToSerial1(String(status_msg), true);
+}
+
+static void handlePcapStart(const String &command)
+{
+  String params = command.substring(11);
+  uint8_t radio = PCAP_RADIO_WIFI;
+  uint8_t band = PCAP_BAND_24;
+  int secs = 300;
+  bool forever = false;
+
+  int field = 0;
+  int start = 0;
+  while (start <= (int)params.length()) {
+    int delim = params.indexOf(':', start);
+    String tok = params.substring(start, delim > 0 ? delim : params.length());
+    tok.trim();
+    if (tok == "FOREVER") {
+      forever = true;
+    } else if (tok.length()) {
+      int v = tok.toInt();
+      if (field == 0) radio = (v == PCAP_RADIO_BLE) ? PCAP_RADIO_BLE : PCAP_RADIO_WIFI;
+      else if (field == 1) secs = v;
+      else if (field == 2 && v >= 0 && v <= PCAP_BAND_BOTH) band = (uint8_t)v;
+    }
+    field++;
+    if (delim < 0) break;
+    start = delim + 1;
+  }
+
+  if (secs < 0) secs = 0;
+  if (secs > 86400) secs = 86400;
+
+  if (!SafeSD::isAvailable()) {
+    Serial.println("[MESH] No SD, rejecting PCAP_START");
+    sendToSerial1(nodeId + ": PCAP_ACK:NOSD", true);
+    return;
+  }
+
+  if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive || meshTxPending()) {
+    Serial.println("[MESH] Radio busy, rejecting PCAP_START");
+    sendToSerial1(nodeId + ": PCAP_ACK:BUSY", true);
+    return;
+  }
+
+  setPcapConfig(radio, band, String(""), 250, false);
+  stopRequested = false;
+  if (!meshStartScanTask(pcapCaptureTask, "pcap", 8192, secs, forever, &workerTaskHandle)) {
+    sendToSerial1(nodeId + ": PCAP_ACK:FAILED", true);
+    return;
+  }
+  Serial.printf("[MESH] Started packet capture via mesh (%s, band %u, %ds)\n",
+                radio == PCAP_RADIO_BLE ? "BLE" : "WiFi", band, secs);
+  sendToSerial1(nodeId + ": PCAP_ACK:STARTED", true);
+}
+
+static void handlePcapStop(const String &command)
+{
+  (void)command;
+  stopAllScans();
+  Serial.println("[MESH] Packet capture stop received via mesh");
+  sendToSerial1(nodeId + ": PCAP_ACK:STOPPED", true);
 }
 
 static void handleDeviceScanStart(const String &command)
@@ -1884,6 +1946,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("PROBE_START:"))        handleProbeStart(command);
   else if (command == "PROBE_STOP")                   handleProbeStop(command);
   else if (command.startsWith("PROBE_HIT "))          handleProbeHit(command);
+  else if (command.startsWith("PCAP_START:"))         handlePcapStart(command);
+  else if (command == "PCAP_STOP")                    handlePcapStop(command);
   else if (command == "STOP")                         handleStop(command);
 #if AH_SENTINEL
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);

@@ -5,6 +5,7 @@
 #include "scanner.h"
 #include "main.h"
 #include "detect.h"
+#include "pcap.h"
 #include <AsyncTCP.h>
 #include <RTClib.h>
 #include <esp_timer.h>
@@ -1301,10 +1302,59 @@ void registerRemainingRoutes() {
                     forever ? "Drone detection starting (forever)" :
                     ("Drone detection starting for " + String(secs) + "s"));
 
+        } else if (detection == "pcap") {
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+
+            if (!SafeSD::isAvailable()) {
+                req->send(409, "text/plain", "No SD card - packet capture needs SD storage");
+                return;
+            }
+            if (workerTaskHandle) {
+                req->send(409, "text/plain", "Radio busy - stop the running scan");
+                return;
+            }
+
+            uint8_t radio = req->hasParam("pcapRadio", true)
+                          ? (uint8_t)req->getParam("pcapRadio", true)->value().toInt() : PCAP_RADIO_WIFI;
+            uint8_t band = req->hasParam("pcapBand", true)
+                         ? (uint8_t)req->getParam("pcapBand", true)->value().toInt() : PCAP_BAND_24;
+            String pcapCh = req->hasParam("pcapChannels", true)
+                          ? req->getParam("pcapChannels", true)->value() : String("");
+            uint16_t dwell = req->hasParam("pcapDwell", true)
+                           ? (uint16_t)req->getParam("pcapDwell", true)->value().toInt() : 250;
+            setPcapConfig(radio, band, pcapCh, dwell, req->hasParam("pcapMgmtOnly", true));
+
+            stopRequested = false;
+            if (!ahStartScanTask(pcapCaptureTask, "pcap", 8192, secs, forever, &workerTaskHandle)) {
+                scanSetCountdown(0, false);
+                req->send(500, "text/plain", "Failed to start packet capture task");
+                return;
+            }
+            req->send(200, "text/plain",
+                      forever ? "Packet capture starting (forever)"
+                              : ("Packet capture starting for " + String(secs) + "s"));
+
         } else {
             req->send(400, "text/plain", "Unknown detection mode");
         }
     });
+
+  server->on("/pcap/status", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", getPcapStatusJson());
+  });
+
+  server->on("/pcap/download", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String path = getPcapFilePath();
+      if (path.length() == 0 || !SafeSD::isAvailable() || !SafeSD::exists(path.c_str())) {
+          r->send(404, "text/plain", "No capture file");
+          return;
+      }
+      String name = path.substring(path.lastIndexOf('/') + 1);
+      AsyncWebServerResponse *res = r->beginResponse(SD, path, "application/vnd.tcpdump.pcap", true);
+      res->addHeader("Content-Disposition", "attachment; filename=\"" + name + "\"");
+      r->send(res);
+  });
 
   server->on("/deauth-results", HTTP_GET, [](AsyncWebServerRequest *r) {
       std::lock_guard<std::mutex> lock(deauthLogMutex);
