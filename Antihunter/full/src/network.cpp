@@ -6,6 +6,7 @@
 #include "main.h"
 #include "detect.h"
 #include "csi.h"
+#include "pcap.h"
 #include <AsyncTCP.h>
 #include <RTClib.h>
 #include <esp_timer.h>
@@ -1436,10 +1437,70 @@ void registerRemainingRoutes() {
                                    : String("CSI starting on ch") + String(csiCh));
             }
 
+        } else if (detection == "pcap") {
+            if (secs < 0) secs = 0;
+            if (secs > 86400) secs = 86400;
+
+            if (!SafeSD::isAvailable()) {
+                req->send(409, "text/plain", "No SD card - packet capture needs SD storage");
+                return;
+            }
+
+            uint8_t radio = req->hasParam("pcapRadio", true)
+                          ? (uint8_t)req->getParam("pcapRadio", true)->value().toInt() : PCAP_RADIO_WIFI;
+            uint8_t band = req->hasParam("pcapBand", true)
+                         ? (uint8_t)req->getParam("pcapBand", true)->value().toInt() : PCAP_BAND_24;
+            String pcapCh = req->hasParam("pcapChannels", true)
+                          ? req->getParam("pcapChannels", true)->value() : String("");
+            uint16_t dwell = req->hasParam("pcapDwell", true)
+                           ? (uint16_t)req->getParam("pcapDwell", true)->value().toInt() : 250;
+            setPcapConfig(radio, band, pcapCh, dwell, req->hasParam("pcapMgmtOnly", true));
+
+            stopRequested = false;
+
+            bool pcapStarted = false;
+            if (!workerTaskHandle) {
+                scanning = true;
+                if (ahCreateTask(pcapCaptureTask, "pcap", 8192, reinterpret_cast<void*>(static_cast<intptr_t>(forever ? 0 : secs)), 1, &workerTaskHandle, 1) != pdPASS) {
+                    scanning = false;
+                    workerTaskHandle = nullptr;
+                    scanSetCountdown(0, false);
+                    Serial.println("[SCAN] task create failed: pcap");
+                } else {
+                    pcapStarted = true;
+                }
+            }
+
+            if (!pcapStarted) {
+                req->send(409, "text/plain",
+                          workerTaskHandle ? "Radio busy - stop the running scan"
+                                           : "Packet capture failed to start");
+            } else {
+                req->send(200, "text/plain",
+                          forever ? "Packet capture starting (forever)"
+                                  : ("Packet capture starting for " + String(secs) + "s"));
+            }
+
         } else {
             req->send(400, "text/plain", "Unknown detection mode");
         }
     });
+
+  server->on("/pcap/status", HTTP_GET, [](AsyncWebServerRequest *r) {
+      r->send(200, "application/json", getPcapStatusJson());
+  });
+
+  server->on("/pcap/download", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String path = getPcapFilePath();
+      if (path.length() == 0 || !SafeSD::isAvailable() || !SafeSD::exists(path.c_str())) {
+          r->send(404, "text/plain", "No capture file");
+          return;
+      }
+      String name = path.substring(path.lastIndexOf('/') + 1);
+      AsyncWebServerResponse *res = r->beginResponse(SD, path, "application/vnd.tcpdump.pcap", true);
+      res->addHeader("Content-Disposition", "attachment; filename=\"" + name + "\"");
+      r->send(res);
+  });
 
   server->on("/csi-results", HTTP_GET, [](AsyncWebServerRequest *r) {
       r->send(200, "text/plain", getCsiResults());
