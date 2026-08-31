@@ -1242,8 +1242,8 @@ docker compose up -d --build</pre>
     <tr><td><span class="mono">/last_results.txt</span></td><td>Most recent scan results as text. Written by both builds</td></tr>
     <tr><td><span class="mono">/devicedb.jsonl</span></td><td>Device database. Full firmware only, browsed by the Data Explorer</td></tr>
     <tr><td><span class="mono">/vibrations.jsonl</span></td><td>Structured vibration events</td></tr>
-    <tr><td><span class="mono">/pcap/ah_*.pcap</span></td><td>Packet captures you started by hand. Never pruned automatically</td></tr>
-    <tr><td><span class="mono">/pcap/auto_*.pcap</span></td><td>Captures started by a vibration trigger or a Sentinel attack response. Oldest are deleted to stay inside the budget and keep the card's free-space floor</td></tr>
+    <tr><td><span class="mono">/pcap/wifi_*.pcap</span> and <span class="mono">/pcap/ble_*.pcap</span></td><td>Packet captures you started by hand. Never pruned automatically</td></tr>
+    <tr><td><span class="mono">/pcap/wifi_auto_*.pcap</span> and <span class="mono">/pcap/ble_auto_*.pcap</span></td><td>Captures started by a vibration trigger or a Sentinel attack response. Oldest are deleted to stay inside the budget and keep the card's free-space floor</td></tr>
   </table>
 
   <h2 style="margin-top:10mm">Appendix D · Glossary</h2>

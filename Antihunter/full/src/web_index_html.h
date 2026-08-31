@@ -198,12 +198,23 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       #pcapFilesBody{overflow:hidden;transition:max-height 0.3s cubic-bezier(0.4,0,0.2,1)}
       #pcapFilesBody.collapsed{max-height:0!important}
       .pcap-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:260px;overflow-y:auto}
-      .pcap-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;background:var(--accbg);border:1px solid var(--bord);border-radius:8px;padding:7px 10px}
-      .pcap-row-name{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+      .pcap-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:8px;background:var(--accbg);border:1px solid var(--bord);border-radius:8px;padding:7px 10px}
+      .pcap-radio{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0}
+      .pcap-radio svg{width:16px;height:16px}
+      .pcap-radio.wifi{color:var(--c-wifi)}
+      .pcap-radio.ble{color:var(--c-ble)}
+      .pcap-row-name{display:flex;align-items:center;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+      .pcap-auto{flex-shrink:0;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);border:1px solid var(--bord);border-radius:4px;padding:0 4px}
       .pcap-row-size{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:11px;color:var(--mut);white-space:nowrap}
       .pcap-row .btn{padding:4px 10px;font-size:11px;border-width:1px}
       .pcap-row.recording .pcap-row-name{color:var(--acc)}
       .pcap-empty{font-size:12px;color:var(--mut);padding:6px 2px}
+      @media(max-width:520px){
+        .pcap-row{display:flex;flex-wrap:wrap;row-gap:8px}
+        .pcap-row-name{flex:1 1 auto}
+        .pcap-row-size{margin-left:auto}
+        .pcap-row .btn{flex:1 1 0;min-width:0}
+      }
       .res-hero,.res-card,.res-section,.res-callout{margin-bottom:14px}
       .res-list{display:flex;flex-direction:column;gap:12px}
       .fl-empty{color:var(--mut);font-size:13px;padding:14px 2px}
@@ -737,7 +748,6 @@ R"HTML(
                     </div>
                   </div>
                   <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="pcapMgmtOnly" value="1">Management frames only</label>
-                  <div style="font-size:11px;color:var(--mut);margin-top:8px;line-height:1.6;">Mesh: <code>PCAP_START:&lt;radio&gt;:&lt;secs&gt;:&lt;band&gt;[:FOREVER]</code> &#183; <code>PCAP_STOP</code></div>
                 </details>
               </div>
               <div id="standardDurationControls" style="margin-top:10px;">
@@ -5324,6 +5334,14 @@ R"HTML(
         });
 
       let pcapPollTimer = null;
+      const PCAP_ICON_WIFI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor" stroke="none"/></svg>';
+      const PCAP_ICON_BLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M8 7.5 16 16.5 12 20V4l4 3.5L8 16.5"/></svg>';
+      const PCAP_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      function pcapStampLabel(name) {
+        const m = name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+        if (!m) return name.replace(/^(wifi|ble)_/, '').replace(/^auto_/, '').replace(/\.pcap$/, '');
+        return PCAP_MONTHS[+m[2] - 1] + ' ' + (+m[3]) + ', ' + m[4] + ':' + m[5];
+      }
       function fmtBytes(n) {
         if (n < 1024) return n + ' B';
         if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
@@ -5364,15 +5382,22 @@ R"HTML(
             return;
           }
           list.sort((a, b) => a.name < b.name ? 1 : -1);
-          box.innerHTML = list.map(f =>
-            '<div class="pcap-row' + (f.active ? ' recording' : '') + '">' +
-              '<div class="pcap-row-name" title="' + f.name + '">' + f.name + '</div>' +
+          box.innerHTML = list.map(f => {
+            const ble = f.name.indexOf('ble_') === 0;
+            const auto = f.name.indexOf('_auto_') >= 0;
+            const label = pcapStampLabel(f.name);
+            return '<div class="pcap-row' + (f.active ? ' recording' : '') + '">' +
+              '<span class="pcap-radio ' + (ble ? 'ble' : 'wifi') + '" title="' + (ble ? 'BLE' : 'WiFi') + '">' +
+                (ble ? PCAP_ICON_BLE : PCAP_ICON_WIFI) + '</span>' +
+              '<div class="pcap-row-name" title="' + f.name + '">' + label +
+                (auto ? '<span class="pcap-auto">auto</span>' : '') + '</div>' +
               '<div class="pcap-row-size">' + fmtBytes(f.size) + '</div>' +
               '<a class="btn alt" href="/pcap/download?f=' + encodeURIComponent(f.name) + '" download data-ajax="false">Get</a>' +
               (f.active
-                ? '<button type="button" class="btn" disabled title="Still recording">Recording</button>'
+                ? '<button type="button" class="btn" disabled title="Still recording">Rec</button>'
                 : '<button type="button" class="btn danger" onclick="pcapDeleteOne(\'' + f.name + '\')">Delete</button>') +
-            '</div>').join('');
+            '</div>';
+          }).join('');
         }).catch(() => {});
       }
       function refreshPcapStatus() {
