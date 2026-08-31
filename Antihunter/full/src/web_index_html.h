@@ -651,20 +651,27 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         <!-- Detection & Analysis -->
         <div class="card">
           <div class="card-header" onclick="toggleCollapse('detectionCard')">
-            <h3>Detection & Analysis</h3>
+            <h3>Recon & Detection</h3>
             <span class="collapse-icon open" id="detectionCardIcon">▶</span>
           </div>
           <div class="card-body" id="detectionCardBody"> <!-- Add this wrapper -->
             <form id="sniffer" method="POST" action="/sniffer">
               <label>Method</label>
               <select name="detection" id="detectionMode">
-                <option value="device-scan" selected>Device Discovery</option>
-                <option value="baseline">Baseline Anomaly Sniffer</option>
-                <option value="randomization-detection">Randomized Device Tracer</option>
-                <option value="deauth">Deauthentication Attack Detection</option>
-                <option value="drone-detection">Drone RID Detection</option>
-                <option value="probe-scan">Probe Request Scanner</option>
-                <option value="csi-motion">CSI Motion Detection</option>
+                <optgroup label="Recon">
+                  <option value="device-scan" selected>Device Discovery</option>
+                  <option value="probe-scan">Probe Request Scanner</option>
+                  <option value="randomization-detection">Randomized Device Tracer</option>
+                  <option value="drone-detection">Drone RID Detection</option>
+                </optgroup>
+                <optgroup label="Detection">
+                  <option value="baseline">Baseline Anomaly Sniffer</option>
+                  <option value="deauth">Deauthentication Attack Detection</option>
+                  <option value="csi-motion">CSI Motion Detection</option>
+                </optgroup>
+                <optgroup label="Capture">
+                  <option value="pcap">Packet Capture (PCAP to SD)</option>
+                </optgroup>
               </select>
               <div id="detectionDesc" class="det-desc"></div>
 
@@ -727,6 +734,40 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                   <option value="1">BLE Only</option>
                 </select>
                 <label style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="captureProbes" value="1">Capture Probes</label>
+              </div>
+              <div id="pcapControls" style="display:none;margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                  <div>
+                    <label style="font-size:11px;">Radio</label>
+                    <select id="pcapRadio" name="pcapRadio">
+                      <option value="0" selected>WiFi</option>
+                      <option value="1">BLE</option>
+                    </select>
+                  </div>
+                  <div id="pcapBandWrap" style="display:none;">
+                    <label style="font-size:11px;">Band</label>
+                    <select id="pcapBand" name="pcapBand">
+                      <option value="0" selected>2.4 GHz</option>
+                      <option value="1">5 GHz</option>
+                      <option value="2">2.4 + 5 GHz</option>
+                    </select>
+                  </div>
+                </div>
+                <details style="margin-top:8px;">
+                  <summary style="cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.7;">Advanced</summary>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px;">
+                    <div>
+                      <label style="font-size:11px;">Channels (blank = RF settings)</label>
+                      <input type="text" id="pcapChannels" name="pcapChannels" placeholder="1,6,11">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;">Dwell (ms)</label>
+                      <input type="number" id="pcapDwell" name="pcapDwell" min="50" max="5000" step="50" value="250">
+                    </div>
+                  </div>
+                  <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="pcapMgmtOnly" value="1">Management frames only</label>
+                  <div style="font-size:11px;color:var(--mut);margin-top:8px;line-height:1.6;">Mesh: <code>PCAP_START:&lt;radio&gt;:&lt;secs&gt;:&lt;band&gt;[:FOREVER]</code> &#183; <code>PCAP_STOP</code></div>
+                </details>
               </div>
               <div id="standardDurationControls" style="margin-top:10px;">
                 <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
@@ -802,6 +843,11 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <button class="btn alt" type="button" onclick="resetBaseline()" style="display:none;" id="resetBaselineBtn">Reset</button>
                 <button type="button" class="btn" id="clearOldBtn" style="display:none;" onclick="clearOldIdentities()">Clear Old</button>
                 <button type="button" class="btn" id="resetRandBtn" style="display:none;" onclick="resetRandomizationDetection()">Reset All</button>
+              </div>
+
+              <div id="pcapFileRow" style="display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--accbg);border:1px solid var(--bord);border-radius:8px;padding:8px 12px;margin-top:10px;">
+                <div id="pcapFileInfo" style="min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;">No capture yet</div>
+                <a class="btn alt" href="/pcap/download" download data-ajax="false" style="padding:6px 12px;font-size:12px;">Download</a>
               </div>
              
             </form>
@@ -1798,6 +1844,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       <!-- ===== /DETECT TAB ===== -->
 
       <div align="center" class="footer">v1.0.3-c5exp1 C5 | Node: <span id="footerNodeId">--</span></div>
+    </div>
     
       <script>
       let tickRunning = false;
@@ -1859,7 +1906,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         for (const k in scanDebounce) { scanDebounce[k].inProgress = false; scanDebounce[k].lastSubmit = 0; }
         const startDetectionBtn = document.getElementById('startDetectionBtn');
         if (startDetectionBtn) {
-          startDetectionBtn.textContent = 'Start Scan';
+          const dm = document.getElementById('detectionMode');
+          startDetectionBtn.textContent = (dm && dm.value === 'pcap') ? 'Start Capture' : 'Start Scan';
           startDetectionBtn.classList.remove('danger');
           startDetectionBtn.classList.add('primary');
           startDetectionBtn.type = 'submit';
@@ -4349,7 +4397,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         'deauth': 'Watches for deauth and disassoc attacks and fingerprints the tool behind them.',
         'drone-detection': 'Decodes drone Remote ID beacons over WiFi and BLE, including operator position.',
         'probe-scan': 'Captures the networks devices are searching for, which reveals where they have been.',
-        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals. Indoor only - outdoors needs the RadarNode (in development).'
+        'csi-motion': 'Detects movement in the area from how bodies disturb nearby WiFi signals. Indoor only - outdoors needs the RadarNode (in development).',
+        'pcap': 'Records the WiFi or BLE traffic around you to SD, ready to open in Wireshark.'
       };
       function setDetectionDesc(mode) {
         const el = document.getElementById('detectionDesc');
@@ -5520,6 +5569,39 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           });
         });
 
+      let pcapPollTimer = null;
+      function fmtBytes(n) {
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1048576).toFixed(1) + ' MB';
+      }
+      function applyPcapBandVisibility(dualBand) {
+        const wrap = document.getElementById('pcapBandWrap');
+        if (!wrap) return;
+        const wifi = document.getElementById('pcapRadio').value === '0';
+        wrap.style.display = (dualBand && wifi) ? '' : 'none';
+      }
+      function refreshPcapStatus() {
+        if (pcapPollTimer) { clearTimeout(pcapPollTimer); pcapPollTimer = null; }
+        fetch('/pcap/status').then(r => r.json()).then(d => {
+          applyPcapBandVisibility(!!d.dualBand);
+          const info = document.getElementById('pcapFileInfo');
+          if (!d.file) {
+            info.textContent = d.sd ? 'No capture yet' : 'No SD card';
+          } else {
+            info.textContent = d.file + ' · ' + d.frames + ' frames · ' +
+                               fmtBytes(d.bytes) + (d.dropped ? ' · ' + d.dropped + ' dropped' : '');
+          }
+          if (d.active && document.getElementById('detectionMode').value === 'pcap') {
+            pcapPollTimer = setTimeout(refreshPcapStatus, 2000);
+          }
+        }).catch(() => {});
+      }
+      document.getElementById('pcapRadio').addEventListener('change', function() {
+        fetch('/pcap/status').then(r => r.json())
+          .then(d => applyPcapBandVisibility(!!d.dualBand)).catch(() => {});
+      });
+
       document.getElementById('detectionMode').addEventListener('change', function() {
         const selectedMethod = this.value;
         setDetectionDesc(selectedMethod);
@@ -5530,6 +5612,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const probeScanModeControls = document.getElementById('probeScanModeControls');
         const droneScanModeControls = document.getElementById('droneScanModeControls');
         const csiControls = document.getElementById('csiControls');
+        const pcapControls = document.getElementById('pcapControls');
+        const pcapFileRow = document.getElementById('pcapFileRow');
+        const startBtn = document.getElementById('startDetectionBtn');
         const cacheBtn = document.getElementById('cacheBtn');
         const resetBaselineBtn = document.getElementById('resetBaselineBtn');
         const clearOldBtn = document.getElementById('clearOldBtn');
@@ -5546,6 +5631,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         probeScanModeControls.style.display = 'none';
         droneScanModeControls.style.display = 'none';
         csiControls.style.display = 'none';
+        pcapControls.style.display = 'none';
+        pcapFileRow.style.display = 'none';
+        startBtn.textContent = (selectedMethod === 'pcap') ? 'Start Capture' : 'Start Scan';
         document.getElementById('baselineStatus').style.display = 'none';
 
         if (selectedMethod === 'baseline') {
@@ -5589,6 +5677,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           document.getElementById('baselineMonitorDuration').disabled = true;
           refreshCsiCalState();
 
+        } else if (selectedMethod === 'pcap') {
+          standardControls.style.display = 'block';
+          pcapControls.style.display = 'block';
+          pcapFileRow.style.display = 'flex';
+          document.getElementById('detectionDuration').disabled = false;
+          document.getElementById('baselineMonitorDuration').disabled = true;
+          refreshPcapStatus();
+
         } else {
           standardControls.style.display = 'block';
           cacheBtn.style.display = 'inline-block';
@@ -5631,7 +5727,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           'device-scan': 'Device Scan', 'drone-detection': 'Drone Detect',
           'blue-team': 'Blue Team', 'baseline': 'Baseline',
           'randomization-detection': 'Rand Detect', 'probe-detection': 'Probe Detect',
-          'csi-motion': 'CSI Motion'
+          'csi-motion': 'CSI Motion', 'pcap': 'Packet Capture'
         };
         setScanStatus(detMethodLabels[detectionMethod] || 'Scanning', 'active');
 

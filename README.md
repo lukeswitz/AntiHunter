@@ -632,6 +632,8 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `RANDOMIZATION_START` | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` | `mode:secs[:FOREVER][:+ALL]` (0=WiFi, 1=BLE, 2=Both). `+ALL` broadcasts every probe over mesh, not just target matches. | `@ALL PROBE_START:2:300:+ALL` |
 | `PROBE_STOP` | None | `@ALL PROBE_STOP` |
+| `PCAP_START` | `radio:secs:band[:FOREVER]` (radio 0=WiFi, 1=BLE; band 0=2.4 GHz, 1=5 GHz, 2=both). Band applies the node's regdomain and channel set for the run, then restores the saved band mode. Writes `/pcap/ah_<timestamp>_<radio>.pcap` to SD. ACK: `PCAP_ACK:STARTED`/`:BUSY`/`:NOSD`/`:FAILED` | `@ALL PCAP_START:0:300:2` |
+| `PCAP_STOP` | None - stops the running capture and closes the file. ACK: `PCAP_ACK:STOPPED` | `@ALL PCAP_STOP` |
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
 
@@ -781,6 +783,8 @@ Any other value is passed through verbatim as `Reason code N`.
 | Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT: MAC RSSI:dBm SSID:"network" [GHOST] [GPS=lat,lon]` |
 | CSI Motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. Rate limited to one per 30s | CSI Motion Clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
+| Packet Capture Started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` - `D=0` means the capture runs until stopped |
+| Packet Capture Done | `NODE_ID: PCAP_DONE: F=frames B=bytes D=dropped` - `D` counts frames the SD writer could not keep up with |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 
 </details>
