@@ -714,7 +714,7 @@ static void handlePcapStop(const String &command)
   (void)command;
   stopAllScans();
   Serial.println("[MESH] Packet capture stop received via mesh");
-  sendToSerial1(nodeId + ": PCAP_ACK:STOPPED", true);
+  sendToSerial1(nodeId + ": PCAP_STOP_ACK:OK", true);
 }
 
 static void handleDeviceScanStart(const String &command)
@@ -1279,7 +1279,7 @@ static void handleVibScanSet(const String &command)
   int mode = p.substring(d1 + 1, d2).toInt();
   int dur = (d3 >= 0) ? p.substring(d2 + 1, d3).toInt() : p.substring(d2 + 1).toInt();
   int cd = (d3 >= 0) ? p.substring(d3 + 1).toInt() : -1;
-  if (mode < 0 || mode > 7) {
+  if (mode < 0 || mode > 8) {
     sendToSerial1(nodeId + ": VIBSCAN_ACK:INVALID_MODE", true);
     return;
   }
@@ -2189,6 +2189,7 @@ static String buildVibAutoScanCommand(uint8_t mode, uint16_t durSecs)
     case 5: return "DRONE_START:" + dur;
     case 6: return "DEAUTH_START:" + dur;
     case 7: return "BASELINE_START:" + dur;
+    case 8: return "PCAP_START:0:" + String(durSecs) + ":0" + (durSecs == 0 ? ":FOREVER" : "");
     default: return String();
   }
 }
@@ -2208,6 +2209,7 @@ void serviceVibrationAutoScan()
     return;
   }
   String cmd = buildVibAutoScanCommand(vibAutoScanMode, vibAutoScanDuration);
+  if (vibAutoScanMode == 8) setPcapAutoTriggered(true);
   if (cmd.length() == 0) return;
   lastVibAutoScanFire = now;
   Serial.printf("[VIBSCAN] Vibration-triggered auto-scan (mode %u): %s\n", vibAutoScanMode, cmd.c_str());

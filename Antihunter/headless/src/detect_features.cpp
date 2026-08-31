@@ -8,6 +8,7 @@
 #include "drone_detector.h"
 #include "main.h"
 #include "triangulation.h"
+#include "pcap.h"
 #include <SD.h>
 #include <LittleFS.h>
 #include <esp_timer.h>
@@ -26,6 +27,10 @@
 #include "detect_internal.h"
 
 extern std::atomic<bool> g_detectVerbose;
+
+extern std::atomic<bool> scanning;
+extern std::atomic<bool> stopRequested;
+extern ScanMode currentScanMode;
 
 namespace ah_detect {
 
@@ -480,9 +485,106 @@ PsramMap<uint64_t, AttackerHunt> g_hunts;
 std::atomic<uint32_t> g_huntCooldown{60000};
 static constexpr size_t MAX_HUNTS = 32;
 
+static std::atomic<uint8_t> g_arPending{0};
+static std::atomic<uint32_t> g_arArmedAt{0};
+static uint8_t g_arMac[6] = {0};
+static char g_arType[24] = {0};
+static constexpr uint32_t AR_STALE_MS = 900000;
+
+void attack_responseArm(const uint8_t *mac, const char *attackType) {
+    const uint8_t mask = g_attackRespMask.load();
+    if (mask == 0) return;
+    if (mac) memcpy(g_arMac, mac, 6);
+    strncpy(g_arType, attackType ? attackType : "?", sizeof(g_arType) - 1);
+    g_arType[sizeof(g_arType) - 1] = '\0';
+    g_arPending.store(mask);
+    g_arArmedAt.store(millis());
+    Serial.printf("[SENTINEL] Attack response armed for %s (mask 0x%02X)\n",
+                  macStr(g_arMac).c_str(), mask);
+}
+
+void attack_responseCancel() {
+    if (g_arPending.exchange(0)) Serial.println("[SENTINEL] Attack response cancelled");
+}
+
+uint8_t attack_responsePending() { return g_arPending.load(); }
+
+void attack_responsePump() {
+    uint8_t pending = g_arPending.load();
+    if (!pending) return;
+
+    if (millis() - g_arArmedAt.load() > AR_STALE_MS) {
+        g_arPending.store(0);
+        Serial.println("[SENTINEL] Attack response expired before the radio freed up");
+        return;
+    }
+    if (::scanning.load() || ::workerTaskHandle || ::blueTeamTaskHandle || ::triangulationActive.load()) return;
+
+    const uint8_t bit = (uint8_t)(pending & (uint8_t)(-(int8_t)pending));
+    g_arPending.store((uint8_t)(pending & ~bit));
+
+    const char *label = "?";
+    uint16_t secs = 60;
+    TaskFunction_t fn = nullptr;
+    const char *taskName = "arespond";
+    uint32_t stack = 12288;
+
+    switch (bit) {
+        case AR_PCAP:
+            label = "packet capture";
+            secs = g_arSecsPcap.load();
+            setPcapConfig(PCAP_RADIO_WIFI, PCAP_BAND_24, String(""), 250, false);
+            setPcapAutoTriggered(true);
+            fn = pcapCaptureTask;
+            taskName = "pcap";
+            stack = 8192;
+            break;
+        case AR_DEVICE:
+            label = "device discovery";
+            secs = g_arSecsDevice.load();
+            ::currentScanMode = SCAN_BOTH;
+            fn = snifferScanTask;
+            taskName = "sniffer";
+            break;
+        case AR_PROBE:
+            label = "probe scan";
+            secs = g_arSecsProbe.load();
+            ::currentScanMode = SCAN_BOTH;
+            fn = probeDetectionTask;
+            taskName = "probedet";
+            stack = 8192;
+            break;
+        case AR_DRONE:
+            label = "drone RID";
+            secs = g_arSecsDrone.load();
+            ::currentScanMode = SCAN_BOTH;
+            fn = droneDetectorTask;
+            taskName = "drone";
+            break;
+        default:
+            return;
+    }
+
+    ::stopRequested = false;
+    ::scanning = true;
+    if (ahCreateTask(fn, taskName, stack,
+                     reinterpret_cast<void *>(static_cast<intptr_t>(secs)),
+                     1, &::workerTaskHandle, 1) != pdPASS) {
+        ::scanning = false;
+        ::workerTaskHandle = nullptr;
+        scanSetCountdown(0, false);
+        Serial.printf("[SENTINEL] Attack response %s failed to start\n", label);
+        return;
+    }
+    Serial.printf("[SENTINEL] Attack response: %s for %us on %s (%s)\n",
+                  label, (unsigned)secs, macStr(g_arMac).c_str(), g_arType);
+    ::detect_logIncident(String("ATTACK_RESPONSE:") + macStr(g_arMac) + ":" + String(label), nullptr);
+}
+
 void attacker_kick(const uint8_t *mac, const char *attackType) {
     if (!mac) return;
-    if (!g_attackerTrilatEnabled.load()) return;
+    const bool trilatOn = g_attackerTrilatEnabled.load();
+    if (!trilatOn && g_attackRespMask.load() == 0) return;
     uint64_t k = packMac(mac);
     uint32_t now = millis();
     bool startTrilat = false;
@@ -504,12 +606,13 @@ void attacker_kick(const uint8_t *mac, const char *attackType) {
         h.startedAt = priorStartedAt;
         h.lastKick = now;
         g_hunts[k] = h;
-        if (!::triangulationActive.load()) {
+        if (trilatOn && !::triangulationActive.load()) {
             startTrilat = true;
             macS = macStr(mac);
         }
     }
-    if (startTrilat) ::startTriangulation(macS, 60);
+    if (startTrilat) ::startTriangulation(macS, g_arSecsTrilat.load());
+    attack_responseArm(mac, attackType);
     ::detect_logIncident(String("ATTACKER_HUNT:") + macStr(mac) + ":" + String(attackType ? attackType : "?"), nullptr);
     if (meshEnabled && sentinel_isRunning() && g_meshAttackerHunt.load() && meshRateGate("HUNT_" + macStr(mac), 60000)) {
         sendToSerial1(getNodeId() + ": ATTACKER_HUNT:" + macStr(mac) + ":" + String(attackType ? attackType : "?"), true);
