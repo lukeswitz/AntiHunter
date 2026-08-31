@@ -205,6 +205,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .pcap-row .btn{padding:4px 10px;font-size:11px;border-width:1px}
       .pcap-row.recording .pcap-row-name{color:var(--acc)}
       .pcap-empty{font-size:12px;color:var(--mut);padding:6px 2px}
+      @media(max-width:520px){
+        .pcap-row{display:flex;flex-wrap:wrap;row-gap:8px}
+        .pcap-row-name{flex:1 1 auto}
+        .pcap-row-size{margin-left:auto}
+        .pcap-row .btn{flex:1 1 0;min-width:0}
+      }
       .res-hero,.res-card,.res-section,.res-callout{margin-bottom:14px}
       .res-list{display:flex;flex-direction:column;gap:12px}
       .fl-empty{color:var(--mut);font-size:13px;padding:14px 2px}
@@ -795,7 +801,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                     </div>
                   </div>
                   <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="pcapMgmtOnly" value="1">Management frames only</label>
-                  <div style="font-size:11px;color:var(--mut);margin-top:8px;line-height:1.6;">Mesh: <code>PCAP_START:&lt;radio&gt;:&lt;secs&gt;:&lt;band&gt;[:FOREVER]</code> &#183; <code>PCAP_STOP</code></div>
                 </details>
               </div>
               <div id="standardDurationControls" style="margin-top:10px;">
@@ -5627,6 +5632,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let pcapPollTimer = null;
       const PCAP_ICON_WIFI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor" stroke="none"/></svg>';
       const PCAP_ICON_BLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M8 7.5 16 16.5 12 20V4l4 3.5L8 16.5"/></svg>';
+      const PCAP_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      function pcapStampLabel(name) {
+        const m = name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+        if (!m) return name.replace(/^(wifi|ble)_/, '').replace(/^auto_/, '').replace(/\.pcap$/, '');
+        return PCAP_MONTHS[+m[2] - 1] + ' ' + (+m[3]) + ', ' + m[4] + ':' + m[5];
+      }
       function fmtBytes(n) {
         if (n < 1024) return n + ' B';
         if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
@@ -5670,7 +5681,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           box.innerHTML = list.map(f => {
             const ble = f.name.indexOf('ble_') === 0;
             const auto = f.name.indexOf('_auto_') >= 0;
-            const label = f.name.replace(/^(wifi|ble)_/, '').replace(/^auto_/, '').replace(/\.pcap$/, '');
+            const label = pcapStampLabel(f.name);
             return '<div class="pcap-row' + (f.active ? ' recording' : '') + '">' +
               '<span class="pcap-radio ' + (ble ? 'ble' : 'wifi') + '" title="' + (ble ? 'BLE' : 'WiFi') + '">' +
                 (ble ? PCAP_ICON_BLE : PCAP_ICON_WIFI) + '</span>' +

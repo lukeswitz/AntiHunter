@@ -405,7 +405,7 @@ static uint32_t pcapPruneAuto() {
             String name = f.name();
             const int slash = name.lastIndexOf('/');
             if (slash >= 0) name = name.substring(slash + 1);
-            if (name.startsWith("auto_") && name.endsWith(".pcap")) {
+            if (name.indexOf("_auto_") >= 0 && name.endsWith(".pcap")) {
                 names.push_back(name);
                 sizes.push_back((uint32_t)f.size());
                 autoTotal += (uint64_t)f.size();
@@ -458,8 +458,8 @@ static String pcapMakePath() {
         else safe += c;
     }
     if (safe.length() == 0) safe = String(millis());
-    return String(PCAP_DIR) + "/" + (g_autoTriggered ? "auto_" : "ah_") + safe +
-           (g_radio == PCAP_RADIO_BLE ? "_ble.pcap" : "_wifi.pcap");
+    return String(PCAP_DIR) + "/" + (g_radio == PCAP_RADIO_BLE ? "ble_" : "wifi_") +
+           (g_autoTriggered ? "auto_" : "") + safe + ".pcap";
 }
 
 static bool pcapWriteGlobalHeader(fs::File &f) {
