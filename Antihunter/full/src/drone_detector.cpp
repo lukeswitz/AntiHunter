@@ -951,11 +951,6 @@ void droneDetectorTask(void *pv)
     droneDetectionEnabled = false;
     scanning = false;
 
-    if (droneFrameQueue) {
-        vQueueDeleteWithCaps(droneFrameQueue);
-        droneFrameQueue = nullptr;
-    }
-
     if (meshEnabled && !stopRequested) {
         uint32_t enqueuedDrones = 0;
         uint32_t totalDrones = 0, txDrones = 0;
@@ -981,6 +976,11 @@ void droneDetectorTask(void *pv)
 
     radioStopSTA();
     delay(100);
+
+    if (droneFrameQueue) {
+        vQueueDeleteWithCaps(droneFrameQueue);
+        droneFrameQueue = nullptr;
+    }
        
     {
         String droneRes = getDroneDetectionResults();

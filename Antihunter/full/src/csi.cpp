@@ -210,7 +210,7 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     (void)type;
     g_promFrames.fetch_add(1);
     const wifi_promiscuous_pkt_t *ppkt = (const wifi_promiscuous_pkt_t *)buf;
-    if (ppkt && ppkt->rx_ctrl.sig_len >= 24) framesSeen = framesSeen + 1;
+    if (ppkt && ppkt->rx_ctrl.sig_len >= 24) framesSeen.fetch_add(1, std::memory_order_relaxed);
 }
 
 // cppcheck-suppress constParameterCallback // wifi_csi_cb_t signature is fixed by esp_wifi_set_csi_rx_cb
@@ -279,8 +279,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
     uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
-    uint8_t bestCoreCh = 0;
-    uint32_t bestCoreScore = 0, bestCoreHits = 0, bestCoreStrong = 0, bestCoreTx = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -309,15 +307,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
             bestChScore = chScore; bestStrongHits = hits; bestStrong = strong;
             bestStrongTx = tx; bestStrongCh = ch;
         }
-        if ((ch == 1 || ch == 6 || ch == 11) && chScore > bestCoreScore) {
-            bestCoreScore = chScore; bestCoreHits = hits; bestCoreStrong = strong;
-            bestCoreTx = tx; bestCoreCh = ch;
-        }
-    }
-
-    if (bestCoreScore > 0) {
-        bestStrongCh = bestCoreCh; bestStrongHits = bestCoreHits;
-        bestStrong = bestCoreStrong; bestStrongTx = bestCoreTx;
     }
 
     if (bestTotal == 0) {
@@ -716,7 +705,11 @@ String getCsiResults() {
     String r = "CSI Motion Detection\n\n";
     r += "Channel: " + String(g_csiActiveChannel) + " (pinned)\n";
     {
-        const uint8_t usable = csiUsableCount();
+        uint8_t usable;
+        {
+            std::lock_guard<std::mutex> lock(g_csiMutex);
+            usable = csiUsableCount();
+        }
         r += "Usable links: " + String(usable) + "\n";
         if (usable == 0) {
             r += "BLIND - no link reaches " + String((int)CSI_LINK_MIN_RSSI) + "dBm.\n"
@@ -772,7 +765,12 @@ String getCsiJson() {
     const float rate = (float)g_csiSeen.load() * 1000.0f / (float)span;
 
     String j = "{\"channel\":" + String(g_csiActiveChannel);
-    j += ",\"usable\":" + String(csiUsableCount());
+    uint8_t usableNow;
+    {
+        std::lock_guard<std::mutex> lock(g_csiMutex);
+        usableNow = csiUsableCount();
+    }
+    j += ",\"usable\":" + String(usableNow);
     j += ",\"records\":" + String(g_csiSeen.load());
     j += ",\"rejFcs\":" + String(g_rejFcs.load());
     j += ",\"rejWidth\":" + String(g_rejWidth.load());
@@ -887,8 +885,11 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.shift = 0;
     cfg.dump_ack_en = false;
 
-    if (esp_wifi_set_csi_config(&cfg) != ESP_OK) return false;
     if (esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr) != ESP_OK) return false;
+    if (esp_wifi_set_csi_config(&cfg) != ESP_OK) {
+        esp_wifi_set_csi_rx_cb(NULL, nullptr);
+        return false;
+    }
     return esp_wifi_set_csi(true) == ESP_OK;
 }
 
@@ -925,16 +926,17 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.shift = 0;
     cfg.dump_ack_en = false;
 
-    esp_err_t rc = esp_wifi_set_csi_config(&cfg);
-    if (rc != ESP_OK) {
-        Serial.printf("[CSI] set_csi_config failed: %s\n", esp_err_to_name(rc));
+    esp_err_t rb = esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr);
+    if (rb != ESP_OK) {
+        Serial.printf("[CSI] set_csi_rx_cb failed: %s\n", esp_err_to_name(rb));
         esp_wifi_set_promiscuous(false);
         return false;
     }
 
-    esp_err_t rb = esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr);
-    if (rb != ESP_OK) {
-        Serial.printf("[CSI] set_csi_rx_cb failed: %s\n", esp_err_to_name(rb));
+    esp_err_t rc = esp_wifi_set_csi_config(&cfg);
+    if (rc != ESP_OK) {
+        Serial.printf("[CSI] set_csi_config failed: %s\n", esp_err_to_name(rc));
+        esp_wifi_set_csi_rx_cb(NULL, nullptr);
         esp_wifi_set_promiscuous(false);
         return false;
     }

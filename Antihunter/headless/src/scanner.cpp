@@ -716,7 +716,7 @@ static void IRAM_ATTR detectDeauthFrame(const wifi_promiscuous_pkt_t *ppkt) {
 class MyBLEScanCallbacks : public NimBLEScanCallbacks {
     // cppcheck-suppress unusedFunction // NimBLEScanCallbacks override, invoked by NimBLE per advertisement
     void onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
-        bleFramesSeen = bleFramesSeen + 1;
+        bleFramesSeen.fetch_add(1, std::memory_order_relaxed);
 
         int8_t rssi = advertisedDevice->getRSSI();
 
@@ -2118,7 +2118,7 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-    framesSeen = framesSeen + 1;
+    framesSeen.fetch_add(1, std::memory_order_relaxed);
 
     if (ppkt->rx_ctrl.rx_state != 0) return;
 
