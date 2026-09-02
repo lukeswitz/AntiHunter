@@ -5752,10 +5752,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             document.getElementById('sdPath').textContent = d.path;
             const usedMb = (d.usedBytes / 1024).toFixed(1);
             const totMb = (d.totalBytes / 1024).toFixed(1);
-            const freeMb = ((d.totalBytes - d.usedBytes) / 1024).toFixed(1);
             document.getElementById('sdSpace').textContent =
-              d.entries.length + ' entries - ' + usedMb + ' MB used, ' + freeMb + ' MB free of ' + totMb + ' MB' +
-              (d.truncated ? ' (listing truncated)' : '');
+              d.entries.length + ' entries - ' + usedMb + ' MB used of ' + totMb + ' MB';
             list.textContent = '';
             if (!d.entries.length) {
               const empty = document.createElement('div');

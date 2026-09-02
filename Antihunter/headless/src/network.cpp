@@ -1086,10 +1086,10 @@ static void handleSdList()
   uint64_t total = 0, used = 0;
   sdSpace(total, used);
   char buf[128];
-  snprintf(buf, sizeof(buf), "%s: SD_LIST: files=%u data=%uKB used=%lluMB free=%lluMB",
-           nodeId.c_str(), (unsigned)count, (unsigned)(bytes / 1024U),
+  snprintf(buf, sizeof(buf), "%s: SD_LIST: files=%u used=%lluMB total=%lluMB",
+           nodeId.c_str(), (unsigned)count,
            (unsigned long long)(used / (1024ULL * 1024ULL)),
-           (unsigned long long)((total - used) / (1024ULL * 1024ULL)));
+           (unsigned long long)(total / (1024ULL * 1024ULL)));
   sendToSerial1(String(buf), true);
 }
 
