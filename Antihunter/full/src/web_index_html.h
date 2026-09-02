@@ -1286,6 +1286,22 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 
       <!-- Factory Wipe -->
       <div class="card">
+        <div class="card-header" onclick="toggleCollapse('sdBrowserCard')">
+          <h3>SD Card Browser</h3>
+          <span class="collapse-icon" id="sdBrowserCardIcon">&#9654;</span>
+        </div>
+        <div class="card-body collapsed" id="sdBrowserCardBody">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <button class="btn" type="button" onclick="sdUp()">Up</button>
+            <button class="btn" type="button" onclick="sdRefresh()">Refresh</button>
+            <span id="sdPath" style="font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/</span>
+          </div>
+          <div id="sdSpace" style="font-size:11px;color:var(--mut);margin-bottom:8px"></div>
+          <div id="sdList" style="max-height:320px;overflow:auto;border:1px solid var(--bord);border-radius:6px"></div>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-header" onclick="toggleCollapse('factoryWipeCard')">
           <h3>Factory Wipe</h3>
           <span class="collapse-icon" id="factoryWipeCardIcon">&#9654;</span>
@@ -5670,6 +5686,72 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (n < 1024) return n + ' B';
         if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
         return (n / 1048576).toFixed(1) + ' MB';
+      }
+      let sdCwd = '/';
+      function sdJoin(base, name) {
+        return base === '/' ? '/' + name : base + '/' + name;
+      }
+      function sdRefresh() { sdLoad(sdCwd); }
+      function sdUp() {
+        if (sdCwd === '/') return;
+        const i = sdCwd.lastIndexOf('/');
+        sdLoad(i <= 0 ? '/' : sdCwd.substring(0, i));
+      }
+      function sdRow(entry) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid var(--bord);font-size:12px';
+        const a = document.createElement('a');
+        a.href = '#';
+        a.style.color = 'var(--acc)';
+        a.textContent = entry.dir ? entry.name + '/' : entry.name;
+        const full = sdJoin(sdCwd, entry.name);
+        a.onclick = function (ev) {
+          ev.preventDefault();
+          if (entry.dir) sdLoad(full);
+          else window.location = '/sd/file?path=' + encodeURIComponent(full);
+        };
+        const meta = document.createElement('span');
+        meta.style.color = 'var(--mut)';
+        meta.textContent = entry.dir ? 'dir' : fmtBytes(entry.size);
+        row.appendChild(a);
+        row.appendChild(meta);
+        return row;
+      }
+      function sdLoad(path) {
+        const list = document.getElementById('sdList');
+        if (!list) return;
+        list.textContent = 'Loading...';
+        fetch('/sd/list?path=' + encodeURIComponent(path))
+          .then(function (r) {
+            if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t); });
+            return r.json();
+          })
+          .then(function (d) {
+            sdCwd = d.path;
+            document.getElementById('sdPath').textContent = d.path;
+            const usedMb = (d.usedBytes / 1024).toFixed(1);
+            const totMb = (d.totalBytes / 1024).toFixed(1);
+            const freeMb = ((d.totalBytes - d.usedBytes) / 1024).toFixed(1);
+            document.getElementById('sdSpace').textContent =
+              d.entries.length + ' entries - ' + usedMb + ' MB used, ' + freeMb + ' MB free of ' + totMb + ' MB' +
+              (d.truncated ? ' (listing truncated)' : '');
+            list.textContent = '';
+            if (!d.entries.length) {
+              const empty = document.createElement('div');
+              empty.style.cssText = 'padding:10px;font-size:12px;color:var(--mut)';
+              empty.textContent = 'Empty';
+              list.appendChild(empty);
+              return;
+            }
+            d.entries.forEach(function (e) { list.appendChild(sdRow(e)); });
+          })
+          .catch(function (err) {
+            list.textContent = '';
+            const e = document.createElement('div');
+            e.style.cssText = 'padding:10px;font-size:12px;color:var(--warn)';
+            e.textContent = err.message;
+            list.appendChild(e);
+          });
       }
       function applyPcapBandVisibility(dualBand) {
         const wrap = document.getElementById('pcapBandWrap');
