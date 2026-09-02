@@ -1433,9 +1433,9 @@ static void handleTriangulateStart(const String &command, const String &targetId
   if (isIdentityId) {
       strncpy(triangulationTargetIdentity, target.c_str(), sizeof(triangulationTargetIdentity) - 1);
       triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
-      memset(triangulationTarget, 0, 6);
+      triangulationSetTarget(nullptr);
   } else {
-      memcpy(triangulationTarget, macBytes, 6);
+      triangulationSetTarget(macBytes);
       memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
   }
 
@@ -1516,7 +1516,7 @@ static void handleTriangulateStop(const String &command)
           myNodeId = "NODE_" + String((uint32_t)ESP.getEfuseMac(), HEX);
       }
 
-      String macStr = macFmt6(triangulationTarget);
+      String macStr = triangulationTargetStr();
       bool sentReport = false;
 
       int wifiHitCount, bleHitCount;
@@ -2208,7 +2208,7 @@ void processMeshMessage(const String &message) {
                 String reportedMac = payload.substring(0, macEnd);
                 uint8_t mac[6];
                 
-                if (parseMac6(reportedMac, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
+                if (parseMac6(reportedMac, mac) && triangulationTargetMatches(mac)) {
                     int hitsIdx = payload.indexOf("Hits=");
                     int rssiIdx = payload.indexOf("RSSI:");
                     int gpsIdx = payload.indexOf("GPS=");
@@ -2357,20 +2357,14 @@ void processMeshMessage(const String &message) {
                 String macStr = content.substring(macStart, macEnd);
                 uint8_t mac[6];
                 
-                bool targetSet = false;
-                for (int i = 0; i < 6; i++) {
-                    if (triangulationTarget[i] != 0) {
-                        targetSet = true;
-                        break;
-                    }
-                }
+                bool targetSet = triangulationTargetIsSet();
 
                 if (!targetSet) {
                     Serial.println("[TRIANGULATE] WARNING: Target not set, ignoring report");
                     return;
                 }
                 
-                if (parseMac6(macStr, mac) && memcmp(mac, triangulationTarget, 6) == 0) {
+                if (parseMac6(macStr, mac) && triangulationTargetMatches(mac)) {
                     int rssiIdx = content.indexOf("RSSI:");
                     int rssi = -127;
                     if (rssiIdx > 0) {

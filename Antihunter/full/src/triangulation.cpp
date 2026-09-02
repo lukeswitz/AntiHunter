@@ -38,7 +38,37 @@ std::vector<TriangulationNode> triangulationNodes;
 std::mutex triangulationMutex;
 APFinalResult apFinalResult = {false, 0.0, 0.0, 0.0, 0.0, 0, ""};
 String calculateTriangulation();
-uint8_t triangulationTarget[6];
+static std::atomic<uint64_t> g_triTarget{0};
+
+static inline uint64_t triPack(const uint8_t *m) {
+    uint64_t v = 0;
+    for (int i = 0; i < 6; i++) v |= (uint64_t)m[i] << (8 * i);
+    return v;
+}
+
+void triangulationSetTarget(const uint8_t *mac) {
+    g_triTarget.store(mac ? triPack(mac) : 0ULL, std::memory_order_relaxed);
+}
+
+void triangulationGetTarget(uint8_t *out) {
+    const uint64_t v = g_triTarget.load(std::memory_order_relaxed);
+    for (int i = 0; i < 6; i++) out[i] = (uint8_t)((v >> (8 * i)) & 0xFF);
+}
+
+bool triangulationTargetMatches(const uint8_t *mac) {
+    return g_triTarget.load(std::memory_order_relaxed) == triPack(mac);
+}
+
+bool triangulationTargetIsSet() {
+    return g_triTarget.load(std::memory_order_relaxed) != 0ULL;
+}
+
+String triangulationTargetStr() {
+    uint8_t cur[6];
+    triangulationGetTarget(cur);
+    return macFmt6(cur);
+}
+
 uint32_t triangulationStart = 0;
 uint32_t triangulationDuration = 0;
 std::atomic<bool> triangulationActive(false);
@@ -760,7 +790,7 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
             isIdentityId = true;
             strncpy(triangulationTargetIdentity, targetMac.c_str(), sizeof(triangulationTargetIdentity) - 1);
             triangulationTargetIdentity[sizeof(triangulationTargetIdentity) - 1] = '\0';
-            memset(triangulationTarget, 0, 6);
+            triangulationSetTarget(nullptr);
             Serial.printf("[TRIANGULATE] Target is identity ID: %s\n", triangulationTargetIdentity);
         }
     }
@@ -773,7 +803,7 @@ bool startTriangulation(const String &targetMac, int duration, String *err) {
                             "\" - use AA:BB:CC:DD:EE:FF or a T-<digits> identity";
             return false;
         }
-        memcpy(triangulationTarget, macBytes, 6);
+        triangulationSetTarget(macBytes);
         memset(triangulationTargetIdentity, 0, sizeof(triangulationTargetIdentity));
     }
 
@@ -1262,7 +1292,7 @@ void stopTriangulation() {
         logToSD(logEntry);
     }
 
-    String targetMacStr = macFmt6(triangulationTarget);
+    String targetMacStr = triangulationTargetStr();
 
     std::vector<TriangulationNode> nodesSnapshot;
     float maxOffsetMs = 0;
@@ -1412,7 +1442,7 @@ void stopTriangulation() {
     }
 
     if (selfDetected && selfHits > 0) {
-        String dataMsg = myNodeId + ": T_D: " + macFmt6(triangulationTarget) +
+        String dataMsg = myNodeId + ": T_D: " + triangulationTargetStr() +
                         " Hits=" + String(selfHits) +
                         " RSSI:" + String(selfBestRSSI);
 
@@ -1508,7 +1538,7 @@ String calculateTriangulation() {
     uint32_t elapsed = (millis() - triangulationStart) / 1000;
     
     String results = "\n=== Triangulation Results ===\n";
-    results += "Target MAC: " + macFmt6(triangulationTarget) + "\n";
+    results += "Target MAC: " + triangulationTargetStr() + "\n";
     results += "Duration: " + String(triangulationDuration) + "s\n";
     results += "Elapsed: " + String(elapsed) + "s\n";
     results += "Reporting Nodes: " + String(triangulationNodes.size()) + "\n";

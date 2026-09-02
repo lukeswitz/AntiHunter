@@ -1722,7 +1722,7 @@ void registerRemainingRoutes() {
     }
     String json = "{";
     json += "\"active\":" + String(triangulationActive ? "true" : "false") + ",";
-    json += "\"target\":\"" + macFmt6(triangulationTarget) + "\",";
+    json += "\"target\":\"" + triangulationTargetStr() + "\",";
     json += "\"duration\":" + String(triangulationDuration) + ",";
     json += "\"elapsed\":" + String((millis() - triangulationStart) / 1000) + ",";
     json += "\"nodes\":" + String(nodeCount);
@@ -1769,7 +1769,7 @@ void registerRemainingRoutes() {
   server->on("/triangulate/nodes", HTTP_GET, [](AsyncWebServerRequest *req) {
       // Return triangulation node data as JSON for map display
       String json = "{";
-      json += "\"target\":\"" + macFmt6(triangulationTarget) + "\",";
+      json += "\"target\":\"" + triangulationTargetStr() + "\",";
       json += "\"active\":" + String(triangulationActive ? "true" : "false") + ",";
 
       // Add final result if available
