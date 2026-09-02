@@ -45,10 +45,6 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 - Theme toggle stays in the mobile scan header.
 - Fixed an unclosed container element in the web UI markup.
 
-### Tooling
-
-- **Bench self-test firmware** (`AntiHunter-selftest`): checks chip, PSRAM, heap, SD write/read/delete, RTC, GPS NMEA validity, vibration sensor, mesh UART, WiFi AP and scan, and BLE, then lists the SD contents and prints a pass/fail tally. Writes no product configuration.
-
 ### Flasher
 
 - Hidden AP toggle for full firmware.
