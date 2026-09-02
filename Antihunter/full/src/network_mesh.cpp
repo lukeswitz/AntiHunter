@@ -1056,6 +1056,20 @@ static void handleStop(const String &command)
   sendToSerial1(nodeId + ": STOP_ACK:OK", true);
 }
 
+static void handleSdList()
+{
+  uint32_t count = 0, bytes = 0;
+  sdListDump(count, bytes);
+  uint64_t total = 0, used = 0;
+  sdSpace(total, used);
+  char buf[128];
+  snprintf(buf, sizeof(buf), "%s: SD_LIST: files=%u data=%uKB used=%lluMB free=%lluMB",
+           nodeId.c_str(), (unsigned)count, (unsigned)(bytes / 1024U),
+           (unsigned long long)(used / (1024ULL * 1024ULL)),
+           (unsigned long long)((total - used) / (1024ULL * 1024ULL)));
+  sendToSerial1(String(buf), true);
+}
+
 static void handleStatus(const String &command)
 {
   (void)command;
@@ -2134,7 +2148,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("INCIDENTS_CLEAR"))       handleIncidentsClear(command);
   else if (command.startsWith("INCIDENTS"))             handleIncidents(command);
   else if (command == "STATUS")                         handleStatus(command);
-  else if (command == "SD_LIST")                        sdListDump();
+  else if (command == "SD_LIST")                        handleSdList();
   else if (command == "VIBRATION_STATUS")               handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                   handleVibrationOn(command);
   else if (command == "VIBRATION_OFF")                  handleVibrationOff(command);

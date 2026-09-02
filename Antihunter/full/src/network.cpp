@@ -278,6 +278,21 @@ void initializeNetwork()
 
 void registerRemainingRoutes();
 
+static const uint16_t SD_LIST_MAX_ENTRIES = 300;
+
+static bool sdPathSafe(const String &p) {
+    const size_t len = p.length();
+    if (len == 0 || len > 128) return false;
+    if (p[0] != '/') return false;
+    if (p.indexOf("..") >= 0) return false;
+    if (p.indexOf('\\') >= 0) return false;
+    for (size_t i = 0; i < len; i++) {
+        const char c = p[i];
+        if (c < 32 || c == 127) return false;
+    }
+    return true;
+}
+
 void startWebServer()
 {
   if (!server)
@@ -583,6 +598,54 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         gpsInfo += "GPS: No valid fix\n";
     }
     r->send(200, "text/plain", gpsInfo); });
+
+  server->on("/sd/list", HTTP_GET, [](AsyncWebServerRequest *r) {
+      String path = r->hasParam("path") ? r->getParam("path")->value() : String("/");
+      if (!sdPathSafe(path)) { r->send(400, "text/plain", "bad path"); return; }
+      if (!SafeSD::isAvailable()) { r->send(503, "text/plain", "SD unavailable"); return; }
+      File dir = SafeSD::open(path.c_str());
+      if (!dir) { r->send(404, "text/plain", "not found"); return; }
+      if (!dir.isDirectory()) { dir.close(); r->send(400, "text/plain", "not a directory"); return; }
+
+      uint64_t total = 0, used = 0;
+      sdSpace(total, used);
+      String out = "{\"path\":\"" + jsonEscape(path) +
+                   "\",\"totalBytes\":" + String((uint32_t)(total / 1024ULL)) +
+                   ",\"usedBytes\":" + String((uint32_t)(used / 1024ULL)) +
+                   ",\"entries\":[";
+      uint16_t n = 0;
+      File f = dir.openNextFile();
+      while (f && n < SD_LIST_MAX_ENTRIES) {
+          if (n) out += ",";
+          String nm = String(f.name());
+          int slash = nm.lastIndexOf('/');
+          if (slash >= 0) nm = nm.substring(slash + 1);
+          out += "{\"name\":\"" + jsonEscape(nm) +
+                 "\",\"size\":" + String((uint32_t)f.size()) +
+                 ",\"dir\":" + (f.isDirectory() ? "true" : "false") + "}";
+          f.close();
+          f = dir.openNextFile();
+          n++;
+      }
+      bool truncated = (bool)f;
+      if (f) f.close();
+      dir.close();
+      out += "],\"truncated\":" + String(truncated ? "true" : "false") + "}";
+      r->send(200, "application/json", out);
+  });
+
+  server->on("/sd/file", HTTP_GET, [](AsyncWebServerRequest *r) {
+      if (!r->hasParam("path")) { r->send(400, "text/plain", "path required"); return; }
+      String path = r->getParam("path")->value();
+      if (!sdPathSafe(path)) { r->send(400, "text/plain", "bad path"); return; }
+      if (!SafeSD::isAvailable()) { r->send(503, "text/plain", "SD unavailable"); return; }
+      if (!SafeSD::hasHeapForOpen()) { r->send(503, "text/plain", "low memory"); return; }
+      File probe = SafeSD::open(path.c_str());
+      if (!probe) { r->send(404, "text/plain", "not found"); return; }
+      if (probe.isDirectory()) { probe.close(); r->send(400, "text/plain", "is a directory"); return; }
+      probe.close();
+      r->send(SD, path, "application/octet-stream", true);
+  });
 
   server->on("/sd-status", HTTP_GET, [](AsyncWebServerRequest *r)
              {

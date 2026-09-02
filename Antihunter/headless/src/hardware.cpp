@@ -2367,8 +2367,12 @@ void listAllFiles(const String &dirname, uint32_t &count, uint32_t &bytes) {
         return;
     }
     File file = root.openNextFile();
+    const String base = (dirname == "/") ? String("") : dirname;
     while (file) {
-        const String fullPath = dirname + "/" + String(file.name());
+        String leaf = String(file.name());
+        const int slash = leaf.lastIndexOf('/');
+        if (slash >= 0) leaf = leaf.substring(slash + 1);
+        const String fullPath = base + "/" + leaf;
         if (file.isDirectory()) {
             Serial.printf("[SDLIST] DIR  %s\n", fullPath.c_str());
             file.close();
@@ -2385,10 +2389,20 @@ void listAllFiles(const String &dirname, uint32_t &count, uint32_t &bytes) {
     root.close();
 }
 
-void sdListDump() {
-    uint32_t count = 0, bytes = 0;
+void sdSpace(uint64_t &total, uint64_t &used) {
+    total = 0;
+    used = 0;
+    if (!SafeSD::isAvailable()) return;
+    total = SD.totalBytes();
+    used = SD.usedBytes();
+    if (used > total) used = total;
+}
+
+void sdListDump(uint32_t &count, uint32_t &bytes) {
+    count = 0;
+    bytes = 0;
     Serial.println("[SDLIST] ==== SD card contents ====");
-    listAllFiles("", count, bytes);
+    listAllFiles("/", count, bytes);
     Serial.printf("[SDLIST] ==== %u files, %u bytes ====\n", (unsigned)count, (unsigned)bytes);
 }
 
