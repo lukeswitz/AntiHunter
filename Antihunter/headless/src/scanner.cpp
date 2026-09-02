@@ -804,7 +804,7 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
 
         bool isMatch = false;
         if (triangulationActive) {
-            isMatch = (memcmp(mac, triangulationTarget, 6) == 0);
+            isMatch = (triangulationTargetMatches(mac));
         } else {
             isMatch = matchesMac(mac);
         }
@@ -818,10 +818,8 @@ class MyBLEScanCallbacks : public NimBLEScanCallbacks {
             h.name[sizeof(h.name) - 1] = '\0';
             h.isBLE = true;
 
-            if (macQueue) {
-                if (xQueueSend(macQueue, &h, pdMS_TO_TICKS(10)) != pdTRUE) {
-                    Serial.printf("[BLE] Queue full for %s\n", macStr.c_str());
-                }
+            if (!safeMacQueueSend(&h, pdMS_TO_TICKS(10))) {
+                Serial.printf("[BLE] Queue full for %s\n", macStr.c_str());
             }
         }
     }
@@ -2362,7 +2360,7 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
     bool c1Match = false;
     if (c1) {
         if (triangulationActive) {
-            c1Match = (memcmp(cand1, triangulationTarget, 6) == 0);
+            c1Match = (triangulationTargetMatches(cand1));
         } else {
             c1Match = matchesMacISR(cand1);
         }
@@ -2389,7 +2387,7 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
     bool c2Match = false;
     if (c2) {
         if (triangulationActive) {
-            c2Match = (memcmp(cand2, triangulationTarget, 6) == 0);
+            c2Match = (triangulationTargetMatches(cand2));
         } else {
             c2Match = matchesMacISR(cand2);
         }
@@ -3083,7 +3081,7 @@ void listScanTask(void *pv) {
                     if (strlen(triangulationTargetIdentity) > 0)
                         apMatch = parseMac6(apBssid, apMac) && matchesIdentityMac(triangulationTargetIdentity, apMac);
                     else
-                        apMatch = parseMac6(apBssid, apMac) && (memcmp(apMac, triangulationTarget, 6) == 0);
+                        apMatch = parseMac6(apBssid, apMac) && (triangulationTargetMatches(apMac));
                 } else {
                     apMatch = parseMac6(apBssid, apMac) && matchesMac(apMac);
                     if (!apMatch && apSsid.length() > 0) apMatch = matchesSsid(apSsid.c_str());
@@ -3124,7 +3122,7 @@ void listScanTask(void *pv) {
                     if (strlen(triangulationTargetIdentity) > 0)
                         isMatch = matchesIdentityMac(triangulationTargetIdentity, tmac);
                     else
-                        isMatch = (memcmp(tmac, triangulationTarget, 6) == 0);
+                        isMatch = (triangulationTargetMatches(tmac));
                 } else {
                     isMatch = matchesMac(ae.bssid);
                     if (!isMatch && ae.ssid[0]) isMatch = matchesSsid(ae.ssid);
@@ -3179,7 +3177,7 @@ void listScanTask(void *pv) {
                                 matchesIdentityMac(triangulationTargetIdentity, mac);
                     } else {
                         isMatch = parseMac6(macStrOrig, mac) && 
-                                (memcmp(mac, triangulationTarget, 6) == 0);
+                                (triangulationTargetMatches(mac));
                     }
                 } else {
                     isMatch = parseMac6(macStrOrig, mac) && matchesMac(mac);
@@ -3259,16 +3257,18 @@ void listScanTask(void *pv) {
                 bool needsReset = false;
                 {
                     std::lock_guard<std::mutex> lock(triAccumMutex);
-                    needsReset = (memcmp(triAccum.targetMac, triangulationTarget, 6) != 0);
+                    needsReset = (!triangulationTargetMatches(triAccum.targetMac));
                 }
 
                 if (needsReset) {
                     sendTriAccumulatedData(myNodeId);
                     triUpsertSelfNode(myNodeId);
-                    resetTriAccumulator(triangulationTarget);
+                    uint8_t triTgt[6];
+                    triangulationGetTarget(triTgt);
+                    resetTriAccumulator(triTgt);
                 }
 
-                if (memcmp(h.mac, triangulationTarget, 6) == 0) {
+                if (triangulationTargetMatches(h.mac)) {
                     {
                         std::lock_guard<std::mutex> lock(triAccumMutex);
 
@@ -3446,7 +3446,7 @@ void listScanTask(void *pv) {
                 std::lock_guard<std::mutex> lock(antihunter::lastResultsMutex);
 
                 std::string results = "\n=== Triangulation Results (IN PROGRESS) ===\n";
-                results += "Target MAC: " + std::string(macFmt6(triangulationTarget).c_str()) + "\n";
+                results += "Target MAC: " + std::string(triangulationTargetStr().c_str()) + "\n";
                 results += "Duration: " + std::to_string(triangulationDuration) + "s\n";
                 results += "Elapsed: " + std::to_string((millis() - triangulationStart) / 1000) + "s\n";
                 results += "Reporting Nodes: " + std::to_string(triangulationNodes.size()) + "\n";
