@@ -2181,6 +2181,7 @@ R"HTML(
         var pg = document.getElementById('page-' + pageName);
         if (pg) pg.classList.add('active');
         window.scrollTo(0, 0);
+        if (pageName === 'results' && typeof resultsPoll === 'function') resultsPoll(true);
         if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
 )HTML"
 #if AH_SENTINEL
@@ -2194,7 +2195,10 @@ R"HTML(
 )HTML"
 #endif
 R"HTML(
-        if (pageName === 'system' && typeof updateBatterySaverStatus === 'function') updateBatterySaverStatus();
+        if (pageName === 'system') {
+          if (typeof updateBatterySaverStatus === 'function') updateBatterySaverStatus();
+          if (typeof pollSecureState === 'function') pollSecureState();
+        }
         if ((pageName === 'system' || pageName === 'detect') && typeof fleetPoll === 'function') fleetPoll();
       }
       function pageActive(name) {
@@ -4829,7 +4833,7 @@ R"HTML(
           }
         }).catch(()=>{});
       }
-      setInterval(pollSecureState, 5000);
+      setInterval(() => { if (pageActive('system')) pollSecureState(); }, 5000);
 
       const _factoryResetTiers = {
         full: {btn: 'WIPE EVERYTHING', hint: 'Wipes ALL SD data files + resets NVS to factory defaults. Device reboots.', warn: 'FINAL WARNING: Wipes ALL SD data + resets NVS config. Device will reboot. Proceed?'},
@@ -6033,8 +6037,8 @@ R"HTML(
       refreshPskStatus();
       pollSecureState();
       setInterval(tick, 5000);
-      setInterval(resultsPoll, 1000);
-      setInterval(() => { const a = document.getElementById('diagAge'); if (!a || !window.__lastDiag) return; const s = Math.max(0, Math.round((Date.now() - window.__lastDiag) / 1000)); a.innerText = s < 1 ? 'refreshed just now' : 'refreshed ' + s + 's ago'; }, 1000);
+      setInterval(() => { if (pageActive('results')) resultsPoll(); }, 1000);
+      setInterval(() => { if (!pageActive('system')) return; const a = document.getElementById('diagAge'); if (!a || !window.__lastDiag) return; const s = Math.max(0, Math.round((Date.now() - window.__lastDiag) / 1000)); a.innerText = s < 1 ? 'refreshed just now' : 'refreshed ' + s + 's ago'; }, 1000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
 )HTML"
 #if AH_SENTINEL
