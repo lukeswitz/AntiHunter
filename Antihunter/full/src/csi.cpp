@@ -5,6 +5,11 @@
 #include "detect.h"
 #include "main.h"
 
+extern "C" {
+extern volatile uint32_t g_memcpyBadLenRejects;
+extern volatile uint32_t g_memcpyBadLenLast;
+}
+
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
@@ -908,8 +913,8 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.dump_ack_en = 0;
 #else
     cfg.lltf_en = true;
-    cfg.htltf_en = false;
-    cfg.stbc_htltf2_en = false;
+    cfg.htltf_en = true;
+    cfg.stbc_htltf2_en = true;
     cfg.ltf_merge_en = false;
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
@@ -966,8 +971,8 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.dump_ack_en = 0;
 #else
     cfg.lltf_en = true;
-    cfg.htltf_en = false;
-    cfg.stbc_htltf2_en = false;
+    cfg.htltf_en = true;
+    cfg.stbc_htltf2_en = true;
     cfg.ltf_merge_en = false;
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
@@ -1296,6 +1301,10 @@ void csiMotionTask(void *pv) {
                           usableRoll == 0 ? "BLIND" : (g_areaMotion ? "MOVE" : "quiet"),
                           peakRoll, movingRoll, usableRoll,
                           g_csiMotionEvents.load(), (now - g_csiStartMs) / 1000);
+            if (g_memcpyBadLenRejects) {
+                Serial.printf("[WIFI] blob bad-length memcpy rejected: n=%u count=%u\n",
+                              (unsigned)g_memcpyBadLenLast, (unsigned)g_memcpyBadLenRejects);
+            }
             if (usableRoll == 0) {
                 Serial.printf("[CSI] BLIND: no link reaches %ddBm - cannot detect motion on ch%u\n",
                               (int)CSI_LINK_MIN_RSSI, g_csiActiveChannel);
