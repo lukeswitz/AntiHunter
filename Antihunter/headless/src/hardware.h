@@ -182,6 +182,7 @@ bool performSecureWipe();
 bool performConfigReset();
 bool performDataReset();
 void deleteAllFiles(const String &dirname);
+void sdListDump();
 bool executeSecureErase(const String &reason);
 String generateEraseToken();
 bool validateEraseToken(const String &token);

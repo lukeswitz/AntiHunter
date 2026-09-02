@@ -2608,6 +2608,38 @@ bool performDataReset() {
     return false;
 }
 
+void listAllFiles(const String &dirname, uint32_t &count, uint32_t &bytes) {
+    File root = SafeSD::open(dirname.c_str());
+    if (!root || !root.isDirectory()) {
+        if (root) root.close();
+        return;
+    }
+    File file = root.openNextFile();
+    while (file) {
+        const String fullPath = dirname + "/" + String(file.name());
+        if (file.isDirectory()) {
+            Serial.printf("[SDLIST] DIR  %s\n", fullPath.c_str());
+            file.close();
+            listAllFiles(fullPath, count, bytes);
+        } else {
+            const uint32_t sz = (uint32_t)file.size();
+            Serial.printf("[SDLIST] %8u  %s\n", (unsigned)sz, fullPath.c_str());
+            count++;
+            bytes += sz;
+            file.close();
+        }
+        file = root.openNextFile();
+    }
+    root.close();
+}
+
+void sdListDump() {
+    uint32_t count = 0, bytes = 0;
+    Serial.println("[SDLIST] ==== SD card contents ====");
+    listAllFiles("", count, bytes);
+    Serial.printf("[SDLIST] ==== %u files, %u bytes ====\n", (unsigned)count, (unsigned)bytes);
+}
+
 void deleteAllFiles(const String &dirname) {
     File root = SafeSD::open(dirname.c_str());
     if (!root) {

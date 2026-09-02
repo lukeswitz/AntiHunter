@@ -609,6 +609,7 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 |---------|------|------------|---------|
 | `STATUS` | Report mode, scan state, hits, temp, uptime, GPS | None | `@ALL STATUS` |
 | `STOP` | Stop everything running | None | `@ALL STOP` |
+| `SD_LIST` | List every file on the SD card to the serial console | None | `@AH01 SD_LIST` |
 
 ### Configuration
 

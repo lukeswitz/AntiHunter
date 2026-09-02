@@ -2152,6 +2152,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("INCIDENTS_CLEAR"))     handleIncidentsClear(command);
   else if (command.startsWith("INCIDENTS"))           handleIncidents(command);
   else if (command == "STATUS")                       handleStatus(command);
+  else if (command == "SD_LIST")                      sdListDump();
   else if (command == "VIBRATION_STATUS")             handleVibrationStatus(command);
   else if (command == "VIBRATION_ON")                 handleVibrationOn(command);
   else if (command == "VIBRATION_OFF")                handleVibrationOff(command);
