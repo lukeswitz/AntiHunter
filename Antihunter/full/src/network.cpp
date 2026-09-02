@@ -278,26 +278,6 @@ void initializeNetwork()
 
 void registerRemainingRoutes();
 
-struct SdListStream {
-    File dir;
-    String pending;
-    bool first = true;
-    bool done = false;
-};
-
-static bool sdPathSafe(const String &p) {
-    const size_t len = p.length();
-    if (len == 0 || len > 128) return false;
-    if (p[0] != '/') return false;
-    if (p.indexOf("..") >= 0) return false;
-    if (p.indexOf('\\') >= 0) return false;
-    for (size_t i = 0; i < len; i++) {
-        const char c = p[i];
-        if (c < 32 || c == 127) return false;
-    }
-    return true;
-}
-
 void startWebServer()
 {
   if (!server)
@@ -603,68 +583,6 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
         gpsInfo += "GPS: No valid fix\n";
     }
     r->send(200, "text/plain", gpsInfo); });
-
-  server->on("/sd/list", HTTP_GET, [](AsyncWebServerRequest *r) {
-      String path = r->hasParam("path") ? r->getParam("path")->value() : String("/");
-      if (!sdPathSafe(path)) { r->send(400, "text/plain", "bad path"); return; }
-      if (!sdAvailable) { r->send(503, "text/plain", "SD unavailable"); return; }
-      if (!SafeSD::hasHeapForOpen()) { r->send(503, "text/plain", "low memory"); return; }
-      File dir = SafeSD::open(path.c_str());
-      if (!dir) { r->send(404, "text/plain", "not found"); return; }
-      if (!dir.isDirectory()) { dir.close(); r->send(400, "text/plain", "not a directory"); return; }
-
-      auto st = std::make_shared<SdListStream>();
-      st->dir = dir;
-      uint64_t total = 0, used = 0;
-      sdSpace(total, used);
-      st->pending = "{\"path\":\"" + jsonEscape(path) +
-                    "\",\"totalBytes\":" + String((uint32_t)(total / 1024ULL)) +
-                    ",\"usedBytes\":" + String((uint32_t)(used / 1024ULL)) +
-                    ",\"entries\":[";
-
-      AsyncWebServerResponse *res = r->beginChunkedResponse("application/json",
-          [st](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
-              (void)index;
-              while (!st->done && st->pending.length() < maxLen) {
-                  File f = st->dir.openNextFile();
-                  if (!f) {
-                      st->pending += "]}";
-                      st->done = true;
-                      st->dir.close();
-                      break;
-                  }
-                  String leaf = String(f.name());
-                  const int slash = leaf.lastIndexOf('/');
-                  if (slash >= 0) leaf = leaf.substring(slash + 1);
-                  if (!st->first) st->pending += ",";
-                  st->first = false;
-                  st->pending += "{\"name\":\"" + jsonEscape(leaf) +
-                                 "\",\"size\":" + String((uint32_t)f.size()) +
-                                 ",\"dir\":" + (f.isDirectory() ? "true" : "false") + "}";
-                  f.close();
-              }
-              size_t n = st->pending.length();
-              if (n > maxLen) n = maxLen;
-              if (n == 0) return 0;
-              memcpy(buffer, st->pending.c_str(), n);
-              st->pending.remove(0, n);
-              return n;
-          });
-      r->send(res);
-  });
-
-  server->on("/sd/file", HTTP_GET, [](AsyncWebServerRequest *r) {
-      if (!r->hasParam("path")) { r->send(400, "text/plain", "path required"); return; }
-      String path = r->getParam("path")->value();
-      if (!sdPathSafe(path)) { r->send(400, "text/plain", "bad path"); return; }
-      if (!sdAvailable) { r->send(503, "text/plain", "SD unavailable"); return; }
-      if (!SafeSD::hasHeapForOpen()) { r->send(503, "text/plain", "low memory"); return; }
-      File probe = SafeSD::open(path.c_str());
-      if (!probe) { r->send(404, "text/plain", "not found"); return; }
-      if (probe.isDirectory()) { probe.close(); r->send(400, "text/plain", "is a directory"); return; }
-      probe.close();
-      r->send(SD, path, "application/octet-stream", true);
-  });
 
   server->on("/sd-status", HTTP_GET, [](AsyncWebServerRequest *r)
              {

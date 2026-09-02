@@ -2360,52 +2360,6 @@ bool performDataReset() {
     return false;
 }
 
-void listAllFiles(const String &dirname, uint32_t &count, uint32_t &bytes) {
-    File root = SafeSD::open(dirname.c_str());
-    if (!root || !root.isDirectory()) {
-        if (root) root.close();
-        return;
-    }
-    File file = root.openNextFile();
-    const String base = (dirname == "/") ? String("") : dirname;
-    while (file) {
-        String leaf = String(file.name());
-        const int slash = leaf.lastIndexOf('/');
-        if (slash >= 0) leaf = leaf.substring(slash + 1);
-        const String fullPath = base + "/" + leaf;
-        if (file.isDirectory()) {
-            Serial.printf("[SDLIST] DIR  %s\n", fullPath.c_str());
-            file.close();
-            listAllFiles(fullPath, count, bytes);
-        } else {
-            const uint32_t sz = (uint32_t)file.size();
-            Serial.printf("[SDLIST] %8u  %s\n", (unsigned)sz, fullPath.c_str());
-            count++;
-            bytes += sz;
-            file.close();
-        }
-        file = root.openNextFile();
-    }
-    root.close();
-}
-
-void sdSpace(uint64_t &total, uint64_t &used) {
-    total = 0;
-    used = 0;
-    if (!SafeSD::isAvailable()) return;
-    total = SD.totalBytes();
-    used = SD.usedBytes();
-    if (used > total) used = total;
-}
-
-void sdListDump(uint32_t &count, uint32_t &bytes) {
-    count = 0;
-    bytes = 0;
-    Serial.println("[SDLIST] ==== SD card contents ====");
-    listAllFiles("/", count, bytes);
-    Serial.printf("[SDLIST] ==== %u files, %u bytes ====\n", (unsigned)count, (unsigned)bytes);
-}
-
 void deleteAllFiles(const String &dirname) {
     File root = SafeSD::open(dirname.c_str());
     if (!root) {

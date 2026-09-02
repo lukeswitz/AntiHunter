@@ -609,7 +609,6 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 |---------|------|------------|---------|
 | `STATUS` | Report mode, scan state, hits, temp, uptime, GPS | None | `@ALL STATUS` |
 | `STOP` | Stop everything running | None | `@ALL STOP` |
-| `SD_LIST` | Reply with the file count and card used/total; the full listing goes to that node's serial console, never over mesh | None | `@AH01 SD_LIST` |
 
 ### Configuration
 
@@ -812,8 +811,6 @@ Any other value is passed through verbatim as `Reason code N`.
 | `/stop` | GET | Fast-abort every scan/task: aborts in-flight WiFi/BLE scans, stops triangulation, cancels mesh drain. `/diag` reports `Stopping: yes` until the task actually exits |
 | `/config` | GET/POST | System configuration (JSON) |
 | `/clear-results` | POST | Clear all scan results |
-| `/sd/list` | GET | Directory listing (JSON): `path` (default `/`), returns every entry with name/size/dir plus card total and used KB. Streamed chunked, so a directory of any size uses constant memory |
-| `/sd/file` | GET | Streams one file off the card for download. `path=<absolute path>`. Rejects `..`, backslashes, control characters, and paths over 128 chars |
 
 ### Scanning
 
