@@ -63,9 +63,12 @@ static std::atomic<uint32_t> g_autoBudgetMB{512};
 static std::atomic<uint32_t> g_freeFloorMB{256};
 
 void setPcapAutoTriggered(bool autoTriggered) { g_autoTriggered = autoTriggered; }
+// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
 uint32_t getPcapAutoBudgetMB() { return g_autoBudgetMB.load(); }
+// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
 uint32_t getPcapFreeFloorMB() { return g_freeFloorMB.load(); }
 
+// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
 void setPcapAutoLimits(uint32_t budgetMB, uint32_t freeFloorMB) {
     if (budgetMB < 16) budgetMB = 16;
     if (budgetMB > 262144) budgetMB = 262144;
@@ -100,6 +103,7 @@ void setPcapConfig(uint8_t radio, uint8_t band, const String &channelsCsv,
                    uint16_t dwellMs, bool mgmtOnly) {
     g_radio = (radio == PCAP_RADIO_BLE) ? PCAP_RADIO_BLE : PCAP_RADIO_WIFI;
     g_band = (band <= PCAP_BAND_BOTH) ? band : PCAP_BAND_24;
+    // cppcheck-suppress knownConditionTrueFalse // constant per target, true on C5
     if (!pcapDualBandCapable()) g_band = PCAP_BAND_24;
     g_dwellMs = (dwellMs >= 50 && dwellMs <= 5000) ? dwellMs : 250;
     g_mgmtOnly = mgmtOnly;
@@ -173,7 +177,7 @@ static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
     if (!g_active) return;
     if (type != WIFI_PKT_MGMT && type != WIFI_PKT_DATA && type != WIFI_PKT_CTRL) return;
 
-    const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
+    const wifi_promiscuous_pkt_t *pkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
     int len = pkt->rx_ctrl.sig_len;
     if (len > 4) len -= 4;
     if (len < 10) return;
@@ -279,14 +283,14 @@ void pcapOnBleAdv(const uint8_t *addr, uint8_t addrType, uint8_t advType,
 
 static bool pcapAllocBuffers() {
     g_bufCap = PCAP_BUF_PSRAM;
-    g_bufA = (uint8_t *)heap_caps_malloc(g_bufCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    g_bufB = (uint8_t *)heap_caps_malloc(g_bufCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    g_bufA = static_cast<uint8_t *>(heap_caps_malloc(g_bufCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    g_bufB = static_cast<uint8_t *>(heap_caps_malloc(g_bufCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (!g_bufA || !g_bufB) {
         if (g_bufA) { free(g_bufA); g_bufA = nullptr; }
         if (g_bufB) { free(g_bufB); g_bufB = nullptr; }
         g_bufCap = PCAP_BUF_INTERNAL;
-        g_bufA = (uint8_t *)heap_caps_malloc(g_bufCap, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-        g_bufB = (uint8_t *)heap_caps_malloc(g_bufCap, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        g_bufA = static_cast<uint8_t *>(heap_caps_malloc(g_bufCap, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        g_bufB = static_cast<uint8_t *>(heap_caps_malloc(g_bufCap, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     }
     if (!g_bufA || !g_bufB) {
         if (g_bufA) { free(g_bufA); g_bufA = nullptr; }
@@ -313,7 +317,7 @@ static void pcapFreeBuffers() {
 }
 
 static void pcapDrain(fs::File &f) {
-    uint8_t *src = nullptr;
+    const uint8_t *src = nullptr;
     uint32_t len = 0;
 
     portENTER_CRITICAL(&g_bufMux);
@@ -496,6 +500,7 @@ bool pcapNameIsValid(const String &name) {
     return name.indexOf("..") < 0;
 }
 
+// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
 String getPcapListJson() {
     String j = "[";
     if (!SafeSD::isAvailable()) return j + "]";
@@ -532,6 +537,7 @@ bool pcapDeleteFile(const String &name) {
     return SafeSD::remove(path.c_str());
 }
 
+// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
 uint32_t pcapDeleteAll() {
     if (!SafeSD::isAvailable()) return 0;
 
@@ -575,13 +581,11 @@ static String pcapSummary(bool inProgress) {
     return s;
 }
 
-String getPcapResults() {
-    return pcapSummary(g_active);
-}
-
+// cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
 String getPcapStatusJson() {
     String j = "{";
     j += "\"active\":" + String(g_active ? "true" : "false");
+    // cppcheck-suppress knownConditionTrueFalse // constant per target, true on C5
     j += ",\"dualBand\":" + String(pcapDualBandCapable() ? "true" : "false");
     j += ",\"radio\":" + String(g_radio);
     j += ",\"band\":" + String(g_band);
