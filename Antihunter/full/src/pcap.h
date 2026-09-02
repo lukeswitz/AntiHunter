@@ -22,7 +22,6 @@ void loadPcapPrefs();
 void pcapOnBleAdv(const uint8_t *addr, uint8_t addrType, uint8_t advType,
                   const uint8_t *payload, uint16_t payloadLen, uint16_t advLen,
                   const uint8_t *targetAddr, int8_t rssi);
-String getPcapResults();
 String getPcapStatusJson();
 String getPcapListJson();
 String getPcapFilePath();
