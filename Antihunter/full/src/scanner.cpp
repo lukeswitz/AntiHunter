@@ -885,7 +885,6 @@ static void hopTimerCb(void *)
 
     if (apHasClients()) {
         if (hopScanBusy()) return;
-        extern bool baselineDetectionEnabled;
         if (baselineDetectionEnabled) return;
         idx = (idx + 1) % g_activeChannels.size();
         uint8_t ch = g_activeChannels[idx];
