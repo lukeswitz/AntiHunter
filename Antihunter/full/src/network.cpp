@@ -605,7 +605,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
   server->on("/sd/list", HTTP_GET, [](AsyncWebServerRequest *r) {
       String path = r->hasParam("path") ? r->getParam("path")->value() : String("/");
       if (!sdPathSafe(path)) { r->send(400, "text/plain", "bad path"); return; }
-      if (!SafeSD::isAvailable()) { r->send(503, "text/plain", "SD unavailable"); return; }
+      if (!sdAvailable) { r->send(503, "text/plain", "SD unavailable"); return; }
       if (!SafeSD::hasHeapForOpen()) { r->send(503, "text/plain", "low memory"); return; }
       File dir = SafeSD::open(path.c_str());
       if (!dir) { r->send(404, "text/plain", "not found"); return; }
@@ -655,7 +655,7 @@ server->on("/baseline/config", HTTP_GET, [](AsyncWebServerRequest *req)
       if (!r->hasParam("path")) { r->send(400, "text/plain", "path required"); return; }
       String path = r->getParam("path")->value();
       if (!sdPathSafe(path)) { r->send(400, "text/plain", "bad path"); return; }
-      if (!SafeSD::isAvailable()) { r->send(503, "text/plain", "SD unavailable"); return; }
+      if (!sdAvailable) { r->send(503, "text/plain", "SD unavailable"); return; }
       if (!SafeSD::hasHeapForOpen()) { r->send(503, "text/plain", "low memory"); return; }
       File probe = SafeSD::open(path.c_str());
       if (!probe) { r->send(404, "text/plain", "not found"); return; }
