@@ -111,6 +111,10 @@ static const uint8_t CSI_RADIO_KEY_LEN = 5;
 static const uint32_t CSI_ELEV_CAP_MS = 6000;
 static const uint32_t CSI_ELEV_DECAY = 2;
 static const uint32_t CSI_AREA_DEBOUNCE_MS = 15000;
+static const uint8_t CSI_AREA_DUTY_SLOTS = 30;
+static const uint16_t CSI_AREA_DUTY_MIN_S = 12;
+static uint8_t g_areaDuty[CSI_AREA_DUTY_SLOTS];
+static uint8_t g_areaDutyPos = 0;
 static bool g_areaMotion = false;
 static bool g_areaCand = false;
 static uint32_t g_areaCandSince = 0;
@@ -965,6 +969,8 @@ void csiMotionTask(void *pv) {
     g_areaMotion = false;
     g_areaCand = false;
     g_areaCandSince = 0;
+    memset(g_areaDuty, 0, sizeof(g_areaDuty));
+    g_areaDutyPos = 0;
     g_areaSinceMs = 0;
     g_areaLastMotionMs = 0;
     csiEpisodesReset();
@@ -1125,8 +1131,11 @@ void csiMotionTask(void *pv) {
                 }
             }
 
-            const int needLinks = (usableLinks >= 2) ? 2 : 1;
-            const bool areaNow = (movingLinks >= needLinks);
+            g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 255 ? 255 : movingLinks);
+            g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
+            uint32_t dutySec = 0;
+            for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
+            const bool areaNow = (dutySec >= CSI_AREA_DUTY_MIN_S);
             if (areaNow) g_areaLastMotionMs = now;
 
             if (areaNow != g_areaCand) {
