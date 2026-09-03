@@ -113,6 +113,9 @@ uint32_t lastBatterySaverHeartbeat = 0;
 
 // SD & HW Init
 
+uint32_t SafeSD::sdMountFailures = 0;
+uint32_t SafeSD::lastMountLogMs = 0;
+
 bool SafeSD::checkAvailability() {
     static std::mutex sdCheckMutex;
     std::lock_guard<std::mutex> lock(sdCheckMutex);
@@ -121,10 +124,21 @@ bool SafeSD::checkAvailability() {
         return lastCheckResult;
     }
     lastCheckTime = now;
+    const bool was = lastCheckResult;
     lastCheckResult = SD.begin(SD_CS_PIN);
     sdAvailable = lastCheckResult;
     if (!lastCheckResult) {
-        Serial.println("[SAFE_SD] SD card not available");
+        sdMountFailures++;
+        if (was || sdMountFailures == 1 || now - lastMountLogMs >= MOUNT_LOG_INTERVAL_MS) {
+            lastMountLogMs = now;
+            Serial.printf("[SAFE_SD] SD unavailable - mount has failed %lu times. "
+                          "The card needs checking or reformatting; the node is running without storage.\n",
+                          (unsigned long)sdMountFailures);
+        }
+    } else if (!was && sdMountFailures) {
+        Serial.printf("[SAFE_SD] SD recovered after %lu failed mounts\n",
+                      (unsigned long)sdMountFailures);
+        sdMountFailures = 0;
     }
     return lastCheckResult;
 }
@@ -258,6 +272,10 @@ bool SafeSD::flush(fs::File& file) {
 
 void SafeSD::forceRecheck() {
     lastCheckTime = 0;
+}
+
+uint32_t SafeSD::mountFailureCount() {
+    return sdMountFailures;
 }
 
 String jsonEscape(const String &in) {

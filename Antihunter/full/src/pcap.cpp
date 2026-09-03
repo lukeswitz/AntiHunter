@@ -48,6 +48,14 @@ static volatile uint32_t g_sizeB = 0;
 static volatile bool g_useA = true;
 static portMUX_TYPE g_bufMux = portMUX_INITIALIZER_UNLOCKED;
 
+static const uint32_t PCAP_MAX_FILE_BYTES = 64u * 1024u * 1024u;
+static const uint32_t PCAP_MIN_FREE_BYTES = 32u * 1024u * 1024u;
+static const uint8_t PCAP_MAX_WRITE_FAILS = 3;
+
+static std::atomic<uint32_t> g_writeFails{0};
+static std::atomic<bool> g_stopReasonSize{false};
+static std::atomic<bool> g_stopReasonWrite{false};
+
 static std::atomic<uint32_t> g_frames{0};
 static std::atomic<uint32_t> g_bytes{0};
 static std::atomic<uint32_t> g_dropped{0};
@@ -335,8 +343,18 @@ static void pcapDrain(fs::File &f) {
     if (!src || !len) return;
     size_t wrote = SafeSD::write(f, src, len);
     g_bytes.fetch_add((uint32_t)wrote);
-    if (wrote != len) {
-        Serial.printf("[PCAP] short write %u/%u\n", (unsigned)wrote, (unsigned)len);
+    if (wrote == len) {
+        g_writeFails.store(0);
+        return;
+    }
+
+    const uint32_t fails = g_writeFails.fetch_add(1) + 1;
+    Serial.printf("[PCAP] short write %u/%u (%u consecutive)\n",
+                  (unsigned)wrote, (unsigned)len, (unsigned)fails);
+    if (fails >= PCAP_MAX_WRITE_FAILS) {
+        g_stopReasonWrite.store(true);
+        stopRequested = true;
+        Serial.println("[PCAP] stopping: the card is not accepting writes - further writes would damage the filesystem");
     }
 }
 
@@ -634,8 +652,16 @@ void pcapCaptureTask(void *pv) {
     }
     if (g_autoTriggered) {
         pcapPruneAuto();
-        if (pcapSdFreeBytes() < (uint64_t)g_freeFloorMB.load() * 1024ULL * 1024ULL) {
-            pcapAbort("SD below the free-space floor - auto capture skipped");
+    }
+    {
+        const uint64_t freeNow = pcapSdFreeBytes();
+        const uint64_t floorB = (uint64_t)g_freeFloorMB.load() * 1024ULL * 1024ULL;
+        const uint64_t needB = floorB > PCAP_MIN_FREE_BYTES ? floorB : (uint64_t)PCAP_MIN_FREE_BYTES;
+        if (freeNow < needB) {
+            String msg = "SD below the free-space floor - capture refused (" +
+                         String((unsigned long)(freeNow / (1024ULL * 1024ULL))) + "MB free, need " +
+                         String((unsigned long)(needB / (1024ULL * 1024ULL))) + "MB)";
+            pcapAbort(msg.c_str());
             return;
         }
     }
@@ -662,6 +688,9 @@ void pcapCaptureTask(void *pv) {
 
     g_frames.store(0);
     g_bytes.store(0);
+    g_writeFails.store(0);
+    g_stopReasonSize.store(false);
+    g_stopReasonWrite.store(false);
     g_dropped.store(0);
     g_startMs = millis();
     g_endMs = 0;
@@ -724,6 +753,12 @@ void pcapCaptureTask(void *pv) {
         if (now - lastFlush >= 2000) {
             lastFlush = now;
             SafeSD::flush(f);
+            if ((uint32_t)f.size() >= PCAP_MAX_FILE_BYTES) {
+                g_stopReasonSize.store(true);
+                stopRequested = true;
+                Serial.printf("[PCAP] stopping: file reached the %u MB cap\n",
+                              (unsigned)(PCAP_MAX_FILE_BYTES / (1024u * 1024u)));
+            }
         }
 
         if (now - lastResults >= 1000) {
@@ -757,8 +792,11 @@ void pcapCaptureTask(void *pv) {
     g_endMs = millis();
     pcapFreeBuffers();
 
-    Serial.printf("[PCAP] Stopped: %u frames, %u bytes, %u dropped, file %u bytes\n",
-                  g_frames.load(), g_bytes.load(), g_dropped.load(), fileSize);
+    const char *why = g_stopReasonWrite.load() ? " (stopped: card refused writes)"
+                    : g_stopReasonSize.load()  ? " (stopped: size cap)"
+                                               : "";
+    Serial.printf("[PCAP] Stopped: %u frames, %u bytes, %u dropped, file %u bytes%s\n",
+                  g_frames.load(), g_bytes.load(), g_dropped.load(), fileSize, why);
 
     {
         String s = pcapSummary(false);
@@ -768,7 +806,9 @@ void pcapCaptureTask(void *pv) {
 
     if (meshEnabled) {
         meshEnqueue(getNodeId() + ": PCAP_DONE: F=" + String(g_frames.load()) +
-                    " B=" + String(g_bytes.load()) + " D=" + String(g_dropped.load()));
+                    " B=" + String(g_bytes.load()) + " D=" + String(g_dropped.load()) +
+                    (g_stopReasonWrite.load() ? " R=WRITEFAIL"
+                     : g_stopReasonSize.load() ? " R=SIZECAP" : ""));
     }
 
     logToSD("PCAP: " + getPcapFilePath() + " frames=" + String(g_frames.load()) +
