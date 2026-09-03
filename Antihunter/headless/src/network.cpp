@@ -696,6 +696,21 @@ static void handlePcapStart(const String &command)
   sendToSerial1(nodeId + ": PCAP_ACK:STARTED", true);
 }
 
+static void handlePcapLimits(const String &command)
+{
+  String p = command.substring(12);
+  p.trim();
+  if (p.length()) {
+    const uint32_t mb = (uint32_t)p.toInt();
+    if (mb < 8 || mb > 300) {
+      sendToSerial1(getNodeId() + ": PCAP_LIMITS_ACK:INVALID", true);
+      return;
+    }
+    setPcapMaxFileMB(mb);
+  }
+  sendToSerial1(getNodeId() + ": PCAP_LIMITS_ACK:MAXFILE=" + String(getPcapMaxFileMB()) + "MB", true);
+}
+
 static void handlePcapStop(const String &command)
 {
   (void)command;
@@ -2126,6 +2141,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("PROBE_HIT "))          handleProbeHit(command);
   else if (command.startsWith("PCAP_START:"))         handlePcapStart(command);
   else if (command == "PCAP_STOP")                    handlePcapStop(command);
+  else if (command.startsWith("PCAP_LIMITS:"))          handlePcapLimits(command);
   else if (command == "STOP")                         handleStop(command);
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);
   else if (command == "SENTINEL_OFF")                 handleSentinelOff(command);

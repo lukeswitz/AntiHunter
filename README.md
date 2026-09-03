@@ -765,6 +765,7 @@ Mode is `0` WiFi, `1` BLE, `2` both. Add `:FOREVER` to run until stopped.
 | `CSI_RECAL` | Drop a saved trigger | None | `@ALL CSI_RECAL` |
 | `CSI_EXCLUDE` | Ignore one MAC for motion | `<MAC>` or `NONE` | `@ALL CSI_EXCLUDE:AA:BB:CC:DD:EE:FF` |
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
+| `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
 | `MESH_TX_CANCEL` | Drop queued mesh traffic, keep scanning | None | `@ALL MESH_TX_CANCEL` |
 
 `+PROBE` adds probe capture to a device scan. `+ALL` broadcasts every probe, not just watchlist hits. `CH0` or no channel surveys and pins the busiest; `TELEM` and `RAW` add per-packet serial lines. PCAP radio is `0` WiFi / `1` BLE, band `0` 2.4 / `1` 5 / `2` both, 5 GHz C5 only.
