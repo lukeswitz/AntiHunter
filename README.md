@@ -619,7 +619,7 @@ Same firmware, same detectors, same [mesh commands](#mesh-commands), same scan e
 | Fleet roster | Fleet tab and `/api/mesh` | Not tracked |
 | RF footprint | AP beacons continuously | Never beacons |
 
-Karma bait is the only detector that transmits, a probe request every 8s. Off by default, enable with `GROUP:rogue:on`. Sentinel `defend` has no AP to pin to on Headless, so use `scan`.
+Two things transmit. Karma bait sends a probe request every 8s, off by default, enable with `GROUP:rogue:on`. CSI Motion sends a broadcast probe request at most once per second, and only when fewer than 15 CSI packets arrived in the last second. Everything else is passive. Sentinel `defend` has no AP to pin to on Headless, so use `scan`.
 
 ---
 
@@ -684,7 +684,7 @@ Node commands and detections travel as standard Meshtastic text messages on publ
 <details>
 <summary>Mesh TX Architecture</summary>
 
-Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap).
+Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages and exit immediately when the scan ends. A background consumer task (`meshTxTask`) drains at the LoRa airtime cap through the token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Three priority queues hold 256 entries total - CTRL 16, EVENT 32, BULK 208 - drained in that order, so a `STOP` never waits behind a device dump. Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap).
 
 **Consequences**:
 - Starting a new scan never waits on prior scan's mesh TX. Drain happens in background.
@@ -967,10 +967,8 @@ Any other value is passed through verbatim as `Reason code N`.
 |----------|--------|-------------|
 | `/results` | GET | Latest scan/triangulation results |
 | `/sniffer-cache` | GET | Cached device detections |
-| `/probe-results` | GET | Probe request results |
 | `/deauth-results` | GET | Deauth attack logs |
 | `/randomization-results` | GET | Randomization correlation results |
-| `/baseline-results` | GET | Baseline anomaly results |
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
 | `/csi-results` | GET | CSI motion detection results, one block per tracked transmitter |
