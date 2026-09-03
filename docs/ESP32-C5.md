@@ -30,7 +30,7 @@ Set it three ways:
 
 - **Web UI** — RF Settings, *Band* selector. The row only appears on C5 hardware.
 - **Mesh** — `@<NODE> CONFIG_BAND:<0|1|2>`, replies `CONFIG_ACK:BAND:<mode>` or `CONFIG_ACK:BAND:INVALID`.
-- **API** — `POST /api/config` with `bandMode=<0|1|2>`.
+- **API** — `POST /rf-config` with `bandMode=<0|1|2>`. `POST /config` also accepts `bandMode`, but requires `channels` and `targets` in the same request. Both return `409` while a scan is running — stop it first.
 
 The value persists to NVS. On the full build the 5 GHz channels are scanned in short dwells between AP beacons so the web UI client stays associated.
 
@@ -78,3 +78,28 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 - Experimental channel only — not covered by the stable release cadence.
 - 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
 - Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
+
+### SD card does not survive a reset without power removal
+
+A reset that leaves the SD card powered can leave the card unmountable until power is physically removed. Confirmed on repeated flashes and USB-serial resets, which report `rst:0x15 (USB_UART_HPSYS)` in the ROM banner. It does not happen on every such reset: a watchdog reset has been seen to mount normally.
+
+Any reboot that keeps the card powered is exposed, which includes a panic and an OTA restart.
+
+Symptom in the log:
+
+```
+Initializing SD card...
+[SD] C5: SPI2 bus clock ungated
+[  3404][E][sd_diskio.cpp:810] sdcard_mount(): f_mount failed: (1) A hard error occurred in the low level disk I/O layer
+[SD] FAILED
+```
+
+The periodic remount then fails every 1.6 s for the rest of the session and the node runs with no SD: no logging, no baseline, no capture, config from NVS only.
+
+What the card is doing, measured by driving the bus directly at boot: it initializes correctly every time, answering `CMD0` with `0x01`, echoing the `CMD8` voltage pattern, and completing `ACMD41`. Sector reads are then accepted with a `0x00` response and no data token follows, which is what surfaces as the disk error. A power cycle always recovers it. Resets that keep the card powered sometimes do not.
+
+Espressif track the same class of failure for SPI-mode cards after a soft reboot in [esp-idf#14000](https://github.com/espressif/esp-idf/issues/14000), where the card retains state the mount sequence assumes is clear.
+
+No firmware workaround has been proven. Flushing the bus with dummy clocks, issuing `CMD12`, re-running the full card initialization, resetting the SPI2 peripheral unconditionally, and waiting for the busy line to clear were each tried and none reliably recovers a stuck card. A load switch on the card's supply, so firmware can cut power before mounting, is the only fix that addresses the cause.
+
+Deploy accordingly: a node that reboots in the field may come back without its card.
