@@ -624,7 +624,7 @@ Node commands and detections travel as standard Meshtastic text messages on publ
 <details>
 <summary>Mesh TX Architecture</summary>
 
-Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages into a 256-entry PSRAM-backed FreeRTOS queue (`meshTxQueue`) and exit immediately when the scan ends. A dedicated background consumer task (`meshTxTask`) drains the queue at the LoRa airtime cap via the existing token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap).
+Scan tasks (sniffer/baseline/drone/randdet/blueteam) are **pure producers**. They enqueue device-broadcast messages and exit immediately when the scan ends. A background consumer task (`meshTxTask`) drains at the LoRa airtime cap through the token-bucket rate limiter (`SerialRateLimiter`, ~167 B/s sustained). Three priority queues hold 256 entries total - CTRL 16, EVENT 32, BULK 208 - drained in that order, so a `STOP` never waits behind a device dump. Device rows are packed into frames up to 230 B (under Meshtastic's 237 B text-payload cap).
 
 **Consequences**:
 - Starting a new scan never waits on prior scan's mesh TX. Drain happens in background.
@@ -764,21 +764,10 @@ Headless has no SoftAP. `defend` pins to whatever channel the radio last used, s
 | `VIBSCAN_STATUS` | Report that setting | None | `@AH01 VIBSCAN_STATUS` |
 | `CONFIG_ERASE_PSK` | Set the key that authorizes a wipe | `<key>`, 1-64 chars | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
 | `FACTORY_RESET` | Reset one node, needs the key | `<FULL\|CONFIG\|DATA>:<key>` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `ERASE_REQUEST` | None | `@AH01 ERASE_REQUEST` |
-| `ERASE_FORCE` | Auth token | `@AH02 ERASE_FORCE:AH_12345678_87654321_00001234` |
-| `ERASE_CANCEL` | None | `@AH01 ERASE_CANCEL` |
-| `AUTOERASE_ENABLE` | `setup:erase:vibs:window:cooldown` (seconds, except vibs count) | `@AH01 AUTOERASE_ENABLE:60:30:3:30:300` |
-| `AUTOERASE_DISABLE` | None | `@AH01 AUTOERASE_DISABLE` |
-| `AUTOERASE_STATUS` | None | `@AH01 AUTOERASE_STATUS` |
-| `VIBRATION_STATUS` | None | `@AH01 VIBRATION_STATUS` |
-| `VIBRATION_ON` | None | `@AH01 VIBRATION_ON` |
-| `VIBRATION_OFF` | None | `@AH01 VIBRATION_OFF` |
-| `VIBSCAN_SET` | `en:mode:dur[:cooldownSecs]` — auto-start a scan when the vibration sensor fires. en 0/1; mode 0=off, 1=all-device, 2=probe-req, 3=rand-MAC, 4=list, 5=drone, 6=deauth, 7=baseline; dur seconds (0=forever). Skipped if a scan is already running or during battery-saver. ACK: `VIBSCAN_ACK:OK En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_SET:1:2:60:60` |
-| `VIBSCAN_STATUS` | None. Reply: `VIBSCAN_STATUS: En:.. Mode:.. Dur:..s Cd:..s` | `@AH01 VIBSCAN_STATUS` |
-| `CONFIG_ERASE_PSK` | `<key>` (1-64 chars) — set/clear the pre-shared key authorizing erase/factory-reset. ACK: `CONFIG_ACK:ERASE_PSK:SET` or `:CLEARED` | `@AH01 CONFIG_ERASE_PSK:myS3cretKey` |
-| `FACTORY_RESET` | `<FULL\|CONFIG\|DATA>:<credential>` — factory reset (single node only, requires erase PSK credential). ACK: `FACTORY_RESET_ACK:<tier> - rebooting` or `:DENIED`/`:BAD_TIER`/`:BAD_FORMAT`/`:BUSY` | `@AH01 FACTORY_RESET:FULL:myS3cretKey` |
+
+`VIBSCAN_SET` modes: 0 off, 1 all-device, 2 probe-req, 3 rand-MAC, 4 list, 5 drone, 6 deauth, 7 baseline, 8 packet capture. Duration 0 runs until stopped, cooldown 5-86400s. Skipped if a scan is already running or in battery saver.
+
+`AUTOERASE_ENABLE` and `FACTORY_RESET` require the erase PSK credential appended once `CONFIG_ERASE_PSK` has set one.
 
 </details>
 
@@ -919,10 +908,8 @@ Any other value is passed through verbatim as `Reason code N`.
 |----------|--------|-------------|
 | `/results` | GET | Latest scan/triangulation results |
 | `/sniffer-cache` | GET | Cached device detections |
-| `/probe-results` | GET | Probe request results |
 | `/deauth-results` | GET | Deauth attack logs |
 | `/randomization-results` | GET | Randomization correlation results |
-| `/baseline-results` | GET | Baseline anomaly results |
 | `/drone-results` | GET | Drone detection results |
 | `/drone-log` | GET | Drone event log (JSON) |
 
