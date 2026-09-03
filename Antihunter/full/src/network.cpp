@@ -1463,6 +1463,9 @@ void registerRemainingRoutes() {
                           ? req->getParam("pcapChannels", true)->value() : String("");
             uint16_t dwell = req->hasParam("pcapDwell", true)
                            ? (uint16_t)req->getParam("pcapDwell", true)->value().toInt() : 250;
+            if (req->hasParam("pcapMaxFile", true)) {
+                setPcapMaxFileMB((uint32_t)req->getParam("pcapMaxFile", true)->value().toInt());
+            }
             setPcapConfig(radio, band, pcapCh, dwell, req->hasParam("pcapMgmtOnly", true));
 
             stopRequested = false;
@@ -1548,8 +1551,12 @@ void registerRemainingRoutes() {
       if (r->hasParam("budgetMB", true)) budget = (uint32_t)r->getParam("budgetMB", true)->value().toInt();
       if (r->hasParam("floorMB", true)) floor = (uint32_t)r->getParam("floorMB", true)->value().toInt();
       setPcapAutoLimits(budget, floor);
+      if (r->hasParam("maxFileMB", true)) {
+          setPcapMaxFileMB((uint32_t)r->getParam("maxFileMB", true)->value().toInt());
+      }
       r->send(200, "text/plain", "Auto-capture budget " + String(getPcapAutoBudgetMB()) +
-                                 " MB, keep " + String(getPcapFreeFloorMB()) + " MB free");
+                                 " MB, keep " + String(getPcapFreeFloorMB()) +
+                                 " MB free, capture file cap " + String(getPcapMaxFileMB()) + " MB");
   });
 
   server->on("/pcap/delete-all", HTTP_POST, [](AsyncWebServerRequest *r) {
