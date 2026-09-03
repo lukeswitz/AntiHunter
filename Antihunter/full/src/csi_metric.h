@@ -26,6 +26,12 @@ static const uint16_t CSI_ACF_T = 60;
 static const float CSI_ACF_ETA = 0.10f;
 static const float CSI_ACF_ETA_SUB = 0.25f;
 static const float CSI_ACF_MIN_VAR = 1e-6f;
+static const uint8_t CSI_ACF_HIST = 120;
+static const uint16_t CSI_ACF_SAMPLE_EVERY = 32;
+static const float CSI_ACF_QUANT = 10000.0f;
+static const float CSI_ACF_MIN_SPREAD = 0.02f;
+static const uint8_t CSI_ACF_MIN_HIST = 12;
+static const float CSI_ACF_Z_PER_ETA = 30.0f;
 static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
@@ -62,6 +68,13 @@ struct CsiScorer {
     float mCov[CSI_NSUB];
     float acf;
     float vote;
+    float acfFloor;
+    float acfSpread;
+    float acfZ;
+    uint16_t ahist[CSI_ACF_HIST];
+    uint8_t ahlen;
+    uint8_t ahpos;
+    uint16_t asampCount;
     float floorCache;
     float floorMad;
     float mad;
@@ -85,6 +98,12 @@ struct CsiScorer {
         }
         acf = 0.0f;
         vote = 0.0f;
+        acfFloor = 0.0f;
+        acfSpread = CSI_ACF_MIN_SPREAD;
+        acfZ = 0.0f;
+        ahlen = 0;
+        ahpos = 0;
+        asampCount = 0;
         floorCache = 0.0f;
         floorMad = 0.0f;
         mad = 0.0f;
@@ -96,6 +115,24 @@ struct CsiScorer {
         hlen = 0;
         hpos = 0;
         sampCount = 0;
+    }
+
+    float acfHistStats(float *spreadOut) const {
+        uint16_t tmp[CSI_ACF_HIST];
+        for (uint8_t i = 0; i < ahlen; i++) tmp[i] = ahist[i];
+        for (uint8_t i = 1; i < ahlen; i++) {
+            uint16_t v = tmp[i];
+            int16_t j = (int16_t)i - 1;
+            while (j >= 0 && tmp[j] > v) { tmp[j + 1] = tmp[j]; j--; }
+            tmp[j + 1] = v;
+        }
+        const float med = (float)tmp[ahlen / 2] / CSI_ACF_QUANT - 1.0f;
+        const float q1 = (float)tmp[ahlen / 4] / CSI_ACF_QUANT - 1.0f;
+        const float q3 = (float)tmp[(3 * ahlen) / 4] / CSI_ACF_QUANT - 1.0f;
+        float sp = (q3 - q1) / 1.349f;
+        if (sp < CSI_ACF_MIN_SPREAD) sp = CSI_ACF_MIN_SPREAD;
+        *spreadOut = sp;
+        return med;
     }
 
     float histMedian() const {
@@ -170,6 +207,18 @@ struct CsiScorer {
         }
         acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
         vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
+
+        if (++asampCount >= CSI_ACF_SAMPLE_EVERY) {
+            asampCount = 0;
+            float aq = (acf + 1.0f) * CSI_ACF_QUANT;
+            if (aq < 0.0f) aq = 0.0f;
+            if (aq > 65535.0f) aq = 65535.0f;
+            ahist[ahpos] = (uint16_t)aq;
+            ahpos = (uint8_t)((ahpos + 1) % CSI_ACF_HIST);
+            if (ahlen < CSI_ACF_HIST) ahlen++;
+            acfFloor = acfHistStats(&acfSpread);
+        }
+        acfZ = (ahlen >= CSI_ACF_MIN_HIST) ? ((acf - acfFloor) / acfSpread) : 0.0f;
 
         if (++sampCount >= CSI_FLOOR_SAMPLE_EVERY) {
             sampCount = 0;
