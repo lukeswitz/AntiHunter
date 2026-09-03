@@ -16,6 +16,8 @@ void setPcapConfig(uint8_t radio, uint8_t band, const String &channelsCsv,
                    uint16_t dwellMs, bool mgmtOnly);
 void setPcapAutoTriggered(bool autoTriggered);
 void setPcapAutoLimits(uint32_t budgetMB, uint32_t freeFloorMB);
+uint32_t getPcapMaxFileMB();
+void setPcapMaxFileMB(uint32_t mb);
 uint32_t getPcapAutoBudgetMB();
 uint32_t getPcapFreeFloorMB();
 void loadPcapPrefs();
