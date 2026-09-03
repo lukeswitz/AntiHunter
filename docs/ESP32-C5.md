@@ -81,11 +81,7 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ### SD card does not survive a reset without power removal
 
-A reset that leaves the SD card powered can leave the card unmountable until power is physically removed. Confirmed on repeated flashes and USB-serial resets, which report `rst:0x15 (USB_UART_HPSYS)` in the ROM banner. It does not happen on every such reset: a watchdog reset has been seen to mount normally.
-
-Any reboot that keeps the card powered is exposed, which includes a panic and an OTA restart.
-
-Symptom in the log:
+A reset that leaves the SD card powered can leave the card unmountable until power is physically removed. Seen after flashing and after USB-serial resets, which report `rst:0x15 (USB_UART_HPSYS)` in the ROM banner. It does not happen on every such reset.
 
 ```
 Initializing SD card...
@@ -94,12 +90,15 @@ Initializing SD card...
 [SD] FAILED
 ```
 
-The periodic remount then fails every 1.6 s for the rest of the session and the node runs with no SD: no logging, no baseline, no capture, config from NVS only.
+The periodic remount then fails for the rest of the session and the node runs with no SD: no logging, no baseline, no capture, config from NVS only. Unplugging and repowering clears it.
 
-What the card is doing, measured by driving the bus directly at boot: it initializes correctly every time, answering `CMD0` with `0x01`, echoing the `CMD8` voltage pattern, and completing `ACMD41`. Sector reads are then accepted with a `0x00` response and no data token follows, which is what surfaces as the disk error. A power cycle always recovers it. Resets that keep the card powered sometimes do not.
+Any reboot that keeps the card powered is exposed, including a panic and an OTA restart. Plan for a node that reboots in the field to come back without its card.
 
-Espressif track the same class of failure for SPI-mode cards after a soft reboot in [esp-idf#14000](https://github.com/espressif/esp-idf/issues/14000), where the card retains state the mount sequence assumes is clear.
+No firmware workaround has been found.
 
-No firmware workaround has been proven. Flushing the bus with dummy clocks, issuing `CMD12`, re-running the full card initialization, resetting the SPI2 peripheral unconditionally, and waiting for the busy line to clear were each tried and none reliably recovers a stuck card. A load switch on the card's supply, so firmware can cut power before mounting, is the only fix that addresses the cause.
+Upstream issues covering the same failure on other targets. None is specific to the ESP32-C5, and no C5 issue has been filed:
 
-Deploy accordingly: a node that reboots in the field may come back without its card.
+- [esp-idf#14000](https://github.com/espressif/esp-idf/issues/14000) - mounting an SPI-mode card after a restart fails because the card holds state from before the reset.
+- [esp-idf#10294](https://github.com/espressif/esp-idf/issues/10294) - SD fails to mount a second time, host init failed.
+- [esp-idf#15535](https://github.com/espressif/esp-idf/issues/15535) - SDSPI example failing on ESP32-S3.
+- [arduino-esp32#9218](https://github.com/espressif/arduino-esp32/issues/9218) - the SD library does not force SPI mode before activating the card.
