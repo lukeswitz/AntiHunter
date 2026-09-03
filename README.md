@@ -721,6 +721,7 @@ All timestamps UTC. Node IDs are 2-5 alphanumeric characters, `A-Z0-9`.
 | `DRONE_START` | Watch for drone Remote ID | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
+| `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
 
 `mode` is `0` WiFi, `1` BLE, `2` both. `+PROBE` on `DEVICE_SCAN_START` captures probe requests alongside device discovery, feeding the probe database.
 
