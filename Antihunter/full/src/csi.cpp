@@ -880,7 +880,8 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
 void loadCsiConfigFromPrefs() {
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
     uint32_t thrStored = prefs.getUInt("csiThr", 70);
-    if (thrStored < 20 || thrStored > 600) thrStored = 100;
+    if (thrStored == 100) thrStored = 70;
+    if (thrStored < 20 || thrStored > 600) thrStored = 70;
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
