@@ -1071,6 +1071,7 @@ void csiMotionTask(void *pv) {
         esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
         vTaskDelay(pdMS_TO_TICKS(50));
         xQueueReset(csiQueue);
+        if (!csiArmCsi(ch)) Serial.println("[CSI] re-arm after survey failed");
     }
 
     g_csiActiveChannel = ch;
