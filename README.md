@@ -846,7 +846,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | CSI motion clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving |
 | Tamper detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Packet capture started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` - `D=0` runs until stopped |
-| Packet capture done | `NODE_ID: PCAP_DONE: F=frames B=bytes D=dropped` - `D` counts frames the SD writer could not keep up with |
+| Packet capture done | `NODE_ID: PCAP_DONE: F=frames B=bytes D=dropped [R=reason]` - `D` counts frames the SD writer could not keep up with. `R` appears only when the capture ended on its own: `SIZECAP` at the 64 MB file limit, `WRITEFAIL` when the card stopped accepting writes |
 | Status response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
 
 </details>
