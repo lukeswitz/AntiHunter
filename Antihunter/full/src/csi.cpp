@@ -28,7 +28,7 @@ std::atomic<bool> csiRawDump{false};
 std::atomic<bool> csiTelemetry{false};
 std::atomic<bool> csiAutoTrigger{false};
 std::atomic<uint8_t> csiPinnedChannel{0};
-std::atomic<uint32_t> csiThresholdMilli{100};
+std::atomic<uint32_t> csiThresholdMilli{70};
 std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
@@ -478,9 +478,15 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
-static float csiTriggerRatio(float acf, float vote, float eta) {
-    if (vote < CSI_VOTE_FRAC) return 0.0f;
-    return (eta > 0.0f) ? (acf / eta) : 0.0f;
+static float csiZThreshold(float eta) {
+    const float z = eta * CSI_ACF_Z_PER_ETA;
+    return (z < 1.0f) ? 1.0f : z;
+}
+
+static float csiTriggerRatio(float acfZ, float eta) {
+    const float z = csiZThreshold(eta);
+    const float r = acfZ / z;
+    return (r > 0.0f) ? r : 0.0f;
 }
 
 static uint8_t csiUsableCount() {
@@ -618,7 +624,8 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const float eta = (float)csiThresholdMilli.load() / 1000.0f;
-        if (l.sc.acf >= eta && l.sc.vote >= CSI_VOTE_FRAC) {
+        const float zTrig = csiZThreshold(eta);
+        if (l.sc.acfZ >= zTrig) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -641,7 +648,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && (l.sc.acf < eta || l.sc.vote < CSI_VOTE_FRAC) &&
+        } else if (l.motion && l.sc.acfZ < zTrig &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -708,6 +715,7 @@ static void csiSnapshot(CsiLinkView *out, int &count) {
         v.spread = l.sc.spread();
         v.acf = l.sc.acf;
         v.vote = l.sc.vote;
+        v.z = l.sc.acfZ;
         v.score = l.sc.score;
         v.peakScore = l.peakScore;
         v.motion = l.motion;
@@ -853,6 +861,7 @@ String getCsiJson() {
         j += ",\"spread\":" + String(v.spread, 3);
         j += ",\"acf\":" + String(v.acf, 4);
         j += ",\"vote\":" + String(v.vote, 3);
+        j += ",\"z\":" + String(v.z, 2);
         j += ",\"events\":" + String(v.events);
         j += ",\"age\":" + String(v.ageMs / 1000);
         j += ",\"motion\":" + String(v.motion ? "true" : "false") + "}";
@@ -885,7 +894,7 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
 
 void loadCsiConfigFromPrefs() {
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
-    uint32_t thrStored = prefs.getUInt("csiThr", 100);
+    uint32_t thrStored = prefs.getUInt("csiThr", 70);
     if (thrStored < 20 || thrStored > 600) thrStored = 100;
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
@@ -1140,8 +1149,8 @@ void csiMotionTask(void *pv) {
         g_calActive = true;
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
-        Serial.printf("[CSI] Trigger %.2fx (self-normalizing, no setup needed)\n",
-                      (float)csiThresholdMilli.load() / 1000.0f);
+        Serial.printf("[CSI] Trigger %.1f sigma above each link's own measured quiet ACF\n",
+                      csiZThreshold((float)csiThresholdMilli.load() / 1000.0f));
     }
 
     {
@@ -1244,7 +1253,7 @@ void csiMotionTask(void *pv) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        const float r = csiTriggerRatio(l.sc.acf, l.sc.vote, eta);
+                        const float r = csiTriggerRatio(l.sc.acfZ, eta);
                         if (r > r1) { r2 = r1; r1 = r; }
                         else if (r > r2) { r2 = r; }
                     }
@@ -1346,6 +1355,7 @@ void csiMotionTask(void *pv) {
             lastStatMs = now;
             const uint32_t span = now - startMs;
             float statAcfMax = 0.0f, statAcfMin = 1.0f, statVoteMax = 0.0f;
+            float statZMax = 0.0f, statFloorMax = 0.0f;
             uint8_t statLinks = 0, statPassEta = 0, statPassVote = 0;
             {
                 const float eta = (float)csiThresholdMilli.load() / 1000.0f;
@@ -1357,16 +1367,19 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.acf >= eta) statPassEta++;
-                    if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
+                    if (l.sc.acfZ >= csiZThreshold(eta)) statPassEta++;
+                    if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
+                    if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
+                    statPassVote = statPassEta;
                 }
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
-                          "links=%u acf=%.3f..%.3f vote=%.2f pass-eta=%u pass-vote=%u frames=%u\n",
+                          "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f floor=%.3f pass-eta=%u pass-vote=%u frames=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
+                          statZMax, statFloorMax,
                           statPassEta, statPassVote, g_promFrames.load());
         }
     }

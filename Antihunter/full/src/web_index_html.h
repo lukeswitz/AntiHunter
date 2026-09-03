@@ -4606,7 +4606,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         const raw = d.links || [];
         const eta = d.threshold || 0.1;
         const voteFrac = d.voteFrac || 0.5;
-        const csiRatio = l => ((l.vote || 0) < voteFrac ? 0 : (l.acf || 0) / eta);
+        const csiRatio = l => Math.max(0, (l.z || 0) / Math.max(1, eta * 30));
         const byRadio = {};
         raw.forEach(l => {
           const r = (l.mac || '').slice(0, 14);
