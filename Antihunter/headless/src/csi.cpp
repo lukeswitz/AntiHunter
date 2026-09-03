@@ -1055,12 +1055,8 @@ void csiMotionTask(void *pv) {
                           "re-applying\n", priCh, ch);
             esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
             vTaskDelay(pdMS_TO_TICKS(30));
-            if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK && priCh != ch) {
-                Serial.printf("[CSI] radio will not leave ch%u (the SoftAP holds it) - "
-                              "running on ch%u, not ch%u\n", priCh, priCh, ch);
-                ch = priCh;
-                g_csiActiveChannel = ch;
-                if (!csiArmCsi(ch)) Serial.println("[CSI] re-arm on the held channel failed");
+            if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK) {
+                Serial.printf("[CSI] radio channel after re-apply: ch%u\n", priCh);
             }
         }
     }
