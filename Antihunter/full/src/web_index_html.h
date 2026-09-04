@@ -874,6 +874,17 @@ R"HTML(
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
       </div>
+      <div class="card" id="pcapFilesResCard" style="display:none;margin-bottom:16px;">
+        <div class="pcap-files-head" onclick="pcapToggleList('Res')">
+          <span class="collapse-icon open" id="pcapFilesIconRes">&#9654;</span>
+          <span>Captures</span>
+          <span class="pcap-count" id="pcapCountRes">0</span>
+          <button type="button" class="btn danger" id="pcapDeleteAllBtnRes" onclick="event.stopPropagation();pcapDeleteAll()">Delete All</button>
+        </div>
+        <div id="pcapFilesBodyRes">
+          <div id="pcapFileListRes" class="pcap-list"></div>
+        </div>
+      </div>
       </div>
 
       <div class="page-tab" id="page-system">
@@ -2189,6 +2200,7 @@ R"HTML(
         if (pg) pg.classList.add('active');
         window.scrollTo(0, 0);
         if (pageName === 'results' && typeof resultsPoll === 'function') resultsPoll(true);
+        if (pageName === 'results' && typeof refreshPcapList === 'function') refreshPcapList();
         if (pageName === 'data' && typeof loadDataSet === 'function') loadDataSet();
 )HTML"
 #if AH_SENTINEL
@@ -2368,6 +2380,7 @@ R"HTML(
           resultsSynced = true;
           loadEverSucceeded = true;
           document.getElementById('r').innerHTML = parseAndStyleResults(resultsText);
+          refreshPcapList();
 
           loadNodeId();
           loadRFConfig();
@@ -5454,9 +5467,10 @@ R"HTML(
         const wifi = document.getElementById('pcapRadio').value === '0';
         wrap.style.display = (dualBand && wifi) ? '' : 'none';
       }
-      function pcapToggleList() {
-        document.getElementById('pcapFilesBody').classList.toggle('collapsed');
-        document.getElementById('pcapFilesIcon').classList.toggle('open');
+      function pcapToggleList(sfx) {
+        sfx = sfx || '';
+        document.getElementById('pcapFilesBody' + sfx).classList.toggle('collapsed');
+        document.getElementById('pcapFilesIcon' + sfx).classList.toggle('open');
       }
       async function pcapDeleteOne(name) {
         if (!confirm('Delete ' + name + '?')) return;
@@ -5476,14 +5490,19 @@ R"HTML(
       }
       function refreshPcapList() {
         fetch('/pcap/list').then(r => r.json()).then(list => {
-          const box = document.getElementById('pcapFileList');
-          document.getElementById('pcapCount').textContent = list.length;
+          const card = document.getElementById('pcapFilesResCard');
+          if (card) card.style.display = list.length ? '' : 'none';
+          const boxes = ['', 'Res'].map(s => document.getElementById('pcapFileList' + s)).filter(Boolean);
+          ['', 'Res'].forEach(s => {
+            const c = document.getElementById('pcapCount' + s);
+            if (c) c.textContent = list.length;
+          });
           if (!list.length) {
-            box.innerHTML = '<div class="pcap-empty">No captures on SD yet.</div>';
+            boxes.forEach(b => { b.innerHTML = '<div class="pcap-empty">No captures on SD yet.</div>'; });
             return;
           }
           list.sort((a, b) => a.name < b.name ? 1 : -1);
-          box.innerHTML = list.map(f => {
+          const rows = list.map(f => {
             const ble = f.name.indexOf('ble_') === 0;
             const auto = f.name.indexOf('_auto_') >= 0;
             const label = pcapStampLabel(f.name);
@@ -5499,6 +5518,7 @@ R"HTML(
                 : '<button type="button" class="pcap-act del" onclick="pcapDeleteOne(\'' + f.name + '\')" title="Delete" aria-label="Delete">' + PCAP_ICON_DEL + '</button>') +
             '</div>';
           }).join('');
+          boxes.forEach(b => { b.innerHTML = rows; });
         }).catch(() => {});
       }
       function refreshPcapStatus() {
@@ -6045,6 +6065,7 @@ R"HTML(
       pollSecureState();
       setInterval(tick, 5000);
       setInterval(() => { if (pageActive('results')) resultsPoll(); }, 1000);
+      setInterval(() => { if (pageActive('results')) refreshPcapList(); }, 5000);
       setInterval(() => { if (!pageActive('system')) return; const a = document.getElementById('diagAge'); if (!a || !window.__lastDiag) return; const s = Math.max(0, Math.round((Date.now() - window.__lastDiag) / 1000)); a.innerText = s < 1 ? 'refreshed just now' : 'refreshed ' + s + 's ago'; }, 1000);
       document.getElementById('detectionMode').dispatchEvent(new Event('change'));
 )HTML"
