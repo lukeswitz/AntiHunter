@@ -81,6 +81,12 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 
 ### SD card does not survive a reset without power removal
 
+> [!WARNING]
+> Stop a capture before cutting power or resetting the node. FAT has no power-fail
+> protection, so an interruption mid-write can leave the SD card unreadable until it is
+> reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
+> rebuild its own card, which recovers most cases but not all, and erases the card.
+
 A reset that leaves the SD card powered can leave the card unmountable until power is physically removed. Seen after flashing and after USB-serial resets, which report `rst:0x15 (USB_UART_HPSYS)` in the ROM banner. It does not happen on every such reset.
 
 ```
