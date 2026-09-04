@@ -1167,6 +1167,8 @@ void initializeSD()
     loadSdAutoRepair();
     Serial.println("Initializing SD card...");
     Serial.printf("[SD] GPIO Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
+    pinMode(SD_CS_PIN, OUTPUT);
+    digitalWrite(SD_CS_PIN, HIGH);
     SPI.end();
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
     delay(100);
