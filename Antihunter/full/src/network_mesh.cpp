@@ -2005,8 +2005,8 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("PROBE_HIT "))            handleProbeHit(command);
   else if (command.startsWith("PCAP_START:"))           handlePcapStart(command);
   else if (command == "PCAP_STOP")                      handlePcapStop(command);
-  else if (command.startsWith("SD_REPAIR:"))            handleSdRepair(command);
-  else if (command.startsWith("PCAP_LIMITS:"))          handlePcapLimits(command);
+  else if (command.startsWith("SD_REPAIR"))             handleSdRepair(command);
+  else if (command.startsWith("PCAP_LIMITS"))           handlePcapLimits(command);
   else if (command == "STOP")                           handleStop(command);
 #if AH_SENTINEL
   else if (command == "SENTINEL_ON")                    handleSentinelOn(command);
