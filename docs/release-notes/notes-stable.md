@@ -7,6 +7,15 @@ Stable channel · Previous release v1.0.2 (2026-08-13)
 ### Both FW
 
 - **Packet capture to SD** (full + headless): writes a standard pcap Wireshark opens. WiFi frames carry a full radiotap header with channel, data rate and RSSI; BLE advertisements are written as link-layer PDUs so they dissect as ADV_IND, ADV_DIRECT_IND and SCAN_RSP. Start it from the Scan tab, or over mesh with `PCAP_START:radio:secs:band[:FOREVER]` and `PCAP_STOP`.
+- **Packet capture is bounded.** A capture used to run until stopped, and a forever run filled the card, drove every write to failure and left the filesystem damaged. It now stops on its own at 100 MB, at the free-space floor, or after three consecutive failed writes, and the mesh reply says which: `R=SIZECAP` or `R=WRITEFAIL`. The free-space floor now applies to every capture; it previously only guarded automatic ones, which is how a mesh-started capture bypassed it.
+- **SD writes survive a busy card.** A card acknowledges writes quickly until its internal buffers fill, then stalls while its controller commits to flash. The SD library waits a fixed 500 ms and gives up, so every write after that returned zero while the node carried on as if the data had landed. Writes now flush and retry with backoff.
+- **A reset during a capture is far less likely to cost the card.** FAT has no power-fail protection, so a reset mid-write could leave the card unmountable until it was wiped. The filesystem is synced after each write rather than on a timer, and the mount path retries with a bus re-init. A node can rebuild its own card with `SD_REPAIR:ON`, off by default because rebuilding erases it. A failed mount now reports its count and shows in Diagnostics instead of retrying silently.
+
+> [!WARNING]
+> Stop a capture before cutting power or resetting the node. FAT has no power-fail
+> protection, so an interruption mid-write can leave the SD card unreadable until it is
+> reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
+> rebuild its own card, which recovers most cases but not all, and erases the card.
 - **Sentinel attack response**: pick which actions run on a confirmed attack with a source MAC — triangulate, packet capture, device discovery, probe sweep, drone RID — each with its own duration. Only one can hold the radio, so several selected run in that order one at a time as the radio frees up. Automatic captures are pruned against a size budget and a free-space floor.
 - **Triangulation target MAC is read and written atomically.** It was a plain 6-byte array written memset-then-memcpy while the web task, the sniffer callback and the scan task read it unsynchronised; a reader landing in that window saw a partly-written MAC, and at the match gate that silently dropped the peer's RSSI report.
 - **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
