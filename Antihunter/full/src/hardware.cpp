@@ -1366,6 +1366,9 @@ String getDiagnostics() {
     if (SafeSD::mountFailureCount()) {
         s += " (" + String(SafeSD::mountFailureCount()) + " failed mounts - check or reformat the card)";
     }
+    if (SafeSD::writeRetryCount()) {
+        s += " (" + String(SafeSD::writeRetryCount()) + " write retries - the card stalls under load)";
+    }
     s += "\n";
 
     s += "WiFi Channels: ";

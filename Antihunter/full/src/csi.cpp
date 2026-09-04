@@ -1157,10 +1157,8 @@ void csiMotionTask(void *pv) {
 
             int movingLinks = 0;
             float peak = 0.0f;
-            uint8_t usableLinks = 0;
             {
                 std::lock_guard<std::mutex> lock(g_csiMutex);
-                usableLinks = csiUsableCount();
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     if (!g_links[i].used || !g_links[i].motion) continue;
                     movingLinks++;
