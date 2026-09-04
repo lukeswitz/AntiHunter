@@ -54,7 +54,10 @@
 #define RTC_SCL_PIN 6    // RTC SCL
 #endif
 
-#define SD_SPI_HZ          4000000
+#ifndef SD_SPI_HZ
+#define SD_SPI_HZ          16000000
+#endif
+#define SD_SPI_HZ_SAFE     4000000
 #define SD_SPI_HZ_FALLBACK 400000
 
 // Configuration constants
