@@ -5763,11 +5763,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           }).join('');
         }).catch(() => {});
       }
+      let pcapWarnedActive = false;
       function refreshPcapStatus() {
         if (pcapPollTimer) { clearTimeout(pcapPollTimer); pcapPollTimer = null; }
         fetch('/pcap/status').then(r => r.json()).then(d => {
           applyPcapBandVisibility(!!d.dualBand);
           refreshPcapList();
+          if (d.active && !pcapWarnedActive) {
+            pcapWarnedActive = true;
+            toast('Capture running. Stop it before cutting power or resetting - an interruption mid-write can leave the SD card unreadable until it is reformatted.', 'warning');
+          } else if (!d.active) {
+            pcapWarnedActive = false;
+          }
           if ((d.active || radioBusy) && document.getElementById('detectionMode').value === 'pcap') {
             pcapPollTimer = setTimeout(refreshPcapStatus, 2000);
           }
