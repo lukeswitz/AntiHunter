@@ -454,7 +454,7 @@ String pwnagotchi_getJson() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
     bool first = true;
-    for (auto &kv : g_pwna) {
+    for (const auto &kv : g_pwna) {
         if (!first) out += ",";
         first = false;
         out += "{\"bssid\":\"" + macStr(kv.second.bssid) + "\"" +
@@ -855,6 +855,7 @@ void persistSnapshot() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     const char *tmpPath = "/detect_state.tmp";
     File f = SafeSD::open(tmpPath, FILE_WRITE);
+    SdWriter f_w(f);
     if (!f) return;
     SnapHeader h{};
     h.magic = SNAP_MAGIC;
@@ -865,25 +866,25 @@ void persistSnapshot() {
     h.recon  = g_recon.size();
     h.tsf    = 0;
     h.pwna   = g_pwna.size();
-    f.write(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
-    for (auto &kv : g_recon) {
+    f_w.write(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
+    for (const auto &kv : g_recon) {
         char id[10] = {0};
         strncpy(id, kv.second.identityId, 9);
-        f.write(reinterpret_cast<const uint8_t*>(id), 10);
-        f.write(&kv.second.score, 1);
-        f.write(reinterpret_cast<const uint8_t*>(kv.second.reasons), 96);
-        f.write(reinterpret_cast<const uint8_t*>(&kv.second.ts), 4);
+        f_w.write(reinterpret_cast<const uint8_t*>(id), 10);
+        f_w.write(&kv.second.score, 1);
+        f_w.write(reinterpret_cast<const uint8_t*>(kv.second.reasons), 96);
+        f_w.write(reinterpret_cast<const uint8_t*>(&kv.second.ts), 4);
     }
-    for (auto &kv : g_pwna) {
-        f.write(kv.second.bssid, 6);
-        f.write(reinterpret_cast<const uint8_t*>(&kv.second.observations), 2);
+    for (const auto &kv : g_pwna) {
+        f_w.write(kv.second.bssid, 6);
+        f_w.write(reinterpret_cast<const uint8_t*>(&kv.second.observations), 2);
         int8_t br = kv.second.bestRssi;
-        f.write(reinterpret_cast<const uint8_t*>(&br), 1);
+        f_w.write(reinterpret_cast<const uint8_t*>(&br), 1);
         int8_t lr = kv.second.lastRssi;
-        f.write(reinterpret_cast<const uint8_t*>(&lr), 1);
-        f.write(reinterpret_cast<const uint8_t*>(&kv.second.firstSeen), 4);
-        f.write(reinterpret_cast<const uint8_t*>(&kv.second.lastSeen), 4);
-        f.write(reinterpret_cast<const uint8_t*>(kv.second.snippet), sizeof(kv.second.snippet));
+        f_w.write(reinterpret_cast<const uint8_t*>(&lr), 1);
+        f_w.write(reinterpret_cast<const uint8_t*>(&kv.second.firstSeen), 4);
+        f_w.write(reinterpret_cast<const uint8_t*>(&kv.second.lastSeen), 4);
+        f_w.write(reinterpret_cast<const uint8_t*>(kv.second.snippet), sizeof(kv.second.snippet));
     }
     f.close();
     if (SD.exists(SNAP_PATH)) SD.remove(SNAP_PATH);

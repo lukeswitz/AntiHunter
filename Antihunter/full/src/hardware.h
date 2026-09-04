@@ -50,6 +50,7 @@ private:
     static const uint32_t SD_OPEN_BLOCK_FLOOR = 4096;
     static const uint32_t MOUNT_LOG_INTERVAL_MS = 60000;
     static uint32_t sdMountFailures;
+    static uint32_t sdWriteRetries;
     static uint32_t lastMountLogMs;
     static bool checkAvailability();
 
@@ -67,6 +68,17 @@ public:
     static bool flush(fs::File& file);
     static void forceRecheck();
     static uint32_t mountFailureCount();
+    static uint32_t writeRetryCount();
+};
+
+// Print wrapper so print/println/printf/serializeJson all go through the retrying write
+class SdWriter : public Print {
+public:
+    explicit SdWriter(fs::File &f) : _f(f) {}
+    size_t write(uint8_t c) override { return SafeSD::write(_f, &c, 1); }
+    size_t write(const uint8_t *b, size_t n) override { return SafeSD::write(_f, b, n); }
+private:
+    fs::File &_f;
 };
 
 String jsonEscape(const String &in);

@@ -82,6 +82,7 @@ void saveDeviceDB()
     std::lock_guard<std::mutex> lock(deviceDBMutex);
 
     File f = SafeSD::open(DEVICE_DB_PATH, FILE_WRITE);
+    SdWriter f_w(f);
     if (!f) {
         Serial.println("[DEVDB] Failed to write database");
         return;
@@ -102,8 +103,8 @@ void saveDeviceDB()
         doc["ble"] = p.second.isBLE ? 1 : 0;
         doc["c"] = p.second.channel;
 
-        serializeJson(doc, f);
-        f.println();
+        serializeJson(doc, f_w);
+        f_w.println();
         written++;
     }
     f.close();

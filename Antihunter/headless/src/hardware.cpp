@@ -108,6 +108,7 @@ uint32_t lastBatterySaverHeartbeat = 0;
 // SD & HW Init
 
 uint32_t SafeSD::sdMountFailures = 0;
+uint32_t SafeSD::sdWriteRetries = 0;
 uint32_t SafeSD::lastMountLogMs = 0;
 bool sdAutoRepair = false;
 
@@ -176,6 +177,7 @@ fs::File SafeSD::open(const char* path, const char* mode) {
     }
 
     fs::File f = SD.open(path, mode);
+    SdWriter f_w(f);
     if (!f) {
         Serial.printf("[SAFE_SD] Failed to open: %s\n", path);
     }
@@ -255,7 +257,9 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
     // sets it) and only f_open clears it, so retrying this handle can never succeed. One short
     // pause covers a card that was merely busy; past that the caller must reopen the file.
     delay(30);
-    written += file.write(data + written, len - written);
+    const size_t more = file.write(data + written, len - written);
+    written += more;
+    if (more) sdWriteRetries++;
 
     if (written != len) {
         Serial.printf("[SAFE_SD] Partial write after retries: %u/%u bytes\n",
@@ -292,6 +296,11 @@ void SafeSD::forceRecheck() {
 // cppcheck-suppress unusedFunction // headless has no diagnostics page; the counter is read over serial
 uint32_t SafeSD::mountFailureCount() {
     return sdMountFailures;
+}
+
+// cppcheck-suppress unusedFunction // headless has no diagnostics page; the counter is read over serial
+uint32_t SafeSD::writeRetryCount() {
+    return sdWriteRetries;
 }
 
 String jsonEscape(const String &in) {
@@ -614,6 +623,7 @@ void saveConfiguration() {
     }
 
     File configFile = SafeSD::open(CONFIG_TMP_FILE, FILE_WRITE);
+    SdWriter configFile_w(configFile);
     if (!configFile) {
         Serial.println("[CONFIG] ERROR: Failed to open config file for writing!");
         return;
@@ -626,41 +636,41 @@ void saveConfiguration() {
                           "%d%s", CHANNELS[i], (i < CHANNELS.size() - 1) ? "," : "");
     }
 
-    configFile.println("{");
-    configFile.printf(" \"nodeId\":\"%s\",\n", jsonEscape(prefsGetString("nodeId", "")).c_str());
-    configFile.printf(" \"scanMode\":%d,\n", currentScanMode);
-    configFile.printf(" \"channels\":\"%s\",\n", jsonEscape(channelsBuf).c_str());
-    configFile.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
-    configFile.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
-    configFile.printf(" \"meshSessDedup\":%s,\n", getMeshSessionDedup() ? "true" : "false");
-    configFile.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
-    configFile.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
-    configFile.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
-    configFile.printf(" \"vibrationsRequired\":%u,\n", vibrationsRequired);
-    configFile.printf(" \"detectionWindow\":%u,\n", detectionWindow);
-    configFile.printf(" \"setupDelay\":%u,\n", setupDelay);
-    configFile.printf(" \"baselineRamSize\":%u,\n", getBaselineRamCacheSize());
-    configFile.printf(" \"baselineSdMax\":%u,\n", getBaselineSdMaxDevices());
-    configFile.printf(" \"baselineRssiThreshold\":%d,\n", getBaselineRssiThreshold());
-    configFile.printf(" \"baselineDuration\":%u,\n", baselineDuration / 1000);
-    configFile.printf(" \"absenceThreshold\":%u,\n", getDeviceAbsenceThreshold() / 1000);
-    configFile.printf(" \"reappearanceWindow\":%u,\n", getReappearanceAlertWindow() / 1000);
-    configFile.printf(" \"rssiChangeDelta\":%d,\n", getSignificantRssiChange());
-    configFile.printf(" \"rfPreset\":%u,\n", rfConfig.preset);
-    configFile.printf(" \"wifiChannelTime\":%u,\n", rfConfig.wifiChannelTime);
-    configFile.printf(" \"wifiScanInterval\":%u,\n", rfConfig.wifiScanInterval);
-    configFile.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
-    configFile.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
-    configFile.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
-    configFile.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
-    configFile.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
-    configFile.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
-    configFile.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
-    configFile.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
-    configFile.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
-    configFile.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
-    configFile.printf(" \"vibScanCooldown\":%u\n", vibAutoScanCooldownMs);
-    configFile.println("}");
+    configFile_w.println("{");
+    configFile_w.printf(" \"nodeId\":\"%s\",\n", jsonEscape(prefsGetString("nodeId", "")).c_str());
+    configFile_w.printf(" \"scanMode\":%d,\n", currentScanMode);
+    configFile_w.printf(" \"channels\":\"%s\",\n", jsonEscape(channelsBuf).c_str());
+    configFile_w.printf(" \"meshInterval\":%lu,\n", meshSendInterval);
+    configFile_w.printf(" \"meshDedupTtl\":%u,\n", (unsigned)getMeshDedupTtlSec());
+    configFile_w.printf(" \"meshSessDedup\":%s,\n", getMeshSessionDedup() ? "true" : "false");
+    configFile_w.printf(" \"autoEraseEnabled\":%s,\n", autoEraseEnabled ? "true" : "false");
+    configFile_w.printf(" \"autoEraseDelay\":%u,\n", autoEraseDelay);
+    configFile_w.printf(" \"autoEraseCooldown\":%u,\n", autoEraseCooldown);
+    configFile_w.printf(" \"vibrationsRequired\":%u,\n", vibrationsRequired);
+    configFile_w.printf(" \"detectionWindow\":%u,\n", detectionWindow);
+    configFile_w.printf(" \"setupDelay\":%u,\n", setupDelay);
+    configFile_w.printf(" \"baselineRamSize\":%u,\n", getBaselineRamCacheSize());
+    configFile_w.printf(" \"baselineSdMax\":%u,\n", getBaselineSdMaxDevices());
+    configFile_w.printf(" \"baselineRssiThreshold\":%d,\n", getBaselineRssiThreshold());
+    configFile_w.printf(" \"baselineDuration\":%u,\n", baselineDuration / 1000);
+    configFile_w.printf(" \"absenceThreshold\":%u,\n", getDeviceAbsenceThreshold() / 1000);
+    configFile_w.printf(" \"reappearanceWindow\":%u,\n", getReappearanceAlertWindow() / 1000);
+    configFile_w.printf(" \"rssiChangeDelta\":%d,\n", getSignificantRssiChange());
+    configFile_w.printf(" \"rfPreset\":%u,\n", rfConfig.preset);
+    configFile_w.printf(" \"wifiChannelTime\":%u,\n", rfConfig.wifiChannelTime);
+    configFile_w.printf(" \"wifiScanInterval\":%u,\n", rfConfig.wifiScanInterval);
+    configFile_w.printf(" \"bleScanInterval\":%u,\n", rfConfig.bleScanInterval);
+    configFile_w.printf(" \"bleScanDuration\":%u,\n", rfConfig.bleScanDuration);
+    configFile_w.printf(" \"globalRssiThreshold\":%d,\n", rfConfig.globalRssiThreshold);
+    configFile_w.printf(" \"targets\":\"%s\",\n", jsonEscape(prefsGetString("maclist", "")).c_str());
+    configFile_w.printf(" \"hbEnabled\":%s,\n", hbEnabled ? "true" : "false");
+    configFile_w.printf(" \"hbInterval\":%u,\n", hbInterval / 60000);
+    configFile_w.printf(" \"vibEnabled\":%s,\n", vibrationEnabled ? "true" : "false");
+    configFile_w.printf(" \"vibScanEnabled\":%s,\n", vibAutoScanEnabled ? "true" : "false");
+    configFile_w.printf(" \"vibScanMode\":%u,\n", vibAutoScanMode);
+    configFile_w.printf(" \"vibScanDuration\":%u,\n", vibAutoScanDuration);
+    configFile_w.printf(" \"vibScanCooldown\":%u\n", vibAutoScanCooldownMs);
+    configFile_w.println("}");
 
     configFile.flush();
     configFile.close();
@@ -747,7 +757,8 @@ void loadConfiguration() {
         SafeSD::remove(CONFIG_BAD_FILE);
         File badFile = SafeSD::open(CONFIG_BAD_FILE, FILE_WRITE);
         if (badFile) {
-            badFile.print(config);
+            SdWriter badFile_w(badFile);
+            badFile_w.print(config);
             badFile.close();
         }
         Serial.printf("[CONFIG] Unparseable copy saved as %s - original kept, using NVS values\n", CONFIG_BAD_FILE);
@@ -1093,12 +1104,13 @@ bool waitForInitialConfig() {
     serializeJson(merged, out);
 
     File configFile = SafeSD::open(CONFIG_TMP_FILE, FILE_WRITE);
+    SdWriter configFile_w(configFile);
     if (!configFile) {
         Serial.println("[CONFIG] Failed to create config file");
         return false;
     }
 
-    configFile.print(out);
+    configFile_w.print(out);
     configFile.flush();
     configFile.close();
 
@@ -1333,7 +1345,8 @@ void logToSD(const String &data) {
     // Use RTC time if available, otherwise fall back to millis
     String timestamp = getFormattedTimestamp();
     
-    logFile.printf("[%s] %s\n", timestamp.c_str(), data.c_str());
+    SdWriter logFile_w(logFile);
+    logFile_w.printf("[%s] %s\n", timestamp.c_str(), data.c_str());
     
     // Batch flush every 10 writes 
     if (++totalWrites % 10 == 0) {
@@ -1430,7 +1443,8 @@ void saveResultsSnapshot(bool force) {
 
     File f = SafeSD::open(RESULTS_SNAPSHOT_FILE, FILE_WRITE);
     if (!f) return;
-    f.write(reinterpret_cast<const uint8_t *>(copy.data()), copy.size());
+    SdWriter f_w(f);
+    f_w.write(reinterpret_cast<const uint8_t *>(copy.data()), copy.size());
     f.close();
     lastHash = h;
 }
@@ -1495,7 +1509,8 @@ void logEventToSD(const char* path, const String& jsonLine) {
             return;
         }
     }
-    f.println(jsonLine);
+    SdWriter f_w(f);
+    f_w.println(jsonLine);
     size_t curSize = f.size();
     f.close();
 
@@ -2056,7 +2071,8 @@ bool performSecureWipe() {
     
     File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
     if (marker) {
-        marker.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
+        SdWriter marker_w(marker);
+        marker_w.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
         marker.close();
     
         if (SafeSD::exists("/weather-air-feed.txt")) {
@@ -2104,7 +2120,8 @@ bool performDataReset() {
 
     File marker = SafeSD::open("/weather-air-feed.txt", FILE_WRITE);
     if (marker) {
-        marker.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
+        SdWriter marker_w(marker);
+        marker_w.println("AntiHunter Weather Monitor and AQ data could not be sent to your network. Check your API key and settings or contact support.");
         marker.close();
     }
 

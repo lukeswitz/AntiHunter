@@ -73,6 +73,16 @@ static bool g_autoTriggered = false;
 static std::atomic<uint32_t> g_autoBudgetMB{512};
 static std::atomic<uint32_t> g_freeFloorMB{256};
 
+uint32_t getPcapMaxFileMB() { return g_maxFileMB.load(); }
+
+void setPcapMaxFileMB(uint32_t mb) {
+    if (mb < PCAP_MAX_FILE_MB_MIN) mb = PCAP_MAX_FILE_MB_MIN;
+    if (mb > PCAP_MAX_FILE_MB_MAX) mb = PCAP_MAX_FILE_MB_MAX;
+    g_maxFileMB.store(mb);
+    Preferences p;
+    if (p.begin("pcap", false)) { p.putUInt("maxFileMB", mb); p.end(); }
+}
+
 void setPcapAutoTriggered(bool autoTriggered) { g_autoTriggered = autoTriggered; }
 // cppcheck-suppress unusedFunction // pcap.h API, called from network.cpp in the full tree
 uint32_t getPcapAutoBudgetMB() { return g_autoBudgetMB.load(); }
@@ -99,6 +109,12 @@ void loadPcapPrefs() {
     if (!p.begin("ahpcap", true)) return;
     g_autoBudgetMB.store(p.getUInt("budMB", 512));
     g_freeFloorMB.store(p.getUInt("floorMB", 256));
+    {
+        uint32_t mf = p.getUInt("maxFileMB", PCAP_MAX_FILE_MB_DEF);
+        if (mf < PCAP_MAX_FILE_MB_MIN) mf = PCAP_MAX_FILE_MB_MIN;
+        if (mf > PCAP_MAX_FILE_MB_MAX) mf = PCAP_MAX_FILE_MB_MAX;
+        g_maxFileMB.store(mf);
+    }
     p.end();
 }
 
@@ -636,6 +652,7 @@ String getPcapStatusJson() {
     j += ",\"sd\":" + String(SafeSD::isAvailable() ? "true" : "false");
     j += ",\"budgetMB\":" + String(g_autoBudgetMB.load());
     j += ",\"floorMB\":" + String(g_freeFloorMB.load());
+    j += ",\"maxFileMB\":" + String(g_maxFileMB.load());
     j += ",\"freeMB\":" + String(SafeSD::isAvailable() ? (uint32_t)(pcapSdFreeBytes() / (1024ULL * 1024ULL)) : 0);
     j += "}";
     return j;

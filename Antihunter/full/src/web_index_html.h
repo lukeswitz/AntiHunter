@@ -745,6 +745,10 @@ R"HTML(
                       <label style="font-size:11px;">Dwell (ms)</label>
                       <input type="number" id="pcapDwell" name="pcapDwell" min="50" max="5000" step="50" value="250">
                     </div>
+                    <div>
+                      <label style="font-size:11px;">Max file size (MB)</label>
+                      <input type="number" id="pcapMaxFile" name="pcapMaxFile" min="8" max="300" step="8" value="100">
+                    </div>
                   </div>
                   <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="pcapMgmtOnly" value="1">Management frames only</label>
                 </details>
@@ -1635,6 +1639,9 @@ R"HTML(
                 <span class="ar-unit">MB</span>
                 <span class="ar-name">Keep free</span>
                 <input type="number" id="arPcapFloor" min="0" max="262144" step="16" value="256" onchange="arSaveLimits()">
+                <span class="ar-unit">MB</span>
+                <span class="ar-name">Max capture file</span>
+                <input type="number" id="arPcapMaxFile" min="8" max="300" step="8" value="100" onchange="arSaveLimits()">
                 <span class="ar-unit">MB</span>
                 <span class="ar-free" id="arSdFree">--</span>
               </div>
@@ -6715,6 +6722,7 @@ R"HTML(
         fetch('/pcap/status').then(r=>r.json()).then(d=>{
           document.getElementById('arPcapBudget').value=d.budgetMB;
           document.getElementById('arPcapFloor').value=d.floorMB;
+          document.getElementById('arPcapMaxFile').value=d.maxFileMB;
           document.getElementById('arSdFree').textContent=d.sd?(d.freeMB+' MB free'):'no SD';
         }).catch(()=>{});
       }
@@ -6739,6 +6747,7 @@ R"HTML(
         const fd=new FormData();
         fd.append('budgetMB',document.getElementById('arPcapBudget').value);
         fd.append('floorMB',document.getElementById('arPcapFloor').value);
+        fd.append('maxFileMB',document.getElementById('arPcapMaxFile').value);
         const r=await fetch('/pcap/limits',{method:'POST',body:fd});
         toast(await r.text(),r.ok?'success':'error');
       }
