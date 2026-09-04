@@ -56,6 +56,8 @@ static const uint8_t PCAP_MAX_WRITE_FAILS = 3;
 static std::atomic<uint32_t> g_maxFileMB{PCAP_MAX_FILE_MB_DEF};
 static std::atomic<uint32_t> g_writeFails{0};
 static std::atomic<uint32_t> g_reopens{0};
+static std::atomic<uint32_t> g_drains{0};
+static std::atomic<uint32_t> g_writeMs{0};
 static std::atomic<bool> g_stopReasonSize{false};
 static std::atomic<bool> g_stopReasonWrite{false};
 
@@ -343,7 +345,7 @@ static void pcapFreeBuffers() {
     g_bufCap = 0;
 }
 
-static void pcapDrain(fs::File &f) {
+static bool pcapDrain(fs::File &f) {
     const uint8_t *src = nullptr;
     uint32_t len = 0;
 
@@ -359,39 +361,45 @@ static void pcapDrain(fs::File &f) {
     }
     portEXIT_CRITICAL(&g_bufMux);
 
-    if (!src || !len) return;
-    size_t wrote = SafeSD::write(f, src, len);
-    g_bytes.fetch_add((uint32_t)wrote);
-    if (wrote == len) {
-        g_writeFails.store(0);
-        return;
-    }
+    if (!src || !len) return false;
 
-    // FatFs latches the error on the file object and only f_open clears it, so the handle is
-    // dead from here. Reopen it in append mode and replay this buffer before giving up.
-    const uint32_t pos = (uint32_t)f.size();
-    f.close();
-    f = SafeSD::open(getPcapFilePath().c_str(), FILE_APPEND);
-    if (f) {
-        const size_t again = SafeSD::write(f, src, len);
-        g_bytes.fetch_add((uint32_t)again);
+    g_drains.fetch_add(1);
+    const uint32_t t0 = millis();
+    const size_t wrote = SafeSD::write(f, src, len);
+    g_bytes.fetch_add((uint32_t)wrote);
+
+    if (wrote != len) {
+        // FatFs latches the error on the file object and only f_open clears it, so the handle is
+        // dead from here. Reopen it in append mode and replay this buffer before giving up.
+        const uint32_t pos = (uint32_t)f.size();
+        f.close();
+        f = SafeSD::open(getPcapFilePath().c_str(), FILE_APPEND);
+        size_t again = 0;
+        if (f) {
+            again = SafeSD::write(f, src, len);
+            g_bytes.fetch_add((uint32_t)again);
+        }
         if (again == len) {
-            g_writeFails.store(0);
             g_reopens.fetch_add(1);
             Serial.printf("[PCAP] reopened the capture file after a write error at %u bytes\n",
                           (unsigned)pos);
-            return;
+        } else {
+            const uint32_t fails = g_writeFails.fetch_add(1) + 1;
+            Serial.printf("[PCAP] short write %u/%u (%u consecutive)\n",
+                          (unsigned)wrote, (unsigned)len, (unsigned)fails);
+            if (fails >= PCAP_MAX_WRITE_FAILS) {
+                g_stopReasonWrite.store(true);
+                stopRequested = true;
+                Serial.println("[PCAP] stopping: the card is not accepting writes - further writes would damage the filesystem");
+            }
+            g_writeMs.fetch_add(millis() - t0);
+            return true;
         }
     }
 
-    const uint32_t fails = g_writeFails.fetch_add(1) + 1;
-    Serial.printf("[PCAP] short write %u/%u (%u consecutive)\n",
-                  (unsigned)wrote, (unsigned)len, (unsigned)fails);
-    if (fails >= PCAP_MAX_WRITE_FAILS) {
-        g_stopReasonWrite.store(true);
-        stopRequested = true;
-        Serial.println("[PCAP] stopping: the card is not accepting writes - further writes would damage the filesystem");
-    }
+    g_writeFails.store(0);
+    g_writeMs.fetch_add(millis() - t0);
+    return true;
 }
 
 static void pcapBuildHopList() {
@@ -727,6 +735,8 @@ void pcapCaptureTask(void *pv) {
     g_bytes.store(0);
     g_writeFails.store(0);
     g_reopens.store(0);
+    g_drains.store(0);
+    g_writeMs.store(0);
     g_stopReasonSize.store(false);
     g_stopReasonWrite.store(false);
     g_dropped.store(0);
@@ -777,7 +787,7 @@ void pcapCaptureTask(void *pv) {
     while ((forever && !stopRequested) ||
            (!forever && (int)(millis() - g_startMs) < duration * 1000 && !stopRequested)) {
 
-        pcapDrain(f);
+        for (int i = 0; i < 2 && pcapDrain(f); i++) {}
 
         const uint32_t now = millis();
 
@@ -822,8 +832,7 @@ void pcapCaptureTask(void *pv) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    pcapDrain(f);
-    pcapDrain(f);
+    for (int i = 0; i < 2 && pcapDrain(f); i++) {}
     SafeSD::flush(f);
     uint32_t fileSize = (uint32_t)f.size();
     f.close();
@@ -836,6 +845,8 @@ void pcapCaptureTask(void *pv) {
                                                : "";
     Serial.printf("[PCAP] Stopped: %u frames, %u bytes, %u dropped, file %u bytes%s\n",
                   g_frames.load(), g_bytes.load(), g_dropped.load(), fileSize, why);
+    Serial.printf("[PCAP] SD: %u drains, %u reopens, %u ms in writes of %u ms elapsed\n",
+                  g_drains.load(), g_reopens.load(), g_writeMs.load(), g_endMs - g_startMs);
 
     {
         String s = pcapSummary(false);
