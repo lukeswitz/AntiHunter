@@ -261,15 +261,13 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
     size_t written = file.write(data, len);
     if (written == len) return written;
 
-    // the card can go busy longer than the SD library's fixed wait; give it time and finish the block
-    static const uint16_t backoffMs[3] = {20, 80, 250};
-    for (uint8_t attempt = 0; attempt < 3 && written < len; attempt++) {
-        file.flush();
-        delay(backoffMs[attempt]);
-        const size_t more = file.write(data + written, len - written);
-        written += more;
-        if (more) sdWriteRetries++;
-    }
+    // FatFs latches a disk error on the file object (ff.c f_write checks fp->err first, ABORT
+    // sets it) and only f_open clears it, so retrying this handle can never succeed. One short
+    // pause covers a card that was merely busy; past that the caller must reopen the file.
+    delay(30);
+    const size_t more = file.write(data + written, len - written);
+    written += more;
+    if (more) sdWriteRetries++;
 
     if (written != len) {
         Serial.printf("[SAFE_SD] Partial write after retries: %u/%u bytes\n",
@@ -1499,7 +1497,10 @@ void initializeSD()
     delay(100);
     if (sdMountOrRepair()) {
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-        Serial.printf("SD Card initialized: %lluMB\n", cardSize);
+        const uint64_t totalMB = SD.totalBytes() / (1024ULL * 1024ULL);
+        const uint64_t usedMB = SD.usedBytes() / (1024ULL * 1024ULL);
+        Serial.printf("SD Card initialized: %lluMB (fs %lluMB, used %lluMB, free %lluMB)\n",
+                      cardSize, totalMB, usedMB, totalMB > usedMB ? totalMB - usedMB : 0ULL);
         sdAvailable = true;
         SafeSD::forceRecheck();
         delay(10);        
