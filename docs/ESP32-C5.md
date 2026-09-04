@@ -30,7 +30,7 @@ Set it three ways:
 
 - **Web UI** — RF Settings, *Band* selector. The row only appears on C5 hardware.
 - **Mesh** — `@<NODE> CONFIG_BAND:<0|1|2>`, replies `CONFIG_ACK:BAND:<mode>` or `CONFIG_ACK:BAND:INVALID`.
-- **API** — `POST /api/config` with `bandMode=<0|1|2>`.
+- **API** — `POST /rf-config` with `bandMode=<0|1|2>`. `POST /config` also accepts `bandMode`, but requires `channels` and `targets` in the same request. Both return `409` while a scan is running — stop it first.
 
 The value persists to NVS. On the full build the 5 GHz channels are scanned in short dwells between AP beacons so the web UI client stays associated.
 
@@ -78,3 +78,33 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 - Experimental channel only — not covered by the stable release cadence.
 - 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
 - Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
+
+### SD card does not survive a reset without power removal
+
+> [!WARNING]
+> Stop a capture before cutting power or resetting the node. FAT has no power-fail
+> protection, so an interruption mid-write can leave the SD card unreadable until it is
+> reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
+> rebuild its own card, which recovers most cases but not all, and erases the card.
+
+A reset that leaves the SD card powered can leave the card unmountable until power is physically removed. Seen after flashing and after USB-serial resets, which report `rst:0x15 (USB_UART_HPSYS)` in the ROM banner. It does not happen on every such reset.
+
+```
+Initializing SD card...
+[SD] C5: SPI2 bus clock ungated
+[  3404][E][sd_diskio.cpp:810] sdcard_mount(): f_mount failed: (1) A hard error occurred in the low level disk I/O layer
+[SD] FAILED
+```
+
+The periodic remount then fails for the rest of the session and the node runs with no SD: no logging, no baseline, no capture, config from NVS only. Unplugging and repowering clears it.
+
+Any reboot that keeps the card powered is exposed, including a panic and an OTA restart. Plan for a node that reboots in the field to come back without its card.
+
+No firmware workaround has been found.
+
+Upstream issues covering the same failure on other targets. None is specific to the ESP32-C5, and no C5 issue has been filed:
+
+- [esp-idf#14000](https://github.com/espressif/esp-idf/issues/14000) - mounting an SPI-mode card after a restart fails because the card holds state from before the reset.
+- [esp-idf#10294](https://github.com/espressif/esp-idf/issues/10294) - SD fails to mount a second time, host init failed.
+- [esp-idf#15535](https://github.com/espressif/esp-idf/issues/15535) - SDSPI example failing on ESP32-S3.
+- [arduino-esp32#9218](https://github.com/espressif/arduino-esp32/issues/9218) - the SD library does not force SPI mode before activating the card.

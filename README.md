@@ -782,6 +782,12 @@ Mode is `0` WiFi, `1` BLE, `2` both. Add `:FOREVER` to run until stopped.
 | `CSI_EXCLUDE` | Ignore one MAC for motion | `<MAC>` or `NONE` | `@ALL CSI_EXCLUDE:AA:BB:CC:DD:EE:FF` |
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
 | `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
+
+> [!WARNING]
+> Stop a capture before cutting power or resetting the node. FAT has no power-fail
+> protection, so an interruption mid-write can leave the SD card unreadable until it is
+> reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
+> rebuild its own card, which recovers most cases but not all, and erases the card.
 | `SD_REPAIR` | Let a node rebuild an unmountable SD card by itself. `NOW` repairs once. Off by default, rebuilding erases the card | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
 | `MESH_TX_CANCEL` | Drop queued mesh traffic, keep scanning | None | `@ALL MESH_TX_CANCEL` |
 
