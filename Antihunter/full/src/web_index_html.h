@@ -873,16 +873,16 @@ R"HTML(
           <div style="color:var(--mut);">No baseline data</div>
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
-      </div>
-      <div class="card" id="pcapFilesResCard" style="display:none;margin-bottom:16px;">
-        <div class="pcap-files-head" onclick="pcapToggleList('Res')">
-          <span class="collapse-icon open" id="pcapFilesIconRes">&#9654;</span>
-          <span>Captures</span>
-          <span class="pcap-count" id="pcapCountRes">0</span>
-          <button type="button" class="btn danger" id="pcapDeleteAllBtnRes" onclick="event.stopPropagation();pcapDeleteAll()">Delete All</button>
-        </div>
-        <div id="pcapFilesBodyRes">
-          <div id="pcapFileListRes" class="pcap-list"></div>
+        <div id="pcapFilesResCard" style="display:none;margin-top:12px;">
+          <div class="pcap-files-head" onclick="pcapToggleList('Res')">
+            <span class="collapse-icon open" id="pcapFilesIconRes">&#9654;</span>
+            <span>Captures</span>
+            <span class="pcap-count" id="pcapCountRes">0</span>
+            <button type="button" class="btn danger" id="pcapDeleteAllBtnRes" onclick="event.stopPropagation();pcapDeleteAll()">Delete All</button>
+          </div>
+          <div id="pcapFilesBodyRes">
+            <div id="pcapFileListRes" class="pcap-list"></div>
+          </div>
         </div>
       </div>
       </div>
