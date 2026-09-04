@@ -785,7 +785,9 @@ python3 scripts/meshtastic_config.py</pre>
   <pre>@ALL PCAP_START:0:300:0
 @ALL PCAP_STOP</pre>
   <p>Arguments are radio, seconds, band. Radio 0 WiFi, 1 BLE. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, and a management-frames-only filter.</p>
-  <p>A capture stops on its own when the file reaches 100 MB, when free space drops below the floor, or when the card stops accepting writes. The mesh reply carries the reason: <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>.</p>
+  <p>A capture stops on its own when the file reaches the size cap, when free space drops below the floor, or when the card stops accepting writes. The mesh reply carries the reason: <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>. The cap is 8 to 300 MB, 100 MB by default, set on the Scan tab, in the sentinel auto-response panel, or over mesh.</p>
+  <pre>@ALL PCAP_LIMITS:150
+@ALL PCAP_LIMITS</pre>
   <div class="box warn"><span class="t">Captures are large and carry everything</span>
     <p>A busy channel fills megabytes per minute. Check free space before a long run, and treat the file as a raw intercept.</p>
   </div>
