@@ -522,6 +522,7 @@ static String pcapMakePath() {
         char c = stamp[i];
         if (c == ' ') safe += '_';
         else if (c == ':' || c == '-') continue;
+        else if (!isdigit((unsigned char)c)) { safe = ""; break; }
         else safe += c;
     }
     if (safe.length() == 0) safe = String(millis());
