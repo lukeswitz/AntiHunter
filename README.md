@@ -435,11 +435,27 @@ cd AntiHunter
 ```
 
 ```bash
-pio device list                                    # List connected devices
-pio run -e AntiHunter-full -t upload               # Flash full firmware (web UI)
-pio run -e AntiHunter-headless -t upload           # Flash headless firmware
-pio device monitor -e AntiHunter-full              # Serial monitor
-pio run -e AntiHunter-full -t erase -t upload      # Clean flash (erase + upload)
+pio device list                                    # list connected devices
+```
+
+Now pick which firmware you want. Full gives you the web UI; headless is serial and mesh only. Both go on the same board, so run one of these, not both.
+
+```bash
+pio run -e AntiHunter-full -t upload               # full firmware: web UI, SoftAP dashboard
+```
+
+```bash
+pio run -e AntiHunter-headless -t upload           # headless firmware: serial + mesh only
+```
+
+```bash
+pio device monitor -e AntiHunter-full              # watch the node's serial output
+```
+
+Erasing wipes the whole flash chip, saved settings and all, and leaves the board with nothing on it. Only reach for it when you want to start clean, and upload again afterwards.
+
+```bash
+pio run -e AntiHunter-full -t erase                # erase the entire flash chip
 ```
 
 **Build environments** (same firmware sources; differ only in features/board):
