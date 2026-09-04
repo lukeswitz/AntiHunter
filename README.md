@@ -37,7 +37,7 @@
 5. [RF Configuration](#rf-configuration)
 6. [System Architecture](#system-architecture)
 7. [Hardware](#hardware)
-8. [Getting Started](#getting-started) - [deployment steps by tier](#deployment-steps-by-tier)
+8. [Getting Started](#getting-started) - [deployment steps by tier](#1-deployment-steps-by-tier)
 9. [Mesh Commands](#mesh-commands)
 10. [API Reference](#api-reference)
 11. [ESP32-C5](docs/ESP32-C5.md)
@@ -80,7 +80,7 @@
 | **Packet Capture** | Raw WiFi or BLE traffic to SD as a standard pcap | Capture |
 | **Triangulation** | Multi-node RSSI location estimate for one target | Scan tab |
 
-Supporting features: **Allowlist** (global, ignored across every scan mode) · **Mesh networking** over Meshtastic LoRa · **Secure data destruction** on tamper or mesh command · **Vibration auto-scan** (movement starts a scan) · **Battery saver** · **Privacy mode** (one-click MAC/GPS/SSID redaction for screenshots) · **Data Explorer** (search and export every SD dataset) · theme and accent color choices in the System tab.
+Supporting features: **Allowlist** (used by Target Scan and Baseline) · **Mesh networking** over Meshtastic LoRa · **Secure data destruction** on tamper or mesh command · **Vibration auto-scan** (movement starts a scan) · **Battery saver** · **Privacy mode** (one-click MAC/GPS/SSID redaction for screenshots) · **Data Explorer** (search and export every SD dataset) · theme and accent color choices in the System tab.
 
 <p align="center">
 <img height="600" alt="AntiHunter overview" src="docs/img/c5-overview.jpg" />
@@ -440,7 +440,7 @@ A second C5 firmware, [RadarNode](https://github.com/lukeswitz/AntiHunter/blob/b
 
 Soldered Core PCB and Assembled tiers ship this already applied - serial on, TEXTMSG 115200 on the board's pins, screen 1s, LED off, BLE on with a shipped pin. Region and channel are still yours to set. Bare PCB and Parts Kit builds do all of it.
 
-Flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
+The app and the web client can set all of this by hand. The script below does it in one go: flash the radio with stable Meshtastic, connect it on its own, then run `scripts/meshtastic_config.py`. One config group per call, each value read back afterwards.
 
 ```
 options:
@@ -596,7 +596,7 @@ Same pads as the S3 node. The [ESP32-C5 page](docs/ESP32-C5.md#pinout) has the s
 
 ## Getting Started
 
-### Deployment Steps by Tier
+### 1. Deployment Steps by Tier
 
 No firmware ships on the node. You flash AntiHunter yourself, for integrity and regulatory reasons.
 
@@ -632,6 +632,8 @@ Pick Full or Headless first:
 ### 4. Finish the radio
 
 Set your LoRa region, change the pairing pin, make your own encrypted channel primary and turn the public one off. Bare PCB and Parts Kit builds flash Meshtastic and enable the serial module here too.
+
+The serial module needs four settings, however you get there: **Serial** enabled, mode **TEXTMSG**, baud **115200**, and the RX/TX pins for your board - `19 RX / 20 TX` on Heltec V3, `10 RX / 9 TX` on T114. Three ways to apply them: the [Meshtastic phone app](https://meshtastic.org/docs/software/) over Bluetooth, the [Meshtastic web client](https://meshtastic.org/docs/software/) over USB from Chrome or Edge, or `scripts/meshtastic_config.py` from a terminal - see [Radio Setup](#radio-setup).
 
 ### 5. First login
 
@@ -994,7 +996,7 @@ Datasets: All Discovered Devices · Probe Devices · Probe Events · Deauth Atta
 
 ### Before you screenshot
 
-The **Privacy** button, on the Results, Fleet, Data and Sentinel toolbars, redacts MACs, GPS coordinates and SSIDs everywhere at once. Theme and accent colors are stored in your browser, not on the node, so each browser and each node keeps its own.
+The **Privacy** button, on the Results, Fleet, Data and Sentinel toolbars, redacts MACs, GPS coordinates and SSIDs everywhere at once. It only affects the browser - exported logs and SD data still carry all three. Theme and accent colors are stored in your browser, not on the node, so each browser and each node keeps its own.
 
 `GET /detect` is a separate lightweight page of live detector counters, usable over a slow link.
 
