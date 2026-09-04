@@ -505,6 +505,7 @@ void probeDetectionTask(void *pv)
     {
         File logFile = SafeSD::open("/probes.jsonl", FILE_APPEND);
         if (logFile) {
+            SdWriter logFile_w(logFile);
             uint32_t now = getEventTimestamp();
             std::lock_guard<std::mutex> lock(probeMutex);
             for (auto &p : probeDevices) {
@@ -527,8 +528,8 @@ void probeDetectionTask(void *pv)
                 }
                 if (dev.respondingAP[0]) doc["ap"] = dev.respondingAP;
                 if (dev.respondingSSID[0]) doc["apssid"] = dev.respondingSSID;
-                serializeJson(doc, logFile);
-                logFile.println();
+                serializeJson(doc, logFile_w);
+                logFile_w.println();
             }
             logFile.close();
 
@@ -791,6 +792,7 @@ void saveProbeDB()
     std::lock_guard<std::mutex> lock(probeDBMutex);
 
     File f = SafeSD::open(PROBE_DB_PATH, FILE_WRITE);
+    SdWriter f_w(f);
     if (!f) {
         Serial.println("[PROBEDB] Failed to write database");
         return;
@@ -816,8 +818,8 @@ void saveProbeDB()
             ss.add(p.second.ssids[i]);
         }
 
-        serializeJson(doc, f);
-        f.println();
+        serializeJson(doc, f_w);
+        f_w.println();
         written++;
     }
     f.close();

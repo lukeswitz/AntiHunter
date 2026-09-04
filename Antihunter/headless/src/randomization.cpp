@@ -1874,11 +1874,12 @@ void saveDeviceIdentities() {
     }
 
     File file = SafeSD::open("/rand_identities.dat", FILE_WRITE);
+    SdWriter file_w(file);
     if (!file) {
         Serial.println("[RAND] Failed to open identities file for writing");
         return;
     }
-    size_t written = file.write(buf.data(), buf.size());
+    size_t written = file_w.write(buf.data(), buf.size());
     file.close();
     Serial.printf("[RAND] Saved %u identities to SD (fmt RAN4, %u bytes)\n", count, (unsigned)written);
 }
