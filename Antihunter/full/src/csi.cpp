@@ -561,25 +561,13 @@ static void csiEmitAlert(const CsiAlert &al) {
     if (!al.valid) return;
 
     String mac = macFmt6(al.mac);
-    String line;
 
     if (al.rising) {
-        char scoreStr[16];
-        snprintf(scoreStr, sizeof(scoreStr), "%.2f", al.score);
-        line = getNodeId() + ": CSI_MOTION: " + mac +
-               " S=" + String(scoreStr) +
-               " R=" + String(al.rssi) +
-               " CH=" + String(g_csiActiveChannel) +
-               " P=" + String(al.packets);
         Serial.printf("[CSI] MOTION %s score=%.2f mad=%.4f floor=%.4f rssi=%d\n",
                       mac.c_str(), al.score, al.mad, al.floorMad, al.rssi);
     } else {
-        line = getNodeId() + ": CSI_CLEAR: " + mac +
-               " D=" + String(al.dwell) + "s" +
-               " CH=" + String(g_csiActiveChannel);
         Serial.printf("[CSI] CLEAR %s dwell=%us\n", mac.c_str(), al.dwell);
     }
-
 }
 
 static void csiProcess(const CsiEvent &ev) {
