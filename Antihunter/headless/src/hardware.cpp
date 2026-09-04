@@ -251,14 +251,11 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
     size_t written = file.write(data, len);
     if (written == len) return written;
 
-    // the card can go busy longer than the SD library's fixed wait; give it time and finish the block
-    static const uint16_t backoffMs[3] = {20, 80, 250};
-    for (uint8_t attempt = 0; attempt < 3 && written < len; attempt++) {
-        file.flush();
-        delay(backoffMs[attempt]);
-        const size_t more = file.write(data + written, len - written);
-        written += more;
-    }
+    // FatFs latches a disk error on the file object (ff.c f_write checks fp->err first, ABORT
+    // sets it) and only f_open clears it, so retrying this handle can never succeed. One short
+    // pause covers a card that was merely busy; past that the caller must reopen the file.
+    delay(30);
+    written += file.write(data + written, len - written);
 
     if (written != len) {
         Serial.printf("[SAFE_SD] Partial write after retries: %u/%u bytes\n",

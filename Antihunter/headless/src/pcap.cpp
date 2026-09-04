@@ -55,6 +55,7 @@ static const uint32_t PCAP_MIN_FREE_BYTES = 32u * 1024u * 1024u;
 static const uint8_t PCAP_MAX_WRITE_FAILS = 3;
 static std::atomic<uint32_t> g_maxFileMB{PCAP_MAX_FILE_MB_DEF};
 static std::atomic<uint32_t> g_writeFails{0};
+static std::atomic<uint32_t> g_reopens{0};
 static std::atomic<bool> g_stopReasonSize{false};
 static std::atomic<bool> g_stopReasonWrite{false};
 
@@ -347,9 +348,24 @@ static void pcapDrain(fs::File &f) {
     g_bytes.fetch_add((uint32_t)wrote);
     if (wrote == len) {
         g_writeFails.store(0);
-        // sync now: a reset between appends is what leaves the filesystem inconsistent
-        f.flush();
         return;
+    }
+
+    // FatFs latches the error on the file object and only f_open clears it, so the handle is
+    // dead from here. Reopen it in append mode and replay this buffer before giving up.
+    const uint32_t pos = (uint32_t)f.size();
+    f.close();
+    f = SafeSD::open(getPcapFilePath().c_str(), FILE_APPEND);
+    if (f) {
+        const size_t again = SafeSD::write(f, src, len);
+        g_bytes.fetch_add((uint32_t)again);
+        if (again == len) {
+            g_writeFails.store(0);
+            g_reopens.fetch_add(1);
+            Serial.printf("[PCAP] reopened the capture file after a write error at %u bytes\n",
+                          (unsigned)pos);
+            return;
+        }
     }
 
     const uint32_t fails = g_writeFails.fetch_add(1) + 1;
@@ -693,6 +709,7 @@ void pcapCaptureTask(void *pv) {
     g_frames.store(0);
     g_bytes.store(0);
     g_writeFails.store(0);
+    g_reopens.store(0);
     g_stopReasonSize.store(false);
     g_stopReasonWrite.store(false);
     g_dropped.store(0);
@@ -725,9 +742,6 @@ void pcapCaptureTask(void *pv) {
     scanSetCountdown(duration, forever);
     g_active = true;
 
-    Serial.println("[PCAP] Warning: resetting or losing power while a capture is running can "
-                   "corrupt the SD filesystem. FAT has no power-fail protection. Stop the capture "
-                   "before power-cycling.");
     Serial.printf("[PCAP] Started %s -> %s %s\n",
                   g_radio == PCAP_RADIO_BLE ? "BLE" : "WiFi",
                   getPcapFilePath().c_str(),
@@ -757,8 +771,9 @@ void pcapCaptureTask(void *pv) {
             lastHop = now;
         }
 
-        if (now - lastFlush >= 2000) {
+        if (now - lastFlush >= 1000) {
             lastFlush = now;
+            SafeSD::flush(f);
             const uint64_t capB = (uint64_t)g_maxFileMB.load() * 1024ULL * 1024ULL;
             if ((uint64_t)f.size() >= capB) {
                 g_stopReasonSize.store(true);
