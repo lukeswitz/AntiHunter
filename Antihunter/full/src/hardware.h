@@ -48,6 +48,9 @@ private:
     static const uint32_t CHECK_INTERVAL_MS = 1000;
     static const uint32_t SD_OPEN_HEAP_FLOOR = 12288;
     static const uint32_t SD_OPEN_BLOCK_FLOOR = 4096;
+    static const uint32_t MOUNT_LOG_INTERVAL_MS = 60000;
+    static uint32_t sdMountFailures;
+    static uint32_t lastMountLogMs;
     static bool checkAvailability();
 
 public:
@@ -63,6 +66,7 @@ public:
     static size_t read(fs::File& file, uint8_t* data, size_t len);
     static bool flush(fs::File& file);
     static void forceRecheck();
+    static uint32_t mountFailureCount();
 };
 
 String jsonEscape(const String &in);
@@ -87,6 +91,10 @@ bool setRTCTimeFromEpoch(time_t epoch);
 
 // Sensors and GPS
 extern bool sdAvailable;
+extern bool sdAutoRepair;
+bool sdMountOrRepair();
+void setSdAutoRepair(bool on);
+void loadSdAutoRepair();
 extern std::atomic<bool> gpsValid;
 extern float gpsLat, gpsLon;
 extern SemaphoreHandle_t gpsMutex;

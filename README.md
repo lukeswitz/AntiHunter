@@ -714,6 +714,13 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` / `PROBE_STOP` | Collect probe requests | `mode:secs[:FOREVER][:+ALL]` | `@ALL PROBE_START:2:300:+ALL` |
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
+| `SD_REPAIR` | Let a node rebuild an unmountable SD card by itself. `NOW` repairs once. Off by default, rebuilding erases the card | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
+
+> [!WARNING]
+> Stop a capture before cutting power or resetting the node. FAT has no power-fail
+> protection, so an interruption mid-write can leave the SD card unreadable until it is
+> reformatted, and the node then runs with no storage at all. `SD_REPAIR:ON` lets a node
+> rebuild its own card, which recovers most cases but not all, and erases the card.
 
 The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during device scans, populating the probe database alongside normal device discovery.
 

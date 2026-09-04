@@ -695,6 +695,24 @@ static void handlePcapStart(const String &command)
   sendToSerial1(nodeId + ": PCAP_ACK:STARTED", true);
 }
 
+static void handleSdRepair(const String &command)
+{
+  String p = command.substring(10);
+  p.trim();
+  p.toUpperCase();
+  if (p == "ON")       setSdAutoRepair(true);
+  else if (p == "OFF") setSdAutoRepair(false);
+  else if (p == "NOW") {
+    const bool prev = sdAutoRepair;
+    sdAutoRepair = true;
+    const bool ok = sdMountOrRepair();
+    sdAutoRepair = prev;
+    sendToSerial1(getNodeId() + ": SD_REPAIR_ACK:" + (ok ? "REPAIRED" : "FAILED"), true);
+    return;
+  }
+  sendToSerial1(getNodeId() + ": SD_REPAIR_ACK:" + String(sdAutoRepair ? "ON" : "OFF"), true);
+}
+
 static void handlePcapStop(const String &command)
 {
   (void)command;
@@ -2011,6 +2029,7 @@ void processCommand(const String &commandRaw, const String &targetId = "")
   else if (command.startsWith("PROBE_HIT "))          handleProbeHit(command);
   else if (command.startsWith("PCAP_START:"))         handlePcapStart(command);
   else if (command == "PCAP_STOP")                    handlePcapStop(command);
+  else if (command.startsWith("SD_REPAIR:"))            handleSdRepair(command);
   else if (command == "STOP")                         handleStop(command);
 #if AH_SENTINEL
   else if (command == "SENTINEL_ON")                  handleSentinelOn(command);

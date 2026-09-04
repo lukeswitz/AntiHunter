@@ -107,6 +107,21 @@ uint32_t lastBatterySaverHeartbeat = 0;
 
 // SD & HW Init
 
+uint32_t SafeSD::sdMountFailures = 0;
+uint32_t SafeSD::lastMountLogMs = 0;
+bool sdAutoRepair = false;
+
+void setSdAutoRepair(bool on) {
+    sdAutoRepair = on;
+    Preferences p;
+    if (p.begin("sd", false)) { p.putBool("autorepair", on); p.end(); }
+}
+
+void loadSdAutoRepair() {
+    Preferences p;
+    if (p.begin("sd", true)) { sdAutoRepair = p.getBool("autorepair", false); p.end(); }
+}
+
 bool SafeSD::checkAvailability() {
     static std::mutex sdCheckMutex;
     std::lock_guard<std::mutex> lock(sdCheckMutex);
@@ -115,10 +130,21 @@ bool SafeSD::checkAvailability() {
         return lastCheckResult;
     }
     lastCheckTime = now;
+    const bool was = lastCheckResult;
     lastCheckResult = SD.begin(SD_CS_PIN);
     sdAvailable = lastCheckResult;
     if (!lastCheckResult) {
-        Serial.println("[SAFE_SD] SD card not available");
+        sdMountFailures++;
+        if (was || sdMountFailures == 1 || now - lastMountLogMs >= MOUNT_LOG_INTERVAL_MS) {
+            lastMountLogMs = now;
+            Serial.printf("[SAFE_SD] SD unavailable - mount has failed %lu times. "
+                          "The card needs checking or reformatting; the node is running without storage.\n",
+                          (unsigned long)sdMountFailures);
+        }
+    } else if (!was && sdMountFailures) {
+        Serial.printf("[SAFE_SD] SD recovered after %lu failed mounts\n",
+                      (unsigned long)sdMountFailures);
+        sdMountFailures = 0;
     }
     return lastCheckResult;
 }
@@ -223,8 +249,20 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
     }
     
     size_t written = file.write(data, len);
+    if (written == len) return written;
+
+    // the card can go busy longer than the SD library's fixed wait; give it time and finish the block
+    static const uint16_t backoffMs[3] = {20, 80, 250};
+    for (uint8_t attempt = 0; attempt < 3 && written < len; attempt++) {
+        file.flush();
+        delay(backoffMs[attempt]);
+        const size_t more = file.write(data + written, len - written);
+        written += more;
+    }
+
     if (written != len) {
-        Serial.printf("[SAFE_SD] Partial write: %d/%d bytes\n", written, len);
+        Serial.printf("[SAFE_SD] Partial write after retries: %u/%u bytes\n",
+                      (unsigned)written, (unsigned)len);
     }
     return written;
 }
@@ -252,6 +290,11 @@ bool SafeSD::flush(fs::File& file) {
 
 void SafeSD::forceRecheck() {
     lastCheckTime = 0;
+}
+
+// cppcheck-suppress unusedFunction // headless has no diagnostics page; the counter is read over serial
+uint32_t SafeSD::mountFailureCount() {
+    return sdMountFailures;
 }
 
 String jsonEscape(const String &in) {
@@ -1076,14 +1119,49 @@ bool waitForInitialConfig() {
     return true;
 }
 
+// FatFS has no power-fail protection (ESP-IDF file-system considerations), so a reset
+// during a write can leave the card unmountable. Try a plain mount, then a bus re-init,
+// then let the library rebuild the filesystem if it reports there isn't one.
+bool sdMountOrRepair() {
+    if (SD.begin(SD_CS_PIN, SPI, 400000)) return true;
+
+    for (int i = 0; i < 3; i++) {
+        SD.end();
+        SPI.end();
+        delay(80 * (i + 1));
+        SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
+        delay(20);
+        if (SD.begin(SD_CS_PIN, SPI, 400000)) {
+            Serial.printf("[SD] mounted after %d bus re-init(s)\n", i + 1);
+            return true;
+        }
+    }
+
+    if (!sdAutoRepair) {
+        Serial.println("[SD] mount failed and auto-repair is off - the card needs checking "
+                       "or reformatting, or enable it with SD_REPAIR:ON");
+        return false;
+    }
+
+    Serial.println("[SD] mount failed - rebuilding the filesystem (this erases the card)");
+    SD.end();
+    if (SD.begin(SD_CS_PIN, SPI, 400000, "/sd", 5, true)) {
+        Serial.println("[SD] filesystem rebuilt, card back in service");
+        return true;
+    }
+    Serial.println("[SD] rebuild failed - the card is not responding at the disk layer");
+    return false;
+}
+
 void initializeSD()
 {
+    loadSdAutoRepair();
     Serial.println("Initializing SD card...");
     Serial.printf("[SD] GPIO Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
     SPI.end();
     SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
     delay(100);
-    if (SD.begin(SD_CS_PIN, SPI, 400000)) {
+    if (sdMountOrRepair()) {
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);
         Serial.printf("SD Card initialized: %lluMB\n", cardSize);
         sdAvailable = true;
