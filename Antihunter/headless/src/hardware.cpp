@@ -118,6 +118,19 @@ uint32_t SafeSD::sdMountFailures = 0;
 uint32_t SafeSD::sdWriteRetries = 0;
 uint32_t SafeSD::lastMountLogMs = 0;
 
+bool sdAutoRepair = false;
+
+void setSdAutoRepair(bool on) {
+    sdAutoRepair = on;
+    Preferences p;
+    if (p.begin("sd", false)) { p.putBool("autorepair", on); p.end(); }
+}
+
+void loadSdAutoRepair() {
+    Preferences p;
+    if (p.begin("sd", true)) { sdAutoRepair = p.getBool("autorepair", false); p.end(); }
+}
+
 bool SafeSD::checkAvailability() {
     static std::mutex sdCheckMutex;
     std::lock_guard<std::mutex> lock(sdCheckMutex);
@@ -1431,8 +1444,47 @@ void sdRunDiagnostics() {
 void sdRunDiagnostics() {}
 #endif
 
+// FatFS has no power-fail protection (ESP-IDF file-system considerations), so a reset
+// during a write can leave the card unmountable. Try a plain mount, then a bus re-init,
+// then let the library rebuild the filesystem if it reports there isn't one.
+bool sdMountOrRepair() {
+    if (SD.begin(SD_CS_PIN, SPI, 400000)) return true;
+
+    for (int i = 0; i < 3; i++) {
+        SD.end();
+        SPI.end();
+        delay(80 * (i + 1));
+        spi2EnsureBusClock();
+        SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
+#ifdef ARDUINO_XIAO_ESP32C5
+        gpio_set_pull_mode((gpio_num_t)SD_MISO_PIN, GPIO_PULLUP_ONLY);
+#endif
+        delay(20);
+        if (SD.begin(SD_CS_PIN, SPI, 400000)) {
+            Serial.printf("[SD] mounted after %d bus re-init(s)\n", i + 1);
+            return true;
+        }
+    }
+
+    if (!sdAutoRepair) {
+        Serial.println("[SD] mount failed and auto-repair is off - the card needs checking "
+                       "or reformatting, or enable it with SD_REPAIR:ON");
+        return false;
+    }
+
+    Serial.println("[SD] mount failed - rebuilding the filesystem (this erases the card)");
+    SD.end();
+    if (SD.begin(SD_CS_PIN, SPI, 400000, "/sd", 5, true)) {
+        Serial.println("[SD] filesystem rebuilt, card back in service");
+        return true;
+    }
+    Serial.println("[SD] rebuild failed - the card is not responding at the disk layer");
+    return false;
+}
+
 void initializeSD()
 {
+    loadSdAutoRepair();
     Serial.println("Initializing SD card...");
     Serial.printf("[SD] GPIO Pins SCK=%d MISO=%d MOSI=%d CS=%d\n", SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
     sdRunDiagnostics();
@@ -1443,7 +1495,7 @@ void initializeSD()
     gpio_set_pull_mode((gpio_num_t)SD_MISO_PIN, GPIO_PULLUP_ONLY);
 #endif
     delay(100);
-    if (SD.begin(SD_CS_PIN, SPI, 400000)) {
+    if (sdMountOrRepair()) {
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);
         Serial.printf("SD Card initialized: %lluMB\n", cardSize);
         sdAvailable = true;

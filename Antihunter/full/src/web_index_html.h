@@ -803,6 +803,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                       <input type="number" id="pcapMaxFile" name="pcapMaxFile" min="8" max="300" step="8" value="100">
                     </div>
                   </div>
+                  <div style="font-size:11px;opacity:.75;margin:2px 0 8px;line-height:1.45;">
+                    Stop the capture before power-cycling or resetting the node. FAT has no power-fail
+                    protection, so an interruption mid-write can leave the card unreadable until it is
+                    reformatted.
+                  </div>
+                  <div style="display:none;">
+                  </div>
                   <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="pcapMgmtOnly" value="1">Management frames only</label>
                 </details>
               </div>
