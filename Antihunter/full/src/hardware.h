@@ -54,6 +54,9 @@
 #define RTC_SCL_PIN 6    // RTC SCL
 #endif
 
+#define SD_SPI_HZ          4000000
+#define SD_SPI_HZ_FALLBACK 400000
+
 // Configuration constants
 #define CONFIG_FILE "/config.json"
 #define CONFIG_TMP_FILE "/config.json.tmp"
