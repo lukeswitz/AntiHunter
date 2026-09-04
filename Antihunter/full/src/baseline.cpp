@@ -1088,9 +1088,10 @@ bool initializeBaselineSD() {
         uint16_t version = 1;
         uint32_t deviceCount = 0;
         
-        dataFile.write(reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
-        dataFile.write(reinterpret_cast<uint8_t*>(&version), sizeof(version));
-        dataFile.write(reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
+        SdWriter bw(dataFile);
+        bw.write(reinterpret_cast<uint8_t*>(&magic), sizeof(magic));
+        bw.write(reinterpret_cast<uint8_t*>(&version), sizeof(version));
+        bw.write(reinterpret_cast<uint8_t*>(&deviceCount), sizeof(deviceCount));
         dataFile.close();
         
         Serial.println("[BASELINE_SD] Data file created");
@@ -1106,11 +1107,12 @@ bool initializeBaselineSD() {
             return false;
         }
         
-        statsFile.print("{\"totalDevices\":0,\"wifiDevices\":0,\"bleDevices\":0,\"established\":false,\"rssiThreshold\":");
-        statsFile.print(baselineRssiThreshold);
-        statsFile.print(",\"createdAt\":");
-        statsFile.print(millis());
-        statsFile.println("}");
+        SdWriter sw(statsFile);
+        sw.print("{\"totalDevices\":0,\"wifiDevices\":0,\"bleDevices\":0,\"established\":false,\"rssiThreshold\":");
+        sw.print(baselineRssiThreshold);
+        sw.print(",\"createdAt\":");
+        sw.print(millis());
+        sw.println("}");
         statsFile.close();
     }
     
@@ -1139,7 +1141,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
         }
         
         dataFile.seek(position);
-        size_t written = dataFile.write(reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
+        size_t written = SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
         dataFile.close();
 
         return (written == sizeof(BaselineDevice));
@@ -1151,7 +1153,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
         }
 
         uint32_t position = dataFile.position();
-        size_t written = dataFile.write(reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
+        size_t written = SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&writeDevice), sizeof(BaselineDevice));
         dataFile.close();
         
         if (written == sizeof(BaselineDevice)) {
@@ -1161,7 +1163,7 @@ bool writeBaselineDeviceToSD(const BaselineDevice& device) {
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
-                if (headerFile.write(reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD)) != sizeof(totalDevicesOnSD))
+                if (SafeSD::write(headerFile, reinterpret_cast<uint8_t*>(&totalDevicesOnSD), sizeof(totalDevicesOnSD)) != sizeof(totalDevicesOnSD))
                     Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
                 headerFile.close();
             }
@@ -1259,7 +1261,7 @@ bool flushBaselineCacheToSD() {
                 BaselineDevice wd = updates[i].second;
                 calculateDeviceChecksum(wd);
                 dataFile.seek(updatePositions[i]);
-                if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
+                if (SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
                     cleanedKeys.push_back(updates[i].first);
                     flushed++;
                 }
@@ -1282,7 +1284,7 @@ bool flushBaselineCacheToSD() {
                 BaselineDevice wd = appends[i].second;
                 calculateDeviceChecksum(wd);
                 uint32_t position = dataFile.position();
-                if (dataFile.write(reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
+                if (SafeSD::write(dataFile, reinterpret_cast<uint8_t*>(&wd), sizeof(BaselineDevice)) == sizeof(BaselineDevice)) {
                     newIndexEntries.push_back({appends[i].first, position});
                     cleanedKeys.push_back(appends[i].first);
                     flushed++;
@@ -1307,7 +1309,7 @@ bool flushBaselineCacheToSD() {
             File headerFile = SafeSD::open("/baseline_data.bin", "r+");
             if (headerFile) {
                 headerFile.seek(6);
-                if (headerFile.write(reinterpret_cast<uint8_t*>(&totalSnapshot), sizeof(totalSnapshot)) != sizeof(totalSnapshot))
+                if (SafeSD::write(headerFile, reinterpret_cast<uint8_t*>(&totalSnapshot), sizeof(totalSnapshot)) != sizeof(totalSnapshot))
                     Serial.println("[BASELINE_SD] WARNING: header count write incomplete");
                 headerFile.close();
             }
@@ -1427,19 +1429,20 @@ void saveBaselineStatsToSD() {
         return;
     }
 
-    statsFile.print("{\"totalDevices\":");
-    statsFile.print(snapDeviceCount);
-    statsFile.print(",\"wifiDevices\":");
-    statsFile.print(snapWifiDevices);
-    statsFile.print(",\"bleDevices\":");
-    statsFile.print(snapBleDevices);
-    statsFile.print(",\"established\":");
-    statsFile.print(snapEstablished ? "true" : "false");
-    statsFile.print(",\"rssiThreshold\":");
-    statsFile.print(baselineRssiThreshold);
-    statsFile.print(",\"lastUpdate\":");
-    statsFile.print(millis());
-    statsFile.println("}");
+    SdWriter sw2(statsFile);
+    sw2.print("{\"totalDevices\":");
+    sw2.print(snapDeviceCount);
+    sw2.print(",\"wifiDevices\":");
+    sw2.print(snapWifiDevices);
+    sw2.print(",\"bleDevices\":");
+    sw2.print(snapBleDevices);
+    sw2.print(",\"established\":");
+    sw2.print(snapEstablished ? "true" : "false");
+    sw2.print(",\"rssiThreshold\":");
+    sw2.print(baselineRssiThreshold);
+    sw2.print(",\"lastUpdate\":");
+    sw2.print(millis());
+    sw2.println("}");
 
     statsFile.close();
 }
