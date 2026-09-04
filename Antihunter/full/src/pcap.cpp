@@ -367,6 +367,9 @@ static void pcapDrain(fs::File &f) {
     g_bytes.fetch_add((uint32_t)wrote);
     if (wrote == len) {
         g_writeFails.store(0);
+        // sync the directory entry and FAT now: a reset between appends is what
+        // leaves the filesystem inconsistent, and only a wipe recovers it
+        f.flush();
         return;
     }
 
@@ -744,6 +747,9 @@ void pcapCaptureTask(void *pv) {
     scanSetCountdown(duration, forever);
     g_active = true;
 
+    Serial.println("[PCAP] Warning: resetting or losing power while a capture is running can "
+                   "corrupt the SD filesystem. FAT has no power-fail protection. Stop the capture "
+                   "before power-cycling; SD_REPAIR:ON lets a node rebuild the card by itself.");
     Serial.printf("[PCAP] Started %s -> %s %s\n",
                   g_radio == PCAP_RADIO_BLE ? "BLE" : "WiFi",
                   getPcapFilePath().c_str(),
@@ -775,7 +781,6 @@ void pcapCaptureTask(void *pv) {
 
         if (now - lastFlush >= 2000) {
             lastFlush = now;
-            SafeSD::flush(f);
             const uint64_t capB = (uint64_t)g_maxFileMB.load() * 1024ULL * 1024ULL;
             if ((uint64_t)f.size() >= capB) {
                 g_stopReasonSize.store(true);

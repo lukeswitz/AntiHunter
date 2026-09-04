@@ -121,6 +121,10 @@ bool setRTCTimeFromEpoch(time_t epoch);
 
 // Sensors and GPS
 extern bool sdAvailable;
+extern bool sdAutoRepair;
+bool sdMountOrRepair();
+void setSdAutoRepair(bool on);
+void loadSdAutoRepair();
 extern std::atomic<bool> gpsValid;
 extern float gpsLat, gpsLon;
 extern SemaphoreHandle_t gpsMutex;
