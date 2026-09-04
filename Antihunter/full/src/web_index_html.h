@@ -747,7 +747,7 @@ R"HTML(
                     </div>
                     <div>
                       <label style="font-size:11px;">Max file size (MB)</label>
-                      <input type="number" id="pcapMaxFile" name="pcapMaxFile" min="8" max="300" step="8" value="100">
+                      <input type="number" id="pcapMaxFile" name="pcapMaxFile" min="8" max="300" step="1" value="100">
                     </div>
                   </div>
                   <label style="font-size:11px;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="pcapMgmtOnly" value="1">Management frames only</label>
@@ -1641,7 +1641,7 @@ R"HTML(
                 <input type="number" id="arPcapFloor" min="0" max="262144" step="16" value="256" onchange="arSaveLimits()">
                 <span class="ar-unit">MB</span>
                 <span class="ar-name">Max capture file</span>
-                <input type="number" id="arPcapMaxFile" min="8" max="300" step="8" value="100" onchange="arSaveLimits()">
+                <input type="number" id="arPcapMaxFile" min="8" max="300" step="1" value="100" onchange="arSaveLimits()">
                 <span class="ar-unit">MB</span>
                 <span class="ar-free" id="arSdFree">--</span>
               </div>
