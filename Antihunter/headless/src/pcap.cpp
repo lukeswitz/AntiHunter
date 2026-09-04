@@ -397,6 +397,7 @@ static bool pcapDrain(fs::File &f) {
         }
     }
 
+    SafeSD::flush(f);
     g_writeFails.store(0);
     g_writeMs.fetch_add(millis() - t0);
     return true;
@@ -800,7 +801,6 @@ void pcapCaptureTask(void *pv) {
 
         if (now - lastFlush >= 1000) {
             lastFlush = now;
-            SafeSD::flush(f);
             const uint64_t capB = (uint64_t)g_maxFileMB.load() * 1024ULL * 1024ULL;
             if ((uint64_t)f.size() >= capB) {
                 g_stopReasonSize.store(true);
