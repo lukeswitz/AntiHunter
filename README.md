@@ -38,7 +38,7 @@
 
 *Featured in Seeed Studio [Best 20 XIAO Projects in 2025](https://www.seeedstudio.com/blog/2026/01/29/best-xiao-projects/).*
 
-Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs on the device, and you drive one node two ways with no extra infrastructure:
+Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs on the device, and you control one node two ways with no extra infrastructure:
   - **Web UI** - the node hosts its own WiFi access point. Connect a phone or laptop, run scans and read results in the browser.
   - **Meshtastic radio** - send commands and receive detections over LoRa from a paired Meshtastic radio, with no WiFi AP. The Headless firmware runs this way with no web UI at all.
   - To cover a larger area, add nodes. They share detections over the same mesh and can report to the optional [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO).
@@ -46,7 +46,7 @@ Most WiFi and BLE detection tools need a laptop and a backend. AntiHunter runs o
 **At a glance**
 
 - ESP32-S3 · WiFi + BLE scanning · GPS · SD logging · vibration sensing · LoRa mesh
-- Drop-in [ESP32-C5](docs/ESP32-C5.md) build adds 5 GHz alongside 2.4 GHz (testing)
+- Drop-in [ESP32-C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md) build adds 5 GHz alongside 2.4 GHz (testing)
 - **Full** firmware: standalone web UI over the node's own AP · **Headless** firmware: serial + mesh only, for silent deployments
 - Sentinel counterintel engine (Beta branch only)
 - Vibration & attack triggered actions for set and forget operation
@@ -92,10 +92,29 @@ Flash it from your browser.
    - Pick **Full** (web UI) or **Headless** (serial + mesh)
    - Choose a **Release Channel** (Stable or Beta)
    - Plug in your ESP32-S3, and click Connect & Flash.
-3. First boot:
+2. First boot:
    - **Full firmware** - connect to the `Antihunter` WiFi AP (password `antihunt3r123`), open **http://192.168.4.1**. Change the AP credentials under RF Settings first.
-   - **Headless firmware** - configure then drive it over serial or [mesh commands](#mesh-commands).
+   - **Headless firmware** - configure it, then use serial or [mesh commands](#mesh-commands).
+3. **Set up the Meshtastic radio.** Mesh commands do nothing until this is done. Soldered Core and Assembled tiers arrive with it applied - set your region, pairing pin and channel, then skip to step 4.
+
+   The radio needs four settings, however you get there: **Serial** module enabled, mode **TEXTMSG**, baud **115200**, and the RX/TX pins for your board - `19 RX / 20 TX` on Heltec V3, `10 RX / 9 TX` on T114. Then set your LoRa region, or the radio will receive but never transmit.
+
+   Pick whichever suits you:
+
+   - **Phone app** - pair the radio over Bluetooth in the [Meshtastic app](https://meshtastic.org/docs/software/) and set the four values under Module Settings → Serial, then Region under LoRa. No computer needed.
+   - **Browser** - the [Meshtastic web client](https://meshtastic.org/docs/software/) talks to the radio over USB from Chrome or Edge. Same four settings, nothing to install.
+   - **Script** - plug the radio in on its own USB and let it do all four for you:
+
+     ```bash
+     pip3 install 'meshtastic[cli]' pyserial
+     python3 scripts/meshtastic_config.py
+     ```
+
+     With no arguments it prints the current settings and opens a menu. `--board` takes `heltec-v3` or `t114` and picks the right pins. Full options under [Radio Setup](#radio-setup).
 4. Add a watchlist entry or start a scan.
+
+> [!WARNING]
+> The AP default is `Antihunter` / `antihunt3r123`, published here and the same on every unit. Change both in RF Settings before you deploy, and set the erase PSK if you plan to use [Secure Data Destruction](#secure-data-destruction). Privacy Mode redacts the web UI only - exported logs and SD data still carry MACs, SSIDs and GPS.
 
 *To flash from a terminal or build from source, see [Build & Flash](#build--flash).*
 
@@ -119,12 +138,17 @@ Flash it from your browser.
 | **Sentinel Counterintel (Beta only)** | Passive detection of attacker-tool activity (deauth/beacon/auth/assoc floods, SAE DoS, karma, evil-twin, probe floods, handshake capture); per-detector toggles, mesh broadcast, and optional persistent start-on-boot | WiFi promiscuous |
 | **Drone RID Detection** | Identifies drones broadcasting Remote ID (ODID/ASTM F3411, French ID); Serial + CAA | WiFi beacon/NAN + BLE (BT4/BT5) |
 | **Triangulation** | Multi-node RSSI-based location estimation via mesh (experimental) | WiFi, BLE |
+
+### Everything else it does
+
+| Feature | What it does | Where |
+|---------|-------------|-------|
 | **Mesh Networking** | LoRa mesh via Meshtastic -- alerts, remote commands, coordination | UART serial |
 | **Secure Data Destruction** | Tamper-triggered or remote wipe with post-wipe obfuscation | Vibration / mesh |
- **Vibration Trigger** | Choose a scan to run when vibration detected | Vibration / mesh |
+| **Vibration Trigger** | Choose a scan to run when vibration detected | Vibration / mesh |
 | **Privacy Mode** | One-click MAC/GPS/SSID redaction for screenshots | Web UI button |
 | **Battery Saver** | 80MHz CPU, light sleep, reduced GPS, mesh heartbeat only | Mesh command |
-| **Allowlist** | Global device allowlist -- ignored across all scan modes | Web UI / API |
+| **Allowlist** | Global device allowlist -- used by Target Scan and Baseline | Web UI / API |
 | **Data Explorer** | Review findings, device logs and scan data | Web UI / API |
 | **Accent Colors** | Recolor the destructive controls and Sentinel banners | Web UI, System tab |
 
@@ -168,7 +192,7 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 - **Destination address (addr1) matching**: detects probe requests addressed TO a target MAC -- catches silent or sleeping devices that never transmit their own identity
 - **Ghost SSID detection**: cross-references probes against responses to flag SSIDs with no responding AP. Ghost SSIDs appear prefixed with `~` (e.g. `~"HomeNetwork"` vs `"CoffeeShop"`) and reveal networks the device connected to elsewhere -- location history, home/work networks, travel patterns
 - SSID watchlist: add SSIDs to the target list alongside MACs and OUIs
-- OUI vendor identification (68-vendor table)
+- OUI vendor identification (19,659-prefix IEEE table)
 - MAC randomization detection (locally-administered bit check)
 - Mesh alerting for watchlist hits (60s dedup cooldown)
 - RSSI min/max/current tracking, up to 4 probed SSIDs per device
@@ -184,6 +208,9 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 ### Attack detection & counter-intel
 
 **Sentinel - Counterintel Engine** - (Beta version only)
+
+> [!IMPORTANT]
+> Sentinel is not in the Stable firmware. Everything in this section - the detectors, the `SENTINEL_*` and `GROUP` mesh commands, the `/api/sentinel/*` endpoints and the Sentinel tab - needs a Beta build. Flash the **Beta** channel in the web flasher to get it.
 
 <p align="center">
   <img width="796" height="986" alt="Sentinel" src="docs/img/sentinel.jpg" />
@@ -461,7 +488,7 @@ pio run -e AntiHunter-full -t erase                # erase the entire flash chip
 **Build environments** (same firmware sources; differ only in features/board):
 - `AntiHunter-full` -- Web UI/SoftAP dashboard (ESPAsyncWebServer + AsyncTCP); `AntiHunter-headless` -- serial + mesh only, no web deps.
 - ESP32-C5 (2.4 + 5 GHz, testing): envs `AntiHunter-c5-full` / `-c5-headless` on the `feat/c5` branch -- see the [ESP32-C5 page](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md).
-- RadarNode (24GHz radar, experimental): env `RadarNode-c5` -- see the [RadarNode page](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md).
+- RadarNode (24GHz radar, experimental): flashed from the web flasher's **Experimental** channel -- see the [RadarNode page](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md).
 
 > [!NOTE]
 > During the Web Flash process, choose "Erase Device" if upgrading from pre v0.9.2 firmware or to clear saved settings. Preferences are also saved and synced to/from SD storage; if corrupted, settings self-heal. The Web Flasher's **Sentinel & Detectors** section configures the full detection engine (Start-on-Boot, radio mode, every detector toggle, mesh flags, thresholds) - full parity with the web UI's Detectors tab. Anything left on *Default* keeps the firmware setting.
@@ -485,7 +512,7 @@ Configure via the web interface at `http://192.168.4.1` or the [API](#api-refere
 <summary>Parameter Tuning</summary>
 
 - **WiFi Channel Time**: Passive dwell per channel (50-300ms). This is the primary WiFi knob now - it must clear the ~100ms beacon interval to catch every AP on a channel; shorter = faster channel coverage but risks missing beacons.
-- **WiFi Scan Interval**: No longer gates WiFi discovery (which is now continuous passive capture, not cyclic active scans). Retained in config/NVS for compatibility.
+- **WiFi Scan Interval**: Cadence of the all-channel AP discovery scan (1000-10000ms). Between scans, target frames are captured passively while hopping channels.
 - **BLE Scan Interval**: Time between BLE cycles (1000-10000ms).
 - **BLE Scan Duration**: Active scanning per cycle (1000-5000ms). Longer improves BLE discovery but keeps the shared radio on BLE longer, pausing WiFi channel-hopping.
 
@@ -535,7 +562,7 @@ Tamper detection and emergency data wiping.
 
 - **Privacy Mode** - one-click redaction of MACs, GPS, and SSIDs for screenshots (web UI button).
 - **Battery Saver** - stops WiFi/BLE scanning, drops CPU to 80MHz, enables light sleep, polls GPS once per minute; mesh UART stays active. Started via [mesh command](#mesh-commands).
-- **Allowlist** - global device allowlist, ignored across all scan modes (web UI / API).
+- **Allowlist** - global device allowlist, used by Target Scan and Baseline (web UI / API).
 - **Accent Colors** - sets the color of the destructive controls (STOP, the wipe buttons, Clear, error toasts, danger badges) and of the Sentinel banners; five choices each, across all three themes (web UI, System tab). Stored in the browser, not on the node.
 
 ---
@@ -556,7 +583,7 @@ Nodes function independently and coordinate via Meshtastic mesh networking.
 |---|---|---|---|---|
 | **DIGI** | ESP32-S3 | WiFi + BLE, 2.4 GHz | `AntiHunter-full` / `-headless` | stable |
 | **[DIGI C5](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/ESP32-C5.md)** | ESP32-C5 | WiFi + BLE, 2.4 **and** 5 GHz | `AntiHunter-c5-full` / `-c5-headless` | testing |
-| **[RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md)** | ESP32-C5 | 24GHz radar, WiFi/BLE on trigger | `RadarNode-c5` | experimental |
+| **[RadarNode](https://github.com/lukeswitz/AntiHunter/blob/beta/docs/RADARNODE.md)** | ESP32-C5 | 24GHz radar, WiFi/BLE on trigger | web flasher, Experimental | experimental |
 
 The C5 is a drop-in replacement for the S3 on the same board - same pads, same peripherals, and it adds 5 GHz scanning. A RadarNode detects a moving target on radar, then sweeps WiFi and BLE to record which devices were present at that moment; it tags its `STATUS` reply with `TYPE:RADAR`, which the RadarNode UI and the Command Center use to type peers. Both are flashed from the [web flasher](https://lukeswitz.github.io/AntiHunter/) under the **Experimental** channel, which asks you to acknowledge that these are test builds before it will flash.
 
@@ -696,7 +723,6 @@ All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 | `CONFIG_NODEID` | Rename the node | 2-5 alphanumeric | `@AH01 CONFIG_NODEID:AH02` |
 | `CONFIG_RSSI` | Set the RSSI floor | -128 to -10 | `@ALL CONFIG_RSSI:-80` |
 | `CONFIG_CHANNELS` | Set the channels to sweep | Comma-separated or a range | `@ALL CONFIG_CHANNELS:1..11` |
-| `CONFIG_BAND` | Pick the band, C5 only | `0` 2.4, `1` 5, `2` both | `@ALL CONFIG_BAND:2` |
 | `CONFIG_DEDUP_TTL` | Set cross-scan MAC dedup | Seconds 0-3600, 0 disables | `@ALL CONFIG_DEDUP_TTL:300` |
 | `CONFIG_SESSION_DEDUP` | Toggle per-session dedup | `0`/`1` | `@ALL CONFIG_SESSION_DEDUP:1` |
 | `MESH_DEDUP_CLEAR` | Clear the dedup cache | None | `@ALL MESH_DEDUP_CLEAR` |
@@ -727,6 +753,8 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 
 ### Sentinel (Beta version only)
 
+These commands are only present on Beta firmware. On Stable they are not recognized.
+
 | Command | Does | Parameters | Example |
 |---------|------|------------|---------|
 | `SENTINEL_ON` / `SENTINEL_OFF` | Start or stop Sentinel | None | `@ALL SENTINEL_ON` |
@@ -746,19 +774,6 @@ The `+PROBE` flag on `DEVICE_SCAN_START` enables probe request capture during de
 `DETECT_CFG` sets the rest: `ssid_confusion`, `pwna`, `csa_quiet`, `rid_spoof`, `bloom_gossip`, `ble_malformed`, the 15 `mesh_*` emit toggles and the numeric thresholds. `DETECT_CFG_GET` prints every key to serial. `GROUP` and `DETECT_CFG` write to NVS. Deauth, beacon and auth detection have no toggle.
 
 Headless has no SoftAP. `defend` pins to whatever channel the radio last used, so use `scan`.
-| Command | Parameters | Example |
-|---------|------------|---------|
-| `SENTINEL_ON` / `SENTINEL_OFF` | None | `@ALL SENTINEL_ON` |
-| `SENTINEL_STATUS` | None | `@AH01 SENTINEL_STATUS` |
-| `SENTINEL_MODE` | `defend` (pin AP channel) or `scan` (hop all channels) | `@ALL SENTINEL_MODE:scan` |
-| `SENTINEL_BOOT` | `1`/`0` — persist auto-start on boot (NVS `sentBoot`) | `@ALL SENTINEL_BOOT:1` |
-| `GROUP` | `<name>:<on\|off>` — toggle a detector group (name: dos, rogue, recon, physical, mesh, all). ACK: `GROUP_ACK:OK:<name>:<on\|off>` or `GROUP_ACK:FAIL:<reason>` | `@ALL GROUP:dos:on` |
-| `DETECT_CFG` | `<json>` — apply detector tunables (JSON, ≤180 chars). ACK: `DETECT_CFG_ACK:OK` or `:FAIL` | `@AH01 DETECT_CFG:{"pmkid":true}` |
-| `DETECT_CFG_GET` | None — dumps current detector config to serial. ACK: `DETECT_CFG_LEN:<n>` (see serial) | `@AH01 DETECT_CFG_GET` |
-| `INCIDENTS` | `[:<1-200>]` — dumps sentinel incident log to serial. ACK: `INCIDENTS_LEN:<n>` (see serial) | `@AH01 INCIDENTS:50` |
-| `INCIDENTS_CLEAR` | None — clear incident log. ACK: `INCIDENTS_CLEAR_ACK:OK` | `@ALL INCIDENTS_CLEAR` |
-| `ATTACKER_TRILAT` | `1`/`0` — auto-triangulate the source MAC of a confirmed attack (deauth flood, SAE DoS, PMKID, evil-twin, etc.), per-MAC cooldown. Off by default. ACK: `ATTACKER_TRILAT_ACK:ON`/`:OFF` | `@ALL ATTACKER_TRILAT:1` |
-| `ATTACKER_TRILAT_STATUS` | None. Reply: `ATTACKER_TRILAT_STATUS: ON`/`OFF` | `@AH01 ATTACKER_TRILAT_STATUS` |
 
 <details>
 <summary>Triangulation Commands</summary>
@@ -831,19 +846,19 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 
 | Alert Type | Format |
 |------------|--------|
-| Target Detected | `NODE_ID: Target: TYPE MAC RSSI:dBm [Name:name] [GPS=lat,lon]` |
-| Baseline Anomaly | `NODE_ID: ANOMALY-NEW/RETURN/RSSI: TYPE MAC RSSI:dBm [details]` |
+| Target Detected | `NODE_ID: Target: MAC RSSI:N Type:WiFi\|BLE [Name:name] [GPS=lat,lon]` |
+| Baseline Anomaly | `NODE_ID: ANOMALY-NEW: TYPE MAC RSSI:N [Name:name]` · `NODE_ID: ANOMALY-RETURN: TYPE MAC RSSI:NdBm [Name:name]` · `NODE_ID: ANOMALY-RSSI: TYPE MAC Old:NdBm New:NdBm Delta:NdBm` · `NODE_ID: ANOMALY: TYPE MAC RSSI:N reason [N:name]` |
 | Deauth Attack | `NODE_ID: ATTACK: DEAUTH\|DISASSOC [BROADCAST\|TARGETED] SRC:MAC DST:MAC RSSI:dBm CH:N R:reason [GPS:lat,lon]` |
 | Drone Detected | `NODE_ID: DRONE: MAC ID:uavId R-dBm [GPS:lat,lon] [ALT:m] [SPD:m/s] [OP:lat,lon]` - sent once per appearance, WiFi and BLE alike. Telemetry fields are dropped if the line would exceed the mesh MTU. A drone that stays in range is never re-announced; one that returns after going stale is re-announced at most once per 120s |
 | Drone Lost | `NODE_ID: DRONE_LOST: MAC [ID:uavId] AGE:secs` - sent once, 120s after the last Remote ID beacon. Not repeated while the aircraft stays away, and the Web UI keeps the detection, marked stale |
-| Triangulation Data | `NODE_ID: T_D: MAC Hits=N RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` - one per participating node per reporting cycle, coordinator included. Slots are assigned by node-ID order, so every node derives the same rotation |
+| Triangulation Data | `NODE_ID: T_D: MAC Hits=N RSSI:N [GPS=lat,lon HDOP=X.X]` - one per participating node per reporting cycle, coordinator included. Slots are assigned by node-ID order, so every node derives the same rotation |
 | Triangulation Final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
-| Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
+| Triangulation Complete | `NODE_ID: T_C: MAC=addr Nodes=N`, plus ` GPS=lat,lon CONF=pct URL=<maps link>` when trilateration solved |
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="network" [GHOST]] [DST]` - vendor token omitted entirely when unknown |
 | Packet Capture Started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` - `D=0` means the capture runs until stopped |
 | Packet Capture Done | `NODE_ID: PCAP_DONE: F=frames B=bytes D=dropped` - `D` counts frames the SD writer could not keep up with |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
-| Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:STATE Hits:N Temp:XXC Up:HH:MM:SS GPS=lat,lon` |
+| Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE\|IDLE Hits:N Temp:XX.XC Up:HH:MM:SS [GPS:lat,lon HDOP=X.X]` |
 
 </details>
 
@@ -994,6 +1009,8 @@ The **Data** tab in the web UI provides a searchable, sortable view of all SD-lo
 | `/api/antihunter.log/clear` | POST | Clear system log |
 
 Available datasets: All Discovered Devices, Probe Devices, Probe Events, Deauth Attacks, Drone Detections, Vibration Events, Baseline Stats, Sentinel Incidents, and System Log. All datasets support export (download the raw file) and clear (with confirmation). The headless firmware logs the same data to SD without the web UI, except the device database, which is web-build only.
+
+**Endpoints not listed above.** Each detector keeps its own SD log at `/api/<detector>.jsonl`, and most take a `/api/<detector>/clear` POST. Current detectors: `assoc_sleep`, `ble_attack`, `ble_malformed`, `deauth_ap`, `deauth_flood`, `eapol_bait`, `eviltwin`, `fragattack`, `jamming`, `meshguard`, `owe_abuse`, `pmkid`, `pmkid_forge`, `probe_ap`, `probe_flood`, `sae_dos`, `ssid_confusion`. A few return live JSON instead of a file: `/api/tsf_skew`, `/api/pwnagotchi`, `/api/recon`, `/api/karma`, `/api/handshakes`, `/api/attacker_hunts`. `GET /diag` dumps runtime state. For anything else, the full route list is the set of `server->on(` calls in `Antihunter/full/src/network.cpp`.
 
 <details>
 <summary>Configuration Endpoints</summary>
