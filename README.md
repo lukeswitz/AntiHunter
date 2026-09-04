@@ -670,10 +670,26 @@ cd AntiHunter
 
 ```bash
 pio device list                                       # list connected devices
-pio run -e AntiHunter-c5-full -t upload               # flash full firmware (web UI)
-pio run -e AntiHunter-c5-headless -t upload           # flash headless firmware
-pio device monitor -e AntiHunter-c5-full              # serial monitor
-pio run -e AntiHunter-c5-full -t erase -t upload      # clean flash (erase + upload)
+```
+
+Now pick which firmware you want. Full gives you the web UI; headless is serial and mesh only. Both go on the same board, so run one of these, not both.
+
+```bash
+pio run -e AntiHunter-c5-full -t upload               # full firmware: web UI, SoftAP dashboard
+```
+
+```bash
+pio run -e AntiHunter-c5-headless -t upload           # headless firmware: serial + mesh only
+```
+
+```bash
+pio device monitor -e AntiHunter-c5-full              # watch the node's serial output
+```
+
+Erasing wipes the whole flash chip, saved settings and all, and leaves the board with nothing on it. Only reach for it when you want to start clean, and upload again afterwards.
+
+```bash
+pio run -e AntiHunter-c5-full -t erase                # erase the entire flash chip
 ```
 
 Both environments build from the same sources and differ only in features. `AntiHunter-c5-full` adds the SoftAP dashboard (ESPAsyncWebServer + AsyncTCP); `AntiHunter-c5-headless` is serial and mesh only, with no web dependencies. Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`.
