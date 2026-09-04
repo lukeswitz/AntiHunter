@@ -454,7 +454,7 @@ String pwnagotchi_getJson() {
     std::lock_guard<std::recursive_mutex> lk(g_mtx);
     String out = "[";
     bool first = true;
-    for (auto &kv : g_pwna) {
+    for (const auto &kv : g_pwna) {
         if (!first) out += ",";
         first = false;
         out += "{\"bssid\":\"" + macStr(kv.second.bssid) + "\"" +
@@ -867,7 +867,7 @@ void persistSnapshot() {
     h.tsf    = 0;
     h.pwna   = g_pwna.size();
     f_w.write(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
-    for (auto &kv : g_recon) {
+    for (const auto &kv : g_recon) {
         char id[10] = {0};
         strncpy(id, kv.second.identityId, 9);
         f_w.write(reinterpret_cast<const uint8_t*>(id), 10);
@@ -875,7 +875,7 @@ void persistSnapshot() {
         f_w.write(reinterpret_cast<const uint8_t*>(kv.second.reasons), 96);
         f_w.write(reinterpret_cast<const uint8_t*>(&kv.second.ts), 4);
     }
-    for (auto &kv : g_pwna) {
+    for (const auto &kv : g_pwna) {
         f_w.write(kv.second.bssid, 6);
         f_w.write(reinterpret_cast<const uint8_t*>(&kv.second.observations), 2);
         int8_t br = kv.second.bestRssi;

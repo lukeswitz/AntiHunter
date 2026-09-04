@@ -303,10 +303,12 @@ void SafeSD::forceRecheck() {
     lastCheckTime = 0;
 }
 
+// cppcheck-suppress unusedFunction // headless has no diagnostics page; the counter is read over serial
 uint32_t SafeSD::mountFailureCount() {
     return sdMountFailures;
 }
 
+// cppcheck-suppress unusedFunction // headless has no diagnostics page; the counter is read over serial
 uint32_t SafeSD::writeRetryCount() {
     return sdWriteRetries;
 }
