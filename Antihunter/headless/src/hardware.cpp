@@ -1155,13 +1155,16 @@ bool sdMountOrRepair() {
         }
     }
 
-    hz = SD_SPI_HZ_FALLBACK;
-    SD.end();
-    if (SD.begin(SD_CS_PIN, SPI, hz)) {
-        sdMountedHz = hz;
-        Serial.printf("[SD] the bus would not run at %lu Hz - mounted at %lu Hz\n",
-                      (unsigned long)SD_SPI_HZ, (unsigned long)hz);
-        return true;
+    const uint32_t stepDown[2] = {SD_SPI_HZ_SAFE, SD_SPI_HZ_FALLBACK};
+    for (uint32_t next : stepDown) {
+        hz = next;
+        SD.end();
+        if (SD.begin(SD_CS_PIN, SPI, hz)) {
+            sdMountedHz = hz;
+            Serial.printf("[SD] the bus would not run at %lu Hz - mounted at %lu Hz\n",
+                          (unsigned long)SD_SPI_HZ, (unsigned long)hz);
+            return true;
+        }
     }
 
     if (!sdAutoRepair) {

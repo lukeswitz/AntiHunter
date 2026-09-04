@@ -25,7 +25,10 @@
 #define SD_CLK_PIN  7    // CLK on D8
 #define SD_MISO_PIN 8    // MISO on D9
 #define SD_MOSI_PIN 9    // MOSI on D10
-#define SD_SPI_HZ          4000000
+#ifndef SD_SPI_HZ
+#define SD_SPI_HZ          16000000
+#endif
+#define SD_SPI_HZ_SAFE     4000000
 #define SD_SPI_HZ_FALLBACK 400000
 
 // GPS (UART)
