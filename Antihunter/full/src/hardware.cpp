@@ -6,6 +6,8 @@
 #include "csi.h"
 #include "pcap.h"
 #include <Arduino.h>
+#include <errno.h>
+#include <string.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
@@ -121,6 +123,7 @@ uint32_t SafeSD::sdWriteRetries = 0;
 uint32_t SafeSD::lastMountLogMs = 0;
 
 bool sdAutoRepair = false;
+static uint32_t sdMountedHz = SD_SPI_HZ;
 
 void setSdAutoRepair(bool on) {
     sdAutoRepair = on;
@@ -142,7 +145,7 @@ bool SafeSD::checkAvailability() {
     }
     lastCheckTime = now;
     const bool was = lastCheckResult;
-    lastCheckResult = SD.begin(SD_CS_PIN);
+    lastCheckResult = SD.begin(SD_CS_PIN, SPI, sdMountedHz);
     sdAvailable = lastCheckResult;
     if (!lastCheckResult) {
         sdMountFailures++;
@@ -260,20 +263,24 @@ size_t SafeSD::write(fs::File& file, const uint8_t* data, size_t len) {
         return 0;
     }
     
+    errno = 0;
     size_t written = file.write(data, len);
     if (written == len) return written;
+    const int firstErr = errno;
 
-    // FatFs latches a disk error on the file object (ff.c f_write checks fp->err first, ABORT
-    // sets it) and only f_open clears it, so retrying this handle can never succeed. One short
-    // pause covers a card that was merely busy; past that the caller must reopen the file.
+    // ff.c f_write checks fp->err first and ABORT latches it, so only a reopen clears the handle.
     delay(30);
+    errno = 0;
     const size_t more = file.write(data + written, len - written);
+    const int retryErr = errno;
     written += more;
     if (more) sdWriteRetries++;
 
     if (written != len) {
-        Serial.printf("[SAFE_SD] Partial write after retries: %u/%u bytes\n",
-                      (unsigned)written, (unsigned)len);
+        const int reported = retryErr ? retryErr : firstErr;
+        Serial.printf("[SAFE_SD] Partial write after retries: %u/%u bytes (errno %d/%d: %s)\n",
+                      (unsigned)written, (unsigned)len, firstErr, retryErr,
+                      reported ? strerror(reported) : "none");
     }
     return written;
 }
@@ -1383,7 +1390,8 @@ String getDiagnostics() {
 // during a write can leave the card unmountable. Try a plain mount, then a bus re-init,
 // then let the library rebuild the filesystem if it reports there isn't one.
 bool sdMountOrRepair() {
-    if (SD.begin(SD_CS_PIN, SPI, 400000)) return true;
+    uint32_t hz = SD_SPI_HZ;
+    if (SD.begin(SD_CS_PIN, SPI, hz)) { sdMountedHz = hz; return true; }
 
     for (int i = 0; i < 3; i++) {
         SD.end();
@@ -1391,10 +1399,20 @@ bool sdMountOrRepair() {
         delay(80 * (i + 1));
         SPI.begin(SD_CLK_PIN, SD_MISO_PIN, SD_MOSI_PIN);
         delay(20);
-        if (SD.begin(SD_CS_PIN, SPI, 400000)) {
+        if (SD.begin(SD_CS_PIN, SPI, hz)) {
+            sdMountedHz = hz;
             Serial.printf("[SD] mounted after %d bus re-init(s)\n", i + 1);
             return true;
         }
+    }
+
+    hz = SD_SPI_HZ_FALLBACK;
+    SD.end();
+    if (SD.begin(SD_CS_PIN, SPI, hz)) {
+        sdMountedHz = hz;
+        Serial.printf("[SD] the bus would not run at %lu Hz - mounted at %lu Hz\n",
+                      (unsigned long)SD_SPI_HZ, (unsigned long)hz);
+        return true;
     }
 
     if (!sdAutoRepair) {
@@ -1405,7 +1423,8 @@ bool sdMountOrRepair() {
 
     Serial.println("[SD] mount failed - rebuilding the filesystem (this erases the card)");
     SD.end();
-    if (SD.begin(SD_CS_PIN, SPI, 400000, "/sd", 5, true)) {
+    if (SD.begin(SD_CS_PIN, SPI, hz, "/sd", 5, true)) {
+        sdMountedHz = hz;
         Serial.println("[SD] filesystem rebuilt, card back in service");
         return true;
     }
@@ -1430,8 +1449,9 @@ void initializeSD()
         uint64_t cardSize = SD.cardSize() / (1024 * 1024);
         const uint64_t totalMB = SD.totalBytes() / (1024ULL * 1024ULL);
         const uint64_t usedMB = SD.usedBytes() / (1024ULL * 1024ULL);
-        Serial.printf("SD Card initialized: %lluMB (fs %lluMB, used %lluMB, free %lluMB)\n",
-                      cardSize, totalMB, usedMB, totalMB > usedMB ? totalMB - usedMB : 0ULL);
+        Serial.printf("SD Card initialized: %lluMB (fs %lluMB, used %lluMB, free %lluMB) at %lu Hz\n",
+                      cardSize, totalMB, usedMB, totalMB > usedMB ? totalMB - usedMB : 0ULL,
+                      (unsigned long)sdMountedHz);
         sdAvailable = true;
         SafeSD::forceRecheck();
         delay(10);        
