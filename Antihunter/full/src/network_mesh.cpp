@@ -850,6 +850,7 @@ static void handleCsiMotionStart(const String &command)
   bool telem = false;
   bool raw = false;
   bool train = false;
+  uint32_t solicitMs = 0;
 
   int idx = 0;
   while (params.length() > 0) {
@@ -860,6 +861,7 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "TELEM") telem = true;
     else if (tok == "RAW") raw = true;
     else if (tok == "TRAIN") train = true;
+    else if (tok.startsWith("SOLICIT")) solicitMs = (uint32_t)tok.substring(7).toInt();
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
     if (colon < 0) break;
     params = params.substring(colon + 1);
@@ -869,12 +871,16 @@ static void handleCsiMotionStart(const String &command)
   if (secs < 0) secs = 0;
   if (secs > 86400) secs = 86400;
   if (ch > 14) ch = 0;
+  if (solicitMs && solicitMs < 10) solicitMs = 10;
+  if (solicitMs > 1000) solicitMs = 1000;
 
   if (scanning || workerTaskHandle || blueTeamTaskHandle || triangulationActive) {
     Serial.println("[MESH] Radio busy, rejecting CSI_MOTION_START");
     sendToSerial1(nodeId + ": CSI_ACK:BUSY", true);
     return;
   }
+
+  csiSolicitMs.store(solicitMs);
 
   setCsiConfig(ch, (float)csiThresholdMilli.load() / 1000.0f, csiHoldMs.load(),
                csiConsecNeeded.load(), raw, telem, train);

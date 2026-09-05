@@ -2,15 +2,24 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+
+static const int NSC = 64;
+static const float BW = 20e6f;
 
 static unsigned long rngState = 12345;
 static float frand() {
     rngState = rngState * 1103515245UL + 12345UL;
     return (float)((rngState >> 16) & 0x7fff) / 32767.0f;
 }
+static float gauss() {
+    float u = frand(), v = frand();
+    if (u < 1e-7f) u = 1e-7f;
+    return sqrtf(-2.0f * logf(u)) * cosf(6.2831853f * v);
+}
 
 static void makePacket(int8_t *buf, const float *chanReal, const float *chanImag, float noise) {
-    for (int idx = 0; idx < 64; idx++) {
+    for (int idx = 0; idx < NSC; idx++) {
         float re = chanReal[idx] + noise * (frand() - 0.5f);
         float im = chanImag[idx] + noise * (frand() - 0.5f);
         if (re > 127.0f) re = 127.0f;
@@ -22,179 +31,216 @@ static void makePacket(int8_t *buf, const float *chanReal, const float *chanImag
     }
 }
 
-static float feed(CsiScorer &s, const float *re, const float *im, float noise, int n, bool holdFloor) {
+struct Path { float amp, delay, dopp, phase; };
+
+// dopp != 0 is a moving scatterer, so the channel varies in time
+static void channelAt(const Path *p, int np, float t, float *re, float *im) {
+    for (int k = 0; k < NSC; k++) {
+        const float fk = ((float)k - NSC / 2.0f) * (BW / NSC);
+        float sr = 0.0f, si = 0.0f;
+        for (int i = 0; i < np; i++) {
+            const float ph = p[i].phase + 6.2831853f * p[i].dopp * t - 6.2831853f * fk * p[i].delay;
+            sr += p[i].amp * cosf(ph);
+            si += p[i].amp * sinf(ph);
+        }
+        re[k] = sr; im[k] = si;
+    }
+}
+
+static void quantize(const float *re, const float *im, float noise, int8_t *buf) {
+    float p = 0.0f;
+    for (int k = 0; k < NSC; k++) p += re[k] * re[k] + im[k] * im[k];
+    const float rms = sqrtf(p / NSC);
+    const float g = (rms > 0.0f) ? (45.0f / rms) : 1.0f;
+    for (int k = 0; k < NSC; k++) {
+        float r = g * re[k] + noise * gauss();
+        float q = g * im[k] + noise * gauss();
+        if (r > 127.0f) r = 127.0f; if (r < -127.0f) r = -127.0f;
+        if (q > 127.0f) q = 127.0f; if (q < -127.0f) q = -127.0f;
+        buf[k * 2]     = (int8_t)lrintf(q);
+        buf[k * 2 + 1] = (int8_t)lrintf(r);
+    }
+}
+
+static float feed(CsiScorer &s, const float *re, const float *im, float noise, int n,
+                  bool holdFloor, uint32_t dtUs) {
     int8_t buf[128];
     float a[CSI_NSUB];
     float last = 0.0f;
     for (int i = 0; i < n; i++) {
         makePacket(buf, re, im, noise);
         if (!csiAmplitudes(buf, a)) continue;
-        if (s.update(a, holdFloor)) last = s.score;
+        if (s.update(a, holdFloor, dtUs)) last = s.score;
     }
     return last;
 }
 
-static float feedPeak(CsiScorer &s, const float *re, const float *im, float noise, int n, bool holdFloor) {
+static float feedPeak(CsiScorer &s, const float *re, const float *im, float noise, int n,
+                      bool holdFloor, uint32_t dtUs) {
     int8_t buf[128];
     float a[CSI_NSUB];
     float peak = 0.0f;
     for (int i = 0; i < n; i++) {
         makePacket(buf, re, im, noise);
         if (!csiAmplitudes(buf, a)) continue;
-        if (s.update(a, holdFloor) && s.score > peak) peak = s.score;
+        if (s.update(a, holdFloor, dtUs) && s.score > peak) peak = s.score;
     }
     return peak;
 }
 
+static void feedChannel(CsiScorer &s, const Path *p, int np, float noise, int n,
+                        uint32_t dtUs, bool holdFloor) {
+    float re[NSC], im[NSC], a[CSI_NSUB];
+    int8_t buf[128];
+    double t = 0.0;
+    for (int i = 0; i < n; i++) {
+        t += (double)dtUs / 1e6;
+        channelAt(p, np, (float)t, re, im);
+        quantize(re, im, noise, buf);
+        if (!csiAmplitudes(buf, a)) continue;
+        s.update(a, holdFloor, dtUs);
+    }
+}
+
+static void mkStatic(Path *p, int &np) {
+    np = 0;
+    for (int i = 0; i < 6; i++) {
+        p[np].amp = 1.0f / (1.0f + i * 0.6f);
+        p[np].delay = (float)i * 25e-9f;
+        p[np].dopp = 0.0f;
+        p[np].phase = frand() * 6.2831853f;
+        np++;
+    }
+}
+static void addMover(Path *p, int &np, float fd) {
+    p[np].amp = 0.45f; p[np].delay = 120e-9f; p[np].dopp = fd;
+    p[np].phase = frand() * 6.2831853f; np++;
+}
+
+// a walking body is torso plus limbs, so it radiates a Doppler spread, not one tone
+static void addWalker(Path *p, int &np, float scale) {
+    const float fd[4] = {1.5f, 3.0f, 6.5f, 11.0f};
+    const float amp[4] = {0.30f, 0.22f, 0.15f, 0.10f};
+    for (int i = 0; i < 4; i++) {
+        p[np].amp = amp[i] * scale;
+        p[np].delay = (110.0f + 15.0f * i) * 1e-9f;
+        p[np].dopp = fd[i];
+        p[np].phase = frand() * 6.2831853f;
+        np++;
+    }
+}
+
 int main() {
-    float re[64], im[64];
-    for (int i = 0; i < 64; i++) {
-        re[i] = 30.0f + 20.0f * sinf(i * 0.31f);
-        im[i] = 25.0f + 20.0f * cosf(i * 0.17f);
+    Path p[16]; int np;
+    const uint32_t LAG = CSI_ACF_LAG_US;
+    const float ETA = CSI_ACF_ETA;
+
+    printf("== WiDetect null: static channel, noise only ==\n");
+    printf("   paper: rho_hat ~ N(-1/T, 1/T); T=%u -> mean %.4f\n",
+           CSI_ACF_T, -1.0f / (float)CSI_ACF_T);
+    {
+        mkStatic(p, np);
+        CsiScorer s; s.reset();
+        feedChannel(s, p, np, 2.0f, 6000, LAG, false);
+        printf("   acf=%+.4f vote=%.2f pairs=%u\n", s.acf, s.vote, s.acfPairs);
+        assert(fabsf(s.acf) < ETA);
+        assert(s.acfPairs > CSI_ACF_T);
     }
 
-    CsiScorer s;
-    s.reset();
-
-    float stillScore = feed(s, re, im, 3.0f, 400, false);
-    printf("still:  score=%.3f mad=%.5f floor=%.5f\n", stillScore, s.mad, s.floorMad);
-    assert(s.warm >= CSI_WARMUP_PKTS);
-    assert(stillScore < 2.5f);
-
-    float gainOnly[64], gainOnlyIm[64];
-    for (int i = 0; i < 64; i++) {
-        gainOnly[i] = re[i] * 0.35f;
-        gainOnlyIm[i] = im[i] * 0.35f;
-    }
-    float agcScore = feedPeak(s, gainOnly, gainOnlyIm, 1.0f, 60, false);
-    printf("agc:    peak=%.3f floor=%.5f\n", agcScore, s.floorMad);
-    assert(agcScore < 2.5f);
-
-    CsiScorer m;
-    m.reset();
-    feed(m, re, im, 3.0f, 400, false);
-    float quietFloor = m.floorMad;
-
-    float mre[64], mim[64];
-    for (int i = 0; i < 64; i++) {
-        mre[i] = re[i] + 14.0f * sinf(i * 0.9f);
-        mim[i] = im[i] - 14.0f * cosf(i * 0.7f);
-    }
-    float motionScore = feedPeak(m, mre, mim, 3.0f, 40, true);
-    printf("motion: peak=%.3f floor=%.5f (quiet floor %.5f)\n", motionScore, m.floorMad, quietFloor);
-    assert(motionScore > 2.5f);
-
-    CsiScorer f;
-    f.reset();
-    feed(f, re, im, 3.0f, 400, false);
-    float floorBefore = f.floorMad;
-    feed(f, mre, mim, 3.0f, 300, true);
-    printf("hold:   floor before=%.5f after=%.5f (ratio %.2f)\n",
-           floorBefore, f.floorMad, f.floorMad / floorBefore);
-    assert(f.floorMad < floorBefore * 1.5f);
-    assert(f.floorMad > floorBefore * 0.5f);
-
-    CsiScorer d;
-    d.reset();
-    feed(d, re, im, 3.0f, 400, false);
-    float driftBefore = d.floorMad;
-    feed(d, mre, mim, 3.0f, 300, false);
-    printf("drift:  floor before=%.5f after=%.5f\n", driftBefore, d.floorMad);
-    assert(d.floorMad > driftBefore);
-
-    CsiScorer z;
-    z.reset();
-    int8_t zero[128] = {0};
-    float a[CSI_NSUB];
-    assert(!csiAmplitudes(zero, a));
-    printf("zero:   rejected\n");
-
-    printf("\n-- false positives on a still channel (trigger 2.5x, 3 consecutive) --\n");
-    for (int trial = 0; trial < 3; trial++) {
-        CsiScorer fp;
-        fp.reset();
-        feed(fp, re, im, 3.0f, 200, false);
-
-        int8_t buf[128];
-        float amp[CSI_NSUB];
-        int over = 0, runs = 0, consec = 0, scored = 0;
-        for (int i = 0; i < 20000; i++) {
-            makePacket(buf, re, im, 3.0f);
-            if (!csiAmplitudes(buf, amp)) continue;
-            if (!fp.update(amp, false)) continue;
-            scored++;
-            if (fp.score >= 2.5f) {
-                over++;
-                consec++;
-                if (consec == 3) runs++;
-            } else {
-                consec = 0;
-            }
+    printf("== motion: walking body, Doppler spread 1.5-11 Hz ==\n");
+    {
+        const float mag[4] = {1.0f, 0.6f, 0.35f, 0.2f};
+        for (int i = 0; i < 4; i++) {
+            mkStatic(p, np);
+            addWalker(p, np, mag[i]);
+            CsiScorer s; s.reset();
+            feedChannel(s, p, np, 2.0f, 6000, LAG, false);
+            printf("   scale=%.2f  acf=%+.4f vote=%.2f  %s\n",
+                   mag[i], s.acf, s.vote, s.acf >= ETA ? "DETECT" : "miss");
+            assert(s.acf > ETA);
         }
-        printf("still %d: %d/%d packets over 2.5x, %d would have latched (3 consecutive)\n",
-               trial, over, scored, runs);
-        assert(runs == 0);
     }
 
-    printf("\n-- sensitivity: channel perturbation vs peak score (noise 3.0 on |h| ~ %.1f) --\n",
-           [&]{ float s2 = 0; for (int i = 0; i < 64; i++) s2 += sqrtf(re[i]*re[i] + im[i]*im[i]); return s2 / 64.0f; }());
-    const float fracs[] = {0.01f, 0.02f, 0.03f, 0.05f, 0.08f, 0.12f, 0.20f, 0.35f};
-    float tripFrac = -1.0f;
-    for (unsigned fi = 0; fi < sizeof(fracs) / sizeof(fracs[0]); fi++) {
-        const float f2 = fracs[fi];
-        float pre[64], pim[64];
-        for (int i = 0; i < 64; i++) {
-            const float h = sqrtf(re[i] * re[i] + im[i] * im[i]);
-            pre[i] = re[i] + f2 * h * sinf(i * 0.9f);
-            pim[i] = im[i] - f2 * h * cosf(i * 0.7f);
+    printf("== known blind spot: a single tone at 1/(4*tau) = %.1f Hz ==\n",
+           1e6f / (4.0f * (float)LAG));
+    {
+        const float fds[3] = {3.0f, 5.0f, 7.5f};
+        for (int i = 0; i < 3; i++) {
+            mkStatic(p, np);
+            addMover(p, np, fds[i]);
+            CsiScorer s; s.reset();
+            feedChannel(s, p, np, 2.0f, 6000, LAG, false);
+            printf("   fD=%4.1f Hz  acf=%+.4f  theory cos(2*pi*fD*tau)=%+.4f\n",
+                   fds[i], s.acf, cosf(6.2831853f * fds[i] * (float)LAG / 1e6f));
         }
-        CsiScorer p;
-        p.reset();
-        feed(p, re, im, 3.0f, 400, false);
-        float peak = feedPeak(p, pre, pim, 3.0f, 40, true);
-        printf("  perturbation %5.1f%% of |h| -> peak score %6.2fx  %s\n",
-               f2 * 100.0f, peak, peak >= 2.5f ? "LATCH" : "quiet");
-        if (tripFrac < 0.0f && peak >= 2.5f) tripFrac = f2;
     }
-    assert(tripFrac > 0.0f);
-    printf("  trips at >= %.0f%% channel perturbation under 3.0-unit per-packet noise\n", tripFrac * 100.0f);
 
-    printf("\n-- tuning tradeoff: trigger vs still-channel false latches (20000 still packets) --\n");
-    const float trigs[] = {1.5f, 1.8f, 2.0f, 2.5f, 3.0f};
-    for (unsigned ti = 0; ti < sizeof(trigs) / sizeof(trigs[0]); ti++) {
-        const float trig = trigs[ti];
+    printf("== lag gate: out-of-window pairs must not enter the ACF ==\n");
+    {
+        mkStatic(p, np);
+        CsiScorer fast; fast.reset();
+        feedChannel(fast, p, np, 2.0f, 2000, CSI_ACF_LAG_MIN_US / 4, false);
+        printf("   dt=%uus below min -> pairs=%u\n", CSI_ACF_LAG_MIN_US / 4, fast.acfPairs);
+        assert(fast.acfPairs == 0);
 
-        CsiScorer fp;
-        fp.reset();
-        feed(fp, re, im, 3.0f, 200, false);
-        int8_t buf[128];
-        float amp[CSI_NSUB];
-        int runs = 0, consec = 0;
-        for (int i = 0; i < 20000; i++) {
-            makePacket(buf, re, im, 3.0f);
-            if (!csiAmplitudes(buf, amp)) continue;
-            if (!fp.update(amp, false)) continue;
-            if (fp.score >= trig) { consec++; if (consec == 3) runs++; }
-            else consec = 0;
+        CsiScorer slow; slow.reset();
+        feedChannel(slow, p, np, 2.0f, 2000, CSI_ACF_LAG_MAX_US * 4, false);
+        printf("   dt=%uus above max -> pairs=%u\n", CSI_ACF_LAG_MAX_US * 4, slow.acfPairs);
+        assert(slow.acfPairs == 0);
+    }
+
+    printf("== holdFloor must actually freeze the floors ==\n");
+    {
+        mkStatic(p, np);
+        CsiScorer base; base.reset();
+        feedChannel(base, p, np, 2.0f, 3000, LAG, false);
+        const float fBefore = base.acfFloor, mBefore = base.floorMad;
+
+        mkStatic(p, np); addWalker(p, np, 1.0f);
+
+        CsiScorer held = base;
+        feedChannel(held, p, np, 2.0f, 3000, LAG, true);
+        printf("   held: acfFloor %.4f -> %.4f   madfloor %.5f -> %.5f\n",
+               fBefore, held.acfFloor, mBefore, held.floorMad);
+        assert(held.acfFloor == fBefore);
+        assert(held.floorMad == mBefore);
+
+        CsiScorer freeRun = base;
+        feedChannel(freeRun, p, np, 2.0f, 3000, LAG, false);
+        printf("   free: acfFloor %.4f -> %.4f\n", fBefore, freeRun.acfFloor);
+        assert(freeRun.acfFloor != fBefore);
+    }
+
+    printf("== separation at the operating threshold ==\n");
+    {
+        mkStatic(p, np);
+        CsiScorer q; q.reset();
+        feedChannel(q, p, np, 2.0f, 6000, LAG, false);
+
+        mkStatic(p, np); addWalker(p, np, 1.0f);
+        CsiScorer m; m.reset();
+        feedChannel(m, p, np, 2.0f, 6000, LAG, false);
+
+        printf("   quiet acf=%+.4f   moving acf=%+.4f   eta=%.2f\n", q.acf, m.acf, ETA);
+        assert(q.acf < ETA);
+        assert(m.acf > ETA);
+    }
+
+    printf("== fixed-channel generator: AGC step must not read as motion ==\n");
+    {
+        float re[NSC], im[NSC], lo[NSC], loIm[NSC];
+        for (int i = 0; i < NSC; i++) {
+            re[i] = 30.0f + 20.0f * sinf(i * 0.31f);
+            im[i] = 25.0f + 20.0f * cosf(i * 0.17f);
+            lo[i] = re[i] * 0.35f;
+            loIm[i] = im[i] * 0.35f;
         }
-
-        float smallest = -1.0f;
-        for (unsigned fi = 0; fi < sizeof(fracs) / sizeof(fracs[0]); fi++) {
-            const float f2 = fracs[fi];
-            float pre[64], pim[64];
-            for (int i = 0; i < 64; i++) {
-                const float h = sqrtf(re[i] * re[i] + im[i] * im[i]);
-                pre[i] = re[i] + f2 * h * sinf(i * 0.9f);
-                pim[i] = im[i] - f2 * h * cosf(i * 0.7f);
-            }
-            CsiScorer p;
-            p.reset();
-            feed(p, re, im, 3.0f, 400, false);
-            if (feedPeak(p, pre, pim, 3.0f, 40, true) >= trig) { smallest = f2; break; }
-        }
-
-        printf("  trigger %.1fx -> %3d false latches, detects >= %.0f%% perturbation\n",
-               trig, runs, smallest * 100.0f);
+        CsiScorer s; s.reset();
+        feed(s, re, im, 3.0f, 3000, false, LAG);
+        const float quietAcf = s.acf;
+        feedPeak(s, lo, loIm, 1.0f, 200, false, LAG);
+        printf("   quiet acf=%+.4f  after 9dB gain step acf=%+.4f\n", quietAcf, s.acf);
+        assert(s.acf < ETA);
     }
 
     printf("\nOK\n");
