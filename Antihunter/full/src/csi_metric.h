@@ -45,8 +45,8 @@ static const float CSI_ACF_ALPHA = 0.00167f;
 static const uint16_t CSI_ACF_T = 600;
 static const uint16_t CSI_ACF_ARM_PAIRS = 4 * CSI_ACF_T;
 static const uint32_t CSI_ACF_LAG_US = 33333;
-static const uint32_t CSI_ACF_LAG_MIN_US = 20000;
-static const uint32_t CSI_ACF_LAG_MAX_US = 50000;
+static const uint32_t CSI_ACF_LAG_MIN_US = 10000;
+static const uint32_t CSI_ACF_LAG_MAX_US = 200000;
 static const float CSI_ACF_Z = 5.5f;
 static inline float csiEtaFromNull() {
     return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf((float)CSI_NSUB * (float)CSI_ACF_T);
