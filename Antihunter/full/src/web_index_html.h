@@ -193,7 +193,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       .pcap-files-head .btn.danger{margin-left:auto;padding:4px 10px;font-size:11px;border-width:1px}
       #pcapFilesBody{overflow:hidden;transition:max-height 0.3s cubic-bezier(0.4,0,0.2,1)}
       #pcapFilesBody.collapsed{max-height:0!important}
-      .pcap-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:260px;overflow-y:auto}
+      .pcap-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:60vh;overflow-y:auto;overscroll-behavior:contain}
       .pcap-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:8px;background:var(--accbg);border:1px solid var(--bord);border-radius:8px;padding:7px 10px}
       .pcap-radio{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0}
       .pcap-radio svg{width:16px;height:16px}
@@ -927,17 +927,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           <div style="color:var(--mut);">No baseline data</div>
         </div>
         <div id="r" style="margin:0;">No scan data yet.</div>
-        <div id="pcapFilesResCard" style="display:none;margin-top:12px;">
-          <div class="pcap-files-head" onclick="pcapToggleList('Res')">
-            <span class="collapse-icon open" id="pcapFilesIconRes">&#9654;</span>
-            <span>Captures</span>
-            <span class="pcap-count" id="pcapCountRes">0</span>
-            <button type="button" class="btn danger" id="pcapDeleteAllBtnRes" onclick="event.stopPropagation();pcapDeleteAll()">Delete All</button>
-          </div>
-          <div id="pcapFilesBodyRes">
-            <div id="pcapFileListRes" class="pcap-list"></div>
-          </div>
-        </div>
       </div>
       </div>
 
@@ -2207,6 +2196,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (nextHtml === window._resLastHtml) return;
         window._resLastHtml = nextHtml;
         el.innerHTML = nextHtml;
+        if (typeof pcapPaintList === 'function') pcapPaintList();
 
         openCards.forEach(id => {
           const c = document.getElementById(id);
@@ -4359,7 +4349,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         html += _resStat('Written', fmtBytes(bytes));
         html += _resStat('Elapsed', elapsed + '<small>s</small>');
         html += _resStat('Dropped', dropped, dropped === '0' ? 'ok' : 'warn');
-        html += '</div></div>';
+        html += '</div>';
+        html += '<div id="pcapFilesResCard" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid var(--bord);">';
+        html += '<div class="pcap-files-head" onclick="pcapToggleList(\'Res\')">';
+        html += '<span class="collapse-icon open" id="pcapFilesIconRes">&#9654;</span><span>Captures</span>';
+        html += '<span class="pcap-count" id="pcapCountRes">0</span>';
+        html += '<button type="button" class="btn danger" id="pcapDeleteAllBtnRes" onclick="event.stopPropagation();pcapDeleteAll()">Delete All</button></div>';
+        html += '<div id="pcapFilesBodyRes"><div id="pcapFileListRes" class="pcap-list"></div></div></div>';
+        html += '</div>';
 
         return html;
       }
@@ -5744,8 +5741,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         toast(await r.text(), r.ok ? 'success' : 'error');
         refreshPcapList();
       }
+      let _pcapList = null;
       function refreshPcapList() {
         fetch('/pcap/list').then(r => r.json()).then(list => {
+          _pcapList = list;
+          pcapPaintList();
+        }).catch(() => {});
+      }
+      function pcapPaintList() {
+          const list = _pcapList;
+          if (!list) return;
           const card = document.getElementById('pcapFilesResCard');
           if (card) card.style.display = list.length ? '' : 'none';
           const boxes = ['', 'Res'].map(s => document.getElementById('pcapFileList' + s)).filter(Boolean);
@@ -5775,7 +5780,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
             '</div>';
           }).join('');
           boxes.forEach(b => { b.innerHTML = rows; });
-        }).catch(() => {});
       }
       function refreshPcapStatus() {
         if (pcapPollTimer) { clearTimeout(pcapPollTimer); pcapPollTimer = null; }
