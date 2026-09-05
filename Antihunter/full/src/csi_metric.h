@@ -65,6 +65,8 @@ static const uint16_t CSI_FLOOR_SETTLE_PKTS = 450;
 static const float CSI_SPREAD_ALPHA = 0.02f;
 static const float CSI_LINK_MIN_SPREAD = 0.03f;
 static const uint32_t CSI_LINK_MIN_PKTS = 60;
+static const float CSI_LINK_ARM_SEC = 60.0f;
+static const float CSI_LINK_MIN_PAIR_RATE = (float)CSI_ACF_T / CSI_LINK_ARM_SEC;
 static const int8_t CSI_LINK_MIN_RSSI = -92;
 static const int8_t CSI_SURVEY_MIN_RSSI = -85;
 
@@ -147,6 +149,7 @@ struct CsiScorer {
     uint16_t sampCount;
     uint16_t acfPairs;
     uint8_t prevValid;
+    uint32_t lagAccum;
 
     bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_T; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
@@ -177,6 +180,7 @@ struct CsiScorer {
         sampCount = 0;
         acfPairs = 0;
         prevValid = 0;
+        lagAccum = 0;
     }
 
     float acfHistStats(float *spreadOut) const {
@@ -243,8 +247,9 @@ struct CsiScorer {
 
         mad = d;
 
-        const bool lagOk = (dtUs >= CSI_ACF_LAG_MIN_US && dtUs <= CSI_ACF_LAG_MAX_US);
-        const bool lagStale = (dtUs > CSI_ACF_LAG_MAX_US);
+        const uint32_t lagUs = (prevValid && dtUs <= 0xFFFFFFFFu - lagAccum) ? (lagAccum + dtUs) : dtUs;
+        const bool lagOk = (lagUs >= CSI_ACF_LAG_MIN_US && lagUs <= CSI_ACF_LAG_MAX_US);
+        const bool lagStale = (lagUs > CSI_ACF_LAG_MAX_US);
 
         if (lagOk && prevValid) {
             float psi = 0.0f;
@@ -278,6 +283,9 @@ struct CsiScorer {
         if (lagOk || lagStale || !prevValid) {
             for (int k = 0; k < CSI_NSUB; k++) prevG[k] = a[k] * a[k];
             prevValid = 1;
+            lagAccum = 0;
+        } else {
+            lagAccum = lagUs;
         }
 
         if (lagOk && !holdFloor && ++asampCount >= CSI_ACF_SAMPLE_EVERY) {

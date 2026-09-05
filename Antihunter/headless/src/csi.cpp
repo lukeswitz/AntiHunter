@@ -194,6 +194,8 @@ struct CsiLink {
     uint32_t elevMs;
     uint32_t motionStartMs;
     uint32_t events;
+    uint16_t pairsSnap;
+    float pairRate;
 };
 
 static CsiLink g_links[CSI_MAX_LINKS];
@@ -503,6 +505,8 @@ static void csiLinkReset(CsiLink &l) {
     l.elevMs = 0;
     l.motionStartMs = 0;
     l.events = 0;
+    l.pairsSnap = 0;
+    l.pairRate = 0.0f;
 }
 
 static bool csiLinkUsable(const CsiLink &l) {
@@ -531,7 +535,7 @@ static uint8_t csiUsableCount() {
 
 static CsiLink *csiFindLink(const uint8_t *mac) {
     CsiLink *freeSlot = nullptr;
-    CsiLink *oldest = nullptr;
+    CsiLink *worst = nullptr;
 
     for (int i = 0; i < CSI_MAX_LINKS; i++) {
         CsiLink &l = g_links[i];
@@ -540,15 +544,16 @@ static CsiLink *csiFindLink(const uint8_t *mac) {
             if (!freeSlot) freeSlot = &l;
             continue;
         }
-        if (!oldest || (int32_t)(l.lastMs - oldest->lastMs) < 0) oldest = &l;
+        if (l.motion) continue;
+        if (l.pairRate >= CSI_LINK_MIN_PAIR_RATE) continue;
+        if (!worst || l.pairRate < worst->pairRate ||
+            (l.pairRate == worst->pairRate && (int32_t)(l.lastMs - worst->lastMs) < 0)) worst = &l;
     }
 
     CsiLink *slot = freeSlot;
     if (!slot) {
-        if (!oldest) return nullptr;
-        if (oldest->motion) return nullptr;
-        if (oldest->packets >= CSI_LINK_MIN_PKTS) return nullptr;
-        slot = oldest;
+        if (!worst) return nullptr;
+        slot = worst;
     }
 
     csiLinkReset(*slot);
@@ -692,6 +697,11 @@ static void csiExpireLinks() {
         for (int i = 0; i < CSI_MAX_LINKS; i++) {
             CsiLink &l = g_links[i];
             if (!l.used) continue;
+
+            const uint16_t pnow = l.sc.acfPairs;
+            const float dpps = (float)(uint16_t)(pnow - l.pairsSnap) * 0.5f;
+            l.pairsSnap = pnow;
+            l.pairRate += 0.5f * (dpps - l.pairRate);
 
             const bool stale = (now - l.lastMs) >= CSI_LINK_STALE_MS;
             const bool flat = l.sc.settled() && l.sc.spread() < CSI_LINK_MIN_SPREAD;
@@ -1277,16 +1287,13 @@ void csiMotionTask(void *pv) {
                     const uint32_t thrMilli = csiThresholdMilli.load();
         const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                     std::lock_guard<std::mutex> lock(g_csiMutex);
-                    float r1 = 0.0f, r2 = 0.0f;
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
                         const float r = csiTriggerRatio(l.sc.acf, eta);
-                        if (r > r1) { r2 = r1; r1 = r; }
-                        else if (r > r2) { r2 = r; }
+                        if (r > peakNow) peakNow = r;
                     }
-                    peakNow = (csiUsableCount() >= 2) ? r2 : r1;
                 }
                 if (g_areaMotion && peakNow > g_epPeak) g_epPeak = peakNow;
                 csiHeatPush(peakNow, g_areaMotion);
@@ -1393,13 +1400,16 @@ void csiMotionTask(void *pv) {
             float statZMax = 0.0f, statFloorMax = 0.0f;
             uint8_t statLinks = 0, statPassEta = 0, statPassVote = 0;
             uint32_t statPairs = 0;
+            float statPrMax = 0.0f;
             {
                 const uint32_t thrMilli = csiThresholdMilli.load();
         const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
-                    if (!l.used || !l.sc.settled() || !csiLinkUsable(l)) continue;
+                    if (!l.used) continue;
+                    if (l.pairRate > statPrMax) statPrMax = l.pairRate;
+                    if (!l.sc.settled() || !csiLinkUsable(l)) continue;
                     statLinks++;
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
@@ -1412,13 +1422,13 @@ void csiMotionTask(void *pv) {
                 }
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
-                          "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u "
+                          "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u pr=%.1f "
                           "pass-eta=%u pass-vote=%u frames=%u tx=%u/%u err=%d poll=%u/%u perr=%d sta=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
-                          statZMax, statFloorMax, statPairs,
+                          statZMax, statFloorMax, statPairs, statPrMax,
                           statPassEta, statPassVote, g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
                           g_pollOk.load(), g_pollErr.load(), (int)g_pollLastErr.load(),
