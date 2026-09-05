@@ -237,7 +237,8 @@ struct CsiScorer {
             lagAccum = lagUs;
         }
 
-        if (lagOk && !holdFloor && ++asampCount >= CSI_ACF_SAMPLE_EVERY) {
+        if (lagOk && !holdFloor && acfPairs >= CSI_ACF_ARM_PAIRS &&
+            ++asampCount >= CSI_ACF_SAMPLE_EVERY) {
             asampCount = 0;
             float aq = (acf + 1.0f) * CSI_ACF_QUANT;
             if (aq < 0.0f) aq = 0.0f;
