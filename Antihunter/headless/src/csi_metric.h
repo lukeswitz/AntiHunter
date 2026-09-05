@@ -10,7 +10,16 @@
 
 #if CONFIG_SOC_WIFI_HE_SUPPORT
 #define CSI_BUF_BYTES 106
-#define CSI_NSUB 26
+#define CSI_NRAW 52
+#define CSI_NSUB 51
+#define CSI_UNSMOOTH 1
+
+static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
+    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+    40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52
+};
 #else
 #define CSI_BUF_BYTES 128
 #define CSI_NSUB 47
@@ -32,9 +41,15 @@ static const uint16_t CSI_FLOOR_SAMPLE_EVERY = 32;
 static const float CSI_FLOOR_QUANT = 100000.0f;
 static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
-static const float CSI_ACF_ALPHA = 0.0167f;
-static const uint16_t CSI_ACF_T = 60;
-static const float CSI_ACF_ETA = 0.10f;
+static const float CSI_ACF_ALPHA = 0.00167f;
+static const uint16_t CSI_ACF_T = 600;
+static const uint32_t CSI_ACF_LAG_US = 33333;
+static const uint32_t CSI_ACF_LAG_MIN_US = 20000;
+static const uint32_t CSI_ACF_LAG_MAX_US = 50000;
+static const float CSI_ACF_Z = 5.5f;
+static inline float csiEtaFromNull() {
+    return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf((float)CSI_NSUB * (float)CSI_ACF_T);
+}
 static const float CSI_ACF_ETA_SUB = 0.25f;
 static const float CSI_ACF_MIN_VAR = 1e-6f;
 static const uint8_t CSI_ACF_HIST = 120;
@@ -43,7 +58,7 @@ static const float CSI_ACF_QUANT = 10000.0f;
 static const float CSI_ACF_MIN_SPREAD = 0.02f;
 static const uint8_t CSI_ACF_MIN_HIST = 12;
 static const float CSI_ACF_Z_PER_ETA = 30.0f;
-static const float CSI_VOTE_FRAC = 0.50f;
+static const float CSI_VOTE_FRAC = 0.0f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
 static const uint16_t CSI_FLOOR_SETTLE_PKTS = 450;
@@ -60,18 +75,27 @@ static inline int csiWord12(const uint8_t *u) {
 }
 
 static inline bool csiAmplitudes(const int8_t *buf, float *out) {
-    const uint8_t *u = (const uint8_t *)buf;
+    float raw[CSI_NRAW];
     float sum = 0.0f;
-    for (int k = 0; k < CSI_NSUB; k++) {
-        const float im = (float)csiWord12(u + k * 4);
-        const float re = (float)csiWord12(u + k * 4 + 2);
+    for (int k = 0; k < CSI_NRAW; k++) {
+        const int idx = CSI_SUB_IDX[k];
+        const float im = (float)buf[idx * 2];
+        const float re = (float)buf[idx * 2 + 1];
         const float mag = sqrtf(im * im + re * re);
-        out[k] = mag;
+        raw[k] = mag;
         sum += mag;
     }
     if (sum <= 0.0f) return false;
-    const float norm = (float)CSI_NSUB / sum;
-    for (int k = 0; k < CSI_NSUB; k++) out[k] *= norm;
+    const float norm = (float)CSI_NRAW / sum;
+    for (int k = 0; k < CSI_NRAW; k++) raw[k] *= norm;
+    float asum = 0.0f;
+    for (int k = 0; k < CSI_NSUB; k++) {
+        out[k] = fabsf(raw[k + 1] - raw[k]);
+        asum += out[k];
+    }
+    if (asum <= 0.0f) return false;
+    const float anorm = (float)CSI_NSUB / asum;
+    for (int k = 0; k < CSI_NSUB; k++) out[k] *= anorm;
     return true;
 }
 #else
@@ -121,8 +145,10 @@ struct CsiScorer {
     uint8_t hlen;
     uint8_t hpos;
     uint16_t sampCount;
+    uint16_t acfPairs;
+    uint8_t prevValid;
 
-    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS; }
+    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_T; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
 
     void reset() {
@@ -149,6 +175,8 @@ struct CsiScorer {
         hlen = 0;
         hpos = 0;
         sampCount = 0;
+        acfPairs = 0;
+        prevValid = 0;
     }
 
     float acfHistStats(float *spreadOut) const {
@@ -181,7 +209,7 @@ struct CsiScorer {
         return (float)tmp[hlen / 2] / CSI_FLOOR_QUANT;
     }
 
-    bool update(const float *a, bool /*holdFloor*/) {
+    bool update(const float *a, bool holdFloor, uint32_t dtUs) {
         if (warm < CSI_WARMUP_PKTS) {
             if (warm == 0) {
                 for (int k = 0; k < CSI_NSUB; k++) { fast[k] = a[k]; slow[k] = a[k]; }
@@ -215,34 +243,44 @@ struct CsiScorer {
 
         mad = d;
 
-        float psi = 0.0f;
-        int nf = 0;
-        int nvote = 0;
-        for (int k = 0; k < CSI_NSUB; k++) {
-            const float G = a[k] * a[k];
-            if (scored == 0) {
-                mG[k] = G;
-            } else {
-                const float dG = G - mG[k];
-                const float dP = prevG[k] - mG[k];
-                mCov[k] += CSI_ACF_ALPHA * (dG * dP - mCov[k]);
-                mVar[k] += CSI_ACF_ALPHA * (dG * dG - mVar[k]);
-                mG[k] += CSI_ACF_ALPHA * dG;
-                if (mVar[k] > CSI_ACF_MIN_VAR * mG[k] * mG[k]) {
-                    float p = mCov[k] / mVar[k];
-                    if (p > 1.0f) p = 1.0f;
-                    if (p < -1.0f) p = -1.0f;
-                    psi += p;
-                    nf++;
-                    if (p > CSI_ACF_ETA_SUB) nvote++;
+        const bool lagOk = (dtUs >= CSI_ACF_LAG_MIN_US && dtUs <= CSI_ACF_LAG_MAX_US);
+        const bool lagStale = (dtUs > CSI_ACF_LAG_MAX_US);
+
+        if (lagOk && prevValid) {
+            float psi = 0.0f;
+            int nf = 0;
+            int nvote = 0;
+            for (int k = 0; k < CSI_NSUB; k++) {
+                const float G = a[k] * a[k];
+                if (acfPairs == 0) {
+                    mG[k] = G;
+                } else {
+                    const float dG = G - mG[k];
+                    const float dP = prevG[k] - mG[k];
+                    mCov[k] += CSI_ACF_ALPHA * (dG * dP - mCov[k]);
+                    mVar[k] += CSI_ACF_ALPHA * (dG * dG - mVar[k]);
+                    mG[k] += CSI_ACF_ALPHA * dG;
+                    if (mVar[k] > CSI_ACF_MIN_VAR * mG[k] * mG[k]) {
+                        float p = mCov[k] / mVar[k];
+                        if (p > 1.0f) p = 1.0f;
+                        if (p < -1.0f) p = -1.0f;
+                        psi += p;
+                        nf++;
+                        if (p > CSI_ACF_ETA_SUB) nvote++;
+                    }
                 }
             }
-            prevG[k] = G;
+            if (acfPairs < 0xFFFF) acfPairs++;
+            acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
+            vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
         }
-        acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
-        vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
 
-        if (++asampCount >= CSI_ACF_SAMPLE_EVERY) {
+        if (lagOk || lagStale || !prevValid) {
+            for (int k = 0; k < CSI_NSUB; k++) prevG[k] = a[k] * a[k];
+            prevValid = 1;
+        }
+
+        if (lagOk && !holdFloor && ++asampCount >= CSI_ACF_SAMPLE_EVERY) {
             asampCount = 0;
             float aq = (acf + 1.0f) * CSI_ACF_QUANT;
             if (aq < 0.0f) aq = 0.0f;
@@ -254,7 +292,7 @@ struct CsiScorer {
         }
         acfZ = (ahlen >= CSI_ACF_MIN_HIST) ? ((acf - acfFloor) / acfSpread) : 0.0f;
 
-        if (++sampCount >= CSI_FLOOR_SAMPLE_EVERY) {
+        if (!holdFloor && ++sampCount >= CSI_FLOOR_SAMPLE_EVERY) {
             sampCount = 0;
             float q = d * CSI_FLOOR_QUANT;
             if (q > 65535.0f) q = 65535.0f;
