@@ -108,16 +108,18 @@ void setPcapAutoLimits(uint32_t budgetMB, uint32_t freeFloorMB) {
 
 void loadPcapPrefs() {
     Preferences p;
-    if (!p.begin("ahpcap", true)) return;
-    g_autoBudgetMB.store(p.getUInt("budMB", 512));
-    g_freeFloorMB.store(p.getUInt("floorMB", 256));
-    {
+    if (p.begin("ahpcap", false)) {
+        g_autoBudgetMB.store(p.getUInt("budMB", 512));
+        g_freeFloorMB.store(p.getUInt("floorMB", 256));
+        p.end();
+    }
+    if (p.begin("pcap", false)) {
         uint32_t mf = p.getUInt("maxFileMB", PCAP_MAX_FILE_MB_DEF);
         if (mf < PCAP_MAX_FILE_MB_MIN) mf = PCAP_MAX_FILE_MB_MIN;
         if (mf > PCAP_MAX_FILE_MB_MAX) mf = PCAP_MAX_FILE_MB_MAX;
         g_maxFileMB.store(mf);
+        p.end();
     }
-    p.end();
 }
 
 bool pcapDualBandCapable() {
