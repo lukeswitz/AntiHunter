@@ -911,7 +911,8 @@ void csiClearCalibration() {
 void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t consec,
                   bool rawDump, bool telemetry, bool autoTrigger) {
     if (channel <= 14) csiPinnedChannel.store(channel);
-    if (threshold >= 0.02f && threshold <= 0.60f) csiThresholdMilli.store((uint32_t)(threshold * 1000.0f));
+    if (threshold <= 0.0f) csiThresholdMilli.store(0);
+    else if (threshold >= 0.02f && threshold <= 0.60f) csiThresholdMilli.store((uint32_t)(threshold * 1000.0f));
     if (holdMs >= 500 && holdMs <= 120000) csiHoldMs.store(holdMs);
     if (consec >= 1 && consec <= 50) csiConsecNeeded.store(consec);
     csiRawDump.store(rawDump);
@@ -919,14 +920,14 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
     csiAutoTrigger.store(autoTrigger);
 
     prefs.putUChar("csiCh", csiPinnedChannel.load());
-    prefs.putUInt("csiThr", csiThresholdMilli.load());
+    prefs.putUInt("csiThr2", csiThresholdMilli.load());
     prefs.putUInt("csiHold", csiHoldMs.load());
     prefs.putUInt("csiCons", csiConsecNeeded.load());
 }
 
 void loadCsiConfigFromPrefs() {
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
-    uint32_t thrStored = prefs.getUInt("csiThr", 70);
+    uint32_t thrStored = prefs.getUInt("csiThr2", 0);
     if (thrStored != 0 && (thrStored < 5 || thrStored > 600)) thrStored = 0;
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
@@ -1184,8 +1185,10 @@ void csiMotionTask(void *pv) {
         g_calActive = true;
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
-        Serial.printf("[CSI] Trigger: ACF >= %.2f with >=%.0f%% of subcarriers, lag %u-%u us\n",
-                      csiEtaFromNull(), CSI_VOTE_FRAC * 100.0f,
+        const uint32_t thrMilli = csiThresholdMilli.load();
+        Serial.printf("[CSI] Trigger: ACF >= %.3f (%s), lag %u-%u us\n",
+                      thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull(),
+                      thrMilli ? "stored override" : "derived from null",
                       (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
     }
 
