@@ -846,6 +846,7 @@ static void handleCsiMotionStart(const String &command)
   int secs = 0;
   bool forever = false, telem = false, raw = false, train = false;
   uint8_t ch = 0;
+  uint32_t solicitMs = 0;
   int idx = 0;
 
   while (params.length() > 0) {
@@ -856,6 +857,7 @@ static void handleCsiMotionStart(const String &command)
     else if (tok == "TELEM") telem = true;
     else if (tok == "RAW") raw = true;
     else if (tok == "TRAIN") train = true;
+    else if (tok.startsWith("SOLICIT")) solicitMs = (uint32_t)tok.substring(7).toInt();
     else if (tok.startsWith("CH")) ch = (uint8_t)tok.substring(2).toInt();
     if (colon < 0) break;
     params = params.substring(colon + 1);
@@ -872,6 +874,9 @@ static void handleCsiMotionStart(const String &command)
     return;
   }
 
+  if (solicitMs && solicitMs < 10) solicitMs = 10;
+  if (solicitMs > 1000) solicitMs = 1000;
+  csiSolicitMs.store(solicitMs);
   setCsiConfig(ch, (float)csiThresholdMilli.load() / 1000.0f, csiHoldMs.load(),
                csiConsecNeeded.load(), raw, telem, train);
 

@@ -28,10 +28,11 @@ std::atomic<bool> csiRawDump{false};
 std::atomic<bool> csiTelemetry{false};
 std::atomic<bool> csiAutoTrigger{false};
 std::atomic<uint8_t> csiPinnedChannel{0};
-std::atomic<uint32_t> csiThresholdMilli{70};
+std::atomic<uint32_t> csiThresholdMilli{0};
 std::atomic<uint64_t> csiExcludeMac{0};
 std::atomic<uint32_t> csiHoldMs{5000};
 std::atomic<uint32_t> csiConsecNeeded{3};
+std::atomic<uint32_t> csiSolicitMs{0};
 
 static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
@@ -183,6 +184,7 @@ struct CsiLink {
     uint32_t packets;
     uint32_t firstMs;
     uint32_t lastMs;
+    uint32_t lastTs;
     int8_t rssi;
     CsiScorer sc;
     float peakScore;
@@ -212,6 +214,16 @@ static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
 static std::atomic<uint32_t> g_promFrames{0};
+static std::atomic<uint32_t> g_solicitOk{0};
+static std::atomic<uint32_t> g_solicitErr{0};
+static std::atomic<int32_t> g_solicitLastErr{0};
+static bool g_txRateSet = false;
+static std::atomic<int32_t> g_txRateErr{0};
+static std::atomic<uint32_t> g_ceVld{0};
+static std::atomic<uint32_t> g_ceInvld{0};
+static std::atomic<uint32_t> g_ceLen{0};
+static std::atomic<uint32_t> g_rejStale{0};
+std::atomic<bool> csiRequireCeVld{false};
 
 extern std::atomic<uint32_t> framesSeen;
 
@@ -220,6 +232,20 @@ static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     g_promFrames.fetch_add(1);
     const wifi_promiscuous_pkt_t *ppkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
     if (ppkt && ppkt->rx_ctrl.sig_len >= 24) framesSeen.fetch_add(1, std::memory_order_relaxed);
+}
+
+static const uint8_t CSI_LEN_SLOTS = 6;
+static volatile uint16_t g_lenVal[CSI_LEN_SLOTS];
+static volatile uint32_t g_lenCnt[CSI_LEN_SLOTS];
+static volatile uint8_t g_lenFmt[CSI_LEN_SLOTS];
+
+static void csiLenSeen(uint16_t len, uint8_t fmt) {
+    for (uint8_t i = 0; i < CSI_LEN_SLOTS; i++) {
+        if (g_lenCnt[i] && g_lenVal[i] == len && g_lenFmt[i] == fmt) { g_lenCnt[i]++; return; }
+    }
+    for (uint8_t i = 0; i < CSI_LEN_SLOTS; i++) {
+        if (!g_lenCnt[i]) { g_lenVal[i] = len; g_lenFmt[i] = fmt; g_lenCnt[i] = 1; return; }
+    }
 }
 
 // cppcheck-suppress constParameterCallback // wifi_csi_cb_t signature is fixed by esp_wifi_set_csi_rx_cb
@@ -233,6 +259,14 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         return;
     }
 #if CONFIG_SOC_WIFI_HE_SUPPORT
+    if (rx.rx_channel_estimate_info_vld) g_ceVld.fetch_add(1);
+    else g_ceInvld.fetch_add(1);
+    g_ceLen.store(rx.rx_channel_estimate_len);
+    if (csiRequireCeVld.load() && !rx.rx_channel_estimate_info_vld) {
+        g_csiRejected.fetch_add(1);
+        g_rejStale.fetch_add(1);
+        return;
+    }
     if (rx.second != 0 ||
         (rx.cur_bb_format != RX_BB_FORMAT_11G && rx.cur_bb_format != RX_BB_FORMAT_HT)) {
         g_csiRejected.fetch_add(1);
@@ -246,7 +280,8 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
         return;
     }
 #endif
-    if (info->len < CSI_BUF_BYTES) {
+    csiLenSeen(info->len, rx.cur_bb_format);
+    if (info->len != CSI_BUF_BYTES) {
         g_csiRejected.fetch_add(1);
         g_rejShort.fetch_add(1);
         return;
@@ -420,7 +455,18 @@ static void csiSolicit() {
     wifi_mode_t wmode = WIFI_MODE_NULL;
     wifi_interface_t txif =
         (esp_wifi_get_mode(&wmode) == ESP_OK && wmode == WIFI_MODE_STA) ? WIFI_IF_STA : WIFI_IF_AP;
-    esp_wifi_80211_tx(txif, frame, total, true);
+    if (!g_txRateSet) {
+        wifi_tx_rate_config_t rc = {};
+        rc.phymode = WIFI_PHY_MODE_11G;
+        rc.rate = WIFI_PHY_RATE_6M;
+        g_txRateErr.store((int32_t)esp_wifi_config_80211_tx(txif, &rc));
+        g_txRateSet = true;
+    }
+    uint8_t self[6] = {0};
+    if (esp_wifi_get_mac(txif, self) == ESP_OK) memcpy(frame + 10, self, 6);
+    const esp_err_t err = esp_wifi_80211_tx(txif, frame, total, true);
+    if (err == ESP_OK) g_solicitOk.fetch_add(1);
+    else { g_solicitErr.fetch_add(1); g_solicitLastErr.store((int32_t)err); }
 }
 
 static void csiLinkReset(CsiLink &l) {
@@ -429,6 +475,7 @@ static void csiLinkReset(CsiLink &l) {
     l.packets = 0;
     l.firstMs = 0;
     l.lastMs = 0;
+    l.lastTs = 0;
     l.rssi = 0;
     l.sc.reset();
     l.peakScore = 0.0f;
@@ -489,9 +536,9 @@ static float csiZThreshold(float eta) {
     return (z < 1.0f) ? 1.0f : z;
 }
 
-static float csiTriggerRatio(float acfZ, float eta) {
-    const float z = csiZThreshold(eta);
-    const float r = acfZ / z;
+static float csiTriggerRatio(float acf, float eta) {
+    if (eta <= 0.0f) return 0.0f;
+    const float r = acf / eta;
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -563,7 +610,7 @@ static void csiEmitAlert(const CsiAlert &al) {
     String mac = macFmt6(al.mac);
 
     if (al.rising) {
-        Serial.printf("[CSI] MOTION %s score=%.2f mad=%.4f floor=%.4f rssi=%d\n",
+        Serial.printf("[CSI] MOTION %s score=%.2f mad=%.4f madfloor=%.4f rssi=%d\n",
                       mac.c_str(), al.score, al.mad, al.floorMad, al.rssi);
     } else {
         Serial.printf("[CSI] CLEAR %s dwell=%us\n", mac.c_str(), al.dwell);
@@ -593,11 +640,13 @@ static void csiProcess(const CsiEvent &ev) {
         CsiLink &l = *lp;
 
         const uint32_t now = millis();
+        const uint32_t dtUs = l.lastTs ? (uint32_t)(ev.ts - l.lastTs) : 0xFFFFFFFFu;
+        l.lastTs = ev.ts;
         l.lastMs = now;
         l.rssi = ev.rssi;
         l.packets++;
 
-        if (!l.sc.update(a, l.motion)) return;
+        if (!l.sc.update(a, l.motion, dtUs)) return;
         if (l.sc.score > l.peakScore) l.peakScore = l.sc.score;
 
         if (csiTelemetry.load()) {
@@ -617,9 +666,9 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const float eta = (float)csiThresholdMilli.load() / 1000.0f;
-        const float zTrig = csiZThreshold(eta);
-        if (l.sc.acfZ >= zTrig) {
+        const uint32_t thrMilli = csiThresholdMilli.load();
+        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
+        if (l.sc.acf >= eta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -642,7 +691,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.acfZ < zTrig &&
+        } else if (l.motion && l.sc.acf < eta &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -889,8 +938,7 @@ void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t co
 void loadCsiConfigFromPrefs() {
     csiPinnedChannel.store(prefs.getUChar("csiCh", 0));
     uint32_t thrStored = prefs.getUInt("csiThr", 70);
-    if (thrStored == 100) thrStored = 70;
-    if (thrStored < 20 || thrStored > 600) thrStored = 70;
+    if (thrStored != 0 && (thrStored < 5 || thrStored > 600)) thrStored = 0;
     csiThresholdMilli.store(thrStored);
     csiHoldMs.store(prefs.getUInt("csiHold", 5000));
     csiConsecNeeded.store(prefs.getUInt("csiCons", 3));
@@ -904,8 +952,8 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
     cfg.acquire_csi_force_lltf = 1;
-    cfg.acquire_csi_ht20 = 0;
-    cfg.acquire_csi_ht40 = 0;
+    cfg.acquire_csi_ht20 = 1;
+    cfg.acquire_csi_ht40 = 1;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
     cfg.acquire_csi_mu = 0;
@@ -913,8 +961,8 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.acquire_csi_beamformed = 0;
     cfg.acquire_csi_he_stbc_mode = 0;
     cfg.val_scale_cfg = 0;
-    cfg.lltf_bit_mode = 0;
-    cfg.dump_ack_en = 0;
+    cfg.lltf_bit_mode = 1;
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
 #else
     cfg.lltf_en = true;
     cfg.htltf_en = true;
@@ -923,7 +971,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
     cfg.shift = 0;
-    cfg.dump_ack_en = false;
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
 #endif
 
     if (esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr) != ESP_OK) return false;
@@ -962,8 +1010,8 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
     cfg.acquire_csi_force_lltf = 1;
-    cfg.acquire_csi_ht20 = 0;
-    cfg.acquire_csi_ht40 = 0;
+    cfg.acquire_csi_ht20 = 1;
+    cfg.acquire_csi_ht40 = 1;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
     cfg.acquire_csi_mu = 0;
@@ -971,8 +1019,8 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.acquire_csi_beamformed = 0;
     cfg.acquire_csi_he_stbc_mode = 0;
     cfg.val_scale_cfg = 0;
-    cfg.lltf_bit_mode = 0;
-    cfg.dump_ack_en = 0;
+    cfg.lltf_bit_mode = 1;
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
 #else
     cfg.lltf_en = true;
     cfg.htltf_en = true;
@@ -981,7 +1029,7 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.channel_filter_en = false;
     cfg.manu_scale = false;
     cfg.shift = 0;
-    cfg.dump_ack_en = false;
+    cfg.dump_ack_en = (csiSolicitMs.load() != 0);
 #endif
 
     esp_err_t rb = esp_wifi_set_csi_rx_cb(&csi_rx_cb, nullptr);
@@ -1145,8 +1193,9 @@ void csiMotionTask(void *pv) {
         g_calActive = true;
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
-        Serial.printf("[CSI] Trigger %.1f sigma above each link's own measured quiet ACF\n",
-                      csiZThreshold((float)csiThresholdMilli.load() / 1000.0f));
+        Serial.printf("[CSI] Trigger: ACF >= %.2f with >=%.0f%% of subcarriers, lag %u-%u us\n",
+                      csiEtaFromNull(), CSI_VOTE_FRAC * 100.0f,
+                      (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
     }
 
     {
@@ -1172,7 +1221,8 @@ void csiMotionTask(void *pv) {
            (!forever && (int)(millis() - startMs) < duration * 1000 && !stopRequested)) {
 
         CsiEvent ev;
-        if (xQueueReceive(csiQueue, &ev, pdMS_TO_TICKS(100)) == pdTRUE) {
+        const uint32_t solicitMs = csiSolicitMs.load();
+        if (xQueueReceive(csiQueue, &ev, pdMS_TO_TICKS(solicitMs ? 5 : 100)) == pdTRUE) {
             csiProcess(ev);
             for (uint16_t burst = 0; burst < CSI_DRAIN_BURST; burst++) {
                 if (xQueueReceive(csiQueue, &ev, 0) != pdTRUE) break;
@@ -1203,7 +1253,7 @@ void csiMotionTask(void *pv) {
                 }
             }
 
-            g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 255 ? 255 : movingLinks);
+            g_areaDuty[g_areaDutyPos] = (uint8_t)(movingLinks > 0 ? 1 : 0);
             g_areaDutyPos = (uint8_t)((g_areaDutyPos + 1) % CSI_AREA_DUTY_SLOTS);
             uint32_t dutySec = 0;
             for (uint8_t s = 0; s < CSI_AREA_DUTY_SLOTS; s++) dutySec += g_areaDuty[s] * 2u;
@@ -1243,14 +1293,15 @@ void csiMotionTask(void *pv) {
             if (!g_calActive) {
                 float peakNow = 0.0f;
                 {
-                    const float eta = (float)csiThresholdMilli.load() / 1000.0f;
+                    const uint32_t thrMilli = csiThresholdMilli.load();
+        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                     std::lock_guard<std::mutex> lock(g_csiMutex);
                     float r1 = 0.0f, r2 = 0.0f;
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        const float r = csiTriggerRatio(l.sc.acfZ, eta);
+                        const float r = csiTriggerRatio(l.sc.acf, eta);
                         if (r > r1) { r2 = r1; r1 = r; }
                         else if (r > r2) { r2 = r; }
                     }
@@ -1266,7 +1317,12 @@ void csiMotionTask(void *pv) {
             }
         }
 
-        if (now - lastSolicitMs >= 1000) {
+        if (solicitMs) {
+            if (now - lastSolicitMs >= solicitMs) {
+                csiSolicit();
+                lastSolicitMs = now;
+            }
+        } else if (now - lastSolicitMs >= 1000) {
             const uint32_t seenNow = g_csiSeen.load();
             if ((seenNow - lastSolicitSeen) < CSI_SOLICIT_FLOOR) {
                 csiSolicit();
@@ -1354,8 +1410,10 @@ void csiMotionTask(void *pv) {
             float statAcfMax = 0.0f, statAcfMin = 1.0f, statVoteMax = 0.0f;
             float statZMax = 0.0f, statFloorMax = 0.0f;
             uint8_t statLinks = 0, statPassEta = 0, statPassVote = 0;
+            uint32_t statPairs = 0;
             {
-                const float eta = (float)csiThresholdMilli.load() / 1000.0f;
+                const uint32_t thrMilli = csiThresholdMilli.load();
+        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
@@ -1364,20 +1422,28 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.acfZ >= csiZThreshold(eta)) statPassEta++;
+                    if (l.sc.acf >= eta) statPassEta++;
+                    if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
-                    statPassVote = statPassEta;
+                    statPairs += l.sc.acfPairs;
                 }
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
-                          "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f floor=%.3f pass-eta=%u pass-vote=%u frames=%u\n",
+                          "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u "
+                          "pass-eta=%u pass-vote=%u frames=%u tx=%u/%u err=%d "
+                          "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
-                          statZMax, statFloorMax,
-                          statPassEta, statPassVote, g_promFrames.load());
+                          statZMax, statFloorMax, statPairs,
+                          statPassEta, statPassVote, g_promFrames.load(),
+                          g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
+
+                          (unsigned)g_lenVal[0], (unsigned)g_lenFmt[0], (unsigned)g_lenCnt[0],
+                          (unsigned)g_lenVal[1], (unsigned)g_lenFmt[1], (unsigned)g_lenCnt[1],
+                          g_ceVld.load(), g_ceInvld.load(), g_ceLen.load(), g_rejStale.load());
         }
     }
 
