@@ -749,7 +749,7 @@ To save airtime on repeated scans of the same RF environment, broadcast `DEVICE:
 
 ## Mesh Commands
 
-All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
+Displayed timestamps are local time, resolved from the GPS fix. The RTC stores UTC and every epoch field stays UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 > [!TIP]
 > `@ALL` broadcasts to all nodes. Replace with a node ID for targeted commands.
@@ -787,7 +787,7 @@ Mode is `0` WiFi, `1` BLE, `2` both. Add `:FOREVER` to run until stopped.
 | `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
 | `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `PROBE_START` / `PROBE_STOP` | Collect probe requests | `mode:secs[:FOREVER][:+ALL]` | `@ALL PROBE_START:2:300:+ALL` |
-| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW]` | `@ALL CSI_MOTION_START:300:CH11` |
+| `CSI_MOTION_START` | Detect movement in the room | `secs[:FOREVER][:CH<n>][:TELEM][:RAW][:SOLICIT<ms>]` | `@ALL CSI_MOTION_START:300:CH11:SOLICIT33` |
 | `CSI_CFG` | Tune the motion trigger | `trigger:hold_ms:consec:channel` | `@ALL CSI_CFG:0.10:5000:3:0` |
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
 | `CSI_RECAL` | Drop a saved trigger | None | `@ALL CSI_RECAL` |
@@ -971,7 +971,7 @@ Any other value is passed through verbatim as `Reason code N`.
 ## API Reference
 
 > [!NOTE]
-> All timestamps use UTC
+> Displayed timestamps are local time, derived from the GPS fix using POSIX timezone rules so daylight saving is applied. Raw `epoch` fields remain UTC seconds. A fix outside the built-in zone table displays UTC and logs the fallback once.
 
 ### Core
 
