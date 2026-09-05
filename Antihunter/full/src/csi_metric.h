@@ -43,6 +43,7 @@ static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
 static const float CSI_ACF_ALPHA = 0.00167f;
 static const uint16_t CSI_ACF_T = 600;
+static const uint16_t CSI_ACF_ARM_PAIRS = 4 * CSI_ACF_T;
 static const uint32_t CSI_ACF_LAG_US = 33333;
 static const uint32_t CSI_ACF_LAG_MIN_US = 20000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 50000;
@@ -151,7 +152,7 @@ struct CsiScorer {
     uint8_t prevValid;
     uint32_t lagAccum;
 
-    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_T; }
+    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_ARM_PAIRS; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
 
     void reset() {
