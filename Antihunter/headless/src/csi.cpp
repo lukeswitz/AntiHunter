@@ -195,7 +195,7 @@ struct CsiLink {
     uint32_t elevMs;
     uint32_t motionStartMs;
     uint32_t events;
-    uint16_t pairsSnap;
+    uint32_t pairsSnap;
     float pairRate;
 };
 
@@ -722,8 +722,8 @@ static void csiExpireLinks() {
             CsiLink &l = g_links[i];
             if (!l.used) continue;
 
-            const uint16_t pnow = l.sc.acfPairs;
-            const float dpps = (float)(uint16_t)(pnow - l.pairsSnap) * 0.5f;
+            const uint32_t pnow = l.sc.acfPairs;
+            const float dpps = (float)(uint32_t)(pnow - l.pairsSnap) * 0.5f;
             l.pairsSnap = pnow;
             l.pairRate += 0.5f * (dpps - l.pairRate);
 
@@ -1319,6 +1319,8 @@ void csiMotionTask(void *pv) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
+                        if (l.sc.ahlen < CSI_ACF_MIN_HIST) continue;
+                        if (l.sc.acfFloor > csiNullMaxFloor()) continue;
                         const float r = csiTriggerRatio(l.sc.acf, eta);
                         if (r > peakNow) peakNow = r;
                     }
