@@ -12,6 +12,7 @@ extern volatile uint32_t g_memcpyBadLenLast;
 
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <esp_now.h>
 #include <Preferences.h>
 #include <math.h>
 #include <string.h>
@@ -229,11 +230,33 @@ std::atomic<bool> csiRequireCeVld{false};
 
 extern std::atomic<uint32_t> framesSeen;
 
+static const uint8_t CSI_DBG_SRC = 8;
+static volatile uint8_t g_dbgMac[CSI_DBG_SRC][6];
+static volatile int8_t g_dbgRssi[CSI_DBG_SRC];
+static volatile uint32_t g_dbgCnt[CSI_DBG_SRC];
+static volatile uint8_t g_dbgN = 0;
+
+static void csiDbgSrc(const uint8_t *a2, int8_t rssi) {
+    for (uint8_t i = 0; i < g_dbgN; i++) {
+        bool same = true;
+        for (uint8_t k = 0; k < 6; k++) if (g_dbgMac[i][k] != a2[k]) { same = false; break; }
+        if (same) { g_dbgCnt[i]++; if (rssi > g_dbgRssi[i]) g_dbgRssi[i] = rssi; return; }
+    }
+    if (g_dbgN >= CSI_DBG_SRC) return;
+    for (uint8_t k = 0; k < 6; k++) g_dbgMac[g_dbgN][k] = a2[k];
+    g_dbgRssi[g_dbgN] = rssi;
+    g_dbgCnt[g_dbgN] = 1;
+    g_dbgN++;
+}
+
 static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     (void)type;
     g_promFrames.fetch_add(1);
     const wifi_promiscuous_pkt_t *ppkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
-    if (ppkt && ppkt->rx_ctrl.sig_len >= 24) framesSeen.fetch_add(1, std::memory_order_relaxed);
+    if (ppkt && ppkt->rx_ctrl.sig_len >= 24) {
+        framesSeen.fetch_add(1, std::memory_order_relaxed);
+        if (ppkt->rx_ctrl.rssi >= -55) csiDbgSrc(ppkt->payload + 10, (int8_t)ppkt->rx_ctrl.rssi);
+    }
 }
 
 static const uint8_t CSI_LEN_SLOTS = 6;
@@ -446,27 +469,46 @@ static const uint8_t kCsiProbeRates[10] = {
     0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24
 };
 
-static void csiSolicit() {
-    uint8_t frame[24 + 2 + sizeof(kCsiProbeRates)];
-    memcpy(frame, kCsiProbeHdr, 24);
-    frame[24] = 0x00;
-    frame[25] = 0x00;
-    memcpy(frame + 26, kCsiProbeRates, sizeof(kCsiProbeRates));
-    const size_t total = 26 + sizeof(kCsiProbeRates);
+static const uint8_t kCsiBcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static bool g_espnowReady = false;
+static std::atomic<int32_t> g_espnowInitErr{0};
 
+static bool csiSolicitInit(wifi_interface_t txif) {
+    if (g_espnowReady) return true;
+    esp_err_t e = esp_now_init();
+    if (e != ESP_OK && e != ESP_ERR_ESPNOW_EXIST) {
+        g_espnowInitErr.store((int32_t)e);
+        return false;
+    }
+    esp_now_peer_info_t peer = {};
+    memcpy(peer.peer_addr, kCsiBcast, 6);
+    peer.channel = 0;
+    peer.ifidx = txif;
+    peer.encrypt = false;
+    e = esp_now_add_peer(&peer);
+    if (e != ESP_OK && e != ESP_ERR_ESPNOW_EXIST) {
+        g_espnowInitErr.store((int32_t)e);
+        return false;
+    }
+    esp_now_rate_config_t rc = {};
+    rc.phymode = WIFI_PHY_MODE_HT20;
+    rc.rate = WIFI_PHY_RATE_MCS0_LGI;
+    g_txRateErr.store((int32_t)esp_now_set_peer_rate_config(kCsiBcast, &rc));
+    g_espnowReady = true;
+    return true;
+}
+
+static void csiSolicit() {
     wifi_mode_t wmode = WIFI_MODE_NULL;
     wifi_interface_t txif =
         (esp_wifi_get_mode(&wmode) == ESP_OK && wmode == WIFI_MODE_STA) ? WIFI_IF_STA : WIFI_IF_AP;
-    if (!g_txRateSet) {
-        wifi_tx_rate_config_t rc = {};
-        rc.phymode = WIFI_PHY_MODE_11G;
-        rc.rate = WIFI_PHY_RATE_6M;
-        g_txRateErr.store((int32_t)esp_wifi_config_80211_tx(txif, &rc));
-        g_txRateSet = true;
+    if (!csiSolicitInit(txif)) {
+        g_solicitErr.fetch_add(1);
+        g_solicitLastErr.store(g_espnowInitErr.load());
+        return;
     }
-    uint8_t self[6] = {0};
-    if (esp_wifi_get_mac(txif, self) == ESP_OK) memcpy(frame + 10, self, 6);
-    const esp_err_t err = esp_wifi_80211_tx(txif, frame, total, true);
+    static const uint8_t payload[32] = {0};
+    const esp_err_t err = esp_now_send(kCsiBcast, payload, sizeof(payload));
     if (err == ESP_OK) g_solicitOk.fetch_add(1);
     else { g_solicitErr.fetch_add(1); g_solicitLastErr.store((int32_t)err); }
 }
@@ -1444,6 +1486,12 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
                     statPairs += l.sc.acfPairs;
                 }
+            }
+            for (uint8_t i = 0; i < g_dbgN; i++) {
+                Serial.printf("[CSI] STRONG-RX %02X:%02X:%02X:%02X:%02X:%02X rssi=%d n=%u\n",
+                              g_dbgMac[i][0], g_dbgMac[i][1], g_dbgMac[i][2],
+                              g_dbgMac[i][3], g_dbgMac[i][4], g_dbgMac[i][5],
+                              (int)g_dbgRssi[i], (unsigned)g_dbgCnt[i]);
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u pr=%.1f "
