@@ -129,8 +129,8 @@ struct CsiScorer {
     float var[CSI_NSUB];
     float prevG[CSI_NSUB];
     float mG[CSI_NSUB];
-    float mVar[CSI_NSUB];
-    float mCov[CSI_NSUB];
+    float mGG[CSI_NSUB];
+    float mG2[CSI_NSUB];
     float acf;
     float vote;
     float acfFloor;
@@ -162,7 +162,7 @@ struct CsiScorer {
     void reset() {
         for (int k = 0; k < CSI_NSUB; k++) {
             fast[k] = 0.0f; slow[k] = 0.0f; var[k] = 0.0f;
-            prevG[k] = 0.0f; mG[k] = 0.0f; mVar[k] = 0.0f; mCov[k] = 0.0f;
+            prevG[k] = 0.0f; mG[k] = 0.0f; mGG[k] = 0.0f; mG2[k] = 0.0f;
         }
         acf = 0.0f;
         vote = 0.0f;
@@ -252,48 +252,34 @@ struct CsiScorer {
 
         mad = d;
 
-        const uint32_t lagUs = (prevValid && dtUs <= 0xFFFFFFFFu - lagAccum) ? (lagAccum + dtUs) : dtUs;
-        const bool lagOk = (lagUs >= CSI_ACF_LAG_MIN_US && lagUs <= CSI_ACF_LAG_MAX_US);
-        const bool lagStale = (lagUs > CSI_ACF_LAG_MAX_US);
-
-        if (lagOk && prevValid) {
-            float psi = 0.0f;
-            int nf = 0;
-            int nvote = 0;
-            for (int k = 0; k < CSI_NSUB; k++) {
-                const float G = a[k] * a[k];
-                if (acfPairs == 0) {
-                    mG[k] = G;
-                } else {
-                    const float dG = G - mG[k];
-                    const float dP = prevG[k] - mG[k];
-                    mCov[k] += CSI_ACF_ALPHA * (dG * dP - mCov[k]);
-                    mVar[k] += CSI_ACF_ALPHA * (dG * dG - mVar[k]);
-                    mG[k] += CSI_ACF_ALPHA * dG;
-                    if (mVar[k] > CSI_ACF_MIN_VAR * mG[k] * mG[k]) {
-                        float p = mCov[k] / mVar[k];
-                        if (p > 1.0f) p = 1.0f;
-                        if (p < -1.0f) p = -1.0f;
-                        psi += p;
-                        nf++;
-                        if (p > CSI_ACF_ETA_SUB) nvote++;
-                    }
+        float psi = 0.0f;
+        int nf = 0;
+        int nvote = 0;
+        for (int k = 0; k < CSI_NSUB; k++) {
+            const float G = a[k] * a[k];
+            if (acfPairs > 0) {
+                mGG[k] += CSI_ACF_ALPHA * (G * prevG[k] - mGG[k]);
+                mG[k] += CSI_ACF_ALPHA * (G - mG[k]);
+                mG2[k] += CSI_ACF_ALPHA * (G * G - mG2[k]);
+                const float m2 = mG[k] * mG[k];
+                const float v = mG2[k] - m2;
+                if (v > 1e-12f) {
+                    float p = (mGG[k] - m2) / v;
+                    if (p > 1.0f) p = 1.0f;
+                    if (p < -1.0f) p = -1.0f;
+                    psi += p;
+                    nf++;
+                    if (p > CSI_ACF_ETA_SUB) nvote++;
                 }
             }
-            acfPairs++;
-            acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
-            vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
+            prevG[k] = G;
         }
+        if (acfPairs < 0xFFFF) acfPairs++;
+        prevValid = 1;
+        acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
+        vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
 
-        if (lagOk || lagStale || !prevValid) {
-            for (int k = 0; k < CSI_NSUB; k++) prevG[k] = a[k] * a[k];
-            prevValid = 1;
-            lagAccum = 0;
-        } else {
-            lagAccum = lagUs;
-        }
-
-        if (lagOk && !holdFloor &&
+        if (!holdFloor &&
             ++asampCount >= CSI_ACF_SAMPLE_EVERY) {
             asampCount = 0;
             float aq = (acf + 1.0f) * CSI_ACF_QUANT;
