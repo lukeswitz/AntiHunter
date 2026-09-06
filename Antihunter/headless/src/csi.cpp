@@ -667,7 +667,7 @@ static void csiProcess(const CsiEvent &ev) {
 
         if (!csiLinkUsable(l)) return;
 
-        if (l.sc.acfFloor >= eta) return;
+        if (l.sc.acfFloor > csiNullMaxFloor()) return;
 
         const bool heldLongEnough = l.elevMs >= CSI_MOTION_MIN_MS;
 
