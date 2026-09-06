@@ -214,6 +214,7 @@ static std::atomic<uint32_t> g_rejShort{0};
 static std::atomic<uint32_t> g_rejMac{0};
 static std::atomic<uint32_t> g_csiMotionEvents{0};
 static uint32_t g_csiStartMs = 0;
+static uint32_t g_csiRunStartMs = 0;
 static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
@@ -804,7 +805,7 @@ String getCsiJson() {
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
     j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
-    j += ",\"uptime\":" + String(g_csiStartMs ? ((g_csiEndMs ? g_csiEndMs : millis()) - g_csiStartMs) / 1000 : 0);
+    j += ",\"uptime\":" + String(g_csiRunStartMs ? ((g_csiEndMs && g_csiEndMs >= g_csiRunStartMs ? g_csiEndMs : millis()) - g_csiRunStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
     j += ",\"areaEvents\":" + String(g_epTotal);
     j += ",\"episodes\":[";
@@ -1022,6 +1023,7 @@ void csiMotionTask(void *pv) {
     g_heatHotCur = 0;
     g_heatCurSec = 0;
     g_csiStartMs = millis();
+    g_csiRunStartMs = g_csiStartMs;
     g_csiEndMs = 0;
 
     if (csiQueue == nullptr) {
