@@ -12,6 +12,7 @@ extern volatile uint32_t g_memcpyBadLenLast;
 
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <esp_now.h>
 #include <Preferences.h>
 #include <math.h>
 #include <string.h>
@@ -405,27 +406,40 @@ static const uint8_t kCsiProbeRates[10] = {
     0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x0C, 0x12, 0x18, 0x24
 };
 
-static void csiSolicit() {
-    uint8_t frame[24 + 2 + sizeof(kCsiProbeRates)];
-    memcpy(frame, kCsiProbeHdr, 24);
-    frame[24] = 0x00;
-    frame[25] = 0x00;
-    memcpy(frame + 26, kCsiProbeRates, sizeof(kCsiProbeRates));
-    const size_t total = 26 + sizeof(kCsiProbeRates);
+static const uint8_t kCsiBcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static bool g_espnowReady = false;
+static std::atomic<int32_t> g_espnowInitErr{0};
 
+static bool csiSolicitInit(wifi_interface_t txif) {
+    if (g_espnowReady) return true;
+    esp_err_t e = esp_now_init();
+    if (e != ESP_OK && e != ESP_ERR_ESPNOW_EXIST) { g_espnowInitErr.store((int32_t)e); return false; }
+    esp_now_peer_info_t peer = {};
+    memcpy(peer.peer_addr, kCsiBcast, 6);
+    peer.channel = 0;
+    peer.ifidx = txif;
+    peer.encrypt = false;
+    e = esp_now_add_peer(&peer);
+    if (e != ESP_OK && e != ESP_ERR_ESPNOW_EXIST) { g_espnowInitErr.store((int32_t)e); return false; }
+    esp_now_rate_config_t rc = {};
+    rc.phymode = WIFI_PHY_MODE_HT20;
+    rc.rate = WIFI_PHY_RATE_MCS0_LGI;
+    g_txRateErr.store((int32_t)esp_now_set_peer_rate_config(kCsiBcast, &rc));
+    g_espnowReady = true;
+    return true;
+}
+
+static void csiSolicit() {
     wifi_mode_t wmode = WIFI_MODE_NULL;
     wifi_interface_t txif =
         (esp_wifi_get_mode(&wmode) == ESP_OK && wmode == WIFI_MODE_STA) ? WIFI_IF_STA : WIFI_IF_AP;
-    if (!g_txRateSet) {
-        wifi_tx_rate_config_t rc = {};
-        rc.phymode = WIFI_PHY_MODE_11G;
-        rc.rate = WIFI_PHY_RATE_6M;
-        g_txRateErr.store((int32_t)esp_wifi_config_80211_tx(txif, &rc));
-        g_txRateSet = true;
+    if (!csiSolicitInit(txif)) {
+        g_solicitErr.fetch_add(1);
+        g_solicitLastErr.store(g_espnowInitErr.load());
+        return;
     }
-    uint8_t self[6] = {0};
-    if (esp_wifi_get_mac(txif, self) == ESP_OK) memcpy(frame + 10, self, 6);
-    const esp_err_t err = esp_wifi_80211_tx(txif, frame, total, true);
+    static const uint8_t payload[32] = {0};
+    const esp_err_t err = esp_now_send(kCsiBcast, payload, sizeof(payload));
     if (err == ESP_OK) g_solicitOk.fetch_add(1);
     else { g_solicitErr.fetch_add(1); g_solicitLastErr.store((int32_t)err); }
 }
@@ -951,6 +965,7 @@ static bool csiRadioStart(uint8_t ch) {
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
     esp_wifi_set_promiscuous_filter(&filter);
     esp_wifi_set_promiscuous_rx_cb(&csi_prom_cb);
+    esp_wifi_set_ps(WIFI_PS_NONE);
 
     esp_err_t rp = esp_wifi_set_promiscuous(true);
     if (rp != ESP_OK) {
