@@ -688,9 +688,9 @@ static void csiProcess(const CsiEvent &ev) {
         l.rssi = ev.rssi;
         l.packets++;
 
-        l.liveBins = (uint8_t)liveBins;
         if (l.fmtLen == 0) l.fmtLen = ev.len;
         else if (l.fmtLen != ev.len) { g_rejFmt.fetch_add(1); return; }
+        l.liveBins = (uint8_t)liveBins;
 
         if (!l.sc.update(a, l.motion, dtUs)) return;
         if (l.sc.score > l.peakScore) l.peakScore = l.sc.score;
@@ -730,7 +730,7 @@ static void csiProcess(const CsiEvent &ev) {
         if (!csiLinkUsable(l)) return;
 
         if (l.sc.ahlen < CSI_ACF_MIN_HIST) { g_gateHist.fetch_add(1); return; }
-        if (l.sc.acfFloor > csiNullMaxFloor()) { g_gateFloor.fetch_add(1); return; }
+        if (l.sc.acfFloor > csiNullMaxFloorForBins(l.liveBins)) { g_gateFloor.fetch_add(1); return; }
 
         const bool heldLongEnough = l.elevMs >= CSI_MOTION_MIN_MS;
 
@@ -1251,8 +1251,8 @@ void csiMotionTask(void *pv) {
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
         const uint32_t thrMilli = csiThresholdMilli.load();
-        Serial.printf("[CSI] Trigger: ACF >= %.3f (%s), lag %u-%u us\n",
-                      thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull(),
+        Serial.printf("[CSI] Trigger: ACF >= %.3f nominal at %d bins (%s), lag %u-%u us\n",
+                      thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull(), 52,
                       thrMilli ? "stored override" : "derived from null",
                       (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
     }
@@ -1359,7 +1359,7 @@ void csiMotionTask(void *pv) {
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
                         if (l.sc.ahlen < CSI_ACF_MIN_HIST) continue;
-                        if (l.sc.acfFloor > csiNullMaxFloor()) continue;
+                        if (l.sc.acfFloor > csiNullMaxFloorForBins(l.liveBins)) continue;
                         const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaForBins(l.liveBins);
                         const float r = csiTriggerRatio(l.sc.acf, eta);
                         if (r > peakNow) peakNow = r;
