@@ -9,16 +9,17 @@
 #endif
 
 #if CONFIG_SOC_WIFI_HE_SUPPORT
-#define CSI_BUF_BYTES 106
-#define CSI_NRAW 52
-#define CSI_NSUB 52
-#define CSI_F_EFF 21.7f
+#define CSI_BUF_BYTES 114
+#define CSI_NRAW 57
+#define CSI_NSUB 57
+#define CSI_F_EFF 24.0f
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
     13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
-    40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52
+    26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38,
+    39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
+    52, 53, 54, 55, 56
 };
 #else
 #define CSI_BUF_BYTES 128

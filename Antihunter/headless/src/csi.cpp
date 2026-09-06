@@ -964,8 +964,8 @@ static bool csiArmCsi(uint8_t ch) {
     wifi_csi_config_t cfg = {};
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     cfg.enable = 1;
-    cfg.acquire_csi_legacy = 1;
-    cfg.acquire_csi_force_lltf = 1;
+    cfg.acquire_csi_legacy = 0;
+    cfg.acquire_csi_force_lltf = 0;
     cfg.acquire_csi_ht20 = 0;
     cfg.acquire_csi_ht40 = 0;
     cfg.acquire_csi_vht = 0;
@@ -973,7 +973,7 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.acquire_csi_mu = 0;
     cfg.acquire_csi_dcm = 0;
     cfg.acquire_csi_beamformed = 0;
-    cfg.acquire_csi_he_stbc_mode = 0;
+    cfg.acquire_csi_he_stbc_mode = 2;
     cfg.val_scale_cfg = 0;
     cfg.lltf_bit_mode = 1;
     cfg.dump_ack_en = (csiSolicitMs.load() != 0);
@@ -1023,8 +1023,8 @@ static bool csiRadioStart(uint8_t ch) {
     wifi_csi_config_t cfg = {};
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     cfg.enable = 1;
-    cfg.acquire_csi_legacy = 1;
-    cfg.acquire_csi_force_lltf = 1;
+    cfg.acquire_csi_legacy = 0;
+    cfg.acquire_csi_force_lltf = 0;
     cfg.acquire_csi_ht20 = 0;
     cfg.acquire_csi_ht40 = 0;
     cfg.acquire_csi_vht = 0;
@@ -1032,7 +1032,7 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.acquire_csi_mu = 0;
     cfg.acquire_csi_dcm = 0;
     cfg.acquire_csi_beamformed = 0;
-    cfg.acquire_csi_he_stbc_mode = 0;
+    cfg.acquire_csi_he_stbc_mode = 2;
     cfg.val_scale_cfg = 0;
     cfg.lltf_bit_mode = 1;
     cfg.dump_ack_en = (csiSolicitMs.load() != 0);
