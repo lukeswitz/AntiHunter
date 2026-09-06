@@ -28,7 +28,11 @@ static const uint32_t CSI_ACF_LAG_US = 33333;
 static const uint32_t CSI_ACF_LAG_MIN_US = 10000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 200000;
 static const float CSI_ACF_Z = 5.5f;
+static const float CSI_ACF_NULL_Z = 2.0f;
 static const float CSI_F_EFF = 46.0f;
+static inline float csiNullMaxFloor() {
+    return -1.0f / (float)CSI_ACF_T + CSI_ACF_NULL_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
+}
 static inline float csiEtaFromNull() {
     return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
 }
