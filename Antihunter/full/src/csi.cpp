@@ -176,6 +176,7 @@ struct CsiEvent {
     int8_t rssi;
     uint8_t ch;
     uint32_t ts;
+    uint16_t len;
     int8_t buf[CSI_BUF_BYTES];
 };
 
@@ -196,6 +197,7 @@ struct CsiLink {
     uint32_t elevMs;
     uint32_t motionStartMs;
     uint32_t events;
+    uint16_t fmtLen;
     uint32_t pairsSnap;
     float pairRate;
 };
@@ -289,7 +291,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     }
 #endif
     csiLenSeen(info->len, rx.cur_bb_format);
-    if (info->len != CSI_BUF_BYTES) {
+    if (info->len != CSI_LEN_LLTF && info->len != CSI_LEN_HTLTF) {
         g_csiRejected.fetch_add(1);
         g_rejShort.fetch_add(1);
         return;
@@ -322,7 +324,8 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     ev.rssi = rx.rssi;
     ev.ch = rx.channel;
     ev.ts = rx.timestamp;
-    memcpy(ev.buf, info->buf, CSI_BUF_BYTES);
+    ev.len = info->len;
+    memcpy(ev.buf, info->buf, info->len);
 
     g_csiSeen.fetch_add(1);
     if (xQueueSend(csiQueue, &ev, 0) != pdTRUE) g_csiDropped.fetch_add(1);
@@ -513,6 +516,7 @@ static void csiLinkReset(CsiLink &l) {
     l.elevMs = 0;
     l.motionStartMs = 0;
     l.events = 0;
+    l.fmtLen = 0;
     l.pairsSnap = 0;
     l.pairRate = 0.0f;
 }
@@ -649,7 +653,7 @@ static void csiEmitAlert(const CsiAlert &al) {
 
 static void csiProcess(const CsiEvent &ev) {
     float a[CSI_NSUB];
-    if (!csiAmplitudes(ev.buf, a)) return;
+    if (!csiAmplitudesLen(ev.buf, ev.len, a)) return;
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
@@ -675,6 +679,9 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastMs = now;
         l.rssi = ev.rssi;
         l.packets++;
+
+        if (l.fmtLen == 0) l.fmtLen = ev.len;
+        else if (l.fmtLen != ev.len) return;
 
         if (!l.sc.update(a, l.motion, dtUs)) return;
         if (l.sc.score > l.peakScore) l.peakScore = l.sc.score;
@@ -989,8 +996,8 @@ static bool csiArmCsi(uint8_t ch) {
     wifi_csi_config_t cfg = {};
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     cfg.enable = 1;
-    cfg.acquire_csi_legacy = 0;
-    cfg.acquire_csi_force_lltf = 0;
+    cfg.acquire_csi_legacy = 1;
+    cfg.acquire_csi_force_lltf = 1;
     cfg.acquire_csi_ht20 = 1;
     cfg.acquire_csi_ht40 = 1;
     cfg.acquire_csi_vht = 0;
@@ -1048,8 +1055,8 @@ static bool csiRadioStart(uint8_t ch) {
     wifi_csi_config_t cfg = {};
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     cfg.enable = 1;
-    cfg.acquire_csi_legacy = 0;
-    cfg.acquire_csi_force_lltf = 0;
+    cfg.acquire_csi_legacy = 1;
+    cfg.acquire_csi_force_lltf = 1;
     cfg.acquire_csi_ht20 = 1;
     cfg.acquire_csi_ht40 = 1;
     cfg.acquire_csi_vht = 0;

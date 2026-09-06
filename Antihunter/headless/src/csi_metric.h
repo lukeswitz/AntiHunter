@@ -10,6 +10,8 @@
 
 #if CONFIG_SOC_WIFI_HE_SUPPORT
 #define CSI_BUF_BYTES 114
+#define CSI_LEN_LLTF 106
+#define CSI_LEN_HTLTF 114
 #define CSI_NRAW 57
 #define CSI_NSUB 57
 #define CSI_F_EFF 7.8f
@@ -83,20 +85,25 @@ static inline int csiWord12(const uint8_t *u) {
     return (v >= 2048) ? (v - 4096) : v;
 }
 
-static inline bool csiAmplitudes(const int8_t *buf, float *out) {
-    float raw[CSI_NRAW];
+static inline int csiSubCount(uint16_t len) {
+    return (int)(len / 2);
+}
+
+static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, float *out) {
+    const int n = csiSubCount(len);
+    if (n < 8 || n > CSI_NSUB) return false;
     float sum = 0.0f;
-    for (int k = 0; k < CSI_NRAW; k++) {
-        const int idx = CSI_SUB_IDX[k];
-        const float im = (float)buf[idx * 2];
-        const float re = (float)buf[idx * 2 + 1];
+    for (int k = 0; k < n; k++) {
+        const float im = (float)buf[k * 2];
+        const float re = (float)buf[k * 2 + 1];
         const float mag = sqrtf(im * im + re * re);
-        raw[k] = mag;
+        out[k] = mag;
         sum += mag;
     }
     if (sum <= 0.0f) return false;
-    const float norm = (float)CSI_NRAW / sum;
-    for (int k = 0; k < CSI_NSUB; k++) out[k] = raw[k] * norm;
+    const float norm = (float)n / sum;
+    for (int k = 0; k < n; k++) out[k] *= norm;
+    for (int k = n; k < CSI_NSUB; k++) out[k] = 0.0f;
     return true;
 }
 #else
