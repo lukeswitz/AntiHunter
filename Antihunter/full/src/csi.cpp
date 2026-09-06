@@ -48,6 +48,7 @@ static const float CSI_TRIG_MAX = 6.0f;
 static std::atomic<bool> g_surveyMode{false};
 static std::atomic<uint32_t> g_surveyHits{0};
 static std::atomic<uint32_t> g_surveyStrong{0};
+static std::atomic<uint32_t> g_surveyHt{0};
 static std::atomic<uint32_t> g_surveyTx{0};
 static uint8_t g_surveyMacs[16][6];
 static uint8_t g_surveyMacCount = 0;
@@ -307,6 +308,9 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     if (g_surveyMode.load()) {
         g_surveyHits.fetch_add(1);
         if (rx.rssi >= CSI_SURVEY_MIN_RSSI) g_surveyStrong.fetch_add(1);
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+        if (rx.cur_bb_format == RX_BB_FORMAT_HT) g_surveyHt.fetch_add(1);
+#endif
         bool known = false;
         for (uint8_t i = 0; i < g_surveyMacCount; i++) {
             if (memcmp(g_surveyMacs[i], m, 6) == 0) { known = true; break; }
@@ -350,6 +354,8 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
     uint8_t bestTotalCh = chans[0], bestStrongCh = chans[0];
     uint32_t bestTotal = 0, bestStrong = 0, bestStrongTx = 0, bestStrongHits = 0, bestChScore = 0;
+    uint8_t bestHtCh = 0;
+    uint32_t bestHt = 0, bestHtStrong = 0;
 
     for (uint8_t ch : chans) {
         if (stopRequested) break;
@@ -359,6 +365,7 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
         g_surveyHits.store(0);
         g_surveyStrong.store(0);
+        g_surveyHt.store(0);
         g_surveyTx.store(0);
         g_surveyMacCount = 0;
         g_surveyMode.store(true);
@@ -367,10 +374,12 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
 
         const uint32_t hits = g_surveyHits.load();
         const uint32_t strong = g_surveyStrong.load();
+        const uint32_t ht = g_surveyHt.load();
         const uint32_t tx = g_surveyTx.load();
+        if (ht > bestHt) { bestHt = ht; bestHtCh = ch; bestHtStrong = strong; }
         const float rate = (float)hits * 1000.0f / (float)dwellMs;
-        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong\n",
-                      ch, hits, rate, tx, strong);
+        Serial.printf("[CSI]   ch%-3u %5u records  %5.1f/s  %u transmitters  %u strong  %u ht\n",
+                      ch, hits, rate, tx, strong, ht);
 
         if (hits > bestTotal) { bestTotal = hits; bestTotalCh = ch; }
         const uint32_t chScore = hits * strong;
@@ -383,6 +392,13 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     if (bestTotal == 0) {
         Serial.println("[CSI] No CSI-eligible traffic on any surveyed channel");
         return 0;
+    }
+
+    if (bestHt > 0 && bestHtStrong > 0) {
+        Serial.printf("[CSI] Selected ch%u for HT traffic (%u HT-LTF frames, %u strong) - "
+                      "HT-LTF is a cleaner channel estimate than L-LTF\n",
+                      bestHtCh, bestHt, bestHtStrong);
+        return bestHtCh;
     }
 
     if (bestStrong == 0) {
@@ -1210,8 +1226,7 @@ void csiMotionTask(void *pv) {
             if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK) {
                 Serial.printf("[CSI] radio channel after re-apply: ch%u\n", priCh);
                 if (priCh != ch) {
-                    Serial.printf("[CSI] channel change REFUSED, running on ch%u not ch%u - "
-                                  "the SoftAP pins the radio; stop the AP to move channel\n",
+                    Serial.printf("[CSI] channel change REFUSED, running on ch%u not ch%u\n",
                                   priCh, ch);
                     g_csiActiveChannel = priCh;
                 }
