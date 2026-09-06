@@ -215,7 +215,6 @@ static std::atomic<uint32_t> g_rejShort{0};
 static std::atomic<uint32_t> g_rejMac{0};
 static std::atomic<uint32_t> g_csiMotionEvents{0};
 static uint32_t g_csiStartMs = 0;
-static uint32_t g_csiRunStartMs = 0;
 static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
@@ -844,7 +843,7 @@ String getCsiJson() {
     j += ",\"threshold\":" + String((float)csiThresholdMilli.load() / 1000.0f, 2);
     j += ",\"voteFrac\":" + String(CSI_VOTE_FRAC, 2);
     j += ",\"calibrated\":" + String(prefs.getBool("csiCalDone", false) ? "true" : "false");
-    j += ",\"uptime\":" + String(g_csiRunStartMs ? ((g_csiEndMs && g_csiEndMs >= g_csiRunStartMs ? g_csiEndMs : millis()) - g_csiRunStartMs) / 1000 : 0);
+    j += ",\"uptime\":" + String(g_csiStartMs ? ((g_csiEndMs ? g_csiEndMs : millis()) - g_csiStartMs) / 1000 : 0);
     j += ",\"sinceMotion\":" + String(g_areaLastMotionMs ? (int32_t)((millis() - g_areaLastMotionMs) / 1000) : -1);
     j += ",\"areaEvents\":" + String(g_epTotal);
     j += ",\"episodes\":[";
@@ -1060,7 +1059,6 @@ void csiMotionTask(void *pv) {
     g_heatHotCur = 0;
     g_heatCurSec = 0;
     g_csiStartMs = millis();
-    g_csiRunStartMs = g_csiStartMs;
     g_csiEndMs = 0;
 
     if (csiQueue == nullptr) {
@@ -1172,7 +1170,6 @@ void csiMotionTask(void *pv) {
     uint32_t lastStallMs = millis();
     uint32_t lastSeenSnap = 0;
     uint32_t lastRejSnap = 0;
-    uint32_t lastPromSnap = 0;
     uint32_t blindSinceMs = 0;
     uint32_t lastRehopMs = 0;
     uint32_t lastSolicitMs = millis();
@@ -1299,12 +1296,7 @@ void csiMotionTask(void *pv) {
             lastStallMs = now;
             const uint32_t seenNow = g_csiSeen.load();
             const uint32_t rejNow = g_csiRejected.load();
-            const uint32_t promNow = g_promFrames.load();
-            if (seenNow == lastSeenSnap && promNow > lastPromSnap) {
-                Serial.printf("[CSI] STALL: 0 accepted while %u frames arrived - re-arming ch%u\n",
-                              promNow - lastPromSnap, g_csiActiveChannel);
-                if (!csiArmCsi(g_csiActiveChannel)) Serial.println("[CSI] re-arm failed");
-            } else if (seenNow == lastSeenSnap && rejNow > lastRejSnap) {
+            if (seenNow == lastSeenSnap && rejNow > lastRejSnap) {
                 Serial.printf("[CSI] STALL: 0 accepted, +%u rejected (fcs=%u width=%u short=%u mac=%u) - re-arming ch%u\n",
                               rejNow - lastRejSnap, g_rejFcs.load(), g_rejWidth.load(),
                               g_rejShort.load(), g_rejMac.load(), g_csiActiveChannel);
@@ -1312,7 +1304,6 @@ void csiMotionTask(void *pv) {
             }
             lastSeenSnap = seenNow;
             lastRejSnap = rejNow;
-            lastPromSnap = promNow;
         }
 
         if (now - lastRollMs >= 60000) {
