@@ -1078,6 +1078,11 @@ void csiMotionTask(void *pv) {
             vTaskDelay(pdMS_TO_TICKS(30));
             if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK) {
                 Serial.printf("[CSI] radio channel after re-apply: ch%u\n", priCh);
+                if (priCh != ch) {
+                    Serial.printf("[CSI] channel change REFUSED, running on ch%u not ch%u\n",
+                                  priCh, ch);
+                    g_csiActiveChannel = priCh;
+                }
             }
         }
     }
