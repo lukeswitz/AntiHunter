@@ -219,8 +219,6 @@ static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
 static std::atomic<uint32_t> g_promFrames{0};
-static std::atomic<uint32_t> g_gateHist{0};
-static std::atomic<uint32_t> g_gateFloor{0};
 static std::atomic<uint32_t> g_solicitOk{0};
 static std::atomic<uint32_t> g_solicitErr{0};
 static std::atomic<int32_t> g_solicitLastErr{0};
@@ -472,14 +470,12 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
-static float csiZThreshold(float eta) {
-    const float z = eta * CSI_ACF_Z_PER_ETA;
-    return (z < 1.0f) ? 1.0f : z;
+static float csiZThreshold(uint32_t thrMilli) {
+    return thrMilli ? ((float)thrMilli / 1000.0f) * CSI_ACF_Z_PER_ETA : CSI_ACF_Z_TRIG;
 }
 
-static float csiTriggerRatio(float acf, float eta) {
-    if (eta <= 0.0f) return 0.0f;
-    const float r = acf / eta;
+static float csiTriggerRatio(float acfZ, uint32_t thrMilli) {
+    const float r = acfZ / csiZThreshold(thrMilli);
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -609,8 +605,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
-        if (l.sc.acf >= eta) {
+        if (l.sc.acfZ >= csiZThreshold(thrMilli)) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -625,9 +620,6 @@ static void csiProcess(const CsiEvent &ev) {
 
         if (!csiLinkUsable(l)) return;
 
-        if (l.sc.ahlen < CSI_ACF_MIN_HIST) { g_gateHist.fetch_add(1); return; }
-        if (l.sc.acfFloor > csiNullMaxFloor()) { g_gateFloor.fetch_add(1); return; }
-
         const bool heldLongEnough = l.elevMs >= CSI_MOTION_MIN_MS;
 
         if (!l.motion && heldLongEnough && l.consec >= consecNeeded) {
@@ -636,7 +628,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.acf < eta &&
+        } else if (l.motion && l.sc.acfZ < csiZThreshold(thrMilli) &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -1115,9 +1107,9 @@ void csiMotionTask(void *pv) {
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
         const uint32_t thrMilli = csiThresholdMilli.load();
-        Serial.printf("[CSI] Trigger: ACF >= %.3f (%s), lag %u-%u us\n",
-                      thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull(),
-                      thrMilli ? "stored override" : "derived from null",
+        Serial.printf("[CSI] Trigger: acf z >= %.2f (%s), lag %u-%u us\n",
+                      csiZThreshold(thrMilli),
+                      thrMilli ? "stored override" : "default",
                       (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
     }
 
@@ -1221,15 +1213,12 @@ void csiMotionTask(void *pv) {
                 float peakNow = 0.0f;
                 {
                     const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                     std::lock_guard<std::mutex> lock(g_csiMutex);
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        if (l.sc.ahlen < CSI_ACF_MIN_HIST) continue;
-                        if (l.sc.acfFloor > csiNullMaxFloor()) continue;
-                        const float r = csiTriggerRatio(l.sc.acf, eta);
+                        const float r = csiTriggerRatio(l.sc.acfZ, thrMilli);
                         if (r > peakNow) peakNow = r;
                     }
                 }
@@ -1340,7 +1329,6 @@ void csiMotionTask(void *pv) {
             float statPrMax = 0.0f;
             {
                 const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
@@ -1351,7 +1339,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.acf >= eta) statPassEta++;
+                    if (l.sc.acfZ >= csiZThreshold(thrMilli)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
@@ -1360,13 +1348,13 @@ void csiMotionTask(void *pv) {
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u pr=%.1f "
-                          "pass-eta=%u pass-vote=%u gate=%u/%u frames=%u tx=%u/%u err=%d rate=%d\n",
+                          "pass-eta=%u pass-vote=%u frames=%u tx=%u/%u err=%d rate=%d\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
                           statZMax, statFloorMax, statPairs, statPrMax,
-                          statPassEta, statPassVote, g_gateHist.load(), g_gateFloor.load(), g_promFrames.load(),
+                          statPassEta, statPassVote, g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
                           (int)g_txRateErr.load());
         }

@@ -21,21 +21,12 @@ static const uint16_t CSI_FLOOR_SAMPLE_EVERY = 32;
 static const float CSI_FLOOR_QUANT = 100000.0f;
 static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
-static const float CSI_ACF_ALPHA = 0.00167f;
-static const uint16_t CSI_ACF_T = 600;
-static const uint16_t CSI_ACF_ARM_PAIRS = 4 * CSI_ACF_T;
+static const float CSI_ACF_ALPHA = 0.0167f;
+static const uint16_t CSI_ACF_T = 60;
 static const uint32_t CSI_ACF_LAG_US = 33333;
 static const uint32_t CSI_ACF_LAG_MIN_US = 20000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 50000;
-static const float CSI_ACF_Z = 5.5f;
-static const float CSI_ACF_NULL_Z = 2.0f;
 static const float CSI_F_EFF = 46.0f;
-static inline float csiNullMaxFloor() {
-    return -1.0f / (float)CSI_ACF_T + CSI_ACF_NULL_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
-}
-static inline float csiEtaFromNull() {
-    return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
-}
 static const float CSI_ACF_ETA_SUB = 0.25f;
 static const float CSI_ACF_MIN_VAR = 1e-6f;
 static const uint8_t CSI_ACF_HIST = 120;
@@ -44,7 +35,8 @@ static const float CSI_ACF_QUANT = 10000.0f;
 static const float CSI_ACF_MIN_SPREAD = 0.02f;
 static const uint8_t CSI_ACF_MIN_HIST = 12;
 static const float CSI_ACF_Z_PER_ETA = 30.0f;
-static const float CSI_VOTE_FRAC = 0.0f;
+static const float CSI_ACF_Z_TRIG = 3.0f;
+static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
 static const uint16_t CSI_FLOOR_SETTLE_PKTS = 450;
@@ -105,7 +97,7 @@ struct CsiScorer {
     uint8_t prevValid;
     uint32_t lagAccum;
 
-    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_ARM_PAIRS; }
+    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
 
     void reset() {
@@ -242,7 +234,7 @@ struct CsiScorer {
             lagAccum = lagUs;
         }
 
-        if (lagOk && !holdFloor && acfPairs >= CSI_ACF_ARM_PAIRS &&
+        if (lagOk && !holdFloor &&
             ++asampCount >= CSI_ACF_SAMPLE_EVERY) {
             asampCount = 0;
             float aq = (acf + 1.0f) * CSI_ACF_QUANT;
