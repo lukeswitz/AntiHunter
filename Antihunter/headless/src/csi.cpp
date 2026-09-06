@@ -470,12 +470,13 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
-static float csiZThreshold(uint32_t thrMilli) {
-    return thrMilli ? ((float)thrMilli / 1000.0f) * CSI_ACF_Z_PER_ETA : CSI_ACF_Z_TRIG;
+static float csiEta(uint32_t thrMilli) {
+    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
 }
 
-static float csiTriggerRatio(float acfZ, uint32_t thrMilli) {
-    const float r = acfZ / csiZThreshold(thrMilli);
+static float csiTriggerRatio(float acf, float vote, uint32_t thrMilli) {
+    if (vote < CSI_VOTE_FRAC) return 0.0f;
+    const float r = acf / csiEta(thrMilli);
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -605,7 +606,8 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const uint32_t thrMilli = csiThresholdMilli.load();
-        if (l.sc.acfZ >= csiZThreshold(thrMilli)) {
+        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
+        if (l.sc.acf >= eta && l.sc.vote >= CSI_VOTE_FRAC) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -628,7 +630,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && l.sc.acfZ < csiZThreshold(thrMilli) &&
+        } else if (l.motion && (l.sc.acf < eta || l.sc.vote < CSI_VOTE_FRAC) &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
@@ -1107,8 +1109,8 @@ void csiMotionTask(void *pv) {
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
         const uint32_t thrMilli = csiThresholdMilli.load();
-        Serial.printf("[CSI] Trigger: acf z >= %.2f (%s), lag %u-%u us\n",
-                      csiZThreshold(thrMilli),
+        Serial.printf("[CSI] Trigger: acf >= %.3f and vote >= 0.50 (%s), lag %u-%u us\n",
+                      csiEta(thrMilli),
                       thrMilli ? "stored override" : "default",
                       (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
     }
@@ -1218,7 +1220,7 @@ void csiMotionTask(void *pv) {
                         const CsiLink &l = g_links[i];
                         if (!l.used || !l.sc.settled() || l.packets < CSI_LINK_MIN_PKTS) continue;
                         if (!csiLinkUsable(l)) continue;
-                        const float r = csiTriggerRatio(l.sc.acfZ, thrMilli);
+                        const float r = csiTriggerRatio(l.sc.acf, l.sc.vote, thrMilli);
                         if (r > peakNow) peakNow = r;
                     }
                 }
@@ -1339,7 +1341,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
-                    if (l.sc.acfZ >= csiZThreshold(thrMilli)) statPassEta++;
+                    if (l.sc.acf >= csiEta(thrMilli)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
