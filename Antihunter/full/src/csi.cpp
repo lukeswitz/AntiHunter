@@ -974,8 +974,8 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
     cfg.acquire_csi_force_lltf = 1;
-    cfg.acquire_csi_ht20 = 0;
-    cfg.acquire_csi_ht40 = 0;
+    cfg.acquire_csi_ht20 = 1;
+    cfg.acquire_csi_ht40 = 1;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
     cfg.acquire_csi_mu = 0;
@@ -1033,8 +1033,8 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
     cfg.acquire_csi_force_lltf = 1;
-    cfg.acquire_csi_ht20 = 0;
-    cfg.acquire_csi_ht40 = 0;
+    cfg.acquire_csi_ht20 = 1;
+    cfg.acquire_csi_ht40 = 1;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
     cfg.acquire_csi_mu = 0;
@@ -1209,6 +1209,12 @@ void csiMotionTask(void *pv) {
             vTaskDelay(pdMS_TO_TICKS(30));
             if (esp_wifi_get_channel(&priCh, &secCh) == ESP_OK) {
                 Serial.printf("[CSI] radio channel after re-apply: ch%u\n", priCh);
+                if (priCh != ch) {
+                    Serial.printf("[CSI] channel change REFUSED, running on ch%u not ch%u - "
+                                  "the SoftAP pins the radio; stop the AP to move channel\n",
+                                  priCh, ch);
+                    g_csiActiveChannel = priCh;
+                }
             }
         }
     }
