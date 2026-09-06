@@ -101,7 +101,7 @@ struct CsiScorer {
     uint8_t hlen;
     uint8_t hpos;
     uint16_t sampCount;
-    uint16_t acfPairs;
+    uint32_t acfPairs;
     uint8_t prevValid;
     uint32_t lagAccum;
 
@@ -229,7 +229,7 @@ struct CsiScorer {
                     }
                 }
             }
-            if (acfPairs < 0xFFFF) acfPairs++;
+            acfPairs++;
             acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
             vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
         }
