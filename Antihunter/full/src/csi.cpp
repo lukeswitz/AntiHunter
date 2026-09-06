@@ -571,13 +571,14 @@ static bool csiLinkUsable(const CsiLink &l) {
 }
 
 static float csiZThreshold(float eta) {
-    const float z = eta * CSI_ACF_Z_PER_ETA;
-    return (z < 1.0f) ? 1.0f : z;
+    (void)eta;
+    return CSI_ACF_Z_TRIG;
 }
 
-static float csiTriggerRatio(float acf, float eta) {
+static float csiTriggerRatio(float acfZ, float eta) {
     if (eta <= 0.0f) return 0.0f;
-    const float r = acf / eta;
+    const float z = csiZThreshold(eta);
+    const float r = acfZ / z;
     return (r > 0.0f) ? r : 0.0f;
 }
 
@@ -714,7 +715,7 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t thrMilli = csiThresholdMilli.load();
         const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaForBins(l.liveBins);
-        if (l.sc.acf >= eta) {
+        if (l.sc.acfZ >= csiZThreshold(eta)) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -729,8 +730,6 @@ static void csiProcess(const CsiEvent &ev) {
 
         if (!csiLinkUsable(l)) return;
 
-        if (l.sc.ahlen < CSI_ACF_MIN_HIST) { g_gateHist.fetch_add(1); return; }
-        if (l.sc.acfFloor > csiNullMaxFloorForBins(l.liveBins)) { g_gateFloor.fetch_add(1); return; }
 
         const bool heldLongEnough = l.elevMs >= CSI_MOTION_MIN_MS;
 
@@ -1361,7 +1360,7 @@ void csiMotionTask(void *pv) {
                         if (l.sc.ahlen < CSI_ACF_MIN_HIST) continue;
                         if (l.sc.acfFloor > csiNullMaxFloorForBins(l.liveBins)) continue;
                         const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaForBins(l.liveBins);
-                        const float r = csiTriggerRatio(l.sc.acf, eta);
+                        const float r = csiTriggerRatio(l.sc.acfZ, eta);
                         if (r > peakNow) peakNow = r;
                     }
                 }
@@ -1483,7 +1482,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
                     const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaForBins(l.liveBins);
-                    if (l.sc.acf >= eta) statPassEta++;
+                    if (l.sc.acfZ >= csiZThreshold(eta)) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
