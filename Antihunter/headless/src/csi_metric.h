@@ -15,7 +15,6 @@
 #define CSI_NRAW 57
 #define CSI_NSUB 57
 #define CSI_F_EFF 17.8f
-#define CSI_F_EFF_PER_BIN (CSI_F_EFF / 52.0f)
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
@@ -46,29 +45,10 @@ static const uint16_t CSI_FLOOR_SAMPLE_EVERY = 32;
 static const float CSI_FLOOR_QUANT = 100000.0f;
 static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
-static const float CSI_ACF_ALPHA = 0.0167f;
-static const float CSI_ACF_TAU_S = 20.0f;
+static const float CSI_ACF_TAU_S = 6.13f;
 static const uint16_t CSI_ACF_T = 60;
-static const uint16_t CSI_ACF_ARM_PAIRS = 4 * CSI_ACF_T;
-static const uint32_t CSI_ACF_LAG_US = 33333;
 static const uint32_t CSI_ACF_LAG_MIN_US = 90000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 115000;
-static const float CSI_ACF_Z = 5.5f;
-static const float CSI_ACF_NULL_Z = 2.0f;
-static inline float csiNullMaxFloorForBins(int liveBins) {
-    const float f = CSI_F_EFF_PER_BIN * (float)(liveBins > 0 ? liveBins : 1);
-    return -1.0f / (float)CSI_ACF_T + CSI_ACF_NULL_Z / sqrtf((f > 1.0f ? f : 1.0f) * (float)CSI_ACF_T);
-}
-static inline float csiNullMaxFloor() {
-    return -1.0f / (float)CSI_ACF_T + CSI_ACF_NULL_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
-}
-static inline float csiEtaForBins(int liveBins) {
-    const float f = CSI_F_EFF_PER_BIN * (float)(liveBins > 0 ? liveBins : 1);
-    return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf((f > 1.0f ? f : 1.0f) * (float)CSI_ACF_T);
-}
-static inline float csiEtaFromNull() {
-    return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
-}
 static const float CSI_ACF_ETA_SUB = 0.25f;
 static const float CSI_ACF_MIN_VAR = 1e-6f;
 static const uint8_t CSI_ACF_HIST = 120;
