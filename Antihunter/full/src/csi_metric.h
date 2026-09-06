@@ -14,7 +14,8 @@
 #define CSI_LEN_HTLTF 114
 #define CSI_NRAW 57
 #define CSI_NSUB 57
-#define CSI_F_EFF 21.7f
+#define CSI_F_EFF 17.8f
+#define CSI_DC_BIN 26
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
@@ -95,17 +96,20 @@ static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstW
     const int k0 = firstWordInvalid ? 2 : 0;
     if (n - k0 < 8) return false;
     float sum = 0.0f;
+    int m = 0;
     for (int k = k0; k < n; k++) {
+        if (k == CSI_DC_BIN) continue;
         const float im = (float)buf[k * 2];
         const float re = (float)buf[k * 2 + 1];
         const float mag = sqrtf(im * im + re * re);
-        out[k] = mag;
+        out[m++] = mag;
         sum += mag;
     }
+    if (m < 8) return false;
     if (sum <= 0.0f) return false;
-    const float norm = (float)(n - k0) / sum;
-    for (int k = k0; k < n; k++) out[k - k0] *= norm;
-    for (int k = n - k0; k < CSI_NSUB; k++) out[k] = 0.0f;
+    const float norm = (float)m / sum;
+    for (int k = 0; k < m; k++) out[k] *= norm;
+    for (int k = m; k < CSI_NSUB; k++) out[k] = 0.0f;
     return true;
 }
 #else
