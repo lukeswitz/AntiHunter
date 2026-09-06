@@ -973,8 +973,8 @@ static bool csiArmCsi(uint8_t ch) {
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
-    cfg.acquire_csi_force_lltf = 0;
-    cfg.acquire_csi_ht20 = 1;
+    cfg.acquire_csi_force_lltf = 1;
+    cfg.acquire_csi_ht20 = 0;
     cfg.acquire_csi_ht40 = 0;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
@@ -1032,8 +1032,8 @@ static bool csiRadioStart(uint8_t ch) {
 #if CONFIG_SOC_WIFI_HE_SUPPORT
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
-    cfg.acquire_csi_force_lltf = 0;
-    cfg.acquire_csi_ht20 = 1;
+    cfg.acquire_csi_force_lltf = 1;
+    cfg.acquire_csi_ht20 = 0;
     cfg.acquire_csi_ht40 = 0;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
