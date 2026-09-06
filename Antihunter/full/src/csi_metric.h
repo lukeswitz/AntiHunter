@@ -14,7 +14,7 @@
 #define CSI_LEN_HTLTF 114
 #define CSI_NRAW 57
 #define CSI_NSUB 57
-#define CSI_F_EFF 7.8f
+#define CSI_F_EFF 21.7f
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
@@ -89,11 +89,13 @@ static inline int csiSubCount(uint16_t len) {
     return (int)(len / 2);
 }
 
-static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, float *out) {
+static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstWordInvalid, float *out) {
     const int n = csiSubCount(len);
     if (n < 8 || n > CSI_NSUB) return false;
+    const int k0 = firstWordInvalid ? 2 : 0;
+    if (n - k0 < 8) return false;
     float sum = 0.0f;
-    for (int k = 0; k < n; k++) {
+    for (int k = k0; k < n; k++) {
         const float im = (float)buf[k * 2];
         const float re = (float)buf[k * 2 + 1];
         const float mag = sqrtf(im * im + re * re);
@@ -101,9 +103,9 @@ static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, float *out)
         sum += mag;
     }
     if (sum <= 0.0f) return false;
-    const float norm = (float)n / sum;
-    for (int k = 0; k < n; k++) out[k] *= norm;
-    for (int k = n; k < CSI_NSUB; k++) out[k] = 0.0f;
+    const float norm = (float)(n - k0) / sum;
+    for (int k = k0; k < n; k++) out[k - k0] *= norm;
+    for (int k = n - k0; k < CSI_NSUB; k++) out[k] = 0.0f;
     return true;
 }
 #else

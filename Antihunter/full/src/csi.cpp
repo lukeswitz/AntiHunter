@@ -177,6 +177,7 @@ struct CsiEvent {
     uint8_t ch;
     uint32_t ts;
     uint16_t len;
+    bool fwInvalid;
     int8_t buf[CSI_BUF_BYTES];
 };
 
@@ -220,6 +221,8 @@ static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
 static std::atomic<uint32_t> g_promFrames{0};
+static std::atomic<uint32_t> g_rejFmt{0};
+static std::atomic<uint32_t> g_fwSkip{0};
 static std::atomic<uint32_t> g_gateHist{0};
 static std::atomic<uint32_t> g_gateFloor{0};
 static std::atomic<uint32_t> g_solicitOk{0};
@@ -325,6 +328,7 @@ static void csi_rx_cb(void *ctx, wifi_csi_info_t *info) {
     ev.ch = rx.channel;
     ev.ts = rx.timestamp;
     ev.len = info->len;
+    ev.fwInvalid = info->first_word_invalid;
     memcpy(ev.buf, info->buf, info->len);
 
     g_csiSeen.fetch_add(1);
@@ -653,7 +657,8 @@ static void csiEmitAlert(const CsiAlert &al) {
 
 static void csiProcess(const CsiEvent &ev) {
     float a[CSI_NSUB];
-    if (!csiAmplitudesLen(ev.buf, ev.len, a)) return;
+    if (ev.fwInvalid) g_fwSkip.fetch_add(1);
+    if (!csiAmplitudesLen(ev.buf, ev.len, ev.fwInvalid, a)) return;
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
@@ -681,7 +686,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.packets++;
 
         if (l.fmtLen == 0) l.fmtLen = ev.len;
-        else if (l.fmtLen != ev.len) return;
+        else if (l.fmtLen != ev.len) { g_rejFmt.fetch_add(1); return; }
 
         if (!l.sc.update(a, l.motion, dtUs)) return;
         if (l.sc.score > l.peakScore) l.peakScore = l.sc.score;
@@ -998,8 +1003,8 @@ static bool csiArmCsi(uint8_t ch) {
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
     cfg.acquire_csi_force_lltf = 1;
-    cfg.acquire_csi_ht20 = 1;
-    cfg.acquire_csi_ht40 = 1;
+    cfg.acquire_csi_ht20 = 0;
+    cfg.acquire_csi_ht40 = 0;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
     cfg.acquire_csi_mu = 0;
@@ -1057,8 +1062,8 @@ static bool csiRadioStart(uint8_t ch) {
     cfg.enable = 1;
     cfg.acquire_csi_legacy = 1;
     cfg.acquire_csi_force_lltf = 1;
-    cfg.acquire_csi_ht20 = 1;
-    cfg.acquire_csi_ht40 = 1;
+    cfg.acquire_csi_ht20 = 0;
+    cfg.acquire_csi_ht40 = 0;
     cfg.acquire_csi_vht = 0;
     cfg.acquire_csi_su = 0;
     cfg.acquire_csi_mu = 0;
@@ -1483,14 +1488,14 @@ void csiMotionTask(void *pv) {
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u pr=%.1f "
-                          "pass-eta=%u pass-vote=%u gate=%u/%u frames=%u tx=%u/%u err=%d "
+                          "pass-eta=%u pass-vote=%u fmtdrop=%u fw=%u gate=%u/%u frames=%u tx=%u/%u err=%d "
                           "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
                           statZMax, statFloorMax, statPairs, statPrMax,
-                          statPassEta, statPassVote, g_gateHist.load(), g_gateFloor.load(), g_promFrames.load(),
+                          statPassEta, statPassVote, g_rejFmt.load(), g_fwSkip.load(), g_gateHist.load(), g_gateFloor.load(), g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
 
                           (unsigned)g_lenVal[0], (unsigned)g_lenFmt[0], (unsigned)g_lenCnt[0],
