@@ -11,9 +11,8 @@
 #if CONFIG_SOC_WIFI_HE_SUPPORT
 #define CSI_BUF_BYTES 106
 #define CSI_NRAW 52
-#define CSI_NSUB 51
-#define CSI_UNSMOOTH 1
-#define CSI_F_EFF 38.0f
+#define CSI_NSUB 52
+#define CSI_F_EFF 21.7f
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
@@ -96,15 +95,7 @@ static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     }
     if (sum <= 0.0f) return false;
     const float norm = (float)CSI_NRAW / sum;
-    for (int k = 0; k < CSI_NRAW; k++) raw[k] *= norm;
-    float asum = 0.0f;
-    for (int k = 0; k < CSI_NSUB; k++) {
-        out[k] = fabsf(raw[k + 1] - raw[k]);
-        asum += out[k];
-    }
-    if (asum <= 0.0f) return false;
-    const float anorm = (float)CSI_NSUB / asum;
-    for (int k = 0; k < CSI_NSUB; k++) out[k] *= anorm;
+    for (int k = 0; k < CSI_NSUB; k++) out[k] = raw[k] * norm;
     return true;
 }
 #else
