@@ -701,7 +701,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
                 <optgroup label="Detection">
                   <option value="baseline">Baseline Anomaly Sniffer</option>
                   <option value="deauth">Deauth Detection</option>
-                  <option value="csi-motion">CSI Motion Detection</option>
                 </optgroup>
                 <optgroup label="Capture">
                   <option value="pcap">Packet Capture</option>
