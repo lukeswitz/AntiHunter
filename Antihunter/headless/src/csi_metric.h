@@ -12,7 +12,7 @@
 #define CSI_BUF_BYTES 114
 #define CSI_NRAW 57
 #define CSI_NSUB 57
-#define CSI_F_EFF 24.0f
+#define CSI_F_EFF 7.8f
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
@@ -47,8 +47,8 @@ static const float CSI_ACF_ALPHA = 0.00167f;
 static const uint16_t CSI_ACF_T = 600;
 static const uint16_t CSI_ACF_ARM_PAIRS = 4 * CSI_ACF_T;
 static const uint32_t CSI_ACF_LAG_US = 33333;
-static const uint32_t CSI_ACF_LAG_MIN_US = 10000;
-static const uint32_t CSI_ACF_LAG_MAX_US = 200000;
+static const uint32_t CSI_ACF_LAG_MIN_US = 20000;
+static const uint32_t CSI_ACF_LAG_MAX_US = 50000;
 static const float CSI_ACF_Z = 5.5f;
 static const float CSI_ACF_NULL_Z = 2.0f;
 static inline float csiNullMaxFloor() {

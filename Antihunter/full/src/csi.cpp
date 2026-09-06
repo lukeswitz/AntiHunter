@@ -217,6 +217,8 @@ static uint32_t g_csiEndMs = 0;
 static uint8_t g_csiActiveChannel = 0;
 
 static std::atomic<uint32_t> g_promFrames{0};
+static std::atomic<uint32_t> g_gateHist{0};
+static std::atomic<uint32_t> g_gateFloor{0};
 static std::atomic<uint32_t> g_solicitOk{0};
 static std::atomic<uint32_t> g_solicitErr{0};
 static std::atomic<int32_t> g_solicitLastErr{0};
@@ -710,8 +712,8 @@ static void csiProcess(const CsiEvent &ev) {
 
         if (!csiLinkUsable(l)) return;
 
-        if (l.sc.ahlen < CSI_ACF_MIN_HIST) return;
-        if (l.sc.acfFloor > csiNullMaxFloor()) return;
+        if (l.sc.ahlen < CSI_ACF_MIN_HIST) { g_gateHist.fetch_add(1); return; }
+        if (l.sc.acfFloor > csiNullMaxFloor()) { g_gateFloor.fetch_add(1); return; }
 
         const bool heldLongEnough = l.elevMs >= CSI_MOTION_MIN_MS;
 
@@ -1472,14 +1474,14 @@ void csiMotionTask(void *pv) {
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u pr=%.1f "
-                          "pass-eta=%u pass-vote=%u frames=%u tx=%u/%u err=%d "
+                          "pass-eta=%u pass-vote=%u gate=%u/%u frames=%u tx=%u/%u err=%d "
                           "len=%u/%u:%u %u/%u:%u ce=%u/%u celen=%u stale=%u\n",
                           g_csiActiveChannel, g_csiSeen.load(),
                           (float)g_csiSeen.load() * 1000.0f / (float)(span ? span : 1),
                           g_csiRejected.load(), g_csiDropped.load(), g_csiMotionEvents.load(),
                           statLinks, statLinks ? statAcfMin : 0.0f, statAcfMax, statVoteMax,
                           statZMax, statFloorMax, statPairs, statPrMax,
-                          statPassEta, statPassVote, g_promFrames.load(),
+                          statPassEta, statPassVote, g_gateHist.load(), g_gateFloor.load(), g_promFrames.load(),
                           g_solicitOk.load(), g_solicitErr.load(), (int)g_solicitLastErr.load(),
 
                           (unsigned)g_lenVal[0], (unsigned)g_lenFmt[0], (unsigned)g_lenCnt[0],
