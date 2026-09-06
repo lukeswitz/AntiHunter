@@ -198,6 +198,7 @@ struct CsiLink {
     uint32_t motionStartMs;
     uint32_t events;
     uint16_t fmtLen;
+    uint8_t liveBins;
     uint32_t pairsSnap;
     float pairRate;
 };
@@ -537,6 +538,7 @@ static void csiLinkReset(CsiLink &l) {
     l.motionStartMs = 0;
     l.events = 0;
     l.fmtLen = 0;
+    l.liveBins = 0;
     l.pairsSnap = 0;
     l.pairRate = 0.0f;
 }
@@ -636,7 +638,8 @@ static void csiEmitAlert(const CsiAlert &al) {
 static void csiProcess(const CsiEvent &ev) {
     float a[CSI_NSUB];
     if (ev.fwInvalid) g_fwSkip.fetch_add(1);
-    if (!csiAmplitudesLen(ev.buf, ev.len, ev.fwInvalid, a)) return;
+    int liveBins = 0;
+    if (!csiAmplitudesLen(ev.buf, ev.len, ev.fwInvalid, a, &liveBins)) return;
 
     if (csiRawDump.load()) {
         String row = "CSIR," + String(ev.ts) + "," + macFmt6(ev.mac) + "," +
@@ -663,6 +666,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.rssi = ev.rssi;
         l.packets++;
 
+        l.liveBins = (uint8_t)liveBins;
         if (l.fmtLen == 0) l.fmtLen = ev.len;
         else if (l.fmtLen != ev.len) { g_rejFmt.fetch_add(1); return; }
 
@@ -687,7 +691,7 @@ static void csiProcess(const CsiEvent &ev) {
         l.lastTickMs = now;
 
         const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
+        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaForBins(l.liveBins);
         if (l.sc.acf >= eta) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
@@ -1329,7 +1333,6 @@ void csiMotionTask(void *pv) {
                 float peakNow = 0.0f;
                 {
                     const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                     std::lock_guard<std::mutex> lock(g_csiMutex);
                     for (int i = 0; i < CSI_MAX_LINKS; i++) {
                         const CsiLink &l = g_links[i];
@@ -1337,6 +1340,7 @@ void csiMotionTask(void *pv) {
                         if (!csiLinkUsable(l)) continue;
                         if (l.sc.ahlen < CSI_ACF_MIN_HIST) continue;
                         if (l.sc.acfFloor > csiNullMaxFloor()) continue;
+                        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaForBins(l.liveBins);
                         const float r = csiTriggerRatio(l.sc.acf, eta);
                         if (r > peakNow) peakNow = r;
                     }
@@ -1449,7 +1453,6 @@ void csiMotionTask(void *pv) {
             float statPrMax = 0.0f;
             {
                 const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaFromNull();
                 std::lock_guard<std::mutex> lock(g_csiMutex);
                 for (int i = 0; i < CSI_MAX_LINKS; i++) {
                     const CsiLink &l = g_links[i];
@@ -1460,6 +1463,7 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acf > statAcfMax) statAcfMax = l.sc.acf;
                     if (l.sc.acf < statAcfMin) statAcfMin = l.sc.acf;
                     if (l.sc.vote > statVoteMax) statVoteMax = l.sc.vote;
+                    const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : csiEtaForBins(l.liveBins);
                     if (l.sc.acf >= eta) statPassEta++;
                     if (l.sc.vote >= CSI_VOTE_FRAC) statPassVote++;
                     if (l.sc.acfZ > statZMax) statZMax = l.sc.acfZ;

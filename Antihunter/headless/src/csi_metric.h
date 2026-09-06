@@ -15,7 +15,7 @@
 #define CSI_NRAW 57
 #define CSI_NSUB 57
 #define CSI_F_EFF 17.8f
-#define CSI_DC_BIN 26
+#define CSI_F_EFF_PER_BIN (CSI_F_EFF / 52.0f)
 
 static const uint8_t CSI_SUB_IDX[CSI_NRAW] = {
      0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12,
@@ -57,6 +57,10 @@ static const float CSI_ACF_NULL_Z = 2.0f;
 static inline float csiNullMaxFloor() {
     return -1.0f / (float)CSI_ACF_T + CSI_ACF_NULL_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
 }
+static inline float csiEtaForBins(int liveBins) {
+    const float f = CSI_F_EFF_PER_BIN * (float)(liveBins > 0 ? liveBins : 1);
+    return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf((f > 1.0f ? f : 1.0f) * (float)CSI_ACF_T);
+}
 static inline float csiEtaFromNull() {
     return -1.0f / (float)CSI_ACF_T + CSI_ACF_Z / sqrtf(CSI_F_EFF * (float)CSI_ACF_T);
 }
@@ -90,7 +94,7 @@ static inline int csiSubCount(uint16_t len) {
     return (int)(len / 2);
 }
 
-static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstWordInvalid, float *out) {
+static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstWordInvalid, float *out, int *liveOut) {
     const int n = csiSubCount(len);
     if (n < 8 || n > CSI_NSUB) return false;
     const int k0 = firstWordInvalid ? 2 : 0;
@@ -98,7 +102,7 @@ static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstW
     float sum = 0.0f;
     int m = 0;
     for (int k = k0; k < n; k++) {
-        if (k == CSI_DC_BIN) continue;
+        if (k == n / 2) continue;
         const float im = (float)buf[k * 2];
         const float re = (float)buf[k * 2 + 1];
         const float mag = sqrtf(im * im + re * re);
@@ -110,6 +114,7 @@ static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstW
     const float norm = (float)m / sum;
     for (int k = 0; k < m; k++) out[k] *= norm;
     for (int k = m; k < CSI_NSUB; k++) out[k] = 0.0f;
+    if (liveOut) *liveOut = m;
     return true;
 }
 #else
