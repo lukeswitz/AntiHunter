@@ -1412,7 +1412,7 @@ void csiMotionTask(void *pv) {
                     const uint32_t blindFor = (now - blindSinceMs) / 1000;
                     lastRehopMs = now;
                     blindSinceMs = 0;
-                    const uint8_t next = csiRehopPickChannel();
+                    const uint8_t next = csiSurveyPickChannel(CSI_SURVEY_DWELL_MS);
                     if (next != 0 && next != g_csiActiveChannel) {
                         Serial.printf("[CSI] blind %us on ch%u - moving to ch%u, SoftAP moves with it\n",
                                       blindFor, g_csiActiveChannel, next);
