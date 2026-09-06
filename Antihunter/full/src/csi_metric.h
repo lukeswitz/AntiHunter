@@ -45,7 +45,7 @@ static const uint16_t CSI_FLOOR_SAMPLE_EVERY = 32;
 static const float CSI_FLOOR_QUANT = 100000.0f;
 static const float CSI_VAR_ALPHA = 0.005f;
 static const float CSI_VAR_W_FLOOR = 0.01f;
-static const float CSI_ACF_TAU_S = 6.13f;
+static const float CSI_ACF_ALPHA = 0.0167f;
 static const uint16_t CSI_ACF_T = 60;
 static const uint32_t CSI_ACF_LAG_MIN_US = 90000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 115000;
@@ -63,6 +63,7 @@ static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
 static const uint16_t CSI_FLOOR_SETTLE_PKTS = 450;
+static const uint16_t CSI_ACF_SETTLE_PAIRS = 450;
 static const float CSI_SPREAD_ALPHA = 0.02f;
 static const float CSI_LINK_MIN_SPREAD = 0.03f;
 static const uint32_t CSI_LINK_MIN_PKTS = 60;
@@ -155,7 +156,7 @@ struct CsiScorer {
     uint8_t prevValid;
     uint32_t lagAccum;
 
-    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_FLOOR_SETTLE_PKTS; }
+    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_SETTLE_PAIRS; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
 
     void reset() {
@@ -256,9 +257,6 @@ struct CsiScorer {
         const bool lagStale = (lagUs > CSI_ACF_LAG_MAX_US);
 
         if (lagOk && prevValid) {
-            float alpha = (float)lagUs * 1e-6f / CSI_ACF_TAU_S;
-            if (alpha > 0.25f) alpha = 0.25f;
-            if (alpha < 1e-4f) alpha = 1e-4f;
             float psi = 0.0f;
             int nf = 0;
             int nvote = 0;
@@ -269,9 +267,9 @@ struct CsiScorer {
                 } else {
                     const float dG = G - mG[k];
                     const float dP = prevG[k] - mG[k];
-                    mCov[k] += alpha * (dG * dP - mCov[k]);
-                    mVar[k] += alpha * (dG * dG - mVar[k]);
-                    mG[k] += alpha * dG;
+                    mCov[k] += CSI_ACF_ALPHA * (dG * dP - mCov[k]);
+                    mVar[k] += CSI_ACF_ALPHA * (dG * dG - mVar[k]);
+                    mG[k] += CSI_ACF_ALPHA * dG;
                     if (mVar[k] > CSI_ACF_MIN_VAR * mG[k] * mG[k]) {
                         float p = mCov[k] / mVar[k];
                         if (p > 1.0f) p = 1.0f;
