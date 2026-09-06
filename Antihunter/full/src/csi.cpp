@@ -230,32 +230,12 @@ std::atomic<bool> csiRequireCeVld{false};
 
 extern std::atomic<uint32_t> framesSeen;
 
-static const uint8_t CSI_DBG_SRC = 8;
-static volatile uint8_t g_dbgMac[CSI_DBG_SRC][6];
-static volatile int8_t g_dbgRssi[CSI_DBG_SRC];
-static volatile uint32_t g_dbgCnt[CSI_DBG_SRC];
-static volatile uint8_t g_dbgN = 0;
-
-static void csiDbgSrc(const uint8_t *a2, int8_t rssi) {
-    for (uint8_t i = 0; i < g_dbgN; i++) {
-        bool same = true;
-        for (uint8_t k = 0; k < 6; k++) if (g_dbgMac[i][k] != a2[k]) { same = false; break; }
-        if (same) { g_dbgCnt[i]++; if (rssi > g_dbgRssi[i]) g_dbgRssi[i] = rssi; return; }
-    }
-    if (g_dbgN >= CSI_DBG_SRC) return;
-    for (uint8_t k = 0; k < 6; k++) g_dbgMac[g_dbgN][k] = a2[k];
-    g_dbgRssi[g_dbgN] = rssi;
-    g_dbgCnt[g_dbgN] = 1;
-    g_dbgN++;
-}
-
 static void csi_prom_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
     (void)type;
     g_promFrames.fetch_add(1);
     const wifi_promiscuous_pkt_t *ppkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
     if (ppkt && ppkt->rx_ctrl.sig_len >= 24) {
         framesSeen.fetch_add(1, std::memory_order_relaxed);
-        if (ppkt->rx_ctrl.rssi >= -55) csiDbgSrc(ppkt->payload + 10, (int8_t)ppkt->rx_ctrl.rssi);
     }
 }
 
@@ -1051,6 +1031,7 @@ static bool csiRadioStart(uint8_t ch) {
     filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
     esp_wifi_set_promiscuous_filter(&filter);
     esp_wifi_set_promiscuous_rx_cb(&csi_prom_cb);
+    esp_wifi_set_ps(WIFI_PS_NONE);
 
     esp_err_t rp = esp_wifi_set_promiscuous(true);
     if (rp != ESP_OK) {
@@ -1486,12 +1467,6 @@ void csiMotionTask(void *pv) {
                     if (l.sc.acfFloor > statFloorMax) statFloorMax = l.sc.acfFloor;
                     statPairs += l.sc.acfPairs;
                 }
-            }
-            for (uint8_t i = 0; i < g_dbgN; i++) {
-                Serial.printf("[CSI] STRONG-RX %02X:%02X:%02X:%02X:%02X:%02X rssi=%d n=%u\n",
-                              g_dbgMac[i][0], g_dbgMac[i][1], g_dbgMac[i][2],
-                              g_dbgMac[i][3], g_dbgMac[i][4], g_dbgMac[i][5],
-                              (int)g_dbgRssi[i], (unsigned)g_dbgCnt[i]);
             }
             Serial.printf("[CSI] ch%u records=%u rate=%.1f/s rejected=%u drops=%u events=%u | "
                           "links=%u acf=%.3f..%.3f vote=%.2f z=%.1f acffloor=%.3f pairs=%u pr=%.1f "
