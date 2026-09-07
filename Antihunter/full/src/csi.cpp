@@ -1249,9 +1249,9 @@ void csiMotionTask(void *pv) {
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
         const uint32_t thrMilli = csiThresholdMilli.load();
-        Serial.printf("[CSI] Trigger: acf >= %.3f and vote >= 0.50 (%s), lag %u-%u us\n",
-                      csiEta(thrMilli),
-                      thrMilli ? "stored override" : "default",
+        Serial.printf("[CSI] Trigger: sigvar >= %.3f (acf %.3f %s), lag %u-%u us\n",
+                      CSI_SIG_ETA, csiEta(thrMilli),
+                      thrMilli ? "stored override, unused by the gate" : "default",
                       (unsigned)CSI_ACF_LAG_MIN_US, (unsigned)CSI_ACF_LAG_MAX_US);
     }
 
