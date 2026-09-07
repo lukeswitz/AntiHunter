@@ -151,6 +151,13 @@ std::vector<Allowlist> allowlist;
 static std::mutex allowlistMutex;
 
 // Scan config
+#ifndef AH_BLE_MIN_INTERNAL
+#define AH_BLE_MIN_INTERNAL 90000
+#endif
+#ifndef AH_BLE_MIN_BLOCK
+#define AH_BLE_MIN_BLOCK 20000
+#endif
+
 RFScanConfig rfConfig = {
     .wifiChannelTime = 160,
     .wifiScanInterval = 3000,
@@ -2420,7 +2427,26 @@ static void bleInitTask(void *pv) {
                   xPortGetCoreID(),
                   (unsigned)ESP.getFreeHeap(),
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-    BLEDevice::init("");
+    {
+        size_t freeInt = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (freeInt < AH_BLE_MIN_INTERNAL || largest < AH_BLE_MIN_BLOCK) {
+            Serial.printf("[BLE_INIT] refusing: internal=%u largest=%u (need >=%u/%u) - BLE unavailable\n",
+                          (unsigned)freeInt, (unsigned)largest,
+                          (unsigned)AH_BLE_MIN_INTERNAL, (unsigned)AH_BLE_MIN_BLOCK);
+            bleInitFailed = true;
+            bleInitDone = true;
+            vTaskDelete(NULL);
+            return;
+        }
+    }
+    if (!BLEDevice::init("")) {
+        Serial.println("[BLE_INIT] BLEDevice::init failed (controller alloc) - BLE unavailable");
+        bleInitFailed = true;
+        bleInitDone = true;
+        vTaskDelete(NULL);
+        return;
+    }
     pBLEScan = BLEDevice::getScan();
     if (!pBLEScan) {
         Serial.println("[BLE_INIT] getScan() returned NULL");
