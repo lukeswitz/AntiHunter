@@ -40,7 +40,7 @@ static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
 static const uint32_t CSI_REHOP_DWELL_MS = 150;
 static const uint32_t CSI_SOLICIT_FLOOR = 15;
-static const uint32_t CSI_CAL_MS = 20000;
+static const uint32_t CSI_CAL_MS = 180000;
 static const float CSI_CAL_MARGIN = 1.50f;
 static const float CSI_TRIG_MIN = 1.15f;
 static const float CSI_TRIG_MAX = 6.0f;
@@ -170,6 +170,7 @@ static bool g_calActive = false;
 static float g_calSum = 0.0f;
 static uint32_t g_calSamples = 0;
 static float g_calMax = 0.0f;
+static uint32_t g_calStartMs = 0;
 static float g_calTrigger = 0.0f;
 
 struct CsiEvent {
@@ -688,7 +689,8 @@ static void csiProcess(const CsiEvent &ev) {
         }
 
         if (g_calActive) {
-            if (l.sc.settled() && l.sc.acfPairs > 0) {
+            const bool calSettleWindow = (millis() - g_calStartMs) >= (CSI_CAL_MS / 2);
+            if (calSettleWindow && l.sc.settled() && l.sc.acfPairs > 0) {
                 g_calSum += l.sc.acf;
                 g_calSamples++;
                 if (l.sc.acf > g_calMax) g_calMax = l.sc.acf;
@@ -1240,6 +1242,10 @@ void csiMotionTask(void *pv) {
 
     if (csiAutoTrigger.load()) {
         g_calActive = true;
+        g_calStartMs = millis();
+        g_calSum = 0.0f;
+        g_calSamples = 0;
+        g_calMax = 0.0f;
         Serial.printf("[CSI] Learning trigger from this area for %us - keep it empty\n", CSI_CAL_MS / 1000);
     } else {
         const uint32_t thrMilli = csiThresholdMilli.load();
@@ -1283,7 +1289,7 @@ void csiMotionTask(void *pv) {
 
         const uint32_t now = millis();
 
-        if (g_calActive) {
+        if (g_calActive && (now - g_calStartMs) >= CSI_CAL_MS) {
             std::lock_guard<std::mutex> lock(g_csiMutex);
             g_calActive = false;
             if (g_calSamples == 0) {
