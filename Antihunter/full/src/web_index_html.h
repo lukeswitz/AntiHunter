@@ -1944,6 +1944,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
       let stopWatchGen = 0;
       let stopWatchActive = false;
       let resultsPolling = false;
+      let resultsEpoch = 0;
       let diagFailStreak = 0;
       let nodeReachable = true;
       let resultsSynced = false;
@@ -2207,12 +2208,14 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         if (el && resIsEditing(el)) return;
         if (el && resHasSelection(el)) return;
         resultsPolling = true;
+        const epoch = resultsEpoch;
         try {
           const ctl = new AbortController();
           const to = setTimeout(() => ctl.abort(), 5000);
           let txt;
           try { txt = await (await fetch('/results', {signal: ctl.signal})).text(); }
           finally { clearTimeout(to); }
+          if (epoch !== resultsEpoch) return;
           resultsSynced = true;
           const placeholder = !txt || txt.trim() === '' || txt.includes('None yet') || txt.includes('No scan data');
           if (radioBusy && placeholder) return;
@@ -5537,17 +5540,20 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
         stopPending = false;
         radioBusy = true;
         stopResultsRefresh = 8;
+        resultsEpoch++;
         const el = document.getElementById('r');
-        if (el && !el.contains(document.activeElement)) {
-          lastResultsText = '';
-          el.innerHTML = parseAndStyleResults(starterText || 'Scan starting...\n');
-          switchPage('results');
-        }
+        const paint = !!(el && !el.contains(document.activeElement));
+        if (paint) lastResultsText = '';
         syncStopAllBtn();
         try {
           await fetch('/clear-results', { method: 'POST' });
         } catch (err) {
-          console.warn('[SCAN] /clear-results failed (continuing — UI was already cleared):', err);
+          console.warn('[SCAN] /clear-results failed (continuing — UI clears anyway):', err);
+        }
+        resultsEpoch++;
+        if (paint) {
+          el.innerHTML = parseAndStyleResults(starterText || 'Scan starting...\n');
+          switchPage('results');
         }
       }
 
