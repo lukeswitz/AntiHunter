@@ -1300,11 +1300,7 @@ void csiMotionTask(void *pv) {
                 if (eta < CSI_CAL_ETA_MIN) eta = CSI_CAL_ETA_MIN;
                 if (eta > CSI_CAL_ETA_MAX) eta = CSI_CAL_ETA_MAX;
                 csiThresholdMilli.store((uint32_t)(eta * 1000.0f));
-                Preferences p;
-                if (p.begin("csi", false)) {
-                    p.putUInt("csiThr2", csiThresholdMilli.load());
-                    p.end();
-                }
+                prefs.putUInt("csiThr2", csiThresholdMilli.load());
                 Serial.printf("[CSI] Calibrated: quiet acf %.3f over %u samples (max %.3f) "
                               "-> trigger %.3f\n", quiet, g_calSamples, g_calMax, eta);
             }
