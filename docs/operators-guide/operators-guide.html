@@ -717,12 +717,18 @@ python3 scripts/meshtastic_config.py</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
   <h3>9.10 CSI Motion Detection</h3>
-  <p>Detects a person moving through a room from how their body disturbs the WiFi already in the air. Transmits nothing, needs no calibration. Indoor only: it works off signals bouncing between walls and furniture.</p>
+  <p>Detects a person moving through a room from how their body disturbs the WiFi already in the air. Needs no calibration. Indoor only: it works off signals bouncing between walls and furniture.</p>
   <pre>@ALL CSI_MOTION_START:300
 @ALL CSI_MOTION_START:300:CH11</pre>
-  <p>Leave the channel at 0 and the node pins the busiest one for the run; the web UI moves with it, so rejoin there. Two links must agree before it calls motion, so one glitching radio cannot raise an alert. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
+  <p>Leave the channel at 0 and the node pins the busiest one for the run; the web UI moves with it, so rejoin there. Any one link crossing the trigger raises motion for the node. One <span class="mono">CSI_MOTION:</span> when the room starts moving, one <span class="mono">CSI_CLEAR:</span> when it settles. The Movement view shows live strength and a session heat strip.</p>
   <div class="box"><span class="t">Do not tune the trigger</span>
-    <p>It is derived, not learned, so the default is correct everywhere. A location that reads wrong is nearly always a channel with no traffic on it.</p>
+    <p>The trigger is the noise-corrected signal variance of the channel response, which is receiver-independent, so one constant is correct on every board and in every room. A location that reads wrong is nearly always a channel with no traffic on it.</p>
+  </div>
+  <div class="box"><span class="t">It transmits when the channel is quiet</span>
+    <p>Everything here is passive except one case: if fewer than 15 CSI packets arrive in a second, the node sends a broadcast probe request to draw traffic, at most once per second.</p>
+  </div>
+  <div class="box"><span class="t">A C5 node reads hotter than an S3</span>
+    <p>Measured side by side on one channel, the ESP32-C5 carries 7-57x less CSI measurement noise than the S3 and about 3x the record rate, so it resolves weaker movement. It opens motion episodes up to 90s earlier and holds them longer. Both boards agree on which events happened. Do not read the difference as a fault on either.</p>
   </div>
 
   <h3>9.11 Packet Capture</h3>

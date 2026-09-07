@@ -281,7 +281,7 @@ Two-phase scan: establish a baseline of known devices, then monitor for anomalie
 > [!TIP]
 > Use the Privacy button to redact MACs, GPS, and SSIDs before sharing screenshots.
 
-**CSI Motion Detection** - the node watches the WiFi already flying around your house and notices when a body walks through it. It transmits nothing, joins nothing, and needs no setup. Indoor only - it works off signals bouncing between walls and furniture, and open ground has nothing to bounce off.
+**CSI Motion Detection** - the node watches the WiFi already flying around your house and notices when a body walks through it. It joins nothing and needs no setup. It is passive except for one case: when fewer than 15 CSI packets arrive in a second it sends a broadcast probe request to draw traffic, at most once per second. Indoor only - it works off signals bouncing between walls and furniture, and open ground has nothing to bounce off.
 
 - Use case: leave a node in a room you are not in - a hotel room, a closed-up office, the hallway behind you - and get a mesh alert when a body moves through it, with no camera and nothing that has to see the room.
 
@@ -791,6 +791,14 @@ Mode is `0` WiFi, `1` BLE, `2` both. Add `:FOREVER` to run until stopped.
 | `CSI_CFG` | Tune the motion trigger | `trigger:hold_ms:consec:channel` | `@ALL CSI_CFG:0.10:5000:3:0` |
 | `CSI_STATUS` / `CSI_JSON` | Dump motion state to serial | None | `@AH01 CSI_STATUS` |
 | `CSI_RECAL` | Drop a saved trigger | None | `@ALL CSI_RECAL` |
+
+> [!NOTE]
+> An ESP32-C5 node is more sensitive than an S3 on the same channel: measured 7-57x less
+> CSI measurement noise and about 3x the record rate. It opens motion episodes up to 90s
+> earlier and holds them longer, and detects weak or distant movement an S3 misses. Both
+> agree on which events occurred. The trigger is the noise-corrected signal variance of
+> the channel response, which is receiver-independent, so one constant covers both boards.
+
 | `CSI_EXCLUDE` | Ignore one MAC for motion | `<MAC>` or `NONE` | `@ALL CSI_EXCLUDE:AA:BB:CC:DD:EE:FF` |
 | `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
 | `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
