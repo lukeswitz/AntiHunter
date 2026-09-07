@@ -227,14 +227,16 @@ WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames 
 
 Detects movement in the area from how bodies disturb the WiFi channel between the node and nearby transmitters. Indoor only.
 
-Sensitivity self-normalizes, so the default trigger works in most rooms. Under **Advanced** on the Scan tab:
+The trigger is the noise-corrected signal variance of the channel response, so it is
+receiver-independent and the same constant works across board types. Under **Advanced**
+on the Scan tab:
 
 | Control | Range | What it does |
 |---|---|---|
 | Channel | 0-14, `0` = auto | Pin one channel, or let it pick the strongest AP's |
 | Clear after | 500-120000 ms | How long the area must be still before it reports clear |
 | Consecutive packets | 1-50 | Packets over the trigger before a hit fires |
-| Learn the trigger from this area | - | 20s calibration in an empty room, replaces the default trigger |
+| Learn the trigger from this area | - | Calibration in an empty room, replaces the default trigger |
 | Per-packet score to serial | - | Telemetry for tuning |
 | Raw CSI to serial | - | Full complex-value dump |
 
@@ -242,6 +244,12 @@ Emits one `CSI_MOTION` line when the area goes from quiet to moving - not one pe
 
 > [!IMPORTANT]
 > CSI Motion transmits. It sends a broadcast probe request up to once per second, and only when the channel is too quiet to measure (fewer than 15 CSI packets in the last second). Everything else in this mode is passive.
+
+> [!NOTE]
+> An ESP32-C5 node is more sensitive than an S3 on the same channel: measured 7-57x less
+> CSI measurement noise and ~3x the record rate. It opens motion episodes up to ~90s
+> earlier and holds them longer, and it detects weak or distant movement an S3 misses.
+> Both agree on which events occurred. See [docs/ESP32-C5.md](docs/ESP32-C5.md).
 
 - Mesh: `CSI_MOTION_START:secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]`, `CSI_CFG:trigger:hold_ms:consec:channel`, `CSI_STATUS`, `CSI_JSON`, `CSI_RECAL`
 
