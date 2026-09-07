@@ -624,7 +624,7 @@ static void csiProcess(const CsiEvent &ev) {
 
         const uint32_t thrMilli = csiThresholdMilli.load();
         const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
-        if (l.sc.acf >= eta && l.sc.vote >= CSI_VOTE_FRAC) {
+        if (l.sc.sigVar >= CSI_SIG_ETA) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
             l.elevMs += dt;
@@ -647,7 +647,7 @@ static void csiProcess(const CsiEvent &ev) {
             l.events++;
             g_csiMotionEvents.fetch_add(1);
             csiStageAlert(alert, l, true);
-        } else if (l.motion && (l.sc.acf < eta || l.sc.vote < CSI_VOTE_FRAC) &&
+        } else if (l.motion && l.sc.sigVar < CSI_SIG_ETA &&
                    (now - l.lastAboveMs) >= hold) {
             l.motion = false;
             l.consec = 0;
