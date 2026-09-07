@@ -169,6 +169,7 @@ static void csiEpisodeClose(uint32_t dwellSec) {
 static bool g_calActive = false;
 static float g_calSum = 0.0f;
 static uint32_t g_calSamples = 0;
+static float g_calMax = 0.0f;
 static float g_calTrigger = 0.0f;
 
 struct CsiEvent {
@@ -687,8 +688,11 @@ static void csiProcess(const CsiEvent &ev) {
         }
 
         if (g_calActive) {
-            g_calSum += l.sc.score;
-            g_calSamples++;
+            if (l.sc.settled() && l.sc.acfPairs > 0) {
+                g_calSum += l.sc.acf;
+                g_calSamples++;
+                if (l.sc.acf > g_calMax) g_calMax = l.sc.acf;
+            }
         }
 
         const uint32_t consecNeeded = csiConsecNeeded.load();
@@ -1282,7 +1286,25 @@ void csiMotionTask(void *pv) {
         if (g_calActive) {
             std::lock_guard<std::mutex> lock(g_csiMutex);
             g_calActive = false;
-            Serial.println("[CSI] Calibration ignored: the ACF trigger is derived, not learned");
+            if (g_calSamples == 0) {
+                Serial.println("[CSI] Calibration got no settled links - threshold unchanged");
+            } else {
+                const float quiet = g_calSum / (float)g_calSamples;
+                float eta = quiet * CSI_CAL_ACF_MARGIN;
+                if (eta < CSI_CAL_ETA_MIN) eta = CSI_CAL_ETA_MIN;
+                if (eta > CSI_CAL_ETA_MAX) eta = CSI_CAL_ETA_MAX;
+                csiThresholdMilli.store((uint32_t)(eta * 1000.0f));
+                Preferences p;
+                if (p.begin("csi", false)) {
+                    p.putUInt("csiThr2", csiThresholdMilli.load());
+                    p.end();
+                }
+                Serial.printf("[CSI] Calibrated: quiet acf %.3f over %u samples (max %.3f) "
+                              "-> trigger %.3f\n", quiet, g_calSamples, g_calMax, eta);
+            }
+            g_calSum = 0.0f;
+            g_calSamples = 0;
+            g_calMax = 0.0f;
         }
 
         if (now - lastExpireMs >= 2000) {
