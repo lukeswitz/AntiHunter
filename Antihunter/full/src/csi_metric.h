@@ -50,6 +50,7 @@ static const uint16_t CSI_ACF_T = 60;
 static const uint32_t CSI_ACF_LAG_MIN_US = 90000;
 static const uint32_t CSI_ACF_LAG_MAX_US = 115000;
 static const float CSI_ACF_ETA = 0.10f;
+static const float CSI_SIG_ETA = 0.040f;
 static const float CSI_CAL_ACF_MARGIN = 1.30f;
 static const float CSI_CAL_ETA_MIN = 0.05f;
 static const float CSI_CAL_ETA_MAX = 0.70f;
@@ -134,7 +135,9 @@ struct CsiScorer {
     float mG[CSI_NSUB];
     float mGG[CSI_NSUB];
     float mG2[CSI_NSUB];
+    float mD2[CSI_NSUB];
     float acf;
+    float sigVar;
     float vote;
     float acfFloor;
     float acfSpread;
@@ -165,9 +168,10 @@ struct CsiScorer {
     void reset() {
         for (int k = 0; k < CSI_NSUB; k++) {
             fast[k] = 0.0f; slow[k] = 0.0f; var[k] = 0.0f;
-            prevG[k] = 0.0f; mG[k] = 0.0f; mGG[k] = 0.0f; mG2[k] = 0.0f;
+            prevG[k] = 0.0f; mG[k] = 0.0f; mGG[k] = 0.0f; mG2[k] = 0.0f; mD2[k] = 0.0f;
         }
         acf = 0.0f;
+        sigVar = 0.0f;
         vote = 0.0f;
         acfFloor = 0.0f;
         acfSpread = CSI_ACF_MIN_SPREAD;
@@ -256,14 +260,26 @@ struct CsiScorer {
         mad = d;
 
         float psi = 0.0f;
+        float sigAcc = 0.0f;
+        int nsig = 0;
         int nf = 0;
         int nvote = 0;
         for (int k = 0; k < CSI_NSUB; k++) {
             const float G = a[k] * a[k];
             if (acfPairs > 0) {
+                const float dG = G - prevG[k];
                 mGG[k] += CSI_ACF_ALPHA * (G * prevG[k] - mGG[k]);
                 mG[k] += CSI_ACF_ALPHA * (G - mG[k]);
                 mG2[k] += CSI_ACF_ALPHA * (G * G - mG2[k]);
+                mD2[k] += CSI_ACF_ALPHA * (dG * dG - mD2[k]);
+                {
+                    const float tv = mG2[k] - mG[k] * mG[k];
+                    if (tv > 1e-12f) {
+                        const float sv = tv - mD2[k] * 0.5f;
+                        sigAcc += (sv > 0.0f) ? sv : 0.0f;
+                        nsig++;
+                    }
+                }
                 const float m2 = mG[k] * mG[k];
                 const float v = mG2[k] - m2;
                 if (v > 1e-12f) {
@@ -280,6 +296,7 @@ struct CsiScorer {
         if (acfPairs < 0xFFFF) acfPairs++;
         prevValid = 1;
         acf = (nf > 0) ? (psi / (float)nf) : 0.0f;
+        sigVar = (nsig > 0) ? (sigAcc / (float)nsig) : 0.0f;
         vote = (nf > 0) ? ((float)nvote / (float)nf) : 0.0f;
 
         if (!holdFloor &&
