@@ -59,10 +59,8 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
 - Hidden AP toggle for full firmware.
 - C5 experimental channel carries the same CSI, Fleet and fixes for testing.
-- CSI now gates on the noise-corrected signal variance, one constant for every board.
-  A C5 node is more sensitive than an S3: it opens episodes earlier, holds them longer
-  and catches weaker movement. See [docs/ESP32-C5.md](../ESP32-C5.md) for the numbers
-  and the open upstream CSI issues
+- CSI on the C5 needs `CSI_CFG:0.086:8000:3:6`; the shared 0.100 default trips on an
+  empty room. See [docs/ESP32-C5.md](../ESP32-C5.md) for the open upstream CSI issues
   ([esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982),
   [#18493](https://github.com/espressif/esp-idf/issues/18493),
   [#18118](https://github.com/espressif/esp-idf/issues/18118),

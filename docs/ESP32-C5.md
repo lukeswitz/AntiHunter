@@ -79,38 +79,25 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 - 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
 - Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
 
-### CSI motion detection: the C5 is more sensitive than the S3
+### CSI motion detection needs a lower trigger on the C5
 
-Both boards run the same detector and the same trigger. The gate is the
-noise-corrected signal variance, `var(G) - var(dG)/2` averaged over subcarriers,
-against a single constant (`CSI_SIG_ETA`, 0.050). Subtracting the measurement noise
-makes the statistic receiver-independent, so no per-board tuning is needed.
+The C5 runs CSI, but its resting ACF sits closer to the detection threshold than the
+S3's, so the shared default of `0.100` trips on an empty room. Set the trigger to
+`0.086` on a C5 node:
 
-The C5 does not behave identically to the S3, and the difference is physical rather
-than a fault. Measured on one C5 and one S3 in the same room, on the same channel,
-from the same transmitters:
+```
+CSI_CFG:0.086:8000:3:6
+```
 
-- the C5's CSI carries 7-57x less measurement noise for the same signal variance
-- it ingests roughly 3x the CSI records per second
+The value persists in NVS and the boot banner reports it as `stored override`. Send it
+after the mesh task is up — a command sent during boot is dropped silently. Running
+`CSI_MOTION_START:0:FOREVER:CH6:TRAIN` with the area empty learns the same figure from
+the room itself and stores it.
 
-So it resolves weaker movement. Over a 50 minute run with an operator moving in and
-out, the two boards agreed on every event, but the C5 opened episodes 22-88s earlier
-and held them longer. Where the S3 stayed quiet, the C5 was reading a signal roughly
-twice the S3's on the same disturbance - the S3 was elevated too, just short of its
-gate.
-
-Expect from a C5 node, relative to an S3 in the same room:
-
-| | S3 | C5 |
-|---|---|---|
-| motion onset | reference | up to ~90s earlier |
-| episode length | reference | longer |
-| weak or distant movement | often missed | usually detected |
-
-Neither is wrong. If you want a C5 to report only what an S3 would, raise its trigger
-with `CSI_CFG:<value>:8000:3:6`; the value persists in NVS and the boot banner reports
-it as `stored override`. Send it after the mesh task is up, roughly 15s past
-`Hardware initialized` - a command sent during boot is dropped silently.
+Measured on one C5 and one S3 in the same room on the same channel, operator absent:
+the C5's CSI carries 7-57x less measurement noise than the S3's for the same signal
+variance, which is why its ACF rests higher rather than at the statistical null. The
+trigger difference follows from that, not from a fault.
 
 Open upstream issues on C5/C61 CSI, none of which currently has a fix:
 
