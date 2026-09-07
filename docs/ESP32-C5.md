@@ -79,6 +79,42 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 - 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
 - Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
 
+### CSI motion detection needs a lower trigger on the C5
+
+The C5 runs CSI, but its resting ACF sits closer to the detection threshold than the
+S3's, so the shared default of `0.100` trips on an empty room. Set the trigger to
+`0.086` on a C5 node:
+
+```
+CSI_CFG:0.086:8000:3:6
+```
+
+The value persists in NVS and the boot banner reports it as `stored override`. Send it
+after the mesh task is up — a command sent during boot is dropped silently. Running
+`CSI_MOTION_START:0:FOREVER:CH6:TRAIN` with the area empty learns the same figure from
+the room itself and stores it.
+
+Measured on one C5 and one S3 in the same room on the same channel, operator absent:
+the C5's CSI carries 7-57x less measurement noise than the S3's for the same signal
+variance, which is why its ACF rests higher rather than at the statistical null. The
+trigger difference follows from that, not from a fault.
+
+Open upstream issues on C5/C61 CSI, none of which currently has a fix:
+
+- [esp-idf#18982](https://github.com/espressif/esp-idf/issues/18982) - the 106-byte
+  L-LTF buffer does not match the documented two-signed-bytes-per-subcarrier layout.
+  Does not apply at `lltf_bit_mode = 1`, which is what this firmware sets.
+- [esp-idf#18493](https://github.com/espressif/esp-idf/issues/18493) - CSI IQ buffer
+  static on 5 GHz. 2.4 GHz is unaffected; CSI here runs on 2.4 GHz.
+- [esp-idf#18118](https://github.com/espressif/esp-idf/issues/18118) - 11g PPDUs return
+  unchanging CSI on HE-MAC parts, traced to the closed PHY blob.
+  `acquire_csi_force_lltf = 1` is the documented workaround and this firmware sets it.
+- [esp-idf#14271](https://github.com/espressif/esp-idf/issues/14271) - HT-LTF subcarrier
+  order differs from the S3 on HE parts. Not reached here: ch6 traffic is legacy, so the
+  C5 receives only 106-byte L-LTF.
+- [esp-csi#258](https://github.com/espressif/esp-csi/issues/258) - Espressif publishes a
+  chip CSI ranking of `C5 > C6 > C3 ~= S3 > ESP32` and has not said what it measures.
+
 ### SD card does not survive a reset without power removal
 
 > [!WARNING]
