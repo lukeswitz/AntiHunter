@@ -101,6 +101,7 @@ String getFormattedTimestamp();
 time_t getRTCEpoch();
 uint32_t getEventTimestamp();
 bool setRTCTimeFromEpoch(time_t epoch);
+void updateLocalTZFromGPS();
 
 // Sensors and GPS
 extern bool sdAvailable;

@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
@@ -1754,6 +1755,73 @@ bool setRTCTimeFromEpoch(time_t epoch) {
     return true;
 }
 
+struct TZZoneBox {
+    float latMin, latMax, lonMin, lonMax;
+    const char *posixTZ;
+    const char *name;
+};
+
+static const TZZoneBox TZ_ZONES[] = {
+    {18.0f, 23.0f, -161.0f, -153.0f, "HST10", "Hawaii"},
+    {51.0f, 72.0f, -170.0f, -129.0f, "AKST9AKDT,M3.2.0,M11.1.0", "Alaska"},
+    {31.0f, 37.5f, -114.9f, -109.0f, "MST7", "Arizona"},
+    {49.0f, 60.0f, -110.0f, -101.0f, "CST6", "Saskatchewan"},
+    {30.0f, 60.0f, -125.0f, -114.0f, "PST8PDT,M3.2.0,M11.1.0", "US/Canada Pacific"},
+    {25.0f, 60.0f, -114.0f, -101.0f, "MST7MDT,M3.2.0,M11.1.0", "US/Canada Mountain"},
+    {25.0f, 60.0f, -101.0f, -87.0f, "CST6CDT,M3.2.0,M11.1.0", "US/Canada Central"},
+    {24.0f, 60.0f, -87.0f, -66.9f, "EST5EDT,M3.2.0,M11.1.0", "US/Canada Eastern"},
+    {36.0f, 61.0f, -11.0f, 2.0f, "GMT0BST,M3.5.0/1,M10.5.0", "UK/Ireland"},
+    {36.0f, 71.0f, 2.0f, 15.0f, "CET-1CEST,M3.5.0,M10.5.0/3", "Central Europe"},
+    {34.0f, 71.0f, 15.0f, 30.0f, "EET-2EEST,M3.5.0/3,M10.5.0/4", "Eastern Europe"},
+};
+
+static String g_localTZPosix;
+static String g_localTZName;
+static bool g_localTZKnown = false;
+
+void updateLocalTZFromGPS() {
+    if (!gpsValid) return;
+    float lat = gpsLat, lon = gpsLon;
+    for (size_t i = 0; i < sizeof(TZ_ZONES) / sizeof(TZ_ZONES[0]); i++) {
+        const TZZoneBox &z = TZ_ZONES[i];
+        if (lat >= z.latMin && lat <= z.latMax && lon >= z.lonMin && lon <= z.lonMax) {
+            if (g_localTZName != z.name) {
+                Serial.printf("[RTC] Local zone: %s (%s)\n", z.name, z.posixTZ);
+                g_localTZName = z.name;
+                g_localTZPosix = z.posixTZ;
+                g_localTZKnown = true;
+            }
+            return;
+        }
+    }
+    if (g_localTZKnown) {
+        Serial.println("[RTC] GPS fix outside local timezone table, falling back to UTC display");
+    }
+    g_localTZKnown = false;
+    g_localTZName = "";
+    g_localTZPosix = "";
+}
+
+static String formatEpochLocalOrUTC(time_t epoch) {
+    struct tm tmResult;
+    if (g_localTZKnown) {
+        static String appliedTZ;
+        if (appliedTZ != g_localTZPosix) {
+            setenv("TZ", g_localTZPosix.c_str(), 1);
+            tzset();
+            appliedTZ = g_localTZPosix;
+        }
+        localtime_r(&epoch, &tmResult);
+    } else {
+        gmtime_r(&epoch, &tmResult);
+    }
+    char buffer[30];
+    snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
+             tmResult.tm_year + 1900, tmResult.tm_mon + 1, tmResult.tm_mday,
+             tmResult.tm_hour, tmResult.tm_min, tmResult.tm_sec);
+    return String(buffer);
+}
+
 void syncRTCFromGPS() {
     if (!rtcAvailable) return;
     if (!gpsValid) return;
@@ -1790,7 +1858,9 @@ void syncRTCFromGPS() {
         return;
     }
     
-    DateTime gpsTime(year, month, day, hour, minute, second);
+    DateTime gpsUtcTime(year, month, day, hour, minute, second);
+    DateTime gpsTime = gpsUtcTime;
+    updateLocalTZFromGPS();
     DateTime rtcTime = rtc.now();
 
     int timeDiff = abs((int)(gpsTime.unixtime() - rtcTime.unixtime()));
@@ -1799,9 +1869,11 @@ void syncRTCFromGPS() {
         rtc.adjust(gpsTime);
         rtcSynced = true;
         lastRTCSync = millis();
-        
+
         Serial.printf("[RTC] GPS sync: %04d-%02d-%02d %02d:%02d:%02d UTC (offset: %ds)\n",
-                      year, month, day, hour, minute, second, timeDiff);
+                      gpsTime.year(), gpsTime.month(), gpsTime.day(),
+                      gpsTime.hour(), gpsTime.minute(), gpsTime.second(),
+                      timeDiff);
         
         String syncMsg = "RTC synced from GPS";
         logToSD(syncMsg);
@@ -1840,14 +1912,11 @@ void updateRTCTime() {
     static uint8_t rtcFailCount = 0;
     rtcFailCount = 0;  // good read, reset counter
 
-    char buffer[30];
-    snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
-             now.year(), now.month(), now.day(),
-             now.hour(), now.minute(), now.second());
-
-    rtcTimeString = String(buffer);
+    time_t nowEpoch = now.unixtime();
 
     xSemaphoreGive(rtcMutex);
+
+    rtcTimeString = formatEpochLocalOrUTC(nowEpoch);
 
     if (gpsValid && gps.time.isValid()) {
         disciplineRTCFromGPS();
@@ -1876,16 +1945,12 @@ String getFormattedTimestamp() {
     
     if (rtcMutex == nullptr) return "MUTEX_NULL";
     if (xSemaphoreTake(rtcMutex, pdMS_TO_TICKS(50)) != pdTRUE) return "MUTEX_TIMEOUT";
-    
-    DateTime now = rtc.now();
-    char buffer[30];
-    snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d %02d:%02d:%02d",
-             now.year(), now.month(), now.day(),
-             now.hour(), now.minute(), now.second());
-    
+
+    time_t nowEpoch = rtc.now().unixtime();
+
     xSemaphoreGive(rtcMutex);
-    
-    return String(buffer);
+
+    return formatEpochLocalOrUTC(nowEpoch);
 }
 
 

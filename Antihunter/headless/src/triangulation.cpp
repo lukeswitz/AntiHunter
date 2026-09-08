@@ -1811,8 +1811,10 @@ void disciplineRTCFromGPS() {
     if (day < 1 || day > 31) return;
     if (hour > 23 || minute > 59 || second > 59) return;
 
-    DateTime gpsTime(year, month, day, hour, minute, second);
-    time_t gpsEpoch = gpsTime.unixtime();
+    DateTime gpsUtcTime(year, month, day, hour, minute, second);
+    updateLocalTZFromGPS();
+    time_t gpsEpoch = gpsUtcTime.unixtime();
+    DateTime gpsTime(gpsEpoch);
 
     // GPS time with centisecond precision (10ms)
     int64_t gpsEpochMicros = (static_cast<int64_t>(gpsEpoch) * 1000000LL) + (centisecond * 10000);

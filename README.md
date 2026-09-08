@@ -703,7 +703,7 @@ To save airtime on repeated scans of the same RF environment, broadcast `DEVICE:
 
 ## Mesh Commands
 
-All timestamps UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
+Displayed timestamps are local time, resolved from the GPS fix. The RTC stores UTC and every epoch field stays UTC. Node IDs: 2-5 alphanumeric characters (A-Z, 0-9), no spaces.
 
 > [!TIP]
 > `@ALL` broadcasts to all nodes. Replace with a node ID for targeted commands.
@@ -915,7 +915,7 @@ Any other value is passed through verbatim as `Reason code N`.
 ## API Reference
 
 > [!NOTE]
-> All timestamps use UTC
+> Displayed timestamps are local time, derived from the GPS fix using POSIX timezone rules so daylight saving is applied. Raw `epoch` fields remain UTC seconds. A fix outside the built-in zone table displays UTC and logs the fallback once.
 
 ### Core
 
