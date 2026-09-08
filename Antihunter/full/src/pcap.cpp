@@ -41,6 +41,9 @@ static uint8_t g_hopIdx = 0;
 static std::atomic<uint32_t> g_chanFails{0};
 static uint32_t g_hopScanEndsMs = 0;
 #define PCAP_AP_HOME_DWELL_MS 30
+#define PCAP_CHAN_TALLY 178
+static uint32_t g_chanFrames[PCAP_CHAN_TALLY];
+static uint32_t g_chanVisits[PCAP_CHAN_TALLY];
 
 static volatile bool g_active = false;
 static uint8_t *g_bufA = nullptr;
@@ -77,6 +80,11 @@ static std::mutex g_pathMutex;
 static bool g_autoTriggered = false;
 static std::atomic<uint32_t> g_autoBudgetMB{512};
 static std::atomic<uint32_t> g_freeFloorMB{256};
+
+static inline void pcapChanVisit(uint8_t ch) {
+    g_curChan.store(ch);
+    if (ch < PCAP_CHAN_TALLY) g_chanVisits[ch]++;
+}
 
 uint32_t getPcapMaxFileMB() { return g_maxFileMB.load(); }
 
@@ -233,6 +241,7 @@ static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
     if (type != WIFI_PKT_MGMT && type != WIFI_PKT_DATA && type != WIFI_PKT_CTRL) return;
 
     const wifi_promiscuous_pkt_t *pkt = static_cast<wifi_promiscuous_pkt_t *>(buf);
+    if (pkt->rx_ctrl.channel < PCAP_CHAN_TALLY) g_chanFrames[pkt->rx_ctrl.channel]++;
     int len = pkt->rx_ctrl.sig_len;
     if (len > 4) len -= 4;
     if (len < 10) return;
@@ -426,7 +435,7 @@ static void pcapBuildHopList() {
 static void pcapSetChannel(uint8_t ch) {
     if (WiFi.softAPgetStationNum() > 0) {
         if (ch == (uint8_t)AP_CHANNEL) {
-            g_curChan.store(ch);
+            pcapChanVisit(ch);
             return;
         }
         wifi_scan_config_t sc = {};
@@ -437,7 +446,7 @@ static void pcapSetChannel(uint8_t ch) {
         sc.home_chan_dwell_time = PCAP_AP_HOME_DWELL_MS;
         const esp_err_t rc = esp_wifi_scan_start(&sc, false);
         if (rc == ESP_OK) {
-            g_curChan.store(ch);
+            pcapChanVisit(ch);
             g_hopScanEndsMs = millis() + g_dwellMs + PCAP_AP_HOME_DWELL_MS;
             return;
         }
@@ -455,7 +464,7 @@ static void pcapSetChannel(uint8_t ch) {
         }
         return;
     }
-    g_curChan.store(ch);
+    pcapChanVisit(ch);
 }
 
 #ifdef ARDUINO_XIAO_ESP32C5
@@ -791,6 +800,8 @@ void pcapCaptureTask(void *pv) {
     g_dropped.store(0);
     g_chanFails.store(0);
     g_hopScanEndsMs = 0;
+    memset(g_chanFrames, 0, sizeof(g_chanFrames));
+    memset(g_chanVisits, 0, sizeof(g_chanVisits));
     g_startMs = millis();
     g_endMs = 0;
     g_baseEpoch = (uint32_t)getRTCEpoch();
@@ -899,6 +910,20 @@ void pcapCaptureTask(void *pv) {
                   g_drains.load(), g_reopens.load(), g_writeMs.load(), g_endMs - g_startMs);
     if (g_chanFails.load()) {
         Serial.printf("[PCAP] %u channel changes rejected by the radio\n", g_chanFails.load());
+    }
+    if (g_radio == PCAP_RADIO_WIFI) {
+        String tally;
+        uint8_t covered = 0;
+        for (uint8_t i = 0; i < g_hopLen; i++) {
+            const uint8_t ch = g_hopList[i];
+            const uint32_t n = (ch < PCAP_CHAN_TALLY) ? g_chanFrames[ch] : 0;
+            const uint32_t v = (ch < PCAP_CHAN_TALLY) ? g_chanVisits[ch] : 0;
+            if (v) covered++;
+            if (i) tally += ' ';
+            tally += String((unsigned)ch) + '=' + String((unsigned)n) + '/' + String((unsigned)v);
+        }
+        Serial.printf("[PCAP] channels visited %u/%u (ch=frames/visits): %s\n",
+                      (unsigned)covered, (unsigned)g_hopLen, tally.c_str());
     }
 
     {
