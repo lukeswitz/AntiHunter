@@ -78,3 +78,11 @@ Board `seeed_xiao_esp32c5`, partitions `Dist/partitions_c5.csv`, platform pioard
 - Experimental channel only — not covered by the stable release cadence.
 - 5 GHz is scan-only. The SoftAP stays on 2.4 GHz.
 - Band changes rewrite the regulatory domain, which restarts the AP beacon; associated web UI clients reconnect.
+
+
+# ESP32-C5 RADAR Node
+
+Coming soon (alpha build in live in web flasher)
+
+<img width="1074" height="732" alt="0A892752-8927-4973-BE47-9E3E5E67B9C8_1_105_c" src="https://github.com/user-attachments/assets/f2667d03-a57c-46c7-95ec-ac6eb0444b73" />
+
