@@ -5512,7 +5512,12 @@ R"HTML(
             boxes.forEach(b => { b.innerHTML = '<div class="pcap-empty">No captures on SD yet.</div>'; });
             return;
           }
-          list.sort((a, b) => a.name < b.name ? 1 : -1);
+          const pcapStamp = f => (f.name.match(/\d{8}_\d{6}/) || [''])[0];
+          list.sort((a, b) => {
+            const x = pcapStamp(a), y = pcapStamp(b);
+            if (x !== y) return x < y ? 1 : -1;
+            return a.name < b.name ? 1 : -1;
+          });
           const rows = list.map(f => {
             const ble = f.name.indexOf('ble_') === 0;
             const auto = f.name.indexOf('_auto_') >= 0;
