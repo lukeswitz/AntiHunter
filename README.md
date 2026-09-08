@@ -118,9 +118,19 @@ Keep a watchlist of MAC addresses (full or OUI prefix), SSIDs, or identity IDs (
 - Global allowlist filters out known devices before anything alerts
 - Logs RSSI, channel, GPS and device name to SD
 - Alerts over mesh, web UI and Command Center as they happen
-- Mesh: `SCAN_START:mode:secs:channels[:FOREVER]`
+
+> **Web UI** &nbsp;Scan tab, with the watchlist under Targets
+>
+> **Mesh** &nbsp;`SCAN_START:mode:secs:channels[:FOREVER]`
+>
+> **Settings**
+> - RSSI floor `@ALL CONFIG_RSSI:-80`
+> - Channels `@ALL CONFIG_CHANNELS:1..11`
+> - Band `@ALL CONFIG_BAND:2`
 
 The **Target List** and **Allow List** are separate boxes on the same card. Both take one entry per line and both export to a text file.
+
+---
 
 ### Triangulation (experimental)
 
@@ -153,6 +163,8 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ---
 
+---
+
 ### Recon: Device Discovery
 
 Lists every WiFi and BLE device in range with signal strength, channel and vendor.
@@ -161,7 +173,17 @@ AP discovery runs a periodic all-channel scan, paced by **WiFi Scan Interval**, 
 
 - **Capture Probes** checkbox piggybacks probe request collection onto the device scan, feeding the same probe database (MAC, vendor, RSSI, SSIDs, randomization status)
 - Everything seen merges into `/devicedb.jsonl` on SD and survives reboots, capped at 2000 entries with least-recently-seen eviction (Full build only)
-- Mesh: `DEVICE_SCAN_START:mode:secs[:FOREVER[:+PROBE]]`
+
+> **Web UI** &nbsp;Scan tab -> Device Discovery
+>
+> **Mesh** &nbsp;`DEVICE_SCAN_START:mode:secs[:FOREVER[:+PROBE]]`
+>
+> **Settings**
+> - RSSI floor `@ALL CONFIG_RSSI:-80`
+> - Channels `@ALL CONFIG_CHANNELS:1..11`
+> - Cross-scan dedup `@ALL CONFIG_DEDUP_TTL:300`
+
+---
 
 ### Recon: Probe Request Scanner
 
@@ -178,7 +200,17 @@ Captures the networks devices are searching for, and correlates all three 802.11
 - OUI vendor identification, MAC randomization detection (locally-administered bit)
 - Mesh alerting for watchlist hits, 60s dedup cooldown
 - RSSI min/max/current, up to 4 probed SSIDs per device
-- Mesh: `PROBE_START:mode:secs[:FOREVER][:+ALL]` / `PROBE_STOP`
+
+> **Web UI** &nbsp;Scan tab -> Probe Request Scanner
+>
+> **Mesh** &nbsp;`PROBE_START:mode:secs[:FOREVER][:+ALL]` / `PROBE_STOP`
+>
+> **Settings**
+> - `+ALL` logs every probe, not just watchlist hits
+> - RSSI floor `@ALL CONFIG_RSSI:-80`
+> - Channels `@ALL CONFIG_CHANNELS:1..11`
+
+---
 
 ### Recon: Randomized MAC Tracer (experimental)
 
@@ -188,10 +220,19 @@ Links rotating MAC addresses back to one device using behavioral signatures: IE 
 - Dual signature support, full and minimal IE patterns
 - Confidence-based linking with adaptive thresholds
 - Detects global MAC leaks and WiFi-to-BLE correlation
-- Mesh: `RANDOMIZATION_START:mode:secs[:FOREVER]`
+
+> **Web UI** &nbsp;Scan tab -> Randomized MAC Tracer
+>
+> **Mesh** &nbsp;`RANDOMIZATION_START:mode:secs[:FOREVER]`
+>
+> **Settings**
+> - Mode `0` WiFi, `1` BLE, `2` both
+> - RSSI floor `@ALL CONFIG_RSSI:-80`
 
 > [!NOTE]
 > Use the Privacy button before sharing screenshots - it redacts MACs, GPS and SSIDs.
+
+---
 
 ### Recon: Drone RID Detection
 
@@ -199,7 +240,15 @@ Decodes drone Remote ID per FAA/EASA standards over **WiFi and Bluetooth**: ODID
 
 Decodes every ODID message type - Basic ID, Location, System, Operator ID, Auth, Self-ID - preferring Serial Number over CAA Registration ID. Extracts UAV ID, pilot location and flight telemetry. Mesh alerts and SD logging.
 
-- Mesh: `DRONE_START:secs[:FOREVER]`
+
+> **Web UI** &nbsp;Scan tab -> Drone RID Detection
+>
+> **Mesh** &nbsp;`DRONE_START:secs[:FOREVER]`
+>
+> **Settings**
+> - RSSI floor `@ALL CONFIG_RSSI:-80`
+
+---
 
 ### Detection: Baseline Anomaly
 
@@ -212,24 +261,47 @@ Learns which devices belong here, then alerts on anything new, missing, returnin
 - RAM cache 200-500 devices, SD overflow 1K-100K devices. Without an SD card the default cap is 1500
 - Tiers between RAM and SD automatically
 - Tunables under `/baseline/config`: `rssiThreshold`, `baselineDuration`, `ramCacheSize`, `sdMaxDevices`, `absenceThreshold`, `reappearanceWindow`, `rssiChangeDelta`
-- Mesh: `BASELINE_START:duration[:FOREVER]` (minimum 60s), `BASELINE_STATUS`
+
+> **Web UI** &nbsp;Scan tab -> Baseline Anomaly Sniffer, minimum 60s
+>
+> **Mesh** &nbsp;`BASELINE_START:duration[:FOREVER]` (minimum 60s), `BASELINE_STATUS`
+>
+> **Settings**
+> - Duration is the learning phase, 60s minimum
+> - Progress `@ALL BASELINE_STATUS`
+> - RSSI floor `@ALL CONFIG_RSSI:-80`
 
 > [!TIP]
 > A longer initial scan produces a more reliable baseline.
+
+---
 
 ### Detection: Deauth Detection
 
 WiFi deauth and disassoc frame sniffer. Fingerprints the tool behind the frames and cross-references the Randomized MAC Tracer for source identification.
 
-- Mesh: `DEAUTH_START:secs[:FOREVER]`
+
+> **Web UI** &nbsp;Scan tab -> Deauth Detection
+>
+> **Mesh** &nbsp;`DEAUTH_START:secs[:FOREVER]`
+>
+> **Settings**
+> - RSSI floor `@ALL CONFIG_RSSI:-80`
+> - Channels `@ALL CONFIG_CHANNELS:1..11`
+
+---
 
 ### Detection: CSI Motion
 
-Detects movement in the area from how bodies disturb the WiFi channel between the node and nearby transmitters. Indoor only.
+Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
 
-The trigger is the noise-corrected signal variance of the channel response, so it is
-receiver-independent and the same constant works across board types. Under **Advanced**
-on the Scan tab:
+- **No calibration.** The trigger is the noise-corrected signal variance of the channel response, so it is receiver-independent and one constant covers every board type. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
+- **Signal strength is not the limit.** Weak links carry detection as well as strong ones; the statistic is a ratio, so path loss divides out
+- **Two gates before an alert.** A link counts as moving only when most of its subcarriers agree ([Origin Wireless US10291460B2](https://patents.google.com/patent/US10291460B2/en)); an area alert needs two transmitters to agree when two are available
+- **Almost passive.** It transmits only when the channel is too quiet to measure - fewer than 15 CSI packets in the last second - sending one broadcast probe request, at most once per second
+- Emits one `CSI_MOTION` line when the area goes from quiet to moving, not one per transmitter, rate limited to one per 30s; one `CSI_CLEAR` when every link settles
+
+Under **Advanced** on the Scan tab:
 
 | Control | Range | What it does |
 |---|---|---|
@@ -240,29 +312,44 @@ on the Scan tab:
 | Per-packet score to serial | - | Telemetry for tuning |
 | Raw CSI to serial | - | Full complex-value dump |
 
-Emits one `CSI_MOTION` line when the area goes from quiet to moving - not one per transmitter - rate limited to one per 30s, and one `CSI_CLEAR` line when every link settles.
-
 > [!IMPORTANT]
-> CSI Motion transmits. It sends a broadcast probe request up to once per second, and only when the channel is too quiet to measure (fewer than 15 CSI packets in the last second). Everything else in this mode is passive.
+> It detects **movement**, not presence. Someone who stops moving is absorbed into the baseline within a few seconds and reads as quiet. Indoor only: multipath is what makes it work, and open ground has nothing to bounce off.
 
 > [!NOTE]
-> An ESP32-C5 node is more sensitive than an S3 on the same channel: measured 7-57x less
-> CSI measurement noise and ~3x the record rate. It opens motion episodes up to ~90s
-> earlier and holds them longer, and it detects weak or distant movement an S3 misses.
-> Both agree on which events occurred. See [docs/ESP32-C5.md](docs/ESP32-C5.md).
+> A C5 node measures far cleaner than an S3 on the same channel - 7-57x less CSI measurement noise and about 3x the record rate. It opens motion episodes up to 90s earlier, holds them longer, and detects weak or distant movement an S3 misses. Both agree on which events occurred. See [docs/ESP32-C5.md](docs/ESP32-C5.md).
 
-- Mesh: `CSI_MOTION_START:secs[:FOREVER][:CH<n>][:TELEM][:RAW][:TRAIN]`, `CSI_CFG:trigger:hold_ms:consec:channel`, `CSI_STATUS`, `CSI_JSON`, `CSI_RECAL`
+> **Web UI** &nbsp;Scan tab -> CSI Motion Detection
+>
+> **Mesh** &nbsp;`@ALL CSI_MOTION_START:300:CH11`
+>
+> **Settings**
+> - Trigger, hold, consecutive hits, channel `@ALL CSI_CFG:0.10:5000:3:0`
+> - Drop a learned trigger `@ALL CSI_RECAL`
+> - State to serial `@AH01 CSI_STATUS` or `@AH01 CSI_JSON`
+> - Add `:TELEM` or `:RAW` to the start command for tuning output
+
+---
 
 ### Capture: Packet Capture
 
 Records raw traffic to SD as a standard pcap.
 
 - WiFi: full radiotap header with channel, rate and RSSI. Both bands on C5
-- BLE: the controller's HCI events are written unmodified as link type 187, so Wireshark dissects LE Advertising Reports with address, address type, event type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one
+- BLE: written as Bluetooth HCI, link type 187. Wireshark shows address, event type, advertising data and RSSI. HCI carries no RF channel, so none is reported.
 - Sweeps the RF Settings channels, or a channel list and dwell set under Advanced. Management-frames-only filter available
 - The Captures list on the Scan tab downloads, deletes, or deletes all. The file currently recording cannot be deleted
 - Started by hand, by vibration, or by a Sentinel attack response. `auto_` captures are pruned against a size budget and a free-space floor; manual captures are never pruned
-- Mesh: `PCAP_START:radio:secs:band[:FOREVER]` / `PCAP_STOP`
+
+> **Web UI** &nbsp;Scan tab -> Packet Capture
+>
+> **Mesh** &nbsp;`PCAP_START:radio:secs:band[:CH<list>][:FOREVER]` / `PCAP_STOP`
+>
+> **Settings**
+> - File size cap `@ALL PCAP_LIMITS:150` (8-300 MB)
+> - Channel list `:CH36,40,149`
+> - Band `0` 2.4GHz, `1` 5GHz, `2` both
+
+---
 
 ### Vibration Auto-Scan
 
@@ -387,6 +474,20 @@ Mesh: `AUTOERASE_ENABLE:<setup>:<erase>:<vibrations>:<window>:<cooldown>` in sec
 </details>
 
 ---
+
+> [!IMPORTANT]
+> **The C5 is a different radio, not a faster S3.** It is a drop-in and runs the same detectors, but its
+> RF behavior differs in ways that are documented by Espressif and confirmed here on hardware:
+>
+> - **Dual band.** A capture hops 2.4 and 5 GHz channels in one run. `esp_wifi_set_band_mode` selects the
+>   band; the regulatory 5 GHz channel set is on the [ESP32-C5 page](docs/ESP32-C5.md#bands-and-channels).
+> - **Channel changes are refused while a station is associated to the AP.** This is the documented
+>   contract for `esp_wifi_set_channel`, not a fault. Scans and captures visit channels through
+>   `esp_wifi_scan_start`, which returns the radio to the AP channel between hops, so the link survives
+>   and the AP channel takes a larger share of the airtime while a browser is connected.
+> - **CSI measures far cleaner than the S3** on the same channel, with a higher record rate. A trigger
+>   tuned on an S3 will not behave the same here. The detector threshold is derived from the statistic
+>   rather than the receiver, so one value covers both boards.
 
 ## RF Configuration
 
@@ -746,7 +847,7 @@ Timestamps show local time from the GPS fix. Without a GPS lock they show UTC. N
 | `RANDOMIZATION_START` | Link randomized MACs to devices | `mode:secs[:FOREVER]` | `@ALL RANDOMIZATION_START:2:300` |
 | `DRONE_START` | Watch for drone Remote ID | `secs[:FOREVER]` | `@ALL DRONE_START:300` |
 | `DEAUTH_START` | Watch for deauth attacks | `secs[:FOREVER]` | `@ALL DEAUTH_START:300` |
-| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
+| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap. `CH` takes a comma list of channels to hop; without it the node uses its configured channels for the band | `radio:secs:band[:CH<list>][:FOREVER]` | `@ALL PCAP_START:0:300:2:CH36,40,149` |
 | `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
 
 | `SD_REPAIR` | Let a node rebuild an unmountable SD card by itself. `NOW` repairs once. Off by default, rebuilding erases the card | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
@@ -877,6 +978,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Triangulation data | `NODE_ID: T_D: MAC Hits=N RSSI:dBm Type:WiFi/BLE GPS=lat,lon HDOP=X.XX` - one per participating node per reporting cycle, coordinator included. Slots are assigned by node-ID order, so every node derives the same rotation |
 | Triangulation final | `NODE_ID: T_F: MAC=addr GPS=lat,lon CONF=85.5 UNC=12.3` |
 | Triangulation complete | `NODE_ID: T_C: MAC=addr Nodes=N [Google Maps link]` |
+| Triangulation cycle start | `@ALL TRI_CYCLE_START:<ms>:<node,node,...>` - the coordinating node broadcasts it so every node in the run reports in its own slot. Sent by the firmware, not something you issue |
 | CSI motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. Rate limited to one per 30s |
 | CSI motion clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving |
 | Tamper detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
