@@ -221,6 +221,10 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 
 links randomized MAC addresses to persistent device identities using behavioral signatures: IE fingerprinting, channel sequencing, timing, RSSI patterns, and sequence-number correlation. Assigns identity IDs (`T-XXXX`) with SD persistence.
 
+<p align="center">
+  <img width="880" alt="Randomized MAC Tracer" src="docs/img/randomization.jpg" />
+</p>
+
 
 - Tracks up to 256 devices at once. Past that, the one not seen for longest is dropped
 - Dual signature support (full and minimal IE patterns)
@@ -243,6 +247,10 @@ links randomized MAC addresses to persistent device identities using behavioral 
 ### Recon: Drone RID Detection
 
 Detects drones broadcasting Remote ID under the FAA and EASA standards, over both radios.
+
+<p align="center">
+  <img width="880" alt="Drone RID Detection" src="docs/img/drone-rid.jpg" />
+</p>
 
 - WiFi ODID/ASTM F3411 in NAN action frames and beacons; BLE over BT4 legacy and BT5 long range, service UUID `0xFFFA`; plus French drone ID
 - Decodes every ODID message type and prefers the serial number over the CAA registration ID
@@ -304,6 +312,10 @@ Watches for deauthentication and disassociation frames in real time.
 ### Detection: CSI Motion (beta)
 
 Device-free motion sensing. The node reads the channel state of WiFi frames already in the air and alerts when a body moves through the space. Nothing is worn or carried, and it joins no network.
+
+<p align="center">
+  <img width="880" alt="CSI Motion" src="docs/img/csi-motion.jpg" />
+</p>
 
 - **No calibration.** The threshold is derived from the statistic itself, not a per-room baseline, so there is no learning phase and nothing that drifts. Method: [WiDetect, ACM IMWUT 3(3), 2019](https://cswu.me/papers/ubicomp19_widetect_paper.pdf)
 - **Signal strength is not the limit.** Links from -76 to -91 dBm all carry detection; the statistic is a ratio, so path loss divides out
@@ -385,7 +397,9 @@ The mesh labels Sentinel emits, for log parsers and C2, are listed under [Mesh C
 Records raw traffic to SD as a standard pcap.
 
 
-<img width="687" alt="Packet capture" src="https://github.com/user-attachments/assets/4bba7293-fa37-4d22-b099-926c4352f731" />
+<p align="center">
+  <img width="880" alt="Packet capture" src="docs/img/pcap.jpg" />
+</p>
 
 
 - WiFi: full radiotap header with channel, rate and RSSI. Both bands on C5
@@ -445,6 +459,10 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 Everything that configures the node lives on one page, in cards.
 
+<p align="center">
+  <img width="880" alt="System tab" src="docs/img/system-tab.jpg" />
+</p>
+
 | Card | What it holds |
 |---|---|
 | **System Diagnostics** | Three subtabs, all fed from `GET /diag`. **Overview** - uptime, WiFi and BLE frame counts, target hits, unique devices, CPU temperature. **Hardware** - last reset and previous uptime, results restored, free and minimum-free internal heap, scan stack headroom, SD card, GPS, RTC and vibration sensor. **Network** - AP address, mesh state, WiFi channels |
@@ -490,6 +508,10 @@ Everything that configures the node lives on one page, in cards.
 ## Hardware
 
 Buy a node from the [store](https://lectronz.com/stores/antihunter) - bare PCB, soldered core, parts kit or assembled ([what each tier ships](#deployment-steps-by-tier)) - or build your own from the parts below.
+
+<p align="center">
+  <img width="560" alt="AntiHunter node" src="docs/img/hardware-node.jpg" />
+</p>
 
 > [!IMPORTANT]
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability. A 2A fast-blow inline fuse on the battery line is optional added protection.
