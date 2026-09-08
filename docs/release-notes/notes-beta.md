@@ -10,7 +10,7 @@ Beta channel · Previous release v1.0.2-beta1 (2026-08-13)
 
 - **CSI motion detection** (full + headless): device-free WiFi motion sensing on the WiDetect ACF statistic, per-area strength, no calibration; `CSI_CFG` config, `CSI_MOTION:`/`CSI_CLEAR:` mesh debounced to two lines per episode.
 - **Baseline no longer reboots** (`ESP_RST_PANIC`) under dense RF or long scans — internal-RAM exhaustion across several baseline paths fixed.
-- SD writes fail soft under low heap: every SD open checks the internal-heap floor instead of aborting in `fopen`.
+- **The SD card is never refused a write.** An earlier build put an internal-heap floor in front of every SD open, which turned a memory shortage into a node that silently stopped logging. The floor is gone. The memory it was covering for was found instead: resident task stacks moved to PSRAM, and the log file is held open across writes rather than reopened per line, so `fopen` is not on the hot path at all.
 - BLE result buffer bounded — 150 in baseline, 200 in device/probe/triangulation/drone.
 - Device-history table moved to PSRAM and bounded by free heap.
 - Closed two use-after-free windows (baseline vs BLE radio task; WiFi scan-buffer pointer across an alloc).

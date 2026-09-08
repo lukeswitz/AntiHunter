@@ -925,7 +925,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">DRONE_START</span></td><td>Watch for drone Remote ID</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">DEAUTH_START</span></td><td>Watch for deauth attacks</td><td><span class="mono">secs[:FOREVER]</span></td></tr>
     <tr><td><span class="mono">RANDOMIZATION_START</span></td><td>Link randomized MACs to devices</td><td><span class="mono">mode:secs[:FOREVER]</span></td></tr>
-    <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:FOREVER]</span></td></tr>
+    <tr><td><span class="mono">PCAP_START</span> and <span class="mono">PCAP_STOP</span></td><td>Record traffic to SD as pcap</td><td><span class="mono">radio:secs:band[:CH&lt;list&gt;][:FOREVER]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
