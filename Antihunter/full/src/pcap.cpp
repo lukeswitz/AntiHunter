@@ -39,6 +39,8 @@ static uint8_t g_hopList[48];
 static uint8_t g_hopLen = 0;
 static uint8_t g_hopIdx = 0;
 static std::atomic<uint32_t> g_chanFails{0};
+static uint32_t g_hopScanEndsMs = 0;
+#define PCAP_AP_HOME_DWELL_MS 30
 
 static volatile bool g_active = false;
 static uint8_t *g_bufA = nullptr;
@@ -422,6 +424,26 @@ static void pcapBuildHopList() {
 }
 
 static void pcapSetChannel(uint8_t ch) {
+    if (WiFi.softAPgetStationNum() > 0 && ch != (uint8_t)AP_CHANNEL) {
+        wifi_scan_config_t sc = {};
+        sc.channel = ch;
+        sc.show_hidden = true;
+        sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
+        sc.scan_time.passive = g_dwellMs;
+        sc.home_chan_dwell_time = PCAP_AP_HOME_DWELL_MS;
+        const esp_err_t rc = esp_wifi_scan_start(&sc, false);
+        if (rc == ESP_OK) {
+            g_curChan.store(ch);
+            g_hopScanEndsMs = millis() + g_dwellMs + PCAP_AP_HOME_DWELL_MS;
+            return;
+        }
+        if (g_chanFails.fetch_add(1) == 0) {
+            Serial.printf("[PCAP] channel %u scan refused: %s\n", (unsigned)ch, esp_err_to_name(rc));
+        }
+        g_hopScanEndsMs = 0;
+        return;
+    }
+
     const esp_err_t rc = esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     if (rc != ESP_OK) {
         if (g_chanFails.fetch_add(1) == 0) {
@@ -764,6 +786,7 @@ void pcapCaptureTask(void *pv) {
     g_stopReasonWrite.store(false);
     g_dropped.store(0);
     g_chanFails.store(0);
+    g_hopScanEndsMs = 0;
     g_startMs = millis();
     g_endMs = 0;
     g_baseEpoch = (uint32_t)getRTCEpoch();
@@ -815,7 +838,8 @@ void pcapCaptureTask(void *pv) {
 
         const uint32_t now = millis();
 
-        if (g_radio == PCAP_RADIO_WIFI && g_hopLen > 1 && now - lastHop >= g_dwellMs) {
+        if (g_radio == PCAP_RADIO_WIFI && g_hopLen > 1 && now - lastHop >= g_dwellMs &&
+            (int32_t)(now - g_hopScanEndsMs) >= 0) {
             g_hopIdx = (uint8_t)((g_hopIdx + 1) % g_hopLen);
             pcapSetChannel(g_hopList[g_hopIdx]);
             lastHop = now;
