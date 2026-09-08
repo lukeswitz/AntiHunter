@@ -38,6 +38,7 @@ static std::vector<uint8_t> g_reqChannels;
 static uint8_t g_hopList[48];
 static uint8_t g_hopLen = 0;
 static uint8_t g_hopIdx = 0;
+static std::atomic<uint32_t> g_chanFails{0};
 
 static volatile bool g_active = false;
 static uint8_t *g_bufA = nullptr;
@@ -400,6 +401,27 @@ static void pcapBuildHopList() {
     if (g_hopLen == 0) g_hopList[g_hopLen++] = 1;
 }
 
+static void pcapSetChannel(uint8_t ch) {
+    const esp_err_t rc = esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    if (rc != ESP_OK) {
+        if (g_chanFails.fetch_add(1) == 0) {
+            Serial.printf("[PCAP] channel %u rejected: %s\n", (unsigned)ch, esp_err_to_name(rc));
+        }
+        return;
+    }
+    g_curChan.store(ch);
+}
+
+#ifdef ARDUINO_XIAO_ESP32C5
+static void pcapApplyRadioBand(uint8_t band) {
+    const wifi_band_mode_t bm = (band == PCAP_BAND_5)    ? WIFI_BAND_MODE_5G_ONLY
+                              : (band == PCAP_BAND_BOTH) ? WIFI_BAND_MODE_AUTO
+                                                         : WIFI_BAND_MODE_2G_ONLY;
+    const esp_err_t rc = esp_wifi_set_band_mode(bm);
+    Serial.printf("[PCAP] radio band mode %u: %s\n", (unsigned)bm, esp_err_to_name(rc));
+}
+#endif
+
 static bool pcapRadioStartWifi() {
     WiFi.mode(WIFI_AP_STA);
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -409,7 +431,7 @@ static bool pcapRadioStartWifi() {
     ctry.cc[2] = 0;
     esp_wifi_set_country(&ctry);
 #ifdef ARDUINO_XIAO_ESP32C5
-    esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+    pcapApplyRadioBand(g_band);
 #endif
 
     wifi_promiscuous_filter_t filter = {};
@@ -425,8 +447,7 @@ static bool pcapRadioStartWifi() {
         return false;
     }
 
-    esp_wifi_set_channel(g_hopList[0], WIFI_SECOND_CHAN_NONE);
-    g_curChan.store(g_hopList[0]);
+    pcapSetChannel(g_hopList[0]);
     vTaskDelay(pdMS_TO_TICKS(50));
     return true;
 }
@@ -724,6 +745,7 @@ void pcapCaptureTask(void *pv) {
     g_stopReasonSize.store(false);
     g_stopReasonWrite.store(false);
     g_dropped.store(0);
+    g_chanFails.store(0);
     g_startMs = millis();
     g_endMs = 0;
     g_baseEpoch = (uint32_t)getRTCEpoch();
@@ -777,8 +799,7 @@ void pcapCaptureTask(void *pv) {
 
         if (g_radio == PCAP_RADIO_WIFI && g_hopLen > 1 && now - lastHop >= g_dwellMs) {
             g_hopIdx = (uint8_t)((g_hopIdx + 1) % g_hopLen);
-            esp_wifi_set_channel(g_hopList[g_hopIdx], WIFI_SECOND_CHAN_NONE);
-            g_curChan.store(g_hopList[g_hopIdx]);
+            pcapSetChannel(g_hopList[g_hopIdx]);
             lastHop = now;
         }
 
@@ -830,6 +851,9 @@ void pcapCaptureTask(void *pv) {
                   g_frames.load(), g_bytes.load(), g_dropped.load(), fileSize, why);
     Serial.printf("[PCAP] SD: %u drains, %u reopens, %u ms in writes of %u ms elapsed\n",
                   g_drains.load(), g_reopens.load(), g_writeMs.load(), g_endMs - g_startMs);
+    if (g_chanFails.load()) {
+        Serial.printf("[PCAP] %u channel changes rejected by the radio\n", g_chanFails.load());
+    }
 
     {
         String s = pcapSummary(false);
