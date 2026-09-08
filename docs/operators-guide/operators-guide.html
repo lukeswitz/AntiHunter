@@ -732,11 +732,12 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
 
   <h3>9.11 Packet Capture</h3>
-  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a full radiotap header with channel, rate and RSSI; BLE advertisements are written as link-layer PDUs, so Wireshark dissects them properly.</p>
+  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a radiotap header with channel, rate and RSSI. BLE captures are written as Bluetooth HCI, link type 187: the controller's own events, unmodified, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one.</p>
   <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
   <pre>@ALL PCAP_START:0:300:0
 @ALL PCAP_STOP</pre>
-  <p>Arguments are radio, seconds, band. Radio 0 WiFi, 1 BLE. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, a management-frames-only filter, and the maximum file size.</p>
+  <p>Arguments are radio, seconds, band. Radio 0 WiFi, 1 BLE, one at a time; there is no both, and any other value, including 2, is taken as WiFi. Unlike the <span class="mono">mode</span> field of the other scan commands, 2 does not mean both here. Band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5. Advanced sets a channel list, dwell, a management-frames-only filter, and the maximum file size.</p>
+  <p>The mesh reply names the radio that actually started, <span class="mono">PCAP_START: WIFI</span> or <span class="mono">PCAP_START: BLE</span>. Getting <span class="mono">WIFI</span> back from a command you meant as BLE means the radio field was wrong. A capture started by a vibration trigger or a Sentinel attack response is always WiFi on 2.4 GHz; BLE is a manual choice only.</p>
   <p>A capture stops on its own when the file reaches the size cap, when free space drops below the floor, or when the card stops accepting writes. The mesh reply carries the reason: <span class="mono">R=SIZECAP</span> or <span class="mono">R=WRITEFAIL</span>. The cap is 8 to 300 MB, 100 MB by default, set on the Scan tab or over mesh.</p>
   <pre>@ALL PCAP_LIMITS:150
 @ALL PCAP_LIMITS</pre>
@@ -888,7 +889,7 @@ python3 scripts/meshtastic_config.py</pre>
     <tr><td><span class="mono">TRIANGULATE_START</span></td><td>Locate a MAC across nodes</td><td><span class="mono">target:duration[:rfEnv[:wifiPwr:blePwr]]</span></td></tr>
     <tr><td><span class="mono">TRIANGULATE_RESULTS</span> and <span class="mono">TRIANGULATE_STOP</span></td><td>Report the fix, or stop</td><td>None</td></tr>
   </table>
-  <p>Mode is 0 WiFi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP radio 0 WiFi / 1 BLE, band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
+  <p>Mode is 0 WiFi, 1 BLE, 2 both. <span class="mono">CH0</span> or no channel surveys and pins the busiest. PCAP is the exception: its radio field is 0 WiFi / 1 BLE only, one radio per capture, and 2 is taken as WiFi rather than both. PCAP band 0 is 2.4 GHz, 1 is 5 GHz, 2 both; 5 GHz needs a C5.</p>
 
   <h3>Sentinel</h3>
   <table class="tight">

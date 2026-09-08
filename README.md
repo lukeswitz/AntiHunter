@@ -211,10 +211,11 @@ Correlates all three 802.11 address fields to detect ghost SSIDs (networks that 
 **Packet Capture** - records raw traffic to SD as a standard pcap.
 
 - WiFi: full radiotap header with channel, rate and RSSI. Both bands on C5
-- BLE: advertisements written as link-layer PDUs, so Wireshark dissects ADV_IND, ADV_DIRECT_IND and SCAN_RSP
+- BLE: the controller's HCI events are written unmodified as link type 187, so Wireshark dissects LE Advertising Reports with address, address type, event type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one
 - Sweeps the RF Settings channels, or a channel list and dwell under Advanced. Management-frames-only filter
 - Captures list on the Scan tab: download, delete, delete-all. The recording file cannot be deleted
-- Started by hand, by vibration, or by a Sentinel attack response. `auto_` captures are pruned against a size budget and free-space floor; manual captures are not
+- Started by hand, by vibration, or by a Sentinel attack response. Both automatic triggers start a WiFi 2.4 GHz capture; BLE is a manual choice only
+- `auto_` captures are pruned against a size budget and free-space floor; manual captures are not
 
 ### Attack detection & counter-intel
 
@@ -800,7 +801,7 @@ Mode is `0` WiFi, `1` BLE, `2` both. Add `:FOREVER` to run until stopped.
 > the channel response, which is receiver-independent, so one constant covers both boards.
 
 | `CSI_EXCLUDE` | Ignore one MAC for motion | `<MAC>` or `NONE` | `@ALL CSI_EXCLUDE:AA:BB:CC:DD:EE:FF` |
-| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap | `radio:secs:band[:FOREVER]` | `@ALL PCAP_START:0:300:0` |
+| `PCAP_START` / `PCAP_STOP` | Record traffic to SD as pcap, one radio at a time | `radio:secs:band[:FOREVER]`, radio `0` WiFi or `1` BLE, no both | `@ALL PCAP_START:0:300:0` |
 | `PCAP_LIMITS` | Set or read the capture file size cap, 8-300 MB. No argument reads it back | `[MB]` | `@ALL PCAP_LIMITS:150` |
 
 > [!WARNING]
@@ -811,7 +812,7 @@ Mode is `0` WiFi, `1` BLE, `2` both. Add `:FOREVER` to run until stopped.
 | `SD_REPAIR` | Let a node rebuild an unmountable SD card by itself. `NOW` repairs once. Off by default, rebuilding erases the card | `ON\|OFF\|NOW` | `@ALL SD_REPAIR:ON` |
 | `MESH_TX_CANCEL` | Drop queued mesh traffic, keep scanning | None | `@ALL MESH_TX_CANCEL` |
 
-`+PROBE` adds probe capture to a device scan. `+ALL` broadcasts every probe, not just watchlist hits. `CH0` or no channel surveys and pins the busiest; `TELEM` and `RAW` add per-packet serial lines. PCAP radio is `0` WiFi / `1` BLE, band `0` 2.4 / `1` 5 / `2` both, 5 GHz C5 only.
+`+PROBE` adds probe capture to a device scan. `+ALL` broadcasts every probe, not just watchlist hits. `CH0` or no channel surveys and pins the busiest; `TELEM` and `RAW` add per-packet serial lines. PCAP captures one radio, never both: radio is `0` WiFi / `1` BLE only, and any other value, including `2`, is taken as WiFi. This is not the `mode` field of the other scan commands, where `2` means both. Band `0` 2.4 / `1` 5 / `2` both is the third field and applies to WiFi, 5 GHz C5 only.
 
 ### Sentinel
 
@@ -833,7 +834,7 @@ Groups: `dos`, `rogue`, `recon`, `physical`, `mesh`, `all`. `defend` pins one ch
 
 `GROUP` members: `dos` = eviltwin, sae, assoc_sleep · `rogue` = eviltwin, owe, karma · `recon` = pmkid, probe_flood, hshk · `physical` = frag, tsf, jam · `mesh` = mesh_guard · `all` = every member listed here.
 
-`DETECT_CFG` sets the rest: `ssid_confusion`, `pwna`, `csa_quiet`, `rid_spoof`, `bloom_gossip`, `ble_malformed`, the 15 `mesh_*` emit toggles and the numeric thresholds. It also carries the attack response: `attack_resp_mask` (bit 2 packet capture, 4 device discovery, 8 probe sweep, 16 drone RID) alongside `attacker_trilat`, plus the per-action durations `ar_secs_trilat`, `ar_secs_pcap`, `ar_secs_device`, `ar_secs_probe`, `ar_secs_drone` - e.g. `@ALL DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":120}`. `DETECT_CFG_GET` prints every key to serial. `GROUP` and `DETECT_CFG` write to NVS. Deauth, beacon and auth detection have no toggle.
+`DETECT_CFG` sets the rest: `ssid_confusion`, `pwna`, `csa_quiet`, `rid_spoof`, `bloom_gossip`, `ble_malformed`, the 15 `mesh_*` emit toggles and the numeric thresholds. It also carries the attack response: `attack_resp_mask` (bit 2 packet capture, always WiFi on 2.4 GHz, 4 device discovery, 8 probe sweep, 16 drone RID) alongside `attacker_trilat`, plus the per-action durations `ar_secs_trilat`, `ar_secs_pcap`, `ar_secs_device`, `ar_secs_probe`, `ar_secs_drone` - e.g. `@ALL DETECT_CFG:{"attack_resp_mask":6,"ar_secs_pcap":120}`. `DETECT_CFG_GET` prints every key to serial. `GROUP` and `DETECT_CFG` write to NVS. Deauth, beacon and auth detection have no toggle.
 
 Headless has no SoftAP. `defend` pins to whatever channel the radio last used, so use `scan`.
 
@@ -919,7 +920,7 @@ Format: `NODE_ID: Time:YYYY-MM-DD_HH:MM:SS Temp:XX.XC [GPS:lat,lon]`
 | Probe Watchlist Hit | `NODE_ID: PROBE_HIT MAC [Randomized\|Vendor] RSSI=dBm CH=N [SSID="network" [GHOST]] [DST]` - vendor token omitted entirely when unknown |
 | CSI Motion | `NODE_ID: CSI_MOTION: CH=N N=links S=peak` - one line when the area goes from quiet to moving, not one per transmitter. `N` is how many links moved, `S` the strongest score. Rate limited to one per 30s |
 | CSI Motion Clear | `NODE_ID: CSI_CLEAR: CH=N D=Ns` - one line when every link has settled. `D` is how long the area was moving |
-| Packet Capture Started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` - `D=0` means the capture runs until stopped |
+| Packet Capture Started | `NODE_ID: PCAP_START: WIFI\|BLE D=secs` - the word is the one radio now recording, never both. A request whose radio field is anything but `1` comes back `WIFI`, so `WIFI` on a command you meant as BLE means the field was wrong. `D=0` means the capture runs until stopped |
 | Packet Capture Done | `NODE_ID: PCAP_DONE: F=frames B=bytes D=dropped [R=reason]` - `D` counts frames the SD writer could not keep up with. `R` appears only when the capture ended on its own: `SIZECAP` at the file size limit, `WRITEFAIL` when the card stopped accepting writes |
 | Tamper Detected | `NODE_ID: TAMPER_DETECTED: Auto-erase in Xs [GPS:lat,lon]` |
 | Status Response | `NODE_ID: STATUS: Mode:TYPE Scan:ACTIVE\|IDLE Hits:N Temp:XX.XC Up:HH:MM:SS [GPS:lat,lon HDOP=X.X]` |
