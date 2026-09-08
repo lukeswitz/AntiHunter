@@ -19,13 +19,13 @@ extern TaskHandle_t workerTaskHandle;
 extern std::vector<uint8_t> CHANNELS;
 
 #define PCAP_LT_WIFI       127u
-#define PCAP_LT_BLE        256u
-#define PCAP_RADIOTAP_LEN  16u
+#define PCAP_LT_BLE        187u
+#define PCAP_H4_EVT        0x04u
+#define PCAP_RADIOTAP_LEN  15u
 #define PCAP_SNAPLEN       2324u
 #define PCAP_BUF_PSRAM     (16u * 1024u)
 #define PCAP_BUF_INTERNAL  (8u * 1024u)
 #define PCAP_DIR           "/pcap"
-#define BLE_ADV_ACCESS_ADDR 0x8E89BED6u
 
 std::atomic<bool> pcapBleEnabled{false};
 
@@ -204,6 +204,27 @@ static IRAM_ATTR uint16_t pcapChanToFreq(uint8_t ch) {
     return 0u;
 }
 
+static IRAM_ATTR uint8_t pcapRateTo500Kbps(uint8_t rate) {
+    switch (rate) {
+        case 0x00: return 2;
+        case 0x01: return 4;
+        case 0x02: return 11;
+        case 0x03: return 22;
+        case 0x05: return 4;
+        case 0x06: return 11;
+        case 0x07: return 22;
+        case 0x08: return 96;
+        case 0x09: return 48;
+        case 0x0A: return 24;
+        case 0x0B: return 12;
+        case 0x0C: return 108;
+        case 0x0D: return 72;
+        case 0x0E: return 36;
+        case 0x0F: return 18;
+        default:   return 0;
+    }
+}
+
 static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
     if (!g_active) return;
     if (type != WIFI_PKT_MGMT && type != WIFI_PKT_DATA && type != WIFI_PKT_CTRL) return;
@@ -214,102 +235,61 @@ static void IRAM_ATTR pcapWifiCb(void *buf, wifi_promiscuous_pkt_type_t type) {
     if (len < 10) return;
     if (len > (int)(PCAP_SNAPLEN - PCAP_RADIOTAP_LEN)) len = PCAP_SNAPLEN - PCAP_RADIOTAP_LEN;
 
+    const uint8_t rateIdx = (uint8_t)pkt->rx_ctrl.rate;
+#if CONFIG_SOC_WIFI_HE_SUPPORT
+    const uint8_t bbFormat = (uint8_t)pkt->rx_ctrl.cur_bb_format;
+    const bool cck = (bbFormat == RX_BB_FORMAT_11B);
+    const uint8_t rate500 = (bbFormat == RX_BB_FORMAT_11G) ? pcapRateTo500Kbps(rateIdx) : 0;
+    const bool shortPre = false;
+#else
+    const bool nonHt = (pkt->rx_ctrl.sig_mode == 0);
+    const bool cck = nonHt && (rateIdx <= 0x03 || (rateIdx >= 0x05 && rateIdx <= 0x07));
+    const uint8_t rate500 = nonHt ? pcapRateTo500Kbps(rateIdx) : 0;
+    const bool shortPre = nonHt && (rateIdx >= 0x05 && rateIdx <= 0x07);
+#endif
+
     uint16_t freq = pcapChanToFreq(pkt->rx_ctrl.channel);
-    uint16_t cflags = 0x0080u;
-    if (freq >= 2412u && freq <= 2484u) cflags |= 0x0040u;
+    uint16_t cflags = 0;
+    if (freq >= 2412u && freq <= 2484u) cflags |= 0x0080u;
     else if (freq >= 5000u) cflags |= 0x0100u;
+    cflags |= cck ? 0x0020u : 0x0040u;
+
+    uint8_t rtflags = 0;
+    if (shortPre) rtflags |= 0x02u;
+    if (pkt->rx_ctrl.rx_state != 0) rtflags |= 0x40u;
+
+    uint32_t present = 0x0000002Au;
+    if (rate500) present |= 0x00000004u;
 
     uint8_t rt[PCAP_RADIOTAP_LEN];
     rt[0] = 0;
     rt[1] = 0;
     rt[2] = (uint8_t)(PCAP_RADIOTAP_LEN & 0xFF);
     rt[3] = (uint8_t)(PCAP_RADIOTAP_LEN >> 8);
-    rt[4] = 0x6E; rt[5] = 0; rt[6] = 0; rt[7] = 0;
-    rt[8] = 0;
-    rt[9] = (uint8_t)(pkt->rx_ctrl.rate & 0x1F);
+    rt[4] = (uint8_t)(present & 0xFF);
+    rt[5] = (uint8_t)((present >> 8) & 0xFF);
+    rt[6] = (uint8_t)((present >> 16) & 0xFF);
+    rt[7] = (uint8_t)((present >> 24) & 0xFF);
+    rt[8] = rtflags;
+    rt[9] = rate500;
     rt[10] = (uint8_t)(freq & 0xFF);
     rt[11] = (uint8_t)(freq >> 8);
     rt[12] = (uint8_t)(cflags & 0xFF);
     rt[13] = (uint8_t)(cflags >> 8);
     rt[14] = (uint8_t)pkt->rx_ctrl.rssi;
-    rt[15] = (uint8_t)-128;
 
     pcapAppend(rt, PCAP_RADIOTAP_LEN, pkt->payload, (uint32_t)len);
 }
 
-static uint8_t pcapMapPduType(uint8_t advType) {
-    switch (advType) {
-        case 0: return 0;
-        case 1: return 1;
-        case 2: return 6;
-        case 3: return 2;
-        case 4: return 4;
-        default: return 0;
+extern "C" int __real_ble_transport_to_hs_evt_impl(void *buf);
+
+extern "C" int __wrap_ble_transport_to_hs_evt_impl(void *buf) {
+    if (buf && g_active && pcapBleEnabled.load()) {
+        const uint8_t *ev = static_cast<const uint8_t *>(buf);
+        const uint8_t h4 = PCAP_H4_EVT;
+        pcapAppend(&h4, 1u, ev, 2u + (uint32_t)ev[1]);
     }
-}
-
-static uint32_t pcapBleCrc24(const uint8_t *data, size_t len) {
-    uint32_t crc = 0x555555u;
-    for (size_t i = 0; i < len; i++) {
-        uint8_t b = data[i];
-        for (int j = 0; j < 8; j++) {
-            uint32_t fb = ((b >> j) & 1u) ^ (crc & 1u);
-            crc >>= 1;
-            if (fb) crc ^= 0xDA6000u;
-        }
-    }
-    return crc & 0xFFFFFFu;
-}
-
-static void pcapEmitBle(uint8_t pduType, uint8_t addrType, const uint8_t *advA,
-                        const uint8_t *targetA, const uint8_t *advData,
-                        uint8_t advDataLen, int8_t rssi) {
-    if (advDataLen > 31) advDataLen = 31;
-    const uint8_t targetLen = targetA ? 6 : 0;
-    const uint8_t payloadLen = 6 + targetLen + advDataLen;
-
-    uint8_t body[64];
-    size_t off = 0;
-    body[off++] = 0;
-    body[off++] = (uint8_t)rssi;
-    body[off++] = (uint8_t)-128;
-    body[off++] = 0;
-    uint32_t aa = BLE_ADV_ACCESS_ADDR;
-    memcpy(body + off, &aa, 4); off += 4;
-    uint16_t flags = 0x0001 | 0x0002 | 0x0010 | 0x0400 | 0x0800;
-    memcpy(body + off, &flags, 2); off += 2;
-    memcpy(body + off, &aa, 4); off += 4;
-    size_t pduStart = off;
-    uint8_t txAdd = (addrType == 1 || addrType == 3) ? 1 : 0;
-    body[off++] = (pduType & 0x0F) | (txAdd << 6);
-    body[off++] = payloadLen;
-    memcpy(body + off, advA, 6); off += 6;
-    if (targetLen) { memcpy(body + off, targetA, 6); off += 6; }
-    if (advDataLen) { memcpy(body + off, advData, advDataLen); off += advDataLen; }
-    uint32_t crc = pcapBleCrc24(body + pduStart, 2u + (size_t)payloadLen);
-    body[off++] = (uint8_t)(crc & 0xFF);
-    body[off++] = (uint8_t)((crc >> 8) & 0xFF);
-    body[off++] = (uint8_t)((crc >> 16) & 0xFF);
-
-    pcapAppend(body, (uint32_t)off, nullptr, 0);
-}
-
-void pcapOnBleAdv(const uint8_t *addr, uint8_t addrType, uint8_t advType,
-                  const uint8_t *payload, uint16_t payloadLen, uint16_t advLen,
-                  const uint8_t *targetAddr, int8_t rssi) {
-    if (!g_active || g_radio != PCAP_RADIO_BLE) return;
-
-    if (advLen > payloadLen) advLen = payloadLen;
-    uint8_t scanLen = (uint8_t)((payloadLen > advLen) ? (payloadLen - advLen) : 0);
-    const bool directed = (advType == 1) && targetAddr != nullptr;
-
-    pcapEmitBle(pcapMapPduType(advType), addrType, addr,
-                directed ? targetAddr : nullptr,
-                payload, (uint8_t)advLen, rssi);
-
-    if (scanLen > 0 && advType != 4) {
-        pcapEmitBle(4, addrType, addr, nullptr, payload + advLen, scanLen, rssi);
-    }
+    return __real_ble_transport_to_hs_evt_impl(buf);
 }
 
 static bool pcapAllocBuffers() {
