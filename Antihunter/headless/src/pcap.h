@@ -21,9 +21,6 @@ void setPcapMaxFileMB(uint32_t mb);
 uint32_t getPcapAutoBudgetMB();
 uint32_t getPcapFreeFloorMB();
 void loadPcapPrefs();
-void pcapOnBleAdv(const uint8_t *addr, uint8_t addrType, uint8_t advType,
-                  const uint8_t *payload, uint16_t payloadLen, uint16_t advLen,
-                  const uint8_t *targetAddr, int8_t rssi);
 String getPcapStatusJson();
 String getPcapListJson();
 String getPcapFilePath();
