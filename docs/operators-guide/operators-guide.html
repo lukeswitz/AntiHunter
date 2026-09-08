@@ -736,7 +736,7 @@ python3 scripts/meshtastic_config.py</pre>
   </div>
 
   <h3>9.11 Packet Capture</h3>
-  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a full radiotap header with channel, rate and RSSI; BLE advertisements are written as link-layer PDUs, so Wireshark dissects them properly.</p>
+  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a radiotap header with channel, rate and RSSI. BLE captures are written as Bluetooth HCI, link type 187: the controller's own events, unmodified, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one.</p>
   <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
   <pre>@ALL PCAP_START:0:300:0
 @ALL PCAP_STOP</pre>
