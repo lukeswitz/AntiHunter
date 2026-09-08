@@ -424,7 +424,11 @@ static void pcapBuildHopList() {
 }
 
 static void pcapSetChannel(uint8_t ch) {
-    if (WiFi.softAPgetStationNum() > 0 && ch != (uint8_t)AP_CHANNEL) {
+    if (WiFi.softAPgetStationNum() > 0) {
+        if (ch == (uint8_t)AP_CHANNEL) {
+            g_curChan.store(ch);
+            return;
+        }
         wifi_scan_config_t sc = {};
         sc.channel = ch;
         sc.show_hidden = true;
