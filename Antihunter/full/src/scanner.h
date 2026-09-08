@@ -11,6 +11,25 @@
 #include "freertos/idf_additions.h"
 #include "randomization.h"
 
+// Resident tasks only: the PSRAM stack needs vTaskDeleteWithCaps, so never use this for a
+// task that self-deletes with vTaskDelete.
+static inline BaseType_t ahCreateResidentTask(TaskFunction_t fn, const char *name, uint32_t stack,
+                                              void *arg, UBaseType_t prio, TaskHandle_t *handle,
+                                              BaseType_t core) {
+#ifdef CONFIG_FREERTOS_UNICORE
+    core = 0;
+#endif
+    BaseType_t rc = pdFAIL;
+    if (psramFound()) {
+        rc = xTaskCreatePinnedToCoreWithCaps(fn, name, stack, arg, prio, handle, core,
+                                             MALLOC_CAP_SPIRAM);
+    }
+    if (rc != pdPASS) {
+        rc = xTaskCreatePinnedToCore(fn, name, stack, arg, prio, handle, core);
+    }
+    return rc;
+}
+
 static inline BaseType_t ahCreateTask(TaskFunction_t fn, const char *name, uint32_t stack,
                                        void *arg, UBaseType_t prio, TaskHandle_t *handle,
                                        BaseType_t core) {
