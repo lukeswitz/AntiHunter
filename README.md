@@ -708,7 +708,7 @@ Both environments build from the same sources and differ only in features. `Anti
 
 ## Mesh Commands
 
-All timestamps UTC. Node IDs are 2-5 alphanumeric characters, `A-Z0-9`.
+Displayed timestamps are local time, resolved from the GPS fix. The RTC stores UTC and every epoch field stays UTC. Node IDs are 2-5 alphanumeric characters, `A-Z0-9`.
 
 > [!TIP]
 > `@ALL` broadcasts to every node. Replace it with a node ID to target one.
@@ -1013,7 +1013,7 @@ The **Privacy** button, on the Results, Fleet, Data and Sentinel toolbars, redac
 ## API Reference
 
 > [!NOTE]
-> All API timestamps are UTC. Config endpoints that touch the radio (`/config`, `/rf-config`) return `409` while a scan is running.
+> Displayed timestamps are local time, derived from the GPS fix using POSIX timezone rules so daylight saving is applied. Raw `epoch` fields remain UTC seconds. A fix outside the built-in zone table displays UTC and logs the fallback once. Config endpoints that touch the radio (`/config`, `/rf-config`) return `409` while a scan is running.
 
 ### Core
 
