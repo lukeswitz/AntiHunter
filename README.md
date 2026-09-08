@@ -513,9 +513,9 @@ Everything that configures the node lives on one page, in cards.
 
 Buy a node from the [store](https://lectronz.com/stores/antihunter) - bare PCB, soldered core, parts kit or assembled ([what each tier ships](#deployment-steps-by-tier)) - or build your own from the parts below.
 
-<p align="center">
-  <img width="760" alt="AntiHunter node" src="docs/img/hardware-node.jpg" />
-</p>
+<img width="600" height="600" alt="IMG_6928" src="https://github.com/user-attachments/assets/57cae988-b5cf-480e-a076-9bf7f3b1ded8" />
+
+
 
 > [!IMPORTANT]
 > Requires regulated 5V power supply. Unregulated battery sources cause voltage instability. A 2A fast-blow inline fuse on the battery line is optional added protection.
@@ -698,6 +698,10 @@ pio run -e AntiHunter-full -t erase                # erase the entire flash chip
 ## Configuration & Operations
 
 Configure via the web interface at `http://192.168.4.1` or the [API](docs/api-reference.md). All settings persist to NVS and SD.
+
+
+<img width="800" height="731" alt="IMG_6922" src="https://github.com/user-attachments/assets/56587f1b-7759-4d1f-adb1-edf488105e0b" />
+
 
 ### RF Scan Presets
 
