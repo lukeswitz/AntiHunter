@@ -252,7 +252,7 @@ void setup() {
 #else
     initializeGpsPps(21);
 #endif
-    if (xTaskCreatePinnedToCore(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
+    if (ahCreateResidentTask(detectTask, "DetectTask", 8192, NULL, 3, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: DetectTask create failed - detection/sentinel inactive");
     {
         uint8_t selfMac[6];
@@ -268,7 +268,7 @@ void setup() {
         Serial.println("[SENTINEL] OFF on boot (enable manually)");
     }
 
-    if (xTaskCreatePinnedToCore(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, SCAN_CORE) != pdPASS)
+    if (ahCreateResidentTask(uartForwardTask, "UARTForwardTask", 4096, NULL, 2, NULL, SCAN_CORE) != pdPASS)
         Serial.println("[BOOT] ERROR: UARTForwardTask create failed - mesh RX bridge down");
     delay(120);
 
