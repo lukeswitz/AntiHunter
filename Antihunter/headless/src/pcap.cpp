@@ -399,6 +399,26 @@ static void pcapBuildHopList() {
         g_hopList[g_hopLen++] = ch;
     }
     if (g_hopLen == 0) g_hopList[g_hopLen++] = 1;
+
+    if (WiFi.softAPgetStationNum() > 0 && g_hopLen < sizeof(g_hopList)) {
+        bool haveAp = false;
+        for (uint8_t i = 0; i < g_hopLen; i++) {
+            if (g_hopList[i] == (uint8_t)AP_CHANNEL) { haveAp = true; break; }
+        }
+        if (!haveAp) {
+            g_hopList[g_hopLen++] = (uint8_t)AP_CHANNEL;
+            Serial.printf("[PCAP] AP channel %u added to the hop list to hold the web client\n",
+                          (unsigned)AP_CHANNEL);
+        }
+    }
+
+    String hops;
+    for (uint8_t i = 0; i < g_hopLen; i++) {
+        if (i) hops += ',';
+        hops += String((unsigned)g_hopList[i]);
+    }
+    Serial.printf("[PCAP] band=%u hop list (%u): %s\n",
+                  (unsigned)g_band, (unsigned)g_hopLen, hops.c_str());
 }
 
 static void pcapSetChannel(uint8_t ch) {
