@@ -10,6 +10,8 @@
 #include <NimBLEDevice.h>
 #include <NimBLEScan.h>
 #include <NimBLEAdvertisedDevice.h>
+
+extern NimBLEScan *pBLEScan;
 #include <TinyGPSPlus.h>
 #include <esp_timer.h>
 
@@ -1986,10 +1988,9 @@ void calibrationTask(void *parameter) {
     std::vector<int8_t> bleSamples;
     
     // Initialize BLE if not already done
-    NimBLEScan* pScan = NimBLEDevice::getScan();
-    if (!pScan) {
-        NimBLEDevice::init("");
-        pScan = NimBLEDevice::getScan();
+    if (!pBLEScan) initBLEOnce();
+    NimBLEScan* pScan = pBLEScan;
+    if (pScan) {
         pScan->setActiveScan(true);
         pScan->setInterval(100);
         pScan->setWindow(99);
@@ -2022,7 +2023,7 @@ void calibrationTask(void *parameter) {
         }
         
         // BLE scan every 3 seconds
-        if (millis() - lastBLEScan >= 3000) {
+        if (pScan && millis() - lastBLEScan >= 3000) {
             pScan->start(1, false);
             NimBLEScanResults results = pScan->getResults();
             

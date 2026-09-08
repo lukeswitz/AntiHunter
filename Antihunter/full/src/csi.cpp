@@ -38,7 +38,6 @@ static const uint32_t CSI_LINK_STALE_MS = 20000;
 static const uint32_t CSI_SURVEY_DWELL_MS = 2500;
 static const uint32_t CSI_BLIND_REHOP_MS = 180000;
 static const uint32_t CSI_REHOP_COOLDOWN_MS = 600000;
-static const uint32_t CSI_REHOP_DWELL_MS = 150;
 static const uint32_t CSI_SOLICIT_FLOOR = 15;
 static const uint32_t CSI_CAL_MS = 180000;
 static const float CSI_CAL_MARGIN = 1.50f;
@@ -416,53 +415,6 @@ static uint8_t csiSurveyPickChannel(uint32_t dwellMs) {
     return bestStrongCh;
 }
 
-static bool csiChannelAllowed(uint8_t ch) {
-    if (ch < 1 || ch > 14) return false;
-    if (CHANNELS.empty()) return true;
-    for (uint8_t c : CHANNELS) {
-        if (c == ch) return true;
-    }
-    return false;
-}
-
-static uint8_t csiRehopPickChannel() {
-    wifi_scan_config_t sc = {};
-    sc.show_hidden = true;
-    sc.scan_type = WIFI_SCAN_TYPE_PASSIVE;
-    sc.scan_time.passive = CSI_REHOP_DWELL_MS;
-    sc.home_chan_dwell_time = 30;
-
-    g_surveyMode.store(true);
-    const esp_err_t r = esp_wifi_scan_start(&sc, true);
-    g_surveyMode.store(false);
-    if (r != ESP_OK) {
-        Serial.printf("[CSI] rehop scan failed: %s\n", esp_err_to_name(r));
-        return 0;
-    }
-
-    wifi_ap_record_t rec;
-    uint8_t bestCh = 0;
-    int bestRssi = -127;
-    uint16_t seen = 0;
-    while (esp_wifi_scan_get_ap_record(&rec) == ESP_OK) {
-        seen++;
-        if (!csiChannelAllowed(rec.primary)) continue;
-        if (rec.rssi > bestRssi) {
-            bestRssi = rec.rssi;
-            bestCh = rec.primary;
-        }
-    }
-    esp_wifi_clear_ap_list();
-
-    if (bestCh == 0 || bestRssi < CSI_SURVEY_MIN_RSSI) {
-        Serial.printf("[CSI] rehop: %u APs seen, none stronger than %ddBm - staying on ch%u\n",
-                      seen, (int)CSI_SURVEY_MIN_RSSI, g_csiActiveChannel);
-        return 0;
-    }
-    Serial.printf("[CSI] rehop: best ch%u at %ddBm (%u APs seen)\n", bestCh, bestRssi, seen);
-    return bestCh;
-}
-
 static const uint8_t kCsiProbeHdr[24] = {
     0x40, 0x00, 0x00, 0x00,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -703,8 +655,6 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
         if (l.sc.sigVar >= CSI_SIG_ETA) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
@@ -1557,6 +1507,8 @@ void csiMotionTask(void *pv) {
 
     Serial.printf("[CSI] Stopped: %u records, %u motion events\n",
                   g_csiSeen.load(), g_csiMotionEvents.load());
+
+    finalResults = String();
 
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);

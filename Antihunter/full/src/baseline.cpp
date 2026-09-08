@@ -523,10 +523,7 @@ void baselineDetectionTask(void *pv) {
     currentScanMode = savedBaselineMode;
     vTaskDelay(pdMS_TO_TICKS(200));
 
-    if (!pBLEScan) {
-        BLEDevice::init("");
-        pBLEScan = BLEDevice::getScan();
-    }
+    if (!pBLEScan) initBLEOnce();
     
     if (pBLEScan && !pBLEScan->isScanning()) {
         pBLEScan->setActiveScan(true);
@@ -963,6 +960,8 @@ void baselineDetectionTask(void *pv) {
 
     sdLookupCache.clear();
     sdLookupLRU.clear();
+    transmittedDevices.clear();
+    transmittedAnomalies.clear();
 
     scanning = false;
     baselineDetectionEnabled = false;

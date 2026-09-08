@@ -110,6 +110,7 @@ static inline bool csiAmplitudesLen(const int8_t *buf, uint16_t len, bool firstW
     return true;
 }
 #else
+// cppcheck-suppress unusedFunction // exercised by scripts/test_csi_metric.cpp, outside the lint scope
 static inline bool csiAmplitudes(const int8_t *buf, float *out) {
     float sum = 0.0f;
     for (int k = 0; k < CSI_NSUB; k++) {
