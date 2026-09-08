@@ -104,7 +104,7 @@ int main() {
 
     CsiScorer z;
     z.reset();
-    int8_t zero[128] = {0};
+    const int8_t zero[128] = {0};
     float a[CSI_NSUB];
     assert(!csiAmplitudes(zero, a));
     printf("zero:   rejected\n");
