@@ -650,6 +650,7 @@ static void handlePcapStart(const String &command)
   uint8_t band = PCAP_BAND_24;
   int secs = 300;
   bool forever = false;
+  String channels;
 
   int field = 0;
   int start = 0;
@@ -659,6 +660,8 @@ static void handlePcapStart(const String &command)
     tok.trim();
     if (tok == "FOREVER") {
       forever = true;
+    } else if (tok.startsWith("CH")) {
+      channels = tok.substring(2);
     } else if (tok.length()) {
       int v = tok.toInt();
       if (field == 0) radio = (v == PCAP_RADIO_BLE) ? PCAP_RADIO_BLE : PCAP_RADIO_WIFI;
@@ -685,7 +688,7 @@ static void handlePcapStart(const String &command)
     return;
   }
 
-  setPcapConfig(radio, band, String(""), 250, false);
+  setPcapConfig(radio, band, channels, 250, false);
   stopRequested = false;
   scanning = true;
   if (ahCreateTask(pcapCaptureTask, "pcap", 8192,
@@ -2949,7 +2952,7 @@ void processMeshMessage(const String &message) {
           String command = payload.substring(spaceIndex + 1);
           processCommand(command, targetId);
       }
-    } else {
+    } else if (!meshIsNodeIdToken(sendingNode)) {
         processCommand(payload, "");
     }
 }
