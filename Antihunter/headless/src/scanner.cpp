@@ -1636,6 +1636,11 @@ void snifferScanTask(void *pv)
         }
     }
 
+    transmittedDevices.clear();
+    meshBatchMacs.clear();
+    meshBatchMacs.shrink_to_fit();
+    meshBatch = String();
+
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
 }
@@ -2064,9 +2069,14 @@ void blueTeamTask(void *pv) {
     }
 
     Serial.println("[BLUE] Deauth detection stopped cleanly");
-    
+
     radioStopSTA();
     vTaskDelay(pdMS_TO_TICKS(200));
+
+    floodWin.clear();
+    floodAlerted.clear();
+    transmittedAttacks.clear();
+    targetHistory.clear();
 
     blueTeamTaskHandle = nullptr;
     vTaskDelete(nullptr);
@@ -2416,13 +2426,20 @@ void IRAM_ATTR sniffer_cb(const void *buf, wifi_promiscuous_pkt_type_t type)
 
 static volatile bool bleInitDone = false;
 static volatile bool bleInitFailed = false;
+static std::atomic<bool> bleInitStarted{false};
 
 static void bleInitTask(void *pv) {
     Serial.printf("[BLE_INIT] core=%d heap=%u largest=%u\n",
                   xPortGetCoreID(),
                   (unsigned)ESP.getFreeHeap(),
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-    BLEDevice::init("");
+    if (!BLEDevice::init("")) {
+        Serial.println("[BLE_INIT] BLEDevice::init failed (controller alloc) - BLE unavailable");
+        bleInitFailed = true;
+        bleInitDone = true;
+        vTaskDelete(NULL);
+        return;
+    }
     pBLEScan = BLEDevice::getScan();
     if (!pBLEScan) {
         Serial.println("[BLE_INIT] getScan() returned NULL");
@@ -2442,9 +2459,24 @@ static void bleInitTask(void *pv) {
     vTaskDelete(NULL);
 }
 
+void radioReleaseBLE() {
+    if (!bleInitDone && !bleInitStarted.load()) return;
+    if (pBLEScan) {
+        if (pBLEScan->isScanning()) pBLEScan->stop();
+        pBLEScan->clearResults();
+        pBLEScan = nullptr;
+    }
+    BLEDevice::deinit(true);
+    bleInitDone = false;
+    bleInitFailed = false;
+    bleInitStarted.store(false);
+    Serial.printf("[BLE_INIT] released, internal=%u largest=%u\n",
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+}
+
 void initBLEOnce() {
     if (bleInitDone) return;
-    static std::atomic<bool> bleInitStarted{false};
     if (!bleInitStarted.exchange(true)) {
         TaskHandle_t h = nullptr;
         BaseType_t r = xTaskCreatePinnedToCore(

@@ -51,8 +51,6 @@ private:
     static uint32_t lastCheckTime;
     static bool lastCheckResult;
     static const uint32_t CHECK_INTERVAL_MS = 1000;
-    static const uint32_t SD_OPEN_HEAP_FLOOR = 12288;
-    static const uint32_t SD_OPEN_BLOCK_FLOOR = 4096;
     static const uint32_t MOUNT_LOG_INTERVAL_MS = 60000;
     static uint32_t sdMountFailures;
     static uint32_t sdWriteRetries;
@@ -61,7 +59,6 @@ private:
 
 public:
     static bool isAvailable();
-    static bool hasHeapForOpen();
     static fs::File open(const char* path, const char* mode = FILE_READ);
     static bool exists(const char* path);
     static bool remove(const char* path);

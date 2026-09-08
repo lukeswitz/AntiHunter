@@ -314,6 +314,14 @@ void loop() {
         sentinel_resumeAfterScan();
     }
     s_scanWasBusy = scanBusyNow;
+
+    static bool s_bleUserWasBusy = false;
+    bool bleUserNow = scanning.load() || workerTaskHandle || triangulationActive.load();
+    if (s_bleUserWasBusy && !bleUserNow) {
+        radioReleaseBLE();
+    }
+    s_bleUserWasBusy = bleUserNow;
+
     attack_responsePump();
 
     if (millis() - lastSaveSend > 600000 && !triangulationActive) {
