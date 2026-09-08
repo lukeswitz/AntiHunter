@@ -414,11 +414,9 @@ static void pcapSetChannel(uint8_t ch) {
 
 #ifdef ARDUINO_XIAO_ESP32C5
 static void pcapApplyRadioBand(uint8_t band) {
-    const wifi_band_mode_t bm = (band == PCAP_BAND_5)    ? WIFI_BAND_MODE_5G_ONLY
-                              : (band == PCAP_BAND_BOTH) ? WIFI_BAND_MODE_AUTO
-                                                         : WIFI_BAND_MODE_2G_ONLY;
-    const esp_err_t rc = esp_wifi_set_band_mode(bm);
-    Serial.printf("[PCAP] radio band mode %u: %s\n", (unsigned)bm, esp_err_to_name(rc));
+    (void)band;
+    const esp_err_t rc = esp_wifi_set_band_mode(WIFI_BAND_MODE_AUTO);
+    Serial.printf("[PCAP] radio band mode AUTO: %s\n", esp_err_to_name(rc));
 }
 #endif
 
