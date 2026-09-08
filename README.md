@@ -50,6 +50,10 @@ Vibration based scans and self-destruct option. Defensive by design. Knows the d
 - Vibration & attack triggered actions for set and forget operation
 - Add nodes to cover more ground; they share detections over the mesh and can report to [Command Center](https://github.com/TheRealSirHaXalot/AntiHunter-Command-Control-PRO)
 
+<p align="center">
+  <img width="430" alt="AntiHunter node" src="docs/img/ah-hero.png" />
+</p>
+
 ---
 
 ## Table of Contents
@@ -510,7 +514,7 @@ Everything that configures the node lives on one page, in cards.
 Buy a node from the [store](https://lectronz.com/stores/antihunter) - bare PCB, soldered core, parts kit or assembled ([what each tier ships](#deployment-steps-by-tier)) - or build your own from the parts below.
 
 <p align="center">
-  <img width="560" alt="AntiHunter node" src="docs/img/hardware-node.jpg" />
+  <img width="760" alt="AntiHunter node" src="docs/img/hardware-node.jpg" />
 </p>
 
 > [!IMPORTANT]
