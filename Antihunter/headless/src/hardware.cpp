@@ -1335,10 +1335,7 @@ void logToSD(const String &data) {
         SafeSD::mkdir("/");
     }
 
-    if (!logFile || totalWrites % 50 == 0) {
-        if (logFile) {
-            logFile.close();
-        }
+    if (!logFile) {
         logFile = SafeSD::open("/antihunter.log", FILE_APPEND);
         if (!logFile) {
             logFile = SafeSD::open("/antihunter.log", FILE_WRITE);
@@ -1348,14 +1345,23 @@ void logToSD(const String &data) {
             }
         }
     }
-    
+
     // Use RTC time if available, otherwise fall back to millis
     String timestamp = getFormattedTimestamp();
-    
-    SdWriter logFile_w(logFile);
-    logFile_w.printf("[%s] %s\n", timestamp.c_str(), data.c_str());
-    
-    // Batch flush every 10 writes 
+
+    String line = "[" + timestamp + "] " + data + "\n";
+    const uint8_t *lineBytes = reinterpret_cast<const uint8_t *>(line.c_str());
+    if (SafeSD::write(logFile, lineBytes, line.length()) != line.length()) {
+        logFile.close();
+        logFile = SafeSD::open("/antihunter.log", FILE_APPEND);
+        if (!logFile) {
+            Serial.println("[SD] Failed to open log file");
+            return;
+        }
+        SafeSD::write(logFile, lineBytes, line.length());
+    }
+
+    // Batch flush every 10 writes
     if (++totalWrites % 10 == 0) {
         logFile.flush();
     }
