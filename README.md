@@ -441,6 +441,26 @@ Path loss model: `distance = 10^((RSSI0 - RSSI) / (10 * n))`
 
 ---
 
+### The System tab
+
+Everything that configures the node lives on one page, in cards.
+
+| Card | What it holds |
+|---|---|
+| **System Diagnostics** | Three subtabs, all fed from `GET /diag`. **Overview** - uptime, WiFi and BLE frame counts, target hits, unique devices, CPU temperature. **Hardware** - last reset and previous uptime, results restored, free and minimum-free internal heap, scan stack headroom, SD card, GPS, RTC and vibration sensor. **Network** - AP address, mesh state, WiFi channels |
+| **Fleet** | Live roster of nodes and radios with mode, uptime, temperature, hits and GPS. Ping the fleet or clear the list |
+| **RF Settings** | Global RSSI filter, RF environment preset (Relaxed, Balanced, Aggressive, Custom), WiFi channel dwell and scan interval, BLE scan duration and interval, and the channel list |
+| **WiFi Access Point** | The node's own SSID and password, hidden-beacon toggle, and WPA2 or WPA2/WPA3 |
+| **Node Configuration** | Node id and the mesh identity other nodes address |
+| **Sensor Alerts** | Vibration sensing and what it triggers |
+| **Secure Data Destruction** | Erase PSK, setup and erase delays, vibration count and window |
+| **Factory Wipe** | Clears settings and stored data back to defaults |
+| **Battery Saver Mode** | Drops the CPU to 80 MHz, enables light sleep, polls GPS once a minute, mesh heartbeat only |
+| **Accent Colors** | Recolors the destructive controls and Sentinel banners. Stored in the browser |
+| **Data Explorer** | Review findings, device logs and scan data |
+
+---
+
 ### Before you deploy
 
 **Change the defaults.** The AP ships as `Antihunter` / `antihunt3r123` - published, so treat an unchanged node as open. Set your own SSID and password in RF Settings on first boot. Set the erase PSK too if you plan to use [Secure Data Destruction](#secure-data-destruction).
