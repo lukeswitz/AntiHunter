@@ -583,8 +583,6 @@ static void csiProcess(const CsiEvent &ev) {
         const uint32_t dt = (l.lastTickMs && now > l.lastTickMs) ? (now - l.lastTickMs) : 0;
         l.lastTickMs = now;
 
-        const uint32_t thrMilli = csiThresholdMilli.load();
-        const float eta = thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
         if (l.sc.sigVar >= CSI_SIG_ETA) {
             l.lastAboveMs = now;
             if (l.consec < 255) l.consec++;
@@ -1385,6 +1383,8 @@ void csiMotionTask(void *pv) {
 
     Serial.printf("[CSI] Stopped: %u records, %u motion events\n",
                   g_csiSeen.load(), g_csiMotionEvents.load());
+
+    finalResults = String();
 
     workerTaskHandle = nullptr;
     vTaskDelete(nullptr);
