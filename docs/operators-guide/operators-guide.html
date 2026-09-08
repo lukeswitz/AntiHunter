@@ -780,7 +780,7 @@ python3 scripts/meshtastic_config.py</pre>
   <p>The environment argument sets the path-loss model: 0 open sky, 1 suburban, 2 indoor, 3 dense indoor, 4 industrial. Choosing the wrong one is the usual cause of a distance estimate that looks wrong. Results arrive as <span class="mono">T_D:</span> per-node data, <span class="mono">T_F:</span> the final fix with confidence and uncertainty, and <span class="mono">T_C:</span> complete, with a map link.</p>
 
   <h3>9.10 Packet Capture</h3>
-  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a full radiotap header with channel, rate and RSSI; BLE advertisements are written as link-layer PDUs, so Wireshark dissects them properly.</p>
+  <p>Records raw traffic to SD as a standard pcap. WiFi frames carry a radiotap header with channel, rate and RSSI. BLE captures are written as Bluetooth HCI, link type 187: the controller's own events, unmodified, so Wireshark shows LE Advertising Reports with address, address type, advertising data and RSSI. HCI carries no RF channel, so the capture does not report one.</p>
   <p>Scan tab, pick <b>Packet Capture</b>, set radio and duration, press Start Capture. Files land in <span class="mono">/pcap</span> and list under the button, each with a download and a delete.</p>
   <pre>@ALL PCAP_START:0:300:0
 @ALL PCAP_STOP</pre>
