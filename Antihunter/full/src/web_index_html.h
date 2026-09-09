@@ -370,6 +370,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
           lime:{light:['#5a7a08','#5f7a24'],dark:['#b9e83c','#a2c95a'],cyber:['#d9ff2e','#e6ff70']}
         },
         sent:{
+          default:['#e08a44','#c9903f'],
+          violet:['#8b5cf6','#a855f7'],
           teal:['#2dd4bf','#14b8a6'],
           copper:['#e08a44','#c9903f'],
           steel:['#94a3b8','#7a8aa3'],
@@ -1337,9 +1339,10 @@ R"HTML(
 
           <div style="margin-bottom:16px;">
             <label style="font-size:11px;font-weight:bold;margin-bottom:4px;display:block;">Sentinel Banners</label>
-            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header and the active-alert strip. Default is violet.</label>
+            <label style="font-size:10px;color:var(--mut);margin-bottom:6px;display:block;">Sentinel tab header and the active-alert strip. Default is copper.</label>
             <select id="sentSchemeSel" onchange="ahSetScheme('sentScheme',this.value)">
-              <option value="default">Default</option>
+              <option value="default">Default (copper)</option>
+              <option value="violet">Violet</option>
               <option value="teal">Teal</option>
               <option value="copper">Copper</option>
               <option value="steel">Steel</option>
