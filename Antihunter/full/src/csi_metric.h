@@ -29,6 +29,9 @@ static const uint32_t CSI_ACF_LAG_MAX_US = 115000;
 static const float CSI_F_EFF = 46.0f;
 static const float CSI_ACF_ETA = 0.10f;
 static const float CSI_SIG_ETA = 0.050f;
+static const float CSI_CAL_SIG_MARGIN = 8.0f;
+static const float CSI_CAL_SIG_MIN = 0.02f;
+static const float CSI_CAL_SIG_MAX = 0.60f;
 static const float CSI_ACF_ETA_SUB = 0.10f;
 static const float CSI_ACF_MIN_VAR = 1e-6f;
 static const uint8_t CSI_ACF_HIST = 120;
@@ -42,6 +45,7 @@ static const float CSI_VOTE_FRAC = 0.50f;
 static const float CSI_FLOOR_MIN = 0.0004f;
 static const uint16_t CSI_WARMUP_PKTS = 40;
 static const uint16_t CSI_FLOOR_SETTLE_PKTS = 450;
+static const uint16_t CSI_ACF_SETTLE_PAIRS = 450;
 static const float CSI_SPREAD_ALPHA = 0.02f;
 static const float CSI_LINK_MIN_SPREAD = 0.03f;
 static const uint32_t CSI_LINK_MIN_PKTS = 60;
@@ -101,7 +105,7 @@ struct CsiScorer {
     uint8_t prevValid;
     uint32_t lagAccum;
 
-    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_FLOOR_SETTLE_PKTS; }
+    bool settled() const { return scored >= CSI_FLOOR_SETTLE_PKTS && acfPairs >= CSI_ACF_SETTLE_PAIRS; }
     float spread() const { return scoreVar > 0.0f ? sqrtf(scoreVar) : 0.0f; }
 
     void reset() {
