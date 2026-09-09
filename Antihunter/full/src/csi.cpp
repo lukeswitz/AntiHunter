@@ -507,10 +507,6 @@ static bool csiLinkUsable(const CsiLink &l) {
     return l.rssi >= CSI_LINK_MIN_RSSI;
 }
 
-static float csiEta(uint32_t thrMilli) {
-    return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_ACF_ETA;
-}
-
 static float csiSigEta(uint32_t thrMilli) {
     return thrMilli ? ((float)thrMilli / 1000.0f) : CSI_SIG_ETA;
 }
@@ -958,7 +954,9 @@ String getCsiJson() {
 
 void csiClearCalibration() {
     prefs.putBool("csiCalDone", false);
-    Serial.println("[CSI] Saved baseline cleared - next start will re-learn the trigger");
+    csiThresholdMilli.store(0);
+    prefs.putUInt("csiThr3", 0);
+    Serial.println("[CSI] Learned trigger cleared - back to the compiled default");
 }
 
 void setCsiConfig(uint8_t channel, float threshold, uint32_t holdMs, uint32_t consec,
