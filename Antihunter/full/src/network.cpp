@@ -1417,9 +1417,8 @@ void registerRemainingRoutes() {
             }
             setCsiConfig(csiCh, csiThr, csiHold, csiCons,
                          req->hasParam("csiRaw", true),
-                         req->hasParam("csiTelem", true),
-                         req->hasParam("csiAuto", true));
-            if (req->hasParam("csiAuto", true) || req->hasParam("csiRecal", true)) csiClearCalibration();
+                         req->hasParam("csiTelem", true));
+            if (req->hasParam("csiRecal", true)) csiClearCalibration();
 
             stopRequested = false;
 
